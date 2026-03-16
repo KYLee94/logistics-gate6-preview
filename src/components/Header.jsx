@@ -138,15 +138,18 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
     React.useEffect(() => {
         if (mobileMenuOpen || modalType) {
             document.body.style.overflow = 'hidden';
+            document.documentElement.style.overflow = 'hidden';
             // Also prevent touchmove on iOS Safari
             document.body.style.touchAction = 'none';
         } else {
             document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
             document.body.style.touchAction = '';
         }
 
         return () => {
             document.body.style.overflow = '';
+            document.documentElement.style.overflow = '';
             document.body.style.touchAction = '';
         };
     }, [mobileMenuOpen, modalType]);
@@ -480,8 +483,8 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
             </header>
 
             <div id="mobile-menu"
-                className={`fixed top-[74px] md:top-[90px] bottom-0 left-0 w-full bg-white shadow-lg flex-col pt-4 pb-8 space-y-4 z-40 transition-transform ${mobileMenuOpen ? 'flex' : 'hidden'} min-[1100px]:hidden`}>
-                <div className="w-full flex-col flex-1 overflow-y-auto px-6 py-2 hide-scrollbar flex items-start text-left">
+                className={`fixed top-[74px] md:top-[90px] bottom-0 left-0 w-full bg-white shadow-lg flex-col pt-4 pb-8 space-y-4 z-40 transition-transform overscroll-contain ${mobileMenuOpen ? 'flex' : 'hidden'} min-[1100px]:hidden`}>
+                <div className="w-full flex-col flex-1 overflow-y-auto overscroll-contain px-6 py-2 hide-scrollbar flex items-start text-left">
                     {currentMenuData.map((col, idx) => (
                         <div key={idx} className="w-full mb-6">
                             <h4 className="text-[18px] font-bold text-black mb-3 border-b border-gray-100 pb-2">{col.title}</h4>
@@ -548,21 +551,23 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                             </div>
                         </div>
                     ))}
-                </div>
-                <div className="w-full flex-col px-6 border-t border-gray-100 pt-6 mb-4 flex items-start text-left gap-3 shrink-0">
-                    <button onClick={() => { setModalType('disclaimer'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
-                        {lang === 'kr' ? "면책공고" : "Disclaimer"}
-                    </button>
-                    <button onClick={() => { setModalType('privacy'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
-                        {lang === 'kr' ? "개인정보 처리방침" : "Privacy Policy"}
-                    </button>
-                    <button onClick={() => { setModalType('terms'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
-                        {lang === 'kr' ? "이용약관" : "Terms of Service"}
-                    </button>
-                </div>
-                <div className="flex space-x-8 pt-6 border-t border-gray-200 justify-center w-full shrink-0">
-                    <button className="text-[20px] font-bold text-gray-800 hover:text-gray-500" onClick={() => switchLang('en')}>EN</button>
-                    <button className="text-[20px] font-bold text-gray-800 hover:text-gray-500" onClick={() => switchLang('kr')}><span className="relative top-[1px]">KR</span></button>
+
+                    <div className="w-full flex flex-col border-t border-gray-100 pt-6 mt-2 mb-4 items-start text-left gap-3">
+                        <button onClick={() => { setModalType('disclaimer'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
+                            {lang === 'kr' ? "면책공고" : "Disclaimer"}
+                        </button>
+                        <button onClick={() => { setModalType('privacy'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
+                            {lang === 'kr' ? "개인정보 처리방침" : "Privacy Policy"}
+                        </button>
+                        <button onClick={() => { setModalType('terms'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
+                            {lang === 'kr' ? "이용약관" : "Terms of Service"}
+                        </button>
+                    </div>
+                    <div className="flex space-x-8 pt-6 border-t border-gray-200 justify-start w-full mb-8">
+                        <button className="text-[20px] font-bold text-gray-800 hover:text-gray-500" onClick={() => switchLang('en')}>EN</button>
+                        <button className="text-[20px] font-bold text-gray-800 hover:text-gray-500" onClick={() => switchLang('kr')}><span className="relative top-[1px]">KR</span></button>
+                    </div>
+
                 </div>
             </div>
 
