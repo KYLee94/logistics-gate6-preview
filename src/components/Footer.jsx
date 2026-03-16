@@ -143,7 +143,7 @@ The interpretation of these terms and any disputes between the Company and users
                 <div className={`text-[12px] md:text-[13px] ${disclaimerColor} flex items-center justify-center flex-wrap gap-2 md:gap-3 my-1`}>
                     <button
                         onClick={() => setModalType('terms')}
-                        className="hover:text-current hover:opacity-80 transition-colors font-normal cursor-pointer text-[#888]"
+                        className="hover:text-current hover:opacity-80 transition-colors font-bold cursor-pointer text-[#888]"
                     >
                         {lang === 'kr' ? "이용약관" : "Terms of Service"}
                     </button>
@@ -157,7 +157,7 @@ The interpretation of these terms and any disputes between the Company and users
                     <span className="opacity-40">|</span>
                     <button
                         onClick={() => setModalType('disclaimer')}
-                        className="hover:text-current hover:opacity-80 transition-colors font-normal cursor-pointer text-[#888]"
+                        className="hover:text-current hover:opacity-80 transition-colors font-bold cursor-pointer text-[#888]"
                     >
                         {lang === 'kr' ? "면책공고" : "Disclaimer"}
                     </button>
