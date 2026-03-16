@@ -135,12 +135,12 @@ The interpretation of these terms and any disputes between the Company and users
 
 
     return (
-        <div className={\`w-full \${bgColor} pt-8 md:pt-12 pb-8 md:pb-12 flex flex-col items-center \${className}\`}>
-            <footer className={\`w-full text-center \${textColor} text-[12px] md:text-[14px] font-inter font-light tracking-[-0.02em] px-4 leading-[1.6] flex flex-col gap-2\`}>
-                <span className={\`block font-bold \${brandColor} tracking-[-0.02em] text-[13px] md:text-[15px]\`}>IOTA SEOUL</span>
+        <div className={`w-full ${bgColor} pt-8 md:pt-12 pb-8 md:pb-12 flex flex-col items-center ${className}`}>
+            <footer className={`w-full text-center ${textColor} text-[12px] md:text-[14px] font-inter font-light tracking-[-0.02em] px-4 leading-[1.6] flex flex-col gap-2`}>
+                <span className={`block font-bold ${brandColor} tracking-[-0.02em] text-[13px] md:text-[15px]`}>IOTA SEOUL</span>
 
                 {/* Legal Links */}
-                <div className={\`text-[12px] md:text-[13px] \${disclaimerColor} flex items-center justify-center flex-wrap gap-2 md:gap-3 my-1\`}>
+                <div className={`text-[12px] md:text-[13px] ${disclaimerColor} flex items-center justify-center flex-wrap gap-2 md:gap-3 my-1`}>
                     <button
                         onClick={() => setModalType('terms')}
                         className="hover:text-current hover:opacity-80 transition-colors font-normal cursor-pointer text-[#888]"
@@ -162,21 +162,21 @@ The interpretation of these terms and any disputes between the Company and users
                         {lang === 'kr' ? "면책공고" : "Disclaimer"}
                     </button>
                 </div>
-                
+
                 {/* Disclaimer Text */}
-                <span className={\`block text-[12px] md:text-[13px] \${disclaimerColor} break-keep\`}>
+                <span className={`block text-[12px] md:text-[13px] ${disclaimerColor} break-keep`}>
                     {lang === 'kr'
                         ? "본 디지털 비전북에 포함된 모든 이미지, 설계 제원 및 프로젝트 상세 계획은 이해를 돕기 위해 제작된 것으로 실제와 다를 수 있습니다."
                         : "All images, design specifications, and detailed project plans included in this digital vision book are intended for illustrative purposes only and may differ from the actual implementation."}
                 </span>
 
-                <span className={\`block \${copyrightColor} text-[11px] md:text-[13px]\`}>© 2026 IOTA SEOUL & IGIS Asset Management. All rights reserved.</span>
+                <span className={`block ${copyrightColor} text-[11px] md:text-[13px]`}>© 2026 IOTA SEOUL & IGIS Asset Management. All rights reserved.</span>
             </footer>
 
             {/* Modal */}
             {modalType && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className={\`w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-xl p-6 md:p-8 \${modalBgColor} shadow-2xl relative text-left\`}>
+                    <div className={`w-full max-w-2xl max-h-[80vh] overflow-y-auto rounded-xl p-6 md:p-8 ${modalBgColor} shadow-2xl relative text-left`}>
                         <button
                             onClick={() => setModalType(null)}
                             className="absolute top-4 right-4 p-2 opacity-60 hover:opacity-100 transition-opacity"
@@ -263,8 +263,8 @@ The interpretation of these terms and any disputes between the Company and users
 
                         {(modalType === 'privacy' || modalType === 'terms') && (
                             <div className="font-sans text-[13px] md:text-[14px] leading-relaxed font-light whitespace-pre-line break-keep">
-                                {lang === 'kr' 
-                                    ? (modalType === 'privacy' ? privacyTextKr : termsTextKr) 
+                                {lang === 'kr'
+                                    ? (modalType === 'privacy' ? privacyTextKr : termsTextKr)
                                     : (modalType === 'privacy' ? privacyTextEn : termsTextEn)}
                             </div>
                         )}
@@ -272,7 +272,7 @@ The interpretation of these terms and any disputes between the Company and users
                         <div className="mt-8 pt-6 border-t border-gray-200/20 text-center">
                             <button
                                 onClick={() => setModalType(null)}
-                                className={\`px-8 py-2.5 rounded-full font-medium transition-colors \${isLight ? 'bg-black text-white hover:bg-black/80' : 'bg-white text-black hover:bg-white/80'}\`}
+                                className={`px-8 py-2.5 rounded-full font-medium transition-colors ${isLight ? 'bg-black text-white hover:bg-black/80' : 'bg-white text-black hover:bg-white/80'}`}
                             >
                                 {lang === 'kr' ? "확인" : "Confirm"}
                             </button>
