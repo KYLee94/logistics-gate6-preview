@@ -532,7 +532,18 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                         </div>
                     ))}
                 </div>
-                <div className="flex space-x-8 pt-6 border-t border-gray-200 justify-center">
+                <div className="w-full flex-col px-6 border-t border-gray-100 pt-6 mb-4 flex items-start text-left gap-3 shrink-0">
+                    <button onClick={() => { setModalType('disclaimer'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
+                        {lang === 'kr' ? "면책공고" : "Disclaimer"}
+                    </button>
+                    <button onClick={() => { setModalType('privacy'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
+                        {lang === 'kr' ? "개인정보 처리방침" : "Privacy Policy"}
+                    </button>
+                    <button onClick={() => { setModalType('terms'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
+                        {lang === 'kr' ? "이용약관" : "Terms of Service"}
+                    </button>
+                </div>
+                <div className="flex space-x-8 pt-6 border-t border-gray-200 justify-center w-full shrink-0">
                     <button className="text-[20px] font-bold text-gray-800 hover:text-gray-500" onClick={() => switchLang('en')}>EN</button>
                     <button className="text-[20px] font-bold text-gray-800 hover:text-gray-500" onClick={() => switchLang('kr')}><span className="relative top-[1px]">KR</span></button>
                 </div>
