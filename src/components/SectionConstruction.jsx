@@ -129,35 +129,7 @@ export default function SectionConstruction() {
                 </div>
             </div>
 
-            {/* Reference Images Gallery */}
-            <div className="w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1600px] mx-auto mt-10 md:mt-20 mb-[200px] bs-fade-up">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-[4px] w-full">
 
-                    {/* Image 1 - Left (Using its natural aspect ratio so it doesn't crop its width) */}
-                    <div className="w-full relative group overflow-hidden md:aspect-[2200/2630]">
-                        <img src="./img/construct_reference01.jpg" width="2200" height="2630" alt="Construction Reference 1" className="w-full h-auto md:absolute md:inset-0 md:h-full object-cover object-top block transform transition-transform duration-[1.5s] group-hover:scale-105" />
-                    </div>
-
-                    {/* Images 2, 3, 4 - Right Column */}
-                    <div className="w-full flex flex-col gap-[4px]">
-
-                        {/* Image 2 - Right Top */}
-                        <div className="w-full group overflow-hidden relative flex-1 min-h-[250px] md:min-h-0">
-                            <img src="./img/construct_reference02.jpg" width="2070" height="1702" alt="Construction Reference 2" className="absolute inset-0 w-full h-full object-cover object-top block transform transition-transform duration-[1.5s] group-hover:scale-105" />
-                        </div>
-
-                        {/* Images 3 & 4 - Right Bottom Split */}
-                        <div className="w-full flex flex-row gap-[4px] flex-1 min-h-[250px] md:min-h-0">
-                            <div className="w-1/2 group overflow-hidden relative">
-                                <img src="./img/construct_reference03.jpg" width="1058" height="1292" alt="Construction Reference 3" className="absolute inset-0 w-full h-full object-cover object-top block transform transition-transform duration-[1.5s] group-hover:scale-105" />
-                            </div>
-                            <div className="w-1/2 group overflow-hidden relative">
-                                <img src="./img/construct_reference04.jpg" width="992" height="1292" alt="Construction Reference 4" className="absolute inset-0 w-full h-full object-cover object-top block transform transition-transform duration-[1.5s] group-hover:scale-105" />
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
         </section>
     );
