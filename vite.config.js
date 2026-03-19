@@ -9,4 +9,7 @@ export default defineConfig(({ command }) => ({
     react(),
     tailwindcss(),
   ],
+  server: {
+    port: 8080,
+  },
 }))
