@@ -597,7 +597,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">정보의 목적 및 성격</strong>
                                             본 디지털 비전북은 투자설명서, 상품설명서 또는 정식 IM(Information Memorandum) 자료가 아니며, 프로젝트에 대한 단순 참고용 정보 제공을 목적으로 합니다.<br />
-                                            본 자료는 이용자의 투자 의사결정을 위한 근거 자료로 작성된 것이 아니며, 어떠한 경우에도 투자 권유나 자문의 용도로 이용될 수 없습니다.
+                                            본 자료는 이용자의 투자 의사결정을 위한 근거 자료로 작성된 것이 아니며, 어떠한 경우에도 투자 권유, 투자자 모집 또는 투자 자문을 위한 것이 아니며 그러한 용도로 이용될 수 없습니다.
                                         </li>
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">정보의 정확성 및 완전성</strong>
@@ -616,7 +616,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                         </li>
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">기타 법적 고지</strong>
-                                            본 디지털 비전북 및 그에 포함된 정보는 회사의 내부 검토 과정을 거쳐 공식적으로 등록된 법적 문서가 아닙니다.<br />
+                                            본 디지털 비전북 및 그에 포함된 정보는 회사의 내부 검토 과정을 거쳐 공식적으로 등록된 법적 문서가 아니며, 자본시장과 금융투자업에 관한 법률에 따른 증권신고서, 투자설명서, 집합투자 관련 문서 등 법적 공시자료에 해당하지 않습니다.<br />
                                             본 자료는 금융투자회사의 영업 및 업무에 관한 규정에 따른 투자광고에 해당하지 않습니다.
                                         </li>
                                     </ol>

@@ -89,7 +89,7 @@ All data is encrypted via HTTPS(SSL).
 ② 회사는 필요한 경우 관련 법령을 위배하지 않는 범위 내에서 본 약관을 개정할 수 있으며, 개정된 약관은 서비스 내에 공지함으로써 효력이 발생합니다.
 
 3. 서비스의 제공 및 변경
-① 회사는 이용자에게 프로젝트의 정보 제공, 파트너십 문의 및 임대차 문의 등의 서비스를 제공합니다.
+① 회사가 이용자에게 제공하는 서비스는 프로젝트의 정보 제공 등을 포함합니다.
 ② 회사는 운영상, 기술상의 필요에 따라 제공하고 있는 서비스의 전부 또는 일부를 변경하거나 중단할 수 있습니다.
 
 4. 이용자의 의무
@@ -116,7 +116,7 @@ These terms and conditions aim to stipulate the rights, obligations, and respons
 ② The Company may amend these terms within the scope not violating relevant laws if necessary, and the amended terms will take effect when announced within the Service.
 
 3. Provision and Modification of Service
-① The Company provides users with services such as project information, partnership inquiries, and lease inquiries.
+① The Company provides users with services such as project information.
 ② The Company may change or suspend all or part of the Service provided according to operational or technical needs.
 
 4. Obligations of Users
@@ -214,7 +214,7 @@ The interpretation of these terms and any disputes between the Company and users
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">정보의 목적 및 성격</strong>
                                             본 디지털 비전북은 투자설명서, 상품설명서 또는 정식 IM(Information Memorandum) 자료가 아니며, 프로젝트에 대한 단순 참고용 정보 제공을 목적으로 합니다.<br />
-                                            본 자료는 이용자의 투자 의사결정을 위한 근거 자료로 작성된 것이 아니며, 어떠한 경우에도 투자 권유나 자문의 용도로 이용될 수 없습니다.
+                                            본 자료는 이용자의 투자 의사결정을 위한 근거 자료로 작성된 것이 아니며, 어떠한 경우에도 투자 권유, 투자자 모집 또는 투자 자문을 위한 것이 아니며 그러한 용도로 이용될 수 없습니다.
                                         </li>
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">정보의 정확성 및 완전성</strong>
@@ -233,7 +233,7 @@ The interpretation of these terms and any disputes between the Company and users
                                         </li>
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">기타 법적 고지</strong>
-                                            본 디지털 비전북 및 그에 포함된 정보는 회사의 내부 검토 과정을 거쳐 공식적으로 등록된 법적 문서가 아닙니다.<br />
+                                            본 디지털 비전북 및 그에 포함된 정보는 회사의 내부 검토 과정을 거쳐 공식적으로 등록된 법적 문서가 아니며, 자본시장과 금융투자업에 관한 법률에 따른 증권신고서, 투자설명서, 집합투자 관련 문서 등 법적 공시자료에 해당하지 않습니다.<br />
                                             본 자료는 금융투자회사의 영업 및 업무에 관한 규정에 따른 투자광고에 해당하지 않습니다.
                                         </li>
                                     </ol>

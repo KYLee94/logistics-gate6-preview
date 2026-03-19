@@ -74,7 +74,7 @@ export const termsTextKr = `[IOTA SEOUL] 이용약관
 ② 회사는 필요한 경우 관련 법령을 위배하지 않는 범위 내에서 본 약관을 개정할 수 있으며, 개정된 약관은 서비스 내에 공지함으로써 효력이 발생합니다.
 
 3. 서비스의 제공 및 변경
-① 회사는 이용자에게 프로젝트의 정보 제공, 파트너십 문의 및 임대차 문의 등의 서비스를 제공합니다.
+① 회사가 이용자에게 제공하는 서비스는 프로젝트의 정보 제공 등을 포함합니다.
 ② 회사는 운영상, 기술상의 필요에 따라 제공하고 있는 서비스의 전부 또는 일부를 변경하거나 중단할 수 있습니다.
 
 4. 이용자의 의무
@@ -101,7 +101,7 @@ These terms and conditions aim to stipulate the rights, obligations, and respons
 ② The Company may amend these terms within the scope not violating relevant laws if necessary, and the amended terms will take effect when announced within the Service.
 
 3. Provision and Modification of Service
-① The Company provides users with services such as project information, partnership inquiries, and lease inquiries.
+① The Company provides users with services such as project information.
 ② The Company may change or suspend all or part of the Service provided according to operational or technical needs.
 
 4. Obligations of Users
