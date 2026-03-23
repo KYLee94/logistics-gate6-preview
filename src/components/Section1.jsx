@@ -10,7 +10,7 @@ export default function Section1() {
             timeouts.push(
                 setTimeout(() => {
                     setExpandedIndices(prev => [...prev, idx]);
-                }, 2000 + idx * 800) // Start at 2000ms, each following 800ms later
+                }, 2000 + idx * 400) // Start at 2000ms, each following 400ms later
             );
         }
         return () => timeouts.forEach(clearTimeout);
@@ -42,7 +42,7 @@ export default function Section1() {
                             <div key={idx} className="flex items-baseline">
                                 <span>{item.i}</span>
                                 <div 
-                                    className={`overflow-hidden transition-all duration-[3000ms] ease-out flex ${isExpanded ? 'max-w-[400px] opacity-100' : 'max-w-0 opacity-0'}`}
+                                    className={`overflow-hidden transition-all duration-[1000ms] ease-out flex ${isExpanded ? 'max-w-[400px] opacity-100' : 'max-w-0 opacity-0'}`}
                                 >
                                     <span className="whitespace-pre">{item.text}</span>
                                 </div>
