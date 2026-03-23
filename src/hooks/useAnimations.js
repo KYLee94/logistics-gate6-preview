@@ -35,23 +35,7 @@ export function useAnimations(currentPage) {
                 lastScrollTop = st;
                 scrollHideThreshold = st + 150;
             } else {
-                if (st <= 50) {
-                    header.style.transform = "translateY(-100%)";
-                    header.style.transitionDuration = "200ms";
-                    scrollHideThreshold = st;
-                } else {
-                    if (st < lastScrollTop) {
-                        // Scrolling up: show immediately
-                        header.style.transform = "translateY(0)";
-                        header.style.transitionDuration = "500ms";
-                        // Need to scroll down 150px from current position to hide again
-                        scrollHideThreshold = st + 150;
-                    } else if (st > lastScrollTop && st > scrollHideThreshold) {
-                        // Scrolling down passed threshold: hide
-                        header.style.transform = "translateY(-100%)";
-                        header.style.transitionDuration = "200ms";
-                    }
-                }
+                header.style.transform = "translateY(0)";
                 lastScrollTop = st;
             }
 

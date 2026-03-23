@@ -6,7 +6,7 @@ export default function Section1() {
     useEffect(() => {
         const timer = setTimeout(() => {
             setExpanded(true);
-        }, 1000);
+        }, 2000);
         return () => clearTimeout(timer);
     }, []);
 
@@ -24,9 +24,9 @@ export default function Section1() {
                 <div 
                     className="flex text-white"
                     style={{ 
-                        fontFamily: "'Sanomat web light', 'Sanomat', sans-serif",
+                        fontFamily: "'Sanomat Web Regular', 'Sanomat', sans-serif",
                         fontSize: "clamp(1.5rem, 4vw, 3.5rem)",
-                        fontWeight: 300,
+                        fontWeight: 400,
                         letterSpacing: "0.05em"
                     }}
                 >
@@ -34,7 +34,7 @@ export default function Section1() {
                         <div key={idx} className="flex items-baseline">
                             <span>{item.i}</span>
                             <div 
-                                className={`overflow-hidden transition-all duration-[1200ms] ease-out flex ${expanded ? 'max-w-[400px] opacity-100' : 'max-w-0 opacity-0'}`}
+                                className={`overflow-hidden transition-all duration-[3000ms] ease-out flex ${expanded ? 'max-w-[400px] opacity-100' : 'max-w-0 opacity-0'}`}
                             >
                                 <span className="whitespace-pre">{item.text}</span>
                             </div>
