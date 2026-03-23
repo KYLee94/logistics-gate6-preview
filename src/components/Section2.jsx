@@ -48,7 +48,8 @@ export default function Section2({ isActive }) {
 
                 {/* 3. Bottom */}
                 <div className={`transition-all duration-500 ease-out ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
-                    내 PC에 들어와 모든걸 볼 수 있는 AI의 위력을
+                    내 PC에 들어와 모든걸 할 수 있는<br />
+                    AI의 위력을.
                 </div>
             </div>
         </section>
