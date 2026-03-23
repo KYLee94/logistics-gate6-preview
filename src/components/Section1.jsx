@@ -5,12 +5,15 @@ export default function Section1() {
         <section className="section min-h-screen bg-white flex flex-col items-center justify-center relative">
             <div className="logo-fade w-full flex justify-center pb-20">
                 <div 
-                    className="flex text-black text-center px-4"
+                    className="flex text-black text-center px-4 antialiased"
                     style={{ 
-                        fontFamily: "'Sanomat web light', 'Sanomat Web Regular', 'Sanomat', sans-serif",
-                        fontSize: "clamp(2rem, 5vw, 4rem)",
-                        fontWeight: 100, // Very light
-                        letterSpacing: "0.05em"
+                        fontFamily: "'Sanomat web light', 'Sanomat Web Light', 'Sanomat', serif",
+                        fontSize: "clamp(3.25rem, 7vw, 5.25rem)",
+                        fontWeight: 100, 
+                        letterSpacing: "-0.02em",
+                        WebkitFontSmoothing: "antialiased",
+                        MozOsxFontSmoothing: "grayscale",
+                        textRendering: "optimizeLegibility"
                     }}
                 >
                     IGIS Fund Production Data Platform
