@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import openclawImg from '../assets/openclaw.jpg';
 
 export default function Section2({ isActive }) {
     const [step, setStep] = useState(0);
@@ -30,7 +31,7 @@ export default function Section2({ isActive }) {
                 {/* 4. Top Image (openclaw.jpg) - 절대 위치 지정으로 텍스트의 세로 중앙 정렬을 방해하지 않게 분리 */}
                 <div className="absolute -top-[100px] left-0 w-full h-[100px] flex items-end z-0 mix-blend-multiply pointer-events-none">
                     <img 
-                        src="/img/openclaw.jpg" 
+                        src={openclawImg} 
                         alt="OpenClaw Logo" 
                         className={`w-auto h-full object-contain object-left transition-all duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${step >= 4 ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`} 
                     />
