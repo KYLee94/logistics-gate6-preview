@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import Section1 from './Section1';
 import Section2 from './Section2';
+import Section3 from './Section3';
 
 export default function MainLayout() {
     const [currentSlide, setCurrentSlide] = useState(0);
-    const slides = [<Section1 />, <Section2 />];
+    const slides = [<Section1 />, <Section2 />, <Section3 />];
 
     useEffect(() => {
         const handleKeyDown = (e) => {
