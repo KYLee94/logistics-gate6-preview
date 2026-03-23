@@ -7,12 +7,15 @@ export default function MainLayout() {
     const [currentSlide, setCurrentSlide] = useState(0);
     const slides = [<Section1 />, <Section2 />, <Section3 />];
 
+    const nextSlide = () => setCurrentSlide(prev => Math.min(prev + 1, slides.length - 1));
+    const prevSlide = () => setCurrentSlide(prev => Math.max(prev - 1, 0));
+
     useEffect(() => {
         const handleKeyDown = (e) => {
             if (e.key === 'ArrowRight' || e.key === 'PageDown') {
-                setCurrentSlide(prev => Math.min(prev + 1, slides.length - 1));
+                nextSlide();
             } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-                setCurrentSlide(prev => Math.max(prev - 1, 0));
+                prevSlide();
             }
         };
 
@@ -20,8 +23,38 @@ export default function MainLayout() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [slides.length]);
 
+    // Touch swipe handling
+    const [touchStart, setTouchStart] = useState(null);
+    const [touchEnd, setTouchEnd] = useState(null);
+    const minSwipeDistance = 50;
+
+    const onTouchStart = (e) => {
+        setTouchEnd(null);
+        setTouchStart(e.targetTouches[0].clientX);
+    };
+
+    const onTouchMove = (e) => setTouchEnd(e.targetTouches[0].clientX);
+
+    const onTouchEnd = () => {
+        if (!touchStart || !touchEnd) return;
+        const distance = touchStart - touchEnd;
+        const isLeftSwipe = distance > minSwipeDistance;
+        const isRightSwipe = distance < -minSwipeDistance;
+        
+        if (isLeftSwipe) {
+            nextSlide();
+        } else if (isRightSwipe) {
+            prevSlide();
+        }
+    };
+
     return (
-        <div className="w-full h-screen overflow-hidden relative bg-white">
+        <div 
+            className="w-full h-screen overflow-hidden relative bg-white"
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+        >
             {slides.map((slide, index) => {
                 const isActive = index === currentSlide;
                 
@@ -48,21 +81,29 @@ export default function MainLayout() {
                 );
             })}
 
-            {/* Global Keyboard Navigation Hint */}
-            <div className="fixed bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-12 text-gray-400 z-[9999] pointer-events-none mix-blend-difference">
-                <div className={`flex flex-col items-center gap-2 transition-opacity duration-300 ${currentSlide === 0 ? 'opacity-20' : 'opacity-100'}`}>
+            {/* Global Navigation Hint / Clickable Buttons */}
+            <div className="fixed bottom-12 left-1/2 -translate-x-1/2 flex items-center gap-12 text-gray-400 z-[9999] mix-blend-difference">
+                <button 
+                    onClick={prevSlide}
+                    disabled={currentSlide === 0}
+                    className={`flex flex-col items-center gap-2 transition-opacity duration-300 ${currentSlide === 0 ? 'opacity-20 cursor-default' : 'opacity-100 hover:opacity-70 cursor-pointer'}`}
+                >
                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
                     </svg>
                     <span className="text-[10px] uppercase font-bold tracking-widest text-white">Left</span>
-                </div>
+                </button>
                 <div className={`w-[1px] h-[30px] bg-white/20`} />
-                <div className={`flex flex-col items-center gap-2 transition-opacity duration-300 ${currentSlide === slides.length - 1 ? 'opacity-20' : 'opacity-100'}`}>
+                <button 
+                    onClick={nextSlide}
+                    disabled={currentSlide === slides.length - 1}
+                    className={`flex flex-col items-center gap-2 transition-opacity duration-300 ${currentSlide === slides.length - 1 ? 'opacity-20 cursor-default' : 'opacity-100 hover:opacity-70 cursor-pointer'}`}
+                >
                     <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
                     </svg>
                     <span className="text-[10px] uppercase font-bold tracking-widest text-white">Right</span>
-                </div>
+                </button>
             </div>
         </div>
     );
