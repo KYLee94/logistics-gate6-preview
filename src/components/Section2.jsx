@@ -28,7 +28,7 @@ export default function Section2({ isActive }) {
                 style={{ fontWeight: 400 }}
             >
                 {/* 4. Top Image (openclaw.jpg) - 절대 위치 지정으로 텍스트의 세로 중앙 정렬을 방해하지 않게 분리 */}
-                <div className="absolute -top-[70px] left-0 h-[100px] overflow-hidden flex items-end z-0 mix-blend-multiply pointer-events-none">
+                <div className="absolute -top-[100px] left-0 h-[100px] overflow-hidden flex items-end z-0 mix-blend-multiply pointer-events-none">
                     <img 
                         src="/img/openclaw.jpg" 
                         alt="OpenClaw Logo" 
