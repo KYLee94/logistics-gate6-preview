@@ -28,7 +28,7 @@ export default function Section2({ isActive }) {
                 style={{ fontWeight: 400 }}
             >
                 {/* 4. Top Image (openclaw.jpg) - 텍스트 완료 후 아래에서 위로 쏙 등장 */}
-                <div className="h-[100px] overflow-hidden mb-6 flex items-end">
+                <div className="h-[100px] overflow-hidden -mb-4 flex items-end relative z-0 mix-blend-multiply">
                     <img 
                         src="/img/openclaw.jpg" 
                         alt="OpenClaw Logo" 
@@ -37,7 +37,7 @@ export default function Section2({ isActive }) {
                 </div>
 
                 {/* 2. Top */}
-                <div className={`transition-all duration-500 ease-out ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                <div className={`transition-all duration-500 ease-out relative z-10 ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                     OpenClaw를 쓰고계신
                 </div>
 

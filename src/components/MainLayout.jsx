@@ -36,7 +36,7 @@ export default function MainLayout() {
                 return (
                     <div 
                         key={index} 
-                        className="absolute inset-0 w-full h-full transition-transform duration-[250ms] shadow-2xl"
+                        className="absolute inset-0 w-full h-full transition-transform duration-[250ms]"
                         style={{ 
                             transform: transformStyle,
                             transitionTimingFunction: "cubic-bezier(0.83, 0, 0.17, 1)" // Fast, crisp book-like slide
