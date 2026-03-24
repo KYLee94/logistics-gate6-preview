@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import img270 from '../assets/images/270parkave.jpg';
+import imgIota from '../assets/images/iotaseoul.jpg';
 
 // Comparison Item Blueprint
 const CardItem = ({ title, desc, isDark, isHighlighted, highlightClass }) => (
@@ -50,8 +52,8 @@ export default function Section4({ isActive }) {
                         <h2 
                             className={`text-[40px] md:text-[56px] font-bold text-[#1d1d1f] tracking-tight leading-[1.15] transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                         >
-                            전통적 외주 방식 vs <br className="block md:hidden" />
-                            <span className="text-[#005f9e]">AI 내재화</span> 구축 사례
+                            AI를 외주가 아닌 <br className="block md:hidden" />
+                            <span className="text-[#005f9e]">'우리의 실행 도구'</span>로 쓸 때 벌어지는 일
                         </h2>
                     </div>
                 </div>
@@ -66,13 +68,17 @@ export default function Section4({ isActive }) {
                         <div 
                             className={`flex flex-col bg-white border border-gray-200 p-8 md:p-14 shadow-sm transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-24'}`}
                         >
-                            <div className="flex flex-col mb-10 md:mb-14">
+                            <div className="flex flex-col mb-8 md:mb-10">
                                 <span className="text-gray-400 text-[12px] md:text-[14px] font-bold tracking-widest uppercase mb-2" style={{ fontFamily: "'Guardian Sans', sans-serif" }}>
                                     Traditional Agency Way
                                 </span>
-                                <h3 className="text-[32px] md:text-[46px] font-bold text-[#1d1d1f] tracking-tight leading-none mb-6">
-                                    기존 제작 방식
+                                <h3 className="text-[30px] md:text-[42px] lg:text-[46px] font-bold text-[#1d1d1f] tracking-tight leading-none mb-6">
+                                    기존 외주 제작 방식
                                 </h3>
+                                {/* Thumbnail Image */}
+                                <div className="w-full aspect-[16/9] md:h-[180px] lg:h-[220px] rounded-xl overflow-hidden mb-6 shadow-sm border border-gray-100">
+                                    <img src={img270} alt="기존 제작 방식 - 270parkave" className="w-full h-full object-cover" />
+                                </div>
                                 {/* Target Blank Link - 270parkave.com */}
                                 <a 
                                     href="https://270parkave.com/" 
@@ -104,13 +110,17 @@ export default function Section4({ isActive }) {
                                 {/* Subtle background glow effect */}
                                 <div className="absolute inset-0 bg-gradient-to-br from-[#ffffff10] to-transparent pointer-events-none"></div>
 
-                                <div className="flex flex-col mb-10 md:mb-14 relative z-10">
+                                <div className="flex flex-col mb-8 md:mb-10 relative z-10">
                                     <span className="text-[#4d8fcd] text-[12px] md:text-[14px] font-bold tracking-widest uppercase mb-2" style={{ fontFamily: "'Guardian Sans', sans-serif" }}>
                                         AI-Driven Internalization
                                     </span>
-                                    <h3 className="text-[32px] md:text-[46px] font-bold text-white tracking-tight leading-none mb-6">
-                                        <span style={{ fontFamily: "'Guardian Sans', sans-serif" }}>IOTA SEOUL</span> 구축
+                                    <h3 className="text-[30px] md:text-[42px] lg:text-[46px] font-bold text-white tracking-tight leading-none mb-6">
+                                        <span style={{ fontFamily: "'Guardian Sans', sans-serif" }}>IOTA SEOUL</span> AI 구축
                                     </h3>
+                                    {/* Thumbnail Image */}
+                                    <div className="w-full aspect-[16/9] md:h-[180px] lg:h-[220px] rounded-xl overflow-hidden mb-6 shadow-sm border border-white/10">
+                                        <img src={imgIota} alt="AI 구축 사례 - IOTA SEOUL" className="w-full h-full object-cover" />
+                                    </div>
                                     {/* Target Blank Link - IOTA SEOUL */}
                                     <a 
                                         href="https://iotaseoul.site/" 
@@ -136,10 +146,10 @@ export default function Section4({ isActive }) {
                             
                             {/* Floating Speech Bubble (Appears at Step 4 natively hovering on the right) */}
                             <div 
-                                className={`absolute top-[40px] md:top-[66px] -right-[20px] md:-right-[80px] lg:-right-[220px] xl:-right-[280px] w-[300px] md:w-[380px] lg:w-[440px] bg-[#f2f7fc] p-6 md:p-9 shadow-[0_15px_40px_rgba(0,0,0,0.15)] z-50 transition-all duration-[1200ms] delay-[400ms] ease-[cubic-bezier(0.19,1,0.22,1)] pointer-events-none rounded-[16px] md:rounded-[24px] ${step >= 4 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-12 scale-95'} hidden md:block`}
+                                className={`absolute top-[60px] md:top-[90px] -right-[20px] md:-right-[80px] lg:-right-[220px] xl:-right-[280px] w-[300px] md:w-[380px] lg:w-[440px] bg-[#f2f7fc] p-6 md:p-9 shadow-[0_15px_40px_rgba(0,0,0,0.15)] border-[2.5px] border-[#a0c6ed]/60 z-50 transition-all duration-[1200ms] delay-[400ms] ease-[cubic-bezier(0.19,1,0.22,1)] pointer-events-none rounded-[16px] md:rounded-[24px] ${step >= 4 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-12 scale-95'} hidden md:block`}
                             >
-                                {/* Speech Bubble Arrow (CSS Triangle - perfectly sharp pointing tail) */}
-                                <div className="absolute top-[32px] md:top-[38px] -left-[16px] md:-left-[18px] w-0 h-0 border-y-[16px] md:border-y-[20px] border-y-transparent border-r-[16px] md:border-r-[20px] border-r-[#f2f7fc]"></div>
+                                {/* Speech Bubble Arrow (Rotated box with 2 aligned borders for perfect integration) */}
+                                <div className="absolute top-[36px] md:top-[44px] -left-[10px] md:-left-[12px] w-5 h-5 md:w-6 md:h-6 bg-[#f2f7fc] border-l-[2.5px] border-b-[2.5px] border-[#a0c6ed]/60 transform rotate-45 rounded-sm"></div>
                                 
                                 <p className="text-[#1d1d1f] text-[16px] md:text-[18px] leading-[1.6] md:leading-[1.7] break-keep font-medium mb-5">
                                     외주 제작 시, 전체 맥락을 도급자에게<br className="hidden md:block" />
@@ -159,6 +169,17 @@ export default function Section4({ isActive }) {
 
                     </div>
                 </div>
+
+                {/* 3. Bottom Vision Statement (Appears dynamically at end) */}
+                <div 
+                    className={`mt-14 md:mt-24 w-full flex justify-center items-center px-4 transition-all duration-[1200ms] delay-[1400ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                >
+                    <p className="text-[20px] md:text-[26px] lg:text-[32px] font-bold text-center tracking-tight text-[#1d1d1f] leading-snug break-keep">
+                        기획과 데이터만 내재되어 있다면, <br className="block md:hidden" />
+                        AI 시대에 우리가 직접 만들어내지 못할 <span className="text-[#005f9e]">'통합 플랫폼'</span>은 없습니다.
+                    </p>
+                </div>
+
             </div>
         </section>
     );
