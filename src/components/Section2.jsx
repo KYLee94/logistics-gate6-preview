@@ -26,24 +26,25 @@ export default function Section2({ isActive }) {
                 {/* 일반 Flex Flow로 좌측 정렬 및 가장 타이트한 줄간격 밀착 */}
                 <div className="flex flex-col items-start justify-center text-left max-w-[1000px] w-full gap-0 md:gap-1 relative border-l-0 pl-0 -translate-y-[40px] md:-translate-y-[50px]">
                     
-                    {/* 0. OpenClaw Logo (Step 4에서 밑줄과 동시에 스르륵 밀고 올라옴) */}
-                    <div 
-                        className={`flex flex-col items-start transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] overflow-hidden ${step >= 4 ? 'opacity-100 max-h-[150px] mb-1 md:mb-2' : 'opacity-0 max-h-0 mb-0'}`}
-                    >
-                        <img 
-                            src={openclawImg} 
-                            alt="OpenClaw Logo" 
-                            className={`h-[40px] md:h-[60px] object-contain mix-blend-multiply transition-transform duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'translate-y-0' : 'translate-y-full'}`} 
-                        />
-                    </div>
+                    {/* 2. Top Text (relative Wrapper for anchoring absolute Logo) */}
+                    <div className="relative w-full">
+                        {/* 0. OpenClaw Logo (Absolute 배치로 텍스트 밀림 현상 완벽 방지) */}
+                        <div className="absolute bottom-full left-0 mb-1 md:mb-2 overflow-hidden pointer-events-none">
+                            <img 
+                                src={openclawImg} 
+                                alt="OpenClaw Logo" 
+                                className={`h-[40px] md:h-[60px] object-contain mix-blend-multiply transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'translate-y-0 opacity-100' : 'translate-y-full opacity-0'}`} 
+                            />
+                        </div>
 
-                    {/* 2. Top Text */}
-                    <div 
-                        className={`flex flex-col items-start transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] overflow-hidden ${step >= 2 ? 'opacity-100 max-h-[300px]' : 'opacity-0 max-h-0'}`}
-                    >
-                        <p className="text-[37px] md:text-[51px] font-bold text-[#1d1d1f] tracking-tight leading-[1.05]">
-                            OpenClaw를 쓰고 계신
-                        </p>
+                        {/* Top Text content */}
+                        <div 
+                            className={`flex flex-col items-start transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] overflow-hidden ${step >= 2 ? 'opacity-100 max-h-[300px]' : 'opacity-0 max-h-0'}`}
+                        >
+                            <p className="text-[37px] md:text-[51px] font-bold text-[#1d1d1f] tracking-tight leading-[1.05]">
+                                OpenClaw를 쓰고 계신
+                            </p>
+                        </div>
                     </div>
 
                     {/* 1. Middle Text (Hero) */}
