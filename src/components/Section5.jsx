@@ -60,7 +60,7 @@ export default function Section5({ isActive }) {
 
                 {/* 6. AI = Data Hero Text (Right Side Overlay) */}
                 <div 
-                    className={`absolute right-0 md:right-[2%] xl:right-[4%] text-[#1d1d1f] flex items-center justify-center antialiased text-[80px] md:text-[110px] lg:text-[130px] transition-all duration-[1400ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'opacity-100 translate-x-0 scale-100' : 'opacity-0 translate-x-[150px] scale-90'} hidden sm:flex`}
+                    className={`absolute right-0 md:right-[2%] xl:right-[4%] text-[#1d1d1f] flex items-center justify-center antialiased text-[80px] md:text-[110px] lg:text-[130px] transition-all duration-[2500ms] delay-[300ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-[40px] scale-95'} hidden sm:flex`}
                     style={{ 
                         fontFamily: "'Sanomat Wp', 'Sanomat Web', 'Sanomat', sans-serif",
                         fontWeight: 300, 
