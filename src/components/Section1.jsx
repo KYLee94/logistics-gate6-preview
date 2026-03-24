@@ -21,10 +21,9 @@ export default function Section1({ isActive }) {
                 
                 {/* Main Title */}
                 <div 
-                    className={`flex text-[#1d1d1f] text-center px-4 antialiased transition-all duration-[800ms] ${mounted ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-16 scale-95'}`}
+                    className={`flex text-[#1d1d1f] text-center px-4 antialiased text-[50px] md:text-[70px] transition-all duration-[800ms] ${mounted ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-16 scale-95'}`}
                     style={{ 
                         fontFamily: "'Sanomat Wp', 'Sanomat Web', 'Sanomat', sans-serif",
-                        fontSize: "60px",
                         fontWeight: 500, 
                         letterSpacing: "-0.01em",
                         WebkitFontSmoothing: "antialiased",
@@ -38,7 +37,7 @@ export default function Section1({ isActive }) {
 
                 {/* Subtitle */}
                 <div 
-                    className={`-mt-1 md:-mt-2 text-gray-500 text-[18px] md:text-[26px] font-normal tracking-[-0.02em] px-4 transition-all duration-[1000ms] delay-[300ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                    className={`-mt-1 md:-mt-2 text-gray-500 text-[18px] md:text-[26px] font-light tracking-[-0.02em] px-4 transition-all duration-[1000ms] delay-[300ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                     style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', '애플 SD 산돌고딕 Neo', sans-serif" }}
                 >
                     ONE IGIS + CFT 전략의 완벽한 실체화 For AI ERA
