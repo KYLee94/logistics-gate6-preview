@@ -174,11 +174,11 @@ export default function Section4({ isActive }) {
                                 </p>
                                 <p className="text-[#1d1d1f] text-[16px] md:text-[18px] leading-[1.45] md:leading-[1.55] break-keep font-bold mb-5">
                                     반면 <strong className="text-[#1d4ed8] font-extrabold">내부 인력</strong>이 <strong className="font-extrabold">AI</strong>라는 무기를 직접 다루면<br className="hidden md:block" />
-                                    외주 교육의 비효율이 존재하지 않으며,
+                                    외주 소통의 비효율이 존재하지 않으며,
                                 </p>
                                 <p className="text-[#1d4ed8] text-[16px] md:text-[18px] leading-[1.45] md:leading-[1.55] break-keep font-extrabold pb-1">
-                                    실무 DB 실시간 축적 기반 상시 업데이트<br className="hidden md:block" />
-                                    통제권을 기업이 온전히 독점합니다.
+                                    프로덕트 기획자의 역량과 AI 시너지가<br className="hidden md:block" />
+                                    로스 없이 자산에 고스란히 반영됩니다.
                                 </p>
                             </div>
                         </div>

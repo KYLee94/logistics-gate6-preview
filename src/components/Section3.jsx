@@ -15,8 +15,8 @@ export default function Section3({ isActive }) {
         
         // (살짝 쉬는 공백 - 호흡을 가다듬는 시간)
         const t3 = setTimeout(() => setStep(3), 2000); // 3. AI를 천재로...
-        const t4 = setTimeout(() => setStep(4), 2600); // 4. 다름 아닌...
-        const t5 = setTimeout(() => setStep(5), 3300); // 5. 밑줄 애니메이션 그리기 
+        const t4 = setTimeout(() => setStep(4), 2800); // 4. 다름 아닌...
+        const t5 = setTimeout(() => setStep(5), 3600); // 5. 밑줄 애니메이션 그리기 
 
         return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
     }, [isActive]);
