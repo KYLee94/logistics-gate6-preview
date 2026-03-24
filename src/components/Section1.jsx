@@ -38,8 +38,8 @@ export default function Section1({ isActive }) {
 
                 {/* Subtitle */}
                 <div 
-                    className={`mt-4 md:mt-6 text-gray-500 text-[20px] md:text-[28px] font-medium tracking-[-0.02em] px-4 transition-all duration-[1000ms] delay-[300ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-                    style={{ fontFamily: "sans-serif" }}
+                    className={`-mt-1 md:-mt-2 text-gray-500 text-[20px] md:text-[28px] font-medium tracking-[-0.02em] px-4 transition-all duration-[1000ms] delay-[300ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                    style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', '애플 SD 산돌고딕 Neo', sans-serif" }}
                 >
                     ONE IGIS + CFT 전략의 완벽한 실체화 For AI ERA
                 </div>
