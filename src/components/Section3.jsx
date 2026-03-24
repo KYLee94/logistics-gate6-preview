@@ -20,38 +20,40 @@ export default function Section3({ isActive }) {
     }, [isActive]);
 
     return (
-        <section className="section w-full h-full bg-white flex flex-col items-center justify-center relative px-4">
-            <div 
-                className="text-[40px] md:text-[46px] flex flex-col items-start justify-center text-[#999] font-sans tracking-tight leading-snug gap-8 relative"
-                style={{ fontWeight: 700 }}
-            >
-                {/* Block 1 */}
-                <div className={`transition-all duration-[600ms] ease-out ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                    AI의 진짜 위력은<br />
-                    내 PC 안의 <span className="text-black">'리치한 데이터(Rich Data)'</span>에서 나옵니다.
-                </div>
+        <section className="section w-full h-full bg-white overflow-y-auto relative px-4">
+            <div className="w-full min-h-full flex flex-col items-center justify-center py-24 md:py-32">
+                <div 
+                    className="w-full max-w-[1000px] text-[24px] sm:text-[32px] md:text-[40px] xl:text-[46px] flex flex-col items-start text-[#999] font-sans tracking-tight leading-snug gap-6 md:gap-8 relative break-keep"
+                    style={{ fontWeight: 700 }}
+                >
+                    {/* Block 1 */}
+                    <div className={`transition-all duration-[600ms] ease-out ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                        AI의 진짜 위력은<br />
+                        내 PC 안의 <span className="text-black">'리치한 데이터(Rich Data)'</span>에서 나옵니다.
+                    </div>
 
-                {/* Block 2 */}
-                <div className={`transition-all duration-[600ms] ease-out ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                    <span className="text-black">IGIS도 마찬가지입니다.</span>
-                </div>
+                    {/* Block 2 */}
+                    <div className={`transition-all duration-[600ms] ease-out ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                        <span className="text-black">IGIS도 마찬가지입니다.</span>
+                    </div>
 
-                {/* Block 3 */}
-                <div className={`transition-all duration-[600ms] ease-out ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                    직원들을 위한 거창한 AI 교육은 필요 없습니다.<br />
-                    지금처럼 <span className="text-black">검색창에 필요한 질문</span>만 던지면 되니까요.
-                </div>
+                    {/* Block 3 */}
+                    <div className={`transition-all duration-[600ms] ease-out ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                        직원들을 위한 거창한 AI 교육은 필요 없습니다.<br />
+                        지금처럼 <span className="text-black">검색창에 필요한 질문</span>만 던지면 되니까요.
+                    </div>
 
-                {/* Block 4 */}
-                <div className={`transition-all duration-[600ms] ease-out ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                    하지만 그 가벼운 질문에,<br />
-                    AI가 얼마나 <span className="text-black">깊고 날카로운 정답</span>을 내놓을 수 있는가.
-                </div>
+                    {/* Block 4 */}
+                    <div className={`transition-all duration-[600ms] ease-out ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                        하지만 그 가벼운 질문에,<br />
+                        AI가 얼마나 <span className="text-black">깊고 날카로운 정답</span>을 내놓을 수 있는가.
+                    </div>
 
-                {/* Block 5 */}
-                <div className={`transition-all duration-[600ms] ease-out ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                    그것은 오직,<br />
-                    이지스 내부에 흐르는 <span className="text-black">'데이터의 깊이'</span>에 달려있습니다.
+                    {/* Block 5 */}
+                    <div className={`transition-all duration-[600ms] ease-out ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                        그것은 오직,<br />
+                        이지스 내부에 흐르는 <span className="text-black">'데이터의 깊이'</span>에 달려있습니다.
+                    </div>
                 </div>
             </div>
         </section>
