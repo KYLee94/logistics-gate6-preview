@@ -102,10 +102,12 @@ export default function MainLayout() {
                     0%, 100% {
                         color: #ffffff;
                         border-color: #ffffff;
+                        background-color: transparent;
                     }
                     50% {
                         color: #eab308;
                         border-color: #eab308;
+                        background-color: #281400;
                     }
                 }
                 .action-done-pulse {
