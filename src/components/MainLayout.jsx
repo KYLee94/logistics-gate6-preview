@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import Section1 from './Section1';
 import Section2 from './Section2';
 import Section3 from './Section3';
+import Section4 from './Section4';
+import Section5 from './Section5';
 
 export default function MainLayout() {
     const [currentSlide, setCurrentSlide] = useState(0);
-    const slides = [<Section1 />, <Section2 />, <Section3 />];
+    const slides = [<Section1 />, <Section2 />, <Section3 />, <Section4 />, <Section5 />];
 
     const nextSlide = () => setCurrentSlide(prev => Math.min(prev + 1, slides.length - 1));
     const prevSlide = () => setCurrentSlide(prev => Math.max(prev - 1, 0));
