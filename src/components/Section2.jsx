@@ -34,25 +34,25 @@ export default function Section2({ isActive }) {
                             alt="OpenClaw Logo" 
                             className="h-[60px] md:h-[80px] object-contain mb-4 md:mb-6 mix-blend-multiply" 
                         />
-                        <p className="text-[28px] md:text-[36px] font-medium text-gray-500 tracking-[-0.02em]">
+                        <p className="text-[32px] md:text-[46px] font-bold text-gray-500 tracking-tight">
                             OpenClaw를 쓰고 계신
                         </p>
                     </div>
 
-                    {/* 1. Middle Text (Hero) */}
+                    {/* 1. Middle Text (Hero) - 처음엔 크고, 이후 제 크기로 작아짐 */}
                     <div 
                         className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step === 0 ? 'opacity-0 scale-95 translate-y-6' : step === 1 ? 'opacity-100 scale-110 md:scale-125 translate-y-0' : 'opacity-100 scale-100 translate-y-0'}`}
                     >
-                        <p className="text-[40px] md:text-[60px] font-bold text-[#1d1d1f] tracking-[-0.03em]">
+                        <p className="text-[32px] md:text-[46px] font-bold text-[#1d1d1f] tracking-tight">
                             대표님은 알고 계실 것입니다.
                         </p>
                     </div>
 
-                    {/* 3. Bottom Text (Absolute) */}
+                    {/* 3. Bottom Text (Absolute) - 핵심 메시지 강조 칼라 (신뢰의 Blue) */}
                     <div 
                         className={`absolute top-full mt-8 md:mt-12 w-full flex flex-col items-center transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8'}`}
                     >
-                        <p className="text-[28px] md:text-[36px] font-medium text-gray-500 tracking-[-0.02em]">
+                        <p className="text-[32px] md:text-[46px] font-bold text-blue-600 tracking-tight">
                             내 PC에 들어와 모든 걸 할 수 있는 AI의 위력을.
                         </p>
                     </div>
