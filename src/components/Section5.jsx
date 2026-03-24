@@ -23,7 +23,7 @@ export default function Section5({ isActive }) {
         <section className="section w-full h-full bg-white overflow-y-auto relative px-4">
             <div className="w-full min-h-full flex flex-col items-center justify-center py-24 md:py-32">
                 <div 
-                    className="w-full max-w-[1000px] text-[24px] sm:text-[32px] md:text-[40px] xl:text-[46px] flex flex-col items-start text-[#999] font-sans tracking-tight leading-[1.32] gap-6 md:gap-8 relative break-keep -translate-y-[40px] md:-translate-y-[50px]"
+                    className="w-full max-w-[1000px] text-[24px] sm:text-[32px] md:text-[40px] xl:text-[46px] flex flex-col items-start text-[#999] font-sans tracking-tight leading-[1.32] gap-[29px] md:gap-[37px] relative break-keep -translate-y-[40px] md:-translate-y-[50px]"
                     style={{ fontWeight: 700 }}
                 >
                     {/* Block 1 */}
@@ -40,8 +40,7 @@ export default function Section5({ isActive }) {
                     {/* Block 3 */}
                     <div className={`transition-all duration-[600ms] ease-out ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         거창한 AI 교육은 필요 없습니다.<br />
-                        직원들은 지금처럼 검색창에 필요한 질문만<br />
-                        던지면 되니까요.
+                        직원들은 지금처럼 검색창에 필요한 질문만 던지면 되니까요.
                     </div>
 
                     {/* Block 4 */}
