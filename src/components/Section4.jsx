@@ -53,8 +53,8 @@ export default function Section4({ isActive }) {
                         <h2 
                             className={`text-[40px] md:text-[56px] font-bold text-[#1d1d1f] tracking-tight leading-[1.15] transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                         >
-                            <span className="text-[#2997ff]">데이터를 이해</span>하고, <br className="block md:hidden" />
-                            <span className="text-[#2997ff]">AI와 협업</span>할 때 벌어지는 일
+                            <span className="bg-gradient-to-r from-[#0090F7] via-[#B85DF8] to-[#FF4B2B] text-transparent bg-clip-text">데이터를 이해</span>하고, <br className="block md:hidden" />
+                            <span className="bg-gradient-to-r from-[#0090F7] via-[#B85DF8] to-[#FF4B2B] text-transparent bg-clip-text">AI와 협업</span>할 때 벌어지는 일
                         </h2>
                     </div>
                 </div>
@@ -142,16 +142,16 @@ export default function Section4({ isActive }) {
                                 {/* Speech Bubble Arrow (Rotated box with 2 aligned borders for perfect integration) */}
                                 <div className="absolute top-[56px] md:top-[64px] -left-[10px] md:-left-[12px] w-5 h-5 md:w-6 md:h-6 bg-[#f2f7fc] border-l-[2.5px] border-b-[2.5px] border-[#1d1d1f] transform rotate-45 rounded-none"></div>
                                 
-                                <p className="text-[#1d1d1f] text-[16px] md:text-[18px] leading-[1.6] md:leading-[1.7] break-keep font-medium mb-5">
+                                <p className="text-[#1d1d1f] text-[16px] md:text-[18px] leading-[1.45] md:leading-[1.55] break-keep font-bold mb-5">
                                     외주 제작 시, 전체 맥락을 도급자에게<br className="hidden md:block" />
                                     이해시키고 양사가 커뮤니케이션하는 데에만<br className="hidden md:block" />
-                                    <strong className="font-bold">수개월의 불필요한 기간</strong>이 증발합니다.
+                                    <strong className="font-extrabold bg-[#1d1d1f] text-white px-1">수개월의 불필요한 기간</strong>이 증발합니다.
                                 </p>
-                                <p className="text-[#1d1d1f] text-[16px] md:text-[18px] leading-[1.6] md:leading-[1.7] break-keep font-medium mb-5">
-                                    반면 <strong className="text-[#2997ff] font-bold">내부 인력</strong>이 <strong className="font-bold">AI</strong>라는 무기를 직접 다루면<br className="hidden md:block" />
+                                <p className="text-[#1d1d1f] text-[16px] md:text-[18px] leading-[1.45] md:leading-[1.55] break-keep font-bold mb-5">
+                                    반면 <strong className="bg-gradient-to-r from-[#0090F7] via-[#B85DF8] to-[#FF4B2B] text-transparent bg-clip-text font-extrabold">내부 인력</strong>이 <strong className="font-extrabold">AI</strong>라는 무기를 직접 다루면<br className="hidden md:block" />
                                     외주 교육의 비효율이 존재하지 않으며,
                                 </p>
-                                <p className="text-[#2997ff] text-[16px] md:text-[18px] leading-[1.6] md:leading-[1.7] break-keep font-bold">
+                                <p className="bg-gradient-to-r from-[#0090F7] via-[#B85DF8] to-[#FF4B2B] text-transparent bg-clip-text text-[16px] md:text-[18px] leading-[1.45] md:leading-[1.55] break-keep font-extrabold pb-1">
                                     실무 DB 실시간 축적 기반 상시 업데이트<br className="hidden md:block" />
                                     통제권을 기업이 온전히 독점합니다.
                                 </p>
@@ -167,7 +167,7 @@ export default function Section4({ isActive }) {
                 >
                     <p className="text-[30px] md:text-[46px] font-bold text-center tracking-tight text-[#1d1d1f] leading-[1.25] whitespace-nowrap">
                         기획과 데이터만 내재되어 있다면, <br />
-                        AI 시대에 우리가 직접 만들어내지 못할 <span className="text-[#2997ff]">'통합 플랫폼'</span>은 없습니다.
+                        AI 시대에 우리가 직접 만들어내지 못할 <span className="bg-gradient-to-r from-[#0090F7] via-[#B85DF8] to-[#FF4B2B] text-transparent bg-clip-text">'통합 플랫폼'</span>은 없습니다.
                     </p>
                 </div>
 
