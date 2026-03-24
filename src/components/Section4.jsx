@@ -62,11 +62,11 @@ export default function Section4({ isActive }) {
                 <div 
                     className={`w-full transition-transform duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? '-translate-x-4 md:-translate-x-10 lg:-translate-x-20' : 'translate-x-0'}`}
                 >
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-8">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-[10px] md:gap-[22px]">
 
                         {/* Left: Traditional Outsourcing (White theme) */}
                         <div 
-                            className={`flex flex-col bg-white border border-gray-200 p-6 md:p-10 mx-[15px] shadow-sm transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-24'}`}
+                            className={`flex flex-col bg-white border border-gray-200 p-6 md:p-10 mx-[15px] shadow-sm transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-[50px] md:-translate-x-[100px]'}`}
                         >
                             <div className="flex flex-col mb-2 md:mb-3">
                                 <span className="text-gray-400 text-[12px] md:text-[14px] font-bold tracking-widest uppercase mb-1" style={{ fontFamily: "'Guardian Sans', sans-serif" }}>
@@ -75,31 +75,30 @@ export default function Section4({ isActive }) {
                                 <h3 className="text-[28px] md:text-[40px] font-bold text-[#1d1d1f] tracking-tight leading-none mb-4">
                                     기존 외주 제작 방식
                                 </h3>
-                                {/* Thumbnail Image (Square Corners, Anchor) */}
+                                {/* Thumbnail Image & Link Wrapper */}
                                 <a 
                                     href="https://270parkave.com/" 
                                     target="_blank" 
                                     rel="noopener noreferrer" 
-                                    className="w-full h-[80px] md:h-[120px] lg:h-[135px] overflow-hidden mb-1 shadow-sm border border-gray-200 relative group cursor-pointer block"
+                                    className="flex flex-col group cursor-pointer w-full outline-none"
                                 >
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 z-10 w-full h-full flex items-center justify-center">
-                                        <span className="text-white opacity-0 group-hover:opacity-100 font-bold transition-opacity tracking-widest font-sans drop-shadow-md">VISIT SITE</span>
+                                    <div className="w-full h-[80px] md:h-[120px] lg:h-[135px] overflow-hidden mb-1 shadow-sm border border-gray-200 relative">
+                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 z-10 w-full h-full flex items-center justify-center">
+                                            <span className="text-white opacity-0 group-hover:opacity-100 font-bold transition-opacity tracking-widest font-sans drop-shadow-md">VISIT SITE</span>
+                                        </div>
+                                        <img src={img270} alt="기존 제작 방식 - 270parkave" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                                     </div>
-                                    <img src={img270} alt="기존 제작 방식 - 270parkave" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                </a>
-                                <a 
-                                    href="https://270parkave.com/" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    className="group flex items-center justify-start w-full mt-3 text-[13px] md:text-[15px] font-normal text-[#1d1d1f] transition-all tracking-wide"
-                                    style={{ fontFamily: "'Guardian Sans', sans-serif" }}
-                                >
-                                    <span className="relative pb-[2px] after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[1.5px] after:bottom-0 after:left-0 after:bg-current after:origin-bottom-left after:transition-transform after:duration-300 group-hover:after:scale-x-100">Go to homepage</span>
-                                    <div className="ml-3 w-[26px] h-[26px] rounded-full border border-[#1d1d1f] flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                            <line x1="4" y1="12" x2="20" y2="12"></line>
-                                            <polyline points="14 6 20 12 14 18"></polyline>
-                                        </svg>
+                                    <div 
+                                        className="flex items-center justify-start w-full mt-3 text-[13px] md:text-[15px] font-normal text-[#1d1d1f] transition-all tracking-wide"
+                                        style={{ fontFamily: "'Guardian Sans', sans-serif" }}
+                                    >
+                                        <span className="relative pb-0 after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[1.5px] after:bottom-0 after:left-0 after:bg-current after:origin-bottom-left after:transition-transform after:duration-300 group-hover:after:scale-x-100">Go to homepage</span>
+                                        <div className="ml-3 w-[26px] h-[26px] rounded-full border border-[#1d1d1f] flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <line x1="4" y1="12" x2="20" y2="12"></line>
+                                                <polyline points="14 6 20 12 14 18"></polyline>
+                                            </svg>
+                                        </div>
                                     </div>
                                 </a>
                             </div>
@@ -115,7 +114,7 @@ export default function Section4({ isActive }) {
                         {/* Right: AI-Driven Internalization (Dark theme highlighting effectiveness / Floating Bubble base) */}
                         <div className="relative">
                             <div 
-                                className={`flex flex-col bg-[#1d1d1f] p-6 md:p-10 mx-[15px] shadow-[0_20px_50px_rgba(0,0,0,0.2)] h-full overflow-hidden group transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-24'}`}
+                                className={`flex flex-col bg-[#1d1d1f] p-6 md:p-10 mx-[15px] shadow-[0_20px_50px_rgba(0,0,0,0.2)] h-full overflow-hidden group transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-[50px] md:translate-x-[100px]'}`}
                             >
                                 {/* Subtle background glow effect */}
                                 <div className="absolute inset-0 bg-gradient-to-br from-[#ffffff10] to-transparent pointer-events-none"></div>
@@ -127,31 +126,30 @@ export default function Section4({ isActive }) {
                                     <h3 className="text-[28px] md:text-[40px] font-bold text-white tracking-tight leading-none mb-4">
                                         <span style={{ fontFamily: "'Guardian Sans', sans-serif" }}>IOTA SEOUL</span> AI 구축
                                     </h3>
-                                    {/* Thumbnail Image (Square Corners, Anchor) */}
+                                    {/* Thumbnail Image & Link Wrapper */}
                                     <a 
                                         href="https://iotaseoul.site/" 
                                         target="_blank" 
                                         rel="noopener noreferrer" 
-                                        className="w-full h-[80px] md:h-[120px] lg:h-[135px] overflow-hidden mb-1 shadow-sm border border-white/10 relative group cursor-pointer block"
+                                        className="flex flex-col group cursor-pointer w-full relative z-10 outline-none"
                                     >
-                                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-300 z-10 w-full h-full flex items-center justify-center">
-                                            <span className="text-white opacity-0 group-hover:opacity-100 font-bold transition-opacity tracking-widest font-sans drop-shadow-md">VISIT SITE</span>
+                                        <div className="w-full h-[80px] md:h-[120px] lg:h-[135px] overflow-hidden mb-1 shadow-sm border border-white/10 relative">
+                                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-300 z-10 w-full h-full flex items-center justify-center">
+                                                <span className="text-white opacity-0 group-hover:opacity-100 font-bold transition-opacity tracking-widest font-sans drop-shadow-md">VISIT SITE</span>
+                                            </div>
+                                            <img src={imgIota} alt="AI 구축 사례 - IOTA SEOUL" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
                                         </div>
-                                    <img src={imgIota} alt="AI 구축 사례 - IOTA SEOUL" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                    </a>
-                                    <a 
-                                        href="https://iotaseoul.site/" 
-                                        target="_blank" 
-                                        rel="noopener noreferrer" 
-                                        className="group flex items-center justify-start w-full mt-3 text-[13px] md:text-[15px] font-normal text-white transition-all tracking-wide relative z-10"
-                                        style={{ fontFamily: "'Guardian Sans', sans-serif" }}
-                                    >
-                                        <span className="relative pb-[2px] after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[1.5px] after:bottom-0 after:left-0 after:bg-current after:origin-bottom-left after:transition-transform after:duration-300 group-hover:after:scale-x-100">Go to homepage</span>
-                                        <div className="ml-3 w-[26px] h-[26px] rounded-full border border-white flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                                                <line x1="4" y1="12" x2="20" y2="12"></line>
-                                                <polyline points="14 6 20 12 14 18"></polyline>
-                                            </svg>
+                                        <div 
+                                            className="flex items-center justify-start w-full mt-3 text-[13px] md:text-[15px] font-normal text-white transition-all tracking-wide"
+                                            style={{ fontFamily: "'Guardian Sans', sans-serif" }}
+                                        >
+                                            <span className="relative pb-0 after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[1.5px] after:bottom-0 after:left-0 after:bg-current after:origin-bottom-left after:transition-transform after:duration-300 group-hover:after:scale-x-100">Go to homepage</span>
+                                            <div className="ml-3 w-[26px] h-[26px] rounded-full border border-white flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <line x1="4" y1="12" x2="20" y2="12"></line>
+                                                    <polyline points="14 6 20 12 14 18"></polyline>
+                                                </svg>
+                                            </div>
                                         </div>
                                     </a>
                                 </div>
