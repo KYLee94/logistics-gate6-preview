@@ -94,7 +94,7 @@ export default function Section4({ isActive }) {
                                     className="group flex items-center justify-start w-full mt-3 text-[13px] md:text-[15px] font-normal text-[#1d1d1f] transition-all tracking-wide"
                                     style={{ fontFamily: "'Guardian Sans', sans-serif" }}
                                 >
-                                    <span className="group-hover:underline">Go to homepage</span>
+                                    <span className="relative pb-[2px] after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[1.5px] after:bottom-0 after:left-0 after:bg-current after:origin-bottom-left after:transition-transform after:duration-300 group-hover:after:scale-x-100">Go to homepage</span>
                                     <div className="ml-3 w-[26px] h-[26px] rounded-full border border-[#1d1d1f] flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
                                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                                             <line x1="4" y1="12" x2="20" y2="12"></line>
@@ -146,7 +146,7 @@ export default function Section4({ isActive }) {
                                         className="group flex items-center justify-start w-full mt-3 text-[13px] md:text-[15px] font-normal text-white transition-all tracking-wide relative z-10"
                                         style={{ fontFamily: "'Guardian Sans', sans-serif" }}
                                     >
-                                        <span className="group-hover:underline transition-all duration-300">Go to homepage</span>
+                                        <span className="relative pb-[2px] after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[1.5px] after:bottom-0 after:left-0 after:bg-current after:origin-bottom-left after:transition-transform after:duration-300 group-hover:after:scale-x-100">Go to homepage</span>
                                         <div className="ml-3 w-[26px] h-[26px] rounded-full border border-white flex items-center justify-center transition-transform duration-300 group-hover:translate-x-1">
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                                                 <line x1="4" y1="12" x2="20" y2="12"></line>
