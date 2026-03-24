@@ -28,9 +28,10 @@ export default function Section4({ isActive }) {
         const t2 = setTimeout(() => setStep(2), 1000); // 2-Card Comparisons
         const t3 = setTimeout(() => setStep(3), 1600); // Right Speech Bubble Insight start
         const t4 = setTimeout(() => setStep(4), 2200); // Trigger Bubble Popup & Shift
-        const t5 = setTimeout(() => setStep(5), 3200); // Text Color Highlights (Red/Blue)
+        const t5 = setTimeout(() => setStep(5), 2800); // 5. Bottom Vision Statement
+        const t6 = setTimeout(() => setStep(6), 3400); // 6. Text Color Highlights (Red/Blue)
         
-        return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
+        return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); clearTimeout(t6); };
     }, [isActive]);
 
     return (
@@ -90,10 +91,10 @@ export default function Section4({ isActive }) {
                             </div>
                             
                             <div className="flex flex-col gap-4 md:gap-5 mt-auto">
-                                <CardItem title="의사결정 및 런칭" desc="기획-입찰-계약-제작 (3~6개월 소요)" isDark={false} isHighlighted={step >= 5} highlightClass="text-[#a81414]" />
-                                <CardItem title="구축 비용" desc="억 단위 용역비 발생" isDark={false} isHighlighted={step >= 5} highlightClass="text-[#a81414]" />
-                                <CardItem title="콘텐츠 업데이트" desc="대행사 경유 (평균 1~3일 소요)" isDark={false} isHighlighted={step >= 5} highlightClass="text-[#a81414]" />
-                                <CardItem title="데이터 소유권" desc="대행사 DB 관리 (접근 권한 제한적)" isDark={false} isHighlighted={step >= 5} highlightClass="text-[#a81414]" />
+                                <CardItem title="의사결정 및 런칭" desc="기획-입찰-계약-제작 (3~6개월 소요)" isDark={false} isHighlighted={step >= 6} highlightClass="text-[#a81414]" />
+                                <CardItem title="구축 비용" desc="억 단위 용역비 발생" isDark={false} isHighlighted={step >= 6} highlightClass="text-[#a81414]" />
+                                <CardItem title="콘텐츠 업데이트" desc="대행사 경유 (평균 1~3일 소요)" isDark={false} isHighlighted={step >= 6} highlightClass="text-[#a81414]" />
+                                <CardItem title="데이터 소유권" desc="대행사 DB 관리 (접근 권한 제한적)" isDark={false} isHighlighted={step >= 6} highlightClass="text-[#a81414]" />
                             </div>
                         </div>
 
@@ -127,10 +128,10 @@ export default function Section4({ isActive }) {
                                 </div>
                                 
                                 <div className="flex flex-col gap-4 md:gap-5 mt-auto relative z-10">
-                                    <CardItem title="의사결정 및 런칭" desc="내재인력이 AI 활용 단독 수행 (단 5일)" isDark={true} isHighlighted={step >= 5} highlightClass="text-[#4d8fcd]" />
-                                    <CardItem title="구축 비용" desc="0원 (도메인 비용 외 영구 면제)" isDark={true} isHighlighted={step >= 5} highlightClass="text-[#4d8fcd]" />
-                                    <CardItem title="콘텐츠 업데이트" desc="실시간 5분 이내 직접 즉각 수정" isDark={true} isHighlighted={step >= 5} highlightClass="text-[#4d8fcd]" />
-                                    <CardItem title="데이터 소유권" desc="내부 DB 실시간 축적 및 데이터 주권 확보" isDark={true} isHighlighted={step >= 5} highlightClass="text-[#4d8fcd]" />
+                                    <CardItem title="의사결정 및 런칭" desc="내재인력이 AI 활용 단독 수행 (단 5일)" isDark={true} isHighlighted={step >= 6} highlightClass="text-[#4d8fcd]" />
+                                    <CardItem title="구축 비용" desc="0원 (도메인 비용 외 영구 면제)" isDark={true} isHighlighted={step >= 6} highlightClass="text-[#4d8fcd]" />
+                                    <CardItem title="콘텐츠 업데이트" desc="실시간 5분 이내 직접 즉각 수정" isDark={true} isHighlighted={step >= 6} highlightClass="text-[#4d8fcd]" />
+                                    <CardItem title="데이터 소유권" desc="내부 DB 실시간 축적 및 데이터 주권 확보" isDark={true} isHighlighted={step >= 6} highlightClass="text-[#4d8fcd]" />
                                 </div>
                             </div>
                             
@@ -162,10 +163,10 @@ export default function Section4({ isActive }) {
 
                 {/* 3. Bottom Vision Statement (Appears dynamically at end) */}
                 <div 
-                    className={`mt-6 md:mt-10 w-full flex justify-center items-center px-4 transition-all duration-[1200ms] delay-[1400ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                    className={`mt-6 md:mt-10 w-full flex justify-center items-center px-4 transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                 >
                     <p className="text-[36px] md:text-[52px] font-bold text-center tracking-tight text-[#1d1d1f] leading-[1.2]">
-                        기획과 데이터만 내재되어 있다면, <br className="block md:hidden" />
+                        기획과 데이터만 내재되어 있다면, <br />
                         AI 시대에 우리가 직접 만들어내지 못할 <span className="text-[#005f9e]">'통합 플랫폼'</span>은 없습니다.
                     </p>
                 </div>
