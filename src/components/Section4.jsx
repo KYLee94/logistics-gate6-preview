@@ -192,7 +192,7 @@ export default function Section4({ isActive }) {
 
                 {/* 3. Bottom Vision Statement (Appears dynamically at end) */}
                 <div 
-                    className={`mt-[34px] md:mt-[50px] w-full flex justify-center items-center px-0 md:px-4 transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                    className={`mt-[54px] md:mt-[70px] w-full flex justify-center items-center px-0 md:px-4 transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                 >
                     <p className="text-[40px] md:text-[56px] font-bold text-center tracking-tight text-[#1d1d1f] leading-[1.25] whitespace-nowrap">
                         기획과 데이터만 내재되어 있다면, <br />
