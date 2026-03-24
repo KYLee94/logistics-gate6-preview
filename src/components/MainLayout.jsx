@@ -108,10 +108,10 @@ export default function MainLayout() {
                 </button>
             </div>
 
-            {/* Page Number Indicator (Bottom Right) */}
-            <div className="fixed bottom-[38px] right-6 md:right-10 flex items-center justify-center z-[9999] mix-blend-difference text-white font-sans text-[15px] md:text-[18px] tracking-widest opacity-80">
-                <span className="font-bold">{currentSlide + 1}</span>
-                <span className="mx-1 font-light opacity-50">/</span>
+            {/* Page Number Indicator (Bottom Right) - 작고 얇게, 하단 10px 내림 */}
+            <div className="fixed bottom-[28px] right-6 md:right-10 flex items-center justify-center z-[9999] mix-blend-difference text-white font-sans text-[12px] md:text-[14px] tracking-widest opacity-60">
+                <span className="font-light">{currentSlide + 1}</span>
+                <span className="mx-1 font-extralight opacity-50">/</span>
                 <span className="font-light">{slides.length}</span>
             </div>
         </div>
