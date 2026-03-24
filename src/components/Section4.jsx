@@ -26,10 +26,10 @@ export default function Section4({ isActive }) {
         // Staggered presentation reveal mapped to Blackstone UI
         const t1 = setTimeout(() => setStep(1), 300);  // Title cascade
         const t2 = setTimeout(() => setStep(2), 800);  // 2-Card Comparisons slide-in
-        const t3 = setTimeout(() => setStep(3), 1400); // (Legacy spacing)
-        const t4 = setTimeout(() => setStep(4), 1600); // Trigger Bubble Popup & Shift Left just before cards fully settle
-        const t5 = setTimeout(() => setStep(5), 2100); // 5. Bottom Vision Statement
-        const t6 = setTimeout(() => setStep(6), 2600); // 6. Text Color Highlights (Red/Blue)
+        const t3 = setTimeout(() => setStep(3), 1100); // (Legacy interval bypassed)
+        const t4 = setTimeout(() => setStep(4), 1300); // Trigger Bubble Popup *MID-FLIGHT* (during pincer slides)
+        const t5 = setTimeout(() => setStep(5), 1800); // 5. Bottom Vision Statement
+        const t6 = setTimeout(() => setStep(6), 2200); // 6. Text Color Highlights (Red/Blue)
         
         return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); clearTimeout(t6); };
     }, [isActive]);
@@ -162,7 +162,7 @@ export default function Section4({ isActive }) {
                             
                             {/* Floating Speech Bubble (Appears at Step 4 natively hovering on the right) */}
                             <div 
-                                className={`absolute top-[20px] md:top-[40px] -right-[30px] md:-right-[90px] lg:-right-[260px] xl:-right-[320px] w-[300px] md:w-[380px] lg:w-[440px] bg-[#f2f7fc] p-6 md:p-9 shadow-[0_15px_40px_rgba(0,0,0,0.15)] border-[2.5px] border-[#1d1d1f] z-50 transition-all duration-[1200ms] delay-[400ms] ease-[cubic-bezier(0.19,1,0.22,1)] pointer-events-none rounded-none ${step >= 4 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-12 scale-95'} hidden md:block`}
+                                className={`absolute top-[20px] md:top-[40px] -right-[30px] md:-right-[90px] lg:-right-[260px] xl:-right-[320px] w-[300px] md:w-[380px] lg:w-[440px] bg-[#f2f7fc] p-6 md:p-9 shadow-[0_15px_40px_rgba(0,0,0,0.15)] border-[2.5px] border-[#1d1d1f] z-50 transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] pointer-events-none rounded-none ${step >= 4 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-12 scale-95'} hidden md:block`}
                             >
                                 {/* Speech Bubble Arrow (Rotated box with 2 aligned borders for perfect integration) */}
                                 <div className="absolute top-[56px] md:top-[64px] -left-[10px] md:-left-[12px] w-5 h-5 md:w-6 md:h-6 bg-[#f2f7fc] border-l-[2.5px] border-b-[2.5px] border-[#1d1d1f] transform rotate-45 rounded-none"></div>

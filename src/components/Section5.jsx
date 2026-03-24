@@ -23,7 +23,7 @@ export default function Section5({ isActive }) {
         <section className="section w-full h-full bg-white overflow-y-auto relative px-4">
             <div className="w-full min-h-full flex flex-col items-center justify-center py-24 md:py-32">
                 <div 
-                    className="w-full max-w-[1000px] text-[24px] sm:text-[32px] md:text-[40px] xl:text-[46px] flex flex-col items-start text-[#999] font-sans tracking-tight leading-snug gap-6 md:gap-8 relative break-keep -translate-y-[40px] md:-translate-y-[50px]"
+                    className="w-full max-w-[1000px] text-[24px] sm:text-[32px] md:text-[40px] xl:text-[46px] flex flex-col items-start text-[#999] font-sans tracking-tight leading-[1.35] gap-6 md:gap-8 relative break-keep -translate-y-[40px] md:-translate-y-[50px]"
                     style={{ fontWeight: 700 }}
                 >
                     {/* Block 1 */}
