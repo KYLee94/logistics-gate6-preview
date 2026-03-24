@@ -24,12 +24,12 @@ export default function Section4({ isActive }) {
         }
         
         // Staggered presentation reveal mapped to Blackstone UI
-        const t1 = setTimeout(() => setStep(1), 500);  // Title cascade
-        const t2 = setTimeout(() => setStep(2), 1000); // 2-Card Comparisons
-        const t3 = setTimeout(() => setStep(3), 1600); // Right Speech Bubble Insight start
-        const t4 = setTimeout(() => setStep(4), 2200); // Trigger Bubble Popup & Shift
-        const t5 = setTimeout(() => setStep(5), 2800); // 5. Bottom Vision Statement
-        const t6 = setTimeout(() => setStep(6), 3400); // 6. Text Color Highlights (Red/Blue)
+        const t1 = setTimeout(() => setStep(1), 300);  // Title cascade
+        const t2 = setTimeout(() => setStep(2), 800);  // 2-Card Comparisons slide-in
+        const t3 = setTimeout(() => setStep(3), 1400); // (Legacy spacing)
+        const t4 = setTimeout(() => setStep(4), 1600); // Trigger Bubble Popup & Shift Left just before cards fully settle
+        const t5 = setTimeout(() => setStep(5), 2100); // 5. Bottom Vision Statement
+        const t6 = setTimeout(() => setStep(6), 2600); // 6. Text Color Highlights (Red/Blue)
         
         return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); clearTimeout(t6); };
     }, [isActive]);
