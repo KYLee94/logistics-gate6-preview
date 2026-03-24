@@ -58,10 +58,8 @@ export default function Section4({ isActive }) {
                     </div>
                 </div>
 
-                {/* 2. Side-by-Side Comparison Grid (Step 4에서 좌측 푸시 적용) */}
-                <div 
-                    className={`w-full transition-transform duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? '-translate-x-4 md:-translate-x-10 lg:-translate-x-20' : 'translate-x-0'}`}
-                >
+                {/* 2. Side-by-Side Comparison Grid (좌측 밀림 고정 배치) */}
+                <div className="w-full -translate-x-4 md:-translate-x-10 lg:-translate-x-20">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-[10px] md:gap-[22px]">
 
                         {/* Left: Traditional Outsourcing (White theme) */}
