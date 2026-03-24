@@ -9,12 +9,14 @@ export default function Section3({ isActive }) {
             return;
         }
         
-        // 2페이지와 동일한 템포(Cinematic Cascade) 적용
-        const t1 = setTimeout(() => setStep(1), 500);
-        const t2 = setTimeout(() => setStep(2), 1400);
-        const t3 = setTimeout(() => setStep(3), 2100);
-        const t4 = setTimeout(() => setStep(4), 3000);
-        const t5 = setTimeout(() => setStep(5), 3800); // 밑줄 애니메이션 그리기 
+        // 5페이지 스타일의 단단한 슬라이드업(템포 조절 적용)
+        const t1 = setTimeout(() => setStep(1), 500);  // 1. AI의 진짜...
+        const t2 = setTimeout(() => setStep(2), 1400); // 2. 내 PC 안의...
+        
+        // (살짝 쉬는 공백 - 호흡을 가다듬는 시간)
+        const t3 = setTimeout(() => setStep(3), 2800); // 3. AI를 천재로...
+        const t4 = setTimeout(() => setStep(4), 3600); // 4. 다름 아닌...
+        const t5 = setTimeout(() => setStep(5), 4500); // 5. 밑줄 애니메이션 그리기 
 
         return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
     }, [isActive]);
