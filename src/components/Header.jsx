@@ -12,7 +12,13 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
     const initialTransform = React.useRef('translateY(0)');
 
     const menuDataEn = [
-        { title: "A", id: "section-a", items: [] },
+        { 
+            title: "The Engine", 
+            id: "page-2", 
+            items: [
+                { name: "Data Sovereignty", target: "page-2" }
+            ] 
+        },
         { title: "B", id: "section-b", items: [] },
         { title: "C", id: "section-c", items: [] },
         { title: "D", id: "section-d", items: [] },
@@ -20,7 +26,13 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
     ];
 
     const menuDataKr = [
-        { title: "A", id: "section-a", items: [] },
+        { 
+            title: "The Engine", 
+            id: "page-2", 
+            items: [
+                { name: "Data Sovereignty", target: "page-2" }
+            ] 
+        },
         { title: "B", id: "section-b", items: [] },
         { title: "C", id: "section-c", items: [] },
         { title: "D", id: "section-d", items: [] },
