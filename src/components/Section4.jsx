@@ -256,7 +256,7 @@ export default function Section4({ isActive }) {
 
                 {/* 3. Bottom Vision Statement (Appears dynamically at end) */}
                 <div 
-                    className={`w-full flex justify-center items-center px-0 md:px-4 transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] overflow-hidden ${step >= 6 ? 'opacity-100 mt-[60px] md:mt-[80px] max-h-[300px] translate-y-0' : 'opacity-0 mt-0 max-h-0 translate-y-12'}`}
+                    className={`w-full flex justify-center items-center px-0 md:px-4 transition-all duration-[1800ms] ease-[cubic-bezier(0.19,1,0.22,1)] overflow-hidden ${step >= 6 ? 'opacity-100 mt-[60px] md:mt-[80px] max-h-[300px] translate-y-0' : 'opacity-0 mt-0 max-h-0 translate-y-12'}`}
                 >
                     <p className="text-[36px] md:text-[52px] font-bold text-center tracking-tight text-[#1d1d1f] leading-[1.25] whitespace-nowrap pt-[5px]">
                         {lang === 'kr' ? (
