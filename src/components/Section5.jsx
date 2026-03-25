@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Section5({ isActive }) {
+    const { lang } = useLanguage();
     const [step, setStep] = useState(0);
 
     useEffect(() => {
@@ -29,32 +31,73 @@ export default function Section5({ isActive }) {
                 >
                     {/* Block 1 */}
                     <div className={`transition-all duration-[600ms] ease-out ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                        AI의 진짜 위력은 내 PC 안의<br />
-                        <span className="text-black">'리치한 데이터(Rich Data)'</span>에서 나옵니다.
+                        {lang === 'kr' ? (
+                            <>
+                                AI의 진짜 위력은 내 PC 안의<br />
+                                <span className="text-black">'리치한 데이터(Rich Data)'</span>에서 나옵니다.
+                            </>
+                        ) : (
+                            <>
+                                The true absolute power of AI emerges from the<br />
+                                <span className="text-black">'Rich Data'</span> within our PCs.
+                            </>
+                        )}
                     </div>
 
                     {/* Block 2 */}
                     <div className={`transition-all duration-[600ms] ease-out ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                        <span className="text-black">IGIS도 마찬가지</span>입니다.
+                        {lang === 'kr' ? (
+                            <><span className="text-black">IGIS도 마찬가지</span>입니다.</>
+                        ) : (
+                            <>The same remains <span className="text-black">undoubtedly true for IGIS</span>.</>
+                        )}
                     </div>
 
                     {/* Block 3 */}
                     <div className={`transition-all duration-[600ms] ease-out ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                        거창한 AI 교육은 필요 없습니다.<br />
-                        직원들은 지금처럼 <span className="text-black">검색창에 필요한 질문만</span><br />
-                        던지면 되니까요.
+                        {lang === 'kr' ? (
+                            <>
+                                거창한 AI 교육은 필요 없습니다.<br />
+                                직원들은 지금처럼 <span className="text-black">검색창에 필요한 질문만</span><br />
+                                던지면 되니까요.
+                            </>
+                        ) : (
+                            <>
+                                Colossal AI training is unnecessary.<br />
+                                Employees simply <span className="text-black">toss necessary inquiries</span><br />
+                                into the search bar, just as they always have.
+                            </>
+                        )}
                     </div>
 
                     {/* Block 4 */}
                     <div className={`transition-all duration-[600ms] ease-out ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                        하지만 그 가벼운 질문에, AI가 얼마나<br />
-                        <span className="text-black">깊고 날카로운 정답</span>을 내놓을 수 있는가.
+                        {lang === 'kr' ? (
+                            <>
+                                하지만 그 가벼운 질문에, AI가 얼마나<br />
+                                <span className="text-black">깊고 날카로운 정답</span>을 내놓을 수 있는가.
+                            </>
+                        ) : (
+                            <>
+                                However, the unprecedented depth and precision of the <span className="text-black">answers</span><br />
+                                AI can deliver to those casual questions...
+                            </>
+                        )}
                     </div>
 
                     {/* Block 5 */}
                     <div className={`transition-all duration-[600ms] ease-out ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                        그것은 오직, 이지스 <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">내부에 쌓여 흐르는</span><br />
-                        <span className="text-black">'데이터의 깊이'</span>에 달려있습니다.
+                        {lang === 'kr' ? (
+                            <>
+                                그것은 오직, 이지스 <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">내부에 쌓여 흐르는</span><br />
+                                <span className="text-black">'데이터의 깊이'</span>에 달려있습니다.
+                            </>
+                        ) : (
+                            <>
+                                ...depends solely upon the profound <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">'depth of data'</span><br />
+                                <span className="text-black">flowing within IGIS</span>.
+                            </>
+                        )}
                     </div>
                 </div>
 

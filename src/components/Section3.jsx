@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Section3({ isActive }) {
+    const { lang } = useLanguage();
     const [step, setStep] = useState(0);
 
     useEffect(() => {
@@ -32,7 +34,7 @@ export default function Section3({ isActive }) {
                     <p 
                         className={`text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
-                        <span className="text-black">AI</span>의 진짜 위력은
+                        <span className="text-black">AI</span>{lang === 'kr' ? "의 진짜 위력은" : "'s true absolute power"}
                     </p>
                 </div>
 
@@ -41,7 +43,9 @@ export default function Section3({ isActive }) {
                     <p 
                         className={`text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
-                        내 PC 안의 <span className="text-black">'리치한 데이터(Rich Data)'</span>에서 나옵니다.
+                        {lang === 'kr' ? "내 PC 안의 " : "emerges from the "}
+                        <span className="text-black">{lang === 'kr' ? "'리치한 데이터(Rich Data)'" : "'Rich Data'"}</span>
+                        {lang === 'kr' ? "에서 나옵니다." : " within our PCs."}
                     </p>
                 </div>
 
@@ -50,7 +54,11 @@ export default function Section3({ isActive }) {
                     <p 
                         className={`text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
-                        <span className="text-black">AI</span>를 <span className="text-black">천재</span>로 만드는 것은
+                        {lang === 'kr' ? "" : "What turns "}
+                        <span className="text-black">AI</span>
+                        {lang === 'kr' ? "를 " : " into a "}
+                        <span className="text-black">{lang === 'kr' ? "천재" : "genius"}</span>
+                        {lang === 'kr' ? "로 만드는 것은" : ""}
                     </p>
                 </div>
 
@@ -60,15 +68,15 @@ export default function Section3({ isActive }) {
                     <p 
                         className={`relative text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap pb-4 z-10 transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
-                        다름 아닌 내 PC 안의{' '}
+                        {lang === 'kr' ? "다름 아닌 내 PC 안의 " : "is none other than our internal "}
                         <span className="relative inline-block pb-[1px] text-black">
-                            '풍부한 실무 데이터'
+                            {lang === 'kr' ? "'풍부한 실무 데이터'" : "'Rich Production Data'"}
                             {/* 밑줄 렌더링 5스텝 분기 */}
                             <span 
                                 className={`absolute bottom-[2px] left-0 h-[2px] md:h-[3px] bg-black -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 5 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}
                             ></span>
                         </span>
-                        입니다.
+                        {lang === 'kr' ? "입니다." : "."}
                     </p>
                 </div>
 

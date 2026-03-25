@@ -15,6 +15,7 @@ const CardItem = ({ title, desc, isDark, isHighlighted, highlightClass }) => (
 );
 
 export default function Section4({ isActive }) {
+    const { lang } = useLanguage();
     const [step, setStep] = useState(0);
 
     useEffect(() => {
@@ -52,8 +53,18 @@ export default function Section4({ isActive }) {
                         <h2 
                             className={`text-[40px] md:text-[56px] font-bold text-[#1d1d1f] tracking-tight leading-[1.15] transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                         >
-                            <span className="text-[#1d4ed8]">데이터를 이해</span>하고, <br className="block md:hidden" />
-                            <span className="text-[#1d4ed8]">AI와 협업</span>할 때 가능해지는 일
+                            {lang === 'kr' ? (
+                                <>
+                                    <span className="text-[#1d4ed8]">데이터를 이해</span>하고, <br className="block md:hidden" />
+                                    <span className="text-[#1d4ed8]">AI와 협업</span>할 때 가능해지는 일
+                                </>
+                            ) : (
+                                <>
+                                    What becomes possible when we <br className="block md:hidden" />
+                                    <span className="text-[#1d4ed8]">Understand Data</span> and <br className="hidden md:block"/>
+                                    <span className="text-[#1d4ed8]">Collaborate with AI</span>
+                                </>
+                            )}
                         </h2>
                     </div>
                 </div>
@@ -71,7 +82,7 @@ export default function Section4({ isActive }) {
                                     Traditional Agency Way
                                 </span>
                                 <h3 className="text-[28px] md:text-[40px] font-bold text-[#1d1d1f] tracking-tight leading-none mb-4">
-                                    기존 외주 제작 방식
+                                    {lang === 'kr' ? "기존 외주 제작 방식" : "Traditional Agency Production"}
                                 </h3>
                                 {/* Thumbnail Image & Link Wrapper */}
                                 <a 
@@ -102,10 +113,10 @@ export default function Section4({ isActive }) {
                             </div>
                             
                             <div className="flex flex-col mt-auto pb-0">
-                                <CardItem title="의사결정 및 런칭" desc="기획-입찰-계약-제작 (3~6개월 소요)" isDark={false} isHighlighted={step >= 6} highlightClass="text-[#d92d2d]" />
-                                <CardItem title="구축 비용" desc="억 단위 용역비 발생" isDark={false} isHighlighted={step >= 6} highlightClass="text-[#d92d2d]" />
-                                <CardItem title="콘텐츠 업데이트" desc="대행사 경유 (평균 1~3일 소요)" isDark={false} isHighlighted={step >= 6} highlightClass="text-[#d92d2d]" />
-                                <CardItem title="데이터 소유권" desc="대행사 DB 관리 (접근 권한 제한적)" isDark={false} isHighlighted={step >= 6} highlightClass="text-[#d92d2d]" />
+                                <CardItem title={lang === 'kr' ? "의사결정 및 런칭" : "Decision & Launch"} desc={lang === 'kr' ? "기획-입찰-계약-제작 (3~6개월 소요)" : "Plan-Bid-Contract-Build (3~6 months)"} isDark={false} isHighlighted={step >= 6} highlightClass="text-[#d92d2d]" />
+                                <CardItem title={lang === 'kr' ? "구축 비용" : "Deployment Cost"} desc={lang === 'kr' ? "억 단위 용역비 발생" : "Millions of dollars incurred"} isDark={false} isHighlighted={step >= 6} highlightClass="text-[#d92d2d]" />
+                                <CardItem title={lang === 'kr' ? "콘텐츠 업데이트" : "Content Update"} desc={lang === 'kr' ? "대행사 경유 (평균 1~3일 소요)" : "Via agency (1~3 days average delay)"} isDark={false} isHighlighted={step >= 6} highlightClass="text-[#d92d2d]" />
+                                <CardItem title={lang === 'kr' ? "데이터 소유권" : "Data Sovereignty"} desc={lang === 'kr' ? "대행사 DB 관리 (접근 권한 제한적)" : "Managed by agency (restricted access)"} isDark={false} isHighlighted={step >= 6} highlightClass="text-[#d92d2d]" />
                             </div>
                         </div>
 
@@ -122,7 +133,7 @@ export default function Section4({ isActive }) {
                                         AI-Driven Internalization
                                     </span>
                                     <h3 className="text-[28px] md:text-[40px] font-bold text-white tracking-tight leading-none mb-4">
-                                        <span style={{ fontFamily: "'Guardian Sans', sans-serif" }}>IOTA SEOUL</span> AI 구축
+                                        <span style={{ fontFamily: "'Guardian Sans', sans-serif" }}>IOTA SEOUL</span> {lang === 'kr' ? "AI 구축" : "AI Production"}
                                     </h3>
                                     {/* Thumbnail Image & Link Wrapper */}
                                     <a 
@@ -153,10 +164,10 @@ export default function Section4({ isActive }) {
                                 </div>
                                 
                                 <div className="flex flex-col mt-auto pb-0 relative z-10">
-                                    <CardItem title="의사결정 및 런칭" desc="내재인력이 AI 활용 단독 수행 (단 5일)" isDark={true} isHighlighted={step >= 6} highlightClass="text-[#3b82f6]" />
-                                    <CardItem title="구축 비용" desc="0원 (도메인 비용 외 영구 면제)" isDark={true} isHighlighted={step >= 6} highlightClass="text-[#3b82f6]" />
-                                    <CardItem title="콘텐츠 업데이트" desc="실시간 5분 이내 직접 즉각 수정" isDark={true} isHighlighted={step >= 6} highlightClass="text-[#3b82f6]" />
-                                    <CardItem title="데이터 소유권" desc="내부 DB 실시간 축적 및 데이터 주권 확보" isDark={true} isHighlighted={step >= 6} highlightClass="text-[#3b82f6]" />
+                                    <CardItem title={lang === 'kr' ? "의사결정 및 런칭" : "Decision & Launch"} desc={lang === 'kr' ? "내재인력이 AI 활용 단독 수행 (단 5일)" : "Exclusively internal AI leveraging (5 Days)"} isDark={true} isHighlighted={step >= 6} highlightClass="text-[#3b82f6]" />
+                                    <CardItem title={lang === 'kr' ? "구축 비용" : "Deployment Cost"} desc={lang === 'kr' ? "0원 (도메인 비용 외 영구 면제)" : "$0 (Free permanently excluding domain)"} isDark={true} isHighlighted={step >= 6} highlightClass="text-[#3b82f6]" />
+                                    <CardItem title={lang === 'kr' ? "콘텐츠 업데이트" : "Content Update"} desc={lang === 'kr' ? "실시간 5분 이내 직접 즉각 수정" : "Instant internal modification within 5 mins"} isDark={true} isHighlighted={step >= 6} highlightClass="text-[#3b82f6]" />
+                                    <CardItem title={lang === 'kr' ? "데이터 소유권" : "Data Sovereignty"} desc={lang === 'kr' ? "내부 DB 실시간 축적 및 데이터 주권 확보" : "Real-time internal DB metrics & Data Sovereignty"} isDark={true} isHighlighted={step >= 6} highlightClass="text-[#3b82f6]" />
                                 </div>
                             </div>
                             
@@ -168,21 +179,58 @@ export default function Section4({ isActive }) {
                                 <div className="absolute top-[56px] md:top-[64px] -left-[10px] md:-left-[12px] w-5 h-5 md:w-6 md:h-6 bg-white border-l-[2.5px] border-b-[2.5px] border-[#1d1d1f] transform rotate-45 rounded-none"></div>
                                 
                                 <p className="text-[#1d1d1f] text-[16px] md:text-[18px] leading-[1.45] md:leading-[1.55] break-keep font-bold mb-5">
-                                    외주 제작 시, 전체 맥락을 도급자에게<br className="hidden md:block" />
-                                    이해시키고 양사가 커뮤니케이션하는 데에만<br className="hidden md:block" />
-                                    <strong className="font-extrabold bg-[#1d1d1f] text-white px-1">수개월의 불필요한 기간</strong>이 증발합니다.
+                                    {lang === 'kr' ? (
+                                        <>
+                                            외주 제작 시, 전체 맥락을 도급자에게<br className="hidden md:block" />
+                                            이해시키고 양사가 커뮤니케이션하는 데에만<br className="hidden md:block" />
+                                            <strong className="font-extrabold bg-[#1d1d1f] text-white px-1">수개월의 불필요한 기간</strong>이 증발합니다.
+                                        </>
+                                    ) : (
+                                        <>
+                                            When outsourcing, merely making contractors<br className="hidden md:block" />
+                                            understand the full context and communicating back-and-forth<br className="hidden md:block" />
+                                            evaporates <strong className="font-extrabold bg-[#1d1d1f] text-white px-1">months of unnecessary time</strong>.
+                                        </>
+                                    )}
                                 </p>
                                 <p className="text-[#1d1d1f] text-[16px] md:text-[18px] leading-[1.45] md:leading-[1.55] break-keep font-bold mb-5">
-                                    반면 <strong className="text-[#1d4ed8] font-extrabold">내부 인력</strong>이 <strong className="font-extrabold">AI</strong>라는 무기를 직접 다루면<br className="hidden md:block" />
-                                    외주 소통의 비효율이 존재하지 않으며,
+                                    {lang === 'kr' ? (
+                                        <>
+                                            반면 <strong className="text-[#1d4ed8] font-extrabold">내부 인력</strong>이 <strong className="font-extrabold">AI</strong>라는 무기를 직접 다루면<br className="hidden md:block" />
+                                            외주 소통의 비효율이 존재하지 않으며,
+                                        </>
+                                    ) : (
+                                        <>
+                                            Conversely, if <strong className="text-[#1d4ed8] font-extrabold">internal talent</strong> directly wields <strong className="font-extrabold">AI</strong> as a weapon,<br className="hidden md:block" />
+                                            the inefficiencies of external communication vanish entirely,
+                                        </>
+                                    )}
                                 </p>
                                 <p className="text-[#1d4ed8] text-[16px] md:text-[18px] leading-[1.45] md:leading-[1.55] break-keep font-extrabold mb-5">
-                                    프로덕트 기획자의 역량과 AI 시너지가<br className="hidden md:block" />
-                                    로스 없이 자산에 고스란히 반영됩니다.
+                                    {lang === 'kr' ? (
+                                        <>
+                                            프로덕트 기획자의 역량과 AI 시너지가<br className="hidden md:block" />
+                                            로스 없이 자산에 고스란히 반영됩니다.
+                                        </>
+                                    ) : (
+                                        <>
+                                            allowing the capabilities of product planners and AI synergy<br className="hidden md:block" />
+                                            to be flawlessly reflected into corporate assets without loss.
+                                        </>
+                                    )}
                                 </p>
                                 <p className="text-[#1d4ed8] text-[16px] md:text-[18px] leading-[1.45] md:leading-[1.55] break-keep font-extrabold pb-1">
-                                    실무 DB 실시간 축적 기반 상시 업데이트<br className="hidden md:block" />
-                                    통제권을 기업이 온전히 독점합니다.
+                                    {lang === 'kr' ? (
+                                        <>
+                                            실무 DB 실시간 축적 기반 상시 업데이트<br className="hidden md:block" />
+                                            통제권을 기업이 온전히 독점합니다.
+                                        </>
+                                    ) : (
+                                        <>
+                                            The enterprise retains full exclusive control<br className="hidden md:block" />
+                                            over continuous updates driven by real-time production DB accumulation.
+                                        </>
+                                    )}
                                 </p>
                             </div>
                         </div>
@@ -195,8 +243,17 @@ export default function Section4({ isActive }) {
                     className={`mt-[54px] md:mt-[70px] w-full flex justify-center items-center px-0 md:px-4 transition-all duration-[2500ms] delay-[300ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-[40px]'}`}
                 >
                     <p className="text-[40px] md:text-[56px] font-bold text-center tracking-tight text-[#1d1d1f] leading-[1.25] whitespace-nowrap">
-                        기획과 데이터만 내재되어 있다면, <br />
-                        AI 시대에 우리가 직접 만들어내지 못할 <span className="text-[#1d4ed8]">'통합 플랫폼'</span>은 없습니다.
+                        {lang === 'kr' ? (
+                            <>
+                                기획과 데이터만 내재되어 있다면, <br />
+                                AI 시대에 우리가 직접 만들어내지 못할 <span className="text-[#1d4ed8]">'통합 플랫폼'</span>은 없습니다.
+                            </>
+                        ) : (
+                            <>
+                                As long as planning and data are internalized, <br />
+                                there is no <span className="text-[#1d4ed8]">'integrated platform'</span> we cannot physically build in the AI era.
+                            </>
+                        )}
                     </p>
                 </div>
 

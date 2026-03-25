@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Section1({ isActive }) {
+    const { lang } = useLanguage();
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => {
@@ -40,7 +42,7 @@ export default function Section1({ isActive }) {
                     className={`-mt-1 md:-mt-2 text-gray-500 text-[18px] md:text-[26px] font-normal tracking-[-0.02em] px-4 transition-all duration-[1000ms] delay-[300ms] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                     style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', '애플 SD 산돌고딕 Neo', sans-serif" }}
                 >
-                    ONE IGIS + CFT 전략의 완벽한 실체화 For AI ERA
+                    {lang === 'kr' ? "ONE IGIS + CFT 전략의 완벽한 실체화 For AI ERA" : "The Ultimate Realization of ONE IGIS + CFT Strategy for the AI Era"}
                 </div>
 
             </div>
