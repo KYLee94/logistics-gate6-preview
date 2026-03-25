@@ -35,7 +35,7 @@ export default function Section5({ isActive }) {
 
                     {/* Block 2 */}
                     <div className={`transition-all duration-[600ms] ease-out ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                        <span className="text-black">IGIS도 마찬가지입니다.</span>
+                        <span className="text-black">IGIS도 마찬가지</span>입니다.
                     </div>
 
                     {/* Block 3 */}
@@ -53,7 +53,7 @@ export default function Section5({ isActive }) {
 
                     {/* Block 5 */}
                     <div className={`transition-all duration-[600ms] ease-out ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                        그것은 오직, 이지스 내부에 쌓여 흐르는<br />
+                        그것은 오직, 이지스 <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">내부에 쌓여 흐르는</span><br />
                         <span className="text-black">'데이터의 깊이'</span>에 달려있습니다.
                     </div>
                 </div>
