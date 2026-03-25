@@ -24,10 +24,10 @@ export default function Section3({ isActive }) {
     }, [isActive]);
 
     return (
-        <section className="section w-full h-full bg-white flex flex-col items-center justify-center relative px-6 md:px-12 overflow-y-auto">
+        <section className="section w-full h-full bg-white flex flex-col relative px-6 md:px-12 overflow-y-auto">
             
             {/* 2페이지와 동일하게 좌측 상단 정렬 및 가장 타이트한 기준 유지 */}
-            <div className="w-full max-w-[1000px] flex flex-col items-start justify-center text-left font-sans tracking-tight relative z-10 -translate-y-[40px] md:-translate-y-[50px] gap-0 pt-24 pb-32">
+            <div className="w-full max-w-[1000px] mx-auto flex flex-col items-start justify-center text-left font-sans tracking-tight relative z-10 my-auto -translate-y-[40px] md:-translate-y-[50px] gap-0 pt-24 pb-32">
                 
                 {/* 1. Line 1 (Hero Anchor) */}
                 <div className="overflow-hidden">

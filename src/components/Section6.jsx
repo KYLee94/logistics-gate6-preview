@@ -19,9 +19,9 @@ export default function Section6({ isActive }) {
     }, [isActive]);
 
     return (
-        <section className="section w-full h-full bg-black flex flex-col items-center justify-center relative px-6 md:px-16 lg:px-24">
+        <section className="section w-full h-full bg-black flex flex-col relative px-6 md:px-16 lg:px-24 pt-[100px] md:pt-[120px] pb-[80px] overflow-y-auto">
             
-            <div className="w-full max-w-[1400px] flex flex-col md:flex-row items-center md:items-start justify-between gap-[40px] md:gap-[80px] lg:gap-[100px]">
+            <div className="w-full max-w-[1400px] mx-auto flex flex-col md:flex-row items-center md:items-start justify-between gap-[40px] md:gap-[80px] lg:gap-[100px] my-auto">
                 
                 {/* Left: Portrait Image */}
                 <div 
@@ -29,7 +29,7 @@ export default function Section6({ isActive }) {
                     style={{ aspectRatio: '3 / 4' }}
                 >
                     <img 
-                        src="/josh_panknin.jpg" 
+                        src="/josh_panknin.webp" 
                         alt="Josh Panknin" 
                         className="w-full h-full object-cover"
                         onError={(e) => {
@@ -41,32 +41,53 @@ export default function Section6({ isActive }) {
                 </div>
 
                 {/* Right: Quote Content */}
-                <div className="flex flex-col flex-1 max-w-[850px] md:pt-[20px] lg:pt-[40px]">
+                <div className="flex flex-col flex-1 max-w-[850px] mt-0 md:-mt-1 lg:-mt-2">
                     
                     {/* Main Quote */}
                     <div className="overflow-visible">
                         <p 
-                            className={`text-[24px] md:text-[36px] lg:text-[42px] xl:text-[46px] leading-[1.4] text-[#f4f4f5] font-light transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] break-keep ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
+                            className={`text-[14px] md:text-[26px] lg:text-[32px] xl:text-[35px] leading-[1.5] text-[#f4f4f5] font-light transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] break-keep ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
                             style={{ 
                                 fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif",
                                 letterSpacing: "-0.01em"
                             }}
                         >
                             {lang === 'kr' ? (
-                                <>“AI는 IT의 문제가 아니라 데이터의 문제입니다. 과거 수십 년간 쌓인 로컬 데이터가 정리되지 않았기에, 오직 글로벌 최상위 운용사들만이 데이터 파이프라인 구축에 천문학적인 자본을 쏟고 있습니다. 향후 투자 성과의 격차는 여기서 극명하게 갈릴 것입니다.”</>
+                                <>
+                                    “AI 기술은 투자자뿐 아니라 운용사가 보다<br className="hidden md:block" />
+                                    정확한 결정을 내릴 수 있도록 지원할 수 있으며<br className="hidden md:block" />
+                                    구체적으로 AI가 부동산의 운영 효율성을 높이고,<br className="hidden md:block" />
+                                    임차인 만족도를 증가시켜 결국 자산 가치를 극대화<br className="hidden md:block" />
+                                    하는 중요한 도구가 될 것이라고 평가하고 있습니다.
+                                    <br /><br />
+                                    다만, AI 툴을 사용하기 위해서는 데이터의 정리가<br className="hidden md:block" />
+                                    선행되어야 하는데 아직까지 부동산 업계는 오랜 시간<br className="hidden md:block" />
+                                    쌓은 데이터들의 정리가 되지 않고 있습니다.
+                                    <br /><br />
+                                    현재까지 이런 데이터 정리를 하고 있는 회사들은<br className="hidden md:block" />
+                                    글로벌 톱 5 정도로 앞으로 부동산 시장에서 데이터<br className="hidden md:block" />
+                                    정리 및 분석이 가능한 회사들과 그렇지 못한 회사들의<br className="hidden md:block" />
+                                    투자는 확연한 차이가 날 수 밖에 없다고 보고 있습니다.”
+                                </>
                             ) : (
-                                <>“AI is not an IT problem; it's a data problem. Because decades of local data remain unstructured, only top-tier global operators are pouring astronomical capital into data pipelines. The future performance gap will be stark.”</>
+                                <>
+                                    “AI technology supports not only investors but also operators in making more accurate decisions, and it is assessed to be a crucial tool for enhancing operational efficiency, increasing tenant satisfaction, and ultimately maximizing asset value.
+                                    <br /><br />
+                                    However, the use of AI tools requires prior data organization, yet the real estate industry still struggles with decades of unorganized data.
+                                    <br /><br />
+                                    Currently, only about the top 5 global firms are undertaking such data structuring, and we anticipate a stark contrast in future investments between companies capable of data organization and analysis and those that are not.”
+                                </>
                             )}
                         </p>
                     </div>
 
                     {/* Name and Title (Left aligned inner text, aligned to right side of parent box) */}
                     <div 
-                        className={`flex w-full mt-12 md:mt-16 lg:mt-24 transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+                        className={`flex w-full mt-10 md:mt-16 lg:mt-24 transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
                     >
-                        <div className="flex flex-col text-left ml-auto w-full md:w-[60%] lg:w-[50%]">
+                        <div className="flex flex-col text-left ml-auto w-full md:w-[65%] lg:w-[60%]">
                             <span 
-                                className="text-white text-[18px] md:text-[20px] font-semibold mb-1" 
+                                className="text-white text-[18px] md:text-[20px] font-normal mb-1" 
                                 style={{ fontFamily: "'Guardian Sans', 'Helvetica Neue', sans-serif" }}
                             >
                                 Josh Panknin
@@ -76,6 +97,12 @@ export default function Section6({ isActive }) {
                                 style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif" }}
                             >
                                 {lang === 'kr' ? "Columbia Univ. 부동산 AI 연구 및 혁신 디렉터" : "Director of Real Estate AI Research & Innovation, Columbia Univ."}
+                            </span>
+                            <span 
+                                className="text-white text-[14px] md:text-[15px] font-light tracking-wide mt-2 pt-2 border-t border-white/20" 
+                                style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif" }}
+                            >
+                                {lang === 'kr' ? "MIPIM 2024 발표: “AI Lecture IV - Readying your business for a digital world”" : "Delivered at MIPIM 2024: “AI Lecture IV - Readying your business for a digital world”"}
                             </span>
                         </div>
                     </div>

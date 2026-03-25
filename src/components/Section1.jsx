@@ -18,8 +18,8 @@ export default function Section1({ isActive }) {
     }, [isActive]);
 
     return (
-        <section className="section w-full h-full bg-white flex flex-col items-center justify-center relative">
-            <div className="logo-fade w-full flex flex-col items-center justify-center -translate-y-[20px]">
+        <section className="section w-full h-full bg-white flex flex-col relative overflow-y-auto">
+            <div className="logo-fade w-full flex flex-col items-center justify-center -translate-y-[20px] my-auto py-12">
                 
                 {/* Main Title */}
                 <div 

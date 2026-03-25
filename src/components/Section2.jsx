@@ -22,8 +22,8 @@ export default function Section2({ isActive }) {
     }, [isActive]);
 
     return (
-        <section className="section w-full h-full bg-white overflow-y-auto relative px-4">
-            <div className="w-full min-h-full flex flex-col items-center justify-center py-24 md:py-32">
+        <section className="section w-full h-full bg-white overflow-y-auto relative px-4 flex flex-col">
+            <div className="w-full flex flex-col items-center justify-center py-24 md:py-32 my-auto">
                 
                 {/* 일반 Flex Flow로 좌측 정렬 및 가장 타이트한 줄간격 밀착 */}
                 <div className="flex flex-col items-start justify-center text-left max-w-[1000px] w-full gap-0 md:gap-1 relative border-l-0 pl-0 -translate-y-[40px] md:-translate-y-[50px]">

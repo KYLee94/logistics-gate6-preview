@@ -23,8 +23,8 @@ export default function Section5({ isActive }) {
     }, [isActive]);
 
     return (
-        <section className="section w-full h-full bg-white overflow-y-auto relative px-4">
-            <div className="w-full min-h-full max-w-[1400px] mx-auto flex flex-col items-center justify-center py-24 md:py-32 relative">
+        <section className="section w-full h-full bg-white overflow-y-auto relative px-4 flex flex-col">
+            <div className="w-full max-w-[1400px] mx-auto flex flex-col items-center justify-center py-24 md:py-32 relative my-auto">
                 <div 
                     className={`w-full max-w-[1000px] text-[19px] sm:text-[27px] md:text-[35px] xl:text-[41px] flex flex-col items-start text-[#999] font-sans tracking-tight leading-[1.32] gap-[29px] md:gap-[37px] relative break-keep -translate-y-[40px] md:-translate-y-[50px] transition-transform duration-[1400ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? '-translate-x-[50px] md:-translate-x-[150px] lg:-translate-x-[200px]' : 'translate-x-0'}`}
                     style={{ fontWeight: 700 }}
