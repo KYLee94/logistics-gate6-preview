@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
 const DataFlow = () => {
@@ -35,6 +35,8 @@ const DataFlow = () => {
 export default function Section8({ isActive }) {
     const { lang } = useLanguage();
     const [step, setStep] = useState(0);
+    const stepRef = useRef(0);
+    stepRef.current = step;
 
     const stagesKR = ["소싱", "투자", "펀드생성", "개발추진", "파이낸싱", "유저솔루션", "기업마케팅", "개발관리", "준공", "운용개시"];
     const stagesEN = ["Source", "Invest", "Fund", "Dev Init", "Finance", "User Sol.", "Corp Mktg", "Dev Mgt", "Complete", "Operate"];
@@ -51,7 +53,21 @@ export default function Section8({ isActive }) {
         const t3 = setTimeout(() => setStep(3), 2200); // Nodes Reveal
         const t4 = setTimeout(() => setStep(4), 3200); // Data flow begins (animation mapped)
         
-        return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+        const nextAction = (e) => {
+            if (e.type === 'appSlideNext') {
+                if (stepRef.current === 4) {
+                    e.preventDefault();
+                    setStep(5); // Trigger vertical disconnected silos
+                }
+            }
+        };
+
+        window.addEventListener('appSlideNext', nextAction);
+
+        return () => { 
+            clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4);
+            window.removeEventListener('appSlideNext', nextAction);
+        };
     }, [isActive]);
 
     return (
@@ -105,8 +121,9 @@ export default function Section8({ isActive }) {
                     </h2>
                 </div>
 
-                <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
-                    <h3 className="text-[18px] md:text-[24px] lg:text-[28px] font-medium text-[#c4c4c6] tracking-tight leading-[1.5] break-keep mb-16 md:mb-24 max-w-[1100px]">
+                <div className="relative min-h-[140px] md:min-h-[160px] lg:min-h-[120px] mb-8 md:mb-16">
+                    {/* Step 1-4 Subtitle (Horizontal Severance) */}
+                    <h3 className={`absolute top-0 left-0 w-full text-[18px] md:text-[24px] lg:text-[28px] font-medium text-[#c4c4c6] tracking-tight leading-[1.5] break-keep transition-all duration-[800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-0 translate-y-[-20px] pointer-events-none' : (step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12 pointer-events-none')} max-w-[1100px]`}>
                         {lang === 'kr' ? (
                             <>
                                 앞 단계에서 쌓은 경험과 데이터는 다음 단계로 흐르지 못하고 담당자의 PC 안에서 <strong className="text-white font-bold">휘발</strong>됩니다.<br />
@@ -119,38 +136,78 @@ export default function Section8({ isActive }) {
                             </>
                         )}
                     </h3>
+
+                    {/* Step 5 Subtitle (Vertical Severance) */}
+                    <h3 className={`absolute top-0 left-0 w-full text-[18px] md:text-[24px] lg:text-[28px] font-medium text-[#c4c4c6] tracking-tight leading-[1.5] break-keep transition-all duration-[1200ms] delay-[400ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-10 scale-95 pointer-events-none'} max-w-[1100px]`}>
+                        {lang === 'kr' ? (
+                            <>
+                                나아가, 다른 프로젝트를 진행하는 팀들 간에도 <strong className="text-[#f97316] font-bold">노하우가 단 한 줄도 공유되지 않습니다.</strong><br />
+                                소싱은 소싱끼리, 투자는 투자끼리 단절되어버리는 완벽한 <strong className="text-[#dc2626] font-bold">수직적 밀실 구조</strong>가 형성됩니다.
+                            </>
+                        ) : (
+                            <>
+                                Furthermore, even between teams working on different projects, <strong className="text-[#f97316] font-bold">not a single line of know-how is shared.</strong><br />
+                                Sourcing is isolated from sourcing, investing from investing, resulting in a perfect <strong className="text-[#dc2626] font-bold">vertical silo structure</strong>.
+                            </>
+                        )}
+                    </h3>
                 </div>
 
                 {/* 2. Value Chain Visualization */}
-                {/* Mobile scrollable wrapper, Desktop full squashed flex grid */}
                 <div className={`w-full overflow-x-auto hide-scrollbar pb-6 transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-16'}`}>
-                    <div className="flex items-center min-w-[1000px] xl:min-w-0 w-full rounded-lg border border-[#333] shadow-[0_0_30px_rgba(220,38,38,0.1)] overflow-hidden">
-                        
-                        {stages.map((stage, idx) => (
-                            <React.Fragment key={idx}>
-                                {/* Node Compartment */}
-                                <div className={`flex-1 flex flex-col h-[260px] md:h-[320px] lg:h-[350px] relative bg-[#0f0f11] overflow-hidden ${step >= 4 ? 'data-running' : 'data-paused'}`}>
-                                    {/* Top Title Bar */}
-                                    <div className="w-full bg-[#1a1a1c] border-b border-[#2a2a2c] py-3 lg:py-4 px-1 flex items-center justify-center z-20 h-[60px] md:h-[70px]">
-                                        <span className="text-[12px] md:text-[14px] lg:text-[16px] text-[#ededf0] font-bold text-center leading-[1.2] break-keep px-1">
-                                            {stage}
-                                        </span>
+                    
+                    {[0, 1, 2].map((rowIndex) => (
+                        <div 
+                            key={`row-${rowIndex}`}
+                            className={`flex items-center min-w-[1000px] xl:min-w-0 w-full overflow-hidden transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] 
+                                ${rowIndex === 0 ? '' : (step >= 5 ? 'opacity-100 mt-[15px] md:mt-[20px] scale-100' : 'opacity-0 mt-0 max-h-0 scale-95 pointer-events-none')}
+                                ${step >= 5 ? 'border-y-[3px] border-[#dc2626]/80 shadow-[0_0_20px_rgba(220,38,38,0.2)]' : 'border border-[#333] rounded-lg'}
+                            `}
+                        >
+                            {stages.map((stage, idx) => (
+                                <React.Fragment key={idx}>
+                                    {/* Node Compartment */}
+                                    <div 
+                                        className={`flex-1 flex flex-col relative bg-[#0f0f11] overflow-hidden transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                                            ${step >= 4 ? 'data-running' : 'data-paused'}
+                                            ${step >= 5 ? 'h-[100px] md:h-[130px]' : 'h-[260px] md:h-[320px] lg:h-[350px]'}
+                                        `}
+                                    >
+                                        {/* Top Title Bar */}
+                                        <div 
+                                            className={`w-full bg-[#1a1a1c] flex items-center justify-center z-20 transition-all duration-[1200ms] 
+                                                ${step >= 5 ? 'h-[35px] md:h-[45px] py-1 border-b-[2px] border-[#ea580c] shadow-[0_4px_10px_rgba(234,88,12,0.4)]' : 'h-[60px] md:h-[70px] py-3 lg:py-4 border-b border-[#2a2a2c]'}
+                                            `}
+                                        >
+                                            <span 
+                                                className={`text-[#ededf0] font-bold text-center leading-[1.2] break-keep px-1 transition-all duration-[1200ms]
+                                                    ${step >= 5 ? 'text-[10px] md:text-[13px]' : 'text-[12px] md:text-[14px] lg:text-[16px]'}
+                                                `}
+                                            >
+                                                {stage}
+                                            </span>
+                                        </div>
+                                        
+                                        {/* Flowing Data Animation */}
+                                        <div className={`absolute inset-0 z-10 p-2 opacity-80 ${step >= 5 ? 'top-[35px] md:top-[45px]' : 'top-[60px] md:top-[70px]'}`}>
+                                            <DataFlow />
+                                        </div>
                                     </div>
                                     
-                                    {/* Flowing Data Animation */}
-                                    <div className="absolute inset-0 top-[60px] md:top-[70px] z-10 p-2 opacity-80">
-                                        <DataFlow />
-                                    </div>
-                                </div>
-                                
-                                {/* 3. The "Thick Walls" of severing */}
-                                {idx < stages.length - 1 && (
-                                    <div className="w-[4px] md:w-[6px] h-[260px] md:h-[320px] lg:h-[350px] bg-gradient-to-b from-[#dc2626] to-[#f97316] shrink-0 z-30 shadow-[0_0_15px_rgba(239,68,68,0.9)] transition-all duration-1000" style={{ opacity: step >= 4 ? 1 : 0.3 }}></div>
-                                )}
-                            </React.Fragment>
-                        ))}
+                                    {/* 3. The "Thick Walls" of severing */}
+                                    {idx < stages.length - 1 && (
+                                        <div 
+                                            className={`bg-gradient-to-b from-[#dc2626] to-[#f97316] shrink-0 z-30 shadow-[0_0_15px_rgba(239,68,68,0.9)] transition-all duration-[1000ms]
+                                                ${step >= 5 ? 'w-[6px] h-[100px] md:h-[130px]' : 'w-[4px] md:w-[6px] h-[260px] md:h-[320px] lg:h-[350px]'}
+                                            `} 
+                                            style={{ opacity: step >= 4 ? 1 : 0.3 }}
+                                        ></div>
+                                    )}
+                                </React.Fragment>
+                            ))}
+                        </div>
+                    ))}
 
-                    </div>
                 </div>
 
             </div>
