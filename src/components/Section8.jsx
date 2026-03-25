@@ -59,7 +59,7 @@ export default function Section8({ isActive }) {
                     e.preventDefault();
                     setStep(5); // Trigger horizontal scaling down & title appear
                     setTimeout(() => setStep(6), 1200); // Trigger vertical cloning
-                    setTimeout(() => setStep(7), 3000); // Trigger lateral fragmentation into 30 isolated boxes
+                    setTimeout(() => setStep(7), 2400); // Trigger lateral fragmentation even sooner
                 }
             }
         };
@@ -171,7 +171,7 @@ export default function Section8({ isActive }) {
                             </div>
 
                             <div 
-                                className={`flex items-center min-w-[1000px] xl:min-w-0 w-full transition-all duration-[600ms] ease-[cubic-bezier(0.19,1,0.22,1)] 
+                                className={`flex items-center min-w-[1000px] xl:min-w-0 w-full transition-all duration-[300ms] ease-[cubic-bezier(0.19,1,0.22,1)] 
                                     ${step >= 7 ? 'gap-2 md:gap-3 lg:gap-4 overflow-visible border-transparent shadow-none' : 
                                       (step >= 5 ? 'gap-0 border-y-[3px] border-[#dc2626]/80 shadow-[0_0_20px_rgba(220,38,38,0.2)] overflow-hidden' : 'gap-0 border border-[#333] rounded-lg overflow-hidden')}
                                 `}
@@ -180,7 +180,7 @@ export default function Section8({ isActive }) {
                                 <React.Fragment key={idx}>
                                     {/* Node Compartment */}
                                     <div 
-                                        className={`flex-1 flex flex-col relative bg-[#0f0f11] overflow-hidden transition-all duration-[600ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                                        className={`flex-1 flex flex-col relative bg-[#0f0f11] overflow-hidden transition-all duration-[300ms] ease-[cubic-bezier(0.19,1,0.22,1)]
                                             ${step >= 4 ? 'data-running' : 'data-paused'}
                                             ${step >= 5 ? 'h-[100px] md:h-[130px]' : 'h-[260px] md:h-[320px] lg:h-[350px]'}
                                             ${step >= 7 ? 'rounded-md border border-[#444] shadow-[0_0_15px_rgba(0,0,0,0.5)]' : 'rounded-none border-none shadow-none'}
@@ -188,7 +188,7 @@ export default function Section8({ isActive }) {
                                     >
                                         {/* Top Title Bar */}
                                         <div 
-                                            className={`w-full flex items-center justify-center z-20 transition-all duration-[600ms] 
+                                            className={`w-full flex items-center justify-center z-20 transition-all duration-[300ms] 
                                                 ${step >= 7 ? 'bg-[#1a1a1c] h-[30px] md:h-[40px] py-1 border-b border-[#333] shadow-none' : 
                                                   (step >= 5 ? 'bg-[#1a1a1c] h-[35px] md:h-[45px] py-1 border-b-[2px] border-[#ea580c] shadow-[0_4px_10px_rgba(234,88,12,0.4)]' : 'bg-[#1a1a1c] h-[60px] md:h-[70px] py-3 lg:py-4 border-b border-[#2a2a2c]')}
                                             `}
@@ -211,7 +211,7 @@ export default function Section8({ isActive }) {
                                     {/* 3. The "Thick Walls" of severing (Fades out when fragmented to leave clean gaps) */}
                                     {idx < stages.length - 1 && (
                                         <div 
-                                            className={`bg-gradient-to-b from-[#dc2626] to-[#f97316] shrink-0 z-30 shadow-[0_0_15px_rgba(239,68,68,0.9)] transition-all duration-[500ms] ease-in-out
+                                            className={`bg-gradient-to-b from-[#dc2626] to-[#f97316] shrink-0 z-30 shadow-[0_0_15px_rgba(239,68,68,0.9)] transition-all duration-[200ms] ease-in-out
                                                 ${step >= 7 ? 'w-0 h-[80px] opacity-0 scale-y-0 mx-0 shadow-none' : 
                                                   (step >= 5 ? 'w-[6px] h-[100px] md:h-[130px] opacity-100 scale-y-100' : 'w-[4px] md:w-[6px] h-[260px] md:h-[320px] lg:h-[350px] opacity-[0.3] scale-y-100')}
                                             `} 
