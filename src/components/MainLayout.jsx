@@ -35,7 +35,10 @@ export default function MainLayout() {
         return () => clearTimeout(timer);
     }, [currentSlide]);
 
-    const nextSlide = () => setCurrentSlide(prev => Math.min(prev + 1, slides.length - 1));
+    const nextSlide = () => {
+        window.dispatchEvent(new CustomEvent('appSlideNext'));
+        setCurrentSlide(prev => Math.min(prev + 1, slides.length - 1));
+    };
     const prevSlide = () => setCurrentSlide(prev => Math.max(prev - 1, 0));
 
     // Sync state changes -> URL Hash
@@ -197,16 +200,15 @@ export default function MainLayout() {
                     {/* Right Arrow Button Group */}
                     <div className="flex items-center gap-[6px] md:gap-[10px] group cursor-pointer" onClick={nextSlide}>
                         <button 
-                            disabled={currentSlide === slides.length - 1}
                             className={`w-8 h-8 md:w-10 md:h-10 flex items-center justify-center border-[1.5px] md:border-2 rounded-full transition-all duration-300 
-                                ${currentSlide === slides.length - 1 ? 'border-white opacity-20 cursor-default text-white' : isActionDone ? 'action-done-pulse cursor-pointer group-hover:scale-105' : 'border-white opacity-100 group-hover:scale-105 cursor-pointer text-white'}`}
+                                ${isActionDone ? 'action-done-pulse cursor-pointer group-hover:scale-105' : 'border-white opacity-100 group-hover:scale-105 cursor-pointer text-white'}`}
                         >
                             <svg className="w-4 h-4 md:w-5 md:h-5 current-color" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14m-7-7l7 7-7 7" />
                             </svg>
                         </button>
                         <span 
-                            className={`text-[#737373] font-light text-[11px] md:text-[13px] tracking-wide transition-all duration-300 ${currentSlide === slides.length - 1 ? 'opacity-0' : 'opacity-100 group-hover:opacity-60 pointer-events-none'}`} 
+                            className={`text-[#737373] font-light text-[11px] md:text-[13px] tracking-wide transition-all duration-300 opacity-100 group-hover:opacity-60 pointer-events-none`} 
                             style={{ fontFamily: "'Guardian Sans', sans-serif" }}
                         >
                             Keyboard Right

@@ -19,7 +19,23 @@ export default function Section6({ isActive }) {
         const t3 = setTimeout(() => setStep(3), 1800); // Name and title fade in
         const t4 = setTimeout(() => setStep(4), 1800); // Underline highlight
 
-        return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+        const nextAction = (e) => {
+            if (e.type === 'appSlideNext') {
+                setStep(prev => {
+                    if (prev >= 4) {
+                        setShowModal(true);
+                    }
+                    return prev;
+                });
+            }
+        };
+
+        window.addEventListener('appSlideNext', nextAction);
+
+        return () => { 
+            clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4);
+            window.removeEventListener('appSlideNext', nextAction);
+        };
     }, [isActive]);
 
     return (
@@ -117,8 +133,7 @@ export default function Section6({ isActive }) {
                                     <br /><br />
                                     현재까지 이런 데이터 정리를 하고 있는 회사들은<br className="hidden md:block" />
                                     글로벌 톱 5 정도로 앞으로 부동산 시장에서 <span 
-                                        onClick={() => setShowModal(true)}
-                                        className={`inline transition-colors duration-500 hover:text-white ${step >= 4 ? 'cursor-pointer' : ''}`}
+                                        className="inline"
                                         style={{
                                             backgroundImage: 'linear-gradient(transparent 90%, #f4f4f5 90%, #f4f4f5 100%)',
                                             backgroundRepeat: 'no-repeat',
@@ -136,8 +151,7 @@ export default function Section6({ isActive }) {
                                     However, the use of AI tools requires prior data organization, yet the real estate industry still struggles with decades of unorganized data.
                                     <br /><br />
                                     Currently, only about the top 5 global firms are undertaking such data structuring, and we anticipate <span 
-                                        onClick={() => setShowModal(true)}
-                                        className={`inline transition-colors duration-500 hover:text-white ${step >= 4 ? 'cursor-pointer' : ''}`}
+                                        className="inline"
                                         style={{
                                             backgroundImage: 'linear-gradient(transparent 90%, #f4f4f5 90%, #f4f4f5 100%)',
                                             backgroundRepeat: 'no-repeat',
