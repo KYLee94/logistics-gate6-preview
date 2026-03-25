@@ -44,11 +44,11 @@ export default function Section7({ isActive }) {
                     <h3 className="text-[26px] md:text-[36px] lg:text-[42px] font-bold text-[#1d1d1f] tracking-tight leading-[1.3] break-keep mb-16 md:mb-24">
                         {lang === 'kr' ? (
                             <>
-                                "<span className="text-[#3b82f6]">운용 인력들의 폐쇄적인 오너십과 개인편차</span>" 때문입니다.
+                                "<span className="bg-gradient-to-r from-[#d92d2d] to-[#f97316] text-transparent bg-clip-text">운용 인력들의 폐쇄적인 오너십과 개인편차</span>" 때문입니다.
                             </>
                         ) : (
                             <>
-                                It is due to the "<span className="text-[#3b82f6]">closed ownership and individual deviations of operation personnel</span>".
+                                It is due to the "<span className="bg-gradient-to-r from-[#d92d2d] to-[#f97316] text-transparent bg-clip-text">closed ownership and individual deviations of operation personnel</span>".
                             </>
                         )}
                     </h3>
