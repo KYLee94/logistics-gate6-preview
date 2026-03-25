@@ -17,7 +17,7 @@ export default function Section1({ isActive }) {
 
     return (
         <section className="section w-full h-full bg-white flex flex-col items-center justify-center relative">
-            <div className="logo-fade w-full flex flex-col items-center justify-center pb-20 -translate-y-[40px] md:-translate-y-[50px]">
+            <div className="logo-fade w-full flex flex-col items-center justify-center">
                 
                 {/* Main Title */}
                 <div 
