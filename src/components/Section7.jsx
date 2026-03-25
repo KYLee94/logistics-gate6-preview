@@ -25,15 +25,15 @@ export default function Section7({ isActive }) {
                 
                 {/* 1. Header Messages */}
                 <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
-                    <h2 className="text-[32px] md:text-[42px] lg:text-[48px] font-bold text-[#1d1d1f] tracking-tight leading-[1.3] break-keep mb-8 md:mb-12">
+                    <h2 className="text-[26px] md:text-[36px] lg:text-[42px] font-bold text-[#1d1d1f] tracking-tight leading-[1.3] break-keep mb-8 md:mb-12">
                         {lang === 'kr' ? (
                             <>
-                                이 글로벌 석학의 경고는,<br />
+                                앞선 글로벌 석학의 경고는,<br />
                                 놀랍게도 대표님이 CFT 마스터플랜에서 짚어준 우리의 현실과 정확히 일치합니다.
                             </>
                         ) : (
                             <>
-                                Surprisingly, this global expert's warning<br />
+                                Surprisingly, the preceding global expert's warning<br />
                                 perfectly aligns with the reality pointed out in our CEO's CFT Masterplan.
                             </>
                         )}
