@@ -15,8 +15,9 @@ export default function Section6({ isActive }) {
         const t1 = setTimeout(() => setStep(1), 500); // Image fade in
         const t2 = setTimeout(() => setStep(2), 1000); // Quote text fade in
         const t3 = setTimeout(() => setStep(3), 1800); // Name and title fade in
-        
-        return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+        const t4 = setTimeout(() => setStep(4), 2800); // Underline highlight
+
+        return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
     }, [isActive]);
 
     return (
@@ -66,9 +67,17 @@ export default function Section6({ isActive }) {
                                     쌓은 데이터들의 정리가 되지 않고 있습니다.
                                     <br /><br />
                                     현재까지 이런 데이터 정리를 하고 있는 회사들은<br className="hidden md:block" />
-                                    글로벌 톱 5 정도로 앞으로 부동산 시장에서 데이터<br className="hidden md:block" />
+                                    글로벌 톱 5 정도로 앞으로 부동산 시장에서 <span 
+                                        className="inline"
+                                        style={{
+                                            backgroundImage: 'linear-gradient(transparent 90%, #f4f4f5 90%, #f4f4f5 100%)',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundSize: step >= 4 ? '100% 100%' : '0% 100%',
+                                            transition: 'background-size 1.5s cubic-bezier(0.19, 1, 0.22, 1)'
+                                        }}
+                                    >데이터<br className="hidden md:block" />
                                     정리 및 분석이 가능한 회사들과 그렇지 못한 회사들의<br className="hidden md:block" />
-                                    투자는 확연한 차이가 날 수 밖에 없다고 보고 있습니다.”
+                                    투자는 확연한 차이가 날 수 밖에 없다</span>고 보고 있습니다.”
                                 </>
                             ) : (
                                 <>
@@ -76,7 +85,15 @@ export default function Section6({ isActive }) {
                                     <br /><br />
                                     However, the use of AI tools requires prior data organization, yet the real estate industry still struggles with decades of unorganized data.
                                     <br /><br />
-                                    Currently, only about the top 5 global firms are undertaking such data structuring, and we anticipate a stark contrast in future investments between companies capable of data organization and analysis and those that are not.”
+                                    Currently, only about the top 5 global firms are undertaking such data structuring, and we anticipate <span 
+                                        className="inline"
+                                        style={{
+                                            backgroundImage: 'linear-gradient(transparent 90%, #f4f4f5 90%, #f4f4f5 100%)',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundSize: step >= 4 ? '100% 100%' : '0% 100%',
+                                            transition: 'background-size 1.5s cubic-bezier(0.19, 1, 0.22, 1)'
+                                        }}
+                                    >a stark contrast in future investments between companies capable of data organization and analysis and those that are not</span>.”
                                 </>
                             )}
                         </p>
