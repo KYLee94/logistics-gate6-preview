@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useLanguage } from '../context/LanguageContext';
-import { privacyTextKr, privacyTextEn, termsTextKr, termsTextEn } from './LegalTexts';
+import { termsTextKr, termsTextEn } from './LegalTexts';
 
 export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateToLease, onNavigateToPartnership, currentPage }) {
     const { lang, setLang } = useLanguage();
@@ -367,9 +367,6 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                         <button onClick={() => setModalType('disclaimer')} className="cursor-pointer hover:text-black transition-colors">
                                             {lang === 'kr' ? "면책공고" : "Disclaimer"}
                                         </button>
-                                        <button onClick={() => setModalType('privacy')} className="cursor-pointer hover:text-black transition-colors">
-                                            {lang === 'kr' ? "개인정보 처리방침" : "Privacy Policy"}
-                                        </button>
                                         <button onClick={() => setModalType('terms')} className="cursor-pointer hover:text-black transition-colors">
                                             {lang === 'kr' ? "이용약관" : "Terms of Service"}
                                         </button>
@@ -475,9 +472,6 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                         <button onClick={() => { setModalType('disclaimer'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
                             {lang === 'kr' ? "면책공고" : "Disclaimer"}
                         </button>
-                        <button onClick={() => { setModalType('privacy'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
-                            {lang === 'kr' ? "개인정보 처리방침" : "Privacy Policy"}
-                        </button>
                         <button onClick={() => { setModalType('terms'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
                             {lang === 'kr' ? "이용약관" : "Terms of Service"}
                         </button>
@@ -509,34 +503,27 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                 <div className="font-sans text-[13px] md:text-[14px] leading-relaxed font-light break-keep">
                                     <h3 className="text-[18px] md:text-[20px] font-bold mb-6 font-inter tracking-tight">[면책공고 / Disclaimer]</h3>
                                     <p className="mb-6">
-                                        본 <strong>디지털 비전북(iotaseoul.site)</strong>은 이지스자산운용 주식회사(이하 “회사”)가 프로젝트에 대한 이해를 돕기 위해 관련 정보와 공개된 자료를 근거로 제작한 것이며, 이용 시 다음과 같은 주의사항을 고지합니다.
+                                        본 <strong>IFPDP (IGIS Fund Production Data Platform) 비전북</strong>은 이지스자산운용 주식회사(이하 “회사”)가 사내 펀드 생산성 향상 및 데이터 아키텍처에 대한 이해를 돕기 위해 관련 정보와 개념적 모델을 근거로 제작한 것이며, 이용 시 다음과 같은 주의사항을 고지합니다.
                                     </p>
 
                                     <ol className="list-decimal pl-5 space-y-5">
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">정보의 목적 및 성격</strong>
-                                            본 디지털 비전북은 투자설명서, 상품설명서 또는 정식 IM(Information Memorandum) 자료가 아니며, 프로젝트에 대한 단순 참고용 정보 제공을 목적으로 합니다.<br />
-                                            본 자료는 이용자의 투자 의사결정을 위한 근거 자료로 작성된 것이 아니며, 어떠한 경우에도 투자 권유, 투자자 모집 또는 투자 자문을 위한 것이 아니며 그러한 용도로 이용될 수 없습니다.
+                                            본 비전북은 정식 시스템 매뉴얼, 투자설명서, 상품설명서 또는 정식 IM(Information Memorandum) 자료가 아니며, 당사가 지향하는 데이터 통합 플랫폼에 대한 구상과 전략적 방향성을 공유하기 위한 내부 참고용 프레젠테이션입니다.<br />
+                                            본 자료에 포함된 데이터 프레임워크나 텍스트는 어떠한 경우에도 외부 투자 권유 또는 법적 구속력이 있는 시스템 청사진으로 이용될 수 없습니다.
                                         </li>
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">정보의 정확성 및 완전성</strong>
-                                            본 자료에 게재된 조감도, 설계 제원, 수치 및 상세 계획(IOTA Details)은 현재의 사업 계획을 바탕으로 작성된 예시이며, 실제 시공 시 인허가 조건 및 사업 환경의 변화에 따라 별도의 고지 없이 수시로 변경될 수 있습니다.<br />
-                                            회사는 본 자료에 포함된 정보의 정확성, 완전성, 적절성에 대하여 명시적 또는 묵시적으로 어떠한 의견 표명이나 보증을 하지 않습니다.
+                                            본 자료에 게재된 아키텍처 도식, 수치, 애니메이션 구현 방식 등은 현재의 전략을 바탕으로 작성된 예시이며, 실제 IFPDP 시스템 개발 및 적용 과정에서 별도의 고지 없이 수시로 조정되거나 변경될 수 있습니다.<br />
+                                            회사는 본 자료에 포함된 모델링 정보의 기술적 완전성, 적절성에 대하여 명시적 또는 묵시적으로 어떠한 보증을 하지 않습니다.
                                         </li>
                                         <li className="pl-1">
-                                            <strong className="block font-bold mb-1">이용자의 책임 및 전문적 조언</strong>
-                                            이용자는 본 자료의 정보를 평가함에 있어 각자의 책임하에 전문적인 조언을 구하고 스스로의 판단에 의존해야 합니다.<br />
-                                            본 자료에 포함되거나 추가로 제공된 정보를 활용하여 내린 결정에 대하여 회사와 그 임직원은 여하한 법률적 책임을 부담하지 않습니다.
+                                            <strong className="block font-bold mb-1">이용자의 책임</strong>
+                                            이용자는 본 자료의 정보를 평가함에 있어 각자의 업무 책임하에 참고 목적으로만 활용해야 하며, 본 자료의 내용에 의존하여 진행한 실무적 의사결정에 대하여 회사와 그 임직원은 여하한 법률적 책임을 부담하지 않습니다.
                                         </li>
                                         <li className="pl-1">
-                                            <strong className="block font-bold mb-1">사업 절차의 권리 및 취소</strong>
-                                            회사는 프로젝트 진행 상황에 따라 사업의 절차, 구조, 일정 등을 언제든지 변경, 취소 또는 중단할 수 있는 권리를 가집니다.<br />
-                                            이와 관련하여 회사는 잠재적 투자자나 이용자에게 어떠한 법적 의무를 부담하지 않으며, 이용자는 이에 대해 이의를 제기할 수 없습니다.
-                                        </li>
-                                        <li className="pl-1">
-                                            <strong className="block font-bold mb-1">기타 법적 고지</strong>
-                                            본 디지털 비전북 및 그에 포함된 정보는 회사의 내부 검토 과정을 거쳐 공식적으로 등록된 법적 문서가 아니며, 자본시장과 금융투자업에 관한 법률에 따른 증권신고서, 투자설명서, 집합투자 관련 문서 등 법적 공시자료에 해당하지 않습니다.<br />
-                                            본 자료는 금융투자회사의 영업 및 업무에 관한 규정에 따른 투자광고에 해당하지 않습니다.
+                                            <strong className="block font-bold mb-1">플랫폼 추진 권리</strong>
+                                            회사는 개발 로드맵 및 사업 환경 변화에 따라 본 플랫폼의 구조, 일정 등을 언제든지 변경, 취소 또는 중단할 수 있는 권리를 가집니다.
                                         </li>
                                     </ol>
                                 </div>
@@ -544,45 +531,36 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                 <div className="font-sans text-[13px] md:text-[14px] leading-relaxed font-light break-keep">
                                     <h3 className="text-[18px] md:text-[20px] font-bold mb-6 font-inter tracking-tight">[Disclaimer]</h3>
                                     <p className="mb-6">
-                                        This <strong>Digital Vision Book (iotaseoul.site)</strong> has been produced by IGIS Asset Management Co., Ltd. (hereinafter referred to as the "Company") based on relevant information and publicly available data to facilitate an understanding of the project. Please be advised of the following precautions when using this material:
+                                        This <strong>IFPDP (IGIS Fund Production Data Platform) Vision Book</strong> has been produced by IGIS Asset Management Co., Ltd. (the "Company") based on conceptual models to facilitate an understanding of our data architecture and fund productivity enhancement strategies. Please be advised of the following precautions:
                                     </p>
 
                                     <ol className="list-decimal pl-5 space-y-5">
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">Purpose and Nature of Information</strong>
-                                            This digital vision book is not a prospectus, product description, or formal Information Memorandum (IM), and its purpose is solely to provide information for general reference regarding the project.<br />
-                                            This material is not prepared as a basis for users' investment decisions and may not be used for investment solicitation or advisory purposes under any circumstances.
+                                            This vision book is an internal reference presentation intended to share the vision and strategic direction of our data integration platform. It is not an official system manual, prospectus, or Information Memorandum (IM).<br />
+                                            Data frameworks or strings included herein shall not be used under any circumstances as external investment solicitations or legally binding system blueprints.
                                         </li>
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">Accuracy and Completeness of Information</strong>
-                                            The renderings, design specifications, numerical data, and detailed plans (IOTA Details) presented in this material are examples based on current business plans and are subject to change without prior notice depending on licensing conditions and changes in the business environment during actual construction.<br />
-                                            The Company makes no express or implied representations or warranties regarding the accuracy, completeness, or suitability of the information contained herein.
+                                            The architectural diagrams, numerical data, and animation implementations presented are illustrative examples based on current strategies and are subject to adjustment without prior notice during actual IFPDP system development.<br />
+                                            The Company makes no express or implied representations or warranties regarding the technical completeness or suitability of the modeling information contained herein.
                                         </li>
                                         <li className="pl-1">
-                                            <strong className="block font-bold mb-1">User's Responsibility and Professional Advice</strong>
-                                            Users must seek their own independent professional advice and rely on their own judgment when evaluating the information contained in this material.<br />
-                                            The Company and its employees shall assume no legal liability whatsoever for any decisions made based on or utilizing the information provided in or in connection with this material.
+                                            <strong className="block font-bold mb-1">User's Responsibility</strong>
+                                            Users must utilize this information solely for reference under their own professional responsibility. The Company and its employees shall assume no legal liability whatsoever for any practical decisions made relying on this content.
                                         </li>
                                         <li className="pl-1">
-                                            <strong className="block font-bold mb-1">Rights and Cancellation of Business Procedures</strong>
-                                            The Company reserves the right to modify, cancel, or suspend the procedures, structure, and schedule of the business at any time depending on the progress of the project.<br />
-                                            The Company owes no legal obligations to potential investors or users in this regard, and users may not raise any objections.
-                                        </li>
-                                        <li className="pl-1">
-                                            <strong className="block font-bold mb-1">Other Legal Notices</strong>
-                                            This digital vision book and the information contained herein are not officially registered legal documents that have undergone the Company's internal review process.<br />
-                                            This material does not constitute an investment advertisement in accordance with the regulations concerning the business and operations of financial investment companies.
+                                            <strong className="block font-bold mb-1">Platform Development Rights</strong>
+                                            The Company reserves the right to modify, cancel, or suspend the structure and schedule of this platform at any time depending on development roadmaps and business environment changes.
                                         </li>
                                     </ol>
                                 </div>
                             )
                         )}
 
-                        {(modalType === 'privacy' || modalType === 'terms') && (
+                        {modalType === 'terms' && (
                             <div className="font-sans text-[13px] md:text-[14px] leading-relaxed font-light whitespace-pre-line break-keep">
-                                {lang === 'kr'
-                                    ? (modalType === 'privacy' ? privacyTextKr : termsTextKr)
-                                    : (modalType === 'privacy' ? privacyTextEn : termsTextEn)}
+                                {lang === 'kr' ? termsTextKr : termsTextEn}
                             </div>
                         )}
 
