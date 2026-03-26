@@ -327,9 +327,9 @@ export default function Section9({ isActive }) {
                         `}>
                             <h2 className="text-[20px] md:text-[28px] lg:text-[34px] font-bold text-[#1d1d1f] tracking-tight leading-[1.4] break-keep border border-transparent">
                                 {lang === 'kr' ? (
-                                    <>이 공정을, <span className="bg-gradient-to-r from-red-500 to-orange-500 text-transparent bg-clip-text animate-pulse">조직의 유연성과 독립성을 확보</span>하면서<br className="hidden md:block"/> 유연하게 연결시키려면?</>
+                                    <>이 공정을, <span className="bg-gradient-to-r from-red-500 to-orange-500 text-transparent bg-clip-text">조직의 유연성과 독립성을 확보</span>하면서<br className="hidden md:block"/> 유연하게 연결시키려면?</>
                                 ) : (
-                                    <>How do we flexibly connect this process, <br className="hidden md:block"/><span className="bg-gradient-to-r from-red-500 to-orange-500 text-transparent bg-clip-text animate-pulse">securing the organization's flexibility and independence</span>?</>
+                                    <>How do we flexibly connect this process, <br className="hidden md:block"/><span className="bg-gradient-to-r from-red-500 to-orange-500 text-transparent bg-clip-text">securing the organization's flexibility and independence</span>?</>
                                 )}
                             </h2>
                         </div>
