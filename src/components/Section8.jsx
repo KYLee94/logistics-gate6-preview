@@ -113,11 +113,11 @@ export default function Section8({ isActive }) {
                     <h2 className="text-[30px] md:text-[45px] lg:text-[52px] font-bold text-white tracking-tight leading-[1.25] break-keep mb-6 md:mb-8">
                         {lang === 'kr' ? (
                             <>
-                                그 결과, 이지스의 '<span className="text-white border-b-[3px] md:border-b-[4px] border-[#dc2626] pb-1">10단계 가치 사슬(Value Chain)</span>'은<br className="hidden md:block"/> 단절되었습니다.
+                                그 결과, 이지스의 '<span className="text-white border-b-[3px] md:border-b-[4px] border-[#dc2626] pb-[2px]">10단계 가치 사슬(Value Chain)</span>'은<br className="hidden md:block"/> 단절되었습니다.
                             </>
                         ) : (
                             <>
-                                As a result, IGIS' <span className="text-white border-b-[3px] md:border-b-[4px] border-[#dc2626] pb-1">'10-Step Value Chain'</span><br className="hidden md:block"/> has been severed.
+                                As a result, IGIS' <span className="text-white border-b-[3px] md:border-b-[4px] border-[#dc2626] pb-[2px]">'10-Step Value Chain'</span><br className="hidden md:block"/> has been severed.
                             </>
                         )}
                     </h2>
@@ -143,12 +143,12 @@ export default function Section8({ isActive }) {
                     <h3 className={`absolute top-0 left-0 w-full text-[18px] md:text-[24px] lg:text-[28px] font-medium text-[#c4c4c6] tracking-tight leading-[1.5] break-keep transition-all duration-[1200ms] delay-[400ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-10 scale-95 pointer-events-none'} max-w-[1100px]`}>
                         {lang === 'kr' ? (
                             <>
-                                나아가, 다른 프로젝트를 진행하는 팀들 간에도 <strong className="text-[#f97316] font-bold">노하우가 단 한 줄도 공유되지 않습니다.</strong><br />
+                                나아가, 다른 프로젝트를 진행하는 팀들 간에도 <strong className="text-[#f97316] font-bold">노하우가 공유되기 어렵습니다.</strong><br />
                                 소싱은 소싱끼리, 투자는 투자끼리 단절되어버리는 완벽한 <strong className="text-[#dc2626] font-bold">수직적 밀실 구조</strong>가 형성됩니다.
                             </>
                         ) : (
                             <>
-                                Furthermore, even between teams working on different projects, <strong className="text-[#f97316] font-bold">not a single line of know-how is shared.</strong><br />
+                                Furthermore, even between teams working on different projects, <strong className="text-[#f97316] font-bold">know-how is difficult to share.</strong><br />
                                 Sourcing is isolated from sourcing, investing from investing, resulting in a perfect <strong className="text-[#dc2626] font-bold">vertical silo structure</strong>.
                             </>
                         )}
@@ -172,7 +172,7 @@ export default function Section8({ isActive }) {
 
                             <div 
                                 className={`flex items-center min-w-[1000px] xl:min-w-0 w-full transition-all duration-[300ms] ease-[cubic-bezier(0.19,1,0.22,1)] 
-                                    ${step >= 7 ? 'gap-2 md:gap-3 lg:gap-4 overflow-visible border-transparent shadow-none' : 
+                                    ${step >= 7 ? 'gap-[10px] md:gap-[15px] lg:gap-[20px] overflow-visible border-transparent shadow-none' : 
                                       (step >= 5 ? 'gap-0 border-y-[3px] border-[#dc2626]/80 shadow-[0_0_20px_rgba(220,38,38,0.2)] overflow-hidden' : 'gap-0 border border-[#333] rounded-lg overflow-hidden')}
                                 `}
                             >
@@ -183,7 +183,7 @@ export default function Section8({ isActive }) {
                                         className={`flex-1 flex flex-col relative bg-[#0f0f11] overflow-hidden transition-all duration-[300ms] ease-[cubic-bezier(0.19,1,0.22,1)]
                                             ${step >= 4 ? 'data-running' : 'data-paused'}
                                             ${step >= 5 ? 'h-[100px] md:h-[130px]' : 'h-[260px] md:h-[320px] lg:h-[350px]'}
-                                            ${step >= 7 ? 'rounded-md border border-[#444] shadow-[0_0_15px_rgba(0,0,0,0.5)]' : 'rounded-none border-none shadow-none'}
+                                            ${step >= 7 ? 'rounded-md border border-[#ff0000] shadow-[0_0_20px_rgba(255,0,0,0.4)]' : 'rounded-none border-none shadow-none'}
                                         `}
                                     >
                                         {/* Top Title Bar */}
@@ -211,9 +211,9 @@ export default function Section8({ isActive }) {
                                     {/* 3. The "Thick Walls" of severing (Fades out when fragmented to leave clean gaps) */}
                                     {idx < stages.length - 1 && (
                                         <div 
-                                            className={`bg-gradient-to-b from-[#dc2626] to-[#f97316] shrink-0 z-30 shadow-[0_0_15px_rgba(239,68,68,0.9)] transition-all duration-[200ms] ease-in-out
+                                            className={`bg-gradient-to-b from-[#ff0000] to-[#cc0000] shrink-0 z-30 shadow-[0_0_20px_rgba(255,0,0,0.9)] transition-all duration-[200ms] ease-in-out
                                                 ${step >= 7 ? 'w-0 h-[80px] opacity-0 scale-y-0 mx-0 shadow-none' : 
-                                                  (step >= 5 ? 'w-[6px] h-[100px] md:h-[130px] opacity-100 scale-y-100' : 'w-[4px] md:w-[6px] h-[260px] md:h-[320px] lg:h-[350px] opacity-[0.3] scale-y-100')}
+                                                  (step >= 5 ? 'w-[6px] h-[100px] md:h-[130px] opacity-100 scale-y-100' : 'w-[4px] md:w-[6px] h-[260px] md:h-[320px] lg:h-[350px] opacity-100 scale-y-100')}
                                             `} 
                                         ></div>
                                     )}
