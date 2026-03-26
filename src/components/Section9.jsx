@@ -136,12 +136,17 @@ export default function Section9({ isActive }) {
                 }
             `}</style>
             
-            {/* The single wrapper that handles all content dynamically! */}
-            <div className={`w-full h-full flex flex-col items-center justify-start overflow-y-auto hide-scrollbar pt-[80px] pb-[80px] relative`}>
+            {/* The Huge Sliding Window (Moves Up when step >= 4) */}
+            <div 
+                className={`w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                    ${step >= 4 ? 'translate-y-[-65vh] md:translate-y-[-70vh]' : 'translate-y-0'}
+                `}
+                style={{ height: '200vh' }}
+            >
                 
-                {/* --- SCREEN 1: Top Comparison Block --- */}
-                <div className="w-full flex flex-col items-center justify-center relative px-4 md:px-12 lg:px-20 shrink-0">
-                    <div className="w-full max-w-[1500px] flex flex-col items-center justify-center space-y-4 md:space-y-6">
+                {/* --- SCREEN 1: Top 100vh --- */}
+                <div className="w-full h-[100vh] flex flex-col items-center justify-center relative px-4 md:px-12 lg:px-20 shrink-0">
+                    <div className="w-full max-w-[1500px] flex flex-col items-center justify-center space-y-4 md:space-y-6 pt-4 md:pt-8">
                         
                         {/* 1. Text Content */}
                         <div className="w-full flex items-center justify-center">
@@ -247,11 +252,9 @@ export default function Section9({ isActive }) {
                     </div>
                 </div>
 
-                {/* --- SCREEN 2: Comparison Block (Expands via max-height, pushing Screen 1 up) --- */}
+                {/* --- SCREEN 2: Bottom 100vh (Becomes visible when scrolled up) --- */}
                 <div 
-                    className={`w-full flex flex-col items-center justify-start overflow-hidden transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                        ${step >= 4 ? 'max-h-[1200px] opacity-100 pt-6 md:pt-10' : 'max-h-0 opacity-0'}
-                    `}
+                    className={`w-full h-[100vh] flex flex-col items-center justify-start relative px-4 md:px-12 lg:px-20 pt-[6vh]`}
                 >
                     <div className="w-full max-w-[1500px] flex flex-col items-center justify-center px-4 md:px-12 lg:px-20">
                         
