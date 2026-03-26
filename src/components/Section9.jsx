@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
 const DataFlowCell = () => {
-    // Generate static random values per stream
+    // Blocked flow: confined inside each individual cell
     const [streams] = useState(() => Array.from({ length: 8 }).map(() => ({
         top: 30 + Math.random() * 60,
         delay: Math.random() * 2.5,
@@ -31,9 +31,41 @@ const DataFlowCell = () => {
     );
 };
 
+const DataFlowSuccess = () => {
+    // Dense but slow global flowing data (unblocked)
+    const [streams] = useState(() => Array.from({ length: 60 }).map(() => ({
+        top: 30 + Math.random() * 60,
+        delay: Math.random() * 6, // staggered starts
+        duration: 6.0 + Math.random() * 4.0, // Slow: 6s - 10s traversal
+        chars: Math.random() > 0.5 ? "01101  1011  01" : "10  0100  1101 "
+    })));
+
+    return (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-10" style={{ maskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)', WebkitMaskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)' }}>
+            {streams.map((s, i) => (
+                <div 
+                    key={i} 
+                    className="absolute font-mono leading-none tracking-widest whitespace-pre data-stream-success"
+                    style={{
+                        top: `${s.top}%`,
+                        left: '0',
+                        fontSize: 'clamp(10px, 1.2vw, 15px)',
+                        animationDelay: `${s.delay}s`,
+                        animationDuration: `${s.duration}s`
+                    }}
+                >
+                    {s.chars}
+                </div>
+            ))}
+        </div>
+    );
+};
+
 export default function Section9({ isActive }) {
     const { lang } = useLanguage();
     const [step, setStep] = useState(0);
+    const stepRef = useRef(0);
+    stepRef.current = step;
 
     const stagesKR = ["소싱", "투자", "펀드생성", "개발추진", "파이낸싱", "유저솔루션", "기업마케팅", "개발관리", "준공", "운용개시"];
     const stagesEN = ["Source", "Invest", "Fund", "Dev Init", "Finance", "User Sol.", "Corp Mktg", "Dev Mgt", "Complete", "Operate"];
@@ -45,27 +77,50 @@ export default function Section9({ isActive }) {
             return;
         }
         
-        // Step 0: Initial render (Fragmented box below)
-        const t1 = setTimeout(() => setStep(1), 500);  // Dilemma text
-        const t2 = setTimeout(() => setStep(2), 1500); // Modified Collaboration text
-        const t3 = setTimeout(() => setStep(3), 3000); // Trigger Merge Animation!
-        const t4 = setTimeout(() => setStep(4), 4000); // Data flows smoothly across the merged box
+        // Initial cascade of the first screen's animations
+        const t1 = setTimeout(() => setStep(1), 500);  // Dilemma
+        const t2 = setTimeout(() => setStep(2), 1500); // Modified Collaboration
+        const t3 = setTimeout(() => setStep(3), 2800); // Merge to blocked state
         
-        return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+        const nextAction = (e) => {
+            if (e.type === 'appSlideNext') {
+                if (stepRef.current >= 3 && stepRef.current < 4) {
+                    e.preventDefault();
+                    setStep(4); // Triggers upward pan and revealing of screen 2
+                    setTimeout(() => setStep(5), 1000); // Trigger arrow & text
+                    setTimeout(() => setStep(6), 2500); // Trigger totally flowing box
+                }
+            }
+        };
+
+        window.addEventListener('appSlideNext', nextAction);
+
+        return () => { 
+            clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); 
+            window.removeEventListener('appSlideNext', nextAction);
+        };
     }, [isActive]);
 
     return (
-        <section className="section w-full h-full bg-white flex flex-col justify-start relative px-4 md:px-12 lg:px-20 pt-[80px] md:pt-[120px] pb-[80px] overflow-hidden">
+        <section className="section w-full h-full bg-white relative overflow-hidden">
             <style>{`
-                /* Hide scrollbar for narrow horizontal overflow */
-                .hide-scrollbar::-webkit-scrollbar {
-                    display: none;
+                .hide-scrollbar::-webkit-scrollbar { display: none; }
+                .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+                @keyframes dataFlowSuccessRight {
+                    0% { transform: translateX(-10vw); opacity: 0; color: #93c5fd; }
+                    10% { opacity: 0.8; color: #3b82f6; }
+                    50% { color: #1e40af; opacity: 1; }
+                    80% { opacity: 0.8; }
+                    100% { transform: translateX(100vw); opacity: 0; color: #172554; }
                 }
-                .hide-scrollbar {
-                    -ms-overflow-style: none;
-                    scrollbar-width: none;
+                .data-stream-success {
+                    animation-name: dataFlowSuccessRight;
+                    animation-timing-function: linear;
+                    animation-iteration-count: infinite;
+                    opacity: 0;
                 }
-                
+
                 @keyframes dataFlowCellRight {
                     0% { transform: translateX(-10%); opacity: 0; color: #60a5fa; }
                     20% { opacity: 0.8; color: #3b82f6; }
@@ -73,7 +128,6 @@ export default function Section9({ isActive }) {
                     95% { opacity: 0; filter: blur(4px) brightness(1.2); transform: translateX(95%) scaleY(1.3); }
                     100% { opacity: 0; transform: translateX(100%); }
                 }
-
                 .data-stream-cell {
                     animation-name: dataFlowCellRight;
                     animation-timing-function: ease-in;
@@ -82,106 +136,183 @@ export default function Section9({ isActive }) {
                 }
             `}</style>
             
-            <div className="w-full max-w-[1500px] mx-auto flex flex-col items-center justify-center h-full relative space-y-4 md:space-y-6">
+            {/* The Huge Sliding Window (Moves Up when step >= 4) */}
+            <div 
+                className={`w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                    ${step >= 4 ? 'translate-y-[-65vh] md:translate-y-[-70vh]' : 'translate-y-0'}
+                `}
+                style={{ height: '200vh' }}
+            >
                 
-                {/* 1. Text Content (Appears first at the top) */}
-                <div className="w-full flex items-center justify-center">
-                    <div className="w-full text-center flex flex-col items-center">
+                {/* --- SCREEN 1: Top 100vh --- */}
+                <div className="w-full h-[100vh] flex flex-col items-center justify-center relative px-4 md:px-12 lg:px-20">
+                    <div className="w-full max-w-[1500px] flex flex-col items-center justify-center space-y-4 md:space-y-6 pt-[80px]">
                         
-                        {/* 1-1. Dilemma Paragraph */}
-                        <div className={`transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'}`}>
-                            <h3 className={`text-[18px] md:text-[22px] lg:text-[26px] font-medium text-[#555] tracking-tight leading-[1.6] break-keep`}>
-                                {lang === 'kr' ? (
-                                    <>
-                                        조직간 자율에 맡기자니 파편화되고, 규약으로 강제하자니 유연성이 죽는 딜레마.<br className="hidden md:block"/>
-                                        이를 깨기 위해 대표님은 <span className="text-[#1d1d1f] font-bold">가장 현실적인 결정</span>을 내렸습니다.
-                                    </>
-                                ) : (
-                                    <>
-                                        The dilemma of fragmentation through autonomy vs. loss of flexibility through strict rules.<br className="hidden md:block"/>
-                                        To break this, the CEO made the <span className="text-[#1d1d1f] font-bold">most pragmatic decision</span>.
-                                    </>
-                                )}
-                            </h3>
+                        {/* 1. Text Content */}
+                        <div className="w-full flex items-center justify-center">
+                            <div className="w-full text-center flex flex-col items-center">
+                                {/* Dilemma Paragraph */}
+                                <div className={`transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                                    <h3 className={`text-[18px] md:text-[22px] lg:text-[26px] font-medium text-[#555] tracking-tight leading-[1.6] break-keep`}>
+                                        {lang === 'kr' ? (
+                                            <>
+                                                조직간 자율에 맡기자니 파편화되고,<br />
+                                                규약으로 강제하자니 유연성이 죽는 딜레마.<br className="hidden md:block"/>
+                                                이를 깨기 위해 대표님은 <span className="text-[#1d1d1f] font-bold">가장 현실적인 결정</span>을 내렸습니다.
+                                            </>
+                                        ) : (
+                                            <>
+                                                The dilemma of fragmentation through autonomy vs.<br />
+                                                loss of flexibility through strict rules.<br className="hidden md:block"/>
+                                                To break this, the CEO made the <span className="text-[#1d1d1f] font-bold">most pragmatic decision</span>.
+                                            </>
+                                        )}
+                                    </h3>
+                                </div>
+
+                                {/* Modified Collaboration Title (Top 15px removed, symmetric padding) */}
+                                <div className={`mt-[25px] md:mt-[45px] mb-[40px] md:mb-[60px] transition-all duration-[1200ms] delay-[200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} flex flex-col items-center`}>
+                                    <h2 className="text-[26px] md:text-[39px] lg:text-[46px] font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text tracking-tight leading-[1.2] mb-6 md:mb-8 inline-block">
+                                        {lang === 'kr' ? "'수정 협업주의 (Modified Collaboration)'" : "'Modified Collaboration'"}
+                                    </h2>
+                                    
+                                    <p className="text-[18px] md:text-[24px] lg:text-[28px] font-semibold text-[#1d1d1f] tracking-tight leading-[1.5] break-keep max-w-[1100px]">
+                                        {lang === 'kr' ? (
+                                            <>
+                                                개인의 성향이나 선의에 기대는 것을 멈추고,<br className="hidden md:block" />
+                                                <span className="font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">핵심 기능만큼은 컨트롤 타워를 통해 강제적으로 연결해 내겠다</span>는 원칙입니다.
+                                            </>
+                                        ) : (
+                                            <>
+                                                Stop relying on individual inclinations or goodwill, and<br className="hidden md:block" />
+                                                <span className="font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">forcefully connect core functions through a control tower</span>.
+                                            </>
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
-                        {/* 1-2. Modified Collaboration Title & Principle */}
-                        <div className={`my-[40px] md:my-[60px] transition-all duration-[1200ms] delay-[200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-12 scale-95'} flex flex-col items-center`}>
-                            {/* Main title reduced by 6px */}
-                            <h2 className="text-[26px] md:text-[39px] lg:text-[46px] font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text tracking-tight leading-[1.2] mb-6 md:mb-8 inline-block">
-                                {lang === 'kr' ? "'수정 협업주의 (Modified Collaboration)'" : "'Modified Collaboration'"}
-                            </h2>
-                            
-                            <p className="text-[18px] md:text-[24px] lg:text-[28px] font-semibold text-[#1d1d1f] tracking-tight leading-[1.5] break-keep max-w-[1100px]">
-                                {lang === 'kr' ? (
-                                    <>
-                                        개인의 성향이나 선의에 기대는 것을 멈추고,<br className="hidden md:block" />
-                                        <span className="font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">핵심 기능만큼은 컨트롤 타워를 통해 강제적으로 연결해 내겠다</span>는 원칙입니다.
-                                    </>
-                                ) : (
-                                    <>
-                                        Stop relying on individual inclinations or goodwill, and<br className="hidden md:block" />
-                                        <span className="font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">forcefully connect core functions through a control tower</span>.
-                                    </>
-                                )}
-                            </p>
+                        {/* 2. Blocked Value Chain Box */}
+                        <div className="w-full overflow-x-auto hide-scrollbar pb-6 flex flex-col items-center">
+                            <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)]`}>
+                                {/* Project Title */}
+                                <div className={`flex text-[#1d1d1f] font-bold text-[14px] md:text-[17px] px-2 mb-2 md:mb-3`}>
+                                    <span className="text-[#3b82f6] mr-2">{lang === 'kr' ? '프로젝트' : 'Project'} :</span> IOTA Seoul
+                                </div>
+
+                                <div 
+                                    className={`flex items-center w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] relative
+                                        ${step >= 3 ? 'gap-0 border-[2.5px] border-[#1e40af] rounded-lg shadow-[0_15px_40px_rgba(30,64,175,0.15)] overflow-hidden bg-white' : 'gap-[10px] md:gap-[15px] lg:gap-[20px] bg-transparent border-transparent'}
+                                    `}
+                                >
+                                    {stages.map((stage, idx) => (
+                                        <React.Fragment key={idx}>
+                                            <div 
+                                                className={`flex-1 flex flex-col relative overflow-hidden transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] h-[100px] md:h-[130px]
+                                                    ${step >= 3 ? 'bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 border-r border-[#1e40af]/30 last:border-r-0' : 'bg-[#fff] rounded-md border-[2px] border-[#ef4444] shadow-[0_4px_15px_rgba(239,68,68,0.15)] z-20'}
+                                                `}
+                                            >
+                                                {/* Blocked Data Flow restricted INSIDE the individual cell */}
+                                                {step >= 3 && <DataFlowCell />}
+
+                                                {/* Top Title Bar */}
+                                                <div 
+                                                    className={`w-full flex items-center justify-center z-20 transition-all duration-[1000ms]
+                                                        ${step >= 3 ? 'bg-[#1e40af] h-[30px] md:h-[40px] py-1 border-none' : 'bg-[#ef4444] h-[30px] md:h-[40px] py-1 border-b border-[#ef4444]'}
+                                                    `}
+                                                >
+                                                    <span className={`transition-all duration-[1000ms] font-bold text-center leading-[1.2] break-keep px-1 text-[10px] md:text-[13px] text-white`}>
+                                                        {stage}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Control Tower Force Link (Joints) */}
+                                            {idx < stages.length - 1 && (
+                                                <div 
+                                                    className={`bg-[#1e40af] shrink-0 z-30 transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                                                        ${step >= 3 ? 'w-[2px] md:w-[3px] h-[100px] md:h-[130px] opacity-100 scale-y-100' : 'w-0 h-[80px] opacity-0 scale-y-0 mx-0'}
+                                                    `} 
+                                                ></div>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* 2. Value Chain Re-connect Animation */}
-                {/* Positioned under the text block */}
-                <div className="w-full overflow-x-auto hide-scrollbar pb-6 flex flex-col items-center">
-                    
-                    <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)]`}>
-                        {/* Project Title */}
-                        <div className={`flex text-[#1d1d1f] font-bold text-[14px] md:text-[17px] px-2 mb-2 md:mb-3`}>
-                            <span className="text-[#3b82f6] mr-2">{lang === 'kr' ? '프로젝트' : 'Project'} :</span> IOTA Seoul
+                {/* --- SCREEN 2: Bottom 100vh (Becomes visible when scrolled up) --- */}
+                <div className="w-full h-[100vh] flex flex-col items-center justify-start relative px-4 md:px-12 lg:px-20 pt-[6vh]">
+                    <div className="w-full max-w-[1500px] flex flex-col items-center justify-center">
+                        
+                        {/* Downward Arrow */}
+                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mb-6 md:mb-10
+                            ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8 scale-50'}
+                        `}>
+                            <div className="animate-bounce bg-[#297cf6]/10 p-4 rounded-full">
+                                <svg className="w-8 h-8 md:w-10 md:h-10 text-[#1e40af]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                                </svg>
+                            </div>
                         </div>
 
-                        {/* The Box */}
-                        {/* Step 3: merged (gap-0, border blue, solid border, control tower linked) */}
-                        <div 
-                            className={`flex items-center w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] relative
-                                ${step >= 3 ? 'gap-0 border-[2.5px] border-[#1e40af] rounded-lg shadow-[0_15px_40px_rgba(30,64,175,0.15)] overflow-hidden bg-white' : 'gap-[10px] md:gap-[15px] lg:gap-[20px] bg-transparent border-transparent'}
-                            `}
-                        >
-                            {stages.map((stage, idx) => (
-                                <React.Fragment key={idx}>
-                                    {/* Isolated Node -> Mapped Cell */}
-                                    <div 
-                                        className={`flex-1 flex flex-col relative overflow-hidden transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] h-[100px] md:h-[130px]
-                                            ${step >= 3 ? 'bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 border-r border-[#1e40af]/30 last:border-r-0' : 'bg-[#fff] rounded-md border-[2px] border-[#ef4444] shadow-[0_4px_15px_rgba(239,68,68,0.15)] z-20'}
-                                        `}
-                                    >
-                                        {/* Blocked Data Flow restricted INSIDE the cell */}
-                                        {step >= 4 && <DataFlowCell />}
-
-                                        {/* Top Title Bar */}
-                                        <div 
-                                            className={`w-full flex items-center justify-center z-20 transition-all duration-[1000ms]
-                                                ${step >= 3 ? 'bg-[#1e40af] h-[30px] md:h-[40px] py-1 border-none' : 'bg-[#ef4444] h-[30px] md:h-[40px] py-1 border-b border-[#ef4444]'}
-                                            `}
-                                        >
-                                            <span className={`transition-all duration-[1000ms] font-bold text-center leading-[1.2] break-keep px-1 text-[10px] md:text-[13px]
-                                                ${step >= 3 ? 'text-white' : 'text-white'}
-                                            `}>
-                                                {stage}
-                                            </span>
-                                        </div>
-                                    </div>
-
-                                    {/* The connecting joint (Control Tower Force Link) */}
-                                    {idx < stages.length - 1 && (
-                                        <div 
-                                            className={`bg-[#1e40af] shrink-0 z-30 transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                                                ${step >= 3 ? 'w-[2px] md:w-[3px] h-[100px] md:h-[130px] opacity-100 scale-y-100' : 'w-0 h-[80px] opacity-0 scale-y-0 mx-0'}
-                                            `} 
-                                        ></div>
-                                    )}
-                                </React.Fragment>
-                            ))}
+                        {/* New Heading */}
+                        <div className={`transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] text-center mb-12 md:mb-20
+                            ${step >= 5 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-10 scale-95'}
+                        `}>
+                            <h2 className="text-[22px] md:text-[34px] lg:text-[42px] font-bold text-[#1d1d1f] tracking-tight leading-[1.4] break-keep">
+                                {lang === 'kr' ? (
+                                    <>이 공정을, <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">조직의 유연성과 독립성을 확보</span>하면서<br className="hidden md:block"/> 유연하게 연결시키려면?</>
+                                ) : (
+                                    <>How do we flexibly connect this process, <br className="hidden md:block"/><span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">securing the organization's flexibility and independence</span>?</>
+                                )}
+                            </h2>
                         </div>
+
+                        {/* Unified, Flowing Value Chain Box */}
+                        <div className={`w-full overflow-x-auto hide-scrollbar pb-6 flex flex-col items-center transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-[300ms]
+                            ${step >= 6 ? 'opacity-100 translate-y-0 filter-none' : 'opacity-0 translate-y-24 blur-sm'}
+                        `}>
+                            <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full`}>
+                                {/* Project Title */}
+                                <div className={`flex text-[#1d1d1f] font-bold text-[14px] md:text-[17px] px-2 mb-2 md:mb-3`}>
+                                    <span className="text-[#3b82f6] mr-2">{lang === 'kr' ? '프로젝트' : 'Project'} :</span> IOTA Seoul
+                                </div>
+
+                                <div 
+                                    className={`flex items-center w-full relative gap-0 border-[2.5px] border-[#1e40af] rounded-lg shadow-[0_20px_50px_rgba(30,64,175,0.2)] overflow-hidden bg-white
+                                    `}
+                                >
+                                    {/* Global Flow Engine representing total seamless sharing */}
+                                    {step >= 6 && <DataFlowSuccess />}
+
+                                    {stages.map((stage, idx) => (
+                                        <React.Fragment key={idx}>
+                                            <div 
+                                                className={`flex-1 flex flex-col relative overflow-hidden h-[120px] md:h-[150px]
+                                                    bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 
+                                                    /* Remove internal vertical borders completely for perfectly seamless flow */
+                                                    border-none
+                                                `}
+                                            >
+                                                {/* Top Title Bar */}
+                                                <div 
+                                                    className={`w-full flex items-center justify-center z-20 bg-[#1e40af] h-[30px] md:h-[40px] py-1`}
+                                                >
+                                                    <span className={`font-bold text-center leading-[1.2] break-keep px-1 text-[10px] md:text-[13px] text-white opacity-90`}>
+                                                        {stage}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
