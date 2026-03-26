@@ -199,7 +199,7 @@ export default function Section9({ isActive }) {
 
                         {/* 2. Blocked Value Chain Box */}
                         <div className="w-full overflow-x-auto hide-scrollbar pb-6 flex flex-col items-center">
-                            <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)]`}>
+                            <div className={`flex flex-col min-w-0 md:min-w-[1000px] xl:min-w-0 w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)]`}>
                                 
                                 {/* Sharp Rectangular Control Tower on Blocked Box (Black for Phase 1) */}
                                 <div className={`flex items-center justify-center w-full transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0'}`}>
@@ -239,7 +239,7 @@ export default function Section9({ isActive }) {
                                                         ${step >= 3 ? 'bg-[#1d1d1f] h-[25px] md:h-[35px] py-1 border-none' : 'bg-[#1d1d1f] h-[25px] md:h-[35px] py-1 border-b border-[#1d1d1f]'}
                                                     `}
                                                 >
-                                                    <span className={`transition-all duration-[1000ms] font-bold text-center leading-[1.2] break-keep px-1 text-[9px] md:text-[12px] text-white`}>
+                                                    <span className={`transition-all duration-[1000ms] font-bold text-center leading-[1.2] break-all md:break-keep px-[2px] md:px-1 text-[8px] md:text-[12px] text-white`}>
                                                         {stage}
                                                     </span>
                                                 </div>
@@ -279,7 +279,7 @@ export default function Section9({ isActive }) {
                         {/* PHASE 1 BLACK BOX DUPLICATE (For side-by-side comparison) */}
                         {/* ========================================================= */}
                         <div className={`w-full overflow-x-auto hide-scrollbar flex flex-col items-center transition-all duration-[1200ms] delay-[100ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'opacity-100 translate-y-0 scale-95' : 'opacity-0 translate-y-8 scale-90'}`}>
-                            <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full`}>
+                            <div className={`flex flex-col min-w-0 md:min-w-[1000px] xl:min-w-0 w-full`}>
                                 
                                 <div className={`flex items-center justify-center w-full`}>
                                     <div className="flex flex-col items-center w-full">
@@ -344,7 +344,7 @@ export default function Section9({ isActive }) {
                         <div className={`w-full overflow-x-auto hide-scrollbar pb-6 flex flex-col items-center transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-0
                             ${step >= 6 ? 'opacity-100 translate-y-0 filter-none' : 'opacity-0 translate-y-12 blur-sm'}
                         `}>
-                            <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full`}>
+                            <div className={`flex flex-col min-w-0 md:min-w-[1000px] xl:min-w-0 w-full`}>
                                 
                                 {/* Sharp Rectangular Control Tower Org Chart */}
                                 <div className={`flex items-center justify-center w-full opacity-0 scale-y-50 origin-bottom transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-[300ms] ${step >= 6 ? 'opacity-100 scale-y-100' : ''}`}>
@@ -386,7 +386,7 @@ export default function Section9({ isActive }) {
                                                 <div 
                                                     className={`w-full flex items-center justify-center z-20 bg-[#1e40af] h-[25px] md:h-[35px] py-1 rounded-none`}
                                                 >
-                                                    <span className={`font-bold text-center leading-[1.2] break-keep px-1 text-[9px] md:text-[12px] text-white opacity-90`}>
+                                                    <span className={`font-bold text-center leading-[1.2] break-all md:break-keep px-[2px] md:px-1 text-[8px] md:text-[12px] text-white opacity-90`}>
                                                         {stage}
                                                     </span>
                                                 </div>
