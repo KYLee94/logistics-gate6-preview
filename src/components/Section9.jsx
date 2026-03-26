@@ -313,14 +313,12 @@ export default function Section9({ isActive }) {
                         </div>
 
                         {/* Downward Arrow */}
-                        <div className={`transition-all duration-[800ms] ease-out flex justify-center my-[30px] md:my-[40px]
+                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mt-[50px] mb-[30px] md:mt-[60px] md:mb-[40px]
                             ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8 scale-50'}
                         `}>
-                            <div className="animate-bounce">
-                                <svg className="w-8 h-8 md:w-10 md:h-10 text-[#1d1d1f]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                                </svg>
-                            </div>
+                            <svg className="w-8 h-8 md:w-10 md:h-10 text-[#1d1d1f]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                            </svg>
                         </div>
 
                         {/* New Heading */}
