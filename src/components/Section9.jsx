@@ -142,21 +142,9 @@ export default function Section9({ isActive }) {
                 }
             `}</style>
             
-            {/* Mobile Fallback: Only shows when viewport is < lg (1024px) */}
-            <div className="flex lg:hidden absolute inset-0 z-50 bg-white items-center justify-center p-6 text-center h-[100vh]">
-                <div className="flex flex-col items-center opacity-80">
-                    <svg className="w-10 h-10 mb-4 text-[#1d1d1f]" fill="none" strokeWidth="1.5" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
-                    </svg>
-                    <p className="text-[15px] md:text-[18px] font-medium text-[#1d1d1f] tracking-tight leading-[1.6]">
-                        {lang === 'kr' ? '큰 화면의 PC 모니터에서 확인해주세요.' : 'Please view this on a larger PC monitor.'}
-                    </p>
-                </div>
-            </div>
-
-            {/* The Huge Sliding Window (Moves Up when step >= 4) - Hidden on Mobile */}
+            {/* The Huge Sliding Window (Moves Up when step >= 4) */}
             <div 
-                className={`hidden lg:flex w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                className={`w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
                     ${step >= 4 ? 'translate-y-[-100vh]' : 'translate-y-0'}
                 `}
                 style={{ height: '200vh' }}
