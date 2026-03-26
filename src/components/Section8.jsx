@@ -140,7 +140,7 @@ export default function Section8({ isActive }) {
                     </h3>
 
                     {/* Step 5 Subtitle (Vertical Severance) */}
-                    <h3 className={`absolute top-0 left-0 w-full text-[18px] md:text-[24px] lg:text-[28px] font-medium text-[#c4c4c6] tracking-tight leading-[1.5] break-keep transition-all duration-[1200ms] delay-[400ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-10 scale-95 pointer-events-none'} max-w-[1100px]`}>
+                    <h3 className={`absolute top-0 right-0 w-full text-right text-[18px] md:text-[24px] lg:text-[28px] font-medium text-[#c4c4c6] tracking-tight leading-[1.5] break-keep transition-all duration-[1200ms] delay-[400ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 5 ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto' : 'opacity-0 translate-y-10 scale-95 pointer-events-none'}`}>
                         {lang === 'kr' ? (
                             <>
                                 나아가, 다른 프로젝트를 진행하는 팀들 간에도 <strong className="text-[#f97316] font-bold">노하우가 공유되기 어렵습니다.</strong><br />
