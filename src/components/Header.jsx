@@ -503,13 +503,13 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                 <div className="font-sans text-[13px] md:text-[14px] leading-relaxed font-light break-keep">
                                     <h3 className="text-[18px] md:text-[20px] font-bold mb-6 font-inter tracking-tight">[면책공고 / Disclaimer]</h3>
                                     <p className="mb-6">
-                                        본 <strong>IFPDP (IGIS Fund Production Data Platform) 비전북</strong>은 이지스자산운용 주식회사(이하 “회사”)가 사내 펀드 생산성 향상 및 데이터 아키텍처에 대한 이해를 돕기 위해 관련 정보와 개념적 모델을 근거로 제작한 것이며, 이용 시 다음과 같은 주의사항을 고지합니다.
+                                        본 <strong>IFPDP (IGIS Fund Production Data Platform) 플랫폼 전략 기획안</strong>은 이지스자산운용 주식회사(이하 “회사”)가 사내 펀드 생산성 향상 및 데이터 아키텍처에 대한 이해를 돕기 위해 관련 정보와 개념적 모델을 근거로 제작한 것이며, 이용 시 다음과 같은 주의사항을 고지합니다.
                                     </p>
 
                                     <ol className="list-decimal pl-5 space-y-5">
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">정보의 목적 및 성격</strong>
-                                            본 비전북은 정식 시스템 매뉴얼, 투자설명서, 상품설명서 또는 정식 IM(Information Memorandum) 자료가 아니며, 당사가 지향하는 데이터 통합 플랫폼에 대한 구상과 전략적 방향성을 공유하기 위한 내부 참고용 프레젠테이션입니다.<br />
+                                            본 기획안은 정식 시스템 매뉴얼, 투자설명서, 상품설명서 또는 정식 IM(Information Memorandum) 자료가 아니며, 당사가 지향하는 데이터 통합 플랫폼에 대한 구상과 전략적 방향성을 공유하기 위한 내부 참고용 프레젠테이션입니다.<br />
                                             본 자료에 포함된 데이터 프레임워크나 텍스트는 어떠한 경우에도 외부 투자 권유 또는 법적 구속력이 있는 시스템 청사진으로 이용될 수 없습니다.
                                         </li>
                                         <li className="pl-1">
@@ -531,13 +531,13 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                 <div className="font-sans text-[13px] md:text-[14px] leading-relaxed font-light break-keep">
                                     <h3 className="text-[18px] md:text-[20px] font-bold mb-6 font-inter tracking-tight">[Disclaimer]</h3>
                                     <p className="mb-6">
-                                        This <strong>IFPDP (IGIS Fund Production Data Platform) Vision Book</strong> has been produced by IGIS Asset Management Co., Ltd. (the "Company") based on conceptual models to facilitate an understanding of our data architecture and fund productivity enhancement strategies. Please be advised of the following precautions:
+                                        This <strong>IFPDP (IGIS Fund Production Data Platform) Platform Strategy Proposal</strong> has been produced by IGIS Asset Management Co., Ltd. (the "Company") based on conceptual models to facilitate an understanding of our data architecture and fund productivity enhancement strategies. Please be advised of the following precautions:
                                     </p>
 
                                     <ol className="list-decimal pl-5 space-y-5">
                                         <li className="pl-1">
                                             <strong className="block font-bold mb-1">Purpose and Nature of Information</strong>
-                                            This vision book is an internal reference presentation intended to share the vision and strategic direction of our data integration platform. It is not an official system manual, prospectus, or Information Memorandum (IM).<br />
+                                            This proposal is an internal reference presentation intended to share the vision and strategic direction of our data integration platform. It is not an official system manual, prospectus, or Information Memorandum (IM).<br />
                                             Data frameworks or strings included herein shall not be used under any circumstances as external investment solicitations or legally binding system blueprints.
                                         </li>
                                         <li className="pl-1">

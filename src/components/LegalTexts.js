@@ -4,7 +4,7 @@ export const termsTextKr = `[IFPDP] 플랫폼 이용약관
 본 약관은 이지스자산운용 주식회사(이하 "회사")가 내부 임직원 및 관계사를 대상으로 제공하는 IFPDP (IGIS Fund Production Data Platform, 이하 "플랫폼")의 이용 규칙과 당사자의 권리, 의무 및 책임사항을 규정함을 목적으로 합니다.
 
 2. 플랫폼의 성격 및 목적
-① 본 플랫폼은 회사의 펀드 운용 및 관리 프로젝트의 생산성을 제고하고, 데이터 파편화 현상을 극복하기 위한 Cross Functional System의 일환으로 구축된 내부 데이터 시각화 및 안내 목적의 비전북입니다.
+① 본 플랫폼은 회사의 펀드 운용 및 관리 프로젝트의 생산성을 제고하고, 데이터 파편화 현상을 극복하기 위한 Cross Functional System의 일환으로 구축된 내부 플랫폼 전략 기획안입니다.
 ② 본 플랫폼 내의 모든 시각적 자료, 텍스트, 애니메이션 및 데이터는 이해를 돕기 위한 예시이며, 실제 파트너십 제안, 투자 권유 또는 구속력 있는 계약의 일부가 아닙니다.
 
 3. 이용자의 의무 및 보안
@@ -28,7 +28,7 @@ export const termsTextEn = `[IFPDP] Platform Terms of Service
 These terms aim to define the rules of use, rights, obligations, and responsibilities regarding the IFPDP (IGIS Fund Production Data Platform, hereinafter "Platform") provided by IGIS Asset Management Co., Ltd. (the "Company") for its internal employees and affiliates.
 
 2. Nature and Purpose of the Platform
-① This Platform is an internal digital vision book constructed as part of a Cross-Functional System to enhance the productivity of the Company's fund management projects and overcome data fragmentation.
+① This Platform is an internal platform strategy proposal constructed as part of a Cross-Functional System to enhance the productivity of the Company's fund management projects and overcome data fragmentation.
 ② All visual materials, text, animations, and data within this Platform are illustrative to aid understanding and do not constitute actual partnership proposals, investment solicitations, or legally binding agreements.
 
 3. User Obligations and Security
