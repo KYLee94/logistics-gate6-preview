@@ -136,45 +136,40 @@ export default function Section9({ isActive }) {
                 }
             `}</style>
             
-            {/* The Huge Sliding Window (Moves Up when step >= 4) */}
-            <div 
-                className={`w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                    ${step >= 4 ? 'translate-y-[-65vh] md:translate-y-[-70vh]' : 'translate-y-0'}
-                `}
-                style={{ height: '200vh' }}
-            >
+            {/* The single wrapper that handles all content dynamically! */}
+            <div className={`w-full h-full flex flex-col items-center justify-start overflow-y-auto hide-scrollbar pt-[80px] pb-[80px] relative`}>
                 
-                {/* --- SCREEN 1: Top 100vh --- */}
-                <div className="w-full h-[100vh] flex flex-col items-center justify-center relative px-4 md:px-12 lg:px-20">
-                    <div className="w-full max-w-[1500px] flex flex-col items-center justify-center space-y-4 md:space-y-6 pt-[80px]">
+                {/* --- SCREEN 1: Top Comparison Block --- */}
+                <div className="w-full flex flex-col items-center justify-center relative px-4 md:px-12 lg:px-20 shrink-0">
+                    <div className="w-full max-w-[1500px] flex flex-col items-center justify-center space-y-4 md:space-y-6">
                         
                         {/* 1. Text Content */}
                         <div className="w-full flex items-center justify-center">
                             <div className="w-full text-center flex flex-col items-center">
                                 {/* Dilemma Paragraph */}
                                 <div className={`transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                                    <h3 className={`text-[18px] md:text-[22px] lg:text-[26px] font-medium text-[#555] tracking-tight leading-[1.6] break-keep`}>
+                                    <h3 className={`text-[16px] md:text-[20px] lg:text-[24px] font-medium text-[#555] tracking-tight leading-[1.6] break-keep`}>
                                         {lang === 'kr' ? (
                                             <>
                                                 조직간 자율에 맡기자니 파편화되고, 규약으로 강제하자니 유연성이 죽는 딜레마.<br className="hidden md:block"/>
-                                                이를 깨기 위해 대표님은 <span className="text-[#1d1d1f] font-bold">CFT 전략에서 가장 현실적인 결정</span>을 내렸습니다.
+                                                이를 깨기 위해 대표님은 <span className="text-[#1d1d1f] font-bold">CFT(Cross Functional Team) 전략에서 가장 현실적인 결정</span>을 내렸습니다.
                                             </>
                                         ) : (
                                             <>
                                                 The dilemma of fragmentation through autonomy vs. loss of flexibility through strict rules.<br className="hidden md:block"/>
-                                                To break this, the CEO made the <span className="text-[#1d1d1f] font-bold">most pragmatic decision in the CFT strategy</span>.
+                                                To break this, the CEO made the <span className="text-[#1d1d1f] font-bold">most pragmatic decision in the CFT(Cross Functional Team) strategy</span>.
                                             </>
                                         )}
                                     </h3>
                                 </div>
 
-                                {/* Modified Collaboration Title (Top 10px reduced, symmetric padding) */}
-                                <div className={`mt-[15px] md:mt-[35px] mb-[40px] md:mb-[60px] transition-all duration-[1200ms] delay-[200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} flex flex-col items-center`}>
-                                    <h2 className="text-[26px] md:text-[39px] lg:text-[46px] font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text tracking-tight leading-[1.2] mb-6 md:mb-8 inline-block">
+                                {/* Modified Collaboration Title (+2px increased) */}
+                                <div className={`mt-[12px] md:mt-[24px] mb-[24px] md:mb-[40px] transition-all duration-[1200ms] delay-[200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} flex flex-col items-center`}>
+                                    <h2 className="text-[28px] md:text-[41px] lg:text-[48px] font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text tracking-tight leading-[1.2] mb-4 md:mb-6 inline-block">
                                         {lang === 'kr' ? "'수정 협업주의 (Modified Collaboration)'" : "'Modified Collaboration'"}
                                     </h2>
                                     
-                                    <p className="text-[18px] md:text-[24px] lg:text-[28px] font-semibold text-[#1d1d1f] tracking-tight leading-[1.5] break-keep max-w-[1100px]">
+                                    <p className="text-[17px] md:text-[22px] lg:text-[26px] font-semibold text-[#1d1d1f] tracking-tight leading-[1.5] break-keep max-w-[1100px]">
                                         {lang === 'kr' ? (
                                             <>
                                                 개인의 성향이나 선의에 기대는 것을 멈추고,<br className="hidden md:block" />
@@ -195,16 +190,29 @@ export default function Section9({ isActive }) {
                         <div className="w-full overflow-x-auto hide-scrollbar pb-6 flex flex-col items-center">
                             <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)]`}>
                                 
+                                {/* Sharp Rectangular Control Tower on Blocked Box */}
+                                <div className={`flex items-center justify-center w-full mb-3 transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0'}`}>
+                                    <div className="flex flex-col items-center w-full">
+                                        <div className="bg-[#1e40af] text-white px-8 py-1.5 font-bold text-[12px] md:text-[14px] tracking-widest uppercase border border-[#1e40af] rounded-none shadow-sm z-20">
+                                            CONTROL TOWER
+                                        </div>
+                                        <div className="w-[3px] h-[16px] md:h-[24px] bg-[#1e40af] opacity-50 z-10 -my-[1px]"></div>
+                                        {/* Bridge line connecting to the box */}
+                                        <div className="w-[95%] h-[2px] bg-gradient-to-r from-transparent via-[#1e40af] to-transparent opacity-80 z-10"></div>
+                                    </div>
+                                </div>
+
                                 <div 
                                     className={`flex items-center w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] relative
-                                        ${step >= 3 ? 'gap-0 border-[2.5px] border-[#1e40af] rounded-lg shadow-[0_15px_40px_rgba(30,64,175,0.15)] overflow-hidden bg-white' : 'gap-[10px] md:gap-[15px] lg:gap-[20px] bg-transparent border-transparent'}
+                                        ${step >= 3 ? 'gap-0 border-[2.5px] border-[#1e40af] rounded-none shadow-[0_15px_40px_rgba(30,64,175,0.15)] overflow-hidden bg-white' : 'gap-[10px] md:gap-[15px] lg:gap-[20px] bg-transparent border-transparent'}
                                     `}
                                 >
                                     {stages.map((stage, idx) => (
                                         <React.Fragment key={idx}>
                                             <div 
-                                                className={`flex-1 flex flex-col relative overflow-hidden transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] h-[100px] md:h-[130px]
-                                                    ${step >= 3 ? 'bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 border-r border-[#1e40af]/30 last:border-r-0' : 'bg-[#fff] rounded-md border-[2px] border-[#ef4444] shadow-[0_4px_15px_rgba(239,68,68,0.15)] z-20'}
+                                                className={`flex-1 flex flex-col relative overflow-hidden transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                                                    ${step >= 4 ? 'h-[60px] md:h-[80px]' : 'h-[80px] md:h-[110px]'}
+                                                    ${step >= 3 ? 'bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 border-r border-[#1e40af]/30 last:border-r-0' : 'bg-[#fff] rounded-none border-[2px] border-[#ef4444] shadow-[0_4px_15px_rgba(239,68,68,0.15)] z-20'}
                                                 `}
                                             >
                                                 {/* Blocked Data Flow restricted INSIDE the individual cell */}
@@ -213,10 +221,10 @@ export default function Section9({ isActive }) {
                                                 {/* Top Title Bar */}
                                                 <div 
                                                     className={`w-full flex items-center justify-center z-20 transition-all duration-[1000ms]
-                                                        ${step >= 3 ? 'bg-[#1e40af] h-[30px] md:h-[40px] py-1 border-none' : 'bg-[#ef4444] h-[30px] md:h-[40px] py-1 border-b border-[#ef4444]'}
+                                                        ${step >= 3 ? 'bg-[#1e40af] h-[25px] md:h-[35px] py-1 border-none' : 'bg-[#ef4444] h-[25px] md:h-[35px] py-1 border-b border-[#ef4444]'}
                                                     `}
                                                 >
-                                                    <span className={`transition-all duration-[1000ms] font-bold text-center leading-[1.2] break-keep px-1 text-[10px] md:text-[13px] text-white`}>
+                                                    <span className={`transition-all duration-[1000ms] font-bold text-center leading-[1.2] break-keep px-1 text-[9px] md:text-[12px] text-white`}>
                                                         {stage}
                                                     </span>
                                                 </div>
@@ -226,7 +234,8 @@ export default function Section9({ isActive }) {
                                             {idx < stages.length - 1 && (
                                                 <div 
                                                     className={`bg-[#1e40af] shrink-0 z-30 transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                                                        ${step >= 3 ? 'w-[2px] md:w-[3px] h-[100px] md:h-[130px] opacity-100 scale-y-100' : 'w-0 h-[80px] opacity-0 scale-y-0 mx-0'}
+                                                        ${step >= 4 ? 'h-[60px] md:h-[80px]' : 'h-[80px] md:h-[110px]'}
+                                                        ${step >= 3 ? 'w-[2px] md:w-[3px] opacity-100 scale-y-100' : 'w-0 opacity-0 scale-y-0 mx-0'}
                                                     `} 
                                                 ></div>
                                             )}
@@ -238,58 +247,56 @@ export default function Section9({ isActive }) {
                     </div>
                 </div>
 
-                {/* --- SCREEN 2: Bottom 100vh (Becomes visible when scrolled up) --- */}
-                <div className="w-full h-[100vh] flex flex-col items-center justify-start relative px-4 md:px-12 lg:px-20 pt-[6vh]">
-                    <div className="w-full max-w-[1500px] flex flex-col items-center justify-center">
+                {/* --- SCREEN 2: Comparison Block (Expands via max-height, pushing Screen 1 up) --- */}
+                <div 
+                    className={`w-full flex flex-col items-center justify-start overflow-hidden transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                        ${step >= 4 ? 'max-h-[1200px] opacity-100 pt-6 md:pt-10' : 'max-h-0 opacity-0'}
+                    `}
+                >
+                    <div className="w-full max-w-[1500px] flex flex-col items-center justify-center px-4 md:px-12 lg:px-20">
                         
                         {/* Downward Arrow */}
-                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mb-6 md:mb-10
-                            ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8 scale-50'}
-                        `}>
-                            <div className="animate-bounce bg-[#297cf6]/10 p-4 rounded-full">
-                                <svg className="w-8 h-8 md:w-10 md:h-10 text-[#1e40af]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mb-4 md:mb-6
+                            ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 scale-50'}`}>
+                            <div className="bg-[#1e40af]/10 px-6 py-2 rounded-none border border-[#1e40af]/20">
+                                <svg className="w-6 h-6 md:w-8 md:h-8 text-[#1e40af]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                                 </svg>
                             </div>
                         </div>
 
                         {/* New Heading */}
-                        <div className={`transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] text-center mb-12 md:mb-20
+                        <div className={`transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] text-center mb-8 md:mb-12
                             ${step >= 5 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-10 scale-95'}
                         `}>
-                            <h2 className="text-[22px] md:text-[34px] lg:text-[42px] font-bold text-[#1d1d1f] tracking-tight leading-[1.4] break-keep">
+                            <h2 className="text-[20px] md:text-[28px] lg:text-[34px] font-bold text-[#1d1d1f] tracking-tight leading-[1.4] break-keep border border-transparent">
                                 {lang === 'kr' ? (
-                                    <>이 공정을, <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">조직의 유연성과 독립성을 확보</span>하면서<br className="hidden md:block"/> 유연하게 연결시키려면?</>
+                                    <>이 공정을, <span className="bg-[#1e40af] text-white px-3 py-1 mr-1">조직의 유연성과 독립성을 확보</span>하면서<br className="hidden md:block"/> 유연하게 연결시키려면?</>
                                 ) : (
-                                    <>How do we flexibly connect this process, <br className="hidden md:block"/><span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">securing the organization's flexibility and independence</span>?</>
+                                    <>How do we flexibly connect this process, <br className="hidden md:block"/><span className="bg-[#1e40af] text-white px-3 py-1 mr-1">securing the organization's flexibility and independence</span>?</>
                                 )}
                             </h2>
                         </div>
 
                         {/* Unified, Flowing Value Chain Box */}
                         <div className={`w-full overflow-x-auto hide-scrollbar pb-6 flex flex-col items-center transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-[300ms]
-                            ${step >= 6 ? 'opacity-100 translate-y-0 filter-none' : 'opacity-0 translate-y-24 blur-sm'}
+                            ${step >= 6 ? 'opacity-100 translate-y-0 filter-none' : 'opacity-0 translate-y-12 blur-sm'}
                         `}>
                             <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full`}>
                                 
-                                {/* Subdued techy control tower overhead replacing Project Title */}
-                                <div className={`flex items-center justify-center w-full mb-3 opacity-0 scale-95 transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-[1000ms] ${step >= 6 ? 'opacity-100 scale-100' : ''}`}>
-                                    <div className="flex flex-col items-center">
-                                        <div className="flex items-center gap-2 bg-[#f8fafc] border-[1.5px] border-[#1e40af] px-6 py-2 rounded-full shadow-[0_8px_20px_rgba(30,64,175,0.15)] z-20">
-                                            <svg className="w-4 h-4 text-[#1e40af] animate-pulse" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-8m0 0v-4" />
-                                                <circle cx="12" cy="12" r="3" />
-                                                <path d="M19.07 4.93a10 10 0 00-14.14 0M21.9 2.1a14 14 0 00-19.8 0" />
-                                            </svg>
-                                            <span className="text-[#1e40af] font-bold text-[12px] md:text-[14px] tracking-widest uppercase">CONTROL TOWER</span>
+                                {/* Sharp Rectangular Control Tower overhead replacing Project Title */}
+                                <div className={`flex items-center justify-center w-full mb-3 opacity-0 scale-y-50 origin-bottom transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-[1000ms] ${step >= 6 ? 'opacity-100 scale-y-100' : ''}`}>
+                                    <div className="flex flex-col items-center w-full">
+                                        <div className="bg-[#1e40af] text-white px-8 py-1.5 font-bold text-[12px] md:text-[14px] tracking-widest uppercase border border-[#1e40af] rounded-none shadow-sm z-20">
+                                            CONTROL TOWER
                                         </div>
-                                        <div className="w-[3px] h-[16px] md:h-[24px] bg-[#1e40af] opacity-50"></div>
-                                        <div className="w-full min-w-[200px] h-[2px] bg-gradient-to-r from-transparent via-[#1e40af] to-transparent opacity-40"></div>
+                                        <div className="w-[3px] h-[16px] md:h-[24px] bg-[#1e40af] opacity-50 z-10 -my-[1px]"></div>
+                                        <div className="w-full h-[2px] bg-gradient-to-r from-transparent via-[#1e40af] to-transparent opacity-80 z-10 relative"></div>
                                     </div>
                                 </div>
 
                                 <div 
-                                    className={`flex items-center w-full relative gap-0 border-[2.5px] border-[#1e40af] rounded-lg shadow-[0_20px_50px_rgba(30,64,175,0.2)] overflow-hidden bg-white
+                                    className={`flex items-center w-full relative gap-0 border-[2.5px] border-[#1e40af] rounded-none shadow-[0_20px_50px_rgba(30,64,175,0.2)] overflow-hidden bg-white
                                     `}
                                 >
                                     {/* Global Flow Engine representing total seamless sharing */}
@@ -298,17 +305,16 @@ export default function Section9({ isActive }) {
                                     {stages.map((stage, idx) => (
                                         <React.Fragment key={idx}>
                                             <div 
-                                                className={`flex-1 flex flex-col relative overflow-hidden h-[120px] md:h-[150px]
+                                                className={`flex-1 flex flex-col relative overflow-hidden h-[80px] md:h-[110px]
                                                     bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 
-                                                    /* Remove internal vertical borders completely for perfectly seamless flow */
                                                     border-none
                                                 `}
                                             >
                                                 {/* Top Title Bar */}
                                                 <div 
-                                                    className={`w-full flex items-center justify-center z-20 bg-[#1e40af] h-[30px] md:h-[40px] py-1`}
+                                                    className={`w-full flex items-center justify-center z-20 bg-[#1e40af] h-[25px] md:h-[35px] py-1 rounded-none`}
                                                 >
-                                                    <span className={`font-bold text-center leading-[1.2] break-keep px-1 text-[10px] md:text-[13px] text-white opacity-90`}>
+                                                    <span className={`font-bold text-center leading-[1.2] break-keep px-1 text-[9px] md:text-[12px] text-white opacity-90`}>
                                                         {stage}
                                                     </span>
                                                 </div>
@@ -318,8 +324,8 @@ export default function Section9({ isActive }) {
                                 </div>
 
                                 {/* Bottom Cross Functional Text */}
-                                <div className={`w-full text-center mt-12 md:mt-16 transition-all duration-[1200ms] delay-[1800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-                                    <h3 className="text-[18px] md:text-[24px] lg:text-[28px] font-extrabold tracking-tight bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text inline-block">
+                                <div className={`w-full text-center mt-8 md:mt-12 transition-all duration-[1200ms] delay-[1800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+                                    <h3 className="text-[17px] md:text-[22px] lg:text-[26px] font-extrabold tracking-tight bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text inline-block break-keep">
                                         {lang === 'kr' ? 'Cross Functional System and CFT(Cross Functional Team) 조직 구축' : 'Establishment of Cross-Functional System and CFT'}
                                     </h3>
                                 </div>
