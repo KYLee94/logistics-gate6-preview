@@ -139,7 +139,7 @@ export default function Section9({ isActive }) {
             {/* The Huge Sliding Window (Moves Up when step >= 4) */}
             <div 
                 className={`w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                    ${step >= 4 ? 'translate-y-[-65vh] md:translate-y-[-70vh]' : 'translate-y-0'}
+                    ${step >= 4 ? 'translate-y-[-100vh]' : 'translate-y-0'}
                 `}
                 style={{ height: '200vh' }}
             >
@@ -265,16 +265,59 @@ export default function Section9({ isActive }) {
 
                 {/* --- SCREEN 2: Bottom 100vh (Becomes visible when scrolled up) --- */}
                 <div 
-                    className={`w-full h-[100vh] flex flex-col items-center justify-start relative px-4 md:px-12 lg:px-20 pt-[6vh]`}
+                    className={`w-full h-[100vh] flex flex-col items-center justify-center relative px-4 md:px-12 lg:px-20 pt-2 lg:pt-4`}
                 >
                     <div className="w-full max-w-[1500px] flex flex-col items-center justify-center px-4 md:px-12 lg:px-20">
-                        
+
+                        {/* ========================================================= */}
+                        {/* PHASE 1 BLACK BOX DUPLICATE (For side-by-side comparison) */}
+                        {/* ========================================================= */}
+                        <div className={`w-full overflow-x-auto hide-scrollbar flex flex-col items-center transition-all duration-[1200ms] delay-[100ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'opacity-100 translate-y-0 scale-95' : 'opacity-0 translate-y-8 scale-90'}`}>
+                            <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full`}>
+                                
+                                <div className={`flex items-center justify-center w-full`}>
+                                    <div className="flex flex-col items-center w-full">
+                                        <div className="bg-[#1d1d1f] text-white px-6 py-1 font-bold text-[10px] md:text-[12px] tracking-widest uppercase border border-[#1d1d1f] rounded-none shadow-sm z-20">
+                                            CONTROL TOWER
+                                        </div>
+                                        <div className="w-[2px] h-[10px] md:h-[15px] bg-[#1d1d1f] z-10 -my-[1px]"></div>
+                                        <div className="w-full flex relative z-10">
+                                            {stages.map((_, i) => (
+                                                <div key={`ct-line-dup-${i}`} className="flex-1 flex flex-col items-center relative">
+                                                    <div className="absolute top-0 h-[2px] bg-[#1d1d1f] w-full" style={{ left: i === 0 ? '50%' : '0', width: (i === 0 || i === stages.length - 1) ? '50%' : '100%' }}></div>
+                                                    <div className="w-[2px] h-[10px] md:h-[15px] bg-[#1d1d1f]"></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`flex items-center w-full relative gap-0 border-[2px] border-[#1d1d1f] rounded-none shadow-[0_10px_20px_rgba(29,29,31,0.1)] overflow-hidden bg-white`}>
+                                    {stages.map((stage, idx) => (
+                                        <React.Fragment key={`dup-${idx}`}>
+                                            <div className={`flex-1 flex flex-col relative overflow-hidden h-[50px] md:h-[70px] bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 border-r border-[#1d1d1f]/30 last:border-r-0`}>
+                                                <DataFlowCell />
+                                                <div className={`w-full flex items-center justify-center z-20 bg-[#1d1d1f] h-[20px] md:h-[28px] py-1 border-none`}>
+                                                    <span className={`font-bold text-center leading-[1.2] break-keep px-1 text-[8px] md:text-[11px] text-white`}>
+                                                        {stage}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            {idx < stages.length - 1 && (
+                                                <div className={`bg-[#1d1d1f] shrink-0 z-30 h-[50px] md:h-[70px] w-[2px]`}></div>
+                                            )}
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Downward Arrow */}
-                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mb-6 md:mb-10
+                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mt-2 mb-2 md:mt-4 md:mb-4
                             ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8 scale-50'}
                         `}>
                             <div className="animate-bounce">
-                                <svg className="w-10 h-10 md:w-14 md:h-14 text-[#1e40af]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-8 h-8 md:w-10 md:h-10 text-[#1e40af]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                                 </svg>
                             </div>
