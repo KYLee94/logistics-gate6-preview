@@ -169,7 +169,7 @@ export default function Section9({ isActive }) {
                                 </div>
 
                                 {/* Modified Collaboration Title (+2px increased) */}
-                                <div className={`mt-[12px] md:mt-[24px] mb-[24px] md:mb-[40px] transition-all duration-[1200ms] delay-[200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} flex flex-col items-center`}>
+                                <div className={`mt-[22px] md:mt-[34px] mb-[34px] md:mb-[50px] transition-all duration-[1200ms] delay-[200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'} flex flex-col items-center`}>
                                     <h2 className="text-[28px] md:text-[41px] lg:text-[48px] font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text tracking-tight leading-[1.2] mb-4 md:mb-6 inline-block">
                                         {lang === 'kr' ? "'수정 협업주의 (Modified Collaboration)'" : "'Modified Collaboration'"}
                                     </h2>
@@ -195,21 +195,18 @@ export default function Section9({ isActive }) {
                         <div className="w-full overflow-x-auto hide-scrollbar pb-6 flex flex-col items-center">
                             <div className={`flex flex-col min-w-[1000px] xl:min-w-0 w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)]`}>
                                 
-                                {/* Sharp Rectangular Control Tower on Blocked Box */}
+                                {/* Sharp Rectangular Control Tower on Blocked Box (Black for Phase 1) */}
                                 <div className={`flex items-center justify-center w-full transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0'}`}>
                                     <div className="flex flex-col items-center w-full">
-                                        <div className="bg-[#1e40af] text-white px-8 py-1.5 font-bold text-[12px] md:text-[14px] tracking-widest uppercase border border-[#1e40af] rounded-none shadow-sm z-20">
+                                        <div className="bg-[#1d1d1f] text-white px-8 py-1.5 font-bold text-[12px] md:text-[14px] tracking-widest uppercase border border-[#1d1d1f] rounded-none shadow-sm z-20">
                                             CONTROL TOWER
                                         </div>
-                                        <div className="w-[3px] h-[15px] md:h-[20px] bg-[#1e40af] z-10 -my-[1px]"></div>
-                                        {/* Perfect Org Chart Branching to all 10 Flex Cells */}
+                                        <div className="w-[3px] h-[15px] md:h-[20px] bg-[#1d1d1f] z-10 -my-[1px]"></div>
                                         <div className="w-full flex relative z-10">
                                             {stages.map((_, i) => (
                                                 <div key={`ct-line-1-${i}`} className="flex-1 flex flex-col items-center relative">
-                                                    {/* Top horizontal connection */}
-                                                    <div className="absolute top-0 h-[3px] bg-[#1e40af] w-full" style={{ left: i === 0 ? '50%' : '0', width: (i === 0 || i === stages.length - 1) ? '50%' : '100%' }}></div>
-                                                    {/* Vertical stem down to box */}
-                                                    <div className="w-[3px] h-[15px] md:h-[20px] bg-[#1e40af]"></div>
+                                                    <div className="absolute top-0 h-[3px] bg-[#1d1d1f] w-full" style={{ left: i === 0 ? '50%' : '0', width: (i === 0 || i === stages.length - 1) ? '50%' : '100%' }}></div>
+                                                    <div className="w-[3px] h-[15px] md:h-[20px] bg-[#1d1d1f]"></div>
                                                 </div>
                                             ))}
                                         </div>
@@ -218,7 +215,7 @@ export default function Section9({ isActive }) {
 
                                 <div 
                                     className={`flex items-center w-full transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] relative
-                                        ${step >= 3 ? 'gap-0 border-[2.5px] border-[#1e40af] rounded-none shadow-[0_15px_40px_rgba(30,64,175,0.15)] overflow-hidden bg-white' : 'gap-[10px] md:gap-[15px] lg:gap-[20px] bg-transparent border-transparent'}
+                                        ${step >= 3 ? 'gap-0 border-[2.5px] border-[#1d1d1f] rounded-none shadow-[0_15px_40px_rgba(29,29,31,0.15)] overflow-hidden bg-white' : 'gap-[10px] md:gap-[15px] lg:gap-[20px] bg-transparent border-transparent'}
                                     `}
                                 >
                                     {stages.map((stage, idx) => (
@@ -226,16 +223,14 @@ export default function Section9({ isActive }) {
                                             <div 
                                                 className={`flex-1 flex flex-col relative overflow-hidden transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)]
                                                     ${step >= 4 ? 'h-[60px] md:h-[80px]' : 'h-[80px] md:h-[110px]'}
-                                                    ${step >= 3 ? 'bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 border-r border-[#1e40af]/30 last:border-r-0' : 'bg-[#fff] rounded-none border-[2px] border-[#ef4444] shadow-[0_4px_15px_rgba(239,68,68,0.15)] z-20'}
+                                                    ${step >= 3 ? 'bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 border-r border-[#1d1d1f]/30 last:border-r-0' : 'bg-[#fff] rounded-none border-[2px] border-[#1d1d1f] shadow-[0_4px_15px_rgba(29,29,31,0.1)] z-20'}
                                                 `}
                                             >
-                                                {/* Blocked Data Flow restricted INSIDE the individual cell */}
                                                 {step >= 3 && <DataFlowCell />}
 
-                                                {/* Top Title Bar */}
                                                 <div 
                                                     className={`w-full flex items-center justify-center z-20 transition-all duration-[1000ms]
-                                                        ${step >= 3 ? 'bg-[#1e40af] h-[25px] md:h-[35px] py-1 border-none' : 'bg-[#ef4444] h-[25px] md:h-[35px] py-1 border-b border-[#ef4444]'}
+                                                        ${step >= 3 ? 'bg-[#1d1d1f] h-[25px] md:h-[35px] py-1 border-none' : 'bg-[#1d1d1f] h-[25px] md:h-[35px] py-1 border-b border-[#1d1d1f]'}
                                                     `}
                                                 >
                                                     <span className={`transition-all duration-[1000ms] font-bold text-center leading-[1.2] break-keep px-1 text-[9px] md:text-[12px] text-white`}>
@@ -244,10 +239,9 @@ export default function Section9({ isActive }) {
                                                 </div>
                                             </div>
 
-                                            {/* Control Tower Force Link (Joints) */}
                                             {idx < stages.length - 1 && (
                                                 <div 
-                                                    className={`bg-[#1e40af] shrink-0 z-30 transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                                                    className={`bg-[#1d1d1f] shrink-0 z-30 transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)]
                                                         ${step >= 4 ? 'h-[60px] md:h-[80px]' : 'h-[80px] md:h-[110px]'}
                                                         ${step >= 3 ? 'w-[2px] md:w-[3px] opacity-100 scale-y-100' : 'w-0 opacity-0 scale-y-0 mx-0'}
                                                     `} 
@@ -260,9 +254,9 @@ export default function Section9({ isActive }) {
                         </div>
 
                         {/* Bottom CFT Text for Phase 1 (Organizational Decision) */}
-                        <div className={`w-full text-center mt-6 md:mt-10 transition-all duration-[1200ms] delay-[500ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-                            <h3 className="text-[17px] md:text-[22px] lg:text-[26px] font-extrabold text-[#1d1d1f] tracking-tight inline-block break-keep">
-                                {lang === 'kr' ? 'Cross Functional System and CFT(Cross Functional Team) 조직 구축' : 'Establishment of Cross-Functional System and CFT'}
+                        <div className={`w-full text-center mt-1 md:mt-5 transition-all duration-[1200ms] delay-[500ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+                            <h3 className="text-[15px] md:text-[20px] lg:text-[24px] font-medium text-[#1d1d1f] tracking-tight inline-block break-keep">
+                                {lang === 'kr' ? 'Cross Functional System and CFT 조직 구축' : 'Establishment of Cross-Functional System and CFT'}
                             </h3>
                         </div>
 
@@ -356,10 +350,10 @@ export default function Section9({ isActive }) {
                                 
                                 {/* Bottom IFPDP Text for Phase 2 (Technical Solution) */}
                                 <div className={`w-full text-center mt-8 md:mt-12 transition-all duration-[1200ms] delay-[1800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-                                    <h3 className="text-[17px] md:text-[22px] lg:text-[26px] font-bold text-[#1d1d1f] tracking-tight inline-block break-keep">
-                                        Cross Functional System and CFT(Cross Functional Team) 조직 구축
+                                    <h3 className="text-[14px] md:text-[18px] lg:text-[22px] font-medium text-[#1d1d1f] tracking-tight inline-block break-keep">
+                                        {lang === 'kr' ? 'Cross Functional System and CFT 조직 구축' : 'Establishment of Cross-Functional System and CFT'}
                                     </h3>
-                                    <div className="text-[20px] font-extrabold text-[#999] my-1 leading-none">&</div>
+                                    <div className="text-[18px] font-extrabold text-[#999] my-0 leading-none">&</div>
                                     <h3 className="text-[18px] md:text-[25px] lg:text-[30px] font-extrabold tracking-tight bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text inline-block break-keep">
                                         IFPDP (IGIS Fund Production Data Platform)
                                     </h3>
