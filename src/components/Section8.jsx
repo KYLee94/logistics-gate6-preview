@@ -113,11 +113,11 @@ export default function Section8({ isActive }) {
                     <h2 className="text-[30px] md:text-[45px] lg:text-[52px] font-bold text-white tracking-tight leading-[1.25] break-keep mb-6 md:mb-8">
                         {lang === 'kr' ? (
                             <>
-                                그 결과, 이지스의 '<span className="text-white border-b-[3px] md:border-b-[4px] border-[#dc2626] pb-[2px]">10단계 가치 사슬(Value Chain)</span>'은<br className="hidden md:block"/> 단절되었습니다.
+                                그 결과, 이지스의 '<span className="text-white border-b-[2px] md:border-b-[3px] border-[#dc2626] pb-0">10단계 가치 사슬(Value Chain)</span>'은<br className="hidden md:block"/> 단절되었습니다.
                             </>
                         ) : (
                             <>
-                                As a result, IGIS' <span className="text-white border-b-[3px] md:border-b-[4px] border-[#dc2626] pb-[2px]">'10-Step Value Chain'</span><br className="hidden md:block"/> has been severed.
+                                As a result, IGIS' <span className="text-white border-b-[2px] md:border-b-[3px] border-[#dc2626] pb-0">'10-Step Value Chain'</span><br className="hidden md:block"/> has been severed.
                             </>
                         )}
                     </h2>
