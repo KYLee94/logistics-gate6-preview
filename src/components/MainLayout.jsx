@@ -46,7 +46,13 @@ export default function MainLayout() {
             setCurrentSlide(prev => Math.min(prev + 1, slides.length - 1));
         }
     };
-    const prevSlide = () => setCurrentSlide(prev => Math.max(prev - 1, 0));
+    const prevSlide = () => {
+        const event = new CustomEvent('appSlidePrev', { cancelable: true });
+        window.dispatchEvent(event);
+        if (!event.defaultPrevented) {
+            setCurrentSlide(prev => Math.max(prev - 1, 0));
+        }
+    };
 
     // Sync state changes -> URL Hash
     useEffect(() => {

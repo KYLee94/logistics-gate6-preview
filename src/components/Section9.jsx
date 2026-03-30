@@ -78,32 +78,42 @@ export default function Section9({ isActive }) {
     const stages = lang === 'kr' ? stagesKR : stagesEN;
 
     useEffect(() => {
+        let timeouts = [];
         if (!isActive) {
             setStep(0);
             return;
         }
         
+        const setSafe = (val) => setStep(p => Math.max(p, val));
+
         // Initial cascade of the first screen's animations
-        const t1 = setTimeout(() => setStep(1), 500);  // Dilemma
-        const t2 = setTimeout(() => setStep(2), 1500); // Modified Collaboration
-        const t3 = setTimeout(() => setStep(3), 2800); // Merge to blocked state
+        timeouts.push(setTimeout(() => setSafe(1), 500));  // Dilemma
+        timeouts.push(setTimeout(() => setSafe(2), 1500)); // Modified Collaboration
+        timeouts.push(setTimeout(() => setSafe(3), 2800)); // Merge to blocked state
         
         const nextAction = (e) => {
             if (e.type === 'appSlideNext') {
-                if (stepRef.current >= 3 && stepRef.current < 4) {
+                if (stepRef.current < 4) {
                     e.preventDefault();
                     setStep(4); // Triggers upward pan and revealing of screen 2
-                    setTimeout(() => setStep(5), 1000); // Trigger arrow & text
-                    setTimeout(() => setStep(6), 2500); // Trigger totally flowing box
+                    timeouts.push(setTimeout(() => setSafe(5), 1000)); // Trigger arrow & text
+                    timeouts.push(setTimeout(() => setSafe(6), 2500)); // Trigger totally flowing box
+                }
+            } else if (e.type === 'appSlidePrev') {
+                if (stepRef.current >= 4) {
+                    e.preventDefault();
+                    setStep(3); // Pan back down to Phase 1
                 }
             }
         };
 
         window.addEventListener('appSlideNext', nextAction);
+        window.addEventListener('appSlidePrev', nextAction);
 
         return () => { 
-            clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); 
+            timeouts.forEach(clearTimeout);
             window.removeEventListener('appSlideNext', nextAction);
+            window.removeEventListener('appSlidePrev', nextAction);
         };
     }, [isActive]);
 

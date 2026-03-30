@@ -43,32 +43,42 @@ export default function Section8({ isActive }) {
     const stages = lang === 'kr' ? stagesKR : stagesEN;
 
     useEffect(() => {
+        let timeouts = [];
         if (!isActive) {
             setStep(0);
             return;
         }
         
-        const t1 = setTimeout(() => setStep(1), 500);  // Title
-        const t2 = setTimeout(() => setStep(2), 1500); // Subtitle
-        const t3 = setTimeout(() => setStep(3), 2200); // Nodes Reveal
-        const t4 = setTimeout(() => setStep(4), 3200); // Data flow begins (animation mapped)
+        const setSafe = (val) => setStep(p => Math.max(p, val));
+        
+        timeouts.push(setTimeout(() => setSafe(1), 500));  // Title
+        timeouts.push(setTimeout(() => setSafe(2), 1500)); // Subtitle
+        timeouts.push(setTimeout(() => setSafe(3), 2200)); // Nodes Reveal
+        timeouts.push(setTimeout(() => setSafe(4), 3200)); // Data flow begins
         
         const nextAction = (e) => {
             if (e.type === 'appSlideNext') {
-                if (stepRef.current === 4) {
+                if (stepRef.current < 5) {
                     e.preventDefault();
-                    setStep(5); // Trigger horizontal scaling down & title appear
-                    setTimeout(() => setStep(6), 1200); // Trigger vertical cloning
-                    setTimeout(() => setStep(7), 2400); // Trigger lateral fragmentation even sooner
+                    setStep(5); // Trigger horizontal scaling down & title appear immediately
+                    timeouts.push(setTimeout(() => setSafe(6), 1200)); // Trigger vertical cloning
+                    timeouts.push(setTimeout(() => setSafe(7), 2400)); // Trigger lateral fragmentation
+                }
+            } else if (e.type === 'appSlidePrev') {
+                if (stepRef.current >= 5) {
+                    e.preventDefault();
+                    setStep(4); // Revert back to Phase 1 data pipeline
                 }
             }
         };
 
         window.addEventListener('appSlideNext', nextAction);
+        window.addEventListener('appSlidePrev', nextAction);
 
         return () => { 
-            clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4);
+            timeouts.forEach(clearTimeout);
             window.removeEventListener('appSlideNext', nextAction);
+            window.removeEventListener('appSlidePrev', nextAction);
         };
     }, [isActive]);
 
