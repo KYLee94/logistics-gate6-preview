@@ -128,7 +128,7 @@ export default function Section11({ isActive }) {
                         {/* Smaller Korean Text */}
                         {lang === 'kr' && (
                             <div 
-                                className={`text-[17px] md:text-[20px] lg:text-[22px] font-bold text-[#86868b] leading-[1.4] tracking-tight mb-10 md:mb-16 font-sans break-keep transition-all duration-[1000ms] ease-out ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+                                className={`mt-[10px] text-[17px] md:text-[20px] lg:text-[22px] font-bold text-[#86868b] leading-[1.4] tracking-tight mb-10 md:mb-16 font-sans break-keep transition-all duration-[1000ms] ease-out ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
                             >
                                 "이지스가 그리는 플랫폼 비전과 기획에 깊은 감명을 받았습니다.<br className="hidden md:block"/>
                                 과도한 엔지니어링 없이, 문제의 본질(Context)을 명확히 꿰뚫은 완벽한 접근입니다."
@@ -137,20 +137,48 @@ export default function Section11({ isActive }) {
 
                         {/* Bottom Paragraph */}
                         <div 
-                            className={`text-[14px] md:text-[15px] lg:text-[16px] xl:text-[17px] font-medium text-[#1d1d1f] leading-[1.65] tracking-tight font-sans break-keep transition-all duration-[1000ms] ease-out ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
+                            className={`-mt-[10px] text-[14px] md:text-[15px] lg:text-[16px] xl:text-[17px] font-medium text-[#1d1d1f] leading-[1.65] tracking-tight font-sans break-keep transition-all duration-[1000ms] ease-out ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}
                         >
                             {lang === 'kr' ? (
-                                <p>
-                                    인드란은 이지스의 10단계 가치사슬을 데이터로 연결하려는 비전에 깊은 공감을 표했습니다. <br className="hidden xl:block"/>
-                                    특히 "과도한 엔지니어링(Overly engineered) 없이, 조직이 이미 가진 문제와 데이터를 사려 깊게 활용하는 것"이 <br className="hidden xl:block"/>
-                                    가장 훌륭한 플랫폼의 조건임을 확인했습니다.
-                                </p>
+                                <>
+                                    <p>
+                                        인드란은 이지스의 10단계 가치사슬을 데이터로 연결하려는 비전에 깊은 공감을 표했습니다. <br className="hidden xl:block"/>
+                                        특히 "과도한 엔지니어링(Overly engineered) 없이, 조직이 이미 가진 문제와 데이터를 사려 깊게 활용하는 것"이 <br className="hidden xl:block"/>
+                                        가장 훌륭한 플랫폼의 조건임을 확인했습니다.
+                                    </p>
+                                    <div className="mt-7 space-y-1.5 opacity-80 font-medium">
+                                        <p>
+                                            - <a href="https://www.linkedin.com/pulse/your-ai-agent-just-deleted-database-didnt-make-single-indhran-seghar-z08sc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
+                                                AI는 엔진이고, 당신은 핸들입니다.
+                                            </a>
+                                        </p>
+                                        <p>
+                                            - <a href="https://www.linkedin.com/pulse/ai-skills-gap-training-programme-closing-indhran-seghar-gk0hc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
+                                                어떤 교육도 해소하지 못하는 AI 기술 격차
+                                            </a>
+                                        </p>
+                                    </div>
+                                </>
                             ) : (
-                                <p>
-                                    Indhran strongly resonated with our vision of connecting IGIS's 10-step value chain with data.<br className="hidden xl:block"/>
-                                    He particularly validated that leveraging an organization's existing data and contextual problems carefully,<br className="hidden xl:block"/>
-                                    without falling into the trap of being "overly engineered," is the fundamental prerequisite of a true platform.
-                                </p>
+                                <>
+                                    <p>
+                                        Indhran strongly resonated with our vision of connecting IGIS's 10-step value chain with data.<br className="hidden xl:block"/>
+                                        He particularly validated that leveraging an organization's existing data and contextual problems carefully,<br className="hidden xl:block"/>
+                                        without falling into the trap of being "overly engineered," is the fundamental prerequisite of a true platform.
+                                    </p>
+                                    <div className="mt-7 space-y-1.5 opacity-80 font-medium">
+                                        <p>
+                                            - <a href="https://www.linkedin.com/pulse/your-ai-agent-just-deleted-database-didnt-make-single-indhran-seghar-z08sc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
+                                                AI is the engine. You are the steering wheel.
+                                            </a>
+                                        </p>
+                                        <p>
+                                            - <a href="https://www.linkedin.com/pulse/ai-skills-gap-training-programme-closing-indhran-seghar-gk0hc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
+                                                The AI Skills Gap That No Training Programme Is Closing
+                                            </a>
+                                        </p>
+                                    </div>
+                                </>
                             )}
                         </div>
                     </div>
