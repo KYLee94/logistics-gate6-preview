@@ -3,7 +3,20 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const LanguageContext = createContext();
 
 export function LanguageProvider({ children }) {
-    const [lang, setLang] = useState('kr');
+    const [lang, setLang] = useState(() => {
+        // 1. URL 파라미터 확인 (?lang=en 또는 #page-11?lang=en 지원)
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('lang') === 'en' || window.location.hash.includes('lang=en')) return 'en';
+        if (params.get('lang') === 'kr' || window.location.hash.includes('lang=kr')) return 'kr';
+        
+        // 2. 브라우저 언어 자동 감지 (한국어가 아니면 자동으로 영문 적용)
+        if (typeof navigator !== 'undefined' && navigator.language) {
+            if (!navigator.language.toLowerCase().startsWith('ko')) {
+                return 'en';
+            }
+        }
+        return 'kr'; // 기본값
+    });
 
     // Utility to toggle font styles globally or optionally use state in components
     useEffect(() => {
