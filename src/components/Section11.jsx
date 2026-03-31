@@ -142,41 +142,37 @@ export default function Section11({ isActive }) {
                             {lang === 'kr' ? (
                                 <>
                                     <p>
+                                        약 30분간 계획된 자문 미팅은 2시간을 훌쩍 넘어 마무리되었습니다.<br className="hidden xl:block"/>
                                         인드란은 이지스의 10단계 가치사슬을 데이터로 연결하려는 비전에 깊은 공감을 표했습니다. <br className="hidden xl:block"/>
                                         특히 "과도한 엔지니어링(Overly engineered) 없이, 조직이 이미 가진 문제와 데이터를 사려 깊게 활용하는 것"이 <br className="hidden xl:block"/>
                                         가장 훌륭한 플랫폼의 조건임을 확인했습니다.
                                     </p>
-                                    <div className="mt-7 space-y-1.5 opacity-80 font-medium">
-                                        <p>
-                                            - <a href="https://www.linkedin.com/pulse/your-ai-agent-just-deleted-database-didnt-make-single-indhran-seghar-z08sc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
-                                                AI는 엔진이고, 당신은 핸들입니다.
-                                            </a>
-                                        </p>
-                                        <p>
-                                            - <a href="https://www.linkedin.com/pulse/ai-skills-gap-training-programme-closing-indhran-seghar-gk0hc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
-                                                어떤 교육도 해소하지 못하는 AI 기술 격차
-                                            </a>
-                                        </p>
+                                    <div className="mt-7 opacity-80 font-medium flex flex-wrap items-center gap-x-3 gap-y-2">
+                                        <a href="https://www.linkedin.com/pulse/your-ai-agent-just-deleted-database-didnt-make-single-indhran-seghar-z08sc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
+                                            AI는 엔진이고, 당신은 핸들입니다.
+                                        </a>
+                                        <span className="text-gray-400">|</span>
+                                        <a href="https://www.linkedin.com/pulse/ai-skills-gap-training-programme-closing-indhran-seghar-gk0hc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
+                                            어떤 교육도 해소하지 못하는 AI 기술 격차
+                                        </a>
                                     </div>
                                 </>
                             ) : (
                                 <>
                                     <p>
+                                        The advisory session, initially scheduled for 30 minutes, extended well past the two-hour mark.<br className="hidden xl:block"/>
                                         Indhran strongly resonated with our vision of connecting IGIS's 10-step value chain with data.<br className="hidden xl:block"/>
                                         He particularly validated that leveraging an organization's existing data and contextual problems carefully,<br className="hidden xl:block"/>
                                         without falling into the trap of being "overly engineered," is the fundamental prerequisite of a true platform.
                                     </p>
-                                    <div className="mt-7 space-y-1.5 opacity-80 font-medium">
-                                        <p>
-                                            - <a href="https://www.linkedin.com/pulse/your-ai-agent-just-deleted-database-didnt-make-single-indhran-seghar-z08sc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
-                                                AI is the engine. You are the steering wheel.
-                                            </a>
-                                        </p>
-                                        <p>
-                                            - <a href="https://www.linkedin.com/pulse/ai-skills-gap-training-programme-closing-indhran-seghar-gk0hc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
-                                                The AI Skills Gap That No Training Programme Is Closing
-                                            </a>
-                                        </p>
+                                    <div className="mt-7 opacity-80 font-medium flex flex-wrap items-center gap-x-3 gap-y-2">
+                                        <a href="https://www.linkedin.com/pulse/your-ai-agent-just-deleted-database-didnt-make-single-indhran-seghar-z08sc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
+                                            AI is the engine. You are the steering wheel.
+                                        </a>
+                                        <span className="text-gray-400">|</span>
+                                        <a href="https://www.linkedin.com/pulse/ai-skills-gap-training-programme-closing-indhran-seghar-gk0hc/" target="_blank" rel="noreferrer" className="hover:text-blue-600 transition-colors underline underline-offset-[3px] decoration-gray-300 hover:decoration-blue-600">
+                                            The AI Skills Gap That No Training Programme Is Closing
+                                        </a>
                                     </div>
                                 </>
                             )}
