@@ -108,7 +108,7 @@ export default function Section11({ isActive }) {
                                 textRendering: "optimizeLegibility",
                             }}
                         >
-                            "Deeply impressed by IGIS's platform vision.<br/>
+                            <span className="absolute -ml-[0.42em]">"</span>Deeply impressed by IGIS's platform vision.<br/>
                             <span 
                                 className="inline"
                                 style={{
