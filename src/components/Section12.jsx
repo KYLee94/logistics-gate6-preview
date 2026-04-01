@@ -65,8 +65,8 @@ export default function Section12({ isActive }) {
             {/* Dimming Overlay to ensure text readability (Dims only when text appears to let users enjoy the bright background first) */}
             <div className={`absolute inset-0 bg-black/65 z-10 transition-opacity duration-[1500ms] ease-out ${step >= 1 ? 'opacity-100' : 'opacity-0'}`} />
 
-            {/* Content Container (전체 텍스트 박스 위로 20px 끌어올림) */}
-            <div className={`relative z-20 w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1200px] mx-auto text-white flex flex-col font-sans break-keep pt-5`}>
+            {/* Content Container (전체 텍스트 박스 위로 40px 추가로 끌어올림) */}
+            <div className={`relative z-20 w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1200px] mx-auto text-white flex flex-col font-sans break-keep pt-5 -translate-y-10`}>
                 
                 {/* 0. Context Popping Header (맨 마지막 액션 시 밀어내며 등장) */}
                 <div 
