@@ -21,7 +21,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                 { label: "The Engine of IGIS", id: "page-10" }
             ] 
         },
-        { title: "B", id: "section-b", items: [] },
+        { title: "The Steering Wheel", id: "section-b", items: [] },
         { title: "C", id: "section-c", items: [] },
         { title: "D", id: "section-d", items: [] },
         { title: "E", id: "section-e", items: [] }
@@ -37,7 +37,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                 { label: "The Engine of IGIS", id: "page-10" }
             ] 
         },
-        { title: "B", id: "section-b", items: [] },
+        { title: "The Steering Wheel", id: "section-b", items: [] },
         { title: "C", id: "section-c", items: [] },
         { title: "D", id: "section-d", items: [] },
         { title: "E", id: "section-e", items: [] }
