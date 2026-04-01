@@ -62,8 +62,8 @@ export default function Section12({ isActive }) {
                     transform: isActive ? 'scale(1.05)' : 'scale(1)'
                 }}
             />
-            {/* Dimming Overlay to ensure text readability */}
-            <div className={`absolute inset-0 bg-black/65 z-10 transition-opacity duration-1000 ${isActive ? 'opacity-100' : 'opacity-0'}`} />
+            {/* Dimming Overlay to ensure text readability (Dims only when text appears to let users enjoy the bright background first) */}
+            <div className={`absolute inset-0 bg-black/65 z-10 transition-opacity duration-[1500ms] ease-out ${step >= 1 ? 'opacity-100' : 'opacity-0'}`} />
 
             {/* Content Container */}
             <div className={`relative z-20 w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1200px] mx-auto text-white flex flex-col font-sans break-keep pt-10`}>
