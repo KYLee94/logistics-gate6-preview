@@ -27,6 +27,7 @@ export default function Section12({ isActive }) {
         timers.push(setTimeout(() => setStep(3), 3800));  // Paragraph 1
         timers.push(setTimeout(() => setStep(4), 4200));  // Paragraph 2 (Bold)
         timers.push(setTimeout(() => setStep(5), 4600));  // Paragraph 3
+        timers.push(setTimeout(() => setStep(6), 5400));  // Underline Highlight (맨 마지막 액션)
         
         return () => timers.forEach(t => clearTimeout(t));
     }, [isActive]);
@@ -116,12 +117,18 @@ export default function Section12({ isActive }) {
                 >
                     {lang === 'kr' ? (
                         <>
-                            AI의 능력은 '맥락 (Context)'에 좌우됩니다.<br/>
+                            <span className="relative inline-block pb-[1px]">
+                                AI의 능력은 '맥락 (Context)'
+                                <span className={`absolute bottom-[2px] left-0 h-[2px] md:h-[3px] bg-[#f5f5f7] -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 6 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}></span>
+                            </span>에 좌우됩니다.<br/>
                             맥락 없는 데이터는 AI라는 운전자를 최고급 엔진만 있고 운전대가 없는 포르쉐에 태운 것과 같습니다.
                         </>
                     ) : (
                         <>
-                            An AI's true ability is solely dependent on 'Context'.<br/>
+                            An AI's true ability is solely dependent on <span className="relative inline-block pb-[1px]">
+                                'Context'
+                                <span className={`absolute bottom-[2px] left-0 h-[2px] md:h-[3px] bg-[#f5f5f7] -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 6 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}></span>
+                            </span>.<br/>
                             Contextless data is like putting an AI driver in a Porsche with a top-tier engine, but no steering wheel.
                         </>
                     )}
