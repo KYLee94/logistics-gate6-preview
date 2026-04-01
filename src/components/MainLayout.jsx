@@ -194,41 +194,53 @@ export default function MainLayout() {
                         </button>
                     </div>
 
-                    {/* Dots Pagination List */}
-                    <div className="flex items-center gap-2 md:gap-3">
-                        {(() => {
-                            const total = slides.length;
-                            const maxDots = 7;
-                            let windowPages = [];
-                            
-                            if (total <= maxDots) {
-                                windowPages = Array.from({ length: total }, (_, i) => i);
-                            } else if (currentSlide <= 3) {
-                                windowPages = Array.from({ length: maxDots }, (_, i) => i);
-                            } else if (currentSlide >= total - 4) {
-                                windowPages = Array.from({ length: maxDots }, (_, i) => total - maxDots + i);
-                            } else {
-                                windowPages = Array.from({ length: maxDots }, (_, i) => currentSlide - 3 + i);
-                            }
-                            
-                            return windowPages.map((pageIdx, idx) => {
-                                const isDotActive = currentSlide === pageIdx;
-                                return (
-                                    <div 
-                                        key={idx} 
-                                        onClick={() => setCurrentSlide(pageIdx)}
-                                        className="relative flex items-center justify-center w-[18px] h-[18px] cursor-pointer group"
-                                    >
-                                        {/* Inner Fixed Dot (항상 흰색, mix-blend로 완벽한 반전 구현) */}
-                                        <div className="w-[8px] h-[8px] rounded-full bg-white transition-all duration-300"></div>
-                                        
-                                        {/* Outer Ring for Active State */}
-                                        <div className={`absolute inset-0 border-[1.5px] border-white rounded-full transition-all duration-300 ${isDotActive ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}></div>
+                    {/* Dots Pagination Track (Sliding Animation) */}
+                    {(() => {
+                        const total = slides.length;
+                        const maxDots = 7;
+                        let shift = currentSlide - 3;
+                        if (shift < 0) shift = 0;
+                        if (shift > total - maxDots) shift = Math.max(0, total - maxDots);
+
+                        return (
+                            <>
+                                <style>
+                                    {`
+                                        .dots-track {
+                                            transform: translateX(calc(-${shift} * 26px));
+                                        }
+                                        @media (min-width: 768px) {
+                                            .dots-track {
+                                                transform: translateX(calc(-${shift} * 30px));
+                                            }
+                                        }
+                                    `}
+                                </style>
+                                {/* 고정된 7칸 짜리 창문 (가려져있고 여기서만 보임) */}
+                                <div className="overflow-hidden w-[174px] md:w-[198px] py-1">
+                                    {/* 전체 점들이 담긴 실제 트랙 (좌우로 쓱 이동함) */}
+                                    <div className="flex items-center gap-2 md:gap-3 transition-transform duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] dots-track">
+                                        {slides.map((_, idx) => {
+                                            const isDotActive = currentSlide === idx;
+                                            return (
+                                                <div 
+                                                    key={idx} 
+                                                    onClick={() => setCurrentSlide(idx)}
+                                                    className="relative flex-shrink-0 flex items-center justify-center w-[18px] h-[18px] cursor-pointer group"
+                                                >
+                                                    {/* Inner Fixed Dot (항상 흰색) */}
+                                                    <div className="w-[8px] h-[8px] rounded-full bg-white transition-all duration-300 group-hover:bg-gray-300"></div>
+                                                    
+                                                    {/* Outer Ring for Active State */}
+                                                    <div className={`absolute inset-0 border-[1.5px] border-white rounded-full transition-all duration-500 ease-out ${isDotActive ? 'opacity-100 scale-100' : 'opacity-0 scale-[0.6]'}`}></div>
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                );
-                            });
-                        })()}
-                    </div>
+                                </div>
+                            </>
+                        );
+                    })()}
 
                     {/* Right Arrow Button Group */}
                     <div className="flex items-center gap-[6px] md:gap-[10px] group cursor-pointer" onClick={nextSlide}>
