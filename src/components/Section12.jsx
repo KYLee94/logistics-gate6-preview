@@ -21,13 +21,13 @@ export default function Section12({ isActive }) {
         // 2. The solid black background AND the chapter text fade out together, revealing the car
         timers.push(setTimeout(() => setChapterStep(2), 2200));
 
-        // 3. Staggered fade-in animations for main text
-        timers.push(setTimeout(() => setStep(1), 3000));  // Heading
-        timers.push(setTimeout(() => setStep(2), 3400));  // Quote
-        timers.push(setTimeout(() => setStep(3), 3800));  // Paragraph 1
-        timers.push(setTimeout(() => setStep(4), 4200));  // Paragraph 2 (Bold)
-        timers.push(setTimeout(() => setStep(5), 4600));  // Paragraph 3
-        timers.push(setTimeout(() => setStep(6), 5400));  // Underline Highlight (맨 마지막 액션)
+        // 3. Staggered fade-in animations for main text (살짝 텀을 두어 배경을 감상하게 함)
+        timers.push(setTimeout(() => setStep(1), 4500));  // Heading
+        timers.push(setTimeout(() => setStep(2), 4900));  // Quote
+        timers.push(setTimeout(() => setStep(3), 5300));  // Paragraph 1
+        timers.push(setTimeout(() => setStep(4), 5700));  // Paragraph 2 (Bold)
+        timers.push(setTimeout(() => setStep(5), 6100));  // Paragraph 3
+        timers.push(setTimeout(() => setStep(6), 6900));  // Underline Highlight (맨 마지막 액션)
         
         return () => timers.forEach(t => clearTimeout(t));
     }, [isActive]);
@@ -119,7 +119,7 @@ export default function Section12({ isActive }) {
                         <>
                             <span className="relative inline-block pb-[1px]">
                                 AI의 능력은 '맥락 (Context)'
-                                <span className={`absolute bottom-[2px] left-0 h-[2px] md:h-[3px] bg-[#f5f5f7] -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 6 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}></span>
+                                <span className={`absolute bottom-[3px] left-0 h-[1px] md:h-[2px] bg-[#f5f5f7] -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 6 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}></span>
                             </span>에 좌우됩니다.<br/>
                             맥락 없는 데이터는 AI라는 운전자를 최고급 엔진만 있고 운전대가 없는 포르쉐에 태운 것과 같습니다.
                         </>
@@ -127,7 +127,7 @@ export default function Section12({ isActive }) {
                         <>
                             An AI's true ability is solely dependent on <span className="relative inline-block pb-[1px]">
                                 'Context'
-                                <span className={`absolute bottom-[2px] left-0 h-[2px] md:h-[3px] bg-[#f5f5f7] -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 6 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}></span>
+                                <span className={`absolute bottom-[3px] left-0 h-[1px] md:h-[2px] bg-[#f5f5f7] -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 6 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}></span>
                             </span>.<br/>
                             Contextless data is like putting an AI driver in a Porsche with a top-tier engine, but no steering wheel.
                         </>

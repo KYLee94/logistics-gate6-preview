@@ -31,7 +31,7 @@ export default function MainLayout() {
     const [isActionDone, setIsActionDone] = useState(false);
 
     // Animation durations mapped closely to each page's visual completion timing
-    const slideAnimationTimes = [1500, 3600, 4200, 2600, 4200, 2500, 3500, 4000, 4500, 3500, 4500, 7500];
+    const slideAnimationTimes = [1500, 3600, 4200, 2600, 4200, 2500, 3500, 4000, 4500, 3500, 4500, 9000];
 
     useEffect(() => {
         setIsActionDone(false);
