@@ -35,7 +35,7 @@ export default function Section14({ isActive }) {
                     ></div>
 
                     {/* Left Box (The Engine) */}
-                    <div className="flex-1 flex flex-col justify-center items-end text-right pr-0 md:pr-16 lg:pr-24 xl:pr-32 2xl:pr-40 py-10 md:py-0">
+                    <div className="flex-1 flex flex-col justify-center items-end text-right pr-0 md:pr-[84px] lg:pr-[116px] xl:pr-[148px] 2xl:pr-[180px] py-10 md:py-0">
                         <span className={`text-[#86868b] font-semibold text-[13px] md:text-[14px] tracking-[0.2em] uppercase mb-6 md:mb-8 transition-all duration-1000 ease-out delay-[0ms] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                             Definition / 01
                         </span>
@@ -67,7 +67,7 @@ export default function Section14({ isActive }) {
                     <div className={`md:hidden w-full h-[1px] bg-black/10 my-4 transition-transform duration-1000 origin-left ${step >= 1 ? 'scale-x-100' : 'scale-x-0'}`}></div>
 
                     {/* Right Box (The Steering Wheel) */}
-                    <div className="flex-1 flex flex-col justify-center items-start text-left pl-0 md:pl-16 lg:pl-24 xl:pl-32 2xl:pl-40 py-10 md:py-0 overflow-visible w-full max-w-full">
+                    <div className="flex-1 flex flex-col justify-center items-start text-left pl-0 md:pl-[84px] lg:pl-[116px] xl:pl-[148px] 2xl:pl-[180px] py-10 md:py-0 overflow-visible w-full max-w-full">
                         <span className={`text-[#86868b] font-semibold text-[13px] md:text-[14px] tracking-[0.2em] uppercase mb-6 md:mb-8 transition-all duration-1000 ease-out delay-[200ms] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                             Definition / 02
                         </span>
