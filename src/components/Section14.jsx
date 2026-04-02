@@ -52,9 +52,9 @@ export default function Section14({ isActive }) {
                         
                         <p className={`text-[16px] md:text-[18px] lg:text-[20px] font-medium text-[#424245] leading-[1.6] break-keep transition-all duration-1000 ease-out delay-[300ms] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                             {lang === 'kr' ? (
-                                <>데이터 통합과 AI 연산을 수행하는 물리적 시스템(Technology)</>
+                                <>데이터 통합과 AI 연산을 수행하는 물리적 시스템<br />(Technology)</>
                             ) : (
-                                <>A physical system (Technology) that performs data integration and AI computation</>
+                                <>A physical system<br />(Technology)<br />that performs data integration and AI computation</>
                             )}
                         </p>
 
@@ -98,18 +98,15 @@ export default function Section14({ isActive }) {
                 </div>
 
                 {/* Bottom Core Premise Area */}
-                <div className="w-full mt-10 md:mt-24">
+                <div className="w-full mt-6 md:mt-20 -translate-y-5">
                     
                     {/* Horizontal Divider Line */}
                     <div 
-                        className={`w-full h-[1px] bg-black/15 origin-left transition-transform duration-[1500ms] ease-[cubic-bezier(0.85,0,0.15,1)] ${step >= 3 ? 'scale-x-100' : 'scale-x-0'}`}
+                        className={`w-full h-[1px] bg-black/15 origin-center transition-transform duration-[1500ms] ease-[cubic-bezier(0.85,0,0.15,1)] ${step >= 3 ? 'scale-x-100' : 'scale-x-0'}`}
                     ></div>
                     
-                    <div className={`pt-8 md:pt-14 flex flex-col md:flex-row md:items-start gap-3 md:gap-24 transition-all duration-1000 ease-out ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-                        <h3 className="shrink-0 text-[18px] md:text-[20px] font-bold tracking-[-0.03em] text-[#1d1d1f] mt-1 hidden md:block">
-                            {lang === 'kr' ? '핵심 전제' : 'Core Premise'}
-                        </h3>
-                        <h3 className="shrink-0 text-[16px] font-bold tracking-tight text-[#86868b] md:hidden">
+                    <div className={`pt-8 md:pt-10 flex flex-col items-center justify-center text-center transition-all duration-1000 ease-out ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+                        <h3 className="text-[15px] md:text-[16px] font-bold tracking-[0.1em] text-[#86868b] uppercase mb-2 md:mb-3">
                             {lang === 'kr' ? '핵심 전제' : 'Core Premise'}
                         </h3>
                         
