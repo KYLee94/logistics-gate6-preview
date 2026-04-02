@@ -161,7 +161,7 @@ export default function Section13({ isActive }) {
                             onClick={() => setIsModalPopupOpen(true)}
                             className="flex items-center gap-3 text-white group cursor-pointer w-fit"
                         >
-                            <span className="text-[17px] md:text-[19px] font-medium tracking-normal font-sans">Read Now</span>
+                            <span className="text-[17px] md:text-[19px] font-medium tracking-normal font-sans relative top-[1px]">Read Now</span>
                             <div className="w-[36px] h-[36px] md:w-[42px] md:h-[42px] rounded-full border border-white/60 flex items-center justify-center transition-all duration-300 group-hover:bg-white group-hover:text-black">
                                 <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 md:w-6 md:h-6 transition-transform group-hover:translate-x-1">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
@@ -176,7 +176,7 @@ export default function Section13({ isActive }) {
             {/* Reference Modal */}
             {isModalPopupOpen && (
                 <div className="absolute inset-0 z-[999] flex items-center justify-center bg-black/60 p-4 md:p-8 backdrop-blur-sm -translate-y-[env(safe-area-inset-top)]">
-                    <div className="w-full max-w-4xl max-h-[85vh] overflow-y-auto hide-scrollbar rounded-2xl p-6 md:p-10 lg:p-12 bg-white text-black shadow-2xl relative text-left"
+                    <div className="w-full max-w-4xl max-h-[85vh] overflow-y-auto hide-scrollbar rounded-none p-6 md:p-10 lg:p-12 bg-white text-black shadow-2xl relative text-left"
                          onClick={(e) => e.stopPropagation()}>
                         <button
                             onClick={() => setIsModalPopupOpen(false)}
@@ -223,84 +223,82 @@ export default function Section13({ isActive }) {
                                 </div>
                             </div>
 
-                            <div className="bg-gray-50 border border-gray-100 p-5 md:p-6 rounded-xl mb-12">
-                                <p className="font-medium text-black leading-relaxed">
-                                    결국, 데이터(Data)가 원재료라면, 맥락(Context)은 그것을 가치 있게 만드는 기술이며, 이 두 가지가 결합된 데이터 장벽은 다른 회사가 백 날 따라 해도 따라올 수 없는 진정한 기술적, 비즈니스적 해자가 됩니다.
-                                </p>
-                            </div>
+                            <p className="font-bold text-black leading-relaxed mb-12">
+                                결국, 데이터(Data)가 원재료라면, 맥락(Context)은 그것을 가치 있게 만드는 기술이며, 이 두 가지가 결합된 데이터 장벽은 다른 회사가 백 날 따라 해도 따라올 수 없는 진정한 기술적, 비즈니스적 해자가 됩니다.
+                            </p>
 
                             <h4 className="text-[17px] md:text-[19px] font-bold mb-6 tracking-normal text-black pt-2">
                                 "독점적 데이터와 맥락의 힘" 관련 글로벌 주요 매체 레퍼런스
                             </h4>
 
-                            <div className="space-y-8 pl-1">
+                            <div className="space-y-6 md:space-y-8 pl-1">
                                 <div>
-                                    <strong className="block font-medium mb-3 text-black text-[15px] md:text-[16px]">1. 데이터 자체보다 '맥락 있는 데이터'가 중요</strong>
-                                    <ul className="space-y-3 pl-1">
+                                    <strong className="block font-medium mb-2 md:mb-3 text-black text-[15px] md:text-[16px]">1. 데이터 자체보다 '맥락 있는 데이터'가 중요</strong>
+                                    <ul className="space-y-1.5 md:space-y-2 pl-1">
                                         <li className="flex gap-2">
                                             <span className="shrink-0 text-black font-bold">→</span>
                                             <div>
-                                                <p className="mb-0.5">"AI 경쟁력은 알고리즘이 아니라 데이터 맥락에 있다" <a href="https://hbr.org/2025/12/why-your-company-needs-a-chief-data-analytics-and-ai-officer" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-block mt-1">Harvard Business Review (HBR)</a></p>
+                                                <p className="mb-0 leading-snug">"AI 경쟁력은 알고리즘이 아니라 데이터 맥락에 있다" <a href="https://hbr.org/2025/12/why-your-company-needs-a-chief-data-analytics-and-ai-officer" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline ml-1">Harvard Business Review (HBR)</a></p>
                                             </div>
                                         </li>
                                         <li className="flex gap-2">
                                             <span className="shrink-0 text-black font-bold">→</span>
                                             <div>
-                                                <p className="mb-0.5">데이터 전략 = 비즈니스 전략 (데이터의 맥락화 강조) <a href="https://hbr.org/2017/05/whats-your-data-strategy" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-block mt-1">Harvard Business Review (HBR)</a></p>
+                                                <p className="mb-0 leading-snug">데이터 전략 = 비즈니스 전략 (데이터의 맥락화 강조) <a href="https://hbr.org/2017/05/whats-your-data-strategy" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline ml-1">Harvard Business Review (HBR)</a></p>
                                             </div>
                                         </li>
                                         <li className="flex gap-2">
                                             <span className="shrink-0 text-black font-bold">→</span>
                                             <div>
-                                                <p className="mb-0.5">데이터 구조화 + 연결이 기업 경쟁력의 핵심 <a href="https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-data-driven-enterprise-of-2025" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-block mt-1">McKinsey</a></p>
+                                                <p className="mb-0 leading-snug">데이터 구조화 + 연결이 기업 경쟁력의 핵심 <a href="https://www.mckinsey.com/capabilities/quantumblack/our-insights/the-data-driven-enterprise-of-2025" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline ml-1">McKinsey</a></p>
                                             </div>
                                         </li>
                                         <li className="flex gap-2">
                                             <span className="shrink-0 text-black font-bold">→</span>
                                             <div>
-                                                <p className="mb-0.5">데이터 자체보다 "조직 내 활용 맥락"이 중요 <a href="https://www.mckinsey.com/midwest/~/media/McKinsey/Business%20Functions/McKinsey%20Analytics/Our%20Insights/Why%20data%20culture%20matters/Why-data-culture-matters.pdf" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-block mt-1">McKinsey</a></p>
-                                            </div>
-                                        </li>
-                                    </ul>
-                                </div>
-
-                                <div className="border-t border-gray-100 pt-8">
-                                    <strong className="block font-medium mb-3 text-black text-[15px] md:text-[16px]">2. 데이터 선순환 구조 (Data Flywheel)가 해자를 만든다</strong>
-                                    <ul className="space-y-3 pl-1">
-                                        <li className="flex gap-2">
-                                            <span className="shrink-0 text-black font-bold">→</span>
-                                            <div>
-                                                <p className="mb-0.5">Flywheel 개념의 원형 <a href="https://www.aboutamazon.com/news/company-news/amazons-original-1997-letter-to-shareholders" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-block mt-1">Amazon</a></p>
-                                            </div>
-                                        </li>
-                                        <li className="flex gap-2">
-                                            <span className="shrink-0 text-black font-bold">→</span>
-                                            <div>
-                                                <p className="mb-0.5">AI에서 네트워크 효과 = 데이터 축적 <a href="https://a16z.com/podcast/a16z-podcast-data-network-effects/" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-block mt-1">a16z</a></p>
-                                            </div>
-                                        </li>
-                                        <li className="flex gap-2">
-                                            <span className="shrink-0 text-black font-bold">→</span>
-                                            <div>
-                                                <p className="mb-0.5">AI 경쟁력은 "지속적 데이터 학습 루프" <a href="https://www.bcg.com/publications/2026/how-leaders-build-an-ai-first-cost-advantage" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-block mt-1">BCG</a></p>
+                                                <p className="mb-0 leading-snug">데이터 자체보다 "조직 내 활용 맥락"이 중요 <a href="https://www.mckinsey.com/midwest/~/media/McKinsey/Business%20Functions/McKinsey%20Analytics/Our%20Insights/Why%20data%20culture%20matters/Why-data-culture-matters.pdf" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline ml-1">McKinsey</a></p>
                                             </div>
                                         </li>
                                     </ul>
                                 </div>
 
-                                <div className="border-t border-gray-100 pt-8">
-                                    <strong className="block font-medium mb-3 text-black text-[15px] md:text-[16px]">3. "데이터는 원재료, 맥락은 가치 창출 기술"</strong>
-                                    <ul className="space-y-3 pl-1">
+                                <div className="border-t border-gray-100 pt-5 md:pt-8">
+                                    <strong className="block font-medium mb-2 md:mb-3 text-black text-[15px] md:text-[16px]">2. 데이터 선순환 구조 (Data Flywheel)가 해자를 만든다</strong>
+                                    <ul className="space-y-1.5 md:space-y-2 pl-1">
                                         <li className="flex gap-2">
                                             <span className="shrink-0 text-black font-bold">→</span>
                                             <div>
-                                                <p className="mb-0.5">데이터는 '원유'가 아니라 '정제되어야 가치 발생' <a href="https://www.weforum.org/stories/2018/01/data-is-not-the-new-oil/" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-block mt-1">World Economic Forum</a></p>
+                                                <p className="mb-0 leading-snug">Flywheel 개념의 원형 <a href="https://www.aboutamazon.com/news/company-news/amazons-original-1997-letter-to-shareholders" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline ml-1">Amazon</a></p>
                                             </div>
                                         </li>
                                         <li className="flex gap-2">
                                             <span className="shrink-0 text-black font-bold">→</span>
                                             <div>
-                                                <p className="mb-0.5">데이터 = 새로운 자원 (but 활용이 중요) <a href="https://www.economist.com/leaders/2017/05/06/the-worlds-most-valuable-resource-is-no-longer-oil-but-data" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline inline-block mt-1">Economist</a></p>
+                                                <p className="mb-0 leading-snug">AI에서 네트워크 효과 = 데이터 축적 <a href="https://a16z.com/podcast/a16z-podcast-data-network-effects/" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline ml-1">a16z</a></p>
+                                            </div>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="shrink-0 text-black font-bold">→</span>
+                                            <div>
+                                                <p className="mb-0 leading-snug">AI 경쟁력은 "지속적 데이터 학습 루프" <a href="https://www.bcg.com/publications/2026/how-leaders-build-an-ai-first-cost-advantage" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline ml-1">BCG</a></p>
+                                            </div>
+                                        </li>
+                                    </ul>
+                                </div>
+
+                                <div className="border-t border-gray-100 pt-5 md:pt-8">
+                                    <strong className="block font-medium mb-2 md:mb-3 text-black text-[15px] md:text-[16px]">3. "데이터는 원재료, 맥락은 가치 창출 기술"</strong>
+                                    <ul className="space-y-1.5 md:space-y-2 pl-1">
+                                        <li className="flex gap-2">
+                                            <span className="shrink-0 text-black font-bold">→</span>
+                                            <div>
+                                                <p className="mb-0 leading-snug">데이터는 '원유'가 아니라 '정제되어야 가치 발생' <a href="https://www.weforum.org/stories/2018/01/data-is-not-the-new-oil/" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline ml-1">World Economic Forum</a></p>
+                                            </div>
+                                        </li>
+                                        <li className="flex gap-2">
+                                            <span className="shrink-0 text-black font-bold">→</span>
+                                            <div>
+                                                <p className="mb-0 leading-snug">데이터 = 새로운 자원 (but 활용이 중요) <a href="https://www.economist.com/leaders/2017/05/06/the-worlds-most-valuable-resource-is-no-longer-oil-but-data" target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800 hover:underline ml-1">Economist</a></p>
                                             </div>
                                         </li>
                                     </ul>
@@ -312,7 +310,7 @@ export default function Section13({ isActive }) {
                                     onClick={() => setIsModalPopupOpen(false)}
                                     className="px-12 py-3 rounded-full font-medium transition-colors bg-black text-white hover:bg-gray-800 cursor-pointer shadow-lg"
                                 >
-                                    확인
+                                    닫기
                                 </button>
                             </div>
                         </div>
