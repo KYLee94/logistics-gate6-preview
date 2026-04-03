@@ -49,7 +49,7 @@ export default function Section15({ isActive }) {
             </style>
 
             {/* Perfect viewport-centering container wrapping all 3 blocks uniformly */}
-            <div className="w-full max-w-[1240px] px-6 md:px-12 flex flex-col items-center justify-center">
+            <div className="w-full max-w-[1400px] px-6 md:px-12 flex flex-col items-center justify-center -translate-y-10">
                 
                 {/* 1. Header Phase */}
                 <div className="w-full flex flex-col items-center text-center relative z-30 mb-10 md:mb-14">
@@ -83,7 +83,7 @@ export default function Section15({ isActive }) {
                 </div>
 
                 {/* 2. Main Centered Orbital Diagram */}
-                <div className={`relative w-full flex justify-center items-center mb-10 transition-all duration-1000 ease-out ${step >= 3 ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`} style={{ height: '460px' }}>
+                <div className={`relative w-full flex justify-center items-center mb-[60px] transition-all duration-1000 ease-out ${step >= 3 ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`} style={{ height: '460px' }}>
                     
                     {/* The spinning component wrapper */}
                     <div className="absolute z-20 origin-center" style={{ animation: 'orbitSpin 60s linear infinite', width: `${radius * 2}px`, height: `${radius * 2}px` }}>
@@ -132,7 +132,7 @@ export default function Section15({ isActive }) {
                     </div>
 
                     {/* Static Core Inner Layer */}
-                    <div className="absolute w-[110px] h-[110px] rounded-full bg-black flex flex-col items-center justify-center z-30 shadow-[0_15px_30px_rgba(0,0,0,0.15)] ring-4 ring-[#fafafc]">
+                    <div className="absolute w-[110px] h-[110px] rounded-full bg-black flex flex-col items-center justify-center z-30 shadow-[0_15px_30px_rgba(0,0,0,0.2)]">
                         <span className="text-white font-bold text-[18px] tracking-tight leading-tight">IFPDP</span>
                         <span className="text-[#a1a1aa] font-medium text-[12px] tracking-tight mt-0.5" style={{ fontFamily: "'Sanomat', sans-serif" }}>Core</span>
                     </div>
@@ -140,12 +140,12 @@ export default function Section15({ isActive }) {
                 </div>
 
                 {/* 3. Bottom: Free-flowing 3 Columns Row Layout */}
-                <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-8 max-w-[1100px] text-left z-20 pb-4">
+                <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-14 max-w-[1300px] text-left z-20 pb-4">
                     
                     {/* Role 1 */}
                     <div className={`flex flex-col w-full transition-all duration-700 ease-out ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <h3 className="text-[17px] font-bold text-black mb-2 tracking-tight">1. Rule Setting</h3>
-                        <p className="text-[15px] font-medium text-[#626262] leading-[1.6] break-keep min-w-full lg:max-w-[90%]">
+                        <p className="text-[15px] font-medium text-[#626262] leading-[1.6] break-keep min-w-full w-full">
                             {lang === 'kr' ? '각 조직과 협업하여 10단계 가치사슬 간 필수 데이터 연동 표준안 수립' : 'Establish essential data linkage standards across the 10-stage value chain.'}
                         </p>
                     </div>
@@ -153,7 +153,7 @@ export default function Section15({ isActive }) {
                     {/* Role 2 */}
                     <div className={`flex flex-col w-full transition-all duration-700 ease-out ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <h3 className="text-[17px] font-bold text-black mb-2 tracking-tight">2. Bottleneck Removal</h3>
-                        <p className="text-[15px] font-medium text-[#626262] leading-[1.6] break-keep min-w-full lg:max-w-[90%]">
+                        <p className="text-[15px] font-medium text-[#626262] leading-[1.6] break-keep min-w-full w-full">
                             {lang === 'kr' ? '권한이 모호한 회색지대와 데이터 병목 구간 조율 및 해소' : 'Coordinate and resolve ambiguous operational gray areas and data bottlenecks.'}
                         </p>
                     </div>
@@ -161,7 +161,7 @@ export default function Section15({ isActive }) {
                     {/* Role 3 */}
                     <div className={`flex flex-col w-full transition-all duration-700 ease-out ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <h3 className="text-[17px] font-bold text-black mb-2 tracking-tight">3. Optimization & Evolution</h3>
-                        <p className="text-[15px] font-medium text-[#626262] leading-[1.6] break-keep min-w-full lg:max-w-[90%]">
+                        <p className="text-[15px] font-medium text-[#626262] leading-[1.6] break-keep min-w-full w-full">
                             {lang === 'kr' ? '데이터 자산의 지속적 고도화 및 AI 플랫폼 운영 거버넌스 관리' : 'Continuously advance data assets and manage AI platform governance.'}
                         </p>
                     </div>
