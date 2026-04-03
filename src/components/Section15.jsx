@@ -194,7 +194,7 @@ export default function Section15({ isActive }) {
                     </div>
 
                     {/* Role 2 */}
-                    <div className={`flex flex-col w-full transition-all duration-700 ease-out ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                    <div className={`flex flex-col w-full md:pl-[30px] transition-all duration-700 ease-out ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <h3 className="text-[23px] font-bold text-black mb-2 tracking-tight">2. Bottleneck Removal</h3>
                         <p className="text-[19px] font-bold text-[#626262] leading-[1.6]">
                             {lang === 'kr' ? (
