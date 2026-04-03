@@ -27,16 +27,16 @@ export default function Section15({ isActive }) {
     return (
         <section className="relative section w-full h-full flex flex-col overflow-hidden bg-[#fbfbfd] text-[#1d1d1f]">
             
-            <div className="w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1400px] h-full mx-auto flex flex-col pt-24 md:pt-[10%] pb-10">
+            <div className="w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1400px] h-full mx-auto flex flex-col pt-24 md:pt-[7%] pb-10">
                 
                 {/* Header Phase */}
                 <div className="w-full flex flex-col items-center text-center px-4 md:px-0 relative z-20">
-                    <span className={`text-[#86868b] font-semibold text-[13px] md:text-[14px] tracking-[0.2em] uppercase mb-4 transition-all duration-1000 ease-out delay-[0ms] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
-                        Control Tower
+                    <span className={`text-[#86868b] font-semibold text-[13px] md:text-[14px] tracking-[0.3em] uppercase mb-4 transition-all duration-1000 ease-out delay-[0ms] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                        THE STEERING WHEEL
                     </span>
                     
                     <h2 
-                        className={`text-[36px] md:text-[50px] lg:text-[64px] font-medium leading-[1.1] tracking-tight text-[#1d1d1f] mb-8 transition-all duration-1000 ease-out delay-[100ms] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`} 
+                        className={`text-[28px] md:text-[40px] lg:text-[50px] font-medium leading-[1.1] tracking-tight text-[#1d1d1f] mb-6 md:mb-8 transition-all duration-1000 ease-out delay-[100ms] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`} 
                         style={{ fontFamily: "'Sanomat Wp', 'Sanomat Web', 'Sanomat', sans-serif" }}
                     >
                         {lang === 'kr' ? (
@@ -71,23 +71,23 @@ export default function Section15({ isActive }) {
                 <div className="relative flex-1 w-full max-w-[1100px] mx-auto hidden md:block mt-2 lg:mt-6 z-10">
                     
                     {/* The Hub Center */}
-                    <div className={`absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-10 py-5 rounded-[40px] border border-black/5 shadow-[0_10px_40px_rgba(0,0,0,0.06)] z-30 flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 3 ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
+                    <div className={`absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-10 py-5 rounded-none border border-black/15 shadow-none z-30 flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 3 ? 'opacity-100 scale-100' : 'opacity-0 scale-75'}`}>
                         <span className="text-[12px] font-bold tracking-widest text-[#86868b] uppercase mb-1">Hub Component</span>
                         <h3 className="text-[22px] lg:text-[26px] font-bold tracking-tight text-[#1d1d1f] whitespace-nowrap">기획추진실</h3>
                         <p className="text-[13px] text-[#86868b] mt-1 font-semibold">IFPDP Core</p>
                     </div>
 
                     {/* Left Line */}
-                    <div className={`absolute top-[45%] right-[50%] w-[33%] lg:w-[32%] h-[1px] bg-black/15 origin-right transition-transform duration-[1200ms] ease-[cubic-bezier(0.25,1,0.5,1)] z-10 ${step >= 4 ? 'scale-x-100' : 'scale-x-0'}`}></div>
+                    <div className={`absolute top-[40%] right-[50%] w-[33%] lg:w-[32%] h-[1px] bg-black/15 origin-right transition-transform duration-[1200ms] ease-[cubic-bezier(0.25,1,0.5,1)] z-10 ${step >= 4 ? 'scale-x-100' : 'scale-x-0'}`}></div>
                     
                     {/* Right Line */}
-                    <div className={`absolute top-[45%] left-[50%] w-[33%] lg:w-[32%] h-[1px] bg-black/15 origin-left transition-transform duration-[1200ms] ease-[cubic-bezier(0.25,1,0.5,1)] z-10 ${step >= 4 ? 'scale-x-100' : 'scale-x-0'}`}></div>
+                    <div className={`absolute top-[40%] left-[50%] w-[33%] lg:w-[32%] h-[1px] bg-black/15 origin-left transition-transform duration-[1200ms] ease-[cubic-bezier(0.25,1,0.5,1)] z-10 ${step >= 4 ? 'scale-x-100' : 'scale-x-0'}`}></div>
 
                     {/* Bottom Line */}
-                    <div className={`absolute top-[45%] left-1/2 w-[1px] h-[35%] lg:h-[40%] bg-black/15 origin-top transition-transform duration-[1200ms] ease-[cubic-bezier(0.25,1,0.5,1)] z-10 ${step >= 4 ? 'scale-y-100' : 'scale-y-0'}`}></div>
+                    <div className={`absolute top-[40%] left-1/2 w-[1px] h-[35%] bg-black/15 origin-top transition-transform duration-[1200ms] ease-[cubic-bezier(0.25,1,0.5,1)] z-10 ${step >= 4 ? 'scale-y-100' : 'scale-y-0'}`}></div>
 
                     {/* Node 1: Left */}
-                    <div className={`absolute top-[45%] left-[3%] lg:left-[5%] -translate-y-1/2 w-[30%] max-w-[320px] bg-white pt-8 pb-7 px-8 rounded-3xl border border-black/5 shadow-[0_4px_24px_rgba(0,0,0,0.03)] text-left flex flex-col transition-all duration-1000 ease-out z-20 ${step >= 5 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
+                    <div className={`absolute top-[40%] left-[3%] lg:left-[5%] -translate-y-1/2 w-[30%] max-w-[320px] bg-white pt-8 pb-7 px-8 rounded-none border border-black/15 shadow-none text-left flex flex-col transition-all duration-1000 ease-out z-20 ${step >= 5 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-8'}`}>
                         <span className="w-10 h-10 rounded-full bg-[#f4f4f5] flex items-center justify-center text-[15px] font-bold text-[#1d1d1f] mb-5">1</span>
                         <h4 className="text-[18px] lg:text-[20px] font-bold text-[#1d1d1f] mb-3 tracking-tight">Protocol Design</h4>
                         <p className="text-[14px] lg:text-[15px] text-[#86868b] leading-[1.6] break-keep font-medium">
@@ -96,7 +96,7 @@ export default function Section15({ isActive }) {
                     </div>
 
                     {/* Node 2: Right */}
-                    <div className={`absolute top-[45%] right-[3%] lg:right-[5%] -translate-y-1/2 w-[30%] max-w-[320px] bg-white pt-8 pb-7 px-8 rounded-3xl border border-black/5 shadow-[0_4px_24px_rgba(0,0,0,0.03)] text-left flex flex-col transition-all duration-1000 ease-out z-20 ${step >= 6 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}`}>
+                    <div className={`absolute top-[40%] right-[3%] lg:right-[5%] -translate-y-1/2 w-[30%] max-w-[320px] bg-white pt-8 pb-7 px-8 rounded-none border border-black/15 shadow-none text-left flex flex-col transition-all duration-1000 ease-out z-20 ${step >= 6 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-8'}`}>
                         <span className="w-10 h-10 rounded-full bg-[#f4f4f5] flex items-center justify-center text-[15px] font-bold text-[#1d1d1f] mb-5">2</span>
                         <h4 className="text-[18px] lg:text-[20px] font-bold text-[#1d1d1f] mb-3 tracking-tight">Bottleneck Removal</h4>
                         <p className="text-[14px] lg:text-[15px] text-[#86868b] leading-[1.6] break-keep font-medium">
@@ -105,7 +105,7 @@ export default function Section15({ isActive }) {
                     </div>
 
                     {/* Node 3: Bottom */}
-                    <div className={`absolute top-[80%] lg:top-[85%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30%] max-w-[340px] bg-white pt-8 pb-7 px-8 rounded-3xl border border-black/5 shadow-[0_4px_24px_rgba(0,0,0,0.03)] text-left flex flex-col transition-all duration-1000 ease-out z-20 ${step >= 7 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8'}`}>
+                    <div className={`absolute top-[75%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[30%] max-w-[340px] bg-white pt-8 pb-7 px-8 rounded-none border border-black/15 shadow-none text-left flex flex-col transition-all duration-1000 ease-out z-20 ${step >= 7 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8'}`}>
                         <span className="w-10 h-10 rounded-full bg-[#f4f4f5] flex items-center justify-center text-[15px] font-bold text-[#1d1d1f] mb-5">3</span>
                         <h4 className="text-[18px] lg:text-[20px] font-bold text-[#1d1d1f] mb-3 tracking-tight">Resource Orchestration</h4>
                         <p className="text-[14px] lg:text-[15px] text-[#86868b] leading-[1.6] break-keep font-medium">
@@ -118,7 +118,7 @@ export default function Section15({ isActive }) {
                 {/* Mobile Linear Layout (hidden on md and up) */}
                 <div className={`flex flex-col md:hidden w-full mt-10 space-y-6 pb-12 transition-all duration-1000 ease-out ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                     
-                    <div className={`bg-white p-6 rounded-3xl border border-black/5 shadow-[0_10px_30px_rgba(0,0,0,0.05)] text-center relative z-20`}>
+                    <div className={`bg-white p-6 rounded-none border border-black/15 shadow-none text-center relative z-20`}>
                         <span className="text-[12px] font-bold tracking-widest text-[#86868b] uppercase mb-1">Hub Component</span>
                         <h3 className="text-[22px] font-bold tracking-tight text-[#1d1d1f]">기획추진실</h3>
                         <p className="text-[13px] text-[#86868b] font-semibold">IFPDP Core</p>
@@ -127,7 +127,7 @@ export default function Section15({ isActive }) {
                     {/* Animated vertical connector line */}
                     <div className={`w-[1px] h-10 bg-black/15 mx-auto transition-transform origin-top duration-[1500ms] ease-out ${step >= 4 ? 'scale-y-100' : 'scale-y-0'}`}></div>
 
-                    <div className={`bg-white pt-6 pb-6 px-6 rounded-2xl border border-black/5 shadow-sm flex flex-col items-start transition-all duration-1000 ease-out delay-[100ms] ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                    <div className={`bg-white pt-6 pb-6 px-6 rounded-none border border-black/15 shadow-none flex flex-col items-start transition-all duration-1000 ease-out delay-[100ms] ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <span className="w-8 h-8 rounded-full bg-[#f4f4f5] flex items-center justify-center text-[13px] font-bold text-[#1d1d1f] mb-4">1</span>
                         <h4 className="text-[17px] font-bold text-[#1d1d1f] mb-2 tracking-tight">Protocol Design</h4>
                         <p className="text-[14px] text-[#86868b] leading-[1.6] break-keep font-medium">
@@ -135,7 +135,7 @@ export default function Section15({ isActive }) {
                         </p>
                     </div>
 
-                    <div className={`bg-white pt-6 pb-6 px-6 rounded-2xl border border-black/5 shadow-sm flex flex-col items-start transition-all duration-1000 ease-out delay-[200ms] ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                    <div className={`bg-white pt-6 pb-6 px-6 rounded-none border border-black/15 shadow-none flex flex-col items-start transition-all duration-1000 ease-out delay-[200ms] ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <span className="w-8 h-8 rounded-full bg-[#f4f4f5] flex items-center justify-center text-[13px] font-bold text-[#1d1d1f] mb-4">2</span>
                         <h4 className="text-[17px] font-bold text-[#1d1d1f] mb-2 tracking-tight">Bottleneck Removal</h4>
                         <p className="text-[14px] text-[#86868b] leading-[1.6] break-keep font-medium">
@@ -143,7 +143,7 @@ export default function Section15({ isActive }) {
                         </p>
                     </div>
 
-                    <div className={`bg-white pt-6 pb-6 px-6 rounded-2xl border border-black/5 shadow-sm flex flex-col items-start transition-all duration-1000 ease-out delay-[300ms] ${step >= 7 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                    <div className={`bg-white pt-6 pb-6 px-6 rounded-none border border-black/15 shadow-none flex flex-col items-start transition-all duration-1000 ease-out delay-[300ms] ${step >= 7 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <span className="w-8 h-8 rounded-full bg-[#f4f4f5] flex items-center justify-center text-[13px] font-bold text-[#1d1d1f] mb-4">3</span>
                         <h4 className="text-[17px] font-bold text-[#1d1d1f] mb-2 tracking-tight">Resource Orchestration</h4>
                         <p className="text-[14px] text-[#86868b] leading-[1.6] break-keep font-medium">
