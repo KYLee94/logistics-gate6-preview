@@ -15,9 +15,9 @@ export default function Section14({ isActive }) {
         
         timers.push(setTimeout(() => setStep(1), 500));  // Vertical Line
         timers.push(setTimeout(() => setStep(2), 1200)); // Titles and bodies
-        timers.push(setTimeout(() => setStep(3), 3200)); // Bottom Horizontal Line
-        timers.push(setTimeout(() => setStep(4), 3800)); // Core Premise 
-        timers.push(setTimeout(() => setStep(5), 4500)); // Images pull together
+        timers.push(setTimeout(() => setStep(3), 2800)); // Bottom Horizontal Line
+        timers.push(setTimeout(() => setStep(4), 3200)); // Core Premise 
+        timers.push(setTimeout(() => setStep(5), 3800)); // Images pull together
 
         return () => timers.forEach(t => clearTimeout(t));
     }, [isActive]);
