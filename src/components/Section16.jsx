@@ -21,7 +21,7 @@ export default function Section16({ isActive }) {
     const vcNodes = ['소싱', '투자', '펀드생성', '개발추진', '파이낸싱', '유저솔루션', '기업마케팅', '개발관리', '준공', '운영'];
 
     return (
-        <section className="relative w-full h-full bg-[#fbfbfd] flex flex-col justify-center items-center overflow-hidden">
+        <section className="relative w-full h-full bg-white flex flex-col justify-center items-center overflow-hidden">
             
             <style>
                 {`
@@ -86,7 +86,8 @@ export default function Section16({ isActive }) {
                     <img 
                         src="/ipad.jpg" 
                         alt="iPad Dashboard Graphic" 
-                        className="w-auto h-auto max-w-[120%] lg:max-w-none lg:w-[130%] object-contain origin-left"
+                        className="w-auto h-auto max-w-none object-contain origin-left mix-blend-darken"
+                        style={{ transform: 'scale(1.3)' }}
                     />
                 </div>
 
