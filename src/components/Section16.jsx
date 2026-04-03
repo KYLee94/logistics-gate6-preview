@@ -86,7 +86,7 @@ export default function Section16({ isActive }) {
                     <img 
                         src="/ipad.jpg" 
                         alt="iPad Dashboard Graphic" 
-                        className="w-auto h-auto max-w-none object-contain origin-left mix-blend-darken"
+                        className="w-[1000px] h-auto max-w-[1000px] object-contain origin-left mix-blend-darken"
                     />
                 </div>
 
