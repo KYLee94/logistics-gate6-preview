@@ -217,7 +217,7 @@ export default function Section15({ isActive }) {
                         <h3 className="text-[23px] font-bold text-black mb-2 tracking-tight">3. Optimization & Evolution</h3>
                         <p className="text-[19px] font-bold text-[#626262] leading-[1.6]">
                             {lang === 'kr' ? (
-                                <>데이터 자산의 지속적 고도화 및 AI 플랫폼 운영<br/>거버넌스 관리</>
+                                <>데이터 자산과 운용 맥락의 지속적 고도화<br/>& AI 플랫폼 운영 거버넌스 관리</>
                             ) : (
                                 <>Continuously advance data assets and manage<br/>AI platform governance.</>
                             )}
