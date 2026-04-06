@@ -276,13 +276,6 @@ export default function Section4({ isActive }) {
                                 </>
                             )}
                         </p>
-                        
-                        <div 
-                            className="mt-[40px] px-6 py-2 border border-white/30 text-white/70 font-sans tracking-widest text-[14px] uppercase rounded-full cursor-pointer hover:bg-white hover:text-black transition-all duration-300"
-                            onClick={() => setStep(5)}
-                        >
-                            {lang === 'kr' ? '돌아가기' : 'Go Back'}
-                        </div>
                     </div>
                 </div>
 
