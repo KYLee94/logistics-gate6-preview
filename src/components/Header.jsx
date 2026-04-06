@@ -22,7 +22,16 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                 { label: "Global Validation & Advisory", id: "page-11" }
             ] 
         },
-        { title: "The Steering Wheel", id: "page-12", items: [] },
+        { 
+            title: "The Steering Wheel", 
+            id: "page-12", 
+            items: [
+                { label: "Context & Moat", id: "page-12" },
+                { label: "Human Layer", id: "page-14" },
+                { label: "Value Accelerator", id: "page-15" },
+                { label: "Executive View", id: "page-16" }
+            ] 
+        },
         { title: "C", id: "section-c", items: [] },
         { title: "D", id: "section-d", items: [] },
         { title: "E", id: "section-e", items: [] }
@@ -39,7 +48,16 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                 { label: "Global Validation & Advisory", id: "page-11" }
             ] 
         },
-        { title: "The Steering Wheel", id: "page-12", items: [] },
+        { 
+            title: "The Steering Wheel", 
+            id: "page-12", 
+            items: [
+                { label: "Context & Moat", id: "page-12" },
+                { label: "Human Layer", id: "page-14" },
+                { label: "Value Accelerator", id: "page-15" },
+                { label: "Executive View", id: "page-16" }
+            ] 
+        },
         { title: "C", id: "section-c", items: [] },
         { title: "D", id: "section-d", items: [] },
         { title: "E", id: "section-e", items: [] }
