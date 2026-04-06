@@ -43,8 +43,24 @@ export default function MainLayout() {
         const timer = setTimeout(() => {
             setIsActionDone(true);
         }, slideAnimationTimes[currentSlide] || 3000);
-        return () => clearTimeout(timer);
-    }, [currentSlide]);
+
+        // Subscribing to hash change to support external header menu navigation clicks
+        const handleHashChange = () => {
+            const hash = window.location.hash;
+            if (hash && hash.startsWith('#page-')) {
+                const pageIndex = parseInt(hash.replace('#page-', ''), 10) - 1;
+                if (!isNaN(pageIndex) && pageIndex >= 0 && pageIndex < slidesLength) {
+                    setCurrentSlide(pageIndex);
+                }
+            }
+        };
+        window.addEventListener('hashchange', handleHashChange);
+
+        return () => {
+            clearTimeout(timer);
+            window.removeEventListener('hashchange', handleHashChange);
+        };
+    }, [currentSlide, slidesLength]);
 
     const nextSlide = () => {
         const event = new CustomEvent('appSlideNext', { cancelable: true });
