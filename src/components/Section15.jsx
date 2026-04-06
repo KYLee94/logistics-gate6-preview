@@ -33,7 +33,7 @@ export default function Section15({ isActive }) {
     const labelRadius = 220; // Exact distance from center to center of text (px)
 
     return (
-        <section className="relative section w-full h-full flex flex-col overflow-hidden bg-[#fafafc] text-[#1d1d1f] justify-center items-center">
+        <section className="relative section w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#fafafc] text-[#1d1d1f] pt-[80px] pb-[100px] md:pt-[120px] md:pb-[140px] items-center">
             
             <style>
                 {`
@@ -66,7 +66,7 @@ export default function Section15({ isActive }) {
             </style>
 
             {/* Perfect viewport-centering container wrapping all 3 blocks uniformly */}
-            <div className="w-full max-w-[1400px] px-6 md:px-12 flex flex-col items-center justify-center -translate-y-10">
+            <div className="w-full max-w-[1400px] px-6 md:px-12 flex flex-col items-center justify-center my-auto shrink-0 mt-5 md:mt-10">
                 
                 {/* 1. Header Phase */}
                 <div className="w-full flex flex-col items-center text-center relative z-30 mb-10 md:mb-14">

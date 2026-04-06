@@ -23,9 +23,9 @@ export default function Section14({ isActive }) {
     }, [isActive]);
 
     return (
-        <section className="relative section w-full h-full flex flex-col justify-center items-center overflow-hidden bg-[#f4f4f5]">
+        <section className="relative section w-full h-full flex flex-col overflow-y-auto overflow-x-hidden bg-[#f4f4f5] pt-[80px] pb-[80px] md:pt-[100px] md:pb-[100px]">
             
-            <div className="w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1400px] h-[75%] md:h-[65%] mx-auto flex flex-col justify-between">
+            <div className="w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1400px] min-h-[75%] md:min-h-[65%] mx-auto my-auto shrink-0 flex flex-col justify-between">
                 
                 {/* Top 50:50 Split Area */}
                 <div className="flex-1 flex flex-col md:flex-row relative">

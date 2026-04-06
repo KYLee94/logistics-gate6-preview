@@ -24,9 +24,9 @@ export default function Section11({ isActive }) {
     }, [isActive]);
 
     return (
-        <section className="section w-full h-full bg-white flex flex-col justify-center items-center overflow-y-auto">
+        <section className="section w-full h-full bg-white flex flex-col overflow-y-auto pt-[80px] pb-[100px] md:pt-[120px] md:pb-[140px]">
             
-            <div className={`w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1600px] mx-auto flex flex-col`}>
+            <div className={`w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1600px] mx-auto my-auto shrink-0 flex flex-col`}>
                 
                 {/* TOP HEADER (상단 타이틀 - 크기 4px 증가, 하단 여백 10px 축소) */}
                 <div className={`mb-8 md:mb-14 transition-all duration-[1000ms] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
