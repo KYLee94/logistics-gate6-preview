@@ -7,11 +7,10 @@ export default function Section16({ isActive }) {
 
     useEffect(() => {
         if (isActive) {
-            const t1 = setTimeout(() => setStep(1), 300);
-            const t2 = setTimeout(() => setStep(2), 1100);
-            const t3 = setTimeout(() => setStep(3), 1900);
-            const t4 = setTimeout(() => setStep(4), 2800);
-            return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); };
+            const t1 = setTimeout(() => setStep(1), 100);    // iPad Slide In
+            const t2 = setTimeout(() => setStep(2), 1700);   // Text Title
+            const t3 = setTimeout(() => setStep(3), 2400);   // Text Body
+            return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
         } else {
             setStep(0);
         }
@@ -42,7 +41,7 @@ export default function Section16({ isActive }) {
             <div className="w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-[600px_1fr] gap-10 lg:gap-16 items-center h-full pt-[60px] md:pt-0">
                 
                 {/* LEFT: Dry, authoritative text (Matched to User Image exactly) */}
-                <div className={`relative z-20 w-full max-w-[600px] transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
+                <div className={`relative z-20 w-full max-w-[600px] transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 2 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
                     
                     <span className="text-black font-bold text-[14px] md:text-[15px] tracking-tight mb-3 block">
                         Delegation of Authority
@@ -62,7 +61,7 @@ export default function Section16({ isActive }) {
                         )}
                     </h2>
 
-                    <div className={`flex flex-col gap-6 md:gap-7 transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+                    <div className={`flex flex-col gap-6 md:gap-7 transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                         <p className="text-[17px] md:text-[20px] font-bold text-black leading-[1.5] break-keep">
                             {lang === 'kr' ? (
                                 <>거버넌스가 세팅된 플랫폼은 마이크로 매니징을<br/>요구하지 않습니다.</>
@@ -88,7 +87,7 @@ export default function Section16({ isActive }) {
                 </div>
 
                 {/* RIGHT: iPad Image Asset */}
-                <div className={`relative w-full flex justify-end lg:justify-start lg:-ml-[100px] items-center transition-all duration-[1500ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 3 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-12'}`}>
+                <div className={`relative w-full flex justify-end lg:justify-start lg:-ml-[100px] items-center transition-all duration-[2500ms] ease-out transform ${step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-10'}`}>
                     <img 
                         src="/ipad.jpg" 
                         alt="iPad Dashboard Graphic" 
