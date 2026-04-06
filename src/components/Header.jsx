@@ -166,6 +166,10 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
 
         if (targetId.startsWith('page-')) {
             window.location.hash = targetId;
+            const pageIndex = parseInt(targetId.replace('page-', ''), 10) - 1;
+            if (!isNaN(pageIndex)) {
+                window.dispatchEvent(new CustomEvent('appSlideGoto', { detail: { slideIndex: pageIndex } }));
+            }
             return;
         }
 

@@ -26,7 +26,7 @@ export default function Section17({ isActive }) {
                     <img 
                         src={`${import.meta.env.BASE_URL}inside_IFPDP.jpg`} 
                         alt="Inside IFPDP Monitor Graphic" 
-                        className="h-[90vh] w-auto object-contain block mx-auto"
+                        className="h-[84vh] w-auto object-contain block mx-auto"
                     />
                     
                     {/* Text Centered directly over the black monitor screen inside the aesthetic asset */}

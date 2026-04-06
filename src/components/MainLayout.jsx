@@ -54,11 +54,20 @@ export default function MainLayout() {
                 }
             }
         };
+        
+        const handleGoto = (e) => {
+            if (e.detail && typeof e.detail.slideIndex === 'number' && e.detail.slideIndex >= 0 && e.detail.slideIndex < slidesLength) {
+                setCurrentSlide(e.detail.slideIndex);
+            }
+        };
+
         window.addEventListener('hashchange', handleHashChange);
+        window.addEventListener('appSlideGoto', handleGoto);
 
         return () => {
             clearTimeout(timer);
             window.removeEventListener('hashchange', handleHashChange);
+            window.removeEventListener('appSlideGoto', handleGoto);
         };
     }, [currentSlide, slidesLength]);
 
