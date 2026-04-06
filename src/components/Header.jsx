@@ -33,7 +33,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
             ] 
         },
         { title: "Inside IFPDP", id: "page-17", items: [] },
-        { title: "Execution Plan", id: "section-d", items: [] }
+        { title: "Execution Plan", id: "page-18", items: [] }
     ];
 
     const menuDataKr = [
@@ -58,7 +58,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
             ] 
         },
         { title: "Inside IFPDP", id: "page-17", items: [] },
-        { title: "Execution Plan", id: "section-d", items: [] }
+        { title: "Execution Plan", id: "page-18", items: [] }
     ];
 
     const currentMenuData = lang === 'kr' ? menuDataKr : menuDataEn;
