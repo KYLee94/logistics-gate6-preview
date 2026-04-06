@@ -72,7 +72,7 @@ export default function Section16({ isActive }) {
                         </p>
                         <p className="text-[15px] md:text-[17px] font-medium text-[#86868b] leading-[1.6] break-keep">
                             {lang === 'kr' ? (
-                                <>IFPDP는 실시간 데이터 취합을 통해 <span className="text-flow-blue">정상 범위의 공정은 자율 작동</span>시키고,<br/><span className="text-flow-blue">리스크 한도를 이탈한 프로젝트(Red Flag)와 최종 의사결정(Approval)</span> 안건만을<br/>대표님께 보고합니다.</>
+                                <>IFPDP는 실시간 데이터 취합을 통해 <span className="text-flow-blue">정상 범위의 공정은 자율 작동</span>시키고,<br/><span className="text-flow-blue">리스크 한도를 이탈한 프로젝트(Red Flag)와 최종 의사결정(Approval)</span> 안건만을<br/>리더쉽에게 공유합니다.</>
                             ) : (
                                 <>Through real-time data aggregation, IFPDP autonomously operates normal processes, reporting only out-of-bounds projects (Red Flags) and final decisions to the executive.</>
                             )}
