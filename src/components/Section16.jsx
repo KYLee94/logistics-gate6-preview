@@ -30,7 +30,6 @@ export default function Section16({ isActive }) {
                         70% { box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); transform: scale(1.1); }
                         100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); transform: scale(1); }
                     }
-                    }
                     @keyframes textFlowBlue {
                         0% { background-position: 0% 50%; opacity: 0.9; }
                         50% { background-position: 100% 50%; opacity: 1; }
@@ -47,10 +46,10 @@ export default function Section16({ isActive }) {
                 `}
             </style>
 
-            <div className="w-full max-w-[1300px] px-6 md:px-10 lg:px-14 mx-auto grid grid-cols-1 lg:grid-cols-[450px_1fr] gap-10 lg:gap-14 items-center h-full pt-[60px] md:pt-0">
+            <div className="w-full max-w-[1500px] px-6 lg:px-14 mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center h-full pt-[60px] md:pt-0">
                 
                 {/* LEFT: Dry, authoritative text (Matched to User Image exactly) */}
-                <div className={`relative z-20 w-full max-w-[600px] mr-auto lg:-mt-[50px] transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
+                <div className={`relative z-20 w-full max-w-[600px] lg:-ml-[120px] mr-auto lg:-mt-[50px] transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
                     
                     <span className="text-black font-bold text-[14px] md:text-[15px] tracking-tight mb-3 block">
                         Delegation of Authority
