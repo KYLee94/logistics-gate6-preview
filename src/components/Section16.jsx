@@ -30,17 +30,10 @@ export default function Section16({ isActive }) {
                         70% { box-shadow: 0 0 0 15px rgba(255, 59, 48, 0); transform: scale(1.1); }
                         100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); transform: scale(1); }
                     }
-                    @keyframes textFlowBlue {
-                        0% { background-position: 0% 50%; opacity: 0.9; }
-                        50% { background-position: 100% 50%; opacity: 1; }
-                        100% { background-position: 0% 50%; opacity: 0.9; }
-                    }
                     .text-flow-blue {
-                        background: linear-gradient(90deg, #1d4ed8 0%, #60a5fa 50%, #1d4ed8 100%);
-                        background-size: 200% auto;
+                        background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%);
                         -webkit-background-clip: text;
                         -webkit-text-fill-color: transparent;
-                        animation: textFlowBlue 3s linear infinite;
                         font-weight: 800;
                     }
                 `}
