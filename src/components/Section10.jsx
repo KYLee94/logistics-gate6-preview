@@ -48,9 +48,9 @@ export default function Section10({ isActive }) {
                     <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                         <p className="text-[15px] md:text-[18px] lg:text-[20px] font-medium leading-[1.7] text-[#1d1d1f] mb-12 md:mb-16 break-keep max-w-[750px]">
                             {lang === 'kr' ? (
-                                '특정 시대를 관통하는 필수재(Infrastructure)가 존재했듯, IFPDP는 AI 시대에 이지스를 움직이는 근본적인 \'엔진(The Engine)\'으로 기능합니다. 단순한 데이터 저장 공간을 넘어, 조직의 의사결정과 밸류체인을 하나로 연결하는 대체 불가능한 핵심 동력입니다.'
+                                <>특정 시대를 관통하는 필수재(Infrastructure)가 존재했듯, IFPDP는 AI 시대에 이지스를 움직이는 근본적인 '엔진(The Engine)'으로 기능합니다. 단순한 데이터 저장 공간을 넘어, 조직의 <span className="font-bold">의사결정과 밸류체인을 하나로 연결하는</span> 대체 불가능한 핵심 동력입니다.</>
                             ) : (
-                                'Just as indispensable infrastructures have defined specific eras, IFPDP functions as the fundamental \'Engine\' that drives IGIS in the AI era. Beyond a mere data repository, it is an irreplaceable core dynamic connecting organizational decision-making and value chains as one.'
+                                <>Just as indispensable infrastructures have defined specific eras, IFPDP functions as the fundamental 'Engine' that drives IGIS in the AI era. Beyond a mere data repository, it is an irreplaceable core dynamic connecting <span className="font-bold">organizational decision-making and value chains as one</span>.</>
                             )}
                         </p>
 
