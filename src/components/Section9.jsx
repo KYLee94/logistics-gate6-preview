@@ -155,7 +155,7 @@ export default function Section9({ isActive }) {
             {/* The Pan Camera Wrapper */}
             <div 
                 className={`w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                    ${step >= 4 ? 'translate-y-[-13vh] md:translate-y-[-16vh]' : 'translate-y-0'}
+                    ${step >= 4 ? 'translate-y-[-20vh] md:translate-y-[-25vh]' : 'translate-y-0'}
                 `}
             >
                 <div className="w-full flex flex-col items-center justify-start relative px-4 md:px-12 lg:px-20 pb-[20vh]">
@@ -164,8 +164,8 @@ export default function Section9({ isActive }) {
 
                     <div className="w-full max-w-[1500px] flex flex-col items-center justify-center space-y-4 md:space-y-6">
                         
-                        {/* 1. Text Content (Static in Phase 2 for performance) */}
-                        <div className="w-full flex items-center justify-center mb-6 md:mb-10">
+                        {/* 1. Text Content (Fades and Blurs out smoothly without collapsing layout height) */}
+                        <div className={`w-full flex items-center justify-center transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'opacity-0 blur-[10px] pointer-events-none mb-6 md:mb-10' : 'opacity-100 blur-none mb-6 md:mb-10'}`}>
                             <div className="w-full text-center flex flex-col items-center">
                                 {/* Dilemma Paragraph */}
                                 <div className={`transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
@@ -238,7 +238,7 @@ export default function Section9({ isActive }) {
                                         <React.Fragment key={idx}>
                                             <div 
                                                 className={`flex-1 flex flex-col relative overflow-hidden transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                                                    ${step >= 4 ? 'h-[60px] md:h-[80px]' : 'h-[80px] md:h-[110px]'}
+                                                    h-[80px] md:h-[110px]
                                                     ${step >= 3 ? 'bg-[#f4f4f5] border-transparent rounded-none shadow-none z-0 border-r border-[#1d1d1f]/30 last:border-r-0' : 'bg-[#fff] rounded-none border-[2px] border-[#1d1d1f] shadow-[0_4px_15px_rgba(29,29,31,0.1)] z-20'}
                                                 `}
                                             >
@@ -258,7 +258,7 @@ export default function Section9({ isActive }) {
                                             {idx < stages.length - 1 && (
                                                 <div 
                                                     className={`bg-[#1d1d1f] shrink-0 z-30 transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                                                        ${step >= 4 ? 'h-[60px] md:h-[80px]' : 'h-[80px] md:h-[110px]'}
+                                                        h-[80px] md:h-[110px]
                                                         ${step >= 3 ? 'w-[2px] md:w-[3px] opacity-100 scale-y-100' : 'w-0 opacity-0 scale-y-0 mx-0'}
                                                     `} 
                                                 ></div>
@@ -270,7 +270,7 @@ export default function Section9({ isActive }) {
                         </div>
 
                         {/* Bottom CFT Text for Phase 1 (Organizational Decision) */}
-                        <div className={`w-full text-center mt-1 md:mt-5 transition-all duration-[1200ms] delay-[500ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+                        <div className={`w-full text-center mt-1 md:mt-5 transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'opacity-0 blur-[10px] pointer-events-none' : (step >= 3 ? 'opacity-100 blur-none translate-y-0 delay-[500ms]' : 'opacity-0 translate-y-8')}`}>
                             <h3 className="text-[15px] md:text-[20px] lg:text-[24px] font-medium text-[#1d1d1f] tracking-tight inline-block break-keep">
                                 {lang === 'kr' ? 'Cross Functional System and CFT 조직 구축' : 'Establishment of Cross-Functional System and CFT'}
                             </h3>
