@@ -155,7 +155,7 @@ export default function Section9({ isActive }) {
             {/* The Pan Camera Wrapper */}
             <div 
                 className={`w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                    ${step >= 4 ? 'translate-y-[-10vh] md:translate-y-[-13vh]' : 'translate-y-0'}
+                    ${step >= 4 ? 'translate-y-[-28vh] md:translate-y-[-32vh]' : 'translate-y-0'}
                 `}
             >
                 <div className="w-full flex flex-col items-center justify-start relative px-4 md:px-12 lg:px-20 pb-[20vh]">
