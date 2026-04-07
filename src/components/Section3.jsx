@@ -28,12 +28,12 @@ export default function Section3({ isActive }) {
         <section className="section w-full h-full bg-white flex flex-col relative px-6 md:px-12 overflow-y-auto">
             
             {/* 2페이지와 동일하게 좌측 상단 정렬 및 가장 타이트한 기준 유지 */}
-            <div className="w-full max-w-[1000px] mx-auto flex flex-col items-start justify-center text-left font-sans tracking-tight relative z-10 my-auto shrink-0 -translate-y-[40px] md:-translate-y-[50px] gap-0 pt-24 pb-32">
+            <div className="w-full max-w-[1000px] mx-auto flex flex-col items-center justify-center text-center font-sans tracking-tight relative z-10 my-auto shrink-0 -translate-y-[40px] md:-translate-y-[50px] gap-0 pt-24 pb-32">
                 
                 {/* 1. Line 1 (Hero Anchor) */}
                 <div className="overflow-hidden">
                     <p 
-                        className={`text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
+                        className={`text-[33px] md:text-[47px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
                         <span className="text-black">AI</span>{lang === 'kr' ? "의 진짜 위력은" : "'s true absolute power"}
                     </p>
@@ -42,7 +42,7 @@ export default function Section3({ isActive }) {
                 {/* 2. Line 2 (스르륵 올라오는 마스킹 Wipe 연출 적용) */}
                 <div className="overflow-hidden mt-1 md:mt-2">
                     <p 
-                        className={`text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
+                        className={`text-[33px] md:text-[47px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 2 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
                         {lang === 'kr' ? "내 PC 안의 " : "emerges from the "}
                         <span className="text-black">{lang === 'kr' ? "'리치한 데이터(Rich Data)'" : "'Rich Data'"}</span>
@@ -53,7 +53,7 @@ export default function Section3({ isActive }) {
                 {/* 3. Line 3 (더블 마진 배치 후 스르륵 상승) */}
                 <div className="overflow-hidden mt-10 md:mt-16">
                     <p 
-                        className={`text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
+                        className={`text-[33px] md:text-[47px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
                         {lang === 'kr' ? "" : "What turns "}
                         <span className="text-black">AI</span>
@@ -67,7 +67,7 @@ export default function Section3({ isActive }) {
                 <div className="overflow-hidden mt-1 md:mt-2">
                     {/* 클리핑 방지 위한 pb-4 유지하면서 p 태그 자체가 올라옴 */}
                     <p 
-                        className={`relative text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap pb-4 z-10 transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
+                        className={`relative text-[33px] md:text-[47px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap pb-4 z-10 transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
                         {lang === 'kr' ? "다름 아닌 내 PC 안의 " : "is none other than our internal "}
                         <span className="relative inline-block pb-[1px]">
@@ -86,7 +86,7 @@ export default function Section3({ isActive }) {
                 {/* 5. Line 5: Narrative Bridge 1 */}
                 <div className="overflow-hidden mt-12 md:mt-20">
                     <p 
-                        className={`text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
+                        className={`text-[33px] md:text-[47px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
                         {lang === 'kr' ? "이 풍부한 데이터가 " : "When this rich data is connected at the "}
                         <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text font-bold">{lang === 'kr' ? "전사(Enterprise)" : "Enterprise"}</span>
@@ -97,7 +97,7 @@ export default function Section3({ isActive }) {
                 {/* 6. Line 6: Narrative Bridge 2 */}
                 <div className="overflow-hidden mt-1 md:mt-2">
                     <p 
-                        className={`text-[37px] md:text-[51px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-[150ms] ${step >= 6 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
+                        className={`text-[33px] md:text-[47px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-[150ms] ${step >= 6 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
                         <span className="text-black">AI</span>
                         {lang === 'kr' ? "는 어떤 폭발적인 결과물을 만들어낼까요?" : " what explosive results will it produce?"}
