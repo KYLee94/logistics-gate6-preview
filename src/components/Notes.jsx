@@ -52,8 +52,8 @@ export default function Notes() {
     const parts = rawText.split(/(?=\n\d\.\s)/g);
 
     return (
-        <div className="w-full min-h-screen bg-white p-6 md:p-12 font-sans text-black">
-            <h1 className="text-2xl font-bold mb-10 border-b border-black pb-4 inline-block">
+        <div className="w-full h-screen overflow-y-auto pb-[200px] bg-white p-6 md:p-12 pt-28 font-sans text-black">
+            <h1 className="text-2xl font-bold mb-10 border-b border-black pb-4 inline-block mt-10">
                 IFPDP_데이터 취합 주요 고려사항
             </h1>
             
