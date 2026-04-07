@@ -96,8 +96,8 @@ export default function Section9({ isActive }) {
                 if (stepRef.current < 4) {
                     e.preventDefault();
                     setStep(4); // Triggers upward pan and revealing of screen 2
-                    timeouts.push(setTimeout(() => setSafe(5), 1000)); // Trigger arrow & text
-                    timeouts.push(setTimeout(() => setSafe(6), 2500)); // Trigger totally flowing box
+                    timeouts.push(setTimeout(() => setSafe(5), 600)); // Trigger arrow & text MUCH faster
+                    timeouts.push(setTimeout(() => setSafe(6), 1400)); // Trigger Blue flowing box right on the heels of the text
                 }
             } else if (e.type === 'appSlidePrev') {
                 if (stepRef.current >= 4) {
