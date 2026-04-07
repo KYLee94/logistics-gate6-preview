@@ -77,7 +77,7 @@ export default function Section16({ isActive }) {
             ref={scrollRef}
             className={`w-full h-full bg-[#fff] text-[#1d1d1f] flex flex-col items-center overflow-y-auto hide-scrollbar font-sans pb-[150px] transition-opacity duration-1000 ${isActive ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
         >
-            <div className="w-full max-w-[1200px] px-6 md:px-12 lg:px-20 pt-[15vh] md:pt-[20vh]">
+            <div className="w-full max-w-[1400px] px-6 md:px-12 lg:px-20 pt-[15vh] md:pt-[20vh] -mt-[100px]">
                 
                 {/* Hero Section */}
                 <FadeInUp>
@@ -98,7 +98,7 @@ export default function Section16({ isActive }) {
 
                 {/* Sub-hero Text */}
                 <FadeInUp delay={100}>
-                    <p className="text-[15px] md:text-[17px] font-bold text-[#86868b] leading-[1.7] max-w-[900px] break-keep">
+                    <p className="text-[19px] md:text-[21px] font-bold text-[#86868b] leading-[1.45] max-w-[900px] break-keep">
                         {lang === 'kr' ? (
                             <>
                                 단순 IT 시스템 도입이 아니라 조직 전체의 데이터 거버넌스를 재설계하는 과정이므로, 비즈니스 밸류체인 전반을 이해하고<br className="hidden md:block"/>
@@ -113,24 +113,30 @@ export default function Section16({ isActive }) {
                 </FadeInUp>
 
                 <FadeInUp delay={200}>
-                    <div className="w-full h-[2px] bg-[#1d1d1f] mt-12 mb-[60px] md:mb-[80px]"></div>
+                    <div className="w-full h-[2px] bg-[#1d1d1f] mt-[58px] mb-[70px] md:mb-[90px]"></div>
                 </FadeInUp>
 
                 {/* List Section */}
                 <div className="flex flex-col mb-[120px] md:mb-[180px]">
                     {lists.map((item, idx) => (
                         <FadeInUp key={idx} delay={200 + idx * 150}>
-                            <div className={`flex flex-col py-8 ${idx !== lists.length - 1 ? 'border-b border-[#1d1d1f]' : ''} hover:bg-neutral-50 px-2 transition-colors duration-500`}>
-                                <h3 className="font-serif text-[32px] md:text-[40px] leading-[1.2] mb-4 text-[#1d1d1f] tracking-tight font-medium">
+                            <div className="flex flex-col hover:bg-neutral-50 transition-colors duration-500">
+                                <h3 
+                                    className="text-[32px] md:text-[40px] leading-[1.2] mb-4 text-[#1d1d1f] tracking-tight font-medium"
+                                    style={{ fontFamily: "'Sanomat Wp', 'Sanomat Web', 'Sanomat', sans-serif" }}
+                                >
                                     {item.title}
                                 </h3>
-                                <p className="text-[15px] md:text-[16px] font-bold text-[#555] leading-[1.6] break-keep mb-1">
+                                <p className="text-[19px] md:text-[20px] font-bold text-[#555] leading-[1.45] break-keep mb-1">
                                     {lang === 'kr' ? item.krLine1 : item.enLine1}
                                 </p>
-                                <p className="text-[15px] md:text-[16px] font-bold text-[#86868b] leading-[1.6] break-keep">
+                                <p className="text-[19px] md:text-[20px] font-bold text-[#86868b] leading-[1.45] break-keep">
                                     {lang === 'kr' ? item.krLine2 : item.enLine2}
                                 </p>
                             </div>
+                            {idx !== lists.length - 1 && (
+                                <div className="w-full h-[1px] bg-[#1d1d1f] my-[42px]"></div>
+                            )}
                         </FadeInUp>
                     ))}
                 </div>
