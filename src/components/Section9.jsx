@@ -152,12 +152,20 @@ export default function Section9({ isActive }) {
                 }
             `}</style>
             
-            {/* The Unified Content Wrapper */}
-            <div className="w-full min-h-full flex flex-col items-center justify-center relative px-4 md:px-12 lg:px-20 py-8 md:py-16 transition-all duration-1000">
-                <div className="w-full max-w-[1500px] flex flex-col items-center justify-center">
+            {/* The Pan Camera Wrapper */}
+            <div 
+                className={`w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
+                    ${step >= 4 ? 'translate-y-[-35vh] md:translate-y-[-45vh]' : 'translate-y-0'}
+                `}
+            >
+                <div className="w-full flex flex-col items-center justify-start relative px-4 md:px-12 lg:px-20 pb-[20vh]">
+                    {/* Padding spacer to center Phase 1 initially without strictly binding to 100vh justify */}
+                    <div className="w-full h-[15vh] md:h-[22vh] shrink-0"></div>
+
+                    <div className="w-full max-w-[1500px] flex flex-col items-center justify-center space-y-4 md:space-y-6">
                         
-                        {/* 1. Text Content (Collapses internally when step >= 4) */}
-                        <div className={`w-full flex items-center justify-center overflow-hidden transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 4 ? 'opacity-0 max-h-0 -my-4' : 'opacity-100 max-h-[800px] mb-6 md:mb-10'}`}>
+                        {/* 1. Text Content */}
+                        <div className="w-full flex items-center justify-center">
                             <div className="w-full text-center flex flex-col items-center">
                                 {/* Dilemma Paragraph */}
                                 <div className={`transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
@@ -262,15 +270,19 @@ export default function Section9({ isActive }) {
                         </div>
 
                         {/* Bottom CFT Text for Phase 1 (Organizational Decision) */}
-                        <div className={`w-full text-center transition-all duration-[1200ms] delay-[100ms] ease-[cubic-bezier(0.19,1,0.22,1)] overflow-hidden ${step >= 4 ? 'opacity-0 max-h-0 scale-y-0 mt-0 mb-0' : (step >= 3 ? 'opacity-100 max-h-[150px] scale-y-100 mt-4 md:mt-8' : 'opacity-0 max-h-[150px] translate-y-8')}`}>
+                        <div className={`w-full text-center mt-1 md:mt-5 transition-all duration-[1200ms] delay-[500ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                             <h3 className="text-[15px] md:text-[20px] lg:text-[24px] font-medium text-[#1d1d1f] tracking-tight inline-block break-keep">
                                 {lang === 'kr' ? 'Cross Functional System and CFT 조직 구축' : 'Establishment of Cross-Functional System and CFT'}
                             </h3>
                         </div>
 
-                        {/* Downward Arrow (Appears under the single permanent box when Phase 2 starts) */}
-                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mt-[20px] md:mt-[30px] mb-[30px] md:mb-[40px]
-                            ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8 scale-50 max-h-0 overflow-hidden my-0'}
+                        {/* ========================================================= */}
+                        {/* PHASE 2 CONTENTS (Appends seamlessly below Phase 1) */}
+                        {/* ========================================================= */}
+
+                        {/* Downward Arrow */}
+                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mt-[40px] md:mt-[60px] mb-[20px] md:mb-[30px]
+                            ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8 scale-50 overflow-hidden max-h-0 min-h-0 m-0 p-0'}
                         `}>
                             <svg className="w-8 h-8 md:w-10 md:h-10 text-[#1d1d1f]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
@@ -279,7 +291,7 @@ export default function Section9({ isActive }) {
 
                         {/* New Heading */}
                         <div className={`transition-all duration-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] text-center mb-8 md:mb-12
-                            ${step >= 5 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-10 scale-95 overflow-hidden max-h-0 my-0'}
+                            ${step >= 5 ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-10 scale-95 overflow-hidden max-h-0 min-h-0 m-0 p-0'}
                         `}>
                             <h2 className="text-[20px] md:text-[28px] lg:text-[34px] font-bold text-[#1d1d1f] tracking-tight break-keep border border-transparent" style={{ lineHeight: 'calc(1.4em - 2px)' }}>
                                 {lang === 'kr' ? (
@@ -292,7 +304,7 @@ export default function Section9({ isActive }) {
 
                         {/* Unified, Flowing Value Chain Box */}
                         <div className={`w-full overflow-x-auto hide-scrollbar pb-6 flex flex-col items-center transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] delay-0
-                            ${step >= 6 ? 'opacity-100 translate-y-0 filter-none' : 'opacity-0 translate-y-12 blur-sm overflow-hidden max-h-0 pb-0'}
+                            ${step >= 6 ? 'opacity-100 translate-y-0 filter-none' : 'opacity-0 translate-y-12 blur-sm overflow-hidden max-h-0 min-h-0 m-0 p-0'}
                         `}>
                             <div className={`flex flex-col min-w-0 md:min-w-[1000px] xl:min-w-0 w-full`}>
                                 
@@ -346,7 +358,7 @@ export default function Section9({ isActive }) {
                                 </div>
                                 
                                 {/* Bottom IFPDP Text for Phase 2 (Technical Solution) */}
-                                <div className={`w-full text-center mt-8 md:mt-12 transition-all duration-[1200ms] delay-[1800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 max-h-0 overflow-hidden mt-0'}`}>
+                                <div className={`w-full text-center mt-8 md:mt-12 transition-all duration-[1200ms] delay-[1800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 overflow-hidden max-h-0 min-h-0 m-0 p-0'}`}>
                                     <h3 className="text-[14px] md:text-[18px] lg:text-[22px] font-medium text-[#1d1d1f] tracking-tight inline-block break-keep">
                                         {lang === 'kr' ? 'Cross Functional System and CFT 조직 구축' : 'Establishment of Cross-Functional System and CFT'}
                                     </h3>
@@ -362,6 +374,7 @@ export default function Section9({ isActive }) {
                     </div>
                 </div>
 
-            </section>
+            </div>
+        </section>
     );
 }
