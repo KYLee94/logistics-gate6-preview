@@ -83,12 +83,12 @@ export default function Section16({ isActive }) {
                         {lang === 'kr' ? (
                             <>
                                 글로벌 자본 시장에서 AI는 더 이상 단순한 업무 보조 도구가 아닙니다. 독점적 데이터(Proprietary Data)를 중앙집권화하여 '해자(Moat)'를 구축하는 거대한 플랫폼 전쟁입니다.<br/><br/>
-                                이 플랫폼을 누가 설계하고 통제하느냐가 펀드의 수익률과 기업의 밸류에이션을 결정합니다. 기술 도입이 아닌 '조직의 룰'을 재설계하는 일이기에, 전사적 밸류체인을 조율하는 <span className="font-extrabold text-black bg-[#f4f4f5] px-2 py-0.5 ml-1 leading-none tracking-tight">[기획추진센터]</span>가 이 혁신의 운전대를 잡아야만 합니다.
+                                이 플랫폼을 누가 설계하고 통제하느냐가 향후 대체투자 운용사의 핵심 경쟁력이 됩니다. 단순한 IT 시스템의 도입이 아닌, 전사적 밸류체인을 하나로 묶는 <span className="font-extrabold text-[#1d1d1f] underline decoration-2 underline-offset-4">통합 데이터 거버넌스의 확립</span>이 필수적인 시점입니다.
                             </>
                         ) : (
                             <>
                                 In the global capital market, AI is no longer a simple operational tool. It is a massive platform war to build a 'Moat' by centralizing proprietary data.<br/><br/>
-                                Who designs and controls this platform determines fund returns and corporate valuation. Because it is about redesigning the 'rules of the organization' rather than mere technology adoption, the <span className="font-extrabold text-black bg-[#f4f4f5] px-2 py-0.5 ml-1 leading-none tracking-tight">[Strategic Planning Center]</span>, which orchestrates the enterprise value chain, must take the wheel of this innovation.
+                                Who designs and controls this platform will become the core competitive edge of alt-investment firms. It is no longer a simple IT rollout, but rather a necessity to establish an <span className="font-extrabold text-[#1d1d1f] underline decoration-2 underline-offset-4">integrated data governance</span> that unifies the enterprise value chain.
                             </>
                         )}
                     </p>
@@ -169,26 +169,26 @@ export default function Section16({ isActive }) {
                 {/* Section 3: Conclusion */}
                 <FadeInUp>
                     <div className="w-full flex flex-col items-center justify-center text-center mt-10">
-                        <span className="inline-block border border-[#1d1d1f] px-3 py-1 text-[13px] font-bold tracking-widest text-[#1d1d1f] mb-8 bg-[#f4f4f5]">
-                            THE IGIS WAY :: IFPDP
+                        <span className="inline-block border border-[#1d1d1f] px-3 py-1 text-[13px] md:text-[14px] font-bold tracking-widest text-[#1d1d1f] mb-8 bg-[#f4f4f5]">
+                            IFPDP (IGIS Fund Production Data Platform)
                         </span>
-                        <h2 className="text-[30px] md:text-[44px] font-extrabold leading-[1.3] tracking-tighter mb-10 break-keep max-w-[850px] text-[#1d1d1f]">
+                        <h2 className="text-[28px] md:text-[38px] lg:text-[44px] font-extrabold leading-[1.3] tracking-tighter mb-10 break-keep max-w-[850px] text-[#1d1d1f]">
                             {lang === 'kr' ? (
-                                <>글로벌 탑티어들의 전략은 명확합니다.<br/>"파편화된 엑셀을 버리고, 데이터를 통제하는 자사만의 통합 운영체제(OS)를 구축하라."</>
+                                <>파편화된 실무 데이터를 중앙에서 통합 통제하는<br/>이지스 자체 운영체제(OS)의 도입</>
                             ) : (
-                                <>The strategy of global top tiers is clear.<br/>"Discard fragmented spreadsheets, and build a proprietary integrated OS to control data."</>
+                                <>Introduction of an Independent IGIS OS<br/>to Centrally Integrate Fragmented Working Data</>
                             )}
                         </h2>
-                        <p className="text-[18px] md:text-[22px] text-[#1d1d1f] font-medium leading-[1.8] max-w-[800px] break-keep">
+                        <p className="text-[17px] md:text-[20px] text-[#1d1d1f] font-medium leading-[1.8] max-w-[800px] break-keep">
                             {lang === 'kr' ? (
                                 <>
-                                    이지스 리얼에셋 본부의 해답이 바로 <strong>[ IFPDP ]</strong> 입니다.<br/><br/>
-                                    기획추진센터는 글로벌 스탠다드에 입각하여, 이 거대한 플랫폼의 거버넌스를 설계하고 10단계 가치사슬을 하나로 엮어내는 전사적 <span className="font-bold bg-[#1d1d1f] text-white px-2 py-0.5 rounded-sm mx-1">조율자(Orchestrator)</span>로서 즉각적인 실행(Action)에 돌입하겠습니다.
+                                    글로벌 최고 수준의 투자 리스크 관리와 운영 효율성을 확보하기 위해서는, 실무자의 파편화된 스프레드시트를 전사 시스템으로 통합해야 합니다.<br/><br/>
+                                    <strong>IFPDP</strong>는 글로벌 스탠다드에 입각하여 이지스의 전 주기를 하나의 통합 데이터 기반 하에 통제하는 근본적인 플랫폼 솔루션입니다.
                                 </>
                             ) : (
                                 <>
-                                    The answer for IGIS Real Assets division is <strong>[ IFPDP ]</strong>.<br/><br/>
-                                    The Strategic Planning Center will construct the governance of this massive platform based on global standards, stepping in as an enterprise <span className="font-bold bg-[#1d1d1f] text-white px-2 py-0.5 rounded-sm mx-1">Orchestrator</span> to intertwine the 10-step value chain into immediate Action.
+                                    To secure world-class investment risk management and operational efficiency, fragmented worker spreadsheets must be unified into an enterprise system.<br/><br/>
+                                    <strong>IFPDP</strong> is a fundamental platform solution that controls the entire IGIS lifecycle under a single data foundation, based on global standards.
                                 </>
                             )}
                         </p>
