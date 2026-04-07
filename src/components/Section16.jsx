@@ -101,35 +101,35 @@ export default function Section16({ isActive }) {
                     </h3>
                 </FadeInUp>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-t border-l border-[#1d1d1f] mb-[150px] md:mb-[200px]">
+                <div className="flex flex-col border-t-2 border-[#1d1d1f] mb-[150px] md:mb-[200px]">
                     {[
                         {
-                            krTitle: "EQT Partners (사모펀드)\n'Motherbrain' 플랫폼",
-                            enTitle: "EQT Partners (PEF)\n'Motherbrain' Platform",
+                            krTitle: "EQT Partners (사모펀드) : 'Motherbrain' 플랫폼",
+                            enTitle: "EQT Partners (PEF) : 'Motherbrain' Platform",
                             krStrategy: "딜 소싱 및 포트폴리오 관리를 위한 자체 AI 플랫폼 '마더브레인' 구축.",
                             enStrategy: "Built an in-house AI platform 'Motherbrain' for deal sourcing and portfolio management.",
                             krImplication: "개인의 인맥에 의존하던 딜 발굴을 시스템화하여, 전사 데이터 기반으로 투자 의사결정을 통제하는 가장 성공적인 대체투자 AI 내재화 사례.",
                             enImplication: "Systematized deal sourcing previously reliant on personal networks, controlling investment decisions based on enterprise data—the most successful native AI case in alt-investments."
                         },
                         {
-                            krTitle: "Brookfield Asset Management\n'AI 가치 창출 오피스' 신설",
-                            enTitle: "Brookfield Asset Management\n'AI Value Creation Office'",
+                            krTitle: "Brookfield Asset Management : 'AI 가치 창출 오피스'",
+                            enTitle: "Brookfield Asset Management : 'AI Value Creation Office'",
                             krStrategy: "부동산, 인프라, PEF 등 사일로화된 부서를 통합 통제하는 'AI Value Creation Office' 신설.",
                             enStrategy: "Established 'AI Value Creation Office' to centrally control siloed divisions like Real Estate, Infra, and PEF.",
                             krImplication: "AI 도입을 전담하는 '크로스펑셔널 컨트롤 타워'를 경영진 직속으로 두어, 800개 이상의 전사 AI 프로젝트의 우선순위와 자원을 강제 재배치.",
                             enImplication: "Placed a cross-functional control tower directly under executive management to forcibly reallocate priorities and resources across 800+ enterprise AI projects."
                         },
                         {
-                            krTitle: "JLL (상업용 부동산)\n'JLL Falcon' 독자 OS 구축",
-                            enTitle: "JLL (Commercial Real Estate)\n'JLL Falcon' OS",
+                            krTitle: "JLL (상업용 부동산) : 'JLL Falcon' 독자 OS 구축",
+                            enTitle: "JLL (Commercial Real Estate) : 'JLL Falcon' OS",
                             krStrategy: "상업용 부동산 업계 최초의 자체 AI 통합 플랫폼 '팔콘' 출시.",
                             enStrategy: "Launched 'Falcon', the commercial real estate industry's first integrated in-house AI platform.",
                             krImplication: "외부 범용 AI를 쓰지 않고, 자사가 수십 년간 축적한 임대/운영/매각 '맥락 데이터'를 AI 엔진에 독점적으로 결합하여 시장 지배력 강화.",
                             enImplication: "Foregoing general external AIs, they exclusively combined decades of native leasing/operation/sale 'context data' into their AI engine to solidify market dominance."
                         },
                         {
-                            krTitle: "Goldman Sachs & Morgan Stanley\n내부 데이터 통제망",
-                            enTitle: "Goldman Sachs & Morgan Stanley\nInternal Data Control Net",
+                            krTitle: "Goldman Sachs & Morgan Stanley : 내부 데이터 통제망",
+                            enTitle: "Goldman Sachs & Morgan Stanley : Internal Data Control Net",
                             krStrategy: "프론트 오피스 업무용 자체 AI Assistant 배포 및 컴플라이언스(규제) 자동 탐지 툴 내재화.",
                             enStrategy: "Deployed proprietary AI Assistants for front-office and internalized automated compliance detection tools.",
                             krImplication: "철저한 내부 데이터 보안 규정과 권한(Role) 통제 가이드라인을 시스템에 박아넣어, 예외 관리 및 리스크 통제를 자동화.",
@@ -137,26 +137,28 @@ export default function Section16({ isActive }) {
                         }
                     ].map((item, idx) => (
                         <FadeInUp key={idx} delay={idx * 150}>
-                            <div className="flex flex-col h-full border-r border-b border-[#1d1d1f] p-8 md:p-12 bg-white hover:bg-[#f4f4f5] transition-colors duration-500">
-                                <h4 className="font-extrabold text-[20px] md:text-[24px] leading-[1.3] mb-8 whitespace-pre-line tracking-tight">
+                            <div className="flex flex-col py-10 md:py-16 border-b p-2 md:p-8 border-[#1d1d1f] hover:bg-neutral-50 transition-colors duration-500 group">
+                                <h4 className="font-extrabold text-[22px] md:text-[32px] leading-[1.3] mb-8 whitespace-pre-line tracking-tight group-hover:text-neutral-600 transition-colors duration-300">
                                     {lang === 'kr' ? item.krTitle : item.enTitle}
                                 </h4>
-                                <div className="mt-auto">
-                                    <div className="mb-6">
-                                        <div className="flex items-center mb-3">
-                                            <div className="w-[4px] h-[4px] bg-[#1d1d1f] mr-2"></div>
-                                            <span className="font-bold text-[13px] tracking-widest">{lang === 'kr' ? '전략' : 'STRATEGY'}</span>
+                                <div className="flex flex-col md:flex-row md:items-start gap-8 md:gap-16">
+                                    <div className="flex-1">
+                                        <div className="flex items-center mb-4">
+                                            <span className="font-bold text-[13px] tracking-widest uppercase border-b border-[#1d1d1f] pb-1 text-[#1d1d1f]">
+                                                {lang === 'kr' ? '전략' : 'STRATEGY'}
+                                            </span>
                                         </div>
-                                        <p className="text-[15px] md:text-[16px] font-medium text-[#1d1d1f] leading-[1.6]">
+                                        <p className="text-[16px] md:text-[18px] font-medium text-[#1d1d1f] leading-[1.7] break-keep">
                                             {lang === 'kr' ? item.krStrategy : item.enStrategy}
                                         </p>
                                     </div>
-                                    <div>
-                                        <div className="flex items-center mb-3">
-                                            <div className="w-[4px] h-[4px] bg-[#86868b] mr-2"></div>
-                                            <span className="font-bold text-[#86868b] text-[13px] tracking-widest">{lang === 'kr' ? '시사점' : 'IMPLICATION'}</span>
+                                    <div className="flex-1">
+                                        <div className="flex items-center mb-4">
+                                            <span className="font-bold text-[13px] tracking-widest uppercase border-b border-[#86868b] pb-1 text-[#86868b]">
+                                                {lang === 'kr' ? '시사점' : 'IMPLICATION'}
+                                            </span>
                                         </div>
-                                        <p className="text-[15px] md:text-[16px] text-[#555] font-normal leading-[1.6]">
+                                        <p className="text-[16px] md:text-[18px] text-[#555] font-normal leading-[1.7] break-keep">
                                             {lang === 'kr' ? item.krImplication : item.enImplication}
                                         </p>
                                     </div>
