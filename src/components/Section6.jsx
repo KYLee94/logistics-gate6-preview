@@ -130,12 +130,20 @@ export default function Section6({ isActive }) {
                                     임차인 만족도를 증가시켜 결국 <span className="text-[#fbbf24]">자산 가치를 극대화<br className="hidden md:block" />
                                     하는 중요한 도구</span>가 될 것이라고 평가하고 있습니다.
                                     <br /><br />
-                                    다만, AI 툴을 사용하기 위해서는 <span className="text-[#fbbf24]">데이터의 정리가<br className="hidden md:block" />
-                                    선행</span>되어야 하는데 아직까지 부동산 업계는 오랜 시간<br className="hidden md:block" />
+                                    다만, AI 툴을 사용하기 위해서는 데이터의 정리가<br className="hidden md:block" />
+                                    선행되어야 하는데 아직까지 부동산 업계는 오랜 시간<br className="hidden md:block" />
                                     쌓은 데이터들의 정리가 되지 않고 있습니다.
                                     <br /><br />
                                     현재까지 이런 데이터 정리를 하고 있는 회사들은<br className="hidden md:block" />
-                                    <span className="text-[#fbbf24]">글로벌 톱 5 정도</span>로 앞으로 부동산 시장에서 <span className="inline font-bold text-[#fbbf24]">데이터<br className="hidden md:block" />
+                                    글로벌 톱 5 정도로 앞으로 부동산 시장에서 <span 
+                                        className="inline font-bold text-[#fbbf24]"
+                                        style={{
+                                            backgroundImage: 'linear-gradient(transparent 90%, #fbbf24 90%, #fbbf24 100%)',
+                                            backgroundRepeat: 'no-repeat',
+                                            backgroundSize: step >= 4 ? '100% 100%' : '0% 100%',
+                                            transition: 'background-size 1.5s cubic-bezier(0.19, 1, 0.22, 1)'
+                                        }}
+                                    >데이터<br className="hidden md:block" />
                                     정리 및 분석이 가능한 회사들과 그렇지 못한 회사들의<br className="hidden md:block" />
                                     투자는 확연한 차이가 날 수 밖에 없다</span>고 보고 있습니다.”
                                 </>
