@@ -98,7 +98,7 @@ export default function Section16({ isActive }) {
 
                 {/* Sub-hero Text */}
                 <FadeInUp delay={100}>
-                    <p className="text-[19px] md:text-[21px] font-bold text-[#86868b] leading-[1.3] w-full break-keep whitespace-nowrap md:whitespace-normal">
+                    <p className="text-[19px] md:text-[21px] font-normal text-[#555] leading-[1.3] w-full break-keep whitespace-nowrap md:whitespace-normal">
                         {lang === 'kr' ? (
                             <>
                                 단순 IT 시스템 도입이 아니라 조직 전체의 데이터 거버넌스를 재설계하는 과정이므로, 비즈니스 밸류체인 전반을 이해하고<br className="hidden md:block"/>
@@ -127,10 +127,10 @@ export default function Section16({ isActive }) {
                                 >
                                     {item.title}
                                 </h3>
-                                <p className="text-[19px] md:text-[20px] font-bold text-[#555] leading-[1.3] break-keep mb-1">
+                                <p className="text-[19px] md:text-[20px] font-normal text-[#555] leading-[1.3] break-keep mb-1">
                                     {lang === 'kr' ? item.krLine1 : item.enLine1}
                                 </p>
-                                <p className="text-[19px] md:text-[20px] font-bold text-[#86868b] leading-[1.3] break-keep">
+                                <p className="text-[19px] md:text-[20px] font-normal text-[#555] leading-[1.3] break-keep">
                                     {lang === 'kr' ? item.krLine2 : item.enLine2}
                                 </p>
                             </div>
