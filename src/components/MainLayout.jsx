@@ -17,9 +17,10 @@ import Section15 from './Section15';
 import Section16 from './Section16';
 import Section17 from './Section17';
 import Section18 from './Section18';
+import Section19 from './Section19';
 
 export default function MainLayout() {
-    const slidesLength = 18; // known length
+    const slidesLength = 19; // known length
     const [currentSlide, setCurrentSlide] = useState(() => {
         // Initialize from URL hash if available (persistent reload mapping)
         const hash = window.location.hash;
@@ -32,12 +33,12 @@ export default function MainLayout() {
         return 0;
     });
 
-    const slides = [<Section1 />, <Section2 />, <Section3 />, <Section4 />, <Section5 />, <Section6 />, <Section7 />, <Section8 />, <Section9 />, <Section10 />, <Section11 />, <Section12 />, <Section13 />, <Section14 />, <Section15 />, <Section16 />, <Section17 />, <Section18 />];
+    const slides = [<Section1 />, <Section2 />, <Section3 />, <Section4 />, <Section5 />, <Section6 />, <Section7 />, <Section8 />, <Section9 />, <Section10 />, <Section11 />, <Section12 />, <Section13 />, <Section14 />, <Section15 />, <Section16 />, <Section17 />, <Section18 />, <Section19 />];
 
     const [isActionDone, setIsActionDone] = useState(false);
 
     // Animation durations mapped closely to each page's visual completion timing
-    const slideAnimationTimes = [1500, 3600, 4200, 2600, 4200, 2500, 3500, 4000, 4500, 3500, 4500, 10000, 7000, 6000, 5500, 4500, 4000, 3000];
+    const slideAnimationTimes = [1500, 3600, 4200, 2600, 4200, 2500, 3500, 4000, 4500, 3500, 4500, 10000, 7000, 6000, 5500, 4000, 4500, 4000, 3000];
 
     useEffect(() => {
         setIsActionDone(false);
