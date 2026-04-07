@@ -155,7 +155,7 @@ export default function Section9({ isActive }) {
             {/* The Pan Camera Wrapper */}
             <div 
                 className={`w-full absolute left-0 top-0 transition-transform duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)]
-                    ${step >= 4 ? 'translate-y-[-20vh] md:translate-y-[-25vh]' : 'translate-y-0'}
+                    ${step >= 4 ? 'translate-y-[-10vh] md:translate-y-[-13vh]' : 'translate-y-0'}
                 `}
             >
                 <div className="w-full flex flex-col items-center justify-start relative px-4 md:px-12 lg:px-20 pb-[20vh]">
@@ -281,8 +281,8 @@ export default function Section9({ isActive }) {
                         {/* ========================================================= */}
 
                         {/* Downward Arrow */}
-                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mt-[10px] md:mt-[20px] mb-[20px] md:mb-[30px]
-                            ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-8 scale-50 overflow-hidden max-h-0 min-h-0 m-0 p-0'}
+                        <div className={`transition-all duration-[800ms] ease-out flex justify-center mb-[20px] md:mb-[30px]
+                            ${step >= 5 ? 'opacity-100 translate-y-0 mt-[-10px] md:mt-[-35px]' : 'opacity-0 -translate-y-8 scale-50 overflow-hidden max-h-0 min-h-0 p-0 m-0'}
                         `}>
                             <svg className="w-8 h-8 md:w-10 md:h-10 text-[#1d1d1f]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
@@ -358,7 +358,7 @@ export default function Section9({ isActive }) {
                                 </div>
                                 
                                 {/* Bottom IFPDP Text for Phase 2 (Technical Solution) */}
-                                <div className={`w-full text-center mt-8 md:mt-12 transition-all duration-[1200ms] delay-[1800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 overflow-hidden max-h-0 min-h-0 m-0 p-0'}`}>
+                                <div className={`w-full text-center mt-8 md:mt-12 transition-all duration-[1200ms] delay-[1000ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8 overflow-hidden max-h-0 min-h-0 m-0 p-0'}`}>
                                     <h3 className="text-[14px] md:text-[18px] lg:text-[22px] font-medium text-[#1d1d1f] tracking-tight inline-block break-keep">
                                         {lang === 'kr' ? 'Cross Functional System and CFT 조직 구축' : 'Establishment of Cross-Functional System and CFT'}
                                     </h3>
