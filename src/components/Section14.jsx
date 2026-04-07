@@ -119,7 +119,7 @@ export default function Section14({ isActive }) {
                             {lang === 'kr' ? '핵심전제' : 'Core Premise'}
                         </h3>
                         
-                        <p className="text-[17px] md:text-[22px] lg:text-[26px] font-medium text-[#1d1d1f] leading-[1.6] break-keep max-w-[1200px] w-full px-4 md:px-0 tracking-tight">
+                        <p className="text-[17px] md:text-[22px] lg:text-[26px] font-medium text-[#1d1d1f] leading-[1.6] break-keep max-w-[1200px] w-full px-4 md:px-0 tracking-normal">
                             {lang === 'kr' ? (
                                 <>아무리 뛰어난 <strong>기술(Engine)</strong>을 도입하더라도, 이를 통제할 <strong>조직의 룰과 거버넌스(Steering Wheel)</strong>가<br className="hidden md:block" />부재하다면 플랫폼은 작동하지 않습니다.</>
                             ) : (
