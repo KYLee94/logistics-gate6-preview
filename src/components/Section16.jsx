@@ -81,7 +81,7 @@ export default function Section16({ isActive }) {
                 
                 {/* Hero Section */}
                 <FadeInUp>
-                    <h2 className="text-[28px] md:text-[38px] lg:text-[42px] font-extrabold leading-[1.4] tracking-tight mb-8 max-w-[1000px] break-keep text-[#1d1d1f]">
+                    <h2 className="text-[28px] md:text-[38px] lg:text-[42px] font-extrabold leading-[1.3] tracking-tight mb-8 w-full break-keep text-[#1d1d1f] whitespace-nowrap md:whitespace-normal">
                         {lang === 'kr' ? (
                             <>
                                 글로벌 선도 운용사들은 AI를 보조 툴이 아닌<br className="hidden md:block" />
@@ -98,7 +98,7 @@ export default function Section16({ isActive }) {
 
                 {/* Sub-hero Text */}
                 <FadeInUp delay={100}>
-                    <p className="text-[19px] md:text-[21px] font-bold text-[#86868b] leading-[1.45] max-w-[900px] break-keep">
+                    <p className="text-[19px] md:text-[21px] font-bold text-[#86868b] leading-[1.3] w-full break-keep whitespace-nowrap md:whitespace-normal">
                         {lang === 'kr' ? (
                             <>
                                 단순 IT 시스템 도입이 아니라 조직 전체의 데이터 거버넌스를 재설계하는 과정이므로, 비즈니스 밸류체인 전반을 이해하고<br className="hidden md:block"/>
@@ -113,7 +113,7 @@ export default function Section16({ isActive }) {
                 </FadeInUp>
 
                 <FadeInUp delay={200}>
-                    <div className="w-full h-[2px] bg-[#1d1d1f] mt-[58px] mb-[70px] md:mb-[90px]"></div>
+                    <div className="w-full h-[2px] bg-[#1d1d1f] mt-[68px] mb-[80px] md:mb-[100px]"></div>
                 </FadeInUp>
 
                 {/* List Section */}
@@ -127,15 +127,15 @@ export default function Section16({ isActive }) {
                                 >
                                     {item.title}
                                 </h3>
-                                <p className="text-[19px] md:text-[20px] font-bold text-[#555] leading-[1.45] break-keep mb-1">
+                                <p className="text-[19px] md:text-[20px] font-bold text-[#555] leading-[1.3] break-keep mb-1">
                                     {lang === 'kr' ? item.krLine1 : item.enLine1}
                                 </p>
-                                <p className="text-[19px] md:text-[20px] font-bold text-[#86868b] leading-[1.45] break-keep">
+                                <p className="text-[19px] md:text-[20px] font-bold text-[#86868b] leading-[1.3] break-keep">
                                     {lang === 'kr' ? item.krLine2 : item.enLine2}
                                 </p>
                             </div>
                             {idx !== lists.length - 1 && (
-                                <div className="w-full h-[1px] bg-[#1d1d1f] my-[42px]"></div>
+                                <div className="w-full h-[1px] bg-[#1d1d1f] my-[52px]"></div>
                             )}
                         </FadeInUp>
                     ))}
