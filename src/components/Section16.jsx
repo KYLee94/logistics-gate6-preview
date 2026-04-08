@@ -81,10 +81,10 @@ export default function Section16({ isActive }) {
             title: "Goldman Sachs",
             krLine1: "사내 AI 랩을 주축으로 자체 개발한 GS AI Assistant를 전 세계 직원에게 배포.",
             krLine2: "오피스 업무 시간 30% 이상 단축, 외부 유출을 막기 위해 철저히 내부 보안 규정 결합된 프라이빗 플랫폼 형태 운영.",
-            krLine3: "\"...하지만 더 중요한 것은 상대적으로 덜 주목받는 부분입니다. 바로 골드만삭스의 독자적인 구조화된 데이터, 즉 레전드 레이어에 저장된 30년 간의 거래 내역, 가격 모델, 위험 매개변수, 거래 상대방 기록 등에 AI 추론 기술을 적용하는 것입니다. 이는 상품화되는 모델 시장에서 결코 모방할 수 없는 자산입니다. 골드만삭스는 모델 주변에 해자를 쌓는 것이 아니라, 데이터 주변에 해자를 쌓고 있는 것입니다.\"",
+            krLine3: <>"...하지만 더 중요한 것은 상대적으로 덜 주목받는 부분입니다. 바로 골드만삭스의 독자적인 구조화된 데이터, 즉 레전드 레이어에 저장된 30년 간의 거래 내역, 가격 모델, 위험 매개변수, 거래 상대방 기록 등에 AI 추론 기술을 적용하는 것입니다. 이는 상품화되는 모델 시장에서 결코 모방할 수 없는 자산입니다. <span className="bg-[#ffeb3b] text-[#1d1d1f]">골드만삭스는 모델 주변에 해자를 쌓는 것이 아니라, 데이터 주변에 해자를 쌓고 있는 것입니다."</span></>,
             enLine1: "Distributed their proprietary 'GS AI Assistant', developed by the internal AI lab, to employees worldwide.",
             enLine2: "Reduced office work time by over 30%, operating as a private platform tightly integrated with internal security regulations to prevent leaks.",
-            enLine3: "\"...But what's more important is the relatively less highlighted aspect. It is the application of AI inference technology to Goldman Sachs' proprietary structured data—namely, 30 years of transaction history, pricing models, risk parameters, and counterparty records stored in the Legend layer. This is an asset that can never be replicated in the commoditized model market. Goldman Sachs is not building a moat around models, but building a moat around data.\"",
+            enLine3: <>"...But what's more important is the relatively less highlighted aspect. It is the application of AI inference technology to Goldman Sachs' proprietary structured data—namely, 30 years of transaction history, pricing models, risk parameters, and counterparty records stored in the Legend layer. This is an asset that can never be replicated in the commoditized model market. <span className="bg-[#ffeb3b] text-[#1d1d1f]">Goldman Sachs is not building a moat around models, but building a moat around data."</span></>,
             link: "https://bankersmagazine.com/ai-banking/articles/goldman-ai-architecture/"
         },
         {
@@ -160,7 +160,11 @@ export default function Section16({ isActive }) {
                 {/* List Section */}
                 <div className="flex flex-col mb-[120px] md:mb-[180px]">
                     {lists.map((item, idx) => (
-                        <FadeInUp key={idx} delay={200 + idx * 150}>
+                        <div 
+                            key={idx} 
+                            className={`flex flex-col transition-all duration-1000 ${isActive ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`} 
+                            style={{ transitionDelay: `${400 + idx * 150}ms`, transitionTimingFunction: 'cubic-bezier(0.19,1,0.22,1)' }}
+                        >
                             <div className="flex flex-col">
                                 <a 
                                     href={item.link} 
@@ -190,7 +194,7 @@ export default function Section16({ isActive }) {
                                     {lang === 'kr' ? item.krLine2 : item.enLine2}
                                 </p>
                                 {(item.krLine3 || item.enLine3) && (
-                                    <div className="bg-[#1d1d1f] text-white p-6 md:p-8 mt-6 shadow-sm selection:bg-[#ffeb3b] selection:text-[#1d1d1f]">
+                                    <div className="bg-[#1d1d1f] text-white p-6 md:p-8 mt-6 shadow-sm">
                                         <p className="text-[17px] md:text-[19px] font-medium leading-[1.65] break-keep">
                                             {lang === 'kr' ? item.krLine3 : item.enLine3}
                                         </p>
@@ -200,7 +204,7 @@ export default function Section16({ isActive }) {
                             {idx !== lists.length - 1 && (
                                 <div className="w-full h-[1px] bg-[#1d1d1f] my-[52px]"></div>
                             )}
-                        </FadeInUp>
+                        </div>
                     ))}
                 </div>
 
