@@ -13,7 +13,7 @@ export default function Section14({ isActive }) {
 
         let timers = [];
         
-        timers.push(setTimeout(() => setStep(1), 500));  // Vertical Line
+        timers.push(setTimeout(() => setStep(1), 150));  // Vertical Line
         timers.push(setTimeout(() => setStep(2), 1200)); // Titles and bodies
         timers.push(setTimeout(() => setStep(3), 2800)); // Bottom Horizontal Line
         timers.push(setTimeout(() => setStep(4), 3200)); // Core Premise 
@@ -32,7 +32,7 @@ export default function Section14({ isActive }) {
                     
                     {/* Center Vertical Divider Line */}
                     <div 
-                        className={`hidden md:block absolute left-1/2 top-0 bottom-0 w-[1px] bg-black/15 origin-top transition-transform duration-[1500ms] ease-[cubic-bezier(0.85,0,0.15,1)] ${step >= 1 ? 'scale-y-100' : 'scale-y-0'}`}
+                        className={`hidden md:block absolute left-1/2 top-0 bottom-0 w-[1px] bg-black/15 origin-top transition-transform duration-[900ms] ease-[cubic-bezier(0.7,0,0.3,1)] ${step >= 1 ? 'scale-y-100' : 'scale-y-0'}`}
                     ></div>
 
                     {/* Left Box (The Engine) */}
