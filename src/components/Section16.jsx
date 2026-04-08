@@ -172,7 +172,7 @@ export default function Section16({ isActive }) {
                                         className="text-[32px] md:text-[40px] leading-[1.2] text-[#1d1d1f] tracking-tight font-medium"
                                         style={{ fontFamily: "'Sanomat Wp', 'Sanomat Web', 'Sanomat', sans-serif" }}
                                     >
-                                        <span className="relative pb-[4px] after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[2px] after:bottom-[4px] after:left-0 after:bg-current after:origin-bottom-left after:transition-transform after:duration-300 group-hover:after:scale-x-100">
+                                        <span className="relative pb-[4px] after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[2px] after:bottom-[8px] after:left-0 after:bg-current after:origin-bottom-left after:transition-transform after:duration-300 group-hover:after:scale-x-100">
                                             {item.title}
                                         </span>
                                     </h3>
@@ -190,7 +190,7 @@ export default function Section16({ isActive }) {
                                     {lang === 'kr' ? item.krLine2 : item.enLine2}
                                 </p>
                                 {(item.krLine3 || item.enLine3) && (
-                                    <div className="bg-[#1d1d1f] text-white p-6 md:p-8 mt-6 shadow-sm">
+                                    <div className="bg-[#1d1d1f] text-white p-6 md:p-8 mt-6 shadow-sm selection:bg-[#ffeb3b] selection:text-[#1d1d1f]">
                                         <p className="text-[17px] md:text-[19px] font-medium leading-[1.65] break-keep">
                                             {lang === 'kr' ? item.krLine3 : item.enLine3}
                                         </p>
