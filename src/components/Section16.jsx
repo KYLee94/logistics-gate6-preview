@@ -33,13 +33,60 @@ const FadeInUp = ({ children, delay = 0 }) => {
 export default function Section16({ isActive }) {
     const { lang } = useLanguage();
     
+    // Internal step logic for interactive text popup
+    const [step, setStep] = useState(0);
+    const stepRef = useRef(0);
+    stepRef.current = step;
+
     // reset scroll to top on mount when active
     const scrollRef = useRef(null);
     useEffect(() => {
         if (isActive && scrollRef.current) {
             scrollRef.current.scrollTop = 0;
+            setStep(0);
         }
     }, [isActive]);
+
+    useEffect(() => {
+        if (!isActive) {
+            setStep(0);
+            return;
+        }
+
+        const handleSlideAction = (e) => {
+            if (e.type === 'appSlideNext') {
+                if (stepRef.current === 0) {
+                    e.preventDefault();
+                    setStep(1);
+                }
+            } else if (e.type === 'appSlidePrev') {
+                if (stepRef.current === 1) {
+                    e.preventDefault();
+                    setStep(0);
+                }
+            }
+        };
+
+        window.addEventListener('appSlideNext', handleSlideAction);
+        window.addEventListener('appSlidePrev', handleSlideAction);
+
+        return () => { 
+            window.removeEventListener('appSlideNext', handleSlideAction);
+            window.removeEventListener('appSlidePrev', handleSlideAction);
+        };
+    }, [isActive]);
+
+    // Auto-scroll to newly revealed text when step == 1
+    useEffect(() => {
+        if (step === 1 && scrollRef.current) {
+            // slight delay to let the DOM paint the height calculation reliably
+            setTimeout(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
+                }
+            }, 50);
+        }
+    }, [step]);
 
     const lists = [
         {
@@ -141,26 +188,26 @@ export default function Section16({ isActive }) {
                     ))}
                 </div>
 
-                {/* Conclusion Section */}
-                <FadeInUp delay={300}>
-                    <div className="w-full flex flex-col mb-[100px] border-t-2 border-[#1d1d1f] pt-10 mt-[-40px]">
-                        <p className="text-[19px] md:text-[21px] font-bold text-[#1d1d1f] leading-[1.65] max-w-[1000px] break-keep">
-                            {lang === 'kr' ? (
-                                <>
-                                    과거의 경쟁력이 단순한 '자본력'에 있었다면, 미래의 경쟁력은 '데이터가 자본을 끌어당기는 구조'에 있습니다.<br/><br/>
-                                    보유 자산과 운영 데이터의 유기적 연결은 결국 리스크를 낮추고 예측 가능성을 높여, 압도적으로 유리한 파이낸싱과 우량 자산 매입의 선순환을 완성합니다.<br/><br/>
-                                    글로벌 선도 기업들과 마찬가지로, 이지스 역시 전사 데이터를 통합하여 자본의 한계를 넘어서는 독자적인 운영체제(OS)를 구축해야 합니다.
-                                </>
-                            ) : (
-                                <>
-                                    If past competitiveness lay in mere 'capital power', future competitiveness lies in a 'structure where data attracts capital'.<br/><br/>
-                                    The organic connection of owned assets and operational data ultimately lowers risk and increases predictability, completing a virtuous cycle of overwhelmingly advantageous financing and prime asset acquisition.<br/><br/>
-                                    Like global leading firms, IGIS must also build an independent operating system (OS) that transcends the limits of capital by integrating enterprise-wide data.
-                                </>
-                            )}
-                        </p>
-                    </div>
-                </FadeInUp>
+                {/* Expandable Conclusion Section Triggered by User Interaction */}
+                <div 
+                    className={`w-full flex flex-col mb-[100px] border-t-2 border-[#1d1d1f] pt-10 mt-[-40px] transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12 pointer-events-none'}`}
+                >
+                    <p className="text-[19px] md:text-[21px] font-bold text-[#1d1d1f] leading-[1.65] max-w-[1000px] break-keep">
+                        {lang === 'kr' ? (
+                            <>
+                                데이터의 연결과 최적화는 가장 정밀한 '리스크 매니지먼트'이자, 강력한 '자본 조달의 무기'가 됩니다.<br/><br/>
+                                파편화된 경험을 하나의 데이터 프로토콜로 통합할 때, 우리는 시장의 변동성과 잠재적 위험을 시스템적으로 선제 통제할 수 있습니다.<br/><br/>
+                                낮아진 리스크는 곧 최적의 파이낸싱 금리 확보와 차별화된 우량 자산 매입으로 직결되며, 이지스는 글로벌 선도 기업들과 같이 자본의 한계를 넘어서는 독자적인 운영체제(OS)를 구축해야 합니다.
+                            </>
+                        ) : (
+                            <>
+                                The connection and optimization of data become the most precise 'risk management' and a powerful 'weapon for capital sourcing'.<br/><br/>
+                                When fragmented experiences are integrated into a single data protocol, we can systematically and preemptively control market volatility and potential risks.<br/><br/>
+                                Lowered risk directly translates to securing optimal financing rates and acquiring differentiated prime assets, meaning IGIS, like global leading firms, must build an independent operating system (OS) that transcends the limits of capital.
+                            </>
+                        )}
+                    </p>
+                </div>
 
             </div>
 
