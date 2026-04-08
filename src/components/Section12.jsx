@@ -16,18 +16,18 @@ export default function Section12({ isActive }) {
         let timers = [];
         
         // 1. Chapter text appears (like smoke) over solid black screen
-        timers.push(setTimeout(() => setChapterStep(1), 100));
+        timers.push(setTimeout(() => setChapterStep(1), 50));
         
-        // 2. The solid black background AND the chapter text slash out to the left quickly
-        timers.push(setTimeout(() => setChapterStep(2), 1500));
+        // 2. Fast exit timing for Chapter 2 text
+        timers.push(setTimeout(() => setChapterStep(2), 1000));
 
-        // 3. Staggered fade-in animations for main text (살짝 텀을 두어 배경을 감상하게 함)
-        timers.push(setTimeout(() => setStep(1), 2200));  // Heading
-        timers.push(setTimeout(() => setStep(2), 2400));  // Quote
-        timers.push(setTimeout(() => setStep(3), 2600));  // Paragraph 1
-        timers.push(setTimeout(() => setStep(4), 2800));  // Paragraph 2 (Bold)
-        timers.push(setTimeout(() => setStep(5), 3000));  // Paragraph 3
-        timers.push(setTimeout(() => setStep(6), 4200));  // Underline Highlight & Context Popping (드라마틱한 간격 추가)
+        // 3. Staggered fade-in animations for main text
+        timers.push(setTimeout(() => setStep(1), 1600));  // Heading
+        timers.push(setTimeout(() => setStep(2), 1800));  // Quote
+        timers.push(setTimeout(() => setStep(3), 2000));  // Paragraph 1
+        timers.push(setTimeout(() => setStep(4), 2200));  // Paragraph 2 (Bold)
+        timers.push(setTimeout(() => setStep(5), 2400));  // Paragraph 3
+        timers.push(setTimeout(() => setStep(6), 3400));  // Underline Highlight & Context Popping (드라마틱한 간격 추가)
         
         return () => timers.forEach(t => clearTimeout(t));
     }, [isActive]);
@@ -36,9 +36,9 @@ export default function Section12({ isActive }) {
         <section className="relative section w-full h-full flex flex-col justify-center items-center overflow-hidden bg-black">
             
             {/* Chapter Intro Overlay - Starts Solid Black First */}
-            <div className={`absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black transition-all duration-[900ms] ease-[cubic-bezier(0.7,0,0.3,1)] pointer-events-none ${chapterStep <= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-[100vw]'}`}>
+            <div className={`absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black transition-opacity duration-[800ms] ease-out pointer-events-none ${chapterStep <= 1 ? 'opacity-100' : 'opacity-0'}`}>
                 <div 
-                    className={`flex flex-col items-center text-center space-y-4 transition-all duration-[1000ms] ease-out ${chapterStep === 0 ? 'opacity-0 blur-sm scale-95' : 'opacity-100 blur-none scale-100'}`}
+                    className={`flex flex-col items-center text-center space-y-4 transition-all ${chapterStep === 0 ? 'opacity-0 blur-sm scale-95 duration-[1000ms] ease-out translate-x-0' : chapterStep === 1 ? 'opacity-100 blur-none scale-100 duration-[1000ms] ease-out translate-x-0' : 'opacity-0 -translate-x-[50vw] duration-[400ms] ease-[cubic-bezier(0.5,0,0.1,1)]'}`}
                     style={{ 
                         fontFamily: "'Sanomat Wp', 'Sanomat Web', 'Sanomat', sans-serif",
                         WebkitFontSmoothing: "antialiased",
