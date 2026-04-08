@@ -166,7 +166,7 @@ export default function Section15({ isActive }) {
                                         }}
                                     >
                                         <div className="origin-center" style={{ animation: 'orbitSpinReverse 60s linear infinite' }}>
-                                            <div className="text-[16px] font-bold text-black whitespace-nowrap leading-none tracking-tight" 
+                                            <div className="text-[13px] lg:text-[15px] font-bold text-[#1d1d1f] whitespace-nowrap leading-none tracking-tight bg-white/90 backdrop-blur-sm border border-gray-200/80 px-4 py-2 lg:px-5 lg:py-2.5 rounded-[10px] shadow-[0_4px_16px_rgba(0,0,0,0.06)]" 
                                                  style={{ transform: 'rotate(-45deg)' }}>
                                                 {node}
                                             </div>
