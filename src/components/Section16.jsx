@@ -217,7 +217,7 @@ export default function Section16({ isActive }) {
 
             {/* Expandable Conclusion Section Triggered by User Interaction (Matching 4p, 6p Modal Overlay) */}
             <div 
-                className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-sm transition-all duration-[800ms] ${step >= 1 ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/[.88] backdrop-blur-sm transition-all duration-[800ms] ${step >= 1 ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                 onClick={() => setStep(0)}
             >
                 <div 
