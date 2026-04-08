@@ -38,10 +38,10 @@ export default function Section16({ isActive }) {
                 `}
             </style>
 
-            <div className="w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-[660px_1fr] gap-10 lg:gap-16 items-center h-full pt-[60px] md:pt-0">
+            <div className="w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1600px] mx-auto grid grid-cols-1 lg:grid-cols-[720px_1fr] gap-10 lg:gap-16 items-center h-full pt-[60px] md:pt-0">
                 
                 {/* LEFT: Dry, authoritative text (Matched to User Image exactly) */}
-                <div className={`relative z-20 w-full max-w-[660px] -mt-[30px] lg:-mt-[110px] transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 2 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
+                <div className={`relative z-20 w-full max-w-[720px] -mt-[30px] lg:-mt-[110px] transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 2 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-12'}`}>
                     
                     <span className="text-black font-bold text-[14px] md:text-[15px] tracking-tight mb-3 block">
                         Delegation of Authority
@@ -87,7 +87,7 @@ export default function Section16({ isActive }) {
                 </div>
 
                 {/* RIGHT: iPad Image Asset */}
-                <div className={`relative w-full flex justify-end lg:justify-start lg:-ml-[150px] items-center transition-all duration-[1500ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-32'}`}>
+                <div className={`relative w-full flex justify-end lg:justify-start lg:-ml-[90px] items-center transition-all duration-[1500ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-32'}`}>
                     <img 
                         src={`${import.meta.env.BASE_URL}ipad.jpg`}
                         alt="iPad Dashboard Graphic" 
