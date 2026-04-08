@@ -19,15 +19,15 @@ export default function Section12({ isActive }) {
         timers.push(setTimeout(() => setChapterStep(1), 50));
         
         // 2. Fast exit timing for Chapter 2 text
-        timers.push(setTimeout(() => setChapterStep(2), 1000));
+        timers.push(setTimeout(() => setChapterStep(2), 1300));
 
         // 3. Staggered fade-in animations for main text
-        timers.push(setTimeout(() => setStep(1), 1600));  // Heading
-        timers.push(setTimeout(() => setStep(2), 1800));  // Quote
-        timers.push(setTimeout(() => setStep(3), 2000));  // Paragraph 1
-        timers.push(setTimeout(() => setStep(4), 2200));  // Paragraph 2 (Bold)
-        timers.push(setTimeout(() => setStep(5), 2400));  // Paragraph 3
-        timers.push(setTimeout(() => setStep(6), 3400));  // Underline Highlight & Context Popping (드라마틱한 간격 추가)
+        timers.push(setTimeout(() => setStep(1), 1900));  // Heading
+        timers.push(setTimeout(() => setStep(2), 2100));  // Quote
+        timers.push(setTimeout(() => setStep(3), 2300));  // Paragraph 1
+        timers.push(setTimeout(() => setStep(4), 2500));  // Paragraph 2 (Bold)
+        timers.push(setTimeout(() => setStep(5), 2700));  // Paragraph 3
+        timers.push(setTimeout(() => setStep(6), 3700));  // Underline Highlight & Context Popping (드라마틱한 간격 추가)
         
         return () => timers.forEach(t => clearTimeout(t));
     }, [isActive]);
@@ -45,10 +45,10 @@ export default function Section12({ isActive }) {
                         textRendering: "optimizeLegibility",
                     }}
                 >
-                    <span className="text-[30px] md:text-[50px] text-gray-400 font-light tracking-wide duration-[1000ms] transition-all">
+                    <span className="text-[26px] md:text-[46px] text-gray-400 font-light tracking-wide duration-[1000ms] transition-all">
                         Chapter 2.
                     </span>
-                    <span className="text-[50px] md:text-[70px] text-white font-medium tracking-tight duration-1000 transition-all">
+                    <span className="text-[54px] md:text-[74px] text-white font-medium tracking-tight duration-1000 transition-all">
                         The Steering Wheel
                     </span>
                 </div>
