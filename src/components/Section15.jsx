@@ -75,7 +75,7 @@ export default function Section15({ isActive }) {
                     </span>
                     
                     <h2 
-                        className={`text-[32px] md:text-[44px] lg:text-[48px] font-bold leading-[1.2] tracking-tight text-[#1d1d1f] mb-3 transition-all duration-1000 ease-out delay-[100ms] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`} 
+                        className={`text-[36px] md:text-[48px] lg:text-[52px] font-bold leading-[1.2] tracking-tight text-[#1d1d1f] mb-3 transition-all duration-1000 ease-out delay-[100ms] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`} 
                     >
                         {lang === 'kr' ? 'CFT 전략의 조향장치' : 'Steering Wheel of CFT Strategy'}
                     </h2>
