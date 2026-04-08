@@ -81,7 +81,7 @@ export default function Section16({ isActive }) {
                 
                 {/* Hero Section */}
                 <FadeInUp>
-                    <h2 className="text-[28px] md:text-[38px] lg:text-[42px] font-extrabold leading-[1.3] tracking-tight mb-8 w-full break-keep text-[#1d1d1f] whitespace-nowrap md:whitespace-normal">
+                    <h2 className="text-[26px] md:text-[36px] lg:text-[40px] font-extrabold leading-[1.3] tracking-tight mb-8 w-full break-keep text-[#1d1d1f] whitespace-nowrap md:whitespace-normal">
                         {lang === 'kr' ? (
                             <>
                                 글로벌 선도 운용사들은 AI를 보조 툴이 아닌<br className="hidden md:block" />
@@ -140,6 +140,27 @@ export default function Section16({ isActive }) {
                         </FadeInUp>
                     ))}
                 </div>
+
+                {/* Conclusion Section */}
+                <FadeInUp delay={300}>
+                    <div className="w-full flex flex-col mb-[100px] border-t-2 border-[#1d1d1f] pt-10 mt-[-40px]">
+                        <p className="text-[19px] md:text-[21px] font-bold text-[#1d1d1f] leading-[1.65] max-w-[1000px] break-keep">
+                            {lang === 'kr' ? (
+                                <>
+                                    과거의 경쟁력이 단순한 '자본력'에 있었다면, 미래의 경쟁력은 '데이터가 자본을 끌어당기는 구조'에 있습니다.<br/><br/>
+                                    보유 자산과 운영 데이터의 유기적 연결은 결국 리스크를 낮추고 예측 가능성을 높여, 압도적으로 유리한 파이낸싱과 우량 자산 매입의 선순환을 완성합니다.<br/><br/>
+                                    글로벌 선도 기업들과 마찬가지로, 이지스 역시 전사 데이터를 통합하여 자본의 한계를 넘어서는 독자적인 운영체제(OS)를 구축해야 합니다.
+                                </>
+                            ) : (
+                                <>
+                                    If past competitiveness lay in mere 'capital power', future competitiveness lies in a 'structure where data attracts capital'.<br/><br/>
+                                    The organic connection of owned assets and operational data ultimately lowers risk and increases predictability, completing a virtuous cycle of overwhelmingly advantageous financing and prime asset acquisition.<br/><br/>
+                                    Like global leading firms, IGIS must also build an independent operating system (OS) that transcends the limits of capital by integrating enterprise-wide data.
+                                </>
+                            )}
+                        </p>
+                    </div>
+                </FadeInUp>
 
             </div>
 
