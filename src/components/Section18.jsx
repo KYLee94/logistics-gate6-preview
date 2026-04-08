@@ -35,9 +35,14 @@ export default function Section17({ isActive }) {
                     <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-center pb-[18vh]">
                         
                         {/* Title */}
-                        <h2 className={`text-[46px] md:text-[60px] lg:text-[84px] font-bold text-white tracking-tighter leading-none mb-6 md:mb-10 transition-all duration-[1000ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${isZooming ? 'opacity-0 scale-[1.5] blur-md' : (step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-6 blur-[6px]')}`}>
+                        <h2 className={`text-[46px] md:text-[60px] lg:text-[84px] font-bold text-white tracking-tighter leading-none mb-3 md:mb-5 transition-all duration-[1000ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${isZooming ? 'opacity-0 scale-[1.5] blur-md' : (step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-6 blur-[6px]')}`}>
                             Inside IFPDP
                         </h2>
+
+                        {/* Subtitle */}
+                        <p className={`text-[16px] md:text-[20px] lg:text-[24px] text-gray-300 font-medium tracking-tight mb-8 md:mb-12 transition-all duration-[1000ms] ease-[cubic-bezier(0.16,1,0.3,1)] delay-[100ms] transform ${isZooming ? 'opacity-0 scale-[1.5] blur-md' : (step >= 2 ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-6 blur-[6px]')}`}>
+                            {lang === 'kr' ? "이제 본 AI 플랫폼의 주요 기능을 직접 체험해 보십시오." : "Experience the core features of the AI platform firsthand."}
+                        </p>
 
                         {/* Stylish Button */}
                         <button 
