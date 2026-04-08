@@ -16,18 +16,18 @@ export default function Section12({ isActive }) {
         let timers = [];
         
         // 1. Chapter text appears (like smoke) over solid black screen
-        timers.push(setTimeout(() => setChapterStep(1), 200));
+        timers.push(setTimeout(() => setChapterStep(1), 100));
         
-        // 2. The solid black background AND the chapter text fade out together, revealing the car
-        timers.push(setTimeout(() => setChapterStep(2), 2200));
+        // 2. The solid black background AND the chapter text slash out to the left quickly
+        timers.push(setTimeout(() => setChapterStep(2), 1500));
 
         // 3. Staggered fade-in animations for main text (살짝 텀을 두어 배경을 감상하게 함)
-        timers.push(setTimeout(() => setStep(1), 4500));  // Heading
-        timers.push(setTimeout(() => setStep(2), 4900));  // Quote
-        timers.push(setTimeout(() => setStep(3), 5300));  // Paragraph 1
-        timers.push(setTimeout(() => setStep(4), 5700));  // Paragraph 2 (Bold)
-        timers.push(setTimeout(() => setStep(5), 6100));  // Paragraph 3
-        timers.push(setTimeout(() => setStep(6), 8000));  // Underline Highlight & Context Popping (드라마틱한 간격 추가)
+        timers.push(setTimeout(() => setStep(1), 2200));  // Heading
+        timers.push(setTimeout(() => setStep(2), 2400));  // Quote
+        timers.push(setTimeout(() => setStep(3), 2600));  // Paragraph 1
+        timers.push(setTimeout(() => setStep(4), 2800));  // Paragraph 2 (Bold)
+        timers.push(setTimeout(() => setStep(5), 3000));  // Paragraph 3
+        timers.push(setTimeout(() => setStep(6), 4200));  // Underline Highlight & Context Popping (드라마틱한 간격 추가)
         
         return () => timers.forEach(t => clearTimeout(t));
     }, [isActive]);
@@ -36,16 +36,16 @@ export default function Section12({ isActive }) {
         <section className="relative section w-full h-full flex flex-col justify-center items-center overflow-hidden bg-black">
             
             {/* Chapter Intro Overlay - Starts Solid Black First */}
-            <div className={`absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black transition-opacity duration-[2000ms] ease-in-out pointer-events-none ${chapterStep <= 1 ? 'opacity-100' : 'opacity-0'}`}>
+            <div className={`absolute inset-0 z-[100] flex flex-col items-center justify-center bg-black transition-all duration-[900ms] ease-[cubic-bezier(0.7,0,0.3,1)] pointer-events-none ${chapterStep <= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-[100vw]'}`}>
                 <div 
-                    className={`flex flex-col items-center text-center space-y-4 transition-all duration-[2000ms] ease-in-out ${chapterStep === 0 ? 'opacity-0 blur-lg scale-95' : chapterStep === 1 ? 'opacity-100 blur-none scale-100' : 'opacity-0 blur-lg scale-[1.02]'}`}
+                    className={`flex flex-col items-center text-center space-y-4 transition-all duration-[1000ms] ease-out ${chapterStep === 0 ? 'opacity-0 blur-sm scale-95' : 'opacity-100 blur-none scale-100'}`}
                     style={{ 
                         fontFamily: "'Sanomat Wp', 'Sanomat Web', 'Sanomat', sans-serif",
                         WebkitFontSmoothing: "antialiased",
                         textRendering: "optimizeLegibility",
                     }}
                 >
-                    <span className="text-[30px] md:text-[50px] text-gray-400 font-light tracking-wide duration-1000 transition-all">
+                    <span className="text-[30px] md:text-[50px] text-gray-400 font-light tracking-wide duration-[1000ms] transition-all">
                         Chapter 2.
                     </span>
                     <span className="text-[50px] md:text-[70px] text-white font-medium tracking-tight duration-1000 transition-all">
