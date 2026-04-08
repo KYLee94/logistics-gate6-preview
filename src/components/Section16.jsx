@@ -224,20 +224,24 @@ export default function Section16({ isActive }) {
                     className={`flex flex-col items-start justify-center text-left p-6 md:p-12 transition-transform duration-[800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'scale-100 translate-y-0' : 'scale-95 translate-y-12'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <p className="text-[20px] md:text-[26px] lg:text-[32px] font-bold text-left tracking-tight text-white leading-[1.6] max-w-[1200px] break-keep">
+                    <p className="text-[26px] md:text-[32px] lg:text-[38px] font-bold text-left tracking-tight text-white leading-[1.6] max-w-[1200px] break-keep">
                         {lang === 'kr' ? (
                             <>
-                                데이터의 연결과 최적화는 가장 정밀한 <span className="text-[#3b82f6]">'리스크 매니지먼트'</span>이자, 강력한 <span className="text-[#3b82f6]">'자본 조달의 무기'</span>가 됩니다.<br/><br/>
-                                <span className="inline-block text-gray-300 font-normal text-[17px] md:text-[22px] lg:text-[26px] leading-[1.4]">
-                                파편화된 경험을 하나의 프로토콜로 통합할 때, 우리는 시장의 변동성과 잠재적 위험을 시스템으로 선제 통제할 수 있습니다.<br/>
-                                낮아진 리스크는 곧 최적의 파이낸싱 금리 확보와 차별화된 우량 자산 매입으로 직결됩니다.<br/>
-                                내부 데이터의 자산화와 시스템적 리스크 통제 체계(OS) 구축은 시장 지배력을 유지하기 위한 필수 전략입니다.
+                                데이터의 연결과 최적화는 가장 정밀한 <span className="text-[#3b82f6]">'리스크 매니지먼트'</span>이자,<br className="hidden md:block"/>
+                                강력한 <span className="text-[#3b82f6]">'자본 조달의 무기'</span>가 됩니다.<br/><br/>
+                                <span className="inline-block text-gray-300 font-normal text-[23px] md:text-[28px] lg:text-[32px] leading-[1.6]">
+                                파편화된 경험을 하나의 프로토콜로 통합할 때, <br className="hidden md:block"/>
+                                우리는 시장의 변동성과 잠재적 위험을 시스템으로 선제 통제할 수 있습니다.<br/><br/>
+                                낮아진 리스크는 곧 최적의 파이낸싱 금리 확보와 <br className="hidden md:block"/>
+                                차별화된 우량 자산 매입으로 직결됩니다.<br/><br/>
+                                내부 데이터의 자산화와 시스템적 리스크 통제 체계(OS) 구축은<br className="hidden md:block"/>
+                                시장 지배력을 유지하기 위한 필수 전략입니다.
                                 </span>
                             </>
                         ) : (
                             <>
                                 The connection and optimization of data become the most precise <span className="text-[#3b82f6]">'risk management'</span> and a powerful <span className="text-[#3b82f6]">'weapon for capital sourcing'</span>.<br/><br/>
-                                <span className="inline-block text-gray-300 font-normal text-[17px] md:text-[22px] lg:text-[24px] leading-[1.4]">
+                                <span className="inline-block text-gray-300 font-normal text-[23px] md:text-[28px] lg:text-[32px] leading-[1.6]">
                                 When fragmented experiences are integrated into a single protocol, we can preemptively control market volatility and potential risks through a system.<br/>
                                 Lowered risk directly translates to securing optimal financing rates and acquiring differentiated prime assets.<br/>
                                 Capitalizing internal data and building a systemic risk control framework (OS) are essential strategies to maintain market dominance.
