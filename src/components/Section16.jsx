@@ -217,14 +217,14 @@ export default function Section16({ isActive }) {
 
             {/* Expandable Conclusion Section Triggered by User Interaction (Matching 4p, 6p Modal Overlay) */}
             <div 
-                className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm transition-all duration-[800ms] ${step >= 1 ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-sm transition-all duration-[800ms] ${step >= 1 ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
                 onClick={() => setStep(0)}
             >
                 <div 
                     className={`flex flex-col items-start justify-center text-left p-6 md:p-12 transition-transform duration-[800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'scale-100 translate-y-0' : 'scale-95 translate-y-12'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <p className="text-[38px] md:text-[44px] lg:text-[50px] font-bold text-left tracking-tight text-white leading-[1.4] max-w-[1200px] break-keep">
+                    <p className="text-[42px] md:text-[48px] lg:text-[54px] font-bold text-left tracking-tight text-white leading-[1.35] max-w-[1200px] break-keep">
                         {lang === 'kr' ? (
                             <>
                                 데이터의 연결과 최적화는<br className="hidden md:block"/>
