@@ -176,27 +176,42 @@ export default function Section16({ isActive }) {
                     ))}
                 </div>
 
-                {/* Expandable Conclusion Section Triggered by User Interaction */}
+            </div>
+
+            {/* Bottom Gradient Overlay (Lightweight text blocker for navigation) */}
+            <div 
+                className={`fixed bottom-0 left-0 w-full h-[140px] bg-gradient-to-t from-white via-white/90 to-transparent pointer-events-none z-[40] transition-opacity duration-1000 ${isActive ? 'opacity-100' : 'opacity-0'}`}
+            ></div>
+
+            {/* Expandable Conclusion Section Triggered by User Interaction (Matching 4p, 6p Modal Overlay) */}
+            <div 
+                className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/85 backdrop-blur-sm transition-all duration-[800ms] ${step >= 1 ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+                onClick={() => setStep(0)}
+            >
                 <div 
-                    className={`w-full flex flex-col mb-[100px] border-t-2 border-[#1d1d1f] pt-10 mt-[-40px] transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12 pointer-events-none'}`}
+                    className={`flex flex-col items-center justify-center text-center p-6 md:p-12 transition-transform duration-[800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 1 ? 'scale-100 translate-y-0' : 'scale-95 translate-y-12'}`}
+                    onClick={(e) => e.stopPropagation()}
                 >
-                    <p className="text-[19px] md:text-[21px] font-bold text-[#1d1d1f] leading-[1.65] max-w-[1000px] break-keep">
+                    <p className="text-[20px] md:text-[26px] lg:text-[32px] font-bold text-center tracking-tight text-white leading-[1.6] max-w-[1200px] break-keep">
                         {lang === 'kr' ? (
                             <>
-                                데이터의 연결과 최적화는 가장 정밀한 '리스크 매니지먼트'이자, 강력한 '자본 조달의 무기'가 됩니다.<br/><br/>
-                                파편화된 경험을 하나의 데이터 프로토콜로 통합할 때, 우리는 시장의 변동성과 잠재적 위험을 시스템적으로 선제 통제할 수 있습니다.<br/><br/>
+                                데이터의 연결과 최적화는 가장 정밀한 <span className="text-[#3b82f6]">'리스크 매니지먼트'</span>이자, 강력한 <span className="text-[#3b82f6]">'자본 조달의 무기'</span>가 됩니다.<br/><br/>
+                                <span className="text-gray-300 font-normal text-[17px] md:text-[22px] lg:text-[26px]">
+                                파편화된 경험을 하나의 데이터 프로토콜로 통합할 때, 우리는 시장의 변동성과 잠재적 위험을 시스템적으로 선제 통제할 수 있습니다.<br/>
                                 낮아진 리스크는 곧 최적의 파이낸싱 금리 확보와 차별화된 우량 자산 매입으로 직결되며, 이지스는 글로벌 선도 기업들과 같이 자본의 한계를 넘어서는 독자적인 운영체제(OS)를 구축해야 합니다.
+                                </span>
                             </>
                         ) : (
                             <>
-                                The connection and optimization of data become the most precise 'risk management' and a powerful 'weapon for capital sourcing'.<br/><br/>
-                                When fragmented experiences are integrated into a single data protocol, we can systematically and preemptively control market volatility and potential risks.<br/><br/>
+                                The connection and optimization of data become the most precise <span className="text-[#3b82f6]">'risk management'</span> and a powerful <span className="text-[#3b82f6]">'weapon for capital sourcing'</span>.<br/><br/>
+                                <span className="text-gray-300 font-normal text-[17px] md:text-[22px] lg:text-[24px]">
+                                When fragmented experiences are integrated into a single data protocol, we can systematically and preemptively control market volatility and potential risks.<br/>
                                 Lowered risk directly translates to securing optimal financing rates and acquiring differentiated prime assets, meaning IGIS, like global leading firms, must build an independent operating system (OS) that transcends the limits of capital.
+                                </span>
                             </>
                         )}
                     </p>
                 </div>
-
             </div>
 
             {/* Bottom Gradient Overlay (Lightweight text blocker for navigation) */}
