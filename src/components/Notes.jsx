@@ -31,33 +31,109 @@ export default function Notes() {
   ㄴ 이런것들을 각개 10개의 가치사슬에서 미리 구현해 놓아야 한다.`;
 
     // Regex to split by numbered headers
-    const parts = rawText.split(/(?=\n\d\.\s)/g);
+    const lowerParts = rawText.split(/(?=\n\d\.\s)/g);
+
+    const upperText = `1. 미션 수행의 목적
+전사적 데이터 취합을 효율적으로 완수하기 위해, 이를 단순 부서 업무가 아닌 '리얼에셋 부문(이철승 대표이사)의 전사 핵심 미션'으로 격상하여 추진합니다. 각 조직별 핵심 인력을 공식 미션 수행원으로 지정해 강력한 크로스펑셔널(Cross-functional) 협업 체계를 구축하며, 참여자들에게 명확한 동기부여와 실질적인 OKR 평가 성과를 부여하는 것을 최우선 목적으로 합니다.
+
+2. 내부 데이터의 취합
+1) 이미 기획추진센터 노션에 취합된 데이터
+2) 아우름 데이터
+3) 매주 주간회의때마다 이슈제기 되고 리더(이철승대표 이하) 합의로 취합할 데이터
+    - e.g. 4/8 사업그룹 미팅 지시사항 : 프로젝트마다의 설계사/시공사 다 파악해서 데이터화
+4) IFPDP 미션수행시 각 부서와의 협의에 따라 필요한 데이터셑을 합의하고 추가. 
+   - e.g. 기업마케팅 CRM 데이터, 프로젝트 별 심화데이터(브랜드 포지셔닝, 플레이스 메이킹 플랜, M6 서비스, 어메니티 공간 계획 등) 등.
+
+3. 조직적 데이터 취합의 방법론 
+- 각각의 부서간 조직장 및 실무자와 협의/합의하여 최초 등록할 프로젝트/자산에 대해 설정하고, 그들과 긴밀하게 협력하여 최초 데이터셋을 구축한다.  
+- 예상 데이터 구축 협업 부서와 실무자 
+   ㄴ 기업마케팅센터 (고아라/김민지)
+   ㄴ 투자그룹 (신용우/송기석/홍봉석)
+   ㄴ 글로벌투자그룹 (미정)
+   ㄴ 스페셜시츄에이션그룹 (미정)
+   ㄴ 사업그룹 (이수정/강순용)
+   ㄴ 디지털사업그룹 (미정/홍창의)
+   ㄴ 개발솔루션 (김대익/미정)
+   ㄴ 관리/운영 (미정)
+   ㄴ 글로벌자산관리 (미정)
+   ㄴ 리빙그룹 (미정)
+   ㄴ 리테일솔루션센터 (미정)
+   ㄴ LFC (미정)
+   ㄴ 공간솔루션센터 (미정)
+   ㄴ CM (미정)
+   -> ifpdp 시연화면을 만들어보며 각 부서별 니즈와 이를 충족하고 이들을 끌어들일수 있을만한것을 아이데이션해본후 적절 부서 접촉 예정
+   -> 인맥 없는 곳은 이시정 리더의 도움 받기로 함
+
+4. 외부데이터의 취합
+- 국내 마켓과 섹터 : spi 데이터 크롤링 취합 
+- 국내 정량데이터 : 알스퀘어
+- 글로벌 마켓과 섹터 : 프리퀸, PMA 등
+- 글로벌 정량데이터 : RCA`;
+
+    const upperParts = upperText.split(/(?=\n\d\.\s)/g);
 
     return (
         <div className="w-full h-screen overflow-y-auto pb-[200px] bg-white font-sans text-black flex flex-col items-center">
             
             {/* Header Width Sync Container */}
             <div className="w-[calc(100%-48px)] md:w-[calc(100%-100px)] max-w-[1600px] mt-24 md:mt-32">
-                <h1 className="text-2xl font-bold mb-10 border-b border-black pb-4 inline-block">
-                    IFPDP_데이터 취합 주요 고려사항
-                </h1>
                 
-                <div className="space-y-8">
-                    {parts.map((part, idx) => {
-                        const lines = part.trim().split('\n');
-                        const title = lines[0];
-                        const body = lines.slice(1).join('\n');
-                        
-                        return (
-                            <div key={idx} className="mb-6">
-                                <h2 className="text-xl font-bold mb-3">{title}</h2>
-                                <div className="text-base leading-relaxed whitespace-pre-wrap ml-2">
-                                    {body}
+                {/* Upper Section (Newest) */}
+                <div className="mb-20">
+                    <h1 className="text-2xl md:text-3xl font-bold mb-2 border-b-2 border-black pb-4 inline-block">
+                        IFPDP 미션화 및 데이터 취합/활용 방법론
+                    </h1>
+                    <p className="text-md text-gray-500 font-medium mb-10 tracking-tight">2026.04.09 기획추진센터 합의 完</p>
+                    
+                    <div className="space-y-8">
+                        {upperParts.map((part, idx) => {
+                            const lines = part.trim().split('\n');
+                            const title = lines[0];
+                            const body = lines.slice(1).join('\n');
+                            
+                            return (
+                                <div key={`up-${idx}`} className="mb-6">
+                                    <h2 className="text-xl font-bold mb-3">{title}</h2>
+                                    <div className="text-base leading-relaxed whitespace-pre-wrap ml-2 text-gray-800">
+                                        {body}
+                                    </div>
                                 </div>
-                            </div>
-                        );
-                    })}
+                            );
+                        })}
+                    </div>
                 </div>
+
+                {/* Divider */}
+                <div className="w-full h-[1px] bg-gray-300 mb-20 relative">
+                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white px-4 text-gray-400 text-sm font-medium tracking-widest">
+                        PREVIOUS LOGS
+                    </div>
+                </div>
+
+                {/* Lower Section (Older Version) */}
+                <div className="opacity-80">
+                    <h1 className="text-2xl font-bold mb-10 border-b border-gray-400 pb-4 inline-block text-gray-600">
+                        IFPDP_데이터 취합 주요 고려사항 <span className="text-lg font-normal text-gray-500">(2026.04.06 ver)</span>
+                    </h1>
+                    
+                    <div className="space-y-8">
+                        {lowerParts.map((part, idx) => {
+                            const lines = part.trim().split('\n');
+                            const title = lines[0];
+                            const body = lines.slice(1).join('\n');
+                            
+                            return (
+                                <div key={`low-${idx}`} className="mb-6">
+                                    <h2 className="text-lg font-bold mb-3 text-gray-600">{title}</h2>
+                                    <div className="text-base leading-relaxed whitespace-pre-wrap ml-2 text-gray-500">
+                                        {body}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
             </div>
         </div>
     );
