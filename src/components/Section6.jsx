@@ -55,7 +55,7 @@ export default function Section6({ isActive }) {
                     className={`flex flex-col items-center justify-center text-center p-8 transition-transform duration-[800ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${showModal ? 'scale-100 translate-y-0' : 'scale-95 translate-y-12'}`}
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <h2 className="text-[24px] md:text-[34px] lg:text-[40px] font-bold text-white tracking-tight leading-[1.35] break-keep px-4 md:px-12">
+                    <h2 className={`text-[24px] md:text-[34px] lg:text-[40px] font-bold text-white ${lang === 'kr' ? 'tracking-tight' : 'tracking-normal'} leading-[1.35] break-keep px-4 md:px-12`}>
                         {lang === 'kr' ? (
                             <>
                                 부동산 기업들은 철저하게 <span className="text-[#3b82f6]">‘사일로’</span> 형태로 조직되어 있어<br className="hidden md:block"/>
@@ -159,19 +159,19 @@ export default function Section6({ isActive }) {
                             <>
                                 <p 
                                     className={`text-[14px] md:text-[26px] lg:text-[32px] xl:text-[35px] leading-[1.5] text-[#f4f4f5] font-light transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] break-keep ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
-                                    style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif", letterSpacing: "-0.01em" }}
+                                    style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif", letterSpacing: "normal" }}
                                 >
                                     “AI technology supports not only investors but also operators in making more accurate decisions, and it is assessed to be a crucial tool for enhancing operational efficiency, increasing tenant satisfaction, and ultimately maximizing asset value.
                                 </p>
                                 <p 
                                     className={`text-[14px] md:text-[26px] lg:text-[32px] xl:text-[35px] leading-[1.5] text-[#f4f4f5] font-light transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] break-keep ${step >= 3 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
-                                    style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif", letterSpacing: "-0.01em" }}
+                                    style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif", letterSpacing: "normal" }}
                                 >
                                     However, the use of AI tools requires prior data organization, yet the real estate industry still struggles with decades of unorganized data.
                                 </p>
                                 <p 
                                     className={`text-[14px] md:text-[26px] lg:text-[32px] xl:text-[35px] leading-[1.5] text-[#f4f4f5] font-light transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] break-keep ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}
-                                    style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif", letterSpacing: "-0.01em" }}
+                                    style={{ fontFamily: "'Guardian Sans', 'Apple SD Gothic Neo', 'Helvetica Neue', sans-serif", letterSpacing: "normal" }}
                                 >
                                     Currently, only about the top 5 global firms are undertaking such data structuring, and we anticipate <span 
                                         className="inline"
