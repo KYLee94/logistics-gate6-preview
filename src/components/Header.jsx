@@ -418,14 +418,14 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                     ))}
 
                                     {/* Legal Links (Right aligned) */}
-                                    <div className="ml-auto flex flex-col items-end gap-[6px] text-[#888] font-bold text-[12px] md:text-[13px] tracking-tight mt-0">
+                                    <div className="ml-auto flex flex-col justify-end items-end gap-[6px] text-[#888] font-bold text-[12px] md:text-[13px] tracking-tight mt-0 pb-[2px]">
                                         <button onClick={() => setModalType('disclaimer')} className="cursor-pointer hover:text-black transition-colors">
                                             {lang === 'kr' ? "면책공고" : "Disclaimer"}
                                         </button>
                                         <button onClick={() => setModalType('terms')} className="cursor-pointer hover:text-black transition-colors">
                                             {lang === 'kr' ? "이용약관" : "Terms of Service"}
                                         </button>
-                                        <a href="?page=action-plan" className="cursor-pointer hover:text-black transition-colors border-b border-gray-300 pb-[1px] mt-2">
+                                        <a href="?page=action-plan" className="cursor-pointer hover:text-black transition-colors mt-2">
                                             Action plan (initial)
                                         </a>
                                     </div>
@@ -533,7 +533,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                         <button onClick={() => { setModalType('terms'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
                             {lang === 'kr' ? "이용약관" : "Terms of Service"}
                         </button>
-                        <a href="?page=action-plan" className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors border-b border-gray-300 pb-[1px] mt-2">
+                        <a href="?page=action-plan" className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors mt-2">
                             Action plan (initial)
                         </a>
                     </div>
