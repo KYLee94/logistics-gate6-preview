@@ -94,7 +94,35 @@ AI 모델을 다양하게 끼울수 있는 환경 구성
                 {/* 1100px Left Aligned Reading Width */}
                 <div className="w-full max-w-[1100px]">
                     
-                    {/* 1. AI Section */}
+                    {/* 1. Mission Setup Section */}
+                    <div className="mb-20">
+                        <h1 className="text-2xl md:text-3xl font-bold mb-2 pb-4 inline-block tracking-tight">
+                            IFPDP 미션화 및 데이터 취합/활용 방법론
+                        </h1>
+                        <p className="text-md text-gray-500 font-medium mb-10 tracking-tight">2026.04.09 기획추진센터 합의 完</p>
+                        
+                        <div className="space-y-8">
+                            {upperParts.map((part, idx) => {
+                                const lines = part.trim().split('\n');
+                                const title = lines[0];
+                                const body = lines.slice(1).join('\n');
+                                
+                                return (
+                                    <div key={`up-${idx}`} className="mb-6">
+                                        <h2 className="text-xl font-bold mb-3">{title}</h2>
+                                        <div className="text-base leading-relaxed whitespace-pre-wrap ml-2 text-gray-800">
+                                            {body}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Solid Complete Divider */}
+                    <hr className="border-t-[3px] border-black my-20" />
+
+                    {/* 2. AI Section */}
                     <div className="mb-20">
                         <h1 className="text-2xl md:text-3xl font-bold mb-2 pb-4 inline-block tracking-tight">
                             AI의 도입 계획
@@ -112,34 +140,6 @@ AI 모델을 다양하게 끼울수 있는 환경 구성
                                 
                                 return (
                                     <div key={`ai-${idx}`} className="mb-6">
-                                        <h2 className="text-xl font-bold mb-3">{title}</h2>
-                                        <div className="text-base leading-relaxed whitespace-pre-wrap ml-2 text-gray-800">
-                                            {body}
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {/* Solid Complete Divider */}
-                    <hr className="border-t-[3px] border-black my-20" />
-
-                    {/* 2. Mission Setup Section */}
-                    <div className="mb-20">
-                        <h1 className="text-2xl md:text-3xl font-bold mb-2 pb-4 inline-block tracking-tight">
-                            IFPDP 미션화 및 데이터 취합/활용 방법론
-                        </h1>
-                        <p className="text-md text-gray-500 font-medium mb-10 tracking-tight">2026.04.09 기획추진센터 합의 完</p>
-                        
-                        <div className="space-y-8">
-                            {upperParts.map((part, idx) => {
-                                const lines = part.trim().split('\n');
-                                const title = lines[0];
-                                const body = lines.slice(1).join('\n');
-                                
-                                return (
-                                    <div key={`up-${idx}`} className="mb-6">
                                         <h2 className="text-xl font-bold mb-3">{title}</h2>
                                         <div className="text-base leading-relaxed whitespace-pre-wrap ml-2 text-gray-800">
                                             {body}
