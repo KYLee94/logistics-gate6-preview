@@ -84,7 +84,7 @@ Expands to a flexible architecture that isn't dependent on a specific AI model, 
 - User Environment: Expanding usage rights to all employees and deploying segment-specific connection environments (UI) tailored to job characteristics.`;
 
     const upperTextKr = `1. 미션 수행의 목적
-전사적 데이터 취합을 효율적으로 완수하기 위해, 이를 단순 부서 업무가 아닌 '리얼에셋 부문(이철승 대표이사 지시)의 전사 핵심 미션'으로 격상하여 추진한다. 각 조직별 핵심 인력을 공식 미션 수행원으로 지정해 강력한 크로스펑셔널(Cross-functional) 협업 체계를 구축하며, 참여자들에게 명확한 동기부여와 실질적인 OKR 평가 성과를 부여하는 것을 최우선 목적으로 한다.
+전사적 데이터 취합을 효율적으로 완수하기 위해, 이를 단순 부서 업무가 아닌 '리얼에셋 부문 전사 핵심 미션'으로 격상하여 추진한다. 각 조직별 핵심 인력이 공식 미션 수행원으로 지정되어 강력한 크로스펑셔널(Cross-functional) 협업 체계를 구축하며, 참여자들에게 명확한 동기부여와 실질적인 OKR 평가 성과를 부여하는 것을 최우선 목적으로 한다.
 
 2. 내부 데이터의 취합
 1) 이미 기획추진센터 노션에 취합된 데이터
@@ -121,7 +121,7 @@ Expands to a flexible architecture that isn't dependent on a specific AI model, 
 - 글로벌 정량데이터 : RCA`;
 
     const upperTextEn = `1. Purpose of Mission Execution
-To efficiently accomplish enterprise-wide data collection, it is elevated from a mere departmental task to a 'Core Enterprise Mission for the Real Asset Division (ordered by CEO Cheol-seung Lee)'. We will designate key personnel from each organization as official mission executors to build a strong cross-functional collaboration system, primarily aiming to provide clear motivation and practical OKR evaluation achievements to participants.
+To efficiently accomplish enterprise-wide data collection, it is elevated from a mere departmental task to a 'Core Enterprise Mission for the Real Asset Division'. We will designate key personnel from each organization as official mission executors to build a strong cross-functional collaboration system, primarily aiming to provide clear motivation and practical OKR evaluation achievements to participants.
 
 2. Collection of Internal Data
 1) Data already collected in the Planning & Promotion Center's Notion
