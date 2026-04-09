@@ -112,7 +112,7 @@ export default function Notes() {
                                             {lines.slice(1).map((line, lIdx) => {
                                                 const isPreamble = idx === 0 && lIdx === 0;
                                                 return (
-                                                    <div key={`uline-${lIdx}`} className={isPreamble ? "text-[18px] font-bold text-black leading-relaxed mb-4 break-keep" : "text-base leading-relaxed whitespace-pre-wrap text-gray-800"}>
+                                                    <div key={`uline-${lIdx}`} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[27px] pl-3 mb-4 break-keep" : "text-base leading-relaxed whitespace-pre-wrap text-gray-800"}>
                                                         {line}
                                                     </div>
                                                 );
@@ -149,7 +149,7 @@ export default function Notes() {
                                             {lines.slice(1).map((line, lIdx) => {
                                                 const isPreamble = idx === 0 && lIdx === 0;
                                                 return (
-                                                    <div key={`aline-${lIdx}`} className={isPreamble ? "text-[18px] font-bold text-black leading-relaxed mb-4 break-keep" : "text-base leading-relaxed whitespace-pre-wrap text-gray-800"}>
+                                                    <div key={`aline-${lIdx}`} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[27px] pl-3 mb-4 break-keep" : "text-base leading-relaxed whitespace-pre-wrap text-gray-800"}>
                                                         {line}
                                                     </div>
                                                 );
