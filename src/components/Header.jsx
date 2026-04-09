@@ -196,8 +196,33 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
         const currentCheck = isTop ? window.location.pathname : window.location.hash;
 
         if (targetId.startsWith('page-')) {
-            window.location.hash = targetId;
             const pageIndex = parseInt(targetId.replace('page-', ''), 10) - 1;
+
+            if (currentPage !== 'home') {
+                if (onNavigateToHome) onNavigateToHome();
+                window.isNewsPage = false;
+                window.isLeasePage = false;
+                
+                // Update URL to remove ?page=action-plan
+                window.history.pushState(null, '', window.location.pathname + `#${targetId}`);
+                window.location.hash = targetId;
+
+                // Wait for the home page DOM to mount before dispatching slide goto
+                let checkCount = 0;
+                const checkInterval = setInterval(() => {
+                    const scrollContainer = document.getElementById('scroll-container');
+                    checkCount++;
+                    if (scrollContainer || checkCount > 50) {
+                        clearInterval(checkInterval);
+                        if (!isNaN(pageIndex)) {
+                            window.dispatchEvent(new CustomEvent('appSlideGoto', { detail: { slideIndex: pageIndex } }));
+                        }
+                    }
+                }, 50);
+                return;
+            }
+
+            window.location.hash = targetId;
             if (!isNaN(pageIndex)) {
                 window.dispatchEvent(new CustomEvent('appSlideGoto', { detail: { slideIndex: pageIndex } }));
             }
