@@ -193,7 +193,7 @@ We will designate key personnel from each organization as official mission execu
                                                 const isPreamble = idx === 0;
                                                 const isArrowFocus = line.trim().startsWith('->');
                                                 return (
-                                                    <div key={`uline-${lIdx}`} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[27px] pl-3 mb-4 break-keep" : `text-base leading-relaxed whitespace-pre-wrap ${isArrowFocus ? 'font-bold text-black' : 'text-gray-800'}`}>
+                                                    <div key={`uline-${lIdx}`} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[27px] pl-3 break-keep" : `text-base leading-relaxed whitespace-pre-wrap ${isArrowFocus ? 'font-bold text-black' : 'text-gray-800'}`}>
                                                         {line}
                                                     </div>
                                                 );
