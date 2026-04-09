@@ -352,7 +352,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                         }
                                     }}
                                 >
-                                    <span className={`relative pb-0 after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[1.5px] after:-bottom-[-2px] after:left-0 after:bg-black after:origin-bottom-left after:transition-transform after:duration-300 group-hover/menu:after:scale-x-100 transition-colors hover:text-black ${activeNavIndex === idx ? 'font-bold' : ''} font-guardian tracking-normal`}>
+                                    <span className={`relative pb-0 after:content-[''] after:absolute after:w-full after:scale-x-0 after:h-[1.5px] after:-bottom-[-2px] after:left-0 after:bg-black after:origin-bottom-left after:transition-transform after:duration-300 group-hover/menu:after:scale-x-100 transition-colors hover:text-black ${activeNavIndex === idx ? 'font-medium' : ''} font-guardian tracking-normal`}>
                                         {col.title}
                                     </span>
                                 </div>
@@ -371,7 +371,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                             onMouseEnter={() => setHoveredIndex(idx)}
                                         >
                                             <h4
-                                                className="text-[16px] xl:text-[18px] font-semibold mb-5 tracking-normal text-black w-fit cursor-pointer font-guardian"
+                                                className="text-[16px] xl:text-[18px] font-medium mb-5 tracking-normal text-black w-fit cursor-pointer font-guardian"
                                                 onClick={(e) => {
                                                     setIsMegaMenuOpen(false);
                                                     if (col.type === 'news') {
@@ -486,7 +486,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                 <div className="w-full flex-col flex-1 overflow-y-auto overscroll-contain px-6 py-2 hide-scrollbar flex items-start text-left">
                     {currentMenuData.map((col, idx) => (
                         <div key={idx} className="w-full mb-6">
-                            <h4 className="text-[18px] font-bold text-black mb-3 border-b border-gray-100 pb-2 font-guardian tracking-normal">{col.title}</h4>
+                            <h4 className="text-[18px] font-medium text-black mb-3 border-b border-gray-100 pb-2 font-guardian tracking-normal">{col.title}</h4>
                             <div className="flex flex-col space-y-3">
                                 {col.items.map((item, itemIdx) => {
                                     if (item.type === 'news') {
