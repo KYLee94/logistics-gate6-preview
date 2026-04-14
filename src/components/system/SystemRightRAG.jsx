@@ -1,6 +1,14 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 
 export default function SystemRightRAG() {
+    const endRef = useRef(null);
+
+    useEffect(() => {
+        if (endRef.current) {
+            // Scroll to bottom so content isn't hidden under the fixed input area on small screens
+            endRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
+        }
+    }, []);
     return (
         <div className="w-[520px] h-full bg-[#fbfbfd] dark:bg-transparent flex flex-col flex-shrink-0 relative font-sans text-[#1D1D1F] dark:text-[#E5E5E5] transition-colors duration-300">
             
@@ -62,9 +70,10 @@ export default function SystemRightRAG() {
                         <button onClick={() => alert("준비 중인 데모 화면입니다.")} className="px-5 py-3.5 bg-white dark:bg-[#2B2B2B] text-[#111] dark:text-[#c3c2b7] border border-black/10 dark:border-transparent hover:bg-gray-50 dark:hover:bg-[#333] shadow-sm dark:shadow-none text-[14px] font-medium rounded-2xl transition-all whitespace-nowrap outline-none cursor-pointer">
                             진행 중인 신규 자산 파이프라인 모두 보기
                         </button>
-                    </div>
                 </div>
 
+                {/* Auto-scroll Anchor */}
+                <div ref={endRef} className="w-full h-1" />
             </div>
 
             {/* Bottom Input Area */}

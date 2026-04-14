@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import VirtualMouse from './VirtualMouse';
 
 const linesData = [
@@ -25,7 +25,8 @@ export default function SystemFullChat({ onShowContent }) {
     const [mousePos, setMousePos] = useState({ top: '80%', left: '120%', transform: 'scale(1)' });
     const [buttonActive, setButtonActive] = useState(false);
     const [hasTriggeredClick, setHasTriggeredClick] = useState(false);
-    const btnRef = React.useRef(null);
+    const btnRef = useRef(null);
+    const messagesEndRef = useRef(null);
 
     const totalHtmlLength = linesData.reduce((acc, curr) => acc + curr.text.length, 0);
 
@@ -43,6 +44,12 @@ export default function SystemFullChat({ onShowContent }) {
         
         return () => clearInterval(interval);
     }, [totalHtmlLength]);
+
+    useEffect(() => {
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+    }, [visibleChars]);
 
     const isTypingComplete = visibleChars >= totalHtmlLength;
 
@@ -193,6 +200,9 @@ export default function SystemFullChat({ onShowContent }) {
                                 진행 중인 신규 자산 파이프라인 모두 보기
                             </button>
                         </div>
+
+                        {/* Anchor for auto-scroll */}
+                        <div ref={messagesEndRef} className="h-1 w-full" />
 
                     </div>
                 </div>
