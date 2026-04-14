@@ -1,50 +1,23 @@
-화면영역(UI 계층),노출 우선순위,데이터 속성(Backend 구조),대분류(Category),DB 컬럼(필드)명,데이터 타입,목표vs실적 비교 구조,설명 및 화면 맵핑 예제
+화면영역(UI 계층),노출 우선순위,데이터 속성(Backend 구조),대분류(Category),DB 컬럼(필드)명,데이터 타입,단일/비교(UW) 구조,설명 및 화면 맵핑 예제
 Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,1. 식별정보,missionId (프로젝트명),String,단일 구조,더케이트윈타워 매입 프로젝트 (최상단 대형 타이틀)
 Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,1. 식별정보,assetName (자산명),String,단일 구조,The-K 트윈타워
-Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,2. 자산특성,assetClass (용도),Enum,단일 구조,오피스/데이터센터 등 (타이틀 하단 배지)
-Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,2. 자산특성,address (위치/주소),String,단일 구조,서울 종로구 율곡로 6
+Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,2. 자산특성,assetClass (용도),Enum,단일 구조,오피스/리테일
 Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,2. 자산특성,grossArea (연면적),Number,단일 구조,25000평
-Section 1(최상단/Hero),기본 노출(Default),② Dynamic 지표,3. 메인 재무,aum (총 사업규모/원),Number,Pair (Target_UW vs Actual),Target: 2600억 | Actual: 2600억 (메인 핵심 KPI)
-Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,4. 조직망,director (총괄임원),String,단일 구조,정영진 (우측 상단 담당자 썸네일)
-Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,4. 조직망,pm (실무담당),String,단일 구조,장민호 (우측 상단 담당자 썸네일)
-Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,4. 조직망,department (본부),String,단일 구조,투자/사업센터
-Section 1(최상단/Hero),기본 노출(Default),③ Context 텍스트,5. 리스크,redFlagsStatus (위기경보),Object,단일 구조,[Yellow] 마우스 오버 시 위험요인 노출
-Section 2(상단 대시보드),기본 노출(Default),③ Context 텍스트,1. 가치사슬,valueChainStep (1~10단계),Enum,단일 구조,"현재 8.개발 추진 (프로그레스 바 맵핑)"
-Section 2(상단 대시보드),기본 노출(Default),② Dynamic 지표,1. 가치사슬,progressRate (진척률),Number,Pair (Target_UW vs Actual),Target: 70% | Actual: 65% (동적 게이지)
-Section 2(상단 대시보드),기본 노출(Default),③ Context 텍스트,1. 가치사슬,handoverStatus (사내 이관 상태),Enum,단일 구조,"'프론트에서 미들 이관 심사 중' (현재 잡고 있는지 여부 판별 버튼)"
-Section 2(상단 대시보드),기본 노출(Default),② Dynamic 지표,2. 재무지표,irr (수익률),Float,Pair (Target_UW vs Actual),Target: 8.5% | Actual: 7.2% (증감 차트)
-Section 2(상단 대시보드),기본 노출(Default),② Dynamic 지표,2. 재무지표,basePurchasePrice (매입가),Number,Pair (Target_UW vs Actual),Target: 1920억 | Actual: 1950억
-Section 2(상단 대시보드),기본 노출(Default),② Dynamic 지표,3. 일정요약,completionDate (준공일),Date,Pair (Target_UW vs Actual),Target: 25-08-30 | Actual: 25-10-30 (지연 붉은색)
-Section 2(상단 대시보드),기본 노출(Default),③ Context 텍스트,4. 의사결정,decisionContextLog (투심위로그),Object,단일 구조,"[23-11] 금리 급등으로 부득이 선순위 LTV 축소결정록 표출"
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,1. 자본 스택,equity_amount (에쿼티),Number,Pair (Target_UW vs Actual),Target: 600억 | Actual: 600억 (파이차트)
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,1. 자본 스택,loan_amount (대출),Number,Pair (Target_UW vs Actual),Target: 2000억 | Actual: 2000억 (파이차트)
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,1. 자본 스택,ltv (담보대출비율),Float,Pair (Target_UW vs Actual),Target: 65% | Actual: 65.5%
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,2. 법인 매출 타겟,igisRevenue (이지스 운용/사업매출),Number,Pair (Target_UW vs Actual),"Target: 30억 | Actual: 30억 (개별 합산 시 그룹 전체 목표 달성률로 연동)"
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,3. 운영 수익 기초지표,occupancyRate (임대율),Float,Pair (Target_UW vs Actual),Target: 100% | Actual: 97.5%
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,3. 운영 수익 기초지표,walt (가중잔여임대기간),Float,Pair (Target_UW vs Actual),Target: 5.0년 | Actual: 4.2년
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,3. 심화 임대 지표,nocMetrics (층당 NOC원가),Number,Pair (Target_UW vs Actual),"Target: 35만/평 | Actual: 33만/평 (NOC 차이 테이블)"
-Section 3(중단 탭/모듈),탭 활성화(Expand),① Static 프로필,4. 운영수익,anchorTenants (주요 임차인 리스트),Array(String),단일 구조,마이크로소프트 / 김앤장
-Section 3(중단 탭/모듈),탭 활성화(Expand),③ Context 텍스트,5. 공간 배치,stackingPlan (층별 스태킹 플랜),Text,단일 구조,"'지하 1~3F 리테일 MD, 4~20F 오피스 균등분할' 상세 내역"
-Section 3(중단 탭/모듈),탭 활성화(Expand),③ Context 텍스트,6. 투자전략,productStrategy (밸류애드 시나리오),Text,단일 구조,"더케이 단독 리모델링안 vs 일본대사관 부지 통합안 병행 검토"
-Section 3(중단 탭/모듈),탭 활성화(Expand),③ Context 텍스트,7. 현장관리,capexHistory (근래 CAPEX 이력),Object,단일 구조,[2023-10] 승강기 교체 / [2024-01] 에폭시 재설치
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,8. 기간 타임라인,teaserReceived (티저접수일),Date,Pair (Target_UW vs Actual),Target: 23-01-10 | Actual: 23-01-15 
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,8. 기간 타임라인,caReviewDate (CA검토일),Date,Pair (Target_UW vs Actual),Target: 23-02-01 | Actual: 23-02-01
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,8. 기간 타임라인,dueDiligenceDate (실사일),Date,Pair (Target_UW vs Actual),Target: 23-03-15 | Actual: 23-03-20
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,8. 매입 타임라인,closingDate (클로징일),Date,Pair (Target_UW vs Actual),Target: 23-05-01 | Actual: 23-05-18
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,8. 매입 타임라인,pfDrawdownDate (PF기표일),Date,Pair (Target_UW vs Actual),Target: 23-05-15 | Actual: 23-06-01
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,8. 개발 타임라인,constructionStartDate (착공일),Date,Pair (Target_UW vs Actual),Target: 23-08-01 | Actual: 23-08-15
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,8. 엑시트 타임라인,loanMaturityDate (론 만기일),Date,Pair (Target_UW vs Actual),Target: 26-06-01 | Actual: 불확실
-Section 3(중단 탭/모듈),탭 활성화(Expand),② Dynamic 지표,8. 엑시트 타임라인,estimatedExitDate (예상 매각일),Date,Pair (Target_UW vs Actual),Target: 27-12-31 | Actual: 27-12-31
-Section 4(하단 더보기),숨김 속성(Advanced),① Static 프로필,1. 조직 심층지표,involvedTeams (DSC파트 등 참여부서),Array(String),단일 구조,"'DSC 파트', '공간기획팀' 등 상세 연계 부서 배열"
-Section 4(하단 더보기),숨김 속성(Advanced),② Dynamic 지표,1. 조직 심층지표,totalFTE (총 투입 맨먼스 인원),Number,Pair (Target_UW vs Actual),Target: 5명 | Actual: 7.5명 분량 업무 투입 중
-Section 4(하단 더보기),숨김 속성(Advanced),① Static 프로필,2. 비히클 법적정보,vehicle_type (유형),Enum,단일 구조,Fund / PFV / SPC
-Section 4(하단 더보기),숨김 속성(Advanced),① Static 프로필,2. 비히클 법적정보,vehicle_name (상호명),String,단일 구조,이지스전문투자형사모부동산 389호
-Section 4(하단 더보기),숨김 속성(Advanced),③ Context 텍스트,3. 컴플라이언스,complianceLogs (위수탁 및 감사로그),Array(Text),단일 구조,[2023-04] 이해상충 심의 완료
-Section 4(하단 더보기),숨김 속성(Advanced),① Static 프로필,4. LP / 대주단,lpList (투자자 목록),Array(String),단일 구조,NH투자증권 / 교직원공제회
-Section 4(하단 더보기),숨김 속성(Advanced),① Static 프로필,4. LP / 대주단,lenderList (대주단 목록),Array(String),단일 구조,KB국민은행(1Tr) / 신협(2Tr)
-Section 4(하단 더보기),숨김 속성(Advanced),③ Context 텍스트,5. 파트너 심화정보,partnerContacts (시공/설계사 특성명부),Object,단일 구조,"'김상무: 품질은 우수하나 공사비 인상 압박 잦음' 등의 특성 기록"
-Section 4(하단 더보기),숨김 속성(Advanced),iii) Context 텍스트,5. 파트너 심화정보,operatorInfo (데이터센터/호텔 옵코 정보),Object,단일 구조,"옵코: 에퀴닉스(Equinix), 전력망 병목 현상 발생 중, 이지스 담당: 최수석"
-Section 4(하단 더보기),숨김 속성(Advanced),③ Context 텍스트,6. 외부마켓 환경,targetCorporateTenants (임차타겟연동),Array(Text),단일 구조,향후 2년 내 강남권 5천평 이상 IT기업 검색조건
-Section 4(하단 더보기),숨김 속성(Advanced),③ Context 텍스트,7. ESG 및 스펙,spaceUxTech (스마트 인프라),Text,단일 구조,스마트 출입 관리 시스템 / 무인주차 로봇 연동
-Section 4(하단 더보기),숨김 속성(Advanced),① Static 프로필,7. ESG 및 스펙,permitStatus (인허가 상태),Enum,단일 구조,신청완료 / 심사중 / 허가완료 / 반려
-Section 4(하단 더보기),숨김 속성(Advanced),③ Context 텍스트,7. ESG 및 스펙,esgCertification (친환경 자격),Text,단일 구조,LEED Platinum (유효기간: 2029년)
+Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,4. 조직망,director (총괄임원),String,단일 구조,정영진
+Section 1(최상단/Hero),기본 노출(Default),① Static 프로필,4. 조직망,pm (실무담당),String,단일 구조,장민호
+Tab 1(Asset Overview),탭 뷰(General),① Static 프로필,1. 비히클 정보,vehicle_type / name,Enum/String,단일 구조,이지스전문투자형사모부동산 389호
+Tab 1(Asset Overview),탭 뷰(General),③ Context 텍스트,2. 공간 설계,stackingPlan,Text,단일 구조,B1~3F 리테일 MD, 4~20F 오피스 균등분할
+Tab 1(Asset Overview),탭 뷰(General),③ Context 텍스트,3. 테넌트 타게팅,anchorTenants,Array,단일 구조,마이크로소프트, 카카오, LG 화학
+Tab 1(Asset Overview),탭 뷰(General),② Dynamic 지표,4. 조직 리소스,totalFTE,Float,Pair (UW vs Actual),Target: 5명 | Actual: 7.5명 투입
+Tab 1(Asset Overview),탭 뷰(General),③ Context 텍스트,5. 리스크 & 준법,redFlags,Object,단일 구조,[Green] 조기 초과 달성 중 (위기 대응 로그 표시)
+Tab 1(Asset Overview),탭 뷰(General),③ Context 텍스트,6. 외부 파트너,partnerships,Object,단일 구조,현대건설 / 에퀴닉스 옵코 등
+Tab 2(Execution vs Plan),C-Level 트래킹 뷰,② Dynamic 지표,1. 스케일,financials.aum,Number,Pair (UW vs Actual),UW: 9500억 | Actual: 9850억 (좌우 대비 레이아웃)
+Tab 2(Execution vs Plan),C-Level 트래킹 뷰,② Dynamic 지표,2. 평당 임대료,financials.rentRate,Number,Pair (UW vs Actual),UW: 14.5만원 | Actual: 20만원 이상
+Tab 2(Execution vs Plan),C-Level 트래킹 뷰,② Dynamic 지표,3. 안정화 임대율,operations.occupancyRate,Float,Pair (UW vs Actual),UW: 90% | Actual: 99% 이상
+Tab 2(Execution vs Plan),C-Level 트래킹 뷰,② Dynamic 지표,4. 안정화 기간,operations.stabilizationPeriod,String,Pair (UW vs Actual),UW: 2년 소요 | Actual: 운영개시 전 완료
+Tab 2(Execution vs Plan),C-Level 트래킹 뷰,② Dynamic 지표,5. 매각 시점,operations.exitTiming,String,Pair (UW vs Actual),UW: 3년 운영 후 | Actual: 6개월 내 조기 달성
+Tab 2(Execution vs Plan),C-Level 트래킹 뷰,② Dynamic 지표,6. 매각가,financials.exitPrice,Number,Pair (UW vs Actual),UW: 5768억 | Actual: 8450억
+Tab 2(Execution vs Plan),C-Level 트래킹 뷰,② Dynamic 지표,7. 내부수익률,financials.irr,Float,Pair (UW vs Actual),UW: 29.66% | Actual: 122.11%
+Tab 2(Execution vs Plan),C-Level 타임라인,② Dynamic 지표,8. 착공 노드,timeSeries.constructionStart,Date,Pair (UW vs Actual),간트/라인 차트의 시작점 맵핑
+Tab 2(Execution vs Plan),C-Level 타임라인,② Dynamic 지표,9. 사전임대 노드,timeSeries.preLeasing,Date,Pair (UW vs Actual),Actual에서만 조기 발생 (UW는 NULL)
+Tab 2(Execution vs Plan),C-Level 타임라인,② Dynamic 지표,10. 매각/엑시트 노드,timeSeries.exitDate,Date,Pair (UW vs Actual),UW와 Actual 점선의 이격(Gap) 차트 시각화 구현

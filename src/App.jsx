@@ -4,6 +4,8 @@ import MainLayout from './components/MainLayout';
 import { useAnimations } from './hooks/useAnimations';
 import { useLanguage } from './context/LanguageContext';
 import Notes from './components/Notes';
+import SystemFullChat from './components/system/SystemFullChat';
+import SystemCore from './components/system/SystemCore';
 import SystemPlan from './components/system/SystemPlan';
 import SystemLogin from './components/system/SystemLogin';
 
@@ -23,7 +25,7 @@ export default function App() {
       const handleGlobalKeyDown = (e) => {
           if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
-          const flow = ['home', 'system-plan', 'system-bridge', 'system-chat', 'system-detail', 'action-plan'];
+          const flow = ['home', 'system-plan', 'system-bridge', 'system-chat', 'system-detail', 'action-plan', 'system-core'];
           const currentIndex = flow.indexOf(currentPage);
           
           if (e.key === 'ArrowLeft' && currentIndex > 0) {
@@ -103,8 +105,8 @@ export default function App() {
         </div>
       </div>
 
-      <div className={['system-plan', 'system-bridge', 'system-chat', 'system-detail'].includes(currentPage) ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
-        {!['system-plan', 'system-bridge', 'system-chat', 'system-detail'].includes(currentPage) && (
+      <div className={['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core'].includes(currentPage) ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
+        {!['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core'].includes(currentPage) && (
             <Header
               onNavigateToHome={() => setCurrentPage('home')}
               currentPage={currentPage}
@@ -128,7 +130,7 @@ export default function App() {
                 }} 
             />
         )}
-        
+        {currentPage === 'system-core' && <SystemCore />}
       </div>
     </>
   );
