@@ -44,8 +44,11 @@
         min-height: 100%;
         width: 100%;
         background-color: #ffffff;
-        color: #ffffff;
+        color: #000000;
         -webkit-overflow-scrolling: touch;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
     }
 
     ::selection {

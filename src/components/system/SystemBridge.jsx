@@ -83,26 +83,26 @@ export default function SystemBridge({ onTypingComplete }) {
     }, [step, onTypingComplete]);
 
     return (
-        <div className={`flex-1 flex flex-col items-center justify-center bg-[#1F1F1E] h-full cursor-default relative overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} onClick={handleScreenClick}>
+        <div className={`flex-1 flex flex-col items-center justify-center bg-white dark:bg-[#1F1F1E] h-full cursor-default relative overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`} onClick={handleScreenClick}>
             
             <VirtualMouse isVisible={mouseVisible} style={mousePos} />
 
             {/* Wrapper element to shift content up by 150px */}
             <div className="flex flex-col items-center -mt-[150px]">
                 {/* 문장 양 옆 쌍따옴표 추가, 하단 5px 여백 제거 (mb-[30px] -> mb-[25px]) */}
-                <h2 className="text-[38px] text-[#A1A1AA] font-normal mb-[25px] tracking-tight font-sans">"전기영님 또 오셨네요."</h2>
+                <h2 className="text-[38px] text-[#1D1D1F] dark:text-[#A1A1AA] font-normal mb-[25px] tracking-tight font-sans transition-colors duration-300">"전기영님 또 오셨네요."</h2>
 
                 {/* Same styling as SystemRightRAG comment box but larger width */}
-                <div className="w-[700px] h-[140px] bg-[#2C2C2A] rounded-[18px] flex flex-col relative px-5 pt-5 pb-4 border border-[#3A3A3A] cursor-text shadow-lg">
+                <div className="w-[700px] h-[140px] bg-white dark:bg-[#2C2C2A] rounded-[18px] flex flex-col relative px-5 pt-5 pb-4 border border-gray-200 dark:border-[#3A3A3A] cursor-text shadow-lg transition-colors duration-300">
                     <textarea 
                         placeholder="오늘은 어떤 도움이 필요하세요?" 
-                        className="w-full bg-transparent text-[16px] text-[#E5E5E5] focus:outline-none placeholder-[#888888] font-normal resize-none h-[64px]"
+                        className="w-full bg-transparent text-[16px] text-[#111] dark:text-[#E5E5E5] focus:outline-none placeholder-gray-400 dark:placeholder-[#888888] font-normal resize-none h-[64px] transition-colors duration-300"
                         value={typedText}
                         readOnly
                     ></textarea>
                     
                     <div className="absolute bottom-4 left-5">
-                        <button className="text-[#888888] hover:text-[#E5E5E5] p-1 flex items-center justify-center transition-colors">
+                        <button className="text-gray-400 dark:text-[#888888] hover:text-[#111] dark:hover:text-[#E5E5E5] p-1 flex items-center justify-center transition-colors">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v16m8-8H4" /></svg>
                         </button>
                     </div>
@@ -116,7 +116,7 @@ export default function SystemBridge({ onTypingComplete }) {
                                     setStep(3);
                                 }
                             }}
-                            className={`w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors shadow-sm outline-none cursor-pointer ${typedText.length > 0 ? 'bg-[#E5E5E5] text-black hover:bg-white' : 'bg-[#5E5E5B] text-white hover:bg-[#72726D]'} ${buttonActive ? 'scale-90 bg-white' : ''}`}>
+                            className={`w-[34px] h-[34px] rounded-full flex items-center justify-center transition-colors shadow-sm outline-none cursor-pointer ${typedText.length > 0 ? 'bg-[#111] text-white dark:bg-[#E5E5E5] dark:text-black hover:bg-[#333] dark:hover:bg-white' : 'bg-gray-200 text-gray-500 dark:bg-[#5E5E5B] dark:text-white dark:hover:bg-[#72726D]'} ${buttonActive ? 'scale-90 bg-[#333] dark:bg-white' : ''}`}>
                             <svg className="w-4 h-4 ml-0.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 5l7 7-7 7" />
                             </svg>

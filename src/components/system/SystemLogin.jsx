@@ -8,6 +8,7 @@ export default function SystemLogin({ onLogin }) {
     const [mousePos, setMousePos] = useState({ top: '65%', left: '120%', transform: 'scale(1)' });
     const [buttonActive, setButtonActive] = useState(false);
     const [hasTriggered, setHasTriggered] = useState(false);
+    const [dissolved, setDissolved] = useState(false);
 
     const handleScreenClick = () => {
         if (hasTriggered || !targetRef.current) return;
@@ -54,34 +55,31 @@ export default function SystemLogin({ onLogin }) {
     }, [hasTriggered]);
 
     return (
-        <div className={`w-full h-full min-h-screen bg-[#111111] text-white flex flex-col font-sans relative cursor-default`} onClick={handleScreenClick}>
+        <div className={`w-full h-full min-h-screen bg-[#FDFDFD] dark:bg-[#111111] text-[#1D1D1F] dark:text-white flex flex-col font-sans relative cursor-default transition-colors duration-300 ${dissolved ? 'opacity-0 scale-95' : 'opacity-100 scale-100'} ease-in-out`} style={{ transitionDuration: dissolved ? '800ms' : '0ms' }} onClick={handleScreenClick}>
             <VirtualMouse isVisible={mouseVisible} style={mousePos} />
             {/* Top Navbar */}
             <div className="w-full flex justify-between items-center px-12 py-8 relative z-50">
-                <div className="text-[20px] font-bold tracking-wide text-white">IFPDP</div>
-                <div className="flex gap-8 text-[17px] font-medium text-[#A1A1AA]">
-                    {/* IFPDP 소개: 홈으로 복귀하는 하이퍼링크 유지 */}
-                    <a href="?page=home" className="hover:text-white cursor-pointer transition-colors">IFPDP 소개</a>
-                    {/* 리소스 & 관리팀 문의: 네이티브 브라우저 팝업창 호출 */}
-                    <button onClick={() => alert("[리소스 데이터베이스] 데모 시연을 위해 준비 중인 메뉴입니다.")} className="hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">리소스</button>
-                    <button onClick={() => alert("[Help Desk] IFPDP 관리 및 지원을 위한 연락처 팝업이 노출될 예정입니다.")} className="hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">관리팀 문의</button>
+                <div className="text-[20px] font-bold tracking-wide text-[#1D1D1F] dark:text-white transition-colors duration-300">IFPDP</div>
+                <div className="flex gap-8 text-[17px] font-medium text-[#86868B] dark:text-[#A1A1AA] transition-colors duration-300">
+                    <a href="?page=home" className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors">IFPDP 소개</a>
+                    <button onClick={(e) => { e.stopPropagation(); alert("[리소스 데이터베이스] 데모 시연을 위해 준비 중인 메뉴입니다."); }} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">리소스</button>
+                    <button onClick={(e) => { e.stopPropagation(); alert("[Help Desk] IFPDP 관리 및 지원을 위한 연락처 팝업이 노출될 예정입니다."); }} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">관리팀 문의</button>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 flex flex-col items-center justify-center -mt-32">
+            <div className={`flex-1 flex flex-col items-center justify-center -mt-32 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]`}>
                 
-                {/* 글씨 10px 증가 (46px), 자간 없앰 (tracking-normal), 로고 폰트 (font-inter), 하단 마진 10px 축소 (mb-8=32px -> mb-[22px]) */}
-                <h1 className="text-[46px] font-bold mb-[22px] tracking-normal font-inter text-[#E5E5E5]">IFPDP</h1>
+                <h1 className="text-[46px] font-bold mb-[22px] tracking-normal font-inter text-[#1D1D1F] dark:text-[#E5E5E5] transition-colors duration-300">IFPDP</h1>
 
-                {/* Form Box: 박스 모서리 더 둥글게 (rounded-[28px]), 넓이 30px 증가 (w-[430px]) */}
-                <div className="bg-transparent border border-[#333333] rounded-[28px] p-8 w-[430px] flex flex-col shadow-2xl">
+                {/* Form Box */}
+                <div className="bg-white dark:bg-transparent border border-gray-200 dark:border-[#333333] rounded-[28px] p-8 w-[430px] flex flex-col shadow-xl dark:shadow-2xl transition-colors duration-300">
                     
                     {/* Google Button */}
                     <button 
                         ref={targetRef}
                         onClick={(e) => e.stopPropagation()}
-                        className={`w-full border border-[#333333] text-[#E5E5E5] rounded-lg py-3 flex items-center justify-center gap-3 transition-colors text-[14px] font-medium cursor-pointer ${buttonActive ? 'bg-[#2A2A2A] scale-[0.98]' : 'bg-[#1A1A1A] hover:bg-[#2A2A2A]'}`}
+                        className={`w-full border border-gray-300 dark:border-[#333333] text-[#1D1D1F] dark:text-[#E5E5E5] rounded-lg py-3 flex items-center justify-center gap-3 transition-colors text-[14px] font-medium cursor-pointer ${buttonActive ? 'bg-gray-100 dark:bg-[#2A2A2A] scale-[0.98]' : 'bg-white dark:bg-[#1A1A1A] hover:bg-gray-50 dark:hover:bg-[#2A2A2A]'}`}
                     >
                         <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24">
                             <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -92,9 +90,9 @@ export default function SystemLogin({ onLogin }) {
                         Google로 계속하기
                     </button>
 
-                    {/* Divider: 양옆 선 삭제 */}
+                    {/* Divider */}
                     <div className="flex flex-col items-center justify-center my-6">
-                        <span className="text-[#737373] text-[13px] font-normal tracking-tight">또는</span>
+                        <span className="text-[#888] dark:text-[#737373] text-[13px] font-normal tracking-tight transition-colors duration-300">또는</span>
                     </div>
 
                     {/* Email Input */}
@@ -104,16 +102,15 @@ export default function SystemLogin({ onLogin }) {
                             placeholder="이메일을 입력하세요"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            // text 2px 증가
-                            className="w-full bg-[#262626] text-white placeholder-[#737373] text-[16px] px-4 py-3.5 rounded-lg border border-[#3A3A3A] focus:outline-none focus:border-[#666] transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[16px] px-4 py-3.5 rounded-lg border border-gray-300 dark:border-[#3A3A3A] focus:outline-none focus:border-[#111] dark:focus:border-[#666] transition-colors duration-300"
                         />
                     </div>
 
                     {/* Email Submit Button */}
                     <button 
-                        onClick={onLogin}
-                        // text 2px 증가
-                        className="w-full bg-[#F5F5F7] text-[#111111] hover:bg-white rounded-lg py-3 font-semibold transition-colors text-[16px] cursor-pointer"
+                        onClick={(e) => { e.stopPropagation(); onLogin(); }}
+                        className="w-full bg-[#111] dark:bg-[#F5F5F7] text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-white rounded-lg py-3 font-semibold transition-colors text-[16px] cursor-pointer"
                     >
                         이메일로 계속하기
                     </button>
