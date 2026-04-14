@@ -18,10 +18,10 @@ export default function SystemCenter() {
             </div>
 
             {/* 컨텐츠 영역 (반응형 무시, 1000px 고정 폭 적용) */}
-            <div className="w-[1000px] mx-auto shrink-0 flex flex-col mt-10 pb-20">
+            <div className="w-[1000px] mx-auto flex-1 flex flex-col pb-20">
                 {/* Empty Context Indicator centered */}
-                <div className="flex-1 flex justify-center items-center pb-20 mt-40">
-                    <span className="text-[40px] text-[#A1A1AA] font-medium tracking-tight">
+                <div className="flex-1 flex justify-center items-center">
+                    <span className="text-[60px] text-[#A1A1AA] font-medium tracking-tight">
                         Contents
                     </span>
                 </div>
