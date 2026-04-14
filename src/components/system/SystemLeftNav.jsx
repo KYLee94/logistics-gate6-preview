@@ -141,6 +141,7 @@ export default function SystemLeftNav() {
                     <div className="font-semibold mb-2 text-[12px] text-[#A1A1AA]">최근 채팅</div>
                     <div className="flex flex-col gap-2.5 mt-4 text-[#737373]">
                         {[
+                            "국내 개발중 프라임 자산 원가 비교",
                             "2026년 이지스에서 가장 큰 실물사업..",
                             "모빌리티 임대차 기획 진행 상황",
                             "펀드 만기 기한",
