@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 export default function SystemLeftNav() {
+    const [isLightMode, setIsLightMode] = useState(false);
     return (
         <div className="w-[275px] h-full bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white">
             
@@ -158,9 +159,8 @@ export default function SystemLeftNav() {
             </div>
 
             {/* Bottom Profile */}
-            {/* Reduced horizontal padding by 5px (px-5 -> px-[15px]) */}
-            <div className="px-[15px] py-3 border-t border-[#3A3A3C] flex flex-col hover:bg-[#2C2C2E] cursor-pointer transition-colors w-full pb-4">
-                <div className="flex items-center gap-3">
+            <div className="px-[15px] py-3 border-t border-[#3A3A3C] w-full pb-4 flex items-center justify-between">
+                <div className="flex items-center gap-3 hover:bg-[#2C2C2E] p-1.5 -ml-1.5 rounded-lg cursor-pointer transition-colors">
                     {/* Shifted circle left 2px (-ml-[2px]) */}
                     <div className="w-10 h-10 rounded-full bg-[#c3c2b7] text-[#1F1F1E] flex items-center justify-center text-[16px] font-bold tracking-tighter -ml-[2px]">
                         JK
@@ -168,6 +168,19 @@ export default function SystemLeftNav() {
                     <div className="flex flex-col text-white">
                         <span className="font-normal text-[14px] leading-tight mb-0.5">Jeon Kiyoung</span>
                         <span className="text-gray-400 text-[12px] leading-none font-normal">설정하기</span>
+                    </div>
+                </div>
+                
+                {/* Theme Toggle Switch */}
+                <div 
+                    onClick={() => setIsLightMode(!isLightMode)}
+                    className="flex shrink-0 items-center justify-center cursor-pointer ml-2"
+                >
+                    <div className={`w-[42px] h-[24px] rounded-full relative transition-colors duration-300 ${isLightMode ? 'bg-[#c3c2b7]' : 'bg-[#3A3A3C]'} border border-[#4A4A4C]`}>
+                        <div className={`w-[18px] h-[18px] bg-white rounded-full absolute top-[2px] transition-transform duration-300 shadow-sm ${isLightMode ? 'translate-x-[20px]' : 'translate-x-[2px]'}`}></div>
+                        {/* Sun/Moon icons for extra detail */}
+                        <svg className={`absolute left-[4px] top-[4px] w-4 h-4 text-[#111] transition-opacity duration-300 ${isLightMode ? 'opacity-100' : 'opacity-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                        <svg className={`absolute right-[3px] top-[3.5px] w-[15px] h-[15px] text-[#A1A1AA] transition-opacity duration-300 ${isLightMode ? 'opacity-0' : 'opacity-100'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
                     </div>
                 </div>
             </div>
