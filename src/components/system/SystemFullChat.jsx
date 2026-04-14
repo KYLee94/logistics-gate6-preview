@@ -70,16 +70,16 @@ export default function SystemFullChat({ onShowContent }) {
             setTimeout(() => {
                 setButtonActive(true);
                 setMousePos(prev => ({ ...prev, transform: 'scale(0.85)' }));
-            }, 1000);
+            }, 1400);
 
             setTimeout(() => {
                 setButtonActive(false);
                 setMousePos(prev => ({ ...prev, transform: 'scale(1)' }));
-            }, 1200);
+            }, 1600);
 
             setTimeout(() => {
                 onShowContent();
-            }, 1600);
+            }, 2100);
         }
     };
 
