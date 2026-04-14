@@ -12,7 +12,7 @@ export default function SystemPlan({ externalStage, onNext }) {
     const stage = externalStage;
 
     return (
-        <div className="w-full h-screen bg-[#1F1F1E] flex overflow-hidden font-sans text-[#E5E5E5] relative border-none">
+        <div className="w-full h-screen bg-white dark:bg-[#1F1F1E] flex overflow-hidden font-sans text-[#1D1D1F] dark:text-[#E5E5E5] relative border-none transition-colors duration-300">
             
             {/* 좌측 사이드바 고정 유지 */}
             <SystemLeftNav />
@@ -31,7 +31,7 @@ export default function SystemPlan({ externalStage, onNext }) {
                     </div>
 
                     {/* 채팅/RAG 박스 : stage 2가 되면 우측 520px로 압축 */}
-                    <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] h-full flex flex-col shrink-0 ${stage === 2 ? 'w-[520px] border-l border-[#2C2C2E]' : 'w-full border-transparent'}`}>
+                    <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] h-full flex flex-col shrink-0 ${stage === 2 ? 'w-[520px] border-l border-black/10 dark:border-[#2C2C2E]' : 'w-full border-transparent'}`}>
                         {stage === 2 ? <SystemRightRAG /> : <SystemFullChat onShowContent={onNext} />}
                     </div>
                 </div>

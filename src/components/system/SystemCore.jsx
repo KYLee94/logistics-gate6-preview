@@ -2,13 +2,19 @@ import React from 'react';
 import SystemLeftNav from './SystemLeftNav';
 import SystemCenter from './SystemCenter';
 import SystemRightRAG from './SystemRightRAG';
-
+import { useTheme } from '../../context/ThemeContext';
+import { useEffect } from 'react';
 export default function SystemCore() {
+    const { isLightMode, toggleTheme } = useTheme();
+    useEffect(() => {
+        if (isLightMode) toggleTheme();
+    }, [isLightMode, toggleTheme]);
+
     return (
         <div className="w-full h-screen bg-[#1F1F1E] flex overflow-hidden font-sans text-[#E5E5E5] relative border-none">
             
             {/* 좌측 사이드바 고정 유지 */}
-            <SystemLeftNav />
+            <SystemLeftNav isCore={true} />
 
             {/* Stage 2 Layout (상세페이지 고정) */}
             <div className="flex-1 flex overflow-hidden">
