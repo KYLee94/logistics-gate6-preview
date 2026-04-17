@@ -1079,17 +1079,11 @@ export default function SystemCenter() {
                                 </div>
                                 <div className="flex flex-col mt-[26px]">
                                     <div className="flex justify-between items-center w-full h-[44px]">
-                                        <div className="flex flex-col leading-tight">
-                                            <span className="text-[12px] font-bold text-[#86868B] leading-none">E.NOC</span>
-                                            <span className="text-[10px] text-[#666] leading-none mt-[3px]">(2026)</span>
-                                        </div>
+                                        <span className="text-[13px] font-bold text-[#86868B]">E.NOC <span className="font-normal text-[11px] pl-[2px]">(2026)</span></span>
                                         <span className="text-[24px] font-bold text-white tracking-tight">523,100원</span>
                                     </div>
                                     <div className="flex justify-between items-center w-full h-[44px]">
-                                        <div className="flex flex-col leading-tight">
-                                            <span className="text-[12px] font-bold text-[#86868B] leading-none">E.NOC</span>
-                                            <span className="text-[10px] text-[#666] leading-none mt-[3px]">(2032)</span>
-                                        </div>
+                                        <span className="text-[13px] font-bold text-[#86868B]">E.NOC <span className="font-bold text-white text-[11px] pl-[2px]">(2032)</span></span>
                                         <span className="text-[24px] font-bold text-white tracking-tight">621,802원</span>
                                     </div>
                                 </div>
