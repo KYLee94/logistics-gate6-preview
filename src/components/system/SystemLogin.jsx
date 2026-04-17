@@ -9,6 +9,12 @@ export default function SystemLogin({ onLogin }) {
     const [buttonActive, setButtonActive] = useState(false);
     const [hasTriggered, setHasTriggered] = useState(false);
     const [dissolved, setDissolved] = useState(false);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        const timer = setTimeout(() => setMounted(true), 100);
+        return () => clearTimeout(timer);
+    }, []);
 
     const handleScreenClick = () => {
         if (hasTriggered || !targetRef.current) return;
@@ -58,7 +64,7 @@ export default function SystemLogin({ onLogin }) {
         <div className={`w-full h-full min-h-screen bg-[#FDFDFD] dark:bg-[#111111] text-[#1D1D1F] dark:text-white flex flex-col font-sans relative cursor-default transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${dissolved ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`} onClick={handleScreenClick}>
             <VirtualMouse isVisible={mouseVisible} style={mousePos} />
             {/* Top Navbar */}
-            <div className="w-full flex justify-between items-center px-12 py-8 relative z-50">
+            <div className={`w-full flex justify-between items-center px-12 py-8 relative z-50 transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
                 <div className="text-[20px] font-bold tracking-wide text-[#1D1D1F] dark:text-white transition-colors duration-300">IFPDP</div>
                 <div className="flex gap-8 text-[17px] font-medium text-[#86868B] dark:text-[#A1A1AA] transition-colors duration-300">
                     <a href="?page=home" className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors">IFPDP 소개</a>
@@ -68,7 +74,7 @@ export default function SystemLogin({ onLogin }) {
             </div>
 
             {/* Main Content */}
-            <div className={`flex-1 flex flex-col items-center justify-center -mt-32 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]`}>
+            <div className={`flex-1 flex flex-col items-center justify-center -mt-32 transition-all duration-[1200ms] delay-[200ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                 
                 <h1 className="text-[46px] font-bold mb-[22px] tracking-normal font-inter text-[#1D1D1F] dark:text-[#E5E5E5] transition-colors duration-300">IFPDP</h1>
 
