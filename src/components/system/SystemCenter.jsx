@@ -986,7 +986,7 @@ export default function SystemCenter() {
                     </div>
 
                     {/* Data Box */}
-                    <div className="flex-1 bg-[#232323] border border-[#3c3c3c] rounded-[32px] overflow-hidden px-[32px] pt-[22px] pb-[32px] flex flex-col h-[360px]">
+                    <div className="flex-1 bg-[#232323] border border-[#3c3c3c] rounded-[32px] overflow-hidden px-[32px] pt-[24px] pb-[32px] flex flex-col h-[360px]">
                         
                         {/* Header */}
                         <div className="flex items-center justify-between w-full pb-[24px]">
@@ -1083,7 +1083,7 @@ export default function SystemCenter() {
                                         <span className="text-[24px] font-bold text-white tracking-tight">523,100원</span>
                                     </div>
                                     <div className="flex justify-between items-center w-full h-[44px]">
-                                        <span className="text-[13px] font-bold text-[#86868B]">E.NOC <span className="font-bold text-white text-[11px] pl-[2px]">(2032)</span></span>
+                                        <span className="text-[13px] font-bold text-[#86868B]">E.NOC <span className="font-bold text-white text-[11px] pl-[2px]">(2032 예측)</span></span>
                                         <span className="text-[24px] font-bold text-white tracking-tight">621,802원</span>
                                     </div>
                                 </div>
