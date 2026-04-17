@@ -985,10 +985,10 @@ export default function SystemCenter() {
                             monthlyGI: '122억', yearlyGI: '1,467억', yearlyNOI: '1,247억', enoc2026: '430,512원', enoc2032: '511,743원'
                         },
                         {
-                            title: 'Centerfield', image: '/centerfield.webp',
-                            region: 'GBD', year: '2021', gfa: '72,374평', officeArea: '51,189평', retailArea: '2,288평', floorArea: '599/529평',
-                            scale: 'B9 / 34F', ceilingHeight: '3.00m', parking: '889 대', constructor: '현대건설, 현대엔지..', architect: 'JMA, dA', leaseSpan: '16m',
-                            monthlyGI: '211억', yearlyGI: '2,533억', yearlyNOI: '2,153억', enoc2026: '523,100원', enoc2032: '621,802원'
+                            title: '파르나스타워', image: '/parnas.webp',
+                            region: 'GBD', year: '2016', gfa: '73,648평', officeArea: '- 평', retailArea: '- 평', floorArea: '535평',
+                            scale: 'B1 / 40F', ceilingHeight: '3.00m', parking: '464 대', constructor: 'GS건설', architect: 'KMD, 창조', leaseSpan: '-',
+                            monthlyGI: '181억', yearlyGI: '2,175억', yearlyNOI: '1,849억', enoc2026: '522,000원', enoc2032: '620,494원'
                         },
                         {
                             title: 'Centerfield', image: '/centerfield.webp',
