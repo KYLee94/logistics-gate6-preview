@@ -185,7 +185,6 @@ Defense Logic: We must strongly bring the 'The Orchestrator' logic—which was r
 
     const aiParts = (lang === 'en' ? aiTextEn : aiTextKr).split(/(?=\n\d\.\s)/g);
     const upperParts = (lang === 'en' ? upperTextEn : upperTextKr).split(/(?=\n\d\.\s)/g);
-    const lowerParts = (lang === 'en' ? rawTextEn : rawTextKr).split(/(?=\n\d\.\s)/g);
     const defenseParts = (lang === 'en' ? defenseTextEn : defenseTextKr).split(/(?=\n\d\.\s)/g);
 
     return (
