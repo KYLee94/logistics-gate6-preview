@@ -732,7 +732,7 @@ export default function SystemCenter() {
                 </div>
 
                 {/* Marketing & Placemaking Box */}
-                <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[32px] flex flex-row mb-[80px] overflow-hidden">
+                <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[32px] flex flex-row mb-[20px] overflow-hidden">
                     
                     {/* Left Column Strategy: Marketing */}
                     <div className="flex-1 border-r border-[#444]/50 flex flex-col">
@@ -796,6 +796,119 @@ export default function SystemCenter() {
                         <div className="w-full h-[54px] border-t border-[#444]/50 flex items-center pl-[30px] shrink-0">
                             <span className="text-[13px] font-bold text-[#86868B] mr-[12px]">플레이스메이킹 담당</span>
                             <span className="text-[14px] font-bold text-[#86868B]">TBD</span>
+                        </div>
+                    </div>
+
+                </div>
+
+                {/* Retail Box */}
+                <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[32px] flex flex-col mb-[20px] overflow-hidden">
+                    {/* Header & Body */}
+                    <div className="pl-[30px] pr-[32px] py-[24px] h-[106px] flex flex-col relative w-full items-center justify-center">
+                        <div className="absolute top-[28px] left-[30px]">
+                            <span className="text-[14px] font-bold text-[#86868B] tracking-tight">Retail</span>
+                        </div>
+                        <span className="text-[#86868B] font-bold text-[24px]">TBD</span>
+                    </div>
+
+                    {/* Footer Section */}
+                    <div className="w-full h-[54px] border-t border-[#444]/50 flex items-center pl-[30px] gap-[12px] shrink-0">
+                        <span className="text-[13px] font-bold text-[#86868B]">리테일 담당</span>
+                        <span className="text-[14px] font-bold text-[#86868B]">TBD</span>
+                    </div>
+                </div>
+
+                {/* Eco & Spec Box */}
+                <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[32px] flex flex-row mb-[80px] overflow-hidden">
+                    
+                    {/* Left Column Strategy: 친환경 인증 */}
+                    <div className="flex-1 border-r border-[#444]/50 flex flex-col">
+                        {/* Body */}
+                        <div className="pl-[30px] pr-[32px] pt-[28px] pb-[27px] flex flex-col flex-1 relative">
+                            {/* Title */}
+                            <div className="flex items-center justify-between w-full mb-[14px]">
+                                <span className="text-[14px] font-bold text-[#86868B] tracking-tight">친환경 인증</span>
+                            </div>
+                            {/* Content */}
+                            <div className="flex flex-col gap-[8px]">
+                                <div className="text-[15px] leading-[22px]">
+                                    <span className="text-[#86868B] font-medium mr-[6px] tracking-tight">[Global]</span>
+                                    <a href="#" className="text-[#c3c2b7] font-medium tracking-tight hover:text-[#fbf167] cursor-pointer transition-colors group/link inline-block">
+                                        <span className="font-bold text-[#E5E5E5] group-hover/link:text-[#fbf167] transition-colors">LEED Gold</span> 사전인증 예정
+                                    </a>
+                                </div>
+                                <div className="text-[15px] leading-[22px]">
+                                    <span className="text-[#86868B] font-medium mr-[6px] tracking-tight">[Global]</span>
+                                    <a href="#" className="text-[#c3c2b7] font-medium tracking-tight hover:text-[#fbf167] cursor-pointer transition-colors group/link inline-block">
+                                        <span className="font-bold text-[#E5E5E5] group-hover/link:text-[#fbf167] transition-colors">Wiredscore / Smartscore</span> 사전인증 예정
+                                    </a>
+                                </div>
+                                <div className="text-[15px] leading-[22px]">
+                                    <span className="text-[#86868B] font-medium mr-[6px] tracking-tight">[Global]</span>
+                                    <a href="#" className="text-[#c3c2b7] font-medium tracking-tight hover:text-[#fbf167] cursor-pointer transition-colors group/link inline-block">
+                                        <span className="font-bold text-[#E5E5E5] group-hover/link:text-[#fbf167] transition-colors">WELL</span> 인증 준비중
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Footer */}
+                        <div className="w-full h-[54px] border-t border-[#444]/50 flex items-center pl-[30px] gap-[24px] shrink-0">
+                            <div className="flex items-center gap-[12px]">
+                                <span className="text-[13px] font-bold text-[#86868B]">담당</span>
+                                <div className="flex items-center gap-[8px]">
+                                    <a href="#" className="text-[14px] font-bold text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors">이수정</a>
+                                    <a href="#" className="text-[14px] font-bold text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors">김대익</a>
+                                </div>
+                            </div>
+                            <div className="w-[1px] h-[14px] bg-[#555]"></div>
+                            <div className="flex items-center gap-[12px]">
+                                <span className="text-[13px] font-bold text-[#86868B]">Partnership</span>
+                                <div className="flex items-center gap-[8px]">
+                                    <a href="#" className="text-[14px] font-bold text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors">dA</a>
+                                    <a href="#" className="text-[14px] font-bold text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors">어패스리질리언스</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Column Strategy: 빌딩 상세 SPEC */}
+                    <div className="flex-1 flex flex-col">
+                        {/* Body */}
+                        <div className="pl-[30px] pr-[32px] pt-[28px] pb-[27px] flex flex-col flex-1 relative">
+                            {/* Title */}
+                            <div className="flex items-center justify-between w-full mb-[14px]">
+                                <span className="text-[14px] font-bold text-[#86868B] tracking-tight">빌딩 상세 SPEC</span>
+                                <div className="text-[15px] text-[#86868B] cursor-pointer hover:text-[#E5E5E5] transition-colors font-medium flex items-center group tracking-tight -mr-[9px]">
+                                    <span>빌딩 SPEC 전체보기</span>
+                                    <svg className="w-[12px] h-[12px] ml-[4px] text-[#666] group-hover:text-[#A1A1AA] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </div>
+                            </div>
+                            {/* Content */}
+                            <div className="flex flex-col gap-[8px]">
+                                <div className="text-[15px] leading-[22px]">
+                                    <span className="text-[#86868B] font-medium mr-[6px] tracking-tight">[통합 빌딩 관리 시스템]</span>
+                                    <a href="#" className="text-[#c3c2b7] font-medium tracking-tight hover:text-[#fbf167] cursor-pointer transition-colors">
+                                        통합 SI + FMS 구축 - 클라우드 BEMS, FMS, 통합제어(HVAC 포함), 원격관리
+                                    </a>
+                                </div>
+                                <div className="text-[15px] leading-[22px]">
+                                    <span className="text-[#86868B] font-medium mr-[6px] tracking-tight">[네트워크]</span>
+                                    <a href="#" className="text-[#c3c2b7] font-medium tracking-tight hover:text-[#fbf167] cursor-pointer transition-colors">
+                                        초고속정보통신 1등급 (초고속정보통신 특등급으로 변경 진행중)
+                                    </a>
+                                </div>
+                                <div className="text-[15px] leading-[22px]">
+                                    <span className="text-[#86868B] font-medium mr-[6px] tracking-tight">[엘리베이터]</span>
+                                    <a href="#" className="text-[#c3c2b7] font-medium tracking-tight hover:text-[#fbf167] cursor-pointer transition-colors">
+                                        독일 TKE 제품 트윈 24인승 8대, 천장고 2.7이상 확보가능
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {/* Footer */}
+                        <div className="w-full h-[54px] border-t border-[#444]/50 shrink-0">
                         </div>
                     </div>
 
