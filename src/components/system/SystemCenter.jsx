@@ -1092,6 +1092,7 @@ export default function SystemCenter() {
                         </div>
 
                     </div>
+                </div>
                 ))}
 
                 </div>
