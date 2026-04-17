@@ -968,14 +968,48 @@ export default function SystemCenter() {
                 <div className="w-full text-left mb-[16px] pl-[4px]">
                     <span className="text-[20px] font-bold text-[#E5E5E5] tracking-tight">서울 3대권역 프라임빌딩 자산 비교하기</span>
                 </div>
+                </div>
 
                 {/* Compare Boxes List */}
-                {[1, 2, 3, 4, 5].map((item, index) => (
+                {(() => {
+                    const comparisonData = [
+                        {
+                            title: 'Centerfield', image: '/centerfield.webp',
+                            region: 'GBD', year: '2021', gfa: '72,374평', officeArea: '51,189평', retailArea: '2,288평', floorArea: '599/529평',
+                            scale: 'B9 / 34F', ceilingHeight: '3.00m', parking: '889 대', constructor: '현대건설, 현대엔지..', architect: 'JMA, dA', leaseSpan: '16m',
+                            monthlyGI: '211억', yearlyGI: '2,533억', yearlyNOI: '2,153억', enoc2026: '523,100원', enoc2032: '621,802원'
+                        },
+                        {
+                            title: '그랑서울', image: '/gran.webp',
+                            region: 'CBD', year: '2014', gfa: '53,100평', officeArea: '50,753평', retailArea: '2,347평', floorArea: '605평',
+                            scale: 'B7 / 24F', ceilingHeight: '2.80m', parking: '754 대', constructor: 'GS건설', architect: '창조', leaseSpan: '-',
+                            monthlyGI: '122억', yearlyGI: '1,467억', yearlyNOI: '1,247억', enoc2026: '430,512원', enoc2032: '511,743원'
+                        },
+                        {
+                            title: 'Centerfield', image: '/centerfield.webp',
+                            region: 'GBD', year: '2021', gfa: '72,374평', officeArea: '51,189평', retailArea: '2,288평', floorArea: '599/529평',
+                            scale: 'B9 / 34F', ceilingHeight: '3.00m', parking: '889 대', constructor: '현대건설, 현대엔지..', architect: 'JMA, dA', leaseSpan: '16m',
+                            monthlyGI: '211억', yearlyGI: '2,533억', yearlyNOI: '2,153억', enoc2026: '523,100원', enoc2032: '621,802원'
+                        },
+                        {
+                            title: 'Centerfield', image: '/centerfield.webp',
+                            region: 'GBD', year: '2021', gfa: '72,374평', officeArea: '51,189평', retailArea: '2,288평', floorArea: '599/529평',
+                            scale: 'B9 / 34F', ceilingHeight: '3.00m', parking: '889 대', constructor: '현대건설, 현대엔지..', architect: 'JMA, dA', leaseSpan: '16m',
+                            monthlyGI: '211억', yearlyGI: '2,533억', yearlyNOI: '2,153억', enoc2026: '523,100원', enoc2032: '621,802원'
+                        },
+                        {
+                            title: 'Centerfield', image: '/centerfield.webp',
+                            region: 'GBD', year: '2021', gfa: '72,374평', officeArea: '51,189평', retailArea: '2,288평', floorArea: '599/529평',
+                            scale: 'B9 / 34F', ceilingHeight: '3.00m', parking: '889 대', constructor: '현대건설, 현대엔지..', architect: 'JMA, dA', leaseSpan: '16m',
+                            monthlyGI: '211억', yearlyGI: '2,533억', yearlyNOI: '2,153억', enoc2026: '523,100원', enoc2032: '621,802원'
+                        }
+                    ];
+                    return comparisonData.map((data, index) => (
                     <div key={index} className="w-full flex flex-row gap-[16px] mb-[80px]">
                     
                     {/* Image Box */}
                     <div className="w-[430px] h-[360px] rounded-[32px] overflow-hidden relative shrink-0 border border-[#3c3c3c]/50">
-                        <img src="/centerfield.webp" alt="Centerfield" className="w-full h-full object-cover opacity-90 transition-opacity hover:opacity-100" />
+                        <img src={data.image} alt={data.title} className="w-full h-full object-cover opacity-90 transition-opacity hover:opacity-100" />
                         
                         {/* Top Right '+' Button */}
                         <div className="absolute top-[17px] right-[17px] w-[46px] h-[46px] rounded-full bg-black/20 border border-white/60 flex items-center justify-center cursor-pointer hover:bg-black/30 transition-colors z-10 shadow-sm">
@@ -991,7 +1025,7 @@ export default function SystemCenter() {
                         
                         {/* Header */}
                         <div className="flex items-center justify-between w-full pb-[24px]">
-                            <span className="text-[26px] font-bold text-[#E5E5E5] tracking-tight">Centerfield</span>
+                            <span className="text-[26px] font-bold text-[#E5E5E5] tracking-tight">{data.title}</span>
                             <div className="flex items-center text-[#86868B] cursor-pointer hover:text-[#fbf167] transition-colors group">
                                 <span className="text-[13px] font-medium tracking-tight">IOTA Soul 2 816과 비교하기</span>
                                 <svg className="w-[12px] h-[12px] ml-[4px] text-[#666] group-hover:text-[#fbf167] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1009,27 +1043,27 @@ export default function SystemCenter() {
                                 <div className="flex flex-col flex-[0.85] border-r border-[#444]/50">
                                     <div className="flex items-center w-full h-[44px] pr-[30px]">
                                         <span className="w-[85px] shrink-0 text-[15px] font-bold text-[#86868B]">권역</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">GBD</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">{data.region}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pr-[30px] border-t border-[#444]/50">
                                         <span className="w-[85px] shrink-0 text-[15px] font-bold text-[#86868B]">준공년도</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">2021</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">{data.year}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pr-[30px] border-t border-[#444]/50">
                                         <span className="w-[85px] shrink-0 text-[15px] font-bold text-[#86868B]">연면적</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">72,374평</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">{data.gfa}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pr-[30px] border-t border-[#444]/50">
                                         <span className="w-[85px] shrink-0 text-[15px] font-bold text-[#86868B]">오피스면적</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">51,189평</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">{data.officeArea}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pr-[30px] border-t border-[#444]/50">
                                         <span className="w-[85px] shrink-0 text-[15px] font-bold text-[#86868B]">리테일면적</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">2,288평</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">{data.retailArea}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pr-[30px] border-t border-[#444]/50">
                                         <span className="w-[85px] shrink-0 text-[15px] font-bold text-[#86868B]">기준층면적</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">599/529평</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">{data.floorArea}</span>
                                     </div>
                                 </div>
                                 
@@ -1037,27 +1071,27 @@ export default function SystemCenter() {
                                 <div className="flex flex-col flex-[1.15]">
                                     <div className="flex items-center w-full h-[44px] pl-[26px] pr-[16px]">
                                         <span className="w-[75px] shrink-0 text-[15px] font-bold text-[#86868B]">규모</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">B9 / 34F</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">{data.scale}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pl-[26px] pr-[16px] border-t border-[#444]/50">
                                         <span className="w-[75px] shrink-0 text-[15px] font-bold text-[#86868B]">천정고</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">3.00m</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">{data.ceilingHeight}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pl-[26px] pr-[16px] border-t border-[#444]/50">
                                         <span className="w-[75px] shrink-0 text-[15px] font-bold text-[#86868B]">주차대수</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">889 대</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">{data.parking}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pl-[26px] pr-[16px] border-t border-[#444]/50">
                                         <span className="w-[75px] shrink-0 text-[15px] font-bold text-[#86868B]">시공사</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">현대건설, 현대엔지..</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium tracking-tight truncate">{data.constructor}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pl-[26px] pr-[16px] border-t border-[#444]/50">
                                         <span className="w-[75px] shrink-0 text-[15px] font-bold text-[#86868B]">설계사</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">JMA, dA</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">{data.architect}</span>
                                     </div>
                                     <div className="flex items-center w-full h-[44px] pl-[26px] pr-[16px] border-t border-[#444]/50">
                                         <span className="w-[75px] shrink-0 text-[15px] font-bold text-[#86868B]">리스스팬</span>
-                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">16m</span>
+                                        <span className="text-[16px] text-[#E5E5E5] font-medium truncate">{data.leaseSpan}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1067,25 +1101,25 @@ export default function SystemCenter() {
                                 <div className="flex flex-col w-full">
                                     <div className="flex justify-between items-center w-full h-[44px]">
                                         <span className="text-[13px] font-bold text-[#86868B]">월 GI</span>
-                                        <span className="text-[24px] font-bold text-white tracking-tight">211억</span>
+                                        <span className="text-[24px] font-bold text-white tracking-tight">{data.monthlyGI}</span>
                                     </div>
                                     <div className="flex justify-between items-center w-full h-[44px]">
                                         <span className="text-[13px] font-bold text-[#86868B]">연 GI</span>
-                                        <span className="text-[24px] font-bold text-white tracking-tight">2,533억</span>
+                                        <span className="text-[24px] font-bold text-white tracking-tight">{data.yearlyGI}</span>
                                     </div>
                                     <div className="flex justify-between items-center w-full h-[44px]">
                                         <span className="text-[13px] font-bold text-[#86868B]">연 NOI <span className="font-normal text-[11px]">(85%)</span></span>
-                                        <span className="text-[24px] font-bold text-white tracking-tight">2,153억</span>
+                                        <span className="text-[24px] font-bold text-white tracking-tight">{data.yearlyNOI}</span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col mt-[26px]">
                                     <div className="flex justify-between items-center w-full h-[44px]">
                                         <span className="text-[13px] font-bold text-[#86868B]">E.NOC <span className="font-normal text-[11px] pl-[2px]">(2026)</span></span>
-                                        <span className="text-[24px] font-bold text-white tracking-tight">523,100원</span>
+                                        <span className="text-[24px] font-bold text-white tracking-tight">{data.enoc2026}</span>
                                     </div>
                                     <div className="flex justify-between items-center w-full h-[44px]">
                                         <span className="text-[13px] font-bold text-[#86868B]">E.NOC <span className="font-bold text-white text-[11px] pl-[2px]">(2032 예측)</span></span>
-                                        <span className="text-[24px] font-bold text-white tracking-tight">621,802원</span>
+                                        <span className="text-[24px] font-bold text-white tracking-tight">{data.enoc2032}</span>
                                     </div>
                                 </div>
                             </div>
@@ -1094,6 +1128,8 @@ export default function SystemCenter() {
                     </div>
                 </div>
                 ))}
+                })()}
+
 
                 </div>
             </div>
