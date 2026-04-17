@@ -919,7 +919,7 @@ export default function SystemCenter() {
                 <div className="w-full h-[1px] bg-[#444]/50 my-[60px]"></div>
 
                 {/* Research & Insight Box */}
-                <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[32px] mb-[80px] overflow-hidden relative">
+                <div className="w-full bg-[#232323] border border-[#3c3c3c] rounded-[32px] mb-[80px] overflow-hidden relative">
                     <div className="pl-[30px] pr-[32px] pt-[28px] pb-[32px] flex flex-col w-full">
                         {/* Title Row */}
                         <div className="flex items-center justify-between w-full mb-[24px]">
@@ -937,16 +937,28 @@ export default function SystemCenter() {
                         {/* Text List */}
                         <div className="flex flex-col w-full">
                             <div className="w-full pb-[20px]">
-                                <a href="#" className="text-[16px] font-medium text-[#E5E5E5] hover:text-[#fbf167] transition-colors cursor-pointer block tracking-tight">현재 개발중인 3대권역 5만평 이상 복합 프로젝트 원가 DATA</a>
+                                <a href="#" className="text-[20px] font-medium text-[#E5E5E5] hover:text-[#fbf167] transition-colors cursor-pointer flex items-center tracking-tight">
+                                    <span className="mr-[14px] text-[22px] grayscale opacity-70">📊</span>
+                                    현재 개발중인 3대권역 5만평 이상 복합 프로젝트 원가 DATA
+                                </a>
                             </div>
                             <div className="w-full py-[20px] border-t border-[#444]/50">
-                                <a href="#" className="text-[16px] font-medium text-[#E5E5E5] hover:text-[#fbf167] transition-colors cursor-pointer block tracking-tight">서울 도심 내 5,000평 이상 거래 가능한 상업부지</a>
+                                <a href="#" className="text-[20px] font-medium text-[#E5E5E5] hover:text-[#fbf167] transition-colors cursor-pointer flex items-center tracking-tight">
+                                    <span className="mr-[14px] text-[22px] grayscale opacity-70">📍</span>
+                                    서울 도심 내 5,000평 이상 거래 가능한 상업부지
+                                </a>
                             </div>
                             <div className="w-full py-[20px] border-t border-[#444]/50">
-                                <a href="#" className="text-[16px] font-medium text-[#E5E5E5] hover:text-[#fbf167] transition-colors cursor-pointer block tracking-tight">국내 매출 TOP 100 기업 임차 현황</a>
+                                <a href="#" className="text-[20px] font-medium text-[#E5E5E5] hover:text-[#fbf167] transition-colors cursor-pointer flex items-center tracking-tight">
+                                    <span className="mr-[14px] text-[22px] grayscale opacity-70">🏢</span>
+                                    국내 매출 TOP 100 기업 임차 현황
+                                </a>
                             </div>
                             <div className="w-full pt-[20px] pb-[4px] border-t border-[#444]/50">
-                                <a href="#" className="text-[16px] font-medium text-[#E5E5E5] hover:text-[#fbf167] transition-colors cursor-pointer block tracking-tight">서울 오피스 전기사용량과 주요 프라임 오피스 전력인프라 현황</a>
+                                <a href="#" className="text-[20px] font-medium text-[#E5E5E5] hover:text-[#fbf167] transition-colors cursor-pointer flex items-center tracking-tight">
+                                    <span className="mr-[14px] text-[22px] grayscale opacity-70 brightness-125">⚡</span>
+                                    서울 오피스 전기사용량과 주요 프라임 오피스 전력인프라 현황
+                                </a>
                             </div>
                         </div>
                     </div>
