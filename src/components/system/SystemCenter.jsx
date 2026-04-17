@@ -466,7 +466,7 @@ export default function SystemCenter() {
                 <div className="w-full flex gap-[20px] mb-[20px]">
                     {/* Left Column (Image) */}
                     <div className="w-[450px] h-[452px] relative rounded-[32px] overflow-hidden group">
-                        <img src={`${import.meta.env.BASE_URL}iotaseoul2.jpg`} alt="IOTA Seoul" className="w-full h-full object-cover transition-transform duration-700 ease-in-out group-hover:scale-[1.03]" />
+                        <img src={`${import.meta.env.BASE_URL}iotaseoul2.webp`} alt="IOTA Seoul" className="w-full h-full object-cover transition-transform duration-700 ease-in-out group-hover:scale-[1.03]" />
                         
                         {/* Premium Inner Overlay Stroke */}
                         <div className="absolute inset-0 rounded-[32px] border border-white/15 pointer-events-none z-10 transition-colors duration-700 group-hover:border-white/25"></div>
