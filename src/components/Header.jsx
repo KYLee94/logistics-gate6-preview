@@ -462,11 +462,8 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                         <button onClick={() => setModalType('terms')} className="cursor-pointer hover:text-black transition-colors">
                                             {lang === 'kr' ? "이용약관" : "Terms of Service"}
                                         </button>
-                                        <a href="?page=action-plan" className="cursor-pointer hover:text-black transition-colors mt-auto font-normal text-[13px] md:text-[14px]">
-                                            Action plan (initial)
-                                        </a>
-                                        <a href="?page=system-plan" className="text-white hover:text-white cursor-default select-none font-medium text-[13px] md:text-[14px]">
-                                            System plan
+                                        <a href="?page=system-core" className="cursor-pointer hover:text-black transition-colors mt-auto font-normal text-[13px] md:text-[14px]">
+                                            Core Detail Page
                                         </a>
                                     </div>
 
@@ -573,11 +570,8 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                         <button onClick={() => { setModalType('terms'); setMobileMenuOpen(false); }} className="text-[15px] font-bold text-gray-500 hover:text-black cursor-pointer transition-colors">
                             {lang === 'kr' ? "이용약관" : "Terms of Service"}
                         </button>
-                        <a href="?page=action-plan" className="text-[16px] font-normal text-gray-500 hover:text-black cursor-pointer transition-colors mt-2">
-                            Action plan (initial)
-                        </a>
-                        <a href="?page=system-plan" className="text-[16px] font-medium text-white hover:text-white cursor-default select-none transition-colors">
-                            System plan
+                        <a href="?page=system-core" className="text-[16px] font-normal text-gray-500 hover:text-black cursor-pointer transition-colors mt-2">
+                            Core Detail Page
                         </a>
                     </div>
                     <div className="flex space-x-8 pt-6 border-t border-gray-200 justify-start w-full mb-8">
