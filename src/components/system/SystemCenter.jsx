@@ -968,7 +968,6 @@ export default function SystemCenter() {
                 <div className="w-full text-left mb-[16px] pl-[4px]">
                     <span className="text-[20px] font-bold text-[#E5E5E5] tracking-tight">서울 3대권역 프라임빌딩 자산 비교하기</span>
                 </div>
-                </div>
 
                 {/* Compare Boxes List */}
                 {(() => {
