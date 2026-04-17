@@ -991,16 +991,10 @@ export default function SystemCenter() {
                             monthlyGI: '181억', yearlyGI: '2,175억', yearlyNOI: '1,849억', enoc2026: '522,000원', enoc2032: '620,494원'
                         },
                         {
-                            title: 'Centerfield', image: '/centerfield.webp',
-                            region: 'GBD', year: '2021', gfa: '72,374평', officeArea: '51,189평', retailArea: '2,288평', floorArea: '599/529평',
-                            scale: 'B9 / 34F', ceilingHeight: '3.00m', parking: '889 대', constructor: '현대건설, 현대엔지..', architect: 'JMA, dA', leaseSpan: '16m',
-                            monthlyGI: '211억', yearlyGI: '2,533억', yearlyNOI: '2,153억', enoc2026: '523,100원', enoc2032: '621,802원'
-                        },
-                        {
-                            title: 'Centerfield', image: '/centerfield.webp',
-                            region: 'GBD', year: '2021', gfa: '72,374평', officeArea: '51,189평', retailArea: '2,288평', floorArea: '599/529평',
-                            scale: 'B9 / 34F', ceilingHeight: '3.00m', parking: '889 대', constructor: '현대건설, 현대엔지..', architect: 'JMA, dA', leaseSpan: '16m',
-                            monthlyGI: '211억', yearlyGI: '2,533억', yearlyNOI: '2,153억', enoc2026: '523,100원', enoc2032: '621,802원'
+                            title: 'GFC', image: '/gfc.webp',
+                            region: 'GBD', year: '2001', gfa: '64,316평', officeArea: '64,316평', retailArea: '3,000평', floorArea: '722평',
+                            scale: 'B8 / 45F', ceilingHeight: '2.70m', parking: '1,312 대', constructor: '현대산업개발', architect: 'KRJDA', leaseSpan: '15m',
+                            monthlyGI: '149억', yearlyGI: '1,791억', yearlyNOI: '1,523억', enoc2026: '433,918원', enoc2032: '515,792원'
                         }
                     ];
                     return comparisonData.map((data, index) => (
