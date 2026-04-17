@@ -998,7 +998,7 @@ export default function SystemCenter() {
                         }
                     ];
                     return comparisonData.map((data, index) => (
-                    <div key={index} className="w-full flex flex-row gap-[16px] mb-[40px]">
+                    <div key={index} className="w-full flex flex-row gap-[16px] mb-[30px]">
                     
                     {/* Image Box */}
                     <div className="w-[430px] h-[360px] rounded-[32px] overflow-hidden relative shrink-0 border border-[#3c3c3c]/50">
