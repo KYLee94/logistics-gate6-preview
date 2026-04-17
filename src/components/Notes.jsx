@@ -174,7 +174,7 @@ We will designate key personnel from each organization as official mission execu
                     {/* 1. Mission Setup Section */}
                     <div className="mb-20">
                         <h1 className="text-2xl md:text-3xl font-bold mb-2 pb-4 inline-block tracking-tight">
-                            {lang === 'en' ? 'IFPDP Mission Execution & Data Collection Methodology' : 'IFPDP 미션화 및 데이터 취합/활용 방법론'}
+                            {lang === 'en' ? 'IFPDP Mission Execution & Data Collection Methodology' : 'IFPDP 실행계획 및 데이터 취합/활용 방법론'}
                         </h1>
                         <p className="text-md text-gray-500 font-medium mb-10 tracking-tight">
                             {lang === 'en' ? 'April 9, 2026 - Planning Promotion Center Consensus Complete' : '2026.04.09 기획추진센터 컨센서스 ver.'}

@@ -34,7 +34,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
             ] 
         },
         { title: "Inside IFPDP", id: "page-18", items: [] },
-        { title: "Execution Plan", id: "page-19", items: [] }
+        { title: "Execution Plan", type: "action-plan", items: [] }
     ];
 
     const menuDataKr = [
@@ -60,7 +60,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
             ] 
         },
         { title: "Inside IFPDP", id: "page-18", items: [] },
-        { title: "Execution Plan", id: "page-19", items: [] }
+        { title: "Execution Plan", type: "action-plan", items: [] }
     ];
 
     const currentMenuData = lang === 'kr' ? menuDataKr : menuDataEn;
@@ -94,6 +94,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
     }, []);
 
     const getActiveNavIndex = () => {
+        if (currentPage === 'action-plan') return 3;
         const pageNum = parseInt(activeHash.replace('#page-', ''), 10) || 1;
         if (pageNum >= 2 && pageNum <= 11) return 0; // The Engine
         if (pageNum >= 12 && pageNum <= 17) return 1; // The Steering Wheel
@@ -349,6 +350,10 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                         } else if (col.type === 'alert') {
                                             e.preventDefault();
                                             alert(col.message);
+                                        } else if (col.type === 'action-plan') {
+                                            e.preventDefault();
+                                            window.history.pushState(null, '', window.location.pathname + '?page=action-plan');
+                                            window.dispatchEvent(new Event('popstate'));
                                         } else if (col.id) {
                                             e.preventDefault();
                                             handleScrollTo(e, col.id);
@@ -386,6 +391,10 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                                     } else if (col.type === 'alert') {
                                                         e.preventDefault();
                                                         alert(col.message);
+                                                    } else if (col.type === 'action-plan') {
+                                                        e.preventDefault();
+                                                        window.history.pushState(null, '', window.location.pathname + '?page=action-plan');
+                                                        window.dispatchEvent(new Event('popstate'));
                                                     } else if (col.id) {
                                                         e.preventDefault();
                                                         handleScrollTo(e, col.id);
