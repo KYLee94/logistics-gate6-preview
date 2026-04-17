@@ -732,7 +732,7 @@ export default function SystemCenter() {
                 </div>
 
                 {/* Marketing & Placemaking Box */}
-                <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[32px] flex flex-row mb-[20px] overflow-hidden">
+                <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[32px] flex flex-row mb-0 overflow-hidden">
                     
                     {/* Left Column Strategy: Marketing */}
                     <div className="flex-1 border-r border-[#444]/50 flex flex-col">
@@ -969,8 +969,9 @@ export default function SystemCenter() {
                     <span className="text-[20px] font-bold text-[#E5E5E5] tracking-tight">서울 3대권역 프라임빌딩 자산 비교하기</span>
                 </div>
 
-                {/* Compare Boxes Row */}
-                <div className="w-full flex flex-row gap-[16px] mb-[80px]">
+                {/* Compare Boxes List */}
+                {[1, 2, 3, 4, 5].map((item, index) => (
+                    <div key={index} className="w-full flex flex-row gap-[16px] mb-[80px]">
                     
                     {/* Image Box */}
                     <div className="w-[430px] h-[360px] rounded-[32px] overflow-hidden relative shrink-0 border border-[#3c3c3c]/50">
