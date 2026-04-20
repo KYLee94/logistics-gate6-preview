@@ -22,7 +22,7 @@ export default function ParallelPlan() {
                 title: "1. 플랫폼",
                 desc: (
                     <>
-                        <span className="font-extrabold">Priority가 높은 핵심 프로젝트 우선순위로</span> 그룹 내 정보를 취합하고, 단계별/섹터별 대시보드를 점진적으로 구축합니다.<br />
+                        Priority가 높은 핵심 프로젝트 우선순위로 그룹 내 정보를 취합하고, 단계별/섹터별 대시보드를 점진적으로 구축합니다.<br />
                         이를 현업에 실시간 배포하여 실무 효율을 극대화합니다.
                     </>
                 ),
@@ -103,17 +103,17 @@ export default function ParallelPlan() {
                                 <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[13px] font-inter">
                                     {text.box1.title}
                                 </h2>
-                                <p className="text-[24px] font-medium text-[#222] leading-[36px] tracking-tight mb-[5px] break-keep">
+                                <p className="text-[24px] font-bold text-[#444] leading-[36px] tracking-tight mb-[5px] break-keep">
                                     {text.box1.desc}
                                 </p>
                                 
                                 <div className="w-full pt-[30px] grid grid-cols-3 gap-[40px]">
                                     {text.box1.bullets.map((bullet, idx) => (
                                         <div key={idx} className="flex flex-col">
-                                            <div className="text-[17px] font-bold tracking-wider mb-[10px] pb-[10px] text-[#888] uppercase">
+                                            <div className="text-[17px] font-bold tracking-wider mb-[5px] pb-[10px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
-                                            <h3 className="text-[22px] font-bold text-black tracking-tight mb-[8px]">
+                                            <h3 className="text-[22px] font-bold text-black tracking-tight mb-[7px]">
                                                 {bullet.title}
                                             </h3>
                                             <p className="text-[19px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
@@ -133,17 +133,17 @@ export default function ParallelPlan() {
                                 <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[13px] font-inter">
                                     {text.box2.title}
                                 </h2>
-                                <p className="text-[24px] font-medium text-[#222] leading-[36px] tracking-tight mb-[5px] break-keep">
+                                <p className="text-[24px] font-bold text-[#444] leading-[36px] tracking-tight mb-[5px] break-keep">
                                     {text.box2.desc}
                                 </p>
                                 
                                 <div className="w-full pt-[30px] grid grid-cols-3 gap-[40px]">
                                     {text.box2.bullets.map((bullet, idx) => (
                                         <div key={idx} className="flex flex-col">
-                                            <div className="text-[17px] font-bold tracking-wider mb-[10px] pb-[10px] text-[#888] uppercase">
+                                            <div className="text-[17px] font-bold tracking-wider mb-[5px] pb-[10px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
-                                            <h3 className="text-[22px] font-bold text-black tracking-tight mb-[8px]">
+                                            <h3 className="text-[22px] font-bold text-black tracking-tight mb-[7px]">
                                                 {bullet.title}
                                             </h3>
                                             <p className="text-[19px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
