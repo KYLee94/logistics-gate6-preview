@@ -14,15 +14,15 @@ export default function ParallelPlan() {
             title: "플랫폼 구축 및 AI 도입 (Parallel 트랙)",
             subtitle: (
                 <>
-                    기본적으로 리얼에셋의 Datalake를 구성하고 성능 좋은 AI모델을 그 위에 태워 AI 플랫폼으로써의 궁극적 기능을 수행합니다.<br />
-                    가장 핵심적인 '데이터 기반 확보'와 '기업용 AI 도입'은 순차적이 아닌 Parallel(병렬)로 동시 진행됩니다.
+                    기본적으로 리얼에셋의 <span className="font-extrabold">데이터레이크</span>를 구성하고 성능 좋은 AI 모델을 그 위에 태워 AI 플랫폼으로써의 궁극적 기능을 수행합니다.<br />
+                    가장 핵심적인 '데이터 기반 확보'와 '기업용 AI 도입'은 순차적이 아닌 Parallel로 동시 진행됩니다.
                 </>
             ),
             box1: {
-                title: "1. 플랫폼 (Platform)",
+                title: "1. 플랫폼",
                 desc: (
                     <>
-                        Priority가 높은 핵심 프로젝트 우선순위로 그룹 내 정보를 취합하고, 단계별/섹터별 대시보드를 점진적으로 구축합니다.<br />
+                        <span className="font-extrabold">Priority가 높은 핵심 프로젝트 우선순위로</span> 그룹 내 정보를 취합하고, 단계별/섹터별 대시보드를 점진적으로 구축합니다.<br />
                         이를 현업에 실시간 배포하여 실무 효율을 극대화합니다.
                     </>
                 ),
@@ -97,7 +97,7 @@ export default function ParallelPlan() {
                 <div className="flex flex-col gap-[36px] w-full pb-[100px]">
                     
                     {/* Platform Box */}
-                    <div className="w-full border-[6px] border-black px-[50px] pt-[40px] pb-[50px]">
+                    <div className="w-full border-[8px] border-black px-[50px] pt-[40px] pb-[50px]">
                         <div className="flex items-start w-full">
                             <div className="flex-1 flex flex-col">
                                 <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[13px] font-inter">
@@ -127,7 +127,7 @@ export default function ParallelPlan() {
                     </div>
 
                     {/* AI Adoption Box */}
-                    <div className="w-full border-[6px] border-black px-[50px] pt-[40px] pb-[50px]">
+                    <div className="w-full border-[8px] border-black px-[50px] pt-[40px] pb-[50px]">
                         <div className="flex items-start w-full">
                             <div className="flex-1 flex flex-col">
                                 <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[13px] font-inter">
