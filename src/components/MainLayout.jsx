@@ -18,9 +18,10 @@ import Section16 from './Section16';
 import Section17 from './Section17';
 import Section18 from './Section18';
 import Section19 from './Section19';
+import Section20 from './Section20';
 
 export default function MainLayout() {
-    const slidesLength = 19; // known length
+    const slidesLength = 20; // known length
     const [currentSlide, setCurrentSlide] = useState(() => {
         // Initialize from URL hash if available (persistent reload mapping)
         const hash = window.location.hash;
@@ -33,7 +34,7 @@ export default function MainLayout() {
         return 0;
     });
 
-    const slides = [<Section1 />, <Section2 />, <Section3 />, <Section4 />, <Section5 />, <Section6 />, <Section7 />, <Section8 />, <Section9 />, <Section10 />, <Section11 />, <Section12 />, <Section13 />, <Section14 />, <Section15 />, <Section16 />, <Section17 />, <Section18 />, <Section19 />];
+    const slides = [<Section1 />, <Section2 />, <Section3 />, <Section4 />, <Section5 />, <Section6 />, <Section7 />, <Section8 />, <Section9 />, <Section10 />, <Section11 />, <Section12 />, <Section13 />, <Section14 />, <Section15 />, <Section16 />, <Section17 />, <Section18 />, <Section19 />, <Section20 />];
 
     const [isActionDone, setIsActionDone] = useState(false);
 

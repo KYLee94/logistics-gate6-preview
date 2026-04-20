@@ -1,10 +1,10 @@
 import React from 'react';
-import ParallelPlan from './ParallelPlan';
+import Notes from './Notes';
 
-export default function Section19({ isActive }) {
+export default function Section20({ isActive }) {
     return (
         <div className={`w-full h-full transition-opacity duration-1000 ${isActive ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-            {isActive && <ParallelPlan />}
+            {isActive && <Notes />}
         </div>
     );
 }

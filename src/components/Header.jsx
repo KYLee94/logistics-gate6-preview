@@ -41,7 +41,14 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                 { label: "Core Detail Page Draft", type: "system-core" }
             ] 
         },
-        { title: "Execution Plan", id: "page-19", items: [] }
+        { 
+            title: "Execution Plan", 
+            id: "page-19", 
+            items: [
+                { label: "Platform & AI Strategy", id: "page-19" },
+                { label: "Detailed Action Plan", id: "page-20" }
+            ] 
+        }
     ];
 
     const menuDataKr = [
@@ -74,7 +81,14 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                 { label: "Core Detail Page Draft", type: "system-core" }
             ] 
         },
-        { title: "Execution Plan", id: "page-19", items: [] }
+        { 
+            title: "Execution Plan", 
+            id: "page-19", 
+            items: [
+                { label: "플랫폼 및 AI 전략", id: "page-19" },
+                { label: "세부 실행 계획", id: "page-20" }
+            ] 
+        }
     ];
 
     const currentMenuData = lang === 'kr' ? menuDataKr : menuDataEn;
