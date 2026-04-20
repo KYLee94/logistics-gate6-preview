@@ -100,17 +100,17 @@ export default function ParallelPlan() {
                     <div className="w-full border-[6px] border-black px-[50px] pt-[40px] pb-[50px]">
                         <div className="flex items-start w-full">
                             <div className="flex-1 flex flex-col">
-                                <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[18px] font-inter">
+                                <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[13px] font-inter">
                                     {text.box1.title}
                                 </h2>
-                                <p className="text-[24px] font-medium text-[#222] leading-[36px] tracking-tight mb-[20px] break-keep">
+                                <p className="text-[24px] font-medium text-[#222] leading-[36px] tracking-tight mb-[5px] break-keep">
                                     {text.box1.desc}
                                 </p>
                                 
                                 <div className="w-full pt-[30px] grid grid-cols-3 gap-[40px]">
                                     {text.box1.bullets.map((bullet, idx) => (
                                         <div key={idx} className="flex flex-col">
-                                            <div className="text-[17px] font-bold tracking-wider mb-[16px] pb-[10px] text-[#888] uppercase">
+                                            <div className="text-[17px] font-bold tracking-wider mb-[10px] pb-[10px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
                                             <h3 className="text-[22px] font-bold text-black tracking-tight mb-[8px]">
@@ -130,17 +130,17 @@ export default function ParallelPlan() {
                     <div className="w-full border-[6px] border-black px-[50px] pt-[40px] pb-[50px]">
                         <div className="flex items-start w-full">
                             <div className="flex-1 flex flex-col">
-                                <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[18px] font-inter">
+                                <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[13px] font-inter">
                                     {text.box2.title}
                                 </h2>
-                                <p className="text-[24px] font-medium text-[#222] leading-[36px] tracking-tight mb-[20px] break-keep">
+                                <p className="text-[24px] font-medium text-[#222] leading-[36px] tracking-tight mb-[5px] break-keep">
                                     {text.box2.desc}
                                 </p>
                                 
                                 <div className="w-full pt-[30px] grid grid-cols-3 gap-[40px]">
                                     {text.box2.bullets.map((bullet, idx) => (
                                         <div key={idx} className="flex flex-col">
-                                            <div className="text-[17px] font-bold tracking-wider mb-[16px] pb-[10px] text-[#888] uppercase">
+                                            <div className="text-[17px] font-bold tracking-wider mb-[10px] pb-[10px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
                                             <h3 className="text-[22px] font-bold text-black tracking-tight mb-[8px]">
