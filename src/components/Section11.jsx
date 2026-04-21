@@ -144,7 +144,7 @@ export default function Section11({ isActive }) {
                                     <p>
                                         약 30분간 계획된 자문 미팅은 2시간을 훌쩍 넘어 마무리되었습니다.<br className="hidden xl:block"/>
                                         인드란은 이지스의 10단계 가치사슬을 데이터로 연결하려는 비전에 깊은 공감을 표했습니다. <br className="hidden xl:block"/>
-                                        특히 "과도한 엔지니어링(Overly engineered) 없이, 조직이 이미 가진 문제와 데이터를 사려 깊게 활용하는 것"이 <br className="hidden xl:block"/>
+                                        특히 "과도한 엔지니어링 없이, 조직이 이미 가진 문제와 데이터를 사려 깊게 활용하는 것"이 <br className="hidden xl:block"/>
                                         가장 훌륭한 플랫폼의 조건임을 확인했습니다.
                                     </p>
                                     <div className="mt-7 opacity-80 font-medium flex flex-wrap items-center gap-x-3 gap-y-2">

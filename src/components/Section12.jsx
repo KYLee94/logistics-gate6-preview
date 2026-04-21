@@ -136,7 +136,7 @@ export default function Section12({ isActive }) {
                         {lang === 'kr' ? (
                             <>
                                 <span className="relative inline-block pb-[1px]">
-                                    AI의 능력은 '맥락 (Context)'
+                                    AI의 능력은 '맥락'
                                     <span className={`absolute bottom-[6px] left-0 h-[1px] md:h-[2px] bg-[#f5f5f7] -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 6 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}></span>
                                 </span>에 좌우됩니다.<br/>
                                 맥락 없는 데이터는 AI라는 운전자를 최고급 엔진만 있고 운전대가 없는 포르쉐에 태운 것과 같습니다.
