@@ -16,8 +16,8 @@ export default function Section2({ isActive }) {
         const t1 = setTimeout(() => setStep(1), 500);  
         const t2 = setTimeout(() => setStep(2), 1500); 
         const t3 = setTimeout(() => setStep(3), 2500); 
-        const t4 = setTimeout(() => setStep(4), 4200); 
-        const t5 = setTimeout(() => setStep(5), 5200); 
+        const t4 = setTimeout(() => setStep(4), 3200); 
+        const t5 = setTimeout(() => setStep(5), 4200); 
 
         return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4); clearTimeout(t5); };
     }, [isActive]);
@@ -53,7 +53,7 @@ export default function Section2({ isActive }) {
                     </div>
 
                     {/* Sub Text 1 */}
-                    <div className={`transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] mt-16 md:mt-24 mb-[24px] ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                    <div className={`transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] mt-16 md:mt-24 mb-[9px] ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                         <p className="text-[20px] md:text-[24px] font-medium text-[#555] tracking-tight leading-[1.4]">
                             {lang === 'kr' ? "그런 AI들이 이미 개인들에게 사용되어지고 있습니다." : "Such AIs are actually already being utilized by individuals today."}
                         </p>
