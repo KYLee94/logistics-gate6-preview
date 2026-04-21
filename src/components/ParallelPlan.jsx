@@ -105,14 +105,14 @@ export default function ParallelPlan() {
     return (
         <div className="w-full h-full bg-white flex flex-col items-center justify-start font-sans text-black relative px-[60px] pt-[120px] shrink-0 overflow-y-auto">
             
-            <div className={`w-full max-w-[1400px] flex flex-col transition-all duration-[1200ms] transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+            <div className={`w-full max-w-[1300px] flex flex-col transition-all duration-[1200ms] transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
                 
                 {/* Header Block */}
                 <div className="w-full pt-[20px] pb-[26px] mb-[5px]">
-                    <h1 className="text-[36px] md:text-[42px] font-extrabold tracking-tight uppercase font-inter leading-tight mb-[24px]">
+                    <h1 className="text-[34px] md:text-[40px] font-extrabold tracking-tight uppercase font-inter leading-tight mb-[24px]">
                         {text.title}
                     </h1>
-                    <p className="text-[22px] md:text-[24px] font-bold text-[#222] tracking-tight leading-[36px] break-keep">
+                    <p className="text-[20px] md:text-[22px] font-bold text-[#222] tracking-tight leading-[36px] break-keep">
                         {text.subtitle}
                     </p>
                 </div>
@@ -124,23 +124,23 @@ export default function ParallelPlan() {
                     <div className="w-full border-[8px] border-[#1e3a8a] px-[50px] pt-[40px] pb-[50px]">
                         <div className="flex items-start w-full">
                             <div className="flex-1 flex flex-col">
-                                <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[13px] font-inter">
+                                <h2 className="text-[30px] md:text-[34px] font-bold tracking-tighter mb-[13px] font-inter">
                                     {text.box1.title}
                                 </h2>
-                                <p className="text-[24px] font-bold text-[#444] leading-[36px] tracking-tight mb-[5px] break-keep">
+                                <p className="text-[22px] font-bold text-[#444] leading-[36px] tracking-tight mb-[5px] break-keep">
                                     {text.box1.desc}
                                 </p>
                                 
                                 <div className="w-full pt-[30px] grid grid-cols-3 gap-[40px]">
                                     {text.box1.bullets.map((bullet, idx) => (
                                         <div key={idx} className="flex flex-col">
-                                            <div className="text-[17px] font-bold tracking-wider mb-[5px] pb-[6px] text-[#888] uppercase">
+                                            <div className="text-[15px] font-bold tracking-wider mb-[5px] pb-[6px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
-                                            <h3 className="text-[22px] font-bold text-black tracking-tight mb-[7px]">
+                                            <h3 className="text-[20px] font-bold text-black tracking-tight mb-[7px]">
                                                 {bullet.title}
                                             </h3>
-                                            <p className="text-[19px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
+                                            <p className="text-[17px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
                                                 {bullet.desc}
                                             </p>
                                         </div>
@@ -153,26 +153,26 @@ export default function ParallelPlan() {
                     {/* AI Adoption Box */}
                     <div className="w-full border-[8px] border-[#1e3a8a] px-[40px] md:px-[50px] pt-[35px] pb-[40px]">
                         <div className="flex flex-col w-full">
-                            <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[30px] font-inter">
+                            <h2 className="text-[30px] md:text-[34px] font-bold tracking-tighter mb-[30px] font-inter">
                                 {text.box2.title}
                             </h2>
 
                             {/* Option 1 */}
                             <div className="mb-[30px]">
-                                <h3 className="text-[26px] font-extrabold text-[#1e3a8a] mb-[10px] tracking-tight">{text.box2.option1.title}</h3>
-                                <p className="text-[22px] font-bold text-[#444] leading-[34px] tracking-tight mb-[25px] break-keep">
+                                <h3 className="text-[24px] font-extrabold text-[#1e3a8a] mb-[10px] tracking-tight">{text.box2.option1.title}</h3>
+                                <p className="text-[20px] font-bold text-[#444] leading-[34px] tracking-tight mb-[25px] break-keep">
                                     {text.box2.option1.desc}
                                 </p>
                                 <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-[30px]">
                                     {text.box2.option1.bullets.map((bullet, idx) => (
                                         <div key={`opt1-${idx}`} className="flex flex-col">
-                                            <div className="text-[16px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
+                                            <div className="text-[14px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
-                                            <h4 className="text-[22px] font-bold text-black tracking-tight mb-[8px]">
+                                            <h4 className="text-[20px] font-bold text-black tracking-tight mb-[8px]">
                                                 {bullet.title}
                                             </h4>
-                                            <p className="text-[18px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
+                                            <p className="text-[16px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
                                                 {bullet.desc}
                                             </p>
                                         </div>
@@ -184,20 +184,20 @@ export default function ParallelPlan() {
 
                             {/* Option 2 */}
                             <div className="mt-[40px]">
-                                <h3 className="text-[26px] font-extrabold text-[#1e3a8a] mb-[10px] tracking-tight">{text.box2.option2.title}</h3>
-                                <p className="text-[22px] font-bold text-[#444] leading-[34px] tracking-tight mb-[25px] break-keep">
+                                <h3 className="text-[24px] font-extrabold text-[#1e3a8a] mb-[10px] tracking-tight">{text.box2.option2.title}</h3>
+                                <p className="text-[20px] font-bold text-[#444] leading-[34px] tracking-tight mb-[25px] break-keep">
                                     {text.box2.option2.desc}
                                 </p>
                                 <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-[30px]">
                                     {text.box2.option2.bullets.map((bullet, idx) => (
                                         <div key={`opt2-${idx}`} className="flex flex-col">
-                                            <div className="text-[16px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
+                                            <div className="text-[14px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
-                                            <h4 className="text-[22px] font-bold text-black tracking-tight mb-[8px]">
+                                            <h4 className="text-[20px] font-bold text-black tracking-tight mb-[8px]">
                                                 {bullet.title}
                                             </h4>
-                                            <p className="text-[18px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
+                                            <p className="text-[16px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
                                                 {bullet.desc}
                                             </p>
                                         </div>
