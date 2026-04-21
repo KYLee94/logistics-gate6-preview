@@ -123,7 +123,7 @@ export default function Section8({ isActive }) {
                     <h2 className="text-[30px] md:text-[45px] lg:text-[52px] font-bold text-white tracking-tight leading-[1.25] break-keep mb-6 md:mb-8">
                         {lang === 'kr' ? (
                             <>
-                                그 결과, 이지스의 <span className="relative text-white inline-block"><span className="relative z-10">'10단계 가치 사슬(Value Chain)'</span><span className="absolute left-0 bottom-[2px] md:bottom-[3px] w-full h-[2px] md:h-[3px] bg-[#dc2626] z-0"></span></span>은<br className="hidden md:block"/> 단절되었습니다.
+                                그 결과, 이지스의 <span className="relative text-white inline-block"><span className="relative z-10">'10단계 가치 사슬(Value Chain)'</span><span className="absolute left-0 bottom-[2px] md:bottom-[3px] w-full h-[2px] md:h-[3px] bg-[#dc2626] z-0"></span></span>은<br className="hidden md:block"/> 많은 부분 단절되어 있습니다.
                             </>
                         ) : (
                             <>
@@ -154,7 +154,7 @@ export default function Section8({ isActive }) {
                         {lang === 'kr' ? (
                             <>
                                 나아가, 다른 프로젝트를 진행하는 팀들 간에도 <strong className="text-[#f97316] font-bold">노하우가 공유되기 어렵습니다.</strong><br />
-                                각 벨류체인이 단절되어 버리는 견고한 <strong className="text-[#dc2626] font-bold">'부서 간 장벽(Barrier)'</strong>이 세워지고<br />
+                                각 벨류체인이 단절되어 버리는 견고한 <strong className="text-[#dc2626] font-bold">'부서 간 장벽'</strong>이 세워지고<br />
                                 성공의 공식이 공유되지 않기에, 우리는 매 프로젝트마다 가장 비효율적인 방식의 <strong className="text-[#dc2626] font-bold">'맨땅에 헤딩'</strong>을 지속하고 있습니다.
                             </>
                         ) : (

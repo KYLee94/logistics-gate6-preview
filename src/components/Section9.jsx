@@ -173,12 +173,12 @@ export default function Section9({ isActive }) {
                                         {lang === 'kr' ? (
                                             <>
                                                 조직간 자율에 맡기자니 파편화되고, 규약으로 강제하자니 유연성이 죽는 딜레마.<br className="hidden md:block"/>
-                                                이를 깨기 위해 대표님은 <span className="text-[#1d1d1f] font-bold">CFT(Cross Functional Team) 전략에서 가장 현실적인 결정</span>을 내렸습니다.
+                                                이를 돌파하기 위해 <span className="text-[#1d1d1f] font-bold">크로스 펑셔널(Cross Functional) 환경을 담아낼 가장 현실적인 대안</span>이 구상되었습니다.
                                             </>
                                         ) : (
                                             <>
                                                 The dilemma of fragmentation through autonomy vs. loss of flexibility through strict rules.<br className="hidden md:block"/>
-                                                To break this, the CEO made the <span className="text-[#1d1d1f] font-bold">most pragmatic decision in the CFT(Cross Functional Team) strategy</span>.
+                                                To break this, the <span className="text-[#1d1d1f] font-bold">most pragmatic alternative for a Cross Functional environment</span> was formulated.
                                             </>
                                         )}
                                     </h3>
@@ -194,12 +194,12 @@ export default function Section9({ isActive }) {
                                         {lang === 'kr' ? (
                                             <>
                                                 개인의 성향이나 선의에 기대는 것을 멈추고,<br className="hidden md:block" />
-                                                <span className="font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">핵심 기능만큼은 컨트롤 타워를 통해 강제적으로 연결해 내겠다</span>는 원칙입니다.
+                                                <span className="font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">핵심 기능만큼은 컨트롤 타워를 통해 시스템 차원에서 단단하게 엮어내겠다</span>는 원칙입니다.
                                             </>
                                         ) : (
                                             <>
                                                 Stop relying on individual inclinations or goodwill, and<br className="hidden md:block" />
-                                                <span className="font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">forcefully connect core functions through a control tower</span>.
+                                                <span className="font-bold bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text">solidly connect core functions on a systemic level through a control tower</span>.
                                             </>
                                         )}
                                     </p>
