@@ -29,12 +29,12 @@ export default function Section7({ isActive }) {
                         {lang === 'kr' ? (
                             <>
                                 앞선 글로벌 전문가의 지적은,<br />
-                                놀랍게도 현재 우리가 현업에서 매일 마주하는 뼈아픈 현실과 일치합니다.
+                                놀랍게도 현재 우리가 현업에서 매일 마주하는 뼈아픈 한계와 일치합니다.
                             </>
                         ) : (
                             <>
                                 The preceding global expert's warning<br />
-                                perfectly aligns with the painful reality we face in our daily operations.
+                                perfectly aligns with the painful limitations we face in our daily operations.
                             </>
                         )}
                     </h2>
@@ -44,11 +44,11 @@ export default function Section7({ isActive }) {
                     <h3 className="text-[26px] md:text-[36px] lg:text-[42px] font-bold text-[#1d1d1f] tracking-tight leading-[1.3] break-keep mb-16 md:mb-24">
                         {lang === 'kr' ? (
                             <>
-                                바로 "<span className="text-black font-extrabold pb-1 border-b-[3px] border-black">데이터 고립 현상과 파편화된 지식 자산</span>" 때문입니다.
+                                바로 "<span className="text-[#d92d2d] font-bold">데이터 고립 현상과 파편화된 지식 자산</span>" 때문입니다.
                             </>
                         ) : (
                             <>
-                                It is precisely due to "<span className="text-black font-extrabold pb-1 border-b-[3px] border-black">data isolation and fragmented knowledge assets</span>".
+                                It is precisely due to "<span className="text-[#d92d2d] font-bold">data isolation and fragmented knowledge assets</span>".
                             </>
                         )}
                     </h3>
@@ -68,9 +68,9 @@ export default function Section7({ isActive }) {
                                     각 자산별 책임과 권한이 명확한 것은 효율적이나,<br className="hidden lg:block" />
                                     강한 오너십이 오히려 부서 간<br className="hidden lg:block" />
                                     <span 
-                                        className="relative inline transition-colors duration-500 font-bold text-[#1d1d1f]"
+                                        className="relative inline transition-colors duration-500 font-bold"
                                         style={{
-                                            backgroundImage: 'linear-gradient(transparent 85%, #d1d5db 85%, #d1d5db 100%)',
+                                            backgroundImage: 'linear-gradient(transparent 85%, #d92d2d 85%, #d92d2d 100%)',
                                             backgroundRepeat: 'no-repeat',
                                             backgroundSize: step >= 4 ? '100% 100%' : '0% 100%',
                                             transition: 'background-size 1.2s cubic-bezier(0.19, 1, 0.22, 1)'
@@ -81,9 +81,9 @@ export default function Section7({ isActive }) {
                                 <>
                                     Clear responsibility per asset is efficient, but<br className="hidden lg:block" />
                                     strong ownership acts as a limitation: <span 
-                                        className="relative inline transition-colors duration-500 font-bold text-[#1d1d1f]"
+                                        className="relative inline transition-colors duration-500 font-bold"
                                         style={{
-                                            backgroundImage: 'linear-gradient(transparent 85%, #d1d5db 85%, #d1d5db 100%)',
+                                            backgroundImage: 'linear-gradient(transparent 85%, #d92d2d 85%, #d92d2d 100%)',
                                             backgroundRepeat: 'no-repeat',
                                             backgroundSize: step >= 4 ? '100% 100%' : '0% 100%',
                                             transition: 'background-size 1.2s cubic-bezier(0.19, 1, 0.22, 1)'
@@ -103,9 +103,9 @@ export default function Section7({ isActive }) {
                             {lang === 'kr' ? (
                                 <>
                                     실무진 개개인의 뛰어난 역량과 산출물이 <span 
-                                        className="relative inline transition-colors duration-500 font-bold text-[#1d1d1f]"
+                                        className="relative inline transition-colors duration-500 font-bold"
                                         style={{
-                                            backgroundImage: 'linear-gradient(transparent 85%, #d1d5db 85%, #d1d5db 100%)',
+                                            backgroundImage: 'linear-gradient(transparent 85%, #d92d2d 85%, #d92d2d 100%)',
                                             backgroundRepeat: 'no-repeat',
                                             backgroundSize: step >= 4 ? '100% 100%' : '0% 100%',
                                             transition: 'background-size 1.2s cubic-bezier(0.19, 1, 0.22, 1)'
@@ -117,9 +117,9 @@ export default function Section7({ isActive }) {
                             ) : (
                                 <>
                                     Exceptional individual capabilities and outputs <span 
-                                        className="relative inline transition-colors duration-500 font-bold text-[#1d1d1f]"
+                                        className="relative inline transition-colors duration-500 font-bold"
                                         style={{
-                                            backgroundImage: 'linear-gradient(transparent 85%, #d1d5db 85%, #d1d5db 100%)',
+                                            backgroundImage: 'linear-gradient(transparent 85%, #d92d2d 85%, #d92d2d 100%)',
                                             backgroundRepeat: 'no-repeat',
                                             backgroundSize: step >= 4 ? '100% 100%' : '0% 100%',
                                             transition: 'background-size 1.2s cubic-bezier(0.19, 1, 0.22, 1)'
@@ -142,14 +142,14 @@ export default function Section7({ isActive }) {
                                     대기업처럼 강압적인 양식과 규약으로 묶어버리면<br className="hidden lg:block" />
                                     조직 특유의 생동감과 스피드가 즉각 상실됨.<br className="hidden lg:block" />
                                     <span 
-                                        className="relative inline transition-colors duration-500 font-bold text-[#1d1d1f]"
+                                        className="relative inline transition-colors duration-500 font-bold"
                                         style={{
-                                            backgroundImage: 'linear-gradient(transparent 85%, #d1d5db 85%, #d1d5db 100%)',
+                                            backgroundImage: 'linear-gradient(transparent 85%, #d92d2d 85%, #d92d2d 100%)',
                                             backgroundRepeat: 'no-repeat',
                                             backgroundSize: step >= 4 ? '100% 100%' : '0% 100%',
                                             transition: 'background-size 1.2s cubic-bezier(0.19, 1, 0.22, 1)'
                                         }}
-                                    >개인의 업무 방식을 존중 존경하면서도<br className="hidden lg:block" />
+                                    >개인의 업무 방식을 존중하면서도<br className="hidden lg:block" />
                                     이걸 백그라운드에서 하나로 연결할 시스템 부재.</span>
                                 </>
                             ) : (
@@ -157,9 +157,9 @@ export default function Section7({ isActive }) {
                                     Binding collaboration with rigid corporate templates<br className="hidden lg:block" />
                                     instantly kills the organization's unique flexibility.<br className="hidden lg:block" />
                                     <span 
-                                        className="relative inline transition-colors duration-500 font-bold text-[#1d1d1f]"
+                                        className="relative inline transition-colors duration-500 font-bold"
                                         style={{
-                                            backgroundImage: 'linear-gradient(transparent 85%, #d1d5db 85%, #d1d5db 100%)',
+                                            backgroundImage: 'linear-gradient(transparent 85%, #d92d2d 85%, #d92d2d 100%)',
                                             backgroundRepeat: 'no-repeat',
                                             backgroundSize: step >= 4 ? '100% 100%' : '0% 100%',
                                             transition: 'background-size 1.2s cubic-bezier(0.19, 1, 0.22, 1)'
