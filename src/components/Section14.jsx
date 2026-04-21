@@ -37,7 +37,7 @@ export default function Section14({ isActive }) {
 
                     {/* Left Box (The Engine) */}
                     <div className="w-full md:w-1/2 flex-none flex flex-col justify-center items-end text-right pr-0 md:pr-[60px] lg:pr-[80px] xl:pr-[100px] 2xl:pr-[130px] py-10 md:py-0">
-                        <span className={`text-[#86868b] font-semibold text-[13px] md:text-[14px] tracking-[0.2em] uppercase mb-6 md:mb-8 transition-all duration-1000 ease-out delay-[0ms] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                        <span className={`text-[#86868b] font-semibold text-[13px] md:text-[14px] tracking-tight mb-6 md:mb-8 transition-all duration-1000 ease-out delay-[0ms] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                             Definition / 01
                         </span>
                         
@@ -73,7 +73,7 @@ export default function Section14({ isActive }) {
 
                     {/* Right Box (The Steering Wheel) */}
                     <div className="w-full md:w-1/2 flex-none flex flex-col justify-center items-start text-left pl-0 md:pl-[60px] lg:pl-[80px] xl:pl-[100px] 2xl:pl-[130px] py-10 md:py-0">
-                        <span className={`text-[#86868b] font-semibold text-[13px] md:text-[14px] tracking-[0.2em] uppercase mb-6 md:mb-8 transition-all duration-1000 ease-out delay-[200ms] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                        <span className={`text-[#86868b] font-semibold text-[13px] md:text-[14px] tracking-tight mb-6 md:mb-8 transition-all duration-1000 ease-out delay-[200ms] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                             Definition / 02
                         </span>
                         
