@@ -71,6 +71,18 @@ export default function Section2({ isActive }) {
                         </div>
                     </div>
 
+                    {/* Similar Agents List */}
+                    <div className={`transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] mt-4 w-full flex justify-start pl-2 max-w-[950px] ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[14px] md:text-[15px] font-medium text-[#888]">
+                            <span className="text-[#444] font-bold mr-1">{lang === 'kr' ? "유사 에이전트 목록:" : "Similar Agents:"}</span>
+                            <a href="https://www.google.com/search?q=NanoClaw+AI" target="_blank" rel="noreferrer" className="hover:text-black transition-colors hover:underline underline-offset-4">나노클로(NanoClaw)</a> <span className="text-[#ddd] font-light">|</span>
+                            <a href="https://www.google.com/search?q=NemoClaw+AI" target="_blank" rel="noreferrer" className="hover:text-black transition-colors hover:underline underline-offset-4">네모클로(NemoClaw)</a> <span className="text-[#ddd] font-light">|</span>
+                            <a href="https://www.google.com/search?q=Nanobot+AI" target="_blank" rel="noreferrer" className="hover:text-black transition-colors hover:underline underline-offset-4">나노봇(Nanobot)</a> <span className="text-[#ddd] font-light">|</span>
+                            <a href="https://www.google.com/search?q=Open+Code+AI" target="_blank" rel="noreferrer" className="hover:text-black transition-colors hover:underline underline-offset-4">오픈 코드(Open Code)</a> <span className="text-[#ddd] font-light">|</span>
+                            <a href="https://www.anthropic.com/research/claude-code" target="_blank" rel="noreferrer" className="hover:text-black transition-colors hover:underline underline-offset-4">클로드 코드(Claude Code)</a>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </section>
