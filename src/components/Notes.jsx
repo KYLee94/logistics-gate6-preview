@@ -297,7 +297,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const bodyBlocks = lines.slice(1);
                                     
                                     return (
-                                        <div key={"plan-" + idx} className="mb-8 mt-[40px]">
+                                        <div key={"plan-" + idx} className="mb-8 mt-[50px]">
                                             <h2 className="text-[22px] md:text-[24px] font-bold mb-4 tracking-tighter text-black">{titleStr}</h2>
                                             <div className="text-[17px] leading-[26px] font-medium text-gray-800 break-keep">
                                                 {bodyBlocks.map((line, lIdx) => {
@@ -345,15 +345,15 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const title = lines[0];
                                     
                                     return (
-                                        <div key={"up-" + idx} className="mb-6 mt-[40px]">
+                                        <div key={"up-" + idx} className="mb-6 mt-[50px]">
                                             <h2 className="text-[20px] font-bold mb-4">{title}</h2>
                                             <div className="ml-2">
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     const isPreamble = idx === 0;
                                                     const isArrowFocus = line.trim().startsWith('->') || line.trim().startsWith('->');
                                                     return (
-                                                        <div key={"uline-" + lIdx} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[23px] pl-3 break-keep mb-2" : "text-[16px] leading-[24px] break-keep " + (isArrowFocus ? "font-bold text-black mt-2" : "text-gray-800")}>
-                                                            {line}
+                                                        <div key={"uline-" + lIdx} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[23px] pl-3 break-keep mb-2 whitespace-pre-wrap" : "text-[16px] leading-[24px] break-keep whitespace-pre-wrap " + (isArrowFocus ? "font-bold text-black mt-2" : "text-gray-800")}>
+                                                            {line || '\n'}
                                                         </div>
                                                     );
                                                 })}
@@ -381,14 +381,14 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const title = lines[0];
                                     
                                     return (
-                                        <div key={"ai-" + idx} className="mb-6 mt-[40px]">
+                                        <div key={"ai-" + idx} className="mb-6 mt-[50px]">
                                             <h2 className="text-[20px] font-bold mb-3">{title}</h2>
                                             <div className="ml-2">
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     const isPreamble = idx === 0 && lIdx === 0;
                                                     return (
-                                                        <div key={"aline-" + lIdx} className={isPreamble ? "text-[17px] font-bold text-gray-700 leading-[23px] pl-3 mb-4 break-keep" : "text-[16px] leading-[24px] break-keep text-gray-800"}>
-                                                            {line}
+                                                        <div key={"aline-" + lIdx} className={isPreamble ? "text-[17px] font-bold text-gray-700 leading-[23px] pl-3 mb-4 break-keep whitespace-pre-wrap" : "text-[16px] leading-[24px] break-keep text-gray-800 whitespace-pre-wrap"}>
+                                                            {line || '\n'}
                                                         </div>
                                                     );
                                                 })}
@@ -413,7 +413,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const body = lines.slice(1).join('\n');
                                     
                                     return (
-                                        <div key={"low-" + idx} className="mb-6 mt-[40px]">
+                                        <div key={"low-" + idx} className="mb-6 mt-[50px]">
                                             <h2 className="text-[20px] font-bold mb-3">{title}</h2>
                                             <div className="text-[16px] leading-[24px] break-keep ml-2 text-gray-800 whitespace-pre-wrap">
                                                 {body}
@@ -437,7 +437,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const title = lines[0];
                                     
                                     return (
-                                        <div key={"def-" + idx} className="mb-8 mt-[40px]">
+                                        <div key={"def-" + idx} className="mb-8 mt-[50px]">
                                             <h2 className="text-[20px] font-bold mb-5 tracking-tight">{title}</h2>
                                             <div className="ml-2 space-y-4 text-[16px] leading-[24px] text-gray-800 bg-gray-50 border-[2px] border-gray-200 p-8">
                                                 {lines.slice(1).map((line, lIdx) => {
