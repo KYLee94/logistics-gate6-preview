@@ -514,8 +514,6 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                             </div>
                                         </div>
                                     </div>
-                                </div>
-                            </div>
                         )}
 
                         {/* TAB 6: Data Schema (Dev Asset) */}
