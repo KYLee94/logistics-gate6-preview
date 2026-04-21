@@ -158,7 +158,7 @@ The visually demanding main dashboard and the computationally heavy AI panel are
     const aiTextKr = `1. 1단계
 빅테크 AI 벤더사(OpenAI, 구글 등)와의 전략적 제휴를 통해 전용 AI 플랫폼의 코어 뼈대를 구축한다. 단순 시스템 구축을 넘어 벤더사와의 공식 MOU 및 컨설팅 론칭을 기점으로, 이지스의 선진 기술 도입과 시스템 투명성을 외부 투자자(LP) 및 시장에 각인시켜 기업 신뢰도 회복을 위한 강력한 대외 홍보 및 비즈니스 레버리지 수단으로 적극 활용한다.
 - AI사 후보 및 모델 : 오픈AI, 구글, 클로드 / LLM 기반
-- 데이터 보안 아키텍처 : 금융/부동산 핵심 자산 정보가 외부 AI 학습용으로 유출되지 않도록 원천 차단하는 VPC 수준의 엔터프라이즈 전용 폐쇄망 생태계로 통제한다.
+- 데이터 보안 아키텍처 : 금융/부동산 핵심 자산 정보가 외부 AI 학습용 유출을 원천 차단하는 VPC 수준의 엔터프라이즈 전용 폐쇄망 생태계로 통제한다.
 - 테스트 사용자 : PO 레벨 이상 및 각 부서별 핵심 데이터 입력 담당자로 한정하여 철저한 초기 검증을 거친다.
 
 2. 2단계
@@ -267,12 +267,12 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                 </h1>
 
                 {/* Tab Navigation */}
-                <div className="flex border-b-[2px] border-gray-200 mb-8 overflow-x-auto no-scrollbar">
+                <div className="flex border-b border-gray-200 mb-8 overflow-x-auto no-scrollbar">
                     {tabs.map((tab, idx) => (
                         <button
                             key={idx}
                             onClick={() => setActiveTab(idx)}
-                            className={"cursor-pointer whitespace-nowrap px-6 py-3 font-bold text-[16px] md:text-[18px] transition-colors -mb-[2px] " + (activeTab === idx ? "border-b-[4px] border-black text-black" : "border-b-[4px] border-transparent text-gray-400 hover:text-gray-600")}
+                            className={"cursor-pointer whitespace-nowrap px-6 py-3 font-bold text-[16px] md:text-[18px] transition-colors -mb-[1px] " + (activeTab === idx ? "border-b-[5px] border-black text-black" : "border-b-[5px] border-transparent text-gray-400 hover:text-gray-600")}
                         >
                             {tab}
                         </button>
@@ -297,9 +297,9 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const bodyBlocks = lines.slice(1);
                                     
                                     return (
-                                        <div key={"plan-" + idx} className="mb-8 mt-[20px]">
+                                        <div key={"plan-" + idx} className="mb-8 mt-[40px]">
                                             <h2 className="text-[22px] md:text-[24px] font-bold mb-4 tracking-tighter text-black">{titleStr}</h2>
-                                            <div className="text-[17px] leading-[30px] font-medium text-gray-800 break-keep">
+                                            <div className="text-[17px] leading-[28px] font-medium text-gray-800 break-keep">
                                                 {bodyBlocks.map((line, lIdx) => {
                                                     if (!line.trim()) return <br key={lIdx} />;
                                                     
@@ -310,7 +310,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                                     }
 
                                                     if (isBoldLine || line.startsWith('①') || line.startsWith('②') || line.startsWith('③') || line.startsWith('④') || line.startsWith('⑤') || line.startsWith('⑥') || line.startsWith('⑦')) {
-                                                        return <p key={lIdx} className="font-extrabold text-[19px] mt-6 mb-2">{line}</p>;
+                                                        return <p key={lIdx} className="font-extrabold text-[19px] mt-1 mb-2">{line}</p>;
                                                     }
 
                                                     if (line.includes(': ')) {
@@ -345,14 +345,14 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const title = lines[0];
                                     
                                     return (
-                                        <div key={"up-" + idx} className="mb-6 mt-[20px]">
+                                        <div key={"up-" + idx} className="mb-6 mt-[40px]">
                                             <h2 className="text-[20px] font-bold mb-4">{title}</h2>
                                             <div className="ml-2">
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     const isPreamble = idx === 0;
                                                     const isArrowFocus = line.trim().startsWith('->') || line.trim().startsWith('->');
                                                     return (
-                                                        <div key={"uline-" + lIdx} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[27px] pl-3 break-keep mb-2" : "text-[16px] leading-[28px] break-keep " + (isArrowFocus ? "font-bold text-black mt-2" : "text-gray-800")}>
+                                                        <div key={"uline-" + lIdx} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[25px] pl-3 break-keep mb-2" : "text-[16px] leading-[26px] break-keep " + (isArrowFocus ? "font-bold text-black mt-2" : "text-gray-800")}>
                                                             {line}
                                                         </div>
                                                     );
@@ -371,7 +371,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                              <p className="text-md text-gray-500 font-medium mb-10 tracking-tight">
                                 {lang === 'en' ? 'April 9, 2026 - Consensus Complete' : '2026.04.09 기획추진센터 컨센서스 ver.'}
                             </p>
-                            <p className="text-[17px] font-bold mb-10 text-gray-800 break-keep leading-relaxed border-l-[4px] border-black pl-5">
+                            <p className="text-[17px] font-bold mb-10 text-gray-800 break-keep leading-[26px] border-l-[4px] border-black pl-5">
                                 {lang === 'en' ? 'The IFPDP platform fundamentally constructs a data lake of real assets, freely mounting high-performance AI models on top to fulfill its ultimate role as an AI platform.' : '본 IFPDP 플랫폼은 기본적으로 리얼에셋의 데이터레이크를 구성하고, 그 위에 성능 좋은 AI모델을 자유롭게 태워 AI 플랫폼으로써 정통적/궁극적 기능을 수행한다.'}
                             </p>
                             
@@ -381,13 +381,13 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const title = lines[0];
                                     
                                     return (
-                                        <div key={"ai-" + idx} className="mb-6 mt-[20px]">
+                                        <div key={"ai-" + idx} className="mb-6 mt-[40px]">
                                             <h2 className="text-[20px] font-bold mb-3">{title}</h2>
                                             <div className="ml-2">
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     const isPreamble = idx === 0 && lIdx === 0;
                                                     return (
-                                                        <div key={"aline-" + lIdx} className={isPreamble ? "text-[17px] font-bold text-gray-700 leading-[27px] pl-3 mb-4 break-keep" : "text-[16px] leading-[28px] break-keep text-gray-800"}>
+                                                        <div key={"aline-" + lIdx} className={isPreamble ? "text-[17px] font-bold text-gray-700 leading-[25px] pl-3 mb-4 break-keep" : "text-[16px] leading-[26px] break-keep text-gray-800"}>
                                                             {line}
                                                         </div>
                                                     );
@@ -413,9 +413,9 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const body = lines.slice(1).join('\n');
                                     
                                     return (
-                                        <div key={"low-" + idx} className="mb-6 mt-[20px]">
+                                        <div key={"low-" + idx} className="mb-6 mt-[40px]">
                                             <h2 className="text-[20px] font-bold mb-3">{title}</h2>
-                                            <div className="text-[16px] leading-[28px] break-keep ml-2 text-gray-800 whitespace-pre-wrap">
+                                            <div className="text-[16px] leading-[26px] break-keep ml-2 text-gray-800 whitespace-pre-wrap">
                                                 {body}
                                             </div>
                                         </div>
@@ -437,9 +437,9 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     const title = lines[0];
                                     
                                     return (
-                                        <div key={"def-" + idx} className="mb-8 mt-[20px]">
+                                        <div key={"def-" + idx} className="mb-8 mt-[40px]">
                                             <h2 className="text-[20px] font-bold mb-5 tracking-tight">{title}</h2>
-                                            <div className="ml-2 space-y-4 text-[16px] leading-[28px] text-gray-800 bg-gray-50 border-[2px] border-gray-200 p-8">
+                                            <div className="ml-2 space-y-4 text-[16px] leading-[26px] text-gray-800 bg-gray-50 border-[2px] border-gray-200 p-8">
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     if (!line.trim()) return null;
                                                     const isQuestion = line.startsWith('예상 질문:') || line.startsWith('Anticipated Question:');
@@ -471,7 +471,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                 <h3 className="text-[24px] font-bold mb-10 flex items-center gap-2 border-b-[2px] border-gray-200 pb-5">
                                     {lang === 'en' ? 'Platform Architecture & Execution Strategy Feasibility Review' : '플랫폼 아키텍처 및 추진 전략 타당성 검토'}
                                 </h3>
-                                <div className="space-y-10 text-[16px] leading-[30px] text-[#333] break-keep">
+                                <div className="space-y-10 text-[16px] leading-[28px] text-[#333] break-keep">
                                     <div>
                                         <strong className="text-[19px] text-black block mb-2">{lang === 'en' ? '1. Validity of Pre-building a Data Lake' : '1. 데이터레이크(Data Lake) 선구축의 정합성'}</strong>
                                         {lang === 'en' ? "The actual performance of AI models (such as LLM) is determined by the consistency and accessibility of internal data (based on RAG architecture). This roadmap, which combines fragmented departmental data into a single data lake called IFPDP and mounts AI on top of it, is the most perfect and technologically sound orthodox approach to prevent the introduction of meaningless AI shells." : "AI 모델(LLM 등)의 실질적 성능은 내부 데이터의 정합성과 접근성에 의해 결정된다(RAG 아키텍처 기반). 부서별로 분절된 데이터를 IFPDP라는 단일 데이터레이크로 결합한 후 그 위에 AI를 얹는 본 로드맵은, 무의미한 AI 껍데기 도입을 방지하는 가장 완벽하고 기술적으로 타당한 정석적 접근이다."}
