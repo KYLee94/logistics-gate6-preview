@@ -178,51 +178,74 @@ Expands to a flexible architecture allowing powerful multi-modal AI engines proc
 - User Environment: Expanding usage rights to all employees and deploying segment-specific connection environments.`;
 
     const upperTextKr = `1. 미션 수행의 목적
-전사적 데이터 취합을 효율적으로 완수하기 위해, 이를 단순 부서 업무가 아닌 리얼에셋 부문 전사 핵심 미션으로 격상하여 추진한다. 
+전사적 데이터 취합을 효율적으로 완수하기 위해, 이를 단순 부서 업무가 아닌 '리얼에셋 부문 전사 핵심 미션'으로 격상하여 추진한다.
 각 조직별 핵심 인력이 공식 미션 수행원으로 지정되어 강력한 크로스펑셔널(Cross-functional) 협업 체계를 구축하며, 참여자들에게 명확한 동기부여와 실질적인 OKR 평가 성과를 부여하는 것을 최우선 목적으로 한다.
 
 2. 내부 데이터의 취합
 1) 이미 기획추진센터 노션에 취합된 데이터
 2) 아우름 데이터
 3) 매주 주간회의때마다 이슈제기 되고 리더(이철승대표 이하) 합의로 취합할 데이터
-    - e.g. 4/8 사업그룹 미팅 지시사항 : 프로젝트마다의 설계사/시공사 다 파악해서 데이터화
-4) IFPDP 미션수행시 각 부서와의 협의에 따라 필요한 데이터셑을 합의하고 추가. 
-   - e.g. 기업마케팅 CRM 데이터, 프로젝트 별 심화데이터(브랜드 포지셔닝 등)
+   - e.g. 4/8 사업그룹 미팅 지시사항 : 프로젝트마다의 설계사/시공사 다 파악해서 데이터화
+4) IFPDP 미션수행 시 각 부서와의 협의에 따라 필요한 데이터셑을 합의하고 추가.
+   - e.g. 기업마케팅 CRM 데이터, 프로젝트 별 심화데이터(브랜드 포지셔닝, 플레이스 메이킹 플랜, M6 서비스, 어메니티 공간 계획 등) 등.
 
-3. 조직적 데이터 취합의 방법론 
-- 각각의 부서간 조직장 및 실무자와 협의/합의하여 최초 등록할 프로젝트/자산에 대해 설정하고, 그들과 긴밀하게 협력하여 최초 데이터셋을 구축한다.  
-- 예상 데이터 구축 협업 부서와 실무자 
-   ㄴ 기업마케팅센터 (고아라/김민지)
-   ㄴ 투자그룹 (신용우/송기석/홍봉석)
-   ㄴ 사업그룹 (이수정/강순용)
-   ㄴ 개발솔루션 (김대익)
-   -> ifpdp 시연화면을 만들어보며 각 부서별 니즈와 이를 충족하고 이들을 끌어들일수 있을만한것을 아이데이션 이후 접촉 예정
+3. 조직적 데이터 취합의 방법론
+- 각각의 부서간 조직장 및 실무자와 협의/합의하여 최초 등록할 프로젝트/자산에 대해 설정하고, 그들과 긴밀하게 협력하여 최초 데이터셋을 구축한다.
+- 예상 데이터 구축 협업 부서와 실무자
+  ㄴ 기업마케팅센터 (고아라/김민지)
+  ㄴ 투자그룹 (신용우/송기석/홍봉석)
+  ㄴ 글로벌투자그룹 (미정)
+  ㄴ 스페셜시츄에이션그룹 (미정)
+  ㄴ 사업그룹 (이수정/강순용)
+  ㄴ 디지털사업그룹 (미정/홍창의)
+  ㄴ 개발솔루션 (김대익/미정)
+  ㄴ 관리/운영 (미정)
+  ㄴ 글로벌자산관리 (미정)
+  ㄴ 리빙그룹 (미정)
+  ㄴ 리테일솔루션센터 (미정)
+  ㄴ LFC (미정)
+  ㄴ 공간솔루션센터 (미정)
+  ㄴ CM (미정)
+-> ifpdp 시연화면을 만들어보며 각 부서별 니즈와 이를 충족하고 이들을 끌어들일수 있을만한것을 아이데이션해본후 적절 부서 접촉 예정
+-> 인맥 없는 곳은 이시정 리더의 도움 받기로 함
 
 4. 외부데이터의 취합
-- 국내 마켓과 섹터 : spi 데이터 크롤링 취합 
+- 국내 마켓과 섹터 : spi 데이터 크롤링 취합
 - 국내 정량데이터 : 알스퀘어
 - 글로벌 마켓과 섹터 : 프리퀸, PMA 등
 - 글로벌 정량데이터 : RCA`;
 
     const upperTextEn = `1. Purpose of Mission Execution
-To efficiently accomplish enterprise-wide data collection, it is elevated from a mere departmental task to a Core Enterprise Mission for the Real Asset Division. 
-We will designate key personnel from each organization as official mission executors to build a strong cross-functional collaboration system.
+To efficiently accomplish enterprise-wide data collection, it is elevated from a mere departmental task to a 'Core Enterprise Mission' for the Real Asset Division. 
+Key personnel from each organization are designated as official mission executors to build a strong cross-functional collaboration system, prioritizing clear motivation and substantive OKR performance evaluations.
 
 2. Collection of Internal Data
 1) Data already collected in the Planning & Promotion Center's Notion
 2) Aurum data
 3) Data to be collected based on issues raised during weekly meetings
-    - e.g., Identify all architects/contractors for each project and digitize them.
-4) Data sets agreed upon and added through consultation with each department.
+   - e.g. 4/8 Business Group meeting instructions: Digitize all architects/contractors for each project
+4) Datasets agreed upon and added through consultation with each department during the IFPDP mission.
+   - e.g. Corporate Marketing CRM data, in-depth project data (brand positioning, placemaking plan, M6 service, amenity space planning, etc.).
 
 3. Methodology for Organizational Data Collection
 - Set the initial projects/assets to be registered in consultation with the organization heads and closely collaborate with them to build the initial datasets.
-- Expected collaborating departments and staff for data construction:
-   - Corporate Marketing Center
-   - Investment Group
-   - Business Group
-   - Development Solutions
-   -> Plan to ideate satisfying needs by demonstrating IFPDP screens.
+- Expected collaborating departments and staff for data construction
+  ㄴ Corporate Marketing Center (Ah-ra Ko / Min-ji Kim)
+  ㄴ Investment Group (Yong-woo Shin / Ki-seok Song / Bong-seok Hong)
+  ㄴ Global Investment Group (TBD)
+  ㄴ Special Situation Group (TBD)
+  ㄴ Business Group (Soo-jung Lee / Soon-yong Kang)
+  ㄴ Digital Business Group (TBD / Chang-eui Hong)
+  ㄴ Development Solutions (Dae-ik Kim / TBD)
+  ㄴ Management/Operations (TBD)
+  ㄴ Global Asset Management (TBD)
+  ㄴ Living Group (TBD)
+  ㄴ Retail Solution Center (TBD)
+  ㄴ LFC (TBD)
+  ㄴ Space Solution Center (TBD)
+  ㄴ CM (TBD)
+-> Plan to ideate satisfying needs by demonstrating IFPDP screens, then contact appropriate departments
+-> If lacking connections, support will be provided by Leader Si-jung Lee
 
 4. Collection of External Data
 - Domestic Markets and Sectors: Crawling SPI data
@@ -299,7 +322,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     return (
                                         <div key={"plan-" + idx} className="mb-8 mt-[50px]">
                                             <h2 className="text-[22px] md:text-[24px] font-bold mb-4 tracking-tighter text-black">{titleStr}</h2>
-                                            <div className="text-[17px] leading-[26px] font-medium text-gray-800 break-keep">
+                                            <div className="text-[17px] leading-[30px] font-medium text-gray-800 break-keep">
                                                 {bodyBlocks.map((line, lIdx) => {
                                                     if (!line.trim()) return <br key={lIdx} />;
                                                     
@@ -350,9 +373,9 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                             <div className="ml-2">
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     const isPreamble = idx === 0;
-                                                    const isArrowFocus = line.trim().startsWith('->') || line.trim().startsWith('->');
+                                                    const isArrowFocus = line.trim().startsWith('->');
                                                     return (
-                                                        <div key={"uline-" + lIdx} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[23px] pl-3 break-keep mb-2 whitespace-pre-wrap" : "text-[16px] leading-[24px] break-keep whitespace-pre-wrap " + (isArrowFocus ? "font-bold text-black mt-2" : "text-gray-800")}>
+                                                        <div key={"uline-" + lIdx} className={isPreamble ? "text-[16px] font-bold text-gray-700 leading-[28px] break-keep mb-2 whitespace-pre-wrap" : "text-[16px] leading-[28px] break-keep whitespace-pre-wrap " + (isArrowFocus ? "font-bold text-black" : "text-gray-800")}>
                                                             {line || '\n'}
                                                         </div>
                                                     );
@@ -371,7 +394,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                              <p className="text-md text-gray-500 font-medium mb-10 tracking-tight">
                                 {lang === 'en' ? 'April 9, 2026 - Consensus Complete' : '2026.04.09 기획추진센터 컨센서스 ver.'}
                             </p>
-                            <p className="text-[17px] font-bold mb-10 text-gray-800 break-keep leading-[24px] border-l-[4px] border-black pl-5">
+                            <p className="text-[17px] font-bold mb-10 text-gray-800 break-keep leading-[30px] border-l-[4px] border-black pl-5">
                                 {lang === 'en' ? 'The IFPDP platform fundamentally constructs a data lake of real assets, freely mounting high-performance AI models on top to fulfill its ultimate role as an AI platform.' : '본 IFPDP 플랫폼은 기본적으로 리얼에셋의 데이터레이크를 구성하고, 그 위에 성능 좋은 AI모델을 자유롭게 태워 AI 플랫폼으로써 정통적/궁극적 기능을 수행한다.'}
                             </p>
                             
@@ -387,7 +410,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     const isPreamble = idx === 0 && lIdx === 0;
                                                     return (
-                                                        <div key={"aline-" + lIdx} className={isPreamble ? "text-[17px] font-bold text-gray-700 leading-[23px] pl-3 mb-4 break-keep whitespace-pre-wrap" : "text-[16px] leading-[24px] break-keep text-gray-800 whitespace-pre-wrap"}>
+                                                        <div key={"aline-" + lIdx} className={isPreamble ? "text-[17px] font-bold text-gray-700 leading-[28px] mb-4 break-keep whitespace-pre-wrap" : "text-[16px] leading-[28px] break-keep text-gray-800 whitespace-pre-wrap"}>
                                                             {line || '\n'}
                                                         </div>
                                                     );
@@ -415,7 +438,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     return (
                                         <div key={"low-" + idx} className="mb-6 mt-[50px]">
                                             <h2 className="text-[20px] font-bold mb-3">{title}</h2>
-                                            <div className="text-[16px] leading-[24px] break-keep ml-2 text-gray-800 whitespace-pre-wrap">
+                                            <div className="text-[16px] leading-[28px] break-keep ml-2 text-gray-800 whitespace-pre-wrap">
                                                 {body}
                                             </div>
                                         </div>
@@ -439,7 +462,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                     return (
                                         <div key={"def-" + idx} className="mb-8 mt-[50px]">
                                             <h2 className="text-[20px] font-bold mb-5 tracking-tight">{title}</h2>
-                                            <div className="ml-2 space-y-4 text-[16px] leading-[24px] text-gray-800 bg-gray-50 border-[2px] border-gray-200 p-8">
+                                            <div className="ml-2 space-y-4 text-[16px] leading-[28px] text-gray-800 bg-gray-50 border-[2px] border-gray-200 p-8">
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     if (!line.trim()) return null;
                                                     const isQuestion = line.startsWith('예상 질문:') || line.startsWith('Anticipated Question:');
@@ -471,7 +494,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                 <h3 className="text-[24px] font-bold mb-10 flex items-center gap-2 border-b-[2px] border-gray-200 pb-5">
                                     {lang === 'en' ? 'Platform Architecture & Execution Strategy Feasibility Review' : '플랫폼 아키텍처 및 추진 전략 타당성 검토'}
                                 </h3>
-                                <div className="space-y-10 text-[16px] leading-[26px] text-[#333] break-keep">
+                                <div className="space-y-10 text-[16px] leading-[30px] text-[#333] break-keep">
                                     <div>
                                         <strong className="text-[19px] text-black block mb-2">{lang === 'en' ? '1. Validity of Pre-building a Data Lake' : '1. 데이터레이크(Data Lake) 선구축의 정합성'}</strong>
                                         {lang === 'en' ? "The actual performance of AI models (such as LLM) is determined by the consistency and accessibility of internal data (based on RAG architecture). This roadmap, which combines fragmented departmental data into a single data lake called IFPDP and mounts AI on top of it, is the most perfect and technologically sound orthodox approach to prevent the introduction of meaningless AI shells." : "AI 모델(LLM 등)의 실질적 성능은 내부 데이터의 정합성과 접근성에 의해 결정된다(RAG 아키텍처 기반). 부서별로 분절된 데이터를 IFPDP라는 단일 데이터레이크로 결합한 후 그 위에 AI를 얹는 본 로드맵은, 무의미한 AI 껍데기 도입을 방지하는 가장 완벽하고 기술적으로 타당한 정석적 접근이다."}
