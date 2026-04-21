@@ -134,7 +134,7 @@ export default function ParallelPlan() {
                                 <div className="w-full pt-[30px] grid grid-cols-3 gap-[40px]">
                                     {text.box1.bullets.map((bullet, idx) => (
                                         <div key={idx} className="flex flex-col">
-                                            <div className="text-[15px] font-bold tracking-wider mb-[5px] pb-[6px] text-[#888] uppercase">
+                                            <div className="text-[17px] font-bold tracking-wider mb-[5px] pb-[6px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
                                             <h3 className="text-[20px] font-bold text-black tracking-tight mb-[7px]">
@@ -166,7 +166,7 @@ export default function ParallelPlan() {
                                 <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-[30px]">
                                     {text.box2.option1.bullets.map((bullet, idx) => (
                                         <div key={`opt1-${idx}`} className="flex flex-col">
-                                            <div className="text-[14px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
+                                            <div className="text-[16px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
                                             <h4 className="text-[20px] font-bold text-black tracking-tight mb-[8px]">
@@ -191,7 +191,7 @@ export default function ParallelPlan() {
                                 <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-[30px]">
                                     {text.box2.option2.bullets.map((bullet, idx) => (
                                         <div key={`opt2-${idx}`} className="flex flex-col">
-                                            <div className="text-[14px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
+                                            <div className="text-[16px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
                                             <h4 className="text-[20px] font-bold text-black tracking-tight mb-[8px]">
