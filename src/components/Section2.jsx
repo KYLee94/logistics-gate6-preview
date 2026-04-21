@@ -29,14 +29,14 @@ export default function Section2({ isActive }) {
                 <div className="flex flex-col items-start justify-center text-left max-w-[1100px] w-full gap-0 relative border-l-0 pl-0 -translate-y-[20px] md:-translate-y-[30px]">
                     
                     {/* Line 1 */}
-                    <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] mb-[20px] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                    <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] mb-[24px] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <p className="text-[28px] md:text-[38px] font-bold text-[#666] tracking-tight leading-[1.2]">
                             {lang === 'kr' ? "바깥 세상의 지식만 묻고 답하는 평범한 AI를 넘어," : "Beyond ordinary AI answering worldly knowledge,"}
                         </p>
                     </div>
 
                     {/* Line 2 */}
-                    <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] mb-[20px] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
+                    <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] mb-[24px] ${step >= 2 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <p className="text-[34px] md:text-[48px] font-bold text-[#1d1d1f] tracking-tight leading-[1.15] break-keep">
                             {lang === 'kr' ? "내 PC 안의 수많은 파일들을 통째로 꿰뚫어 보고 분석하는" : "an AI that penetrates and analyzes all files and documents in your PC,"}
                         </p>
@@ -53,7 +53,7 @@ export default function Section2({ isActive }) {
                     </div>
 
                     {/* Sub Text 1 */}
-                    <div className={`transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] mt-16 md:mt-24 mb-[20px] ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                    <div className={`transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] mt-16 md:mt-24 mb-[24px] ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                         <p className="text-[20px] md:text-[24px] font-medium text-[#555] tracking-tight leading-[1.4]">
                             {lang === 'kr' ? "그런 AI들이 이미 개인들에게 사용되어지고 있습니다." : "Such AIs are actually already being utilized by individuals today."}
                         </p>
