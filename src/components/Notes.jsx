@@ -4,7 +4,6 @@ import { useLanguage } from '../context/LanguageContext';
 export default function Notes() {
     const { lang } = useLanguage();
     const [activeTab, setActiveTab] = useState(0);
-    const [feasibilitySubTab, setFeasibilitySubTab] = useState('schema');
 
     useEffect(() => {
         window.scrollTo(0, 0);
@@ -281,8 +280,8 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
     const defenseParts = parseSections(lang === 'en' ? defenseTextEn : defenseTextKr);
 
     const tabs = lang === 'en' 
-        ? ["System Action Plan", "Collection Methodology", "Data Considerations", "AI Introduction Plan", "Q&A", "Architecture Feasibility"]
-        : ["IFPDP 시스템 기획안", "데이터 취합 방법론", "취합 주요 고려사항", "AI 도입 계획", "Q&A", "아키텍처 타당성 검토"];
+        ? ["System Action Plan", "Collection Methodology", "Data Considerations", "AI Introduction Plan", "Q&A", "Architecture Feasibility", "System Data Schema"]
+        : ["IFPDP 시스템 기획안", "데이터 취합 방법론", "취합 주요 고려사항", "AI 도입 계획", "Q&A", "아키텍처 타당성 검토", "데이터 스키마 v2.0"];
 
     return (
         <div className="w-full h-screen bg-white font-sans text-black flex flex-col items-center overflow-hidden">
@@ -491,25 +490,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                         {/* TAB 5: Architecture Feasibility */}
                         {activeTab === 5 && (
                             <div className="animate-fadeIn w-full relative">
-                                {/* Sub Tabs */}
-                                <div className="flex gap-6 mb-6 border-b border-gray-200">
-                                    <button 
-                                        onClick={() => setFeasibilitySubTab('schema')}
-                                        className={`pb-3 px-2 text-[16px] font-bold transition-all duration-300 ${feasibilitySubTab === 'schema' ? 'text-[#1e3a8a] border-b-2 border-[#1e3a8a]' : 'text-gray-400 hover:text-gray-600'}`}
-                                    >
-                                        {lang === 'en' ? 'Asset Data Schema v2.0' : '데이터 스키마 v2.0'}
-                                    </button>
-                                    <button 
-                                        onClick={() => setFeasibilitySubTab('text')}
-                                        className={`pb-3 px-2 text-[16px] font-bold transition-all duration-300 ${feasibilitySubTab === 'text' ? 'text-[#1e3a8a] border-b-2 border-[#1e3a8a]' : 'text-gray-400 hover:text-gray-600'}`}
-                                    >
-                                        {lang === 'en' ? 'Architecture Review' : '아키텍처 검토 원문'}
-                                    </button>
-                                </div>
-
-                                {feasibilitySubTab === 'text' && (
-                                    <div className="animate-fadeIn">
-                                        <div className="bg-gray-50 border border-gray-300 p-8 md:p-10 rounded-sm">
+                                <div className="bg-gray-50 border border-gray-300 p-8 md:p-10 rounded-sm">
                                             <h3 className="text-[24px] font-bold mb-8 flex items-center gap-2">
                                                 {lang === 'en' ? 'Platform Architecture & Execution Strategy Feasibility Review' : '플랫폼 아키텍처 및 추진 전략 타당성 검토'}
                                             </h3>
@@ -533,198 +514,173 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                             </div>
                                         </div>
                                     </div>
-                                )}
+                                </div>
+                            </div>
+                        )}
 
-                                {feasibilitySubTab === 'schema' && (
-                                    <div className="animate-fadeIn w-full relative h-[65vh] pr-4 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
-                                        <div className="w-full">
-                                            <h2 className="text-[20px] font-extrabold mb-4 font-inter text-[#1a1a1a]">IFPDP Asset Data Schema v2.0 (다중 필드/시계열 반영)</h2>
-                                            
-                                            <div className="w-full overflow-hidden border border-gray-300 rounded-md mb-8 shadow-sm">
-                                                <table className="w-full text-[13px] text-left border-collapse break-keep table-fixed">
-                                                    <thead className="bg-[#e4e4e7] text-[#333]">
-                                                        <tr>
-                                                            <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[120px]">화면영역 (UI 계층)</th>
-                                                            <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[160px]">데이터 속성</th>
-                                                            <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[200px]">DB 필드명</th>
-                                                            <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[200px]">데이터 구조</th>
-                                                            <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[120px]">데이터 타입</th>
-                                                            <th className="border-b border-gray-300 px-3 py-2 font-bold">설명 및 화면 맵핑 예제</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="bg-white tracking-tight">
-                                                        {/* SECTION 1 */}
-                                                        <tr className="bg-[#f8f8f9]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-2 font-bold text-gray-700" rowSpan="4">Section 1 (최상단)</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">① Static 프로필 <span className="text-gray-400 font-normal">(불변)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#2c3e50] font-bold">missionId / assetName</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 구조</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">String</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">더케이트윈타워 매입 프로젝트</td>
-                                                        </tr>
-                                                        <tr className="bg-[#f8f8f9]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">① Static 프로필 <span className="text-gray-400 font-normal">(불변)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#2c3e50] font-bold">assetClass / address</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 구조</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">Enum/String</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">오피스/리테일, 서울시 종로구</td>
-                                                        </tr>
-                                                        <tr className="bg-[#f8f8f9]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">aum <span className="font-sans font-normal text-gray-500">(총 사업규모)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">Time-Series <span className="text-gray-400">(시계열 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">UW, BP, 실제 연도별 사업비 변동 추이 누적</td>
-                                                        </tr>
-                                                        <tr className="bg-[#f8f8f9]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">① Static 프로필 <span className="text-gray-400 font-normal">(불변)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#2c3e50] font-bold">director / pm</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 구조</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">String</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">정영진 / 장민호</td>
-                                                        </tr>
+                        {/* TAB 6: Data Schema (Dev Asset) */}
+                        {activeTab === 6 && (
+                            <div className="animate-fadeIn w-full relative">
+                                <div className="w-full">
+                                    <h2 className="text-[20px] font-extrabold mb-4 font-inter text-[#1a1a1a]">IFPDP Asset Data Schema v2.0 - 개발자산 상세 (다중 필드/시계열 데이터 맵핑)</h2>
+                                    
+                                    <div className="w-full border border-gray-300 rounded-md mb-8 shadow-sm">
+                                        <table className="w-full text-[13px] text-left border-collapse break-keep table-fixed">
+                                            <thead className="bg-[#e4e4e7] text-[#333]">
+                                                <tr>
+                                                    <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[120px]">화면영역 (UI 계층)</th>
+                                                    <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[160px]">데이터 속성</th>
+                                                    <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[180px]">DB 필드명</th>
+                                                    <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[200px]">데이터 구조</th>
+                                                    <th className="border-b border-r border-gray-300 px-3 py-2 font-bold w-[120px]">데이터 타입</th>
+                                                    <th className="border-b border-gray-300 px-3 py-2 font-bold">운영체제(OS) 화면 맵핑 예제 (IOTA Seoul)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white tracking-tight">
+                                                {/* SECTION 1 */}
+                                                <tr className="bg-[#f8f8f9]">
+                                                    <td className="border-b border-r border-gray-300 px-3 py-2 font-bold text-gray-700" rowSpan="4">Section 1 (헤더 / 메타데이터)</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">① Static 프로필 <span className="text-gray-400 font-normal">(불변)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#2c3e50] font-bold">missionId / assetName</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 구조</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">String</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">IOTA Seoul 2 816 프로젝트</td>
+                                                </tr>
+                                                <tr className="bg-[#f8f8f9]">
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">① Static 프로필 <span className="text-gray-400 font-normal">(불변)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#2c3e50] font-bold">assetClass / vehicle</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 구조</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">Enum</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">Commercial / Office / PFV</td>
+                                                </tr>
+                                                <tr className="bg-[#f8f8f9]">
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">① Static 프로필 <span className="text-gray-400 font-normal">(불변)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#2c3e50] font-bold">director / pm_team</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 Array</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Strings</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">이철승(Director), 강순용(PO), 한찬호 외 PM팀 배열</td>
+                                                </tr>
+                                                <tr className="bg-[#f8f8f9]">
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">status / priority</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 구조</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">Enum</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">개발중 / High (진척 상황에 따른 변경)</td>
+                                                </tr>
 
-                                                        {/* SECTION 2 */}
-                                                        <tr>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-2 font-bold text-gray-700" rowSpan="4">Section 2 (상단)</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-semibold text-[#1e3a8a]">③ Context 텍스트 <span className="text-[#3b82f6] font-normal">(RAG)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#16a085] font-bold">redFlagsStatus</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">Log Series <span className="text-gray-400">(로그 누적 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">시점별 리스크 발생 및 해소 내역 누적 로깅</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-semibold text-[#1e3a8a]">③ Context 텍스트 <span className="text-[#3b82f6] font-normal">(RAG)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#16a085] font-bold">valueChainStatus</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 컨텍스트 구조</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">Text</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">진척률 프로그레스 바 밑에 한 줄 설명</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">irr <span className="font-sans font-normal text-gray-500">(수익률)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">Time-Series <span className="text-gray-400">(시계열 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">목표(UW), 분기별 추정 IRR, 엑시트 확정 IRR 궤적</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">completionDate <span className="font-sans font-normal text-gray-500">(준공일)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">Date Series <span className="text-gray-400">(마일스톤 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">최초 계획일, 변경 승인일, 실제 완료일 누적</td>
-                                                        </tr>
+                                                {/* SECTION 2 */}
+                                                <tr>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-2 font-bold text-gray-700" rowSpan="2">Section 2 (타임라인 로드맵)</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">timelineMilestones</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">Date Series <span className="text-gray-400">(마일스톤 배열)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">PFV설립, 통합심의 完, 1차~3차연장, 통합PF 조달 등 핵심 노드 누적</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-semibold text-[#1e3a8a]">③ Context 텍스트 <span className="text-[#3b82f6] font-normal">(RAG)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#16a085] font-bold">timelineDelayLog</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">Log Series <span className="text-gray-400">(로그 배열)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">변경 승인 히스토리 및 EOD 유예 등 지연 사유 트래킹</td>
+                                                </tr>
 
-                                                        {/* SECTION 3 */}
-                                                        <tr className="bg-[#f0f4f8]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-2 font-bold text-[#1e3a8a]" rowSpan="7">Section 3 (중단)</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-semibold text-[#1e3a8a]">③ Context 텍스트 <span className="text-[#3b82f6] font-normal">(RAG)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#16a085] font-bold bg-yellow-100/50">decisionContextLog</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-bold text-[#1e3a8a]">Log Series <span className="text-gray-500 font-normal">(로그 누적 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-black font-semibold">의사결정 맥락 / <span className="text-[#e55039]">회의록(Meeting Minutes) 연동</span></td>
-                                                        </tr>
-                                                        <tr className="bg-[#f0f4f8]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">equity_loan_ratio <span className="font-sans font-normal text-gray-500">(LTV)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">Time-Series <span className="text-gray-400">(시계열 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">기표 시점 LTV, 리파이낸싱 후 LTV 추이</td>
-                                                        </tr>
-                                                        <tr className="bg-[#f0f4f8]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">occupancy <span className="font-sans font-normal text-gray-500">(임대율)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">Time-Series <span className="text-gray-400">(시계열 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">분기별 전체 임대율 꺾은선 차트용 시계열</td>
-                                                        </tr>
-                                                        <tr className="bg-[#f0f4f8]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">walt <span className="font-sans font-normal text-gray-500">(잔여)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">Time-Series <span className="text-gray-400">(시계열 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">분기/반기별 잔여 임대기간 평균 변동 폭</td>
-                                                        </tr>
-                                                        <tr className="bg-[#f0f4f8]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">closingDate <span className="font-sans font-normal text-gray-500">(딜 클로징)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">Date Series <span className="text-gray-400">(마일스톤 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">지연 히스토리 및 최종 완료 노드 관리</td>
-                                                        </tr>
-                                                        <tr className="bg-[#f0f4f8]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">pfDrawdown <span className="font-sans font-normal text-gray-500">(기표일)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">Date Series <span className="text-gray-400">(마일스톤 배열)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">트렌치(Tranche)별 기표 내역 및 일정 관리</td>
-                                                        </tr>
-                                                        <tr className="bg-[#f0f4f8]">
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-semibold text-[#1e3a8a]">③ Context 텍스트 <span className="text-[#3b82f6] font-normal">(RAG)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#16a085] font-bold">productStrategy</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 컨텍스트 구조</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">Text</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">상품/브랜드 전략 (저층 F&B 60% 우선유치 등)</td>
-                                                        </tr>
+                                                {/* SECTION 3 */}
+                                                <tr className="bg-[#f0f4f8]">
+                                                    <td className="border-b border-r border-gray-300 px-3 py-2 font-bold text-[#1e3a8a]" rowSpan="5">Section 3 (중단 / 파이낸싱 대시보드)</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">cost_sale_targets</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">Time-Series <span className="text-gray-400">(시계열 배열)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">원가 UW 1.6조 → As-is 2.19조 / 매각목표 1.8조 → 2.37조 분기별 궤적</td>
+                                                </tr>
+                                                <tr className="bg-[#f0f4f8]">
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">irr_target_log</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">Time-Series <span className="text-gray-400">(시계열 배열)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">목표 IRR 변동 (10.5% → 5.8%) 및 E.NOC 시계열</td>
+                                                </tr>
+                                                <tr className="bg-[#f0f4f8]">
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-semibold text-[#1e3a8a]">③ Context 텍스트 <span className="text-[#3b82f6] font-normal">(RAG)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#16a085] font-bold bg-yellow-100/50">majorIssuesLog</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-bold text-[#1e3a8a]">Log Series <span className="text-gray-500 font-normal">(로그 누적 배열)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-black font-semibold">리파이낸싱(KB증권 부결, 메리츠/NH 컨택) 및 방안 <span className="text-[#e55039]">회의록</span> 정보</td>
+                                                </tr>
+                                                <tr className="bg-[#f0f4f8]">
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">equity_loan_tranches</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">Single Array <span className="text-gray-400">of Objects</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">Equity, Loan(Tr.A, B, C) 세부 은행별 참여금액/수익률/주주대여금</td>
+                                                </tr>
+                                                <tr className="bg-[#f0f4f8]">
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">developmentPeriod</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">Time-Series <span className="text-gray-400">(시계열 배열)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">목표 개발소요기간(67M → 116M) 등 주요 사업 변동치</td>
+                                                </tr>
 
-                                                        {/* SECTION 4 */}
-                                                        <tr>
-                                                            <td className="border-r border-gray-300 px-3 py-2 font-bold text-gray-700" rowSpan="2">Section 4 (하단)</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">① Static 프로필 <span className="text-gray-400 font-normal">(불변)</span></td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#2c3e50] font-bold">vehicle_type / name</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 구조</td>
-                                                            <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">Enum/String</td>
-                                                            <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">이지스전문투자형 389호</td>
-                                                        </tr>
-                                                        <tr>
-                                                            <td className="border-r border-gray-300 px-3 py-[6px]">① Static 프로필 <span className="text-gray-400 font-normal">(불변)</span></td>
-                                                            <td className="border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#2c3e50] font-bold">partners</td>
-                                                            <td className="border-r border-gray-300 px-3 py-[6px]">단일 구조 (혹은 Array)</td>
-                                                            <td className="border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Strings</td>
-                                                            <td className="px-3 py-[6px] text-gray-600">시공/설계/파트너 연락망 배열</td>
-                                                        </tr>
-                                                    </tbody>
-                                                </table>
-                                            </div>
+                                                {/* SECTION 4 */}
+                                                <tr>
+                                                    <td className="border-r border-gray-300 px-3 py-2 font-bold text-gray-700" rowSpan="4">Section 4 (하단 / RAG 컨텍스트)</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-semibold text-[#1e3a8a]">③ Context 텍스트 <span className="text-[#3b82f6] font-normal">(RAG)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#16a085] font-bold">brandProductStrategy</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px]">단일 컨텍스트 구조</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#e67e22] font-semibold text-[12px]">Text</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">Brand Guideline, 공간UX 차별성 전략 (개방형녹지, 스카이가든 등)</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-semibold text-[#1e3a8a]">③ Context 텍스트 <span className="text-[#3b82f6] font-normal">(RAG)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#16a085] font-bold">salesPartnershipLog</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-bold text-[#1e3a8a]">Log Series <span className="text-gray-500 font-normal">(로그 누적)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">기업 세일즈 이력 추적 (SK솔루션, LG전자 제안 및 임차 협의 로그)</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-semibold text-[#1e3a8a]">③ Context 텍스트 <span className="text-[#3b82f6] font-normal">(RAG)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#16a085] font-bold">marketingLog</td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] font-bold text-[#1e3a8a]">Log Series <span className="text-gray-500 font-normal">(로그 누적)</span></td>
+                                                    <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Objects</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">대외 홍보(인터뷰, 기획기사) 및 플레이스메이킹 히스토리 로그</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="border-r border-gray-300 px-3 py-[6px]">① Static 프로필 <span className="text-gray-400 font-normal">(불변)</span></td>
+                                                    <td className="border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#2c3e50] font-bold">partners_architects</td>
+                                                    <td className="border-r border-gray-300 px-3 py-[6px]">단일 구조 (Array)</td>
+                                                    <td className="border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Array of Strings</td>
+                                                    <td className="px-3 py-[6px] text-gray-600">시공사(삼성물산), 설계사(SOM, dA), 자산관리 등 파트너 메타데이터</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
 
-                                            {/* Explanations */}
-                                            <div className="space-y-6 text-[13px] leading-relaxed break-keep pb-20">
-                                                <div>
-                                                    <h3 className="font-extrabold text-[15px] mb-2 text-[#1a1a1a]">1. 데이터 속성 (Data Attribute)</h3>
-                                                    <p className="mb-2 text-gray-700">비즈니스 관점에서 이 데이터가 "어떤 성격과 주기를 띠는가?"를 정의. 데이터가 시간에 따라 변하는지, 아니면 고유한 이름으로 존재하는지를 비즈니스 로직 기준으로 세 가지로 분류.</p>
-                                                    <ul className="space-y-1 ml-1 text-gray-800">
-                                                        <li>• <span className="font-bold text-[#1e3a8a]">① Static 프로필 (불변):</span> 자산의 이름, 건축 목적, 펀드명, 담당자 이름 등.</li>
-                                                        <li>• <span className="font-bold text-[#1e3a8a]">② Dynamic 지표 (변동):</span> 임대율, 수익률(IRR), 사업비(AUM), 매각가 등 운영 효율이나 시장 상황에 따라 실시간 혹은 주기적으로 숫자가 변하는 핵심 성과 지표. (대표님 C레벨 트래킹)</li>
-                                                        <li>• <span className="font-bold text-[#1e3a8a]">③ Context Text (RAG):</span> 리스크 로그, 회의록, 의사결정 맥락 등 단순 숫자가 아니라 왜 그렇게 되었는지 이야기가 필요한 정성적 데이터. RAG(검색 증강 생성) AI가 사용자 질문에 대답하기 위해 긁어가는 핵심 지식 창고 역할.</li>
-                                                    </ul>
-                                                </div>
+                                    {/* Explanations */}
+                                    <div className="space-y-6 text-[13px] leading-relaxed break-keep pb-20">
+                                        <div>
+                                            <h3 className="font-extrabold text-[15px] mb-2 text-[#1a1a1a]">1. 데이터 속성 (Data Attribute)</h3>
+                                            <p className="mb-2 text-gray-700">비즈니스 관점에서 개발자산(디벨롭먼트) 데이터가 "어떤 성격과 주기를 띠는가?"를 정의. 운영자산과 달리 '목표 대비 현재(UW vs As-is)' 변동이 핵심입니다.</p>
+                                            <ul className="space-y-1 ml-1 text-gray-800">
+                                                <li>• <span className="font-bold text-[#1e3a8a]">① Static 프로필 (불변):</span> 프로젝트명, 비히클(PFV), 파트너/시공사 등 초기 세팅된 불변 정보.</li>
+                                                <li>• <span className="font-bold text-[#1e3a8a]">② Dynamic 지표 (변동):</span> 목표 원가, 매각가, 에쿼티/론 비율 등 개발 진행도(인허가/착공/PF)에 따라 갱신되는 핵심 재무 정보.</li>
+                                                <li>• <span className="font-bold text-[#1e3a8a]">③ Context Text (RAG):</span> 리파이낸싱 이슈 협의 내역, 주요 임차사(LG전자 등) 세일즈 핑퐁, 이사회 의사결정 회의록(Meeting Minutes).</li>
+                                            </ul>
+                                        </div>
 
-                                                <div>
-                                                    <h3 className="font-extrabold text-[15px] mb-2 text-[#1a1a1a]">2. 데이터 구조 (Data Structure)</h3>
-                                                    <p className="mb-2 text-gray-700">정보 설계 관점에서 이 데이터를 "어떻게 담아둘 것인가?"를 정의. 이 데이터가 단순히 하나의 칸에만 입력되는지, 아니면 차트를 그리기 위해 층층이 쌓여야 하는지를 정의하는 '설계도(Architecture)' 개념.</p>
-                                                    <ul className="space-y-1 ml-1 text-gray-800">
-                                                        <li>- <span className="font-bold text-gray-900">단일 구조 / 단일 컨텍스트 구조:</span> 현재 시점의 "딱 하나의 값"만 가지는 1차원적 구조. (예: assetName = "더케이트윈타워")</li>
-                                                        <li>- <span className="font-bold text-gray-900">Time-Series (시계열 배열):</span> 하나의 지표(예: 평당 임대료)에 대해 "목표는 얼마였는데, 1분기엔 얼마였고, 2분기엔 얼마였다"를 선(Line)처럼 누적해서 그려내는 구조.</li>
-                                                        <li>- <span className="font-bold text-gray-900">Date Series (마일스톤 배열):</span> "사전임대 시작 노드"처럼 날짜 자체의 궤적(예시: 원래 8월 예정이었으나 우천 지연으로 9월 승인, 최종 10월 완료결재)을 쌓아두는 구조.</li>
-                                                        <li>- <span className="font-bold text-[#e55039]">Log Series (로그 누적 배열):</span> 카카오톡 대화방이나 회의록(Meeting Minutes)처럼, 특정 일자마다 발생한 리스크 메모나 의사결정 코멘트들을 차곡차곡 쌓아가는 구조.</li>
-                                                    </ul>
-                                                </div>
-
-                                                <div>
-                                                    <h3 className="font-extrabold text-[15px] mb-2 text-[#1a1a1a]">3. 데이터 타입 (Data Type)</h3>
-                                                    <p className="mb-2 text-gray-700">프로그래밍 관점에서 이 데이터에 "어떤 형태의 값을 입력할 수 있는가?"를 정의. 실제 데이터베이스 제약 조건(Validation)을 걸 때 사용하는 원시적인 단위.</p>
-                                                    <ul className="space-y-1 ml-1 text-gray-800">
-                                                        <li>- <span className="font-extrabold text-[#e67e22]">String / Text:</span> 평범한 글자(문자열). (예: "정영진", "하층부 F&B 전략")</li>
-                                                        <li>- <span className="font-extrabold text-[#e67e22]">Enum (선택형):</span> 정해진 드롭다운 목록에서 선택. (예: "커머셜, 입찰단계, 오피스")</li>
-                                                        <li>- <span className="font-extrabold text-[#e67e22]">Number / Float:</span> 연산(더하기, 빼기 등)이 가능한 순수 숫자나 소수점.</li>
-                                                        <li>- <span className="font-extrabold text-[#e67e22]">Date:</span> 날짜 연산(목표일-현재일=D-Day)이 가능한 표준 시각 규격. (예: 2025-08-30)</li>
-                                                        <li>- <span className="font-extrabold text-[#2980b9]">Array (배열) / Array of Objects:</span> 위에 설명한 Time-Series나 Log Series를 실제로 구현하기 위해, 괄호 [] 안에 여러 개의 덩어리(Object)들을 무한정 집어넣을 수 있는 데이터 타입.</li>
-                                                    </ul>
-                                                </div>
-                                            </div>
+                                        <div>
+                                            <h3 className="font-extrabold text-[15px] mb-2 text-[#1a1a1a]">2. 데이터 구조 (Data Structure)</h3>
+                                            <p className="mb-2 text-gray-700">정보 설계 관점에서 이 개발자산 데이터를 "시스템 코어에 어떻게 담아둘 것인가?"를 정의하는 데이터레이크 설계도입니다.</p>
+                                            <ul className="space-y-1 ml-1 text-gray-800">
+                                                <li>- <span className="font-bold text-gray-900">단일 구조 / 단일 컨텍스트 구조:</span> 현재 시점의 "딱 하나의 값"을 가지는 개발 개요 메타데이터.</li>
+                                                <li>- <span className="font-bold text-gray-900">Time-Series (시계열 배열):</span> 단일 숫자가 아닌 "사업기획시(UW)엔 얼마였으나 인허가 지연으로 현재(As-is)는 얼마다"라는 원가/수익률 궤적 추적 구조.</li>
+                                                <li>- <span className="font-bold text-gray-900">Date Series (마일스톤 배열):</span> 자산매입, 1/2차 연장, 통합PF 조달, 착공, 준공까지 선형적 날짜가 누적되는 타임라인 구조.</li>
+                                                <li>- <span className="font-bold text-[#e55039]">Log Series (로그 누적 배열):</span> 특정 이슈(리파이낸싱 컨택, 주요 임차인 제안 등)마다 카라반/회의록 데이터가 차곡차곡 쌓이는 RAG 최적화 구조.</li>
+                                            </ul>
                                         </div>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         )}
 
