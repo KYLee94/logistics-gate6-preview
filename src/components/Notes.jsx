@@ -272,7 +272,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                         <button
                             key={idx}
                             onClick={() => setActiveTab(idx)}
-                            className={\`whitespace-nowrap px-6 py-3 font-bold text-[16px] md:text-[18px] transition-colors \${activeTab === idx ? 'border-b-[4px] border-black text-black' : 'border-b-[4px] border-transparent text-gray-400 hover:text-gray-600'}\`}
+                            className={"whitespace-nowrap px-6 py-3 font-bold text-[16px] md:text-[18px] transition-colors " + (activeTab === idx ? "border-b-[4px] border-black text-black" : "border-b-[4px] border-transparent text-gray-400 hover:text-gray-600")}
                         >
                             {tab}
                         </button>
@@ -292,12 +292,12 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                             </p>
                             <div className="space-y-12">
                                 {planParts.map((part, idx) => {
-                                    const lines = part.trim().split('\\n');
+                                    const lines = part.trim().split('\n');
                                     const titleStr = lines[0];
                                     const bodyBlocks = lines.slice(1);
                                     
                                     return (
-                                        <div key={\`plan-\${idx}\`} className="mb-8">
+                                        <div key={"plan-" + idx} className="mb-8">
                                             <h2 className="text-[22px] md:text-[24px] font-bold mb-4 tracking-tighter text-black">{titleStr}</h2>
                                             <div className="text-[17px] leading-[30px] font-medium text-gray-800 break-keep">
                                                 {bodyBlocks.map((line, lIdx) => {
@@ -341,18 +341,18 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                             </p>
                             <div className="space-y-10">
                                 {upperParts.map((part, idx) => {
-                                    const lines = part.trim().split('\\n');
+                                    const lines = part.trim().split('\n');
                                     const title = lines[0];
                                     
                                     return (
-                                        <div key={\`up-\${idx}\`} className="mb-6">
+                                        <div key={"up-" + idx} className="mb-6">
                                             <h2 className="text-[20px] font-bold mb-4">{title}</h2>
                                             <div className="ml-2">
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     const isPreamble = idx === 0;
                                                     const isArrowFocus = line.trim().startsWith('->') || line.trim().startsWith('->');
                                                     return (
-                                                        <div key={\`uline-\${lIdx}\`} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[27px] pl-3 break-keep mb-2" : \`text-[16px] leading-[28px] break-keep \${isArrowFocus ? 'font-bold text-black mt-2' : 'text-gray-800'}\`}>
+                                                        <div key={"uline-" + lIdx} className={isPreamble ? "text-[18px] font-bold text-gray-700 leading-[27px] pl-3 break-keep mb-2" : "text-[16px] leading-[28px] break-keep " + (isArrowFocus ? "font-bold text-black mt-2" : "text-gray-800")}>
                                                             {line}
                                                         </div>
                                                     );
@@ -377,17 +377,17 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                             
                             <div className="space-y-10">
                                 {aiParts.map((part, idx) => {
-                                    const lines = part.trim().split('\\n');
+                                    const lines = part.trim().split('\n');
                                     const title = lines[0];
                                     
                                     return (
-                                        <div key={\`ai-\${idx}\`} className="mb-6">
+                                        <div key={"ai-" + idx} className="mb-6">
                                             <h2 className="text-[20px] font-bold mb-3">{title}</h2>
                                             <div className="ml-2">
                                                 {lines.slice(1).map((line, lIdx) => {
                                                     const isPreamble = idx === 0 && lIdx === 0;
                                                     return (
-                                                        <div key={\`aline-\${lIdx}\`} className={isPreamble ? "text-[17px] font-bold text-gray-700 leading-[27px] pl-3 mb-4 break-keep" : "text-[16px] leading-[28px] break-keep text-gray-800"}>
+                                                        <div key={"aline-" + lIdx} className={isPreamble ? "text-[17px] font-bold text-gray-700 leading-[27px] pl-3 mb-4 break-keep" : "text-[16px] leading-[28px] break-keep text-gray-800"}>
                                                             {line}
                                                         </div>
                                                     );
@@ -408,12 +408,12 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                             </p>
                             <div className="space-y-10">
                                 {lowerParts.map((part, idx) => {
-                                    const lines = part.trim().split('\\n');
+                                    const lines = part.trim().split('\n');
                                     const title = lines[0];
-                                    const body = lines.slice(1).join('\\n');
+                                    const body = lines.slice(1).join('\n');
                                     
                                     return (
-                                        <div key={\`low-\${idx}\`} className="mb-6">
+                                        <div key={"low-" + idx} className="mb-6">
                                             <h2 className="text-[20px] font-bold mb-3">{title}</h2>
                                             <div className="text-[16px] leading-[28px] break-keep ml-2 text-gray-800 whitespace-pre-wrap">
                                                 {body}
@@ -433,11 +433,11 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                             </p>
                             <div className="space-y-12">
                                 {defenseParts.map((part, idx) => {
-                                    const lines = part.trim().split('\\n');
+                                    const lines = part.trim().split('\n');
                                     const title = lines[0];
                                     
                                     return (
-                                        <div key={\`def-\${idx}\`} className="mb-8">
+                                        <div key={"def-" + idx} className="mb-8">
                                             <h2 className="text-[20px] font-bold mb-5 tracking-tight">{title}</h2>
                                             <div className="ml-2 space-y-4 text-[16px] leading-[28px] text-gray-800 bg-gray-50 border-[2px] border-gray-200 p-8">
                                                 {lines.slice(1).map((line, lIdx) => {
@@ -449,7 +449,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                                         const [label, ...rest] = line.split(':');
                                                         return (
                                                             <div key={lIdx} className="flex flex-col md:flex-row gap-1 md:gap-4 items-start break-keep">
-                                                                <span className={\`shrink-0 font-extrabold w-[100px] \${isQuestion ? 'text-[#d92d2d]' : 'text-[#1e3a8a]'}\`}>[{label.trim()}]</span>
+                                                                <span className={"shrink-0 font-extrabold w-[100px] " + (isQuestion ? "text-[#d92d2d]" : "text-[#1e3a8a]")}>[{label.trim()}]</span>
                                                                 <span className="whitespace-normal break-keep pt-[1px]">{rest.join(':').trim()}</span>
                                                             </div>
                                                         );
