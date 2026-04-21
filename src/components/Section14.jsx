@@ -116,7 +116,7 @@ export default function Section14({ isActive }) {
                     
                     <div className={`pt-8 md:pt-10 flex flex-col items-center justify-center text-center transition-all duration-1000 ease-out ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                         <h3 className="text-[15px] md:text-[16px] font-bold tracking-tight text-[#86868b] mb-2 md:mb-3">
-                            {lang === 'kr' ? '핵심전제' : 'Core Premise'}
+                            {lang === 'kr' ? '핵심 전제' : 'Core Premise'}
                         </h3>
                         
                         <p className="text-[17px] md:text-[22px] lg:text-[26px] font-medium text-[#1d1d1f] leading-[1.6] break-keep max-w-[1200px] w-full px-4 md:px-0 tracking-[-0.02em]">
