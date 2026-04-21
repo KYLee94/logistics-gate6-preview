@@ -31,7 +31,7 @@ export default function Section2({ isActive }) {
                     {/* Line 1 */}
                     <div className={`transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] mb-[20px] ${step >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-6'}`}>
                         <p className="text-[28px] md:text-[38px] font-bold text-[#666] tracking-tight leading-[1.2]">
-                            {lang === 'kr' ? "바깥 세상의 지식만 읊어대는 평범한 AI를 넘어," : "Beyond ordinary AI merely reciting worldly knowledge,"}
+                            {lang === 'kr' ? "바깥 세상의 지식만 묻고 답하는 평범한 AI를 넘어," : "Beyond ordinary AI answering worldly knowledge,"}
                         </p>
                     </div>
 
@@ -53,7 +53,7 @@ export default function Section2({ isActive }) {
                     </div>
 
                     {/* Sub Text 1 */}
-                    <div className={`transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] mt-16 md:mt-24 ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+                    <div className={`transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] mt-16 md:mt-24 mb-[20px] ${step >= 4 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                         <p className="text-[20px] md:text-[24px] font-medium text-[#555] tracking-tight border-l-[3px] border-[#297cf6] pl-4 leading-[1.4]">
                             {lang === 'kr' ? "그런 AI들이 이미 개인들에게 사용되어지고 있습니다." : "Such AIs are actually already being utilized by individuals today."}
                         </p>
@@ -62,7 +62,7 @@ export default function Section2({ isActive }) {
                     {/* OpenClaw Reveal Box */}
                     <div className={`transition-all duration-[1500ms] ease-[cubic-bezier(0.19,1,0.22,1)] mt-6 w-full ${step >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
                         <div className="flex flex-col md:flex-row items-start md:items-center gap-6 bg-[#f8f9fa] border border-[#e2e8f0] rounded-2xl p-6 md:px-8 md:py-6 w-full max-w-[950px] shadow-sm hover:shadow-md transition-shadow duration-500">
-                            <img src={openclawImg} alt="OpenClaw Logo" className="h-[28px] md:h-[34px] object-contain mix-blend-multiply opacity-90 shrink-0" />
+                            <img src={openclawImg} alt="OpenClaw Logo" className="h-[40px] md:h-[50px] object-contain mix-blend-multiply opacity-90 shrink-0" />
                             <p className="text-[17px] md:text-[19px] text-[#444] leading-[1.6] break-keep font-medium">
                                 {lang === 'kr' ? 
                                 "오픈클로(OpenClaw)는 내 PC에 직접 설치되어, 로컬 하드디스크의 엑셀, 문서 등 수많은 데이터를 클라우드 유출 없이 스스로 읽고 융합하여 업무를 자율적으로 자동화해 주는 강력한 '로컬 AI 에이전트(Autonomous AI Agent)' 프로덕트입니다." : 
