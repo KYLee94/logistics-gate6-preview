@@ -33,13 +33,25 @@ export default function ParallelPlan() {
                 ]
             },
             box2: {
-                title: "2. AI 시스템 도입",
-                desc: <><span className="text-[#1e3a8a] font-bold">빅테크 AI 벤더사</span>(OpenAI, 구글 등)와의 전략적 제휴를 맺는다. 단순 개발을 넘어 공식 <span className="text-[#1e3a8a] font-bold">MOU 및 론칭</span>을 통해 이지스의 '선진 기술 도입'과 '시스템 투명성'을 투자자들에게 각인시켜 신뢰도를 높이는 <span className="text-[#1e3a8a] font-bold">강력한 대외 홍보 수단</span>으로 활용한다.</>,
-                bullets: [
-                    { label: "엔진 후보군", title: "최상위 LLM 체계 탑재", desc: "OpenAI, Google Gemini, Claude 등 검증된 대형 언어 모델 기반 아키텍처" },
-                    { label: "데이터 보안 통제", title: "엔터프라이즈 전용 폐쇄망 생태계", desc: <>자산의 핵심 정보가 외부 학습용으로 넘어가지 않도록 <span className="text-[#1e3a8a] font-bold">VPC 수준의 인프라</span> 구축</> },
-                    { label: "초기 파일럿 검증", title: "테스트 사용자 성능검증", desc: <><span className="text-[#1e3a8a] font-bold">PO 이상 및 핵심 데이터 취급 담당자로 한정</span>하여 철저한 초기 검증 및 시스템 정합성 구축</> }
-                ]
+                title: "2. AI 시스템 도입 방안",
+                option1: {
+                    title: "[1안] 빅테크 제휴망 구축 (Enterprise AI)",
+                    desc: <><span className="text-[#1e3a8a] font-bold">빅테크 AI 벤더사</span>(OpenAI, 구글 등)와의 전략적 제휴를 맺는다. 단순 개발을 넘어 공식 <span className="text-[#1e3a8a] font-bold">MOU 및 론칭</span>을 통해 <span className="text-[#1e3a8a] font-bold">강력한 대외 홍보 수단</span>으로 활용한다.</>,
+                    bullets: [
+                        { label: "엔진 후보군", title: "최상위 LLM 탑재", desc: "OpenAI, Google Gemini 등 대형 언어 모델 활용" },
+                        { label: "인프라 보안", title: "VPC 수준의 폐쇄망", desc: "자산 데이터의 외부 학습 차단을 위한 VPC 인프라 구축" },
+                        { label: "접근 통제", title: "테스트 사용자 한정", desc: <><span className="text-[#1e3a8a] font-bold">PO 이상 및 핵심 데이터 취급 담당자로 한정</span>하여 검증</> }
+                    ]
+                },
+                option2: {
+                    title: "[2안] 로컬 인프라망 자체 구축 (On-Premise AI)",
+                    desc: <>가장 뛰어난 보안을 위해 <span className="text-[#1e3a8a] font-bold">고용량 사내 통합 하드웨어와 로컬 오픈소스 LLM</span>을 결합한다. 외부 통신을 차단한 채 <span className="text-[#1e3a8a] font-bold">빠른 IFPDP 3단분리 적용</span>을 이루어낸다.</>,
+                    bullets: [
+                        { label: "하드웨어", title: "고용량 통합 서버 구비", desc: <><span className="text-[#1e3a8a] font-bold">맥미니 등 AI 구동에 최적화된 로컬 PC/서버</span> 구축</> },
+                        { label: "로컬 엔진", title: "경량화 로컬 LLM", desc: "Gemma 4 등의 모델을 탑재하여 핵심 시스템에 즉각 적용" },
+                        { label: "접근 보안", title: "폐쇄 웹 및 이중 통제", desc: <>사내 폐쇄망 웹에 올려 서비스하며 <span className="text-[#1e3a8a] font-bold">이용자 접근 권한을 등급별로 철저히 통제</span></> }
+                    ]
+                }
             }
         },
         en: {
@@ -65,13 +77,25 @@ export default function ParallelPlan() {
                 ]
             },
             box2: {
-                title: "2. Enterprise AI Adoption",
-                desc: "Form strategic alliances with Big Tech AI vendors. Beyond simple development, official MOUs and launches will engrave IGIS's 'Technological Adoption' to investors, acting as a powerful PR tool to restore trust.",
-                bullets: [
-                    { label: "Engine Options", title: "Top-tier LLM Deployment", desc: "Architectures based on proven models like OpenAI, Google Gemini, and Claude." },
-                    { label: "Data Security", title: "Enterprise Dedicated Closed-Network", desc: "Build VPC-level infrastructure to firmly seal critical asset data from external training." },
-                    { label: "Initial Pilot Phase", title: "Test User Performance Verification", desc: "Rigorous testing confined to PO level and core data managers to build system integrity." }
-                ]
+                title: "2. Enterprise AI Adoption Options",
+                option1: {
+                    title: "[Option 1] Big Tech Partnership (Enterprise AI)",
+                    desc: "Form strategic alliances with Big Tech AI vendors. Official MOUs and launches will engrave IGIS's 'Technological Adoption' to investors, acting as a powerful PR tool.",
+                    bullets: [
+                        { label: "Engine", title: "Top-tier LLM", desc: "Architectures based on proven large language models like OpenAI." },
+                        { label: "Security", title: "VPC Level Closed-Network", desc: "VPC infrastructure to firmly seal critical asset data from external training." },
+                        { label: "Control", title: "Restricted Testing", desc: "Rigorous testing confined to PO level and core data managers." }
+                    ]
+                },
+                option2: {
+                    title: "[Option 2] On-Premise Local AI Infrastructure",
+                    desc: "Combine high-capacity enterprise hardware with local open-source LLMs to create an ultimate closed network environment, quickly applying IFPDP.",
+                    bullets: [
+                        { label: "Hardware", title: "Integrated Local Servers", desc: "Deploy capable local machines like Mac Minis for robust edge computing." },
+                        { label: "Local Engine", title: "Lightweight Local LLM", desc: "Mount models like Gemma 4 to activate the 3-tier system instantly." },
+                        { label: "Access Security", title: "Closed Web Portal", desc: "Strictly manage user access tiers within internal closed network web services." }
+                    ]
+                }
             }
         }
     };
@@ -127,37 +151,68 @@ export default function ParallelPlan() {
                     </div>
 
                     {/* AI Adoption Box */}
-                    <div className="w-full border-[8px] border-[#1e3a8a] px-[50px] pt-[40px] pb-[50px]">
-                        <div className="flex items-start w-full">
-                            <div className="flex-1 flex flex-col">
-                                <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[13px] font-inter">
-                                    {text.box2.title}
-                                </h2>
-                                <p className="text-[24px] font-bold text-[#444] leading-[36px] tracking-tight mb-[5px] break-keep">
-                                    {text.box2.desc}
+                    <div className="w-full border-[8px] border-[#1e3a8a] px-[40px] md:px-[50px] pt-[30px] pb-[40px]">
+                        <div className="flex flex-col w-full">
+                            <h2 className="text-[32px] md:text-[36px] font-bold tracking-tighter mb-[30px] font-inter">
+                                {text.box2.title}
+                            </h2>
+
+                            {/* Option 1 */}
+                            <div className="mb-[40px]">
+                                <h3 className="text-[26px] font-extrabold text-[#1e3a8a] mb-[10px] tracking-tight">{text.box2.option1.title}</h3>
+                                <p className="text-[22px] font-bold text-[#444] leading-[34px] tracking-tight mb-[25px] break-keep">
+                                    {text.box2.option1.desc}
                                 </p>
-                                
-                                <div className="w-full pt-[30px] grid grid-cols-3 gap-[40px]">
-                                    {text.box2.bullets.map((bullet, idx) => (
-                                        <div key={idx} className="flex flex-col">
-                                            <div className="text-[17px] font-bold tracking-wider mb-[5px] pb-[10px] text-[#888] uppercase">
+                                <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-[30px]">
+                                    {text.box2.option1.bullets.map((bullet, idx) => (
+                                        <div key={`opt1-${idx}`} className="flex flex-col">
+                                            <div className="text-[16px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
                                                 {bullet.label}
                                             </div>
-                                            <h3 className="text-[22px] font-bold text-black tracking-tight mb-[7px]">
+                                            <h4 className="text-[22px] font-bold text-black tracking-tight mb-[8px]">
                                                 {bullet.title}
-                                            </h3>
-                                            <p className="text-[19px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
+                                            </h4>
+                                            <p className="text-[18px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
                                                 {bullet.desc}
                                             </p>
                                         </div>
                                     ))}
                                 </div>
                             </div>
+
+                            <div className="w-[calc(100%+80px)] md:w-[calc(100%+100px)] -ml-[40px] md:-ml-[50px] h-[1px] bg-gray-300 my-[20px]"></div>
+
+                            {/* Option 2 */}
+                            <div className="mt-[40px]">
+                                <h3 className="text-[26px] font-extrabold text-[#1e3a8a] mb-[10px] tracking-tight">{text.box2.option2.title}</h3>
+                                <p className="text-[22px] font-bold text-[#444] leading-[34px] tracking-tight mb-[25px] break-keep">
+                                    {text.box2.option2.desc}
+                                </p>
+                                <div className="w-full grid grid-cols-1 md:grid-cols-3 gap-[30px]">
+                                    {text.box2.option2.bullets.map((bullet, idx) => (
+                                        <div key={`opt2-${idx}`} className="flex flex-col">
+                                            <div className="text-[16px] font-bold tracking-wider mb-[5px] text-[#888] uppercase">
+                                                {bullet.label}
+                                            </div>
+                                            <h4 className="text-[22px] font-bold text-black tracking-tight mb-[8px]">
+                                                {bullet.title}
+                                            </h4>
+                                            <p className="text-[18px] font-medium leading-[28px] text-[#333] tracking-tight break-keep">
+                                                {bullet.desc}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
                         </div>
                     </div>
 
                 </div>
             </div>
+
+            {/* Bottom Gradient Overlay (Lightweight text blocker for navigation) */}
+            <div className="fixed bottom-0 left-0 w-full h-[140px] bg-gradient-to-t from-white via-white/90 to-transparent pointer-events-none z-[40]"></div>
             
         </div>
     );
