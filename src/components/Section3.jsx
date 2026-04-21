@@ -58,7 +58,7 @@ export default function Section3({ isActive }) {
                         {lang === 'kr' ? "" : "What turns "}
                         <span className="text-black">AI</span>
                         {lang === 'kr' ? "를 " : " into a "}
-                        <span className="text-black font-extrabold">{lang === 'kr' ? "천재" : "genius"}</span>
+                        <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text font-bold">{lang === 'kr' ? "천재" : "genius"}</span>
                         {lang === 'kr' ? "로 만드는 것은" : ""}
                     </p>
                 </div>
@@ -71,12 +71,12 @@ export default function Section3({ isActive }) {
                     >
                         {lang === 'kr' ? "다름 아닌 내 PC 안의 " : "is none other than our internal "}
                         <span className="relative inline-block pb-[1px]">
-                            <span className="text-black font-extrabold">
+                            <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text font-bold">
                                 {lang === 'kr' ? "'풍부한 실무 데이터'" : "'Rich Production Data'"}
                             </span>
                             {/* 밑줄 렌더링 5스텝 분기 */}
                             <span 
-                                className={`absolute bottom-[2px] left-0 h-[2px] md:h-[3px] bg-[#242424] -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 5 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}
+                                className={`absolute bottom-[2px] left-0 h-[2px] md:h-[3px] bg-gradient-to-r from-[#297cf6] to-[#0448d3] -z-10 transition-all duration-[800ms] ease-[cubic-bezier(0.25,1,0.5,1)] ${step >= 5 ? 'w-full opacity-100' : 'w-0 opacity-0'}`}
                             ></span>
                         </span>
                         {lang === 'kr' ? "입니다." : "."}
@@ -89,7 +89,7 @@ export default function Section3({ isActive }) {
                         className={`text-[33px] md:text-[47px] font-bold text-[#242424] tracking-tight leading-[1.13] whitespace-nowrap transition-all duration-[1200ms] ease-[cubic-bezier(0.19,1,0.22,1)] ${step >= 6 ? 'translate-y-0 opacity-100' : 'translate-y-[120%] opacity-0'}`}
                     >
                         {lang === 'kr' ? "이 풍부한 데이터가 " : "When this rich data is connected at the "}
-                        <span className="text-black font-extrabold">{lang === 'kr' ? "전사(Enterprise)" : "Enterprise"}</span>
+                        <span className="bg-gradient-to-r from-[#297cf6] to-[#0448d3] text-transparent bg-clip-text font-bold">{lang === 'kr' ? "전사(Enterprise)" : "Enterprise"}</span>
                         {lang === 'kr' ? " 단위로 연결될 때," : " level,"}
                     </p>
                 </div>
