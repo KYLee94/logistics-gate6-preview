@@ -11,7 +11,7 @@ export default function ParallelPlan() {
 
     const content = {
         kr: {
-            title: "플랫폼 구축 및 AI 도입 (Parallel 트랙)",
+            title: "플랫폼 구축 및 AI 도입 계획",
             subtitle: (
                 <>
                     기본적으로 리얼에셋의 <span className="font-extrabold">데이터레이크</span>를 구성하고 성능 좋은 AI 모델을 그 위에 태워 AI 플랫폼으로써의 궁극적 기능을 수행한다.<br />
@@ -55,7 +55,7 @@ export default function ParallelPlan() {
             }
         },
         en: {
-            title: "Platform Build & AI Adoption (Parallel Track)",
+            title: "Platform Build & AI Adoption Plan",
             subtitle: (
                 <>
                     We will establish a Real Asset Datalake and efficiently integrate high-performance AI models to fulfill its ultimate role as an AI platform.<br />
@@ -108,7 +108,7 @@ export default function ParallelPlan() {
             <div className={`w-full max-w-[1400px] flex flex-col transition-all duration-[1200ms] transform ${mounted ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
                 
                 {/* Header Block */}
-                <div className="w-full pt-[20px] pb-[36px] mb-[15px]">
+                <div className="w-full pt-[20px] pb-[36px] mb-[5px]">
                     <h1 className="text-[36px] md:text-[42px] font-extrabold tracking-tight uppercase font-inter leading-tight mb-[24px]">
                         {text.title}
                     </h1>
@@ -118,7 +118,7 @@ export default function ParallelPlan() {
                 </div>
 
                 {/* Content Block Columns - Vertical Flow */}
-                <div className="flex flex-col gap-[36px] w-full pb-[100px]">
+                <div className="flex flex-col gap-[26px] w-full pb-[100px]">
                     
                     {/* Platform Box */}
                     <div className="w-full border-[8px] border-[#1e3a8a] px-[50px] pt-[40px] pb-[50px]">
