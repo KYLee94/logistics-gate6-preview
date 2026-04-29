@@ -31,10 +31,10 @@ export default function PlatformCenter({ currentPath = '' }) {
 
     const renderStakeholder = () => {
         switch(currentPath) {
-            case 'platform/iotaseoul/stakeholders/internal': return <StakeInternal />;
-            case 'platform/iotaseoul/stakeholders/lp': return <StakeLp />;
-            case 'platform/iotaseoul/stakeholders/tenant': return <StakeTenant />;
-            case 'platform/iotaseoul/stakeholders/partner': return <StakePartner />;
+            case 'platform/iotaseoul/stakeholder/internal': return <StakeInternal />;
+            case 'platform/iotaseoul/stakeholder/lp': return <StakeLp />;
+            case 'platform/iotaseoul/stakeholder/tenant': return <StakeTenant />;
+            case 'platform/iotaseoul/stakeholder/partner': return <StakePartner />;
             default: return null;
         }
     };
