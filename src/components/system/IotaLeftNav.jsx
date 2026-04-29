@@ -90,16 +90,19 @@ export default function IotaLeftNav() {
     const [activeId, setActiveId] = useState(1);
 
     return (
-        <div className="w-[275px] h-full bg-[#18181A] border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-colors duration-300">
+        <div className="w-[275px] h-full bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-colors duration-300">
 
             {/* Header */}
-            <div className="w-full flex items-center justify-between px-[15px] pt-[18px] pb-4 border-b border-[#2C2C2E] mb-2">
-                <div className="flex flex-col">
-                    <span className="font-bold text-[20px] tracking-wide font-inter ml-[5px] text-white cursor-pointer">
-                        IOTA Seoul
-                    </span>
-                    <span className="text-[12px] text-[#A1A1AA] ml-[6px] mt-0.5">통합 업무수행 워크스페이스</span>
-                </div>
+            <div className="w-full flex items-center justify-between px-[15px] pt-[18px] pb-4">
+                <span className="font-bold text-[20px] tracking-wide font-inter ml-[5px] text-white cursor-pointer hover:text-gray-400 transition-colors duration-300">
+                    IOTA Seoul
+                </span>
+                <button className="text-[#86868B] hover:text-white pb-1 transition-colors cursor-pointer mt-[4px]">
+                    <svg className="w-[22px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
+                        <rect x="2" y="4" width="20" height="16" rx="3" ry="3" />
+                        <line x1="8" y1="4" x2="8" y2="20" />
+                    </svg>
+                </button>
             </div>
 
             {/* Main Menu */}
@@ -120,7 +123,7 @@ export default function IotaLeftNav() {
                 </div>
 
                 <div className="mt-5 mb-2 px-2.5">
-                    <div className="font-semibold text-[11px] text-[#4A4A4C] uppercase tracking-widest">메뉴</div>
+                    <div className="font-semibold text-[11px] text-[#86868B] uppercase tracking-widest">메뉴</div>
                 </div>
 
                 {/* 9 Menu Items */}
@@ -160,7 +163,7 @@ export default function IotaLeftNav() {
                     </div>
                     <div className="flex flex-col">
                         <span className="font-normal text-[14px] leading-tight mb-0.5 text-white">Jeon Kiyoung</span>
-                        <span className="text-gray-400 text-[12px] leading-none font-normal">CFT 총괄</span>
+                        <span className="text-[#86868B] text-[12px] leading-none font-normal">설정하기</span>
                     </div>
                 </div>
             </div>
