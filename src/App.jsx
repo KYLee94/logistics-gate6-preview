@@ -130,8 +130,8 @@ export default function App() {
                 }} 
             />
         )}
-        {currentPage === 'system-core' && <SystemCore />}
-        {currentPage === 'platform' && <SystemCore />}
+        {currentPage === 'system-core' && <SystemCore isPlatform={false} />}
+        {currentPage === 'platform' && <SystemCore isPlatform={true} />}
       </div>
     </>
   );

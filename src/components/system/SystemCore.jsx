@@ -5,7 +5,7 @@ import SystemCenter from './SystemCenter';
 import SystemRightRAG from './SystemRightRAG';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function SystemCore() {
+export default function SystemCore({ isPlatform = false }) {
     const { isLightMode, toggleTheme } = useTheme();
     const [isIotaWorkspace, setIsIotaWorkspace] = useState(false);
 
@@ -26,7 +26,7 @@ export default function SystemCore() {
         <div className="w-full h-screen bg-[#1F1F1E] flex overflow-hidden font-sans text-[#E5E5E5] relative border-none">
             
             {/* 좌측 사이드바 스위칭 로직 */}
-            {isIotaWorkspace ? <IotaLeftNav isCore={true} /> : <SystemLeftNav isCore={true} />}
+            {isIotaWorkspace ? <IotaLeftNav isCore={true} isPlatform={isPlatform} /> : <SystemLeftNav isCore={true} isPlatform={isPlatform} />}
 
             {/* Stage 2 Layout (상세페이지 고정) */}
             <div className="flex-1 flex overflow-hidden">

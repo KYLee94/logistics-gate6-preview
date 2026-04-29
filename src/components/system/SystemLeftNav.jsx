@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 
-export default function SystemLeftNav({ isCore }) {
+export default function SystemLeftNav({ isCore, isPlatform = false }) {
     const { isLightMode, toggleTheme } = useTheme();
     const [fakeLight, setFakeLight] = useState(false);
 
@@ -104,11 +104,11 @@ export default function SystemLeftNav({ isCore }) {
                 </div>
 
                 <div 
-                    onClick={() => {
-                        window.history.pushState(null, '', '/system-core?workspace=iota');
+                    onClick={isPlatform ? () => {
+                        window.history.pushState(null, '', '/platform?workspace=iota');
                         window.dispatchEvent(new Event('popstate'));
-                    }}
-                    className="flex items-center justify-between px-2.5 py-2 hover:bg-[#18181A] dark:hover:bg-[#18181A] rounded-md cursor-pointer mt-4 mb-2 transition-colors duration-300 border border-gray-300 dark:border-[#3A3A3C] shadow-sm bg-white dark:bg-[#2A2A2A] group"
+                    } : undefined}
+                    className={`flex items-center justify-between px-2.5 py-2 rounded-md mt-4 mb-2 transition-colors duration-300 border dark:border-[#3A3A3C] shadow-sm dark:bg-[#2A2A2A] group ${isPlatform ? 'hover:bg-[#18181A] dark:hover:bg-[#18181A] cursor-pointer border-gray-300 bg-white' : 'cursor-not-allowed opacity-40 border-gray-200 bg-gray-50'}`}
                 >
                     <div className="flex items-center">
                         <span className="font-semibold text-[14px] text-[#111] dark:text-white group-hover:text-white dark:group-hover:text-white">IOTA Seoul</span>

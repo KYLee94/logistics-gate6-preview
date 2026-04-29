@@ -86,7 +86,7 @@ const menuItems = [
     },
 ];
 
-export default function IotaLeftNav() {
+export default function IotaLeftNav({ isPlatform = false }) {
     const [activeId, setActiveId] = useState(1);
 
     return (
@@ -94,7 +94,7 @@ export default function IotaLeftNav() {
 
             {/* Header */}
             <div className="w-full flex items-center justify-between px-[15px] pt-[18px] pb-4">
-                <span className="font-bold text-[20px] tracking-wide font-inter ml-[5px] text-white cursor-pointer hover:text-gray-400 transition-colors duration-300">
+                <span className="font-bold text-[20px] tracking-tight font-inter ml-[5px] text-white">
                     IOTA Seoul
                 </span>
                 <button className="text-[#86868B] hover:text-white pb-1 transition-colors cursor-pointer mt-[4px]">
@@ -111,15 +111,18 @@ export default function IotaLeftNav() {
                 {/* Back */}
                 <div
                     onClick={() => {
-                        window.history.pushState(null, '', '/system-core');
+                        const dest = isPlatform ? '/platform' : '/system-core';
+                        window.history.pushState(null, '', dest);
                         window.dispatchEvent(new Event('popstate'));
                     }}
-                    className="flex items-center px-2.5 py-2 hover:bg-[#2C2C2E] rounded-md cursor-pointer transition-colors duration-300 mt-2"
+                    className="flex items-center justify-between px-2.5 py-2 hover:bg-[#2C2C2E] rounded-md cursor-pointer transition-colors duration-300 mt-2"
                 >
-                    <svg className="w-4.5 h-4.5 mr-3 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                    </svg>
-                    <span className="font-light text-[14px] text-[#A1A1AA]">Global IFPDP 복귀</span>
+                    <div className="flex items-center">
+                        <svg className="w-4.5 h-4.5 mr-3 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                        <span className="font-light text-[14px] text-[#A1A1AA]">Global IFPDP 복귀</span>
+                    </div>
                 </div>
 
                 <div className="mt-5 mb-2 px-2.5">
@@ -137,18 +140,21 @@ export default function IotaLeftNav() {
                                 className={`flex items-center justify-between px-2.5 py-2 rounded-md cursor-pointer transition-colors duration-200 ${isActive ? 'bg-[#2A2A2A] border border-[#3A3A3C]' : 'hover:bg-[#2C2C2E]'}`}
                             >
                                 <div className="flex items-center">
-                                    <span className={isActive ? 'text-white' : 'text-[#A1A1AA]'}>
+                                    <span className="text-white">
                                         {item.icon}
                                     </span>
-                                    <span className={`text-[14px] ${isActive ? 'font-medium text-white' : 'font-light text-[#A1A1AA]'}`}>
+                                    <span className={`text-[14px] text-white ${isActive ? 'font-medium' : 'font-light'}`}>
                                         {item.label}
                                     </span>
                                 </div>
-                                {item.badge && (
-                                    <div className="bg-[#f87171]/20 text-[#f87171] text-[10px] px-2 py-0.5 rounded-full">
-                                        {item.badge}
-                                    </div>
-                                )}
+                                <div className="flex items-center gap-2">
+                                    {item.badge && (
+                                        <div className="bg-[#f87171]/20 text-[#f87171] text-[10px] px-2 py-0.5 rounded-full">
+                                            {item.badge}
+                                        </div>
+                                    )}
+                                    <svg className="w-3.5 h-3.5 text-[#86868B]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                                </div>
                             </div>
                         );
                     })}
