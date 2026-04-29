@@ -8,6 +8,7 @@ import SystemFullChat from './components/system/SystemFullChat';
 import SystemCore from './components/system/SystemCore';
 import SystemPlan from './components/system/SystemPlan';
 import SystemLogin from './components/system/SystemLogin';
+import AIPeerReviewClaude from './components/AIPeerReviewClaude';
 
 export default function App() {
   const [currentPage, setCurrentPage] = React.useState(() => {
@@ -105,8 +106,8 @@ export default function App() {
         </div>
       </div>
 
-      <div className={['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core'].includes(currentPage) ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
-        {!['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core'].includes(currentPage) && (
+      <div className={['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'ai-review-claude'].includes(currentPage) ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
+        {!['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'ai-review-claude'].includes(currentPage) && (
             <Header
               onNavigateToHome={() => setCurrentPage('home')}
               currentPage={currentPage}
@@ -131,6 +132,7 @@ export default function App() {
             />
         )}
         {currentPage === 'system-core' && <SystemCore />}
+        {currentPage === 'ai-review-claude' && <AIPeerReviewClaude />}
       </div>
     </>
   );

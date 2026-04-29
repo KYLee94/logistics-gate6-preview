@@ -48,6 +48,15 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                 { label: "Platform & AI Strategy", id: "page-19" },
                 { label: "Detailed Action Plan", id: "page-20" }
             ] 
+        },
+        {
+            title: "AI Peer Review",
+            id: "ai-review-claude",
+            items: [
+                { label: "Claude", type: "ai-review-claude" },
+                { label: "Gemini", type: "alert", message: "Updating Gemini evaluation..." },
+                { label: "GPT", type: "alert", message: "Updating GPT evaluation..." }
+            ]
         }
     ];
 
@@ -88,6 +97,15 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                 { label: "플랫폼 및 AI 전략", id: "page-19" },
                 { label: "세부 실행 계획", id: "page-20" }
             ] 
+        },
+        {
+            title: "AI Peer Review",
+            id: "ai-review-claude",
+            items: [
+                { label: "Claude", type: "ai-review-claude" },
+                { label: "Gemini", type: "alert", message: "제미나이 평가 결과 업데이트 중입니다." },
+                { label: "GPT", type: "alert", message: "GPT 평가 결과 업데이트 중입니다." }
+            ]
         }
     ];
 
@@ -433,6 +451,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                                     const isAlert = item.type === 'alert';
                                                     const isDownload = item.type === 'download';
                                                     const isSystemCore = item.type === 'system-core';
+                                                    const isAiReviewClaude = item.type === 'ai-review-claude';
 
                                                     const clickHandler = (e) => {
                                                         if (isNews) {
@@ -448,7 +467,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                                             e.preventDefault();
                                                             setIsMegaMenuOpen(false);
                                                             alert(item.message);
-                                                        } else if (isDownload || isSystemCore) {
+                                                        } else if (isDownload || isSystemCore || isAiReviewClaude) {
                                                             setIsMegaMenuOpen(false);
                                                         } else {
                                                             setIsMegaMenuOpen(false);
@@ -459,7 +478,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                                     return (
                                                         <li key={itemIdx}>
                                                             <a
-                                                                href={isNews ? "#news" : isLease ? "#lease" : isPartnership ? "#partnership" : isAlert ? "#" : isDownload ? item.url : isSystemCore ? "?page=system-core" : `#${item.id}`}
+                                                                href={isNews ? "#news" : isLease ? "#lease" : isPartnership ? "#partnership" : isAlert ? "#" : isDownload ? item.url : isSystemCore ? "?page=system-core" : isAiReviewClaude ? "?page=ai-review-claude" : `#${item.id}`}
                                                                 target={isDownload ? "_blank" : undefined}
                                                                 onClick={clickHandler}
                                                                 className="text-[13px] xl:text-[15px] text-gray-700 font-light tracking-[-0.03em] group/sub inline-block w-fit"
@@ -579,6 +598,17 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                             <a
                                                 key={itemIdx}
                                                 href="?page=system-core"
+                                                onClick={() => setMobileMenuOpen(false)}
+                                                className={`text-[15px] text-gray-600 hover:text-black hover:font-bold transition-all tracking-tight`}
+                                            >
+                                                {item.label}
+                                            </a>
+                                        );
+                                    } else if (item.type === 'ai-review-claude') {
+                                        return (
+                                            <a
+                                                key={itemIdx}
+                                                href="?page=ai-review-claude"
                                                 onClick={() => setMobileMenuOpen(false)}
                                                 className={`text-[15px] text-gray-600 hover:text-black hover:font-bold transition-all tracking-tight`}
                                             >
