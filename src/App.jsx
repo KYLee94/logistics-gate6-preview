@@ -40,11 +40,6 @@ export default function App() {
               window.history.pushState(null, '', toUrl(prev));
               setCurrentPage(prev);
           }
-          if (e.key === 'ArrowRight' && currentIndex >= 0 && currentIndex < flow.length - 1) {
-              const next = flow[currentIndex + 1];
-              window.history.pushState(null, '', toUrl(next));
-              setCurrentPage(next);
-          }
       };
 
       window.addEventListener('popstate', handlePopState);
