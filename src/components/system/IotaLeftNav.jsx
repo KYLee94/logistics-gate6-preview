@@ -93,7 +93,7 @@ export default function IotaLeftNav({ isPlatform = false }) {
         <div className="w-[275px] h-full bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-colors duration-300">
 
             {/* Header */}
-            <div className="w-full flex items-center justify-between px-[15px] pt-[18px] pb-4">
+            <div className="w-full flex items-center justify-between px-[15px] pt-[14px] pb-4">
                 <span className="font-bold text-[20px] tracking-tight font-inter ml-[5px] text-white">
                     IOTA Seoul
                 </span>
@@ -117,7 +117,7 @@ export default function IotaLeftNav({ isPlatform = false }) {
                             <div
                                 key={item.id}
                                 onClick={() => setActiveId(item.id)}
-                                className={`flex items-center justify-between px-2.5 py-2 rounded-lg cursor-pointer transition-colors duration-200 outline-none select-none ${isActive ? 'bg-[#2A2A2A]' : 'hover:bg-[#2C2C2E]'}`}
+                                className={`flex items-center justify-between px-2.5 py-2 rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isActive ? 'bg-[#333333]' : 'hover:bg-[#2C2C2E]'}`}
                             >
                                 <div className="flex items-center">
                                     <span className="text-white">
