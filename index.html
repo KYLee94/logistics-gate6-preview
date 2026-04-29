@@ -51,6 +51,24 @@
                 document.documentElement.classList.remove('dark');
             }
         } catch (_) {}
+
+        // GitHub Pages SPA redirect restoration
+        // Restores path from ?p= query param set by 404.html
+        (function() {
+            var redirect = sessionStorage.redirect;
+            delete sessionStorage.redirect;
+            if (redirect && redirect !== location.href) {
+                history.replaceState(null, null, redirect);
+            }
+            var search = location.search;
+            if (search && search.indexOf('?p=') === 0) {
+                var decoded = search.slice(3).replace(/~and~/g, '&');
+                var qIdx = decoded.indexOf('&q=');
+                var path = qIdx >= 0 ? decoded.slice(0, qIdx) : decoded;
+                var query = qIdx >= 0 ? '?' + decoded.slice(qIdx + 3) : '';
+                history.replaceState(null, null, location.pathname.split('?')[0] + path + query + location.hash);
+            }
+        })();
     </script>
 </head>
 
