@@ -478,7 +478,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                                     return (
                                                         <li key={itemIdx}>
                                                             <a
-                                                                href={isNews ? "#news" : isLease ? "#lease" : isPartnership ? "#partnership" : isAlert ? "#" : isDownload ? item.url : isSystemCore ? "/system-core" : `#${item.id}`}
+                                                                href={isNews ? "#news" : isLease ? "#lease" : isPartnership ? "#partnership" : isAlert ? "#" : isDownload ? item.url : isSystemCore ? `${import.meta.env.BASE_URL}system-core` : `#${item.id}`}
                                                                 target={isDownload ? "_blank" : undefined}
                                                                 onClick={clickHandler}
                                                                 className="text-[13px] xl:text-[15px] text-gray-700 font-light tracking-[-0.03em] group/sub inline-block w-fit"
@@ -597,7 +597,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                         return (
                                             <a
                                                 key={itemIdx}
-                                                href="/system-core"
+                                                href={`${import.meta.env.BASE_URL}system-core`}
                                                 onClick={() => setMobileMenuOpen(false)}
                                                 className={`text-[15px] text-gray-600 hover:text-black hover:font-bold transition-all tracking-tight`}
                                             >
