@@ -110,8 +110,8 @@ export default function App() {
         </div>
       </div>
 
-      <div className={['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform', 'platform/iotaseoul'].includes(currentPage) ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
-        {!['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform', 'platform/iotaseoul'].includes(currentPage) && (
+      <div className={(['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform'].includes(currentPage) || currentPage.startsWith('platform/iotaseoul')) ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
+        {!(['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform'].includes(currentPage) || currentPage.startsWith('platform/iotaseoul')) && (
             <Header
               onNavigateToHome={() => setCurrentPage('home')}
               currentPage={currentPage}
@@ -137,7 +137,7 @@ export default function App() {
         )}
         {currentPage === 'system-core' && <SystemCore isPlatform={false} />}
         {currentPage === 'platform' && <PlatformCore isPlatform={true} />}
-        {currentPage === 'platform/iotaseoul' && <PlatformCore isPlatform={true} isIotaWorkspaceOverride={true} />}
+        {currentPage.startsWith('platform/iotaseoul') && <PlatformCore isPlatform={true} isIotaWorkspaceOverride={true} currentPath={currentPage} />}
       </div>
     </>
   );

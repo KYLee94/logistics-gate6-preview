@@ -1,32 +1,22 @@
 import React from 'react';
 
-export default function PlatformCenter() {
+export default function PlatformCenter({ currentPath = '' }) {
+    if (currentPath && currentPath !== 'platform/iotaseoul/iota-two-816') {
+        return (
+            <div className="flex-1 h-full bg-transparent flex flex-col items-center justify-center relative font-sans text-[#E5E5E5] overflow-hidden">
+                <div className="w-16 h-16 mb-6 text-[#444]">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                </div>
+                <h2 className="text-[24px] font-bold tracking-tight text-[#86868B]">페이지 준비중</h2>
+                <p className="mt-2 text-[15px] text-[#666]">해당 메뉴의 콘텐츠와 데이터를 연결 중입니다.</p>
+            </div>
+        );
+    }
+
     return (
         <div className="flex-1 h-full bg-transparent flex flex-col relative font-sans text-[#1D1D1F] dark:text-[#E5E5E5] overflow-hidden transition-colors duration-300">
-            
-            {/* Top Tab Bar (IDE Style) */}
-            <div className="relative z-[100] w-full h-[46px] flex items-end justify-between shrink-0 bg-[#1A1A1A]">
-                {/* Tabs Container */}
-                <div className="flex h-full items-end pl-0">
-                    {/* Inactive Tab */}
-                    <div className="flex items-center justify-center px-6 h-full cursor-pointer text-[#86868B] hover:text-[#A1A1AA] transition-colors bg-transparent border-none">
-                        <span className="text-[13px] font-normal tracking-wide">더케이트윈타워</span>
-                    </div>
-                    {/* Active Tab */}
-                    <div className="flex items-center justify-between pl-6 pr-3 h-full cursor-pointer text-[#E5E5E5] bg-white dark:bg-[#1F1F1E] relative border-none">
-                        <span className="text-[13px] font-medium tracking-wide mr-8">IOTA Seoul 2 816</span>
-                        <button className="text-[#86868B] hover:text-white transition-colors outline-none cursor-pointer flex items-center justify-center p-1 rounded-md hover:bg-[#333]">
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                    </div>
-                </div>
-
-                <div className="px-5 h-full flex items-center bg-[#1A1A1A]">
-                    <div className="text-[#86868B] hover:text-[#E5E5E5] cursor-pointer tracking-[3px] font-black text-[13px] transition-colors duration-300 pb-[2px] transform translate-y-[1px] translate-x-0.5">
-                        ···
-                    </div>
-                </div>
-            </div>
 
             {/* Dedicated Scroll Container */}
             <div className="flex-1 w-full overflow-y-auto hide-scrollbar flex flex-col relative">
