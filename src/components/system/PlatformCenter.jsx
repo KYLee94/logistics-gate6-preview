@@ -1,6 +1,41 @@
 import React from 'react';
+import GovSystem from './governance/GovSystem';
+import GovPrinciples from './governance/GovPrinciples';
+import GovRaci from './governance/GovRaci';
+import GovRoadmap from './governance/GovRoadmap';
+import GovMeetings from './governance/GovMeetings';
+import GovWorkingGroup from './governance/GovWorkingGroup';
+import GovPfvRules from './governance/GovPfvRules';
+import GovEscalation from './governance/GovEscalation';
+import GovRiskTop10 from './governance/GovRiskTop10';
 
 export default function PlatformCenter({ currentPath = '' }) {
+    const renderGovernance = () => {
+        switch(currentPath) {
+            case 'platform/iotaseoul/governance/system': return <GovSystem />;
+            case 'platform/iotaseoul/governance/principles': return <GovPrinciples />;
+            case 'platform/iotaseoul/governance/raci': return <GovRaci />;
+            case 'platform/iotaseoul/governance/roadmap': return <GovRoadmap />;
+            case 'platform/iotaseoul/governance/meetings': return <GovMeetings />;
+            case 'platform/iotaseoul/governance/working-group': return <GovWorkingGroup />;
+            case 'platform/iotaseoul/governance/pfv-rules': return <GovPfvRules />;
+            case 'platform/iotaseoul/governance/escalation': return <GovEscalation />;
+            case 'platform/iotaseoul/governance/risk-top10': return <GovRiskTop10 />;
+            default: return null;
+        }
+    };
+
+    const govContent = renderGovernance();
+    if (govContent) {
+        return (
+            <div className="flex-1 h-full bg-transparent flex flex-col relative font-sans text-[#1D1D1F] dark:text-[#E5E5E5] overflow-hidden transition-colors duration-300">
+                <div className="flex-1 w-full overflow-y-auto hide-scrollbar flex flex-col relative">
+                    {govContent}
+                </div>
+            </div>
+        );
+    }
+
     if (currentPath && currentPath !== 'platform/iotaseoul/iota-two-816') {
         return (
             <div className="flex-1 h-full bg-transparent flex flex-col items-center justify-center relative font-sans text-[#E5E5E5] overflow-hidden">
