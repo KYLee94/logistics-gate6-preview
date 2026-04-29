@@ -108,26 +108,6 @@ export default function IotaLeftNav({ isPlatform = false }) {
             {/* Main Menu */}
             <div className="flex-1 overflow-y-auto pb-5 hide-scrollbar flex flex-col px-[9px]">
 
-                {/* Back */}
-                <div
-                    onClick={() => {
-                        const dest = isPlatform ? '/platform' : '/system-core';
-                        window.history.pushState(null, '', dest);
-                        window.dispatchEvent(new Event('popstate'));
-                    }}
-                    className="flex items-center justify-between px-2.5 py-2 hover:bg-[#2C2C2E] rounded-md cursor-pointer transition-colors duration-300 mt-2"
-                >
-                    <div className="flex items-center">
-                        <svg className="w-4.5 h-4.5 mr-3 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                        </svg>
-                        <span className="font-light text-[14px] text-[#A1A1AA]">Global IFPDP 복귀</span>
-                    </div>
-                </div>
-
-                <div className="mt-5 mb-2 px-2.5">
-                    <div className="font-semibold text-[11px] text-[#86868B] uppercase tracking-widest">메뉴</div>
-                </div>
 
                 {/* 9 Menu Items */}
                 <div className="flex flex-col gap-0.5">
