@@ -136,7 +136,7 @@ export default function App() {
         )}
         {currentPage === 'system-core' && <SystemCore isPlatform={false} />}
         {currentPage === 'platform' && <SystemCore isPlatform={true} />}
-        {currentPage === 'iotaseoul' && <SystemCore isPlatform={true} isIotaWorkspaceOverride={true} />}
+        {currentPage === 'platform/iotaseoul' && <SystemCore isPlatform={true} isIotaWorkspaceOverride={true} />}
       </div>
     </>
   );

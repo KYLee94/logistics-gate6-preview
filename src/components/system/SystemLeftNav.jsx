@@ -105,7 +105,7 @@ export default function SystemLeftNav({ isCore, isPlatform = false }) {
 
                 <div 
                     onClick={isPlatform ? () => {
-                        window.history.pushState(null, '', `${import.meta.env.BASE_URL}iotaseoul`);
+                        window.history.pushState(null, '', `${import.meta.env.BASE_URL}platform/iotaseoul`);
                         window.dispatchEvent(new Event('popstate'));
                     } : undefined}
                     className={`flex items-center justify-between px-2.5 py-2 rounded-md mt-4 mb-2 transition-colors duration-300 border dark:border-[#3A3A3C] shadow-sm dark:bg-[#2A2A2A] group ${isPlatform ? 'hover:bg-[#18181A] dark:hover:bg-[#18181A] cursor-pointer border-gray-300 bg-white' : 'cursor-not-allowed opacity-40 border-gray-200 bg-gray-50'}`}
