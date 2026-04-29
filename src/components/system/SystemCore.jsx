@@ -17,10 +17,12 @@ export default function SystemCore({ isPlatform = false, isIotaWorkspaceOverride
         const handleLocationChange = () => {
             if (isIotaWorkspaceOverride) {
                 setIsIotaWorkspace(true);
-            } else {
-                const params = new URLSearchParams(window.location.search);
-                setIsIotaWorkspace(params.get('workspace') === 'iota');
+                return;
             }
+            const params = new URLSearchParams(window.location.search);
+            const pathname = window.location.pathname;
+            const isIota = params.get('workspace') === 'iota' || pathname.includes('iotaseoul');
+            setIsIotaWorkspace(isIota);
         };
 
         handleLocationChange();
@@ -41,7 +43,9 @@ export default function SystemCore({ isPlatform = false, isIotaWorkspaceOverride
                 {/* 컨텐츠 박스 */}
                 <div className="w-[calc(100%-510px)] h-full overflow-hidden shrink-0 flex flex-col items-stretch">
                     <div className="w-full h-full flex flex-col items-stretch min-w-[600px]">
-                        {isIotaWorkspace && iotaMenuId === 1 ? <IotaDashboard /> : <SystemCenter />}
+                        {isIotaWorkspace
+                            ? (iotaMenuId === 1 ? <IotaDashboard /> : <SystemCenter />)
+                            : <SystemCenter />}
                     </div>
                 </div>
 
