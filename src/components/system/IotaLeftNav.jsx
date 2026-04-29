@@ -205,8 +205,8 @@ export default function IotaLeftNav({ onMenuChange }) {
                             ].map((item, idx) => (
                                 <div key={idx} className="flex items-center justify-between px-[7px] py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none hover:bg-[#151515]">
                                     <div className="flex items-center">
-                                        {/* 아이콘 제거, 텍스트에 약간의 왼쪽 패딩을 줘서 가독성 확보 */}
-                                        <span className="text-[14px] text-white font-light pl-[6px]">
+                                        {/* 아이콘 제거, 텍스트 왼쪽 정렬 */}
+                                        <span className="text-[14px] text-white font-light">
                                             {item}
                                         </span>
                                     </div>
@@ -242,8 +242,8 @@ export default function IotaLeftNav({ onMenuChange }) {
                             ].map((item, idx) => (
                                 <div key={idx} className="flex items-center justify-between px-[7px] py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none hover:bg-[#151515]">
                                     <div className="flex items-center">
-                                        {/* 아이콘 제거 */}
-                                        <span className="text-[14px] text-white font-light pl-[6px]">
+                                        {/* 아이콘 제거, 텍스트 왼쪽 정렬 */}
+                                        <span className="text-[14px] text-white font-light">
                                             {item}
                                         </span>
                                     </div>
