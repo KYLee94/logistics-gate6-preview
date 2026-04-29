@@ -221,7 +221,7 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
                     </div>
                     {isStakeholderOpen && (
                         <div className="flex flex-col gap-0">
-                            [{ label: 'IGIS 내부인력', path: 'platform/iotaseoul/stakeholder/internal' },
+                            {[{ label: 'IGIS 내부인력', path: 'platform/iotaseoul/stakeholder/internal' },
                                 { label: 'LP / 대주 / SI', path: 'platform/iotaseoul/stakeholder/lp' },
                                 { label: '잠재 임차사', path: 'platform/iotaseoul/stakeholder/tenant' },
                                 { label: '운영 파트너', path: 'platform/iotaseoul/stakeholder/partner' }].map((item, idx) => {
@@ -231,7 +231,7 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
                                     <div className="flex items-center">
                                         {/* 아이콘 제거, 텍스트 왼쪽 정렬 */}
                                         <span className={`text-[14px] text-white ${isActive ? 'font-medium' : 'font-light'}`}>
-                                            {item}
+                                            {item.label}
                                         </span>
                                     </div>
                                 </div>
@@ -254,7 +254,7 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
                     </div>
                     {isGovOpen && (
                         <div className="flex flex-col gap-0">
-                            [{ label: '통합 수행체계', path: 'platform/iotaseoul/governance/system' },
+                            {[{ label: '통합 수행체계', path: 'platform/iotaseoul/governance/system' },
                                 { label: '의사결정 원칙', path: 'platform/iotaseoul/governance/principles' },
                                 { label: 'RACI', path: 'platform/iotaseoul/governance/raci' },
                                 { label: '90 Day Roadmap', path: 'platform/iotaseoul/governance/roadmap' },
@@ -269,7 +269,7 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
                                     <div className="flex items-center">
                                         {/* 아이콘 제거, 텍스트 왼쪽 정렬 */}
                                         <span className={`text-[14px] text-white ${isActive ? 'font-medium' : 'font-light'}`}>
-                                            {item}
+                                            {item.label}
                                         </span>
                                     </div>
                                 </div>
