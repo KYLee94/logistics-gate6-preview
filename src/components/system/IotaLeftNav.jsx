@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 const menuItems = [
     {
@@ -86,7 +86,7 @@ const menuItems = [
     },
 ];
 
-export default function IotaLeftNav({ isCore }) {
+export default function IotaLeftNav() {
     const [activeId, setActiveId] = useState(1);
 
     return (
@@ -108,7 +108,7 @@ export default function IotaLeftNav({ isCore }) {
                 {/* Back */}
                 <div
                     onClick={() => {
-                        window.history.pushState(null, '', window.location.pathname + '?page=home');
+                        window.history.pushState(null, '', window.location.pathname + '?page=system-core');
                         window.dispatchEvent(new Event('popstate'));
                     }}
                     className="flex items-center px-2.5 py-2 hover:bg-[#2C2C2E] rounded-md cursor-pointer transition-colors duration-300 mt-2"
