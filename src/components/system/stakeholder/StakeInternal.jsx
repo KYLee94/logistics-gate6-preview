@@ -1,0 +1,47 @@
+import React from 'react';
+
+export default function StakeInternal() {
+    const internalData = [
+        { cell: 'CFT 총괄', role: '부문대표 (겸직)', leaders: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">이철승</span>', members: 'CFT 사무국 (신설 / 기획추진센터 IEC 협업)', org: '부문직속' },
+        { cell: '사업 PM', role: 'Co-PM (사업/전략)', leaders: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">강순용</span> / <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">권순일</span>', members: '사업그룹 1/2파트 실무진', org: '사업그룹' },
+        { cell: '파이낸싱', role: 'LFC 센터장', leaders: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">박준호</span>', members: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">강석민</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">정리훈</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">손유정</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">김지우</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">박현승</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">이성민A</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">한승환</span>', org: 'LFC (부문직속)' },
+        { cell: '개발관리', role: '개발솔루션 (건설/설계)', leaders: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">홍장군</span> (+ <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">박봉서</span> 전문위원)', members: '건설: <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">채원</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">김보성</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">전승희</span><br/>설계: <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">김대익</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">장성진</span><br/>인허가: <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">이정훈</span>', org: '개발솔루션센터' },
+        { cell: '기업마케팅', role: 'EMC + SSC', leaders: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">김민지</span>', members: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">고아라</span> + <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">이가현</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">정수명</span>(공간솔루션 협업)', org: 'EMC + 공간솔루션' },
+        { cell: '상품·디지털', role: '상품 기획 / 디지털', leaders: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">김현수</span> / <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">현철호</span>', members: '디지털솔루션실(<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">현철호</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">신민호</span>) + SSC 실무진', org: 'SSC + 디지털그룹' },
+        { cell: 'KAM (펀드)', role: '421호 운용역', leaders: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">김행단</span>', members: 'KAM 1파트 실무진', org: 'KAM그룹' },
+        { cell: '프리츠 TFT (IPR)', role: '투자 / 관리', leaders: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">권순일</span>(투자) / <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">윤용택</span>(관리)', members: '사업1파트 + 신규 영입 (관리 라인)', org: '부문직속 신설 TFT' },
+        { cell: '자문 (전략)', role: '전략 및 리서치', leaders: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">권순일</span>', members: '<span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">박만진</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">김제익</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">박일훈</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">전무경</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">류홍</span> · <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">이정원</span>', org: '사업1파트' },
+    ];
+
+    return (
+        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto">
+            <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">IGIS 내부인력</h1>
+            <p className="text-[15px] text-[#86868B] mb-[36px]">이오타서울 통합 업무수행 조직(CFT)의 5개 핵심 기능 셀 및 지원 부서 명단입니다.</p>
+            
+            <div className="w-full bg-[#1A1A1A] border border-[#333] rounded-[24px] overflow-hidden">
+                <table className="w-full text-left">
+                    <thead className="bg-[#222]">
+                        <tr>
+                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[140px]">기능 셀</th>
+                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[160px]">역할</th>
+                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#fbf167] border-b border-[#333] border-r border-[#333] w-[200px]">책임 인력</th>
+                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-white border-b border-[#333] border-r border-[#333]">실무 인력</th>
+                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333] w-[160px]">부문 내 소속</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#333]">
+                        {internalData.map((row, idx) => (
+                            <tr key={idx} className="hover:bg-[#292928] transition-colors">
+                                <td className="px-[24px] py-[18px] text-[15px] font-bold text-[#E5E5E5] border-r border-[#333]">{row.cell}</td>
+                                <td className="px-[24px] py-[18px] text-[14px] text-[#A1A1AA] border-r border-[#333]">{row.role}</td>
+                                <td className="px-[24px] py-[18px] text-[15px] font-bold border-r border-[#333]" dangerouslySetInnerHTML={{ __html: row.leaders }}></td>
+                                <td className="px-[24px] py-[18px] text-[14px] text-[#E5E5E5] border-r border-[#333] leading-[22px]" dangerouslySetInnerHTML={{ __html: row.members }}></td>
+                                <td className="px-[24px] py-[18px] text-[13px] text-[#86868B]">{row.org}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}

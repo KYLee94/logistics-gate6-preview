@@ -8,6 +8,10 @@ import GovWorkingGroup from './governance/GovWorkingGroup';
 import GovPfvRules from './governance/GovPfvRules';
 import GovEscalation from './governance/GovEscalation';
 import GovRiskTop10 from './governance/GovRiskTop10';
+import StakeInternal from './stakeholder/StakeInternal';
+import StakeLp from './stakeholder/StakeLp';
+import StakeTenant from './stakeholder/StakeTenant';
+import StakePartner from './stakeholder/StakePartner';
 
 export default function PlatformCenter({ currentPath = '' }) {
     const renderGovernance = () => {
@@ -25,12 +29,25 @@ export default function PlatformCenter({ currentPath = '' }) {
         }
     };
 
+    const renderStakeholder = () => {
+        switch(currentPath) {
+            case 'platform/iotaseoul/stakeholders/internal': return <StakeInternal />;
+            case 'platform/iotaseoul/stakeholders/lp': return <StakeLp />;
+            case 'platform/iotaseoul/stakeholders/tenant': return <StakeTenant />;
+            case 'platform/iotaseoul/stakeholders/partner': return <StakePartner />;
+            default: return null;
+        }
+    };
+
     const govContent = renderGovernance();
-    if (govContent) {
+    const stakeContent = renderStakeholder();
+    const activeContent = govContent || stakeContent;
+
+    if (activeContent) {
         return (
             <div className="flex-1 h-full bg-transparent flex flex-col relative font-sans text-[#1D1D1F] dark:text-[#E5E5E5] overflow-hidden transition-colors duration-300">
                 <div className="flex-1 w-full overflow-y-auto hide-scrollbar flex flex-col relative">
-                    {govContent}
+                    {activeContent}
                 </div>
             </div>
         );
