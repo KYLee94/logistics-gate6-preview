@@ -106,7 +106,7 @@ export default function IotaLeftNav({ isPlatform = false }) {
             </div>
 
             {/* Main Menu */}
-            <div className="flex-1 overflow-y-auto pb-5 hide-scrollbar flex flex-col px-[9px]">
+            <div className="flex-1 overflow-y-auto pb-5 hide-scrollbar flex flex-col px-[11px]">
 
 
                 {/* 9 Menu Items */}
