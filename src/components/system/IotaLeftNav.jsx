@@ -70,7 +70,7 @@ const menuItems = [
         label: '리스크',
         badge: '3 Open',
         icon: (
-            <svg className="w-4.5 h-4.5 mr-3 text-[#f87171]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4.5 h-4.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
         ),
@@ -117,7 +117,7 @@ export default function IotaLeftNav({ onMenuChange }) {
                             <div
                                 key={item.id}
                                 onClick={() => { setActiveId(item.id); onMenuChange?.(item.id); }}
-                                className={`flex items-center justify-between px-2.5 py-2 rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isActive ? 'bg-[#333333]' : 'hover:bg-[#2C2C2E]'}`}
+                                className={`flex items-center justify-between py-2 rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isActive ? 'bg-[#333333] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#2C2C2E]'}`}
                             >
                                 <div className="flex items-center">
                                     <span className="text-white">
@@ -134,12 +134,29 @@ export default function IotaLeftNav({ onMenuChange }) {
                                         </div>
                                     )}
                                     {item.id !== 1 && (
-                                        <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                                        <svg className="w-3.5 h-3.5 text-white translate-x-[2px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
                                     )}
                                 </div>
                             </div>
                         );
                     })}
+                </div>
+
+                {/* IOTA CFT 거번넌스 영역 */}
+                <div className="mt-8 mb-2 px-2.5">
+                    <div className="font-semibold mb-2 text-[12px] text-[#86868B] transition-colors duration-300">IOTA CFT 거번넌스</div>
+                    <div className="flex flex-col gap-2.5 mt-4 text-[#888] transition-colors duration-300">
+                        {[
+                            "CFT 킥오프 미팅 (26.04.10)",
+                            "거버넌스 조직 및 R&R 초안",
+                            "핵심 의사결정 안건 리스트",
+                            "시스템 연동 마일스톤"
+                        ].map((item, idx) => (
+                            <div key={idx} className="font-medium text-[13px] hover:text-white cursor-pointer truncate transition-colors duration-200">
+                                {item}
+                            </div>
+                        ))}
+                    </div>
                 </div>
             </div>
 

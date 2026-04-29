@@ -1,14 +1,12 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import SystemLeftNav from './SystemLeftNav';
 import IotaLeftNav from './IotaLeftNav';
-import IotaDashboard from './IotaDashboard';
 import PlatformCenter from './PlatformCenter';
 import { useTheme } from '../../context/ThemeContext';
 
 export default function PlatformCore({ isPlatform = true, isIotaWorkspaceOverride = false }) {
     const { isLightMode, toggleTheme } = useTheme();
     const [isIotaWorkspace, setIsIotaWorkspace] = useState(isIotaWorkspaceOverride);
-    const [iotaMenuId, setIotaMenuId] = useState(1);
 
     useEffect(() => {
         if (isLightMode) toggleTheme();
@@ -31,16 +29,14 @@ export default function PlatformCore({ isPlatform = true, isIotaWorkspaceOverrid
         <div className="w-full h-screen bg-[#1F1F1E] flex overflow-hidden font-sans text-[#E5E5E5] relative border-none">
             
             {/* 좌측 사이드바 스위칭 로직 */}
-            {isIotaWorkspace
-                ? <IotaLeftNav onMenuChange={setIotaMenuId} />
-                : <SystemLeftNav isCore={true} isPlatform={isPlatform} />}
+            {isIotaWorkspace ? <IotaLeftNav isCore={true} isPlatform={isPlatform} /> : <SystemLeftNav isCore={true} isPlatform={isPlatform} />}
 
+            {/* Stage 2 Layout (상세페이지 고정) - No Right AI Panel for Platform */}
             <div className="flex-1 flex overflow-hidden">
-                <div className="w-full h-full overflow-hidden shrink-0 flex flex-col items-stretch">
-                    <div className="w-full h-full flex flex-col items-stretch min-w-[600px]">
-                        {isIotaWorkspace
-                            ? (iotaMenuId === 1 ? <IotaDashboard /> : <PlatformCenter />)
-                            : <PlatformCenter />}
+                {/* 컨텐츠 박스 (PlatformCenter) */}
+                <div className="w-full h-full overflow-hidden shrink-0 flex flex-col items-stretch opacity-100">
+                    <div className="w-full h-full flex flex-col items-stretch min-w-[600px] opacity-100">
+                        <PlatformCenter />
                     </div>
                 </div>
             </div>
