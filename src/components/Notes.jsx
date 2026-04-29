@@ -653,7 +653,7 @@ Defense Logic: Initially, one Mission Volunteer is selected from each department
                                                     <td className="border-b border-r border-gray-300 px-3 py-[6px] font-mono text-[11px] text-[#8e44ad] font-bold">costHistory</td>
                                                     <td className="border-b border-r border-gray-300 px-3 py-[6px]">Date Series <span className="text-gray-400">(시계열)</span></td>
                                                     <td className="border-b border-r border-gray-300 px-3 py-[6px] text-[#2980b9] font-semibold text-[12px]">Number</td>
-                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">사업 원가 : "8000억(25.03) -> 9500억(26.04)" (토지비/공사비 등 세부 분리저장)</td>
+                                                    <td className="border-b border-gray-300 px-3 py-[6px] text-gray-600">사업 원가 : "8000억(25.03) -&gt; 9500억(26.04)" (토지비/공사비 등 세부 분리저장)</td>
                                                 </tr>
                                                 <tr>
                                                     <td className="border-b border-r border-gray-300 px-3 py-[6px] font-medium">② Dynamic 지표 <span className="text-gray-400 font-normal">(변동)</span></td>

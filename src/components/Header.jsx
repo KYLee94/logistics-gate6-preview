@@ -51,10 +51,10 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
         },
         {
             title: "AI Peer Review",
-            id: "ai-review-claude",
+            id: "page-21",
             items: [
-                { label: "Claude", type: "ai-review-claude" },
-                { label: "Gemini", type: "alert", message: "Updating Gemini evaluation..." },
+                { label: "Claude", id: "page-21" },
+                { label: "Gemini", id: "page-22" },
                 { label: "GPT", type: "alert", message: "Updating GPT evaluation..." }
             ]
         }
@@ -100,10 +100,10 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
         },
         {
             title: "AI Peer Review",
-            id: "ai-review-claude",
+            id: "page-21",
             items: [
-                { label: "Claude", type: "ai-review-claude" },
-                { label: "Gemini", type: "alert", message: "제미나이 평가 결과 업데이트 중입니다." },
+                { label: "Claude", id: "page-21" },
+                { label: "Gemini", id: "page-22" },
                 { label: "GPT", type: "alert", message: "GPT 평가 결과 업데이트 중입니다." }
             ]
         }
@@ -145,7 +145,8 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
         if (pageNum >= 2 && pageNum <= 11) return 0; // The Engine
         if (pageNum >= 12 && pageNum <= 17) return 1; // The Steering Wheel
         if (pageNum === 18) return 2; // Inside IFPDP
-        if (pageNum >= 19) return 3; // Execution Plan
+        if (pageNum === 19 || pageNum === 20) return 3; // Execution Plan
+        if (pageNum === 21 || pageNum === 22) return 4; // AI Peer Review
         return -1;
     };
     const activeNavIndex = getActiveNavIndex();
@@ -451,7 +452,6 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                                     const isAlert = item.type === 'alert';
                                                     const isDownload = item.type === 'download';
                                                     const isSystemCore = item.type === 'system-core';
-                                                    const isAiReviewClaude = item.type === 'ai-review-claude';
 
                                                     const clickHandler = (e) => {
                                                         if (isNews) {
@@ -467,7 +467,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                                             e.preventDefault();
                                                             setIsMegaMenuOpen(false);
                                                             alert(item.message);
-                                                        } else if (isDownload || isSystemCore || isAiReviewClaude) {
+                                                        } else if (isDownload || isSystemCore) {
                                                             setIsMegaMenuOpen(false);
                                                         } else {
                                                             setIsMegaMenuOpen(false);
@@ -478,7 +478,7 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
                                                     return (
                                                         <li key={itemIdx}>
                                                             <a
-                                                                href={isNews ? "#news" : isLease ? "#lease" : isPartnership ? "#partnership" : isAlert ? "#" : isDownload ? item.url : isSystemCore ? "?page=system-core" : isAiReviewClaude ? "?page=ai-review-claude" : `#${item.id}`}
+                                                                href={isNews ? "#news" : isLease ? "#lease" : isPartnership ? "#partnership" : isAlert ? "#" : isDownload ? item.url : isSystemCore ? "?page=system-core" : `#${item.id}`}
                                                                 target={isDownload ? "_blank" : undefined}
                                                                 onClick={clickHandler}
                                                                 className="text-[13px] xl:text-[15px] text-gray-700 font-light tracking-[-0.03em] group/sub inline-block w-fit"
