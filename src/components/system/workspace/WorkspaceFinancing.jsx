@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function WorkspaceFinancing() {
     return (
-        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto overflow-y-auto hide-scrollbar">
+        <div className="w-full flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto">
             {/* Header Metadata */}
             <div className="w-full flex justify-between items-end mb-[36px]">
                 <div>

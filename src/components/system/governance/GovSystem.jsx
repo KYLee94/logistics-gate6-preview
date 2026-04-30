@@ -3,7 +3,7 @@ import cftImg from '../../../assets/cft.webp';
 
 export default function GovSystem() {
     return (
-        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto overflow-y-auto hide-scrollbar">
+        <div className="w-full flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto">
             <h1 className="w-full max-w-[1112px] mx-auto text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[36px]">IOTA CFT 통합 수행체계</h1>
             
             <div className="w-full flex justify-center mb-0 -mt-[30px]">
