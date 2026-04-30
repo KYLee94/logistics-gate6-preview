@@ -28,10 +28,10 @@ export default function GovPrinciples() {
                 </div>
             </div>
 
-                        {/* KPI / OKR List */}
-            <div className="w-full bg-[#1E1E1E] border border-[#3c3c3c] rounded-[32px] pt-[19px] pb-[32px] px-[32px] flex flex-col relative">
-                
-                <h2 className="text-[18px] font-bold text-white mb-[24px]">4중 평가체계</h2>
+            <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[36px] mt-[48px]">4중 평가체계</h1>
+
+            {/* KPI / OKR List */}
+            <div className="w-full bg-[#1E1E1E] border border-[#3c3c3c] rounded-[32px] pt-[32px] pb-[32px] px-[32px] flex flex-col relative">
 
                 {/* Headers */}
                 <div className="flex items-end mb-[16px]">
