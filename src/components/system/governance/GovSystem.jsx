@@ -10,9 +10,12 @@ export default function GovSystem() {
                 <img src={cftImg} alt="IOTA CFT 통합 수행체계" className="w-full max-w-[1200px] object-contain rounded-[16px]" />
             </div>
 
-            {/* 4대 축 List (No Title, Thin Separators) */}
-            <div className="w-full max-w-[1080px] mx-auto bg-[#1A1A1A] border border-[#3c3c3c] rounded-[32px] p-[32px] flex flex-col relative">
+            {/* 4대 축 List */}
+            <div className="w-full max-w-[1100px] mx-auto bg-[#1A1A1A] border border-[#3c3c3c] rounded-[32px] p-[32px] flex flex-col relative">
                 
+                <h2 className="text-[18px] font-bold text-white mb-[16px]">4대 미션의 주관 및 실행자</h2>
+                <div className="-mx-[32px] w-[calc(100%+64px)] h-px bg-[#333] mb-[24px]"></div>
+
                 {/* 1. 내부 CFT */}
                 <div className="flex items-start">
                     <div className="w-[180px] shrink-0">
