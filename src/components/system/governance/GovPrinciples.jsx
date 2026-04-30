@@ -51,7 +51,7 @@ export default function GovPrinciples() {
                 <div className="-mx-[32px] w-[calc(100%+64px)] h-px bg-[#333] mb-[24px]"></div>
 
                 {/* 1. KPI */}
-                <div className="flex items-start">
+                <div className="flex items-center">
                     <div className="w-[180px] shrink-0">
                         <span className="text-[19px] font-bold text-white">KPI (사업단위)</span>
                     </div>
@@ -68,7 +68,7 @@ export default function GovPrinciples() {
                 <div className="-mx-[32px] w-[calc(100%+64px)] h-px bg-[#333] my-[24px]"></div>
 
                 {/* 2. OKR */}
-                <div className="flex items-start">
+                <div className="flex items-center">
                     <div className="w-[180px] shrink-0">
                         <span className="text-[19px] font-bold text-white">OKR (조직단위)</span>
                     </div>
@@ -85,7 +85,7 @@ export default function GovPrinciples() {
                 <div className="-mx-[32px] w-[calc(100%+64px)] h-px bg-[#333] my-[24px]"></div>
 
                 {/* 3. CGC */}
-                <div className="flex items-start">
+                <div className="flex items-center">
                     <div className="w-[180px] shrink-0">
                         <span className="text-[19px] font-bold text-white">CGC (부문 기여)</span>
                     </div>
@@ -102,7 +102,7 @@ export default function GovPrinciples() {
                 <div className="-mx-[32px] w-[calc(100%+64px)] h-px bg-[#333] my-[24px]"></div>
 
                 {/* 4. 경영조직 */}
-                <div className="flex items-start">
+                <div className="flex items-center">
                     <div className="w-[180px] shrink-0">
                         <span className="text-[19px] font-bold text-white">경영조직 (종합)</span>
                     </div>
