@@ -6,12 +6,12 @@ export default function GovSystem() {
         <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto overflow-y-auto hide-scrollbar">
             <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[36px]">IOTA CFT 통합 수행체계</h1>
             
-            <div className="w-full flex justify-center mb-[40px] -mt-[30px]">
+            <div className="w-full flex justify-center mb-[10px] -mt-[30px]">
                 <img src={cftImg} alt="IOTA CFT 통합 수행체계" className="w-full max-w-[1200px] object-contain rounded-[16px]" />
             </div>
 
             {/* 4대 축 List (No Title, Thin Separators) */}
-            <div className="w-full max-w-[1040px] mx-auto bg-[#1A1A1A] border border-[#3c3c3c] rounded-[32px] p-[32px] flex flex-col relative">
+            <div className="w-full max-w-[1080px] mx-auto bg-[#1A1A1A] border border-[#3c3c3c] rounded-[32px] p-[32px] flex flex-col relative">
                 
                 {/* 1. 내부 CFT */}
                 <div className="flex items-start">
