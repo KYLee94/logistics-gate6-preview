@@ -44,7 +44,10 @@ export default function GovPrinciples() {
                 <div className="w-full h-px bg-[#333] mt-[24px]"></div>
             </div>
 
-            <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[36px] mt-[48px]">4중 평가체계</h1>
+            <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[16px] mt-[48px]">4중 평가체계</h1>
+            <p className="text-[16px] text-[#A1A1AA] leading-[26px] mb-[32px]">
+                부문 평가체계는 1)수익조직 KPI(사업단위 성과), 2) OKR(조직단위 성과), 3) CGC(부문 전체 기여), 4) 경영조직(종합)의 4중 구조입니다. 이오타서울 CFT는 이 구조를 그대로 차용하여 ‘수행 사업 단위 KPI’와 ‘기능 셀 OKR’을 분리 운영합니다.
+            </p>
 
             {/* KPI / OKR List */}
             <div className="w-full bg-[#1E1E1E] border border-[#3c3c3c] rounded-[32px] pt-[18px] pb-[32px] px-[32px] flex flex-col relative">
