@@ -42,6 +42,74 @@ export default function IotaDashboard() {
                 </div>
             </div>
 
+            
+            {/* Premium Apple-Style Master Metrics (Not in CEO's version) */}
+            <div className="flex gap-5 mb-[40px]">
+                <div className="flex-1 bg-[#1e1e1e] border border-[#3c3c3c] rounded-[24px] p-[32px] relative overflow-hidden flex items-center justify-between group">
+                    <div className="absolute top-0 left-0 w-[4px] h-full bg-gradient-to-b from-[#fbf167] to-[#e11d48]"></div>
+                    <div className="absolute -right-10 -bottom-10 w-[200px] h-[200px] bg-[#fbf167]/5 rounded-full blur-[40px] group-hover:bg-[#fbf167]/10 transition-colors"></div>
+                    
+                    <div className="z-10">
+                        <h3 className="text-[14px] font-bold text-[#86868B] tracking-wider uppercase mb-2">Total Platform Capital</h3>
+                        <div className="text-[48px] font-black text-white tracking-tighter leading-none mb-2">
+                            2.1<span className="text-[24px] text-[#666] ml-1">조 원</span>
+                        </div>
+                        <p className="text-[13px] text-[#A1A1AA]">총 사업비 (Iota 1, 2 및 IPR 포함)</p>
+                    </div>
+
+                    {/* Pure CSS Donut Chart */}
+                    <div className="z-10 flex items-center gap-6">
+                        <div className="relative w-[100px] h-[100px]">
+                            <svg className="w-full h-full transform -rotate-90">
+                                <circle cx="50" cy="50" r="40" stroke="#333" strokeWidth="8" fill="none" />
+                                <circle cx="50" cy="50" r="40" stroke="#fbf167" strokeWidth="8" fill="none" strokeDasharray="251.2" strokeDashoffset="70" className="drop-shadow-[0_0_8px_rgba(251,241,103,0.5)]" />
+                            </svg>
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                <span className="text-[20px] font-bold text-white">72%</span>
+                                <span className="text-[9px] text-[#666] uppercase">Secured</span>
+                            </div>
+                        </div>
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-[#fbf167] shadow-[0_0_5px_#fbf167]"></div>
+                                <span className="text-[12px] text-[#E5E5E5]">Equity & Senior (72%)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-[#333]"></div>
+                                <span className="text-[12px] text-[#666]">Remaining (28%)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex-1 bg-[#1e1e1e] border border-[#3c3c3c] rounded-[24px] p-[32px] relative overflow-hidden flex flex-col justify-center group">
+                    <div className="absolute top-0 right-0 w-[4px] h-full bg-gradient-to-b from-[#34d399] to-[#3b82f6]"></div>
+                    <div className="absolute -left-10 -bottom-10 w-[200px] h-[200px] bg-[#34d399]/5 rounded-full blur-[40px] group-hover:bg-[#34d399]/10 transition-colors"></div>
+                    
+                    <h3 className="text-[14px] font-bold text-[#86868B] tracking-wider uppercase mb-4 z-10">Asset Integration Health</h3>
+                    <div className="flex flex-col gap-3 z-10">
+                        <div>
+                            <div className="flex justify-between text-[12px] mb-1">
+                                <span className="text-[#E5E5E5]">거버넌스 안정화 지수</span>
+                                <span className="text-[#34d399] font-bold">94%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-[#333] rounded-full overflow-hidden">
+                                <div className="h-full bg-[#34d399] w-[94%] shadow-[0_0_5px_#34d399]"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <div className="flex justify-between text-[12px] mb-1">
+                                <span className="text-[#E5E5E5]">데이터 파이프라인 연동</span>
+                                <span className="text-[#3b82f6] font-bold">88%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-[#333] rounded-full overflow-hidden">
+                                <div className="h-full bg-[#3b82f6] w-[88%] shadow-[0_0_5px_#3b82f6]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* KPI 4-Up Grid */}
             <div className="grid grid-cols-4 gap-5 mb-[40px]">
                 {/* 1 */}
