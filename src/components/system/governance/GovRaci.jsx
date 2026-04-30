@@ -21,11 +21,11 @@ export default function GovRaci() {
     const renderBadge = (role) => {
         const squareClass = "inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px]";
         const rectClass = "inline-flex px-2 min-w-[40px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px]";
-        if (role === 'A') return <span className={`${squareClass} bg-[#4f46e5]/40 text-[#c7d2fe]`}>A</span>;
-        if (role === 'R') return <span className={`${squareClass} bg-[#059669]/40 text-[#a7f3d0]`}>R</span>;
-        if (role === 'A/R') return <span className={`${rectClass} bg-[#d97706]/40 text-[#fde68a]`}>A/R</span>;
-        if (role === 'C') return <span className={`${squareClass} bg-[#4b5563]/60 text-[#e5e7eb]`}>C</span>;
-        if (role === 'I') return <span className={`${squareClass} bg-[#0ea5e9]/40 text-[#bae6fd]`}>I</span>;
+        if (role === 'A') return <span className={`${squareClass} bg-[#60A5FA] text-[#111]`}>A</span>;
+        if (role === 'R') return <span className={`${squareClass} bg-[#34D399] text-[#111]`}>R</span>;
+        if (role === 'A/R') return <span className={`${rectClass} bg-[#FBBF24] text-[#111]`}>A/R</span>;
+        if (role === 'C') return <span className={`${squareClass} bg-[#F472B6] text-[#111]`}>C</span>;
+        if (role === 'I') return <span className={`${squareClass} bg-[#A78BFA] text-[#111]`}>I</span>;
         return role;
     };
 
@@ -33,10 +33,10 @@ export default function GovRaci() {
         <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto">
             <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[24px]">RACI 매트릭스</h1>
             <div className="flex items-center gap-8 mb-[36px] bg-transparent border border-[#333] p-5 rounded-[24px]">
-                <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#4f46e5]/40 text-[#c7d2fe]">A</span> <span className="text-white text-[14px]">최종 결정 및 승인 (Accountable)</span></div>
-                <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#059669]/40 text-[#a7f3d0]">R</span> <span className="text-white text-[14px]">실무 주관 및 실행 (Responsible)</span></div>
-                <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#4b5563]/60 text-[#e5e7eb]">C</span> <span className="text-white text-[14px]">사전 협의 및 자문 (Consulted)</span></div>
-                <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#0ea5e9]/40 text-[#bae6fd]">I</span> <span className="text-white text-[14px]">사후 결과 통보 (Informed)</span></div>
+                <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#60A5FA] text-[#111]">A</span> <span className="text-white text-[14px]">최종 결정 및 승인 (Accountable)</span></div>
+                <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#34D399] text-[#111]">R</span> <span className="text-white text-[14px]">실무 주관 및 실행 (Responsible)</span></div>
+                <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#F472B6] text-[#111]">C</span> <span className="text-white text-[14px]">사전 협의 및 자문 (Consulted)</span></div>
+                <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#A78BFA] text-[#111]">I</span> <span className="text-white text-[14px]">사후 결과 통보 (Informed)</span></div>
             </div>
             
             <div className="w-full border border-[#333] rounded-[24px] overflow-hidden">
