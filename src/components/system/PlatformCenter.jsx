@@ -19,6 +19,7 @@ import WorkspaceDevelopment from './workspace/WorkspaceDevelopment';
 import WorkspaceDigital from './workspace/WorkspaceDigital';
 import WorkspaceFund from './workspace/WorkspaceFund';
 import WorkspaceIpr from './workspace/WorkspaceIpr';
+import IotaDashboard from './IotaDashboard';
 
 export default function PlatformCenter({ currentPath = '' }) {
     const renderGovernance = () => {
@@ -62,7 +63,11 @@ export default function PlatformCenter({ currentPath = '' }) {
     const govContent = renderGovernance();
     const stakeContent = renderStakeholder();
     const workspaceContent = renderWorkspace();
-    const activeContent = govContent || stakeContent || workspaceContent;
+    
+    let activeContent = govContent || stakeContent || workspaceContent;
+    if (!currentPath || currentPath === '' || currentPath === 'platform/iotaseoul/dashboard' || currentPath === 'platform/iotaseoul/home') {
+        activeContent = <IotaDashboard />;
+    }
 
     if (activeContent) {
         return (
