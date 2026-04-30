@@ -11,7 +11,7 @@ export default function GovSystem() {
             </div>
 
             {/* 4대 축 List */}
-            <div className="w-full max-w-[1112px] mx-auto bg-[#1A1A1A] border border-[#3c3c3c] rounded-[32px] pt-[19px] pb-[32px] px-[32px] flex flex-col relative">
+            <div className="w-full max-w-[1112px] mx-auto bg-[#1E1E1E] border border-[#3c3c3c] rounded-[32px] pt-[19px] pb-[32px] px-[32px] flex flex-col relative">
                 
                 <h2 className="text-[18px] font-bold text-white mb-[16px]">4대 미션의 주관 및 실행자</h2>
                 <div className="-mx-[32px] w-[calc(100%+64px)] h-px bg-[#333] mb-[24px]"></div>
