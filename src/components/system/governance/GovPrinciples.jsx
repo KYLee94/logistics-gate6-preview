@@ -146,7 +146,7 @@ export default function GovPrinciples() {
             </p>
 
             <div className="w-full flex justify-center mb-0 -mt-[10px]">
-                <img src={tierImg} alt="5 Tier 거버넌스 위계" className="w-full max-w-[1112px] object-contain rounded-[16px]" />
+                <img src={tierImg} alt="5 Tier 거버넌스 위계" className="w-full max-w-[1112px] object-contain border-none outline-none" />
             </div>
         </div>
     );
