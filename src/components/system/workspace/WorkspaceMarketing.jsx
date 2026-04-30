@@ -54,11 +54,11 @@ export default function WorkspaceMarketing() {
             {/* 1. 주간 플래닝 칸반 */}
             <h2 className="text-[18px] font-bold text-white mb-[16px]">주간 플래닝 보드 (Weekly Sprints)</h2>
             <div className="grid grid-cols-2 gap-[24px] mb-[40px]">
-                {/* 이번 주 버킷 */}
+                {/* 이번 주 */}
                 <div className="bg-[#1A1A1A] border border-[#333] rounded-[24px] p-[24px] flex flex-col relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-full h-[4px] bg-[#e11d48]"></div>
                     <div className="flex justify-between items-center mb-[20px] pb-3 border-b border-[#333]">
-                        <span className="text-[16px] font-bold text-white">이번 주 버킷</span>
+                        <span className="text-[16px] font-bold text-white">당주 추진 액션</span>
                         <span className="px-3 py-1 bg-[#e11d48]/20 text-[#e11d48] rounded-[8px] text-[13px] font-bold">{thisWeekTasks.length} Tasks</span>
                     </div>
                     <div className="flex flex-col gap-3">
@@ -71,11 +71,11 @@ export default function WorkspaceMarketing() {
                     </div>
                 </div>
 
-                {/* 다음 주 버킷 */}
+                {/* 다음 주 */}
                 <div className="bg-[#1A1A1A] border border-[#333] rounded-[24px] p-[24px] flex flex-col relative overflow-hidden group">
                     <div className="absolute top-0 left-0 w-full h-[4px] bg-[#fbf167]"></div>
                     <div className="flex justify-between items-center mb-[20px] pb-3 border-b border-[#333]">
-                        <span className="text-[16px] font-bold text-white">다음 주 버킷</span>
+                        <span className="text-[16px] font-bold text-white">차주 예정 사항</span>
                         <span className="px-3 py-1 bg-[#d97706]/20 text-[#fbf167] rounded-[8px] text-[13px] font-bold">{nextWeekTasks.length} Tasks</span>
                     </div>
                     <div className="flex flex-col gap-3">
