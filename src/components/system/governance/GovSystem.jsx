@@ -26,11 +26,11 @@ export default function GovSystem() {
                             <span className="block text-[14px] text-[#666] mb-[4px]">주관 (Accountable)</span>
                             <span className="text-[15px] text-white"><span className="font-bold">부문대표</span> (이철승, CFT 총괄)</span>
                         </div>
-                        <div>
+                        <div className="-ml-[20px]">
                             <span className="block text-[14px] text-[#666] mb-[4px]">실행 (Responsible)</span>
                             <span className="text-[15px] text-[#c3c2b7]"><span className="font-bold">사업2파트</span> <span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">강순용</span>(Co-PM:사업)<br/><span className="font-bold">사업1파트</span> <span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">권순일</span>(Co-PM:전략)</span>
                         </div>
-                        <div>
+                        <div className="-ml-[20px]">
                             <span className="block text-[14px] text-[#666] mb-[4px]">핵심 산출물</span>
                             <span className="text-[15px] text-[#c3c2b7]">CFT 운영규정 / RACI / 회의체 캘린더</span>
                         </div>
@@ -49,11 +49,11 @@ export default function GovSystem() {
                             <span className="block text-[14px] text-[#666] mb-[4px]">주관 (Accountable)</span>
                             <span className="text-[15px] text-white font-bold">사업2파트</span>
                         </div>
-                        <div>
+                        <div className="-ml-[20px]">
                             <span className="block text-[14px] text-[#666] mb-[4px]">실행 (Responsible)</span>
-                            <span className="text-[15px] text-[#c3c2b7]">KAM·자산관리(<span className="hover:text-[#fbf167] cursor-pointer transition-colors">김행단</span> 1파트)<br/>운용지원·자금·회계 라인</span>
+                            <span className="text-[15px] text-[#c3c2b7]"><span className="font-bold">KAM·자산관리</span>(<span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">김행단</span> 1파트)<br/>운용지원·자금·회계 라인</span>
                         </div>
-                        <div>
+                        <div className="-ml-[20px]">
                             <span className="block text-[14px] text-[#666] mb-[4px]">핵심 산출물</span>
                             <span className="text-[15px] text-[#c3c2b7]">LP 보고서 / 자본콜 매뉴얼 / 자금집행 SOP</span>
                         </div>
@@ -72,11 +72,11 @@ export default function GovSystem() {
                             <span className="block text-[14px] text-[#666] mb-[4px]">주관 (Accountable)</span>
                             <span className="text-[15px] text-white">Iota1(427), Iota2(816)<br/><span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">강순용</span> <span className="font-bold">&</span> <span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">권순일</span></span>
                         </div>
-                        <div>
+                        <div className="-ml-[20px]">
                             <span className="block text-[14px] text-[#666] mb-[4px]">실행 (Responsible)</span>
-                            <span className="text-[15px] text-[#c3c2b7]">LFC <span className="hover:text-[#fbf167] cursor-pointer transition-colors">박준호</span>(파이낸싱)<br/>개발솔루션 <span className="hover:text-[#fbf167] cursor-pointer transition-colors">홍장군</span>(설계·시공)<br/>상품솔루션 <span className="hover:text-[#fbf167] cursor-pointer transition-colors">김현수</span>(상품/기술)<br/>EMC <span className="hover:text-[#fbf167] cursor-pointer transition-colors">김민지</span>(LM 및 기업마케팅)</span>
+                            <span className="text-[15px] text-[#c3c2b7]"><span className="font-bold">LFC</span> <span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">박준호</span>(파이낸싱)<br/><span className="font-bold">개발솔루션</span> <span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">홍장군</span>(설계·시공)<br/><span className="font-bold">상품솔루션</span> <span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">김현수</span>(상품/기술)<br/><span className="font-bold">EMC</span> <span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">김민지</span>(LM 및 기업마케팅)</span>
                         </div>
-                        <div>
+                        <div className="-ml-[20px]">
                             <span className="block text-[14px] text-[#666] mb-[4px]">핵심 산출물</span>
                             <span className="text-[15px] text-[#c3c2b7]">대외 단일창구 매트릭스 / 변경관리 절차</span>
                         </div>
@@ -95,11 +95,11 @@ export default function GovSystem() {
                             <span className="block text-[14px] text-[#666] mb-[4px]">주관 (Accountable)</span>
                             <span className="text-[15px] text-white"><span className="font-bold">프로젝트리츠 TFT</span><br/><span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">권순일</span>(투자) / <span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">윤용택</span>(관리)</span>
                         </div>
-                        <div>
+                        <div className="-ml-[20px]">
                             <span className="block text-[14px] text-[#666] mb-[4px]">실행 (Responsible)</span>
-                            <span className="text-[15px] text-[#c3c2b7]">외부 자문(법무·회계·감정)<br/><span className="font-bold">사업1파트</span> + KAM 1파트 인력 차출</span>
+                            <span className="text-[15px] text-[#c3c2b7]">외부 자문(법무·회계·감정)<br/><span className="font-bold">사업1파트</span> + <span className="font-bold">KAM 1파트</span> 인력 차출</span>
                         </div>
-                        <div>
+                        <div className="-ml-[20px]">
                             <span className="block text-[14px] text-[#666] mb-[4px]">핵심 산출물</span>
                             <span className="text-[15px] text-[#c3c2b7]">Forward Purchase 구조설계서 / 권순약정 초안</span>
                         </div>
