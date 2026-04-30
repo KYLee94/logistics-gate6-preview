@@ -24,7 +24,7 @@ export default function GovSystem() {
                     <div className="flex-1 grid grid-cols-3 gap-[24px]">
                         <div>
                             <span className="block text-[14px] text-[#666] mb-[4px]">주관 (Accountable)</span>
-                            <span className="text-[15px] text-white"><span className="font-bold">부문대표</span> (이철승, CFT 총괄)</span>
+                            <span className="text-[15px] text-white"><span className="font-bold">부문대표</span> (<span className="font-bold hover:text-[#fbf167] cursor-pointer transition-colors">이철승</span>, CFT 총괄)</span>
                         </div>
                         <div className="-ml-[30px]">
                             <span className="block text-[14px] text-[#666] mb-[4px]">실행 (Responsible)</span>
