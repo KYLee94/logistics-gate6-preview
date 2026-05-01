@@ -4,55 +4,56 @@ export default function GovRoadmap() {
     return (
         <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1112px] mx-auto">
             <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">90 Day Roadmap</h1>
-            <p className="text-[16px] text-[#bbb9af] mb-[4px]">리파이낸싱 종결을 D-Day로 두고, 90일 안에 통합 수행체계의 ‘1차 안정 상태’를 달성합니다.</p>
-            <p className="text-[16px] text-[#bbb9af] mb-[40px]">본 로드맵은 경영진 보고용 High-level 수준의 요약본입니다. 개별 태스크의 실행과 검증은 RACI 체계 및 지정된 회의체(운영위, 주간 Stand-up 등)를 통해 상세화됩니다.</p>
+            <p className="text-[15px] text-[#bbb9af] mb-[4px]">리파이낸싱 종결을 D-Day로 두고, 90일 안에 통합 수행체계의 ‘1차 안정 상태’를 달성합니다.</p>
+            <p className="text-[15px] text-[#bbb9af] mb-[40px]">본 로드맵은 경영진 보고용 High-level 수준의 요약본입니다. 개별 태스크의 실행과 검증은 RACI 체계 및 지정된 회의체(운영위, 주간 Stand-up 등)를 통해 상세화됩니다.</p>
             
-            <div className="flex flex-col w-full gap-[24px]">
+            <div className="flex w-full gap-[40px]">
+                <div className="flex-1 flex flex-col gap-[24px]">
                 {/* D+30 */}
                 <div className="flex w-full items-stretch gap-[24px]">
                     <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
                         <h2 className="text-[28px] font-black text-[#bbb9af] tracking-tighter leading-none">D+30</h2>
                     </div>
-                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] pt-[28px] pb-[28px] hover:border-[#555] transition-colors">
+                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[20px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">CFT 거버넌스</h3>
-                            <ul className="flex flex-col gap-[12px]">
+                            <ul className="flex flex-col gap-[8px]">
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">CFT 운영규정·RACI 픽스</span>
+                                    <span className="text-[15px] text-white leading-[24px]">CFT 운영규정·RACI 픽스</span>
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">통합 플랫폼 오픈, 주간 Stand-up 가동</span>
+                                    <span className="text-[15px] text-white leading-[24px]">통합 플랫폼 오픈, 주간 Stand-up 가동</span>
                                 </li>
                             </ul>
                         </div>
                         
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">PFV / 펀드</h3>
-                            <ul className="flex flex-col gap-[12px]">
+                            <ul className="flex flex-col gap-[8px]">
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">대외 단일창구 매트릭스 통보</span>
+                                    <span className="text-[15px] text-white leading-[24px]">대외 단일창구 매트릭스 통보</span>
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">421호 LP 진척보고 v1 발송</span>
+                                    <span className="text-[15px] text-white leading-[24px]">421호 LP 진척보고 v1 발송</span>
                                 </li>
                             </ul>
                         </div>
 
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">IPR 사전 준비</h3>
-                            <ul className="flex flex-col gap-[12px]">
+                            <ul className="flex flex-col gap-[8px]">
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">프로젝트리츠 TFT와 킥오프</span>
+                                    <span className="text-[15px] text-white leading-[24px]">프로젝트리츠 TFT와 킥오프</span>
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">외부 법무·회계 후보 롱리스트</span>
+                                    <span className="text-[15px] text-white leading-[24px]">외부 법무·회계 후보 롱리스트</span>
                                 </li>
                             </ul>
                         </div>
@@ -65,46 +66,46 @@ export default function GovRoadmap() {
                     <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
                         <h2 className="text-[28px] font-black text-[#bbb9af] tracking-tighter leading-none">D+60</h2>
                     </div>
-                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] pt-[28px] pb-[28px] hover:border-[#555] transition-colors">
+                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[20px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">CFT 거버넌스</h3>
-                            <ul className="flex flex-col gap-[12px]">
+                            <ul className="flex flex-col gap-[8px]">
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">격주 Steering·월간 임원보고 정착</span>
+                                    <span className="text-[15px] text-white leading-[24px]">격주 Steering·월간 임원보고 정착</span>
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">변경관리(Change Order) SOP 배포</span>
+                                    <span className="text-[15px] text-white leading-[24px]">변경관리(Change Order) SOP 배포</span>
                                 </li>
                             </ul>
                         </div>
                         
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">PFV / 펀드</h3>
-                            <ul className="flex flex-col gap-[12px]">
+                            <ul className="flex flex-col gap-[8px]">
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">대주단 Covenants 모니터링 보드 가동</span>
+                                    <span className="text-[15px] text-white leading-[24px]">대주단 Covenants 모니터링 보드 가동</span>
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">공정·예산 슬리피지 보드 가동</span>
+                                    <span className="text-[15px] text-white leading-[24px]">공정·예산 슬리피지 보드 가동</span>
                                 </li>
                             </ul>
                         </div>
 
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">IPR 사전 준비</h3>
-                            <ul className="flex flex-col gap-[12px]">
+                            <ul className="flex flex-col gap-[8px]">
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">IPR 구조설계 옵션 1차 보고</span>
+                                    <span className="text-[15px] text-white leading-[24px]">IPR 구조설계 옵션 1차 보고</span>
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">감정평가 기관 파일럿 진행</span>
+                                    <span className="text-[15px] text-white leading-[24px]">감정평가 기관 파일럿 진행</span>
                                 </li>
                             </ul>
                         </div>
@@ -117,51 +118,71 @@ export default function GovRoadmap() {
                     <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
                         <h2 className="text-[28px] font-black text-[#bbb9af] tracking-tighter leading-none">D+90</h2>
                     </div>
-                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] pt-[28px] pb-[28px] hover:border-[#555] transition-colors">
+                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[20px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">CFT 거버넌스</h3>
-                            <ul className="flex flex-col gap-[12px]">
+                            <ul className="flex flex-col gap-[8px]">
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">분기 회고 세션 1차 운영</span>
+                                    <span className="text-[15px] text-white leading-[24px]">분기 회고 세션 1차 운영</span>
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">OKR/KPI 1차 리뷰</span>
+                                    <span className="text-[15px] text-white leading-[24px]">OKR/KPI 1차 리뷰</span>
                                 </li>
                             </ul>
                         </div>
                         
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">PFV / 펀드</h3>
-                            <ul className="flex flex-col gap-[12px]">
+                            <ul className="flex flex-col gap-[8px]">
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">LP 분기보고 정례화</span>
+                                    <span className="text-[15px] text-white leading-[24px]">LP 분기보고 정례화</span>
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">리스크 Top10 등록·할당 완료</span>
+                                    <span className="text-[15px] text-white leading-[24px]">리스크 Top10 등록·할당 완료</span>
                                 </li>
                             </ul>
                         </div>
 
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">IPR 사전 준비</h3>
-                            <ul className="flex flex-col gap-[12px]">
+                            <ul className="flex flex-col gap-[8px]">
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">IPR 권순일 약정 초안 검토</span>
+                                    <span className="text-[15px] text-white leading-[24px]">IPR 권순일 약정 초안 검토</span>
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-white leading-[24px]">프리츠TFT와 인터페이스 규약 합의</span>
+                                    <span className="text-[15px] text-white leading-[24px]">프리츠TFT와 인터페이스 규약 합의</span>
                                 </li>
                             </ul>
                         </div>
                     </div>
                     </div>
+                </div>
+
+                </div>
+                {/* Vertical Timeline Indicator */}
+                <div className="w-[80px] shrink-0 relative flex flex-col items-center py-[20px] mt-[12px]">
+                    <div className="text-[12px] text-[#86868B] font-bold mb-[8px] whitespace-nowrap">May 11</div>
+                    <div className="relative w-[2px] flex-1 bg-[#333] rounded-full my-[4px]">
+                        {/* Progress Fill */}
+                        <div className="absolute top-0 left-0 w-full bg-[#fbf167] rounded-full" style={{ height: '35%' }}></div>
+                        
+                        {/* Current Date Marker */}
+                        <div className="absolute left-1/2 -translate-x-1/2 w-[8px] h-[8px] bg-[#fbf167] rounded-full shadow-[0_0_10px_rgba(251,241,103,0.6)]" style={{ top: '35%', marginTop: '-4px' }}></div>
+                        <div className="absolute left-[14px] text-[#fbf167] text-[11px] font-bold" style={{ top: '35%', marginTop: '-7px' }}>Today</div>
+
+                        {/* D+30 Marker */}
+                        <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#666]" style={{ top: '33.3%' }}></div>
+                        {/* D+60 Marker */}
+                        <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#666]" style={{ top: '66.6%' }}></div>
+                    </div>
+                    <div className="text-[12px] text-[#86868B] font-bold mt-[8px] whitespace-nowrap">Aug 9</div>
                 </div>
             </div>
         </div>
