@@ -167,22 +167,25 @@ export default function GovRoadmap() {
 
                 </div>
                 {/* Vertical Timeline Indicator */}
-                <div className="w-[80px] shrink-0 relative flex flex-col items-center py-[20px] mt-[12px]">
-                    <div className="text-[12px] text-[#86868B] font-bold mb-[8px] whitespace-nowrap">May 11</div>
-                    <div className="relative w-[2px] flex-1 bg-[#333] rounded-full my-[4px]">
+                <div className="w-[80px] shrink-0 relative flex flex-col items-center -mt-[16px] -mb-[16px]">
+                    <div className="text-[11px] text-[#86868B] font-bold mb-[12px] whitespace-nowrap tracking-tight">2026.5.11</div>
+                    <div className="relative w-[2px] flex-1 bg-[#333]">
                         {/* Progress Fill */}
-                        <div className="absolute top-0 left-0 w-full bg-[#fbf167] rounded-full" style={{ height: '35%' }}></div>
+                        <div className="absolute top-0 left-0 w-full bg-[#fbf167]" style={{ height: '0%' }}></div>
                         
                         {/* Current Date Marker */}
-                        <div className="absolute left-1/2 -translate-x-1/2 w-[8px] h-[8px] bg-[#fbf167] rounded-full shadow-[0_0_10px_rgba(251,241,103,0.6)]" style={{ top: '35%', marginTop: '-4px' }}></div>
-                        <div className="absolute left-[14px] text-[#fbf167] text-[11px] font-bold" style={{ top: '35%', marginTop: '-7px' }}>Today</div>
+                        <div className="absolute left-1/2 -translate-x-1/2 w-[8px] h-[2px] bg-[#fbf167]" style={{ top: '0%' }}></div>
+                        <div className="absolute left-[12px] text-[#fbf167] text-[11px] font-bold" style={{ top: '0%', marginTop: '-7px' }}>Today</div>
 
                         {/* D+30 Marker */}
-                        <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#666]" style={{ top: '33.3%' }}></div>
+                        <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#555]" style={{ top: '33.3%' }}></div>
                         {/* D+60 Marker */}
-                        <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#666]" style={{ top: '66.6%' }}></div>
+                        <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#555]" style={{ top: '66.6%' }}></div>
+                        
+                        {/* D+90 Marker (End) */}
+                        <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#555]" style={{ top: '100%' }}></div>
                     </div>
-                    <div className="text-[12px] text-[#86868B] font-bold mt-[8px] whitespace-nowrap">Aug 9</div>
+                    <div className="text-[11px] text-[#86868B] font-bold mt-[12px] whitespace-nowrap tracking-tight">2026.8.9</div>
                 </div>
             </div>
         </div>
