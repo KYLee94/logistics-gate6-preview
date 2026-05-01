@@ -118,7 +118,7 @@ export default function GovFundRnR() {
                         <div>
                             <span className="text-[17px] font-bold text-[#E5E5E5] mr-[8px]">의사결정 분리</span>
                             <span className="text-[17px] text-[#A1A1AA] leading-[28px]">
-                                PFV 이사회의 의사결정과 펀드의 운용지시는 엄격하게 분리되어, 별도의 결재선과 의사록을 통해 독립적으로 관리됩니다.
+                                PFV 이사회 결정과 펀드 운용지시는 별도 결재선·별도 의사록으로 분리한다.
                             </span>
                         </div>
                     </div>
@@ -127,7 +127,7 @@ export default function GovFundRnR() {
                         <div>
                             <span className="text-[17px] font-bold text-[#E5E5E5] mr-[8px]">자금 분리</span>
                             <span className="text-[17px] text-[#A1A1AA] leading-[28px]">
-                                PFV 계좌, 펀드 계좌, 신탁 계좌는 일체 통합되지 않으며, 모든 자금의 이동은 정식으로 승인된 운용지시서에 기반하여 투명하게 이루어집니다.
+                                PFV 계좌·펀드 계좌·신탁 계좌는 통합되지 않으며, 자금 이동은 운용지시서 기반으로만 발생한다.
                             </span>
                         </div>
                     </div>
@@ -136,7 +136,7 @@ export default function GovFundRnR() {
                         <div>
                             <span className="text-[17px] font-bold text-[#E5E5E5] mr-[8px]">정보 분리</span>
                             <span className="text-[17px] text-[#A1A1AA] leading-[28px]">
-                                LP는 펀드 운용 관련 정보에 한정하여 접근 권한을 가지며, PFV의 일상적인 운영 데이터는 KAM 1파트의 철저한 검증과 가공을 거친 공식 보고서를 통해서만 제공됩니다.
+                                LP는 펀드 운용 정보에만 접근하며, PFV의 일상 운영 데이터는 KAM 1파트의 가공·승인을 거친 보고서를 통해서만 제공된다.
                             </span>
                         </div>
                     </div>
