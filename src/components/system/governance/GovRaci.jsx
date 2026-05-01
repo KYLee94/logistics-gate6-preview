@@ -56,8 +56,8 @@ export default function GovRaci() {
         const rectClass = "inline-flex px-2 min-w-[40px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px]";
         if (role === 'A') return <span className={`${squareClass} bg-[#0e3658] text-[#5da0e7]`}>A</span>;
         if (role === 'R') return <span className={`${squareClass} bg-[#13383b] text-[#3aaab3]`}>R</span>;
-        if (role === '●') return <span className="text-[14px] text-white">●</span>;
-        if (role === '○') return <span className="text-[14px] text-[#A1A1AA]">○</span>;
+        if (role === '●') return <span className="text-[20px] text-white">●</span>;
+        if (role === '○') return <span className="text-[20px] text-[#A1A1AA]">○</span>;
         if (role === 'A/R') return <span className={`${rectClass} bg-[#f59e0b]/30 text-[#fcd34d]`}>A/R</span>;
         if (role === 'C') return <span className={`${squareClass} bg-[#512635] text-[#cd879c]`}>C</span>;
         if (role === 'I') return <span className={`${squareClass} bg-[#462561] text-[#b889d9]`}>I</span>;
@@ -78,7 +78,7 @@ export default function GovRaci() {
                 <table className="w-full text-center">
                     <thead className="bg-transparent">
                         <tr>
-                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[260px] text-left">의사결정 영역</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[300px] min-w-[300px] max-w-[300px] text-left">의사결정 영역</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333]">PM<br/><span className="text-white font-normal text-[14px] block mt-[2px] cursor-pointer hover:underline underline-offset-4 decoration-white/30 transition-all">강순용</span></th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333]">LFC<br/><span className="text-white font-normal text-[14px] block mt-[2px] cursor-pointer hover:underline underline-offset-4 decoration-white/30 transition-all">박준호</span></th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333]">개발<br/><span className="text-white font-normal text-[14px] block mt-[2px] cursor-pointer hover:underline underline-offset-4 decoration-white/30 transition-all">홍장군</span></th>
@@ -114,7 +114,7 @@ export default function GovRaci() {
                 <table className="w-full text-center">
                     <thead className="bg-transparent">
                         <tr>
-                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[260px] text-left">세부 업무</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[300px] min-w-[300px] max-w-[300px] text-left">세부 업무</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333] w-[90px]">사업1파트</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333] w-[90px]">사업2파트</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333] w-[90px]">개발솔루션</th>
@@ -149,7 +149,7 @@ export default function GovRaci() {
                 <table className="w-full text-center">
                     <thead className="bg-transparent">
                         <tr>
-                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[260px] text-left">세부 업무</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[300px] min-w-[300px] max-w-[300px] text-left">세부 업무</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333] w-[100px]">사업1파트</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333] w-[100px]">사업2파트</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333] w-[100px]">개발솔루션</th>
@@ -180,7 +180,7 @@ export default function GovRaci() {
                 <table className="w-full text-center">
                     <thead className="bg-transparent">
                         <tr>
-                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[260px] text-left">세부 업무</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[300px] min-w-[300px] max-w-[300px] text-left">세부 업무</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333] w-[110px]">사업2파트</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333] w-[110px]">개발솔루션</th>
                             <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333] w-[110px]">LFC</th>
