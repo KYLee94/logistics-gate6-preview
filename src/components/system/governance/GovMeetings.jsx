@@ -25,8 +25,8 @@ export default function GovMeetings() {
                         {timelineData.map((item, index) => (
                             <React.Fragment key={index}>
                                 {/* Timeline Node */}
-                                <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                    <div className="flex items-center justify-center w-[56px] h-[56px] rounded-full border-[2px] border-[#444] bg-[#111] text-white font-bold text-[17px] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                <div className={`relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active ${index > 0 ? 'md:-mt-[16px] mt-[32px]' : ''}`}>
+                                    <div className="flex items-center justify-center w-[56px] h-[56px] rounded-full border-[2px] border-[#444] bg-[#111] text-white font-bold text-[17px] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 relative">
                                         {item.time}
                                     </div>
                                     
@@ -38,13 +38,11 @@ export default function GovMeetings() {
                                         after:content-[''] after:absolute after:top-1/2 after:-translate-y-1/2 after:-left-[7px] after:w-[14px] after:h-[14px] after:border-b after:border-l after:border-[#3c3c3c] after:rotate-45 after:bg-[#111] md:after:hidden
                                     ">
                                         <span className="text-[16px] font-bold text-white block">{item.title}</span>
-                                        {item.desc && <p className="text-[14px] text-[#A1A1AA] mt-2">{item.desc}</p>}
+                                        {item.desc && <p className="text-[14px] text-[#A1A1AA] mt-1">{item.desc}</p>}
                                     </div>
-                                </div>
 
-                                {/* Duration Indicator */}
-                                <div className="relative flex justify-center md:justify-normal items-center h-[50px] group">
-                                    <div className="absolute left-[34px] md:left-1/2 -translate-x-1/2 bg-[#111] px-3 py-1 rounded-full border border-[#333] text-[12px] text-[#A1A1AA] z-10">
+                                    {/* Duration Indicator: Clean text on the right of the vertical line */}
+                                    <div className="absolute left-[34px] md:left-1/2 md:translate-x-[24px] top-full mt-[-8px] text-[13px] text-[#86868B] font-medium z-10 whitespace-nowrap">
                                         {item.duration}
                                     </div>
                                 </div>
@@ -52,7 +50,7 @@ export default function GovMeetings() {
                         ))}
 
                         {/* Final Node 60 */}
-                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                        <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active md:-mt-[16px] mt-[32px]">
                             <div className="flex items-center justify-center w-[56px] h-[56px] rounded-full border-[2px] border-[#444] bg-[#111] text-white font-bold text-[17px] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                 60
                             </div>
