@@ -68,7 +68,7 @@ export default function GovFundRnR() {
                         <div key={idx} className="relative flex items-start py-[12px]">
                             <div className="absolute left-[-25px] top-[17px] w-[12px] h-[12px] rounded-full bg-[#111] border-[3px] border-[#2997FF]"></div>
                             <div className="flex flex-col md:flex-row md:items-center gap-[4px] md:gap-[16px]">
-                                <span className="text-[17px] font-bold text-[#E5E5E5] min-w-[180px]">{step.title}</span>
+                                <span className="text-[17px] font-bold text-[#E5E5E5] min-w-[210px]">{step.title}</span>
                                 <span className="text-[17px] text-[#86868B]">{step.desc}</span>
                             </div>
                         </div>
