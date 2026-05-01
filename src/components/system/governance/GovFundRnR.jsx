@@ -54,8 +54,8 @@ export default function GovFundRnR() {
             </p>
 
             <div className="bg-transparent border border-[#333] rounded-[24px] p-[32px] mb-[44px]">
-                <div className="flex flex-col relative pl-[20px]">
-                    <div className="absolute left-0 top-[12px] bottom-[12px] w-[1px] bg-[#333]"></div>
+                <div className="flex flex-col relative pl-[20px] ml-[20px]">
+                    <div className="absolute left-0 top-[12px] bottom-[12px] w-[2px] bg-[#2997FF]"></div>
                     
                     {[
                         { title: '① PFV', desc: '자금 수요 (시공·설계·운영 등)' },
@@ -66,7 +66,7 @@ export default function GovFundRnR() {
                         { title: '⑥ 자금집행', desc: '운용지원 자금팀 → 신탁회사 → PFV' },
                     ].map((step, idx) => (
                         <div key={idx} className="relative flex items-start py-[12px]">
-                            <div className="absolute left-[-24px] top-[18px] w-[9px] h-[9px] rounded-full bg-[#86868B] border-[2px] border-[#0a0a0a]"></div>
+                            <div className="absolute left-[-25px] top-[17px] w-[12px] h-[12px] rounded-full bg-[#111] border-[3px] border-[#2997FF]"></div>
                             <div className="flex flex-col md:flex-row md:items-center gap-[4px] md:gap-[16px]">
                                 <span className="text-[17px] font-bold text-[#E5E5E5] min-w-[180px]">{step.title}</span>
                                 <span className="text-[17px] text-[#86868B]">{step.desc}</span>
