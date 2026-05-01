@@ -27,13 +27,13 @@ export default function StakeInternal() {
 
             {hoveredRow && (
                 <div 
-                    className="fixed z-[100] pointer-events-none px-[12px] py-[8px] bg-black/80 border border-white/20 rounded-[8px] text-[#fbf167] text-[13px] font-bold shadow-2xl backdrop-blur-md whitespace-nowrap flex items-center gap-[6px]"
+                    className="fixed z-[100] pointer-events-none px-[10px] py-[6px] bg-[#111] border border-[#333] text-[#bbb9af] text-[12px] font-normal whitespace-nowrap flex items-center gap-[6px]"
                     style={{
                         left: mousePos.x + 15,
                         top: mousePos.y + 15
                     }}
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                    
                     {hoveredRow} 워크스페이스 가기
                 </div>
             )}
@@ -69,7 +69,7 @@ export default function StakeInternal() {
                         </tr>
 
                         {/* 사업 PM */}
-                        <tr className="cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('사업 PM')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[사업 PM] 워크스페이스로 이동합니다.')}>
+                        <tr className={`cursor-pointer transition-colors ${hoveredRow === '사업 PM' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('사업 PM')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[사업 PM] 워크스페이스로 이동합니다.')}>
                             <td rowSpan={2} className="px-[24px] py-[16px] text-[14px] font-normal text-[#E5E5E5] border-r border-[#333] border-b border-[#333]">사업 PM</td>
                             <td className="px-[14px] py-[16px] border-b border-[#333]">
                                 {renderLeader('권순일', '사업1파트장')}
@@ -78,7 +78,7 @@ export default function StakeInternal() {
                             <td rowSpan={2} className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] border-b border-[#333] leading-[22px]">전체 일정·예산 통제<br/>변경관리 결정<br/>PFV 외부 단일 창구</td>
                             <td rowSpan={2} className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-b border-[#333]">사업그룹</td>
                         </tr>
-                        <tr className="border-b border-[#333] cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('사업 PM')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[사업 PM] 워크스페이스로 이동합니다.')}>
+                        <tr className={`border-b border-[#333] cursor-pointer transition-colors ${hoveredRow === '사업 PM' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('사업 PM')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[사업 PM] 워크스페이스로 이동합니다.')}>
                             <td className="px-[14px] py-[16px] ">
                                 {renderLeader('강순용', '사업2파트장')}
                             </td>
@@ -86,7 +86,7 @@ export default function StakeInternal() {
                         </tr>
 
                         {/* 파이낸싱 */}
-                        <tr className="border-b border-[#333] cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('파이낸싱')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[파이낸싱] 워크스페이스로 이동합니다.')}>
+                        <tr className={`border-b border-[#333] cursor-pointer transition-colors ${hoveredRow === '파이낸싱' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('파이낸싱')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[파이낸싱] 워크스페이스로 이동합니다.')}>
                             <td className="px-[24px] py-[16px] text-[14px] font-normal text-[#E5E5E5] border-r border-[#333]">파이낸싱</td>
                             <td className="px-[14px] py-[16px] ">
                                 {renderLeader('박준호', 'LFC 센터장')}
@@ -97,38 +97,38 @@ export default function StakeInternal() {
                         </tr>
 
                         {/* 개발관리 */}
-                        <tr className="border-b border-[#333] cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('개발관리')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[개발관리] 워크스페이스로 이동합니다.')}>
+                        <tr className={`border-b border-[#333] cursor-pointer transition-colors ${hoveredRow === '개발관리' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('개발관리')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[개발관리] 워크스페이스로 이동합니다.')}>
                             <td className="px-[24px] py-[16px] text-[14px] font-normal text-[#E5E5E5] border-r border-[#333]">개발관리</td>
                             <td className="px-[14px] py-[16px]">
                                 {renderLeader('홍장군', '개발솔루션센터장')}
                             </td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">
-                                <div className="flex gap-4"><span className="w-[50px] text-[#86868B] shrink-0">건설담당</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('채원 김보성 전승희')}</div></div>
-                                <div className="flex gap-4"><span className="w-[50px] text-[#86868B] shrink-0">설계담당</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('김대익 장성진')}</div></div>
-                                <div className="flex gap-4"><span className="w-[50px] text-[#86868B] shrink-0">인허가</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('이정훈')}</div></div>
-                                <div className="flex gap-4"><span className="w-[50px] text-[#86868B] shrink-0">전문위원</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('박봉서')}</div></div>
+                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0">건설담당</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('채원 김보성 전승희')}</div></div>
+                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0">설계담당</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('김대익 장성진')}</div></div>
+                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0">인허가</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('이정훈')}</div></div>
+                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0">전문위원</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('박봉서')}</div></div>
                             </td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">설계·시공·CM·감리 통제<br/>인허가/명도 대응<br/>공정·품질·안전 KPI</td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af]">개발솔루션센터</td>
                         </tr>
 
                         {/* 기업마케팅 */}
-                        <tr className="border-b border-[#333] cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('기업마케팅')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[기업마케팅] 워크스페이스로 이동합니다.')}>
+                        <tr className={`border-b border-[#333] cursor-pointer transition-colors ${hoveredRow === '기업마케팅' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('기업마케팅')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[기업마케팅] 워크스페이스로 이동합니다.')}>
                             <td className="px-[24px] py-[16px] text-[14px] font-normal text-[#E5E5E5] border-r border-[#333]">기업마케팅</td>
                             <td className="px-[14px] py-[16px]">
                                 {renderLeader('김민지', '기업마케팅담당')}
                             </td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">
-                                <div className="flex gap-4"><span className="w-[40px] text-[#86868B] shrink-0">EMC</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('고아라')}</div></div>
-                                <div className="flex gap-4"><span className="w-[40px] text-[#86868B] shrink-0">SSC</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('이가현 정수명')}</div></div>
-                                <div className="flex gap-4"><span className="w-[40px] text-[#86868B] shrink-0">사업1</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('권순일(자문)')}</div></div>
+                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0">EMC</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('고아라')}</div></div>
+                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0">SSC</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('이가현 정수명')}</div></div>
+                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0">사업1</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('권순일(자문)')}</div></div>
                             </td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">LM 전략·잠재 임차인 피칭<br/>임대차 조건 협의<br/>LM사 관리</td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] leading-[22px]">EMC<br/>SSC</td>
                         </tr>
 
                         {/* 상품·디지털 */}
-                        <tr className="cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('상품·디지털')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[상품·디지털] 워크스페이스로 이동합니다.')}>
+                        <tr className={`cursor-pointer transition-colors ${hoveredRow === '상품·디지털' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('상품·디지털')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[상품·디지털] 워크스페이스로 이동합니다.')}>
                             <td rowSpan={2} className="px-[24px] py-[16px] text-[14px] font-normal text-[#E5E5E5] border-r border-[#333] border-b border-[#333]">상품·디지털</td>
                             <td className="px-[14px] py-[16px] border-b border-[#333]">
                                 {renderLeader('김현수', '공간솔루션센터장')}
@@ -137,7 +137,7 @@ export default function StakeInternal() {
                             <td rowSpan={2} className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] border-b border-[#333] leading-[22px]">상품 차별화 전략·POC<br/>테넌트 경험 설계<br/>디지털 인프라(보안·통신·DC 등)</td>
                             <td rowSpan={2} className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-b border-[#333] leading-[22px]">SSC<br/>디지털사업그룹</td>
                         </tr>
-                        <tr className="border-b border-[#333] cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('상품·디지털')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[상품·디지털] 워크스페이스로 이동합니다.')}>
+                        <tr className={`border-b border-[#333] cursor-pointer transition-colors ${hoveredRow === '상품·디지털' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('상품·디지털')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[상품·디지털] 워크스페이스로 이동합니다.')}>
                             <td className="px-[14px] py-[16px] ">
                                 {renderLeader('현철호', '디지털사업그룹장')}
                             </td>
@@ -145,7 +145,7 @@ export default function StakeInternal() {
                         </tr>
 
                         {/* 펀드운용 */}
-                        <tr className="border-b border-[#333] cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('펀드운용')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[펀드운용] 워크스페이스로 이동합니다.')}>
+                        <tr className={`border-b border-[#333] cursor-pointer transition-colors ${hoveredRow === '펀드운용' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('펀드운용')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[펀드운용] 워크스페이스로 이동합니다.')}>
                             <td className="px-[24px] py-[16px] text-[14px] font-normal text-[#E5E5E5] border-r border-[#333]">펀드운용</td>
                             <td className="px-[14px] py-[16px] ">
                                 {renderLeader('김행단', 'KAM그룹장')}
@@ -156,7 +156,7 @@ export default function StakeInternal() {
                         </tr>
 
                         {/* IPR */}
-                        <tr className="cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('IPR')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[IPR] 워크스페이스로 이동합니다.')}>
+                        <tr className={`cursor-pointer transition-colors ${hoveredRow === 'IPR' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('IPR')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[IPR] 워크스페이스로 이동합니다.')}>
                             <td rowSpan={2} className="px-[24px] py-[16px] text-[14px] font-normal text-[#E5E5E5] border-r border-[#333] border-b border-[#333]">IPR</td>
                             <td className="px-[14px] py-[16px] border-b border-[#333]">
                                 {renderLeader('권순일', '(투자) 사업1파트장')}
@@ -165,7 +165,7 @@ export default function StakeInternal() {
                             <td rowSpan={2} className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] border-b border-[#333] leading-[22px]">프로젝트리츠 TFT 운영<br/>투자자 대응<br/>외부 자문사 선정</td>
                             <td rowSpan={2} className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-b border-[#333] leading-[22px]">부문직속<br/>신설TFT</td>
                         </tr>
-                        <tr className="border-b border-[#333] cursor-pointer hover:bg-white/5 transition-colors" onMouseEnter={() => setHoveredRow('IPR')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[IPR] 워크스페이스로 이동합니다.')}>
+                        <tr className={`border-b border-[#333] cursor-pointer transition-colors ${hoveredRow === 'IPR' ? 'bg-white/5' : ''}`} onMouseEnter={() => setHoveredRow('IPR')} onMouseLeave={() => setHoveredRow(null)} onClick={() => alert('[IPR] 워크스페이스로 이동합니다.')}>
                             <td className="px-[14px] py-[16px] ">
                                 {renderLeader('윤용택', '(관리) 사업3파트')}
                             </td>
@@ -188,13 +188,13 @@ export default function StakeInternal() {
 
             {hoveredRow && (
                 <div 
-                    className="fixed z-[100] pointer-events-none px-[12px] py-[8px] bg-black/80 border border-white/20 rounded-[8px] text-[#fbf167] text-[13px] font-bold shadow-2xl backdrop-blur-md whitespace-nowrap flex items-center gap-[6px]"
+                    className="fixed z-[100] pointer-events-none px-[10px] py-[6px] bg-[#111] border border-[#333] text-[#bbb9af] text-[12px] font-normal whitespace-nowrap flex items-center gap-[6px]"
                     style={{
                         left: mousePos.x + 15,
                         top: mousePos.y + 15
                     }}
                 >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                    
                     {hoveredRow} 워크스페이스 가기
                 </div>
             )}
