@@ -31,7 +31,7 @@ export default function GovRaci() {
 
     return (
         <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1112px] mx-auto">
-            <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[24px]">RACI 매트릭스</h1>
+            <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[24px]">핵심 의사결정 RACI</h1>
             <div className="flex items-center gap-8 mb-[32px] bg-transparent border border-[#333] p-5 rounded-[24px]">
                 <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#0e3658] text-[#5da0e7]">A</span> <span className="text-white text-[14px]">최종 결정 및 승인 (Accountable)</span></div>
                 <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#13383b] text-[#3aaab3]">R</span> <span className="text-white text-[14px]">실무 주관 및 실행 (Responsible)</span></div>
@@ -67,6 +67,7 @@ export default function GovRaci() {
                     </tbody>
                 </table>
             </div>
+            <p className="mt-[16px] text-[13px] text-[#bbb9af]">** 'A/R'은 PM이 자율 결정·실행을 동시에 보유함을 의미합니다.</p>
         </div>
     );
 }
