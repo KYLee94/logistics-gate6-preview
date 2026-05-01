@@ -12,7 +12,7 @@ export default function GovMeetings() {
     ];
 
     const internalMeetings = [
-        { meeting: 'Iota 임원 보고회', period: '월 1회\n(3주차)', leader: '부문대표(이철승)', attendees: '부대표진·CFT 총괄·셀 리드 5인', output: '월간 사업보고서, T1 의사결정 사안 통과' },
+        { meeting: 'Iota 임원 보고회', period: '월 1회 (3주차)', leader: '부문대표(이철승)', attendees: '부대표진·CFT 총괄·셀 리드 5인', output: '월간 사업보고서, T1 의사결정 사안 통과' },
         { meeting: 'CFT 운영위\n(Steering)', period: '격주 (수)', leader: 'CFT 총괄(부문대표 겸직)', attendees: 'PM·5개 셀 리드·KAM 1파트', output: 'UW 범위 외 의사결정, 변경관리 승인' },
         { meeting: '주간 PM Stand-up', period: '주 1회 (월)', leader: 'PM(강순용)', attendees: '5개 셀 실무 책임자', output: '주간 진척, Top10 리스크, 7일 액션' },
         { meeting: 'LP 정기보고 미팅', period: '분기 1회', leader: 'KAM 1파트(김행단)', attendees: 'PM·LFC·운용지원·외부 LP', output: '분기보고서, Q&A 로그' },
@@ -22,9 +22,9 @@ export default function GovMeetings() {
     ];
 
     const externalMeetings = [
-        { meeting: '이오타 1\n(현대건설)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: '현대건설 및 금융주관사들', output: '' },
-        { meeting: '이오타 2\n(삼성물산)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: '삼성물산 및 금융주관사들', output: '' },
-        { meeting: '통합PF\n(NH투자증권)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: 'NH투자증권', output: '' }
+        { meeting: '이오타 1 (현대건설)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: '현대건설 및 금융주관사들', output: '' },
+        { meeting: '이오타 2 (삼성물산)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: '삼성물산 및 금융주관사들', output: '' },
+        { meeting: '통합PF (NH투자증권)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: 'NH투자증권', output: '' }
     ];
 
     const triggers = [
@@ -91,27 +91,27 @@ export default function GovMeetings() {
 
 
             {/* 정기 회의체 */}
-            <h2 className="text-[28px] font-bold text-white mb-[8px] tracking-tight">정기 회의체 (Cadence)</h2>
+            <h2 className="text-[28px] font-bold text-white mt-[20px] mb-0 tracking-tight">정기 회의체 (Cadence)</h2>
             
-            <h3 className="text-[18px] font-bold text-white mt-[32px] mb-[16px]">[이지스 내부]</h3>
+            <h3 className="text-[18px] font-bold text-white mt-[30px] mb-[16px]">[이지스 내부]</h3>
             <div className="w-full border border-[#333] rounded-[24px] overflow-hidden mb-[32px]">
-                <table className="w-full text-center table-fixed">
+                <table className="w-full text-left table-fixed">
                     <thead className="bg-[#1E1E1E]">
                         <tr>
-                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[180px]">회의체</th>
-                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[120px]">주기</th>
-                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[160px]">주재자</th>
-                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[260px]">주요 참석자</th>
+                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[180px]">회의체</th>
+                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[120px]">주기</th>
+                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[160px]">주재자</th>
+                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[260px]">주요 참석자</th>
                             <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#333]">
                         {internalMeetings.map((row, idx) => (
                             <tr key={idx} className="hover:bg-[#292928] transition-colors group">
-                                <td className="px-[12px] py-[12px] text-[15px] text-[#E5E5E5] border-r border-[#333] whitespace-pre-line group-hover:text-white transition-colors text-left font-semibold">{row.meeting}</td>
-                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7] border-r border-[#333] whitespace-pre-line group-hover:text-[#E5E5E5] transition-colors">{row.period}</td>
-                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7] border-r border-[#333] group-hover:text-[#E5E5E5] transition-colors">{row.leader}</td>
-                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7] border-r border-[#333] text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
+                                <td className="px-[12px] py-[12px] text-[15px] text-[#E5E5E5]  group-hover:text-white transition-colors text-left font-semibold">{row.meeting}</td>
+                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7]  group-hover:text-[#E5E5E5] transition-colors">{row.period}</td>
+                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7]  group-hover:text-[#E5E5E5] transition-colors">{row.leader}</td>
+                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7]  text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
                                 <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
                             </tr>
                         ))}
@@ -121,23 +121,23 @@ export default function GovMeetings() {
 
             <h3 className="text-[18px] font-bold text-white mt-[16px] mb-[16px]">[이지스 외부]</h3>
             <div className="w-full border border-[#333] rounded-[24px] overflow-hidden mb-[80px]">
-                <table className="w-full text-center table-fixed">
+                <table className="w-full text-left table-fixed">
                     <thead className="bg-[#1E1E1E]">
                         <tr>
-                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[180px]">회의체</th>
-                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[120px]">주기</th>
-                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[160px]">주재자</th>
-                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[260px]">주요 참석자</th>
+                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[180px]">회의체</th>
+                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[120px]">주기</th>
+                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[160px]">주재자</th>
+                            <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[260px]">주요 참석자</th>
                             <th className="px-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#333]">
                         {externalMeetings.map((row, idx) => (
                             <tr key={idx} className="hover:bg-[#292928] transition-colors group">
-                                <td className="px-[12px] py-[12px] text-[15px] text-[#E5E5E5] border-r border-[#333] whitespace-pre-line group-hover:text-white transition-colors text-left font-semibold">{row.meeting}</td>
-                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7] border-r border-[#333] group-hover:text-[#E5E5E5] transition-colors">{row.period}</td>
-                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7] border-r border-[#333] group-hover:text-[#E5E5E5] transition-colors">{row.leader}</td>
-                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7] border-r border-[#333] text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
+                                <td className="px-[12px] py-[12px] text-[15px] text-[#E5E5E5]  group-hover:text-white transition-colors text-left font-semibold">{row.meeting}</td>
+                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7]  group-hover:text-[#E5E5E5] transition-colors">{row.period}</td>
+                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7]  group-hover:text-[#E5E5E5] transition-colors">{row.leader}</td>
+                                <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7]  text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
                                 <td className="px-[12px] py-[12px] text-[14px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
                             </tr>
                         ))}
