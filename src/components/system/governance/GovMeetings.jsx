@@ -3,10 +3,10 @@ import React from 'react';
 export default function GovMeetings() {
     const timelineData = [
         { time: '00', duration: '5분', title: '지난 주 액션 종결 확인 (5분)', desc: '' },
-        { time: '05', duration: '10분', title: '주요 KPI/OKR 변동', desc: '— 대시보드 공유 (10분)' },
-        { time: '15', duration: '10분', title: 'Top10 리스크 업데이트', desc: '— 색상 변동 셀만 (10분)' },
-        { time: '25', duration: '15분', title: '의사결정 안건', desc: '— Two-Lock 표결 (15분)' },
-        { time: '40', duration: '10분', title: '외부 인터페이스 이슈', desc: '— 대주/LP/시공/임차 (10분)' },
+        { time: '05', duration: '10분', title: '주요 KPI/OKR 변동', desc: '대시보드 공유 (10분)' },
+        { time: '15', duration: '10분', title: 'Top10 리스크 업데이트', desc: '색상 변동 셀만 (10분)' },
+        { time: '25', duration: '15분', title: '의사결정 안건', desc: 'Two-Lock 표결 (15분)' },
+        { time: '40', duration: '10분', title: '외부 인터페이스 이슈', desc: '대주/LP/시공/임차 (10분)' },
         { time: '50', duration: '5분', title: 'IPR 워킹그룹 진척 (5분)', desc: '' },
         { time: '55', duration: '5분', title: '차주 액션 / 회의록 합의 (5분)', desc: '' }
     ];
@@ -31,11 +31,11 @@ export default function GovMeetings() {
                                     </div>
                                     
                                     {/* Speech Bubble */}
-                                    <div className="relative w-[calc(100%-5rem)] md:w-[calc(50%-3.5rem)] p-5 rounded-[16px] bg-[#111] border border-[#3c3c3c]
-                                        md:group-odd:after:content-[''] md:group-odd:after:absolute md:group-odd:after:top-1/2 md:group-odd:after:-translate-y-1/2 md:group-odd:after:-right-[7px] md:group-odd:after:w-[14px] md:group-odd:after:h-[14px] md:group-odd:after:border-t md:group-odd:after:border-r md:group-odd:after:border-[#3c3c3c] md:group-odd:after:rotate-45 md:group-odd:after:bg-[#111]
-                                        md:group-even:after:content-[''] md:group-even:after:absolute md:group-even:after:top-1/2 md:group-even:after:-translate-y-1/2 md:group-even:after:-left-[7px] md:group-even:after:w-[14px] md:group-even:after:h-[14px] md:group-even:after:border-b md:group-even:after:border-l md:group-even:after:border-[#3c3c3c] md:group-even:after:rotate-45 md:group-even:after:bg-[#111]
+                                    <div className="relative w-[calc(100%-5rem)] md:w-[calc(50%-156px)] p-5 rounded-[16px] bg-[#111]
+                                        md:group-odd:after:content-[''] md:group-odd:after:absolute md:group-odd:after:top-1/2 md:group-odd:after:-translate-y-1/2 md:group-odd:after:-right-[7px] md:group-odd:after:w-[14px] md:group-odd:after:h-[14px] md:group-odd:after:rotate-45 md:group-odd:after:bg-[#111]
+                                        md:group-even:after:content-[''] md:group-even:after:absolute md:group-even:after:top-1/2 md:group-even:after:-translate-y-1/2 md:group-even:after:-left-[7px] md:group-even:after:w-[14px] md:group-even:after:h-[14px] md:group-even:after:rotate-45 md:group-even:after:bg-[#111]
                                         
-                                        after:content-[''] after:absolute after:top-1/2 after:-translate-y-1/2 after:-left-[7px] after:w-[14px] after:h-[14px] after:border-b after:border-l after:border-[#3c3c3c] after:rotate-45 after:bg-[#111] md:after:hidden
+                                        after:content-[''] after:absolute after:top-1/2 after:-translate-y-1/2 after:-left-[7px] after:w-[14px] after:h-[14px] after:rotate-45 after:bg-[#111] md:after:hidden
                                     ">
                                         <span className="text-[16px] font-bold text-white block">{item.title}</span>
                                         {item.desc && <p className="text-[14px] text-[#A1A1AA] mt-1">{item.desc}</p>}
@@ -54,7 +54,7 @@ export default function GovMeetings() {
                             <div className="flex items-center justify-center w-[56px] h-[56px] rounded-full border-[2px] border-[#444] bg-[#111] text-white font-bold text-[17px] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                 60
                             </div>
-                            <div className="w-[calc(100%-5rem)] md:w-[calc(50%-3.5rem)] opacity-0">
+                            <div className="w-[calc(100%-5rem)] md:w-[calc(50%-156px)] opacity-0">
                                 {/* Invisible spacer block */}
                             </div>
                         </div>
