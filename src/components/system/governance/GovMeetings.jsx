@@ -31,7 +31,7 @@ export default function GovMeetings() {
                                     </div>
                                     
                                     {/* Speech Bubble */}
-                                    <div className="relative w-[calc(100%-5rem)] md:w-[calc(50%-156px)] p-5 rounded-[16px] bg-[#111]
+                                    <div className="relative w-[calc(100%-5rem)] md:w-[calc(50%-156px)] md:group-odd:ml-[100px] md:group-even:mr-[100px] p-5 rounded-[16px] bg-[#111]
                                         md:group-odd:after:content-[''] md:group-odd:after:absolute md:group-odd:after:top-1/2 md:group-odd:after:-translate-y-1/2 md:group-odd:after:-right-[7px] md:group-odd:after:w-[14px] md:group-odd:after:h-[14px] md:group-odd:after:rotate-45 md:group-odd:after:bg-[#111]
                                         md:group-even:after:content-[''] md:group-even:after:absolute md:group-even:after:top-1/2 md:group-even:after:-translate-y-1/2 md:group-even:after:-left-[7px] md:group-even:after:w-[14px] md:group-even:after:h-[14px] md:group-even:after:rotate-45 md:group-even:after:bg-[#111]
                                         
@@ -42,7 +42,7 @@ export default function GovMeetings() {
                                     </div>
 
                                     {/* Duration Indicator: Clean text on the right of the vertical line */}
-                                    <div className="absolute left-[34px] md:left-1/2 md:translate-x-[24px] top-full mt-[-8px] text-[13px] text-[#86868B] font-medium z-10 whitespace-nowrap">
+                                    <div className="absolute left-[34px] md:left-1/2 md:translate-x-[24px] top-[calc(100%-8px)] -translate-y-1/2 text-[13px] text-[#86868B] font-medium z-10 whitespace-nowrap">
                                         {item.duration}
                                     </div>
                                 </div>
@@ -54,7 +54,7 @@ export default function GovMeetings() {
                             <div className="flex items-center justify-center w-[56px] h-[56px] rounded-full border-[2px] border-[#444] bg-[#111] text-white font-bold text-[17px] shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
                                 60
                             </div>
-                            <div className="w-[calc(100%-5rem)] md:w-[calc(50%-156px)] opacity-0">
+                            <div className="w-[calc(100%-5rem)] md:w-[calc(50%-3.5rem)] opacity-0">
                                 {/* Invisible spacer block */}
                             </div>
                         </div>
