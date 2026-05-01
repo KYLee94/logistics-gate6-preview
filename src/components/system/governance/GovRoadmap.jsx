@@ -4,34 +4,17 @@ export default function GovRoadmap() {
     return (
         <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto">
             <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">90 Day Roadmap</h1>
-            <p className="text-[15px] text-[#86868B] mb-[24px]">리파이낸싱 종결을 D-Day로 두고, 90일 안에 통합 수행체계의 ‘1차 안정 상태’를 달성한다.</p>
-            
-            {/* Info Box */}
-            <div className="flex items-start gap-4 p-5 rounded-[16px] bg-[#3b82f6]/10 border border-[#3b82f6]/30 mb-[40px]">
-                <div className="mt-1">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M12 16V12" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M12 8H12.01" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                </div>
-                <div>
-                    <h3 className="text-[15px] font-bold text-[#bfdbfe] mb-1">Executive Summary</h3>
-                    <p className="text-[14px] text-[#93c5fd] leading-[1.6]">
-                        본 로드맵은 경영진 보고용 High-level 수준의 요약본입니다. 개별 태스크의 실행과 검증은 RACI 체계 및 지정된 회의체(운영위, 주간 Stand-up 등)를 통해 상세화됩니다.
-                    </p>
-                </div>
-            </div>
+            <p className="text-[16px] text-[#86868B] mb-[4px]">리파이낸싱 종결을 D-Day로 두고, 90일 안에 통합 수행체계의 ‘1차 안정 상태’를 달성한다.</p>
+            <p className="text-[16px] text-[#86868B] mb-[40px]">본 로드맵은 경영진 보고용 High-level 수준의 요약본입니다. 개별 태스크의 실행과 검증은 RACI 체계 및 지정된 회의체(운영위, 주간 Stand-up 등)를 통해 상세화됩니다.</p>
 
             <div className="flex w-full gap-[24px]">
                 {/* D+30 */}
-                <div className="flex-1 bg-[#292928] border border-[#3c3c3c] rounded-[24px] p-[32px] relative overflow-hidden group hover:border-[#555] transition-colors flex flex-col">
-                    <div className="absolute top-0 left-0 w-full h-[4px] bg-[#A1A1AA]"></div>
+                <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-[32px] relative overflow-hidden group hover:border-[#555] transition-colors flex flex-col">
                     <h2 className="text-[28px] font-black text-white tracking-tighter mb-[28px]">D+30</h2>
                     
                     <div className="flex flex-col gap-[28px] flex-1">
                         <div>
-                            <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#333] px-3 py-1 rounded-full inline-block mb-[16px]">CFT 거버넌스</h3>
+                            <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">CFT 거버넌스</h3>
                             <ul className="flex flex-col gap-[12px]">
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#A1A1AA] mt-[2px]">•</span>
@@ -39,17 +22,13 @@ export default function GovRoadmap() {
                                 </li>
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#A1A1AA] mt-[2px]">•</span>
-                                    <span className="text-[15px] text-[#E5E5E5] leading-[22px]">통합 데이터룸 v0 오픈</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-[#A1A1AA] mt-[2px]">•</span>
-                                    <span className="text-[15px] text-[#E5E5E5] leading-[22px]">주간 Stand-up 가동</span>
+                                    <span className="text-[15px] text-[#E5E5E5] leading-[22px]">통합 데이터룸 v0 오픈, 주간 Stand-up 가동</span>
                                 </li>
                             </ul>
                         </div>
                         
                         <div>
-                            <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#333] px-3 py-1 rounded-full inline-block mb-[16px]">PFV / 펀드</h3>
+                            <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">PFV / 펀드</h3>
                             <ul className="flex flex-col gap-[12px]">
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#A1A1AA] mt-[2px]">•</span>
@@ -63,7 +42,7 @@ export default function GovRoadmap() {
                         </div>
 
                         <div>
-                            <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#333] px-3 py-1 rounded-full inline-block mb-[16px]">IPR 사전 준비</h3>
+                            <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">IPR 사전 준비</h3>
                             <ul className="flex flex-col gap-[12px]">
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#A1A1AA] mt-[2px]">•</span>
@@ -79,13 +58,12 @@ export default function GovRoadmap() {
                 </div>
 
                 {/* D+60 */}
-                <div className="flex-1 bg-[#292928] border border-[#3c3c3c] rounded-[24px] p-[32px] relative overflow-hidden group hover:border-[#555] transition-colors flex flex-col">
-                    <div className="absolute top-0 left-0 w-full h-[4px] bg-[#fbf167]"></div>
+                <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-[32px] relative overflow-hidden group hover:border-[#555] transition-colors flex flex-col">
                     <h2 className="text-[28px] font-black text-white tracking-tighter mb-[28px]">D+60</h2>
                     
                     <div className="flex flex-col gap-[28px] flex-1">
                         <div>
-                            <h3 className="text-[13px] font-bold text-[#fbf167] bg-[#fbf167]/10 px-3 py-1 rounded-full inline-block mb-[16px]">CFT 거버넌스</h3>
+                            <h3 className="text-[13px] font-bold text-[#fbf167] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">CFT 거버넌스</h3>
                             <ul className="flex flex-col gap-[12px]">
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#fbf167] mt-[2px]">•</span>
@@ -99,7 +77,7 @@ export default function GovRoadmap() {
                         </div>
                         
                         <div>
-                            <h3 className="text-[13px] font-bold text-[#fbf167] bg-[#fbf167]/10 px-3 py-1 rounded-full inline-block mb-[16px]">PFV / 펀드</h3>
+                            <h3 className="text-[13px] font-bold text-[#fbf167] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">PFV / 펀드</h3>
                             <ul className="flex flex-col gap-[12px]">
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#fbf167] mt-[2px]">•</span>
@@ -113,7 +91,7 @@ export default function GovRoadmap() {
                         </div>
 
                         <div>
-                            <h3 className="text-[13px] font-bold text-[#fbf167] bg-[#fbf167]/10 px-3 py-1 rounded-full inline-block mb-[16px]">IPR 사전 준비</h3>
+                            <h3 className="text-[13px] font-bold text-[#fbf167] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">IPR 사전 준비</h3>
                             <ul className="flex flex-col gap-[12px]">
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#fbf167] mt-[2px]">•</span>
@@ -129,13 +107,12 @@ export default function GovRoadmap() {
                 </div>
 
                 {/* D+90 */}
-                <div className="flex-1 bg-[#292928] border border-[#3c3c3c] rounded-[24px] p-[32px] relative overflow-hidden group hover:border-[#555] transition-colors flex flex-col">
-                    <div className="absolute top-0 left-0 w-full h-[4px] bg-[#e11d48]"></div>
+                <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-[32px] relative overflow-hidden group hover:border-[#555] transition-colors flex flex-col">
                     <h2 className="text-[28px] font-black text-white tracking-tighter mb-[28px]">D+90</h2>
                     
                     <div className="flex flex-col gap-[28px] flex-1">
                         <div>
-                            <h3 className="text-[13px] font-bold text-[#e11d48] bg-[#e11d48]/10 px-3 py-1 rounded-full inline-block mb-[16px]">CFT 거버넌스</h3>
+                            <h3 className="text-[13px] font-bold text-[#e11d48] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">CFT 거버넌스</h3>
                             <ul className="flex flex-col gap-[12px]">
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#e11d48] mt-[2px]">•</span>
@@ -149,7 +126,7 @@ export default function GovRoadmap() {
                         </div>
                         
                         <div>
-                            <h3 className="text-[13px] font-bold text-[#e11d48] bg-[#e11d48]/10 px-3 py-1 rounded-full inline-block mb-[16px]">PFV / 펀드</h3>
+                            <h3 className="text-[13px] font-bold text-[#e11d48] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">PFV / 펀드</h3>
                             <ul className="flex flex-col gap-[12px]">
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#e11d48] mt-[2px]">•</span>
@@ -163,7 +140,7 @@ export default function GovRoadmap() {
                         </div>
 
                         <div>
-                            <h3 className="text-[13px] font-bold text-[#e11d48] bg-[#e11d48]/10 px-3 py-1 rounded-full inline-block mb-[16px]">IPR 사전 준비</h3>
+                            <h3 className="text-[13px] font-bold text-[#e11d48] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">IPR 사전 준비</h3>
                             <ul className="flex flex-col gap-[12px]">
                                 <li className="flex items-start gap-3">
                                     <span className="text-[#e11d48] mt-[2px]">•</span>

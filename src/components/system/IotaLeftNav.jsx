@@ -256,8 +256,8 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
                         <div className="flex flex-col gap-0">
                             {[{ label: '통합 수행체계', path: 'platform/iotaseoul/governance/system' },
                                 { label: '의사결정 및 평가 체계', path: 'platform/iotaseoul/governance/principles' },
-                                { label: 'RACI', path: 'platform/iotaseoul/governance/raci' },
                                 { label: '90 Day Roadmap', path: 'platform/iotaseoul/governance/roadmap' },
+                                { label: 'RACI', path: 'platform/iotaseoul/governance/raci' },
                                 { label: '회의체 운영 방침', path: 'platform/iotaseoul/governance/meetings' },
                                 { label: '프로젝트리츠 워킹그룹', path: 'platform/iotaseoul/governance/working-group' },
                                 { label: 'PFV 단일 창구 운영 원칙', path: 'platform/iotaseoul/governance/pfv-rules' },
