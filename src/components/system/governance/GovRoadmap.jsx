@@ -14,7 +14,7 @@ export default function GovRoadmap() {
                     <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
                         <h2 className="text-[28px] font-black text-[#bbb9af] tracking-tighter leading-none">D+30</h2>
                     </div>
-                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[20px] hover:border-[#555] transition-colors">
+                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[24px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">CFT 거버넌스</h3>
@@ -66,7 +66,7 @@ export default function GovRoadmap() {
                     <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
                         <h2 className="text-[28px] font-black text-[#bbb9af] tracking-tighter leading-none">D+60</h2>
                     </div>
-                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[20px] hover:border-[#555] transition-colors">
+                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[24px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">CFT 거버넌스</h3>
@@ -118,7 +118,7 @@ export default function GovRoadmap() {
                     <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
                         <h2 className="text-[28px] font-black text-[#bbb9af] tracking-tighter leading-none">D+90</h2>
                     </div>
-                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[20px] hover:border-[#555] transition-colors">
+                    <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[24px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
                         <div className="flex-1">
                             <h3 className="text-[13px] font-bold text-[#A1A1AA] bg-[#171716] px-3 py-1 rounded-[8px] inline-block mb-[16px]">CFT 거버넌스</h3>
