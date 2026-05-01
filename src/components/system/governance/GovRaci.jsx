@@ -44,12 +44,12 @@ export default function GovRaci() {
                     <thead className="bg-transparent">
                         <tr>
                             <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[260px] text-left">의사결정 영역</th>
-                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-white border-b border-[#333] border-r border-[#333]">PM<br/><span className="text-white font-normal text-[14px] block mt-[2px]">강순용</span></th>
-                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-white border-b border-[#333] border-r border-[#333]">LFC<br/><span className="text-white font-normal text-[14px] block mt-[2px]">박준호</span></th>
-                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-white border-b border-[#333] border-r border-[#333]">개발<br/><span className="text-white font-normal text-[14px] block mt-[2px]">홍장군</span></th>
-                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-white border-b border-[#333] border-r border-[#333]">EMC<br/><span className="text-white font-normal text-[14px] block mt-[2px]">김민지</span></th>
-                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-white border-b border-[#333] border-r border-[#333]">KAM<br/><span className="text-white font-normal text-[14px] block mt-[2px]">김행단</span></th>
-                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#fbf167] border-b border-[#333]">CFT총괄<br/><span className="text-white font-normal text-[14px] block mt-[2px]">이철승</span></th>
+                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333]">PM<br/><span className="text-[#bbb9af] font-normal text-[14px] block mt-[2px]">강순용</span></th>
+                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333]">LFC<br/><span className="text-[#bbb9af] font-normal text-[14px] block mt-[2px]">박준호</span></th>
+                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333]">개발<br/><span className="text-[#bbb9af] font-normal text-[14px] block mt-[2px]">홍장군</span></th>
+                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333]">EMC<br/><span className="text-[#bbb9af] font-normal text-[14px] block mt-[2px]">김민지</span></th>
+                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333] border-r border-[#333]">KAM<br/><span className="text-[#bbb9af] font-normal text-[14px] block mt-[2px]">김행단</span></th>
+                            <th className="px-[12px] py-[16px] text-[14px] font-bold text-[#bbb9af] border-b border-[#333]">CFT총괄<br/><span className="text-[#bbb9af] font-normal text-[14px] block mt-[2px]">이철승</span></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#333]">
