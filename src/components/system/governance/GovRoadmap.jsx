@@ -10,8 +10,8 @@ export default function GovRoadmap() {
             <div className="flex flex-col w-full gap-[24px]">
                 {/* D+30 */}
                 <div className="flex w-full items-stretch gap-[24px]">
-                    <div className="w-[80px] shrink-0 pt-[32px]">
-                        <h2 className="text-[28px] font-black text-white tracking-tighter leading-none">D\+30</h2>
+                    <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
+                        <h2 className="text-[28px] font-black text-white tracking-tighter leading-none">D+30</h2>
                     </div>
                     <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] pt-[28px] pb-[28px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
@@ -24,7 +24,7 @@ export default function GovRoadmap() {
                                 </li>
                                 <li className="flex items-start gap-[8px]">
                                     <div className="w-[4px] h-[4px] rounded-full bg-[#A1A1AA] mt-[10px] shrink-0"></div>
-                                    <span className="text-[16px] text-[#E5E5E5] leading-[24px]">통합 데이터룸 v0 오픈, 주간 Stand-up 가동</span>
+                                    <span className="text-[16px] text-[#E5E5E5] leading-[24px]">통합 플랫폼 오픈, 주간 Stand-up 가동</span>
                                 </li>
                             </ul>
                         </div>
@@ -62,8 +62,8 @@ export default function GovRoadmap() {
 
                 {/* D+60 */}
                 <div className="flex w-full items-stretch gap-[24px]">
-                    <div className="w-[80px] shrink-0 pt-[32px]">
-                        <h2 className="text-[28px] font-black text-white tracking-tighter leading-none">D\+60</h2>
+                    <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
+                        <h2 className="text-[28px] font-black text-white tracking-tighter leading-none">D+60</h2>
                     </div>
                     <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] pt-[28px] pb-[28px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
@@ -114,8 +114,8 @@ export default function GovRoadmap() {
 
                 {/* D+90 */}
                 <div className="flex w-full items-stretch gap-[24px]">
-                    <div className="w-[80px] shrink-0 pt-[32px]">
-                        <h2 className="text-[28px] font-black text-white tracking-tighter leading-none">D\+90</h2>
+                    <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
+                        <h2 className="text-[28px] font-black text-white tracking-tighter leading-none">D+90</h2>
                     </div>
                     <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] pt-[28px] pb-[28px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
