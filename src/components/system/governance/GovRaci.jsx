@@ -106,7 +106,7 @@ export default function GovRaci() {
             {/* Divider */}
             <div className="w-full h-px bg-[#333] my-[80px]"></div>
 
-            <h2 className="text-[28px] font-bold text-white mb-[16px] tracking-tight">Phase 별 주관·합의 매트릭스</h2>
+            <h2 className="text-[28px] font-bold text-white mb-[12px] tracking-tight">Phase 별 주관·합의 매트릭스</h2>
             <p className="text-[16px] text-[#A1A1AA] leading-[26px] mb-[40px]">
                 이오타서울 프로젝트의 라이프사이클은 크게 (1) PF 전(착공 전), (2) PF 후(개발 단계), (3) 운영 단계, (4) 매각 및 IPR 편입의 4단계로 구분됩니다.<br />
                 본 매트릭스는 각 라이프사이클 단계별 핵심 과제에 대해 어떤 조직(Cell)이 주관(<span className="text-white">●</span>) 및 합의(<span className="text-[#A1A1AA]">○</span>) 책임을 지는지 통합적으로 정의합니다.
