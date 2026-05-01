@@ -7,7 +7,7 @@ export default function GovRoadmap() {
             <p className="text-[15px] text-[#bbb9af] mb-[4px]">리파이낸싱 종결을 D-Day로 두고, 90일 안에 통합 수행체계의 ‘1차 안정 상태’를 달성합니다.</p>
             <p className="text-[15px] text-[#bbb9af] mb-[40px]">본 로드맵은 경영진 보고용 High-level 수준의 요약본입니다. 개별 태스크의 실행과 검증은 RACI 체계 및 지정된 회의체(운영위, 주간 Stand-up 등)를 통해 상세화됩니다.</p>
             
-            <div className="flex w-full gap-[40px]">
+            <div className="flex w-full gap-[20px]">
                 <div className="flex-1 flex flex-col gap-[24px]">
                 {/* D+30 */}
                 <div className="flex w-full items-stretch gap-[24px]">
@@ -179,8 +179,11 @@ export default function GovRoadmap() {
 
                         {/* D+30 Marker */}
                         <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#555]" style={{ top: '33.3%' }}></div>
+                        <div className="absolute right-[12px] text-[#86868B] text-[10px] whitespace-nowrap font-medium" style={{ top: '33.3%', marginTop: '-7px' }}>6.10</div>
+
                         {/* D+60 Marker */}
                         <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#555]" style={{ top: '66.6%' }}></div>
+                        <div className="absolute right-[12px] text-[#86868B] text-[10px] whitespace-nowrap font-medium" style={{ top: '66.6%', marginTop: '-7px' }}>7.10</div>
                         
                         {/* D+90 Marker (End) */}
                         <div className="absolute left-1/2 -translate-x-1/2 w-[6px] h-[2px] bg-[#555]" style={{ top: '100%' }}></div>
