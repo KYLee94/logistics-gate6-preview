@@ -53,7 +53,7 @@ export default function GovFundRnR() {
                 자본콜 프로세스는 PFV 자금 수요 → PM 검증 → LFC 검토 → KAM 운용지시 → LP 통지 → 자금집행의 체계적인 단계를 거쳐 표준화 합니다.<br />각 단계마다 엄격한 결재선과 문서 보존 규정을 적용하여 자금 집행의 투명성을 보장합니다.
             </p>
 
-            <div className="bg-transparent border border-[#333] rounded-[24px] p-[32px] mb-[64px]">
+            <div className="bg-transparent border border-[#333] rounded-[24px] p-[32px] mb-[44px]">
                 <div className="flex flex-col relative pl-[20px]">
                     <div className="absolute left-0 top-[12px] bottom-[12px] w-[1px] bg-[#333]"></div>
                     
