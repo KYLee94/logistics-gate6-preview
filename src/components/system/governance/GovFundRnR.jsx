@@ -43,7 +43,7 @@ export default function GovFundRnR() {
             </div>
 
             {/* Divider */}
-            <div className="w-full h-px bg-[#333] mt-[28px] mb-[48px]"></div>
+            <div className="w-full h-px bg-[#333] mt-[18px] mb-[48px]"></div>
 
             {/* 자본콜·운용지시·자금집행 라인 */}
             <h2 className="text-[22px] font-bold text-white mb-[10px] tracking-tight">
@@ -77,7 +77,7 @@ export default function GovFundRnR() {
             </div>
 
             {/* Divider */}
-            <div className="w-full h-px bg-[#333] mt-[28px] mb-[48px]"></div>
+            <div className="w-full h-px bg-[#333] mt-[18px] mb-[48px]"></div>
 
             {/* 회계·세무·컴플라이언스 */}
             <h2 className="text-[22px] font-bold text-white mb-[24px] tracking-tight">
