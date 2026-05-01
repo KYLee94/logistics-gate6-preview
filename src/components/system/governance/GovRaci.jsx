@@ -30,7 +30,7 @@ export default function GovRaci() {
     };
 
     return (
-        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto">
+        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1112px] mx-auto">
             <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[24px]">RACI 매트릭스</h1>
             <div className="flex items-center gap-8 mb-[36px] bg-transparent border border-[#333] p-5 rounded-[24px]">
                 <div className="flex items-center gap-3"><span className="inline-flex w-[32px] h-[32px] items-center justify-center rounded-[10px] font-bold text-[14px] bg-[#60a5fa]/30 text-[#bfdbfe]">A</span> <span className="text-white text-[14px]">최종 결정 및 승인 (Accountable)</span></div>
