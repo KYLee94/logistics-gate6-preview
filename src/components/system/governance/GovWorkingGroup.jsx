@@ -8,8 +8,7 @@ export default function GovWorkingGroup() {
             
             <div className="w-full bg-[#1A1A1A] border border-[#e11d48]/50 rounded-[24px] p-[32px] mb-[40px] relative overflow-hidden">
                 
-                <h3 className="text-[18px] font-bold text-[#e11d48] mb-[12px] flex items-center gap-2">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                <h3 className="text-[18px] font-bold text-white mb-[12px]">
                     이해상충 방지를 위한 분리 원칙
                 </h3>
                 <p className="text-[16px] text-[#E5E5E5] leading-[28px]">
