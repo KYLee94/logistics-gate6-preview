@@ -64,7 +64,7 @@ export default function GovRoadmap() {
                 {/* D+60 */}
                 <div className="flex w-full items-stretch gap-[24px]">
                     <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
-                        <h2 className="text-[28px] font-black text-[#bbb9af] tracking-tighter leading-none">D+60</h2>
+                        <h2 className="text-[28px] font-black text-[#72a8d7] tracking-tighter leading-none transition-colors duration-500">D+60</h2>
                     </div>
                     <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[24px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
@@ -116,7 +116,7 @@ export default function GovRoadmap() {
                 {/* D+90 */}
                 <div className="flex w-full items-stretch gap-[24px]">
                     <div className="w-[80px] shrink-0 flex flex-col justify-center items-end pr-[4px]">
-                        <h2 className="text-[28px] font-black text-[#bbb9af] tracking-tighter leading-none">D+90</h2>
+                        <h2 className="text-[28px] font-black text-[#2997FF] tracking-tighter leading-none transition-colors duration-500">D+90</h2>
                     </div>
                     <div className="flex-1 bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-[32px] py-[24px] hover:border-[#555] transition-colors">
                         <div className="flex w-full gap-[32px]">
