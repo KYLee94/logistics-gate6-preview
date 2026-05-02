@@ -20,8 +20,8 @@ const stakeholderGroups = [
                         members: [
                             {
                                 name: '권순일',
-                                photo: '권순일',
-                                roles: ['사업그룹1파트/파트장', 'IOTA CFT', '개발PFV TF/TF장'],
+                                photo: 'ksoonil',
+                                roles: ['사업그룹1파트/파트장+', 'IOTA CFT', '개발PFV TF/TF장'],
                                 responsibility: '사업PM 책임인력',
                                 email: 'ksoonil@igisam.com',
                                 phone: '010-8567-6907',
@@ -36,52 +36,59 @@ const stakeholderGroups = [
                             },
                             {
                                 name: '윤주형',
-                                photo: '윤주형',
-                                roles: ['사업그룹1파트', 'IOTA CFT'],
-                                email: 'jhyoon@igisam.com',
-                                phone: '010-0000-0000',
-                            },
-                            {
-                                name: '류홍',
-                                photo: '류홍',
-                                roles: ['사업그룹1파트', 'IOTA CFT'],
-                                email: 'hryu@igisam.com',
-                                phone: '010-0000-0000',
+                                photo: 'jh.yoon',
+                                roles: ['사업그룹1파트/Sr.Manager', 'IOTA CFT'],
+                                email: 'jh.yoon@igisam.com',
+                                phone: '010-5210-1418',
                             },
                             {
                                 name: '김제익',
-                                photo: '김제익',
+                                photo: 'jake.kim',
                                 roles: ['사업그룹1파트', 'IOTA CFT'],
-                                email: 'jikim@igisam.com',
-                                phone: '010-0000-0000',
+                                email: 'jake.kim@igisam.com',
+                                phone: '010-5055-8197',
+                            },
+                            {
+                                name: '김주희',
+                                photo: 'juheekim',
+                                roles: ['사업그룹1파트', 'IOTA CFT'],
+                                email: 'juheekim@igisam.com',
+                                phone: '010-3140-8433',
+                            },
+                            {
+                                name: '류홍',
+                                photo: 'ryuhong0526',
+                                roles: ['사업그룹1파트', 'IOTA CFT'],
+                                email: 'ryuhong0526@igisam.com',
+                                phone: '010-9081-7818',
                             },
                             {
                                 name: '박만진',
-                                photo: '박만진',
+                                photo: 'jacob.park',
                                 roles: ['사업그룹1파트', 'IOTA CFT'],
-                                email: 'mjpark@igisam.com',
-                                phone: '010-0000-0000',
+                                email: 'jacob.park@igisam.com',
+                                phone: '010-4343-7438',
                             },
                             {
                                 name: '박일훈',
-                                photo: '박일훈',
+                                photo: 'ilhoon.park',
                                 roles: ['사업그룹1파트', 'IOTA CFT'],
-                                email: 'ihpark@igisam.com',
-                                phone: '010-0000-0000',
+                                email: 'ilhoon.park@igisam.com',
+                                phone: '010-7573-6985',
                             },
                             {
                                 name: '이정원',
-                                photo: '이정원',
-                                roles: ['사업그룹1파트', 'IOTA CFT'],
-                                email: 'jwlee@igisam.com',
-                                phone: '010-0000-0000',
+                                photo: 'garden.lee',
+                                roles: ['사업그룹1파트+', 'IOTA CFT'],
+                                email: 'garden.lee@igisam.com',
+                                phone: '010-3161-2931',
                             },
                             {
                                 name: '전무경',
-                                photo: '전무경',
+                                photo: 'mooj',
                                 roles: ['사업그룹1파트', 'IOTA CFT'],
-                                email: 'mkjeon@igisam.com',
-                                phone: '010-0000-0000',
+                                email: 'mooj@igisam.com',
+                                phone: '010-2464-3709',
                             },
                             {
                                 name: '한찬호',
@@ -490,7 +497,7 @@ export default function StakeInternal() {
                             <td className="px-[14px] py-[16px] border-b border-[#333]">
                                 {renderLeader('권순일', '사업1파트장')}
                             </td>
-                            <td className="px-[14px] py-[16px] text-[13px] border-r border-b border-[#333] leading-[22px]"><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('윤주형 김제익 류홍 박만진 박일훈 이정원 전무경')}</div></td>
+                            <td className="px-[14px] py-[16px] text-[13px] border-r border-b border-[#333] leading-[22px]"><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('윤주형 김제익 김주희 류홍 박만진 박일훈 이정원 전무경')}</div></td>
                             <td rowSpan={2} className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] border-b border-[#333] leading-[22px]">전체 일정·예산 통제<br/>변경관리 결정<br/>PFV 외부 단일 창구</td>
                             <td rowSpan={2} className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-b border-[#333]">사업그룹</td>
                         </tr>
