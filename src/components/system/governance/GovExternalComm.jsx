@@ -122,7 +122,7 @@ export default function GovExternalComm() {
                     </li>
                     <li className="flex items-start">
                         <div className="w-[6px] h-[6px] rounded-full bg-[#86868B] mt-[10px] mr-[16px] shrink-0"></div>
-                        <span className="text-[16px] text-[#E5E5E5] leading-[26px]">외부 파트너가 다수 프로젝트에 동시 참여하는 경우(예: 시공사가 부문 내 타 프로젝트에 동시 참여), 이오타 전담 인력의 '차이니스월(Chinese Wall)'을 명시 요청한다.</span>
+                        <span className="text-[16px] text-[#E5E5E5] leading-[26px]">외부 파트너가 다수 프로젝트에 동시 참여하는 경우(예: 시공사가 부문 내 타 프로젝트에 동시 참여), 이오타 전담 인력의 '차이니스월'을 명시 요청한다.</span>
                     </li>
                     <li className="flex items-start">
                         <div className="w-[6px] h-[6px] rounded-full bg-[#86868B] mt-[10px] mr-[16px] shrink-0"></div>
