@@ -285,7 +285,7 @@ export default function StakeInternal() {
                                     </div>
                                     
                                     {/* 2. Name & Roles */}
-                                    <div className="w-[170px] shrink-0 flex flex-col">
+                                    <div className="w-[156px] shrink-0 flex flex-col">
                                         <div className="flex items-center h-[24px] mb-[12px]">
                                             <span className="text-[15px] font-bold text-white leading-none">{member.name}</span>
                                         </div>
@@ -303,7 +303,7 @@ export default function StakeInternal() {
                                     {/* 3. Activity Logs */}
                                     <div className="flex-1 flex flex-col">
                                         {/* Table Header */}
-                                        <div className="grid grid-cols-[1fr_80px_70px_60px_160px_80px] gap-[16px] h-[24px] items-center mb-[12px]">
+                                        <div className="grid grid-cols-[1fr_80px_70px_60px_160px_80px] gap-[16px] h-[24px] items-center mb-[12px] mr-[4px]">
                                             <span className="text-[12px] text-[#86868B] tracking-tight leading-none">활동로그</span>
                                             <span className="text-[12px] text-[#86868B] tracking-tight leading-none">프로젝트</span>
                                             <span className="text-[12px] text-[#86868B] tracking-tight leading-none">활용목적</span>
@@ -320,7 +320,7 @@ export default function StakeInternal() {
                                             { log: 'LG전자 지주 제안 관련 미팅', project: 'IOTA1 427', purpose: '협업', status: '진행중', stakeholder: 'LG전자 서준혁 회장', date: '2026.04.30' },
                                             { log: '427 호텔 및 남대문교회 진행사항 보고', project: 'IOTA2 427', purpose: '리스크판단', status: '진행중', stakeholder: '현대건설 서준혁 회장', date: '2026.04.28' },
                                         ].map((row, rIdx) => (
-                                            <div key={rIdx} className="grid grid-cols-[1fr_80px_70px_60px_160px_80px] gap-[16px] py-[4px] group cursor-pointer hover:bg-white/5 transition-colors -ml-[8px] pl-[8px] pr-[2px] -mr-[2px] rounded-[8px] items-center">
+                                            <div key={rIdx} className="grid grid-cols-[1fr_80px_70px_60px_160px_80px] gap-[16px] py-[4px] group cursor-pointer hover:bg-white/5 transition-colors -ml-[8px] pl-[8px] mr-[4px] rounded-[8px] items-center">
                                                 <span className="text-[13px] text-[#E5E5E5] group-hover:text-[#bbb9af] transition-colors tracking-tight truncate leading-tight">{row.log}</span>
                                                 <span className="text-[13px] text-[#E5E5E5] group-hover:text-[#bbb9af] transition-colors tracking-tight truncate leading-tight">{row.project}</span>
                                                 <span className="text-[13px] text-[#E5E5E5] group-hover:text-[#bbb9af] transition-colors tracking-tight truncate leading-tight">{row.purpose}</span>
