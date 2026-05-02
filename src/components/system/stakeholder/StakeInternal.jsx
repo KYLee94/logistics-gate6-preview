@@ -571,7 +571,7 @@ export default function StakeInternal() {
                 ].map((group, gIdx) => (
                     <div key={gIdx} className="w-full flex flex-col gap-[32px]">
                         {/* Group Header */}
-                        <h2 className="text-[18px] font-bold text-white tracking-tight">{group.groupTitle}</h2>
+                        <h2 className="text-[20px] font-bold text-white tracking-tight">{group.groupTitle}</h2>
                         
                         {/* Members List */}
                         <div className="w-full flex flex-col gap-[46px]">
