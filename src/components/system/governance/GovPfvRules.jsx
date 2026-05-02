@@ -15,7 +15,7 @@ export default function GovPfvRules() {
     ];
 
     return (
-        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1112px] mx-auto">
+        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[160px] max-w-[1112px] mx-auto">
             <h1 className="text-[37px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">PFV 단일 창구 운영 원칙</h1>
             <p className="text-[16px] text-[#86868B] mb-[36px]">외부 파트너로부터 ‘동일 사안에 대해 다른 답이 나가는 상황’을 원천 차단하기 위해 단일 창구를 지정합니다.</p>
             
@@ -24,7 +24,7 @@ export default function GovPfvRules() {
                     <thead className="bg-[#222]">
                         <tr>
                             <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[200px]">외부 파트너</th>
-                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#fbf167] border-b border-[#333] border-r border-[#333] w-[240px]">1차 단일창구</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#fbf167] border-b border-[#333] border-r border-[#333] w-[260px]">1차 단일창구</th>
                             <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[200px]">백업 창구</th>
                             <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333]">승인 한도 / 주의</th>
                         </tr>
@@ -33,7 +33,7 @@ export default function GovPfvRules() {
                         {rulesData.map((row, idx) => (
                             <tr key={idx} className="hover:bg-[#292928] transition-colors">
                                 <td className="px-[24px] py-[16px] text-[15px] font-bold text-[#E5E5E5] border-r border-[#333]">{row.partner}</td>
-                                <td className="px-[24px] py-[16px] text-[15px] text-[#E5E5E5] border-r border-[#333]" dangerouslySetInnerHTML={{ __html: row.window }}></td>
+                                <td className="px-[24px] py-[16px] text-[15px] font-bold text-[#E5E5E5] border-r border-[#333]" dangerouslySetInnerHTML={{ __html: row.window }}></td>
                                 <td className="px-[24px] py-[16px] text-[14px] text-[#A1A1AA] border-r border-[#333]" dangerouslySetInnerHTML={{ __html: row.backup }}></td>
                                 <td className="px-[24px] py-[16px] text-[14px] text-[#A1A1AA]">{row.auth}</td>
                             </tr>
