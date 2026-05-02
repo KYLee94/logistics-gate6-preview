@@ -228,8 +228,8 @@ export default function StakeInternal() {
                 <div 
                     className="fixed z-[110] pointer-events-none rounded-full overflow-hidden border border-[#333] shadow-2xl bg-[#222]"
                     style={{
-                        left: mousePos.x + 20,
-                        top: mousePos.y + 20,
+                        left: mousePos.x + 10,
+                        top: mousePos.y - 50,
                         width: '160px',
                         height: '160px'
                     }}
