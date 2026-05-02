@@ -22,7 +22,7 @@ const stakeholderGroups = [
                                 name: '권순일',
                                 photo: '권순일',
                                 roles: ['사업그룹1파트/파트장+', 'IOTA CFT', '개발PFV TF/TF장'],
-                                responsibility: '사업PM 책임인력',
+                                responsibility: '사업PM · IPR · 전략자문 책임인력',
                                 email: 'ksoonil@igisam.com',
                                 phone: '010-8567-6907',
                             },
