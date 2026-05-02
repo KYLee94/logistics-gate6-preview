@@ -355,6 +355,7 @@ export default function StakeInternal() {
     const [noImageNames, setNoImageNames] = useState(new Set());
     const [searchQuery, setSearchQuery] = useState('');
     const [activeSearch, setActiveSearch] = useState('');
+    const [isTableCollapsed, setIsTableCollapsed] = useState(false);
 
     const handleImageError = (name) => {
         setNoImageNames(prev => {
@@ -428,7 +429,12 @@ export default function StakeInternal() {
         <div className="w-full flex-1 flex flex-col pt-[77px] pb-[100px] max-w-[1112px] mx-auto" onMouseMove={handleMouseMove}>
             <div className="flex items-center justify-between mb-[12px]">
                 <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter']">IGIS 내부인력</h1>
-                <form onSubmit={(e) => { e.preventDefault(); setActiveSearch(searchQuery); }} className="relative">
+                <form onSubmit={(e) => { 
+                    e.preventDefault(); 
+                    setActiveSearch(searchQuery); 
+                    if (searchQuery.trim() !== '') setIsTableCollapsed(true);
+                    else setIsTableCollapsed(false);
+                }} className="relative">
                     <div className="absolute inset-y-0 left-[14px] flex items-center pointer-events-none">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     </div>
@@ -437,15 +443,26 @@ export default function StakeInternal() {
                         placeholder="이름, 직무, 활동 등 자유롭게 검색하세요" 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="bg-[#272726] border border-[#545451] hover:border-[#666] rounded-[8px] pl-[36px] pr-[16px] py-[8px] text-[13px] text-white w-[280px] focus:outline-none focus:border-[#2997ff] transition-colors" 
+                        className="bg-[#272726] border border-[#545451] hover:border-[#666] rounded-[12px] pl-[36px] pr-[16px] py-[8px] text-[13px] text-white w-[280px] focus:outline-none focus:border-[#2997ff] transition-colors" 
                     />
                     <button type="submit" className="hidden"></button>
                 </form>
             </div>
             <p className="text-[15px] text-[#86868B] mb-[36px]">이오타서울 통합 업무수행 조직(CFT)의 핵심 책임/실무 인력 명단입니다.</p>
             
-            <div className="w-full border border-[#333] rounded-[24px] overflow-hidden">
-                <table className="w-full text-left bg-transparent border-collapse table-fixed">
+            <div className="flex items-center justify-between mb-[16px]">
+                <h2 className="text-[18px] font-bold text-white tracking-tight">조직도 요약표</h2>
+                <button 
+                    onClick={() => setIsTableCollapsed(!isTableCollapsed)}
+                    className="text-[13px] text-[#86868B] hover:text-white transition-colors flex items-center gap-[4px]"
+                >
+                    {isTableCollapsed ? '표 펼치기 ↓' : '표 접기 ↑'}
+                </button>
+            </div>
+            
+            {!isTableCollapsed && (
+                <div className="w-full border border-[#333] rounded-[24px] overflow-hidden transition-all">
+                    <table className="w-full text-left bg-transparent border-collapse table-fixed">
                     <thead>
                         <tr>
                             <th className="px-[24px] py-[16px] text-[13px] font-normal text-[#86868B] border-b border-[#333] border-r border-[#333] w-[140px] bg-transparent">기능셀</th>
@@ -584,6 +601,7 @@ export default function StakeInternal() {
                     </tbody>
                 </table>
             </div>
+            )}
 
             {/* Profiles & Activity Logs Section */}
             <div className="w-full mt-[80px] flex flex-col gap-[60px]">
