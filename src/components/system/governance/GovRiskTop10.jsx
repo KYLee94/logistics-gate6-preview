@@ -23,11 +23,11 @@ export default function GovRiskTop10() {
                 <table className="w-full text-left">
                     <thead className="bg-[#222]">
                         <tr>
-                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#555] border-b border-[#333] w-[60px] text-center">#</th>
-                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[300px]">리스크</th>
-                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#E5E5E5] border-b border-[#333] border-r border-[#333] w-[200px]">1차 대응 셀</th>
-                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#e11d48] border-b border-[#333] border-r border-[#333]">트리거</th>
-                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#fbf167] border-b border-[#333]">최종 책임</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#555] border-b border-[#333] w-[60px] text-center">#</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[380px]">리스크</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#E5E5E5] border-b border-[#333] border-r border-[#333] w-[220px]">1차 대응 셀</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#e11d48] border-b border-[#333] border-r border-[#333] w-[220px]">트리거</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#fbf167] border-b border-[#333] w-[220px]">최종 책임</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#333]">
@@ -35,7 +35,7 @@ export default function GovRiskTop10() {
                             <tr key={idx} className="hover:bg-[#292928] transition-colors">
                                 <td className="px-[24px] py-[16px] text-[14px] font-bold text-[#555] text-center">{row.no}</td>
                                 <td className="px-[24px] py-[16px] text-[15px] font-bold text-white border-r border-[#333]">{row.risk}</td>
-                                <td className="px-[24px] py-[16px] text-[14px] text-[#A1A1AA] border-r border-[#333]" dangerouslySetInnerHTML={{ __html: row.cell }}></td>
+                                <td className="px-[24px] py-[16px] text-[14px] text-white border-r border-[#333]" dangerouslySetInnerHTML={{ __html: row.cell }}></td>
                                 <td className="px-[24px] py-[16px] text-[14px] font-medium text-[#c3c2b7] border-r border-[#333]">{row.trigger}</td>
                                 <td className="px-[24px] py-[16px] text-[14px] font-bold text-[#E5E5E5]">{row.final}</td>
                             </tr>
