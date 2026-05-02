@@ -513,7 +513,7 @@ export default function StakeInternal() {
                                     {renderLeader('정조민', '부대표(Sub-PO)')}
                                 </div>
                             </td>
-                            <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333]">CFT 사무국 (신설 / 기획추진센터 IEC 협업)</td>
+                            <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">CFT 사무국 신설<br/>기획추진센터 IEC 협업</td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">IOTA CFT 총괄<br/>최종 의사결정, 외부사인</td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af]">부문직속</td>
                         </tr>
