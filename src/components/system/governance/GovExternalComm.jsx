@@ -102,6 +102,34 @@ export default function GovExternalComm() {
                     </div>
                 ))}
             </div>
+
+            <div className="w-full h-px bg-[#333] my-[56px]"></div>
+
+            <h2 className="text-[20px] font-bold text-white mb-[16px]">정보보호 및 NDA 통제 원칙</h2>
+            <div className="w-full bg-[#1A1A1A] border border-[#333] rounded-[24px] p-[32px]">
+                <ul className="flex flex-col gap-[16px]">
+                    <li className="flex items-start">
+                        <div className="w-[6px] h-[6px] rounded-full bg-[#86868B] mt-[10px] mr-[16px] shrink-0"></div>
+                        <span className="text-[16px] text-[#E5E5E5] leading-[26px]">외부 자료 송부는 통합 데이터룸의 '공유 폴더'만 사용하며, 직접 이메일 첨부는 원칙적으로 금지한다.</span>
+                    </li>
+                    <li className="flex items-start">
+                        <div className="w-[6px] h-[6px] rounded-full bg-[#86868B] mt-[10px] mr-[16px] shrink-0"></div>
+                        <span className="text-[16px] text-[#E5E5E5] leading-[26px]">IPR 관련 자료(권순약정·감정평가 등)는 워터마크·DRM 설정을 의무화한다.</span>
+                    </li>
+                    <li className="flex items-start">
+                        <div className="w-[6px] h-[6px] rounded-full bg-[#86868B] mt-[10px] mr-[16px] shrink-0"></div>
+                        <span className="text-[16px] text-[#E5E5E5] leading-[26px]">NDA 체결 후에도 '열람 가능 인원 명단'을 자료별로 별도 관리한다.</span>
+                    </li>
+                    <li className="flex items-start">
+                        <div className="w-[6px] h-[6px] rounded-full bg-[#86868B] mt-[10px] mr-[16px] shrink-0"></div>
+                        <span className="text-[16px] text-[#E5E5E5] leading-[26px]">외부 파트너가 다수 프로젝트에 동시 참여하는 경우(예: 시공사가 부문 내 타 프로젝트에 동시 참여), 이오타 전담 인력의 '차이니스월(Chinese Wall)'을 명시 요청한다.</span>
+                    </li>
+                    <li className="flex items-start">
+                        <div className="w-[6px] h-[6px] rounded-full bg-[#86868B] mt-[10px] mr-[16px] shrink-0"></div>
+                        <span className="text-[16px] text-[#E5E5E5] leading-[26px]">미디어 노출(언론 인터뷰·사진 촬영 등)은 부문 커뮤니케이션 라인을 거쳐 부문대표 사전 승인 후에만 가능하다.</span>
+                    </li>
+                </ul>
+            </div>
         </div>
     );
 }
