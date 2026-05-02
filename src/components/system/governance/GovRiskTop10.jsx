@@ -10,11 +10,11 @@ export default function GovRiskTop10() {
         { no: 6, risk: 'LP 분배 지연 / 신뢰 하락', cellText: 'KAM(', cellMembers: ['김행단'], cellSuffix: ')', trigger: '분배 지연 30일', final: 'CFT 총괄', status: '정상' },
         { no: 7, risk: 'IPR 권순약정 협상 지연', cellText: '프리츠 TFT(', cellMembers: ['권순일'], cellSuffix: ')', trigger: 'Stage 2 지연 60일', final: 'CFT 총괄', status: '주의' },
         { no: 8, risk: '규제·인허가 변경', cellText: '사업1파트(', cellMembers: ['권순일'], cellSuffix: ')', trigger: '법령/지침 개정', final: '부문대표', status: '정상' },
-        { no: 9, risk: '외부 자문 이해상충 노출', cellText: 'CFT 총괄', cellMembers: ['이철승', '권순일', '강순용'], cellSuffix: '', trigger: '감정평가 5% 차이', final: '부문대표', status: '정상' },
-        { no: 10, risk: '평판/미디어 리스크', cellText: 'CFT 총괄', cellMembers: ['이철승', '권순일', '강순용'], cellSuffix: '', trigger: '외부 매체 보도', final: '부문대표', status: '정상' },
+        { no: 9, risk: '외부 자문 이해상충 노출', cellText: 'CFT 총괄', cellMembers: ['이철승', '권순일', '강순용'], cellSuffix: '', trigger: '감정평가 5% 차이', final: '부문대표', status: '정상', hideNames: true },
+        { no: 10, risk: '평판/미디어 리스크', cellText: 'CFT 총괄', cellMembers: ['이철승', '권순일', '강순용'], cellSuffix: '', trigger: '외부 매체 보도', final: '부문대표', status: '정상', hideNames: true },
     ];
 
-    const renderCell = (text, members, suffix) => {
+    const renderCell = (text, members, suffix, hideNames = false) => {
         return (
             <div className="flex items-center gap-[12px]">
                 {members.length > 0 && (
@@ -28,13 +28,13 @@ export default function GovRiskTop10() {
                 )}
                 <div className="leading-snug whitespace-normal">
                     {text}
-                    {members.map((name, idx) => (
+                    {!hideNames && members.map((name, idx) => (
                         <React.Fragment key={idx}>
                             <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">{name}</span>
                             {idx < members.length - 1 && '·'}
                         </React.Fragment>
                     ))}
-                    {suffix}
+                    {!hideNames && suffix}
                 </div>
             </div>
         );
@@ -62,7 +62,7 @@ export default function GovRiskTop10() {
                             <tr key={idx} className="hover:bg-[#292928] transition-colors">
                                 <td className="px-[16px] py-[16px] text-[15px] font-bold text-[#555] text-center">{row.no}</td>
                                 <td className="px-[24px] py-[16px] text-[16px] font-bold text-white border-r border-[#333]">{row.risk}</td>
-                                <td className="px-[24px] py-[16px] text-[15px] text-white border-r border-[#333]">{renderCell(row.cellText, row.cellMembers, row.cellSuffix)}</td>
+                                <td className="px-[24px] py-[16px] text-[15px] text-white border-r border-[#333]">{renderCell(row.cellText, row.cellMembers, row.cellSuffix, row.hideNames)}</td>
                                 <td className="px-[24px] py-[16px] text-[15px] font-medium text-[#c3c2b7] border-r border-[#333]">{row.trigger}</td>
                                 <td className="px-[24px] py-[16px] text-[15px] font-bold text-white border-r border-[#333] text-center">{row.final}</td>
                                 <td className="px-[24px] py-[16px] text-center">
