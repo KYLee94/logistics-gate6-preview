@@ -339,10 +339,10 @@ const stakeholderGroups = [
                             {
                                 name: '윤용택',
                                 photo: '윤용택',
-                                roles: ['(관리) 사업3파트'],
+                                roles: ['사업그룹3파트/Sr.Manager', '전략펀드운용1실', '개발PFV TF'],
                                 responsibility: 'IPR 책임인력',
-                                email: 'ytyoon@igisam.com',
-                                phone: '010-0000-0000',
+                                email: 'yongtek.yoon@igisam.com',
+                                phone: '010-2655-1185',
                             },
                         ]
                     },
