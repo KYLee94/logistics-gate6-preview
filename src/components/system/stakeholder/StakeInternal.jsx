@@ -285,29 +285,33 @@ export default function StakeInternal() {
                                     </div>
                                     
                                     {/* 2. Name & Roles */}
-                                    <div className="w-[170px] shrink-0 flex flex-col pt-[2px]">
-                                        <span className="text-[15px] font-bold text-white mb-[12px]">{member.name}</span>
-                                        <div className="flex flex-col gap-[4px] mb-[16px]">
+                                    <div className="w-[170px] shrink-0 flex flex-col">
+                                        <div className="flex items-center h-[24px] mb-[12px]">
+                                            <span className="text-[15px] font-bold text-white leading-none">{member.name}</span>
+                                        </div>
+                                        <div className="flex flex-col">
                                             {member.roles.map((role, rIdx) => (
-                                                <span key={rIdx} className="text-[13px] text-[#bbb9af] leading-tight tracking-tight">{role}</span>
+                                                <div key={rIdx} className="py-[4px] flex items-center min-h-[28px]">
+                                                    <span className="text-[13px] text-[#bbb9af] leading-tight tracking-tight">{role}</span>
+                                                </div>
                                             ))}
                                         </div>
-                                        <div className="flex flex-col gap-[2px]">
+                                        <div className="flex flex-col gap-[2px] mt-[12px]">
                                             <span className="text-[12px] text-[#666] tracking-tight">{member.email}</span>
                                             <span className="text-[12px] text-[#666] tracking-tight">{member.phone}</span>
                                         </div>
                                     </div>
                                     
                                     {/* 3. Activity Logs */}
-                                    <div className="flex-1 flex flex-col pt-[2px]">
+                                    <div className="flex-1 flex flex-col">
                                         {/* Table Header */}
-                                        <div className="grid grid-cols-[1fr_80px_70px_60px_160px_80px] gap-[16px] pb-[8px] mb-[12px]">
-                                            <span className="text-[12px] text-[#86868B] tracking-tight">활동로그</span>
-                                            <span className="text-[12px] text-[#86868B] tracking-tight">프로젝트</span>
-                                            <span className="text-[12px] text-[#86868B] tracking-tight">활용목적</span>
-                                            <span className="text-[12px] text-[#86868B] tracking-tight">상태</span>
-                                            <span className="text-[12px] text-[#86868B] tracking-tight">이해관계</span>
-                                            <span className="text-[12px] text-[#86868B] tracking-tight">날짜</span>
+                                        <div className="grid grid-cols-[1fr_80px_70px_60px_160px_80px] gap-[16px] h-[24px] items-center mb-[12px]">
+                                            <span className="text-[12px] text-[#86868B] tracking-tight leading-none">활동로그</span>
+                                            <span className="text-[12px] text-[#86868B] tracking-tight leading-none">프로젝트</span>
+                                            <span className="text-[12px] text-[#86868B] tracking-tight leading-none">활용목적</span>
+                                            <span className="text-[12px] text-[#86868B] tracking-tight leading-none">상태</span>
+                                            <span className="text-[12px] text-[#86868B] tracking-tight leading-none">이해관계</span>
+                                            <span className="text-[12px] text-[#86868B] tracking-tight leading-none">날짜</span>
                                         </div>
                                         
                                         {/* Table Rows (Dummy Data) */}
@@ -318,13 +322,13 @@ export default function StakeInternal() {
                                             { log: 'LG전자 지주 제안 관련 미팅', project: 'IOTA1 427', purpose: '협업', status: '진행중', stakeholder: 'LG전자 서준혁 회장', date: '2026.04.30' },
                                             { log: '427 호텔 및 남대문교회 진행사항 보고', project: 'IOTA2 427', purpose: '리스크판단', status: '진행중', stakeholder: '현대건설 서준혁 회장', date: '2026.04.28' },
                                         ].map((row, rIdx) => (
-                                            <div key={rIdx} className="grid grid-cols-[1fr_80px_70px_60px_160px_80px] gap-[16px] py-[4px] group cursor-pointer hover:bg-white/5 transition-colors -mx-[8px] px-[8px] rounded-[4px]">
-                                                <span className="text-[13px] text-[#E5E5E5] tracking-tight truncate">{row.log}</span>
-                                                <span className="text-[13px] text-[#E5E5E5] tracking-tight truncate">{row.project}</span>
-                                                <span className="text-[13px] text-[#E5E5E5] tracking-tight truncate">{row.purpose}</span>
-                                                <span className="text-[13px] text-[#E5E5E5] tracking-tight truncate">{row.status}</span>
-                                                <span className="text-[13px] text-[#E5E5E5] tracking-tight truncate">{row.stakeholder}</span>
-                                                <span className="text-[13px] text-[#E5E5E5] tracking-tight truncate">{row.date}</span>
+                                            <div key={rIdx} className="grid grid-cols-[1fr_80px_70px_60px_160px_80px] gap-[16px] py-[4px] group cursor-pointer hover:bg-white/5 transition-colors -mx-[8px] px-[8px] rounded-[4px] min-h-[28px] items-center">
+                                                <span className="text-[13px] text-[#E5E5E5] group-hover:text-[#bbb9af] transition-colors tracking-tight truncate leading-tight">{row.log}</span>
+                                                <span className="text-[13px] text-[#E5E5E5] group-hover:text-[#bbb9af] transition-colors tracking-tight truncate leading-tight">{row.project}</span>
+                                                <span className="text-[13px] text-[#E5E5E5] group-hover:text-[#bbb9af] transition-colors tracking-tight truncate leading-tight">{row.purpose}</span>
+                                                <span className="text-[13px] text-[#E5E5E5] group-hover:text-[#bbb9af] transition-colors tracking-tight truncate leading-tight">{row.status}</span>
+                                                <span className="text-[13px] text-[#E5E5E5] group-hover:text-[#bbb9af] transition-colors tracking-tight truncate leading-tight">{row.stakeholder}</span>
+                                                <span className="text-[13px] text-[#E5E5E5] group-hover:text-[#bbb9af] transition-colors tracking-tight truncate leading-tight">{row.date}</span>
                                             </div>
                                         ))}
                                         
