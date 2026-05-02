@@ -16,17 +16,17 @@ export default function GovPfvRules() {
 
     return (
         <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1112px] mx-auto">
-            <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">PFV 단일 창구 운영 원칙</h1>
-            <p className="text-[15px] text-[#86868B] mb-[36px]">외부 파트너로부터 ‘동일 사안에 대해 다른 답이 나가는 상황’을 원천 차단하기 위해 단일 창구를 지정합니다.</p>
+            <h1 className="text-[37px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">PFV 단일 창구 운영 원칙</h1>
+            <p className="text-[16px] text-[#86868B] mb-[36px]">외부 파트너로부터 ‘동일 사안에 대해 다른 답이 나가는 상황’을 원천 차단하기 위해 단일 창구를 지정합니다.</p>
             
             <div className="w-full bg-[#1A1A1A] border border-[#333] rounded-[24px] overflow-hidden">
                 <table className="w-full text-left">
                     <thead className="bg-[#222]">
                         <tr>
-                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[180px]">외부 파트너</th>
-                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#fbf167] border-b border-[#333] border-r border-[#333] w-[220px]">1차 단일창구</th>
-                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[200px]">백업 창구</th>
-                            <th className="px-[24px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">승인 한도 / 주의</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[200px]">외부 파트너</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#fbf167] border-b border-[#333] border-r border-[#333] w-[240px]">1차 단일창구</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[200px]">백업 창구</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333]">승인 한도 / 주의</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#333]">
