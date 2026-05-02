@@ -19,22 +19,22 @@ export default function GovRiskTop10() {
             <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">Top 10 리스크 대응 방향</h1>
             <p className="text-[15px] text-[#86868B] mb-[36px]">리스크 등록부는 통합 데이터룸의 핵심 운영 도구입니다. 식별된 Top 10 리스크와 1차 대응 셀입니다.</p>
             
-            <div className="w-full bg-[#1A1A1A] border border-[#333] rounded-[24px] overflow-hidden mt-[12px]">
+            <div className="w-full bg-transparent border border-[#333] rounded-[24px] overflow-hidden mt-[12px]">
                 <table className="w-full text-left">
-                    <thead className="bg-[#222]">
+                    <thead className="bg-transparent">
                         <tr>
-                            <th className="px-[24px] py-[16px] text-[15px] font-bold text-[#555] border-b border-[#333] w-[60px] text-center">#</th>
+                            <th className="px-[16px] py-[16px] text-[15px] font-bold text-[#555] border-b border-[#333] w-[50px] text-center">#</th>
                             <th className="px-[24px] py-[16px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[300px]">리스크</th>
                             <th className="px-[24px] py-[16px] text-[15px] font-bold text-[#E5E5E5] border-b border-[#333] border-r border-[#333] w-[200px]">1차 대응 셀</th>
                             <th className="px-[24px] py-[16px] text-[15px] font-bold text-[#e11d48] border-b border-[#333] border-r border-[#333] w-[200px]">트리거</th>
-                            <th className="px-[24px] py-[16px] text-[15px] font-bold text-white border-b border-[#333] border-r border-[#333] w-[160px]">최종 책임</th>
+                            <th className="px-[24px] py-[16px] text-[15px] font-bold text-white border-b border-[#333] border-r border-[#333] w-[170px]">최종 책임</th>
                             <th className="px-[24px] py-[16px] text-[15px] font-bold text-[#86868B] border-b border-[#333] w-[120px] text-center">상태</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#333]">
                         {riskData.map((row, idx) => (
                             <tr key={idx} className="hover:bg-[#292928] transition-colors">
-                                <td className="px-[24px] py-[16px] text-[15px] font-bold text-[#555] text-center">{row.no}</td>
+                                <td className="px-[16px] py-[16px] text-[15px] font-bold text-[#555] text-center">{row.no}</td>
                                 <td className="px-[24px] py-[16px] text-[16px] font-bold text-white border-r border-[#333]">{row.risk}</td>
                                 <td className="px-[24px] py-[16px] text-[15px] text-white border-r border-[#333]" dangerouslySetInnerHTML={{ __html: row.cell }}></td>
                                 <td className="px-[24px] py-[16px] text-[15px] font-medium text-[#c3c2b7] border-r border-[#333]">{row.trigger}</td>
