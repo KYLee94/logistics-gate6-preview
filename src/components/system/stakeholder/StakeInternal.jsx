@@ -4,6 +4,15 @@ export default function StakeInternal() {
     const [hoveredRow, setHoveredRow] = useState(null);
     const [hoveredImage, setHoveredImage] = useState(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+    const [noImageNames, setNoImageNames] = useState(new Set());
+
+    const handleImageError = (name) => {
+        setNoImageNames(prev => {
+            const next = new Set(prev);
+            next.add(name);
+            return next;
+        });
+    };
 
     const handleMouseMove = (e) => {
         setMousePos({ x: e.clientX, y: e.clientY });
@@ -21,11 +30,11 @@ export default function StakeInternal() {
             return (
                 <div key={idx} 
                      className="flex items-center gap-[6px] bg-[#222] hover:bg-[#333] transition-colors rounded-full pl-[4px] pr-[10px] py-[4px] border border-[#333] cursor-pointer group min-w-[76px]"
-                     onMouseEnter={() => setHoveredImage(cleanName)}
+                     onMouseEnter={() => { if(!noImageNames.has(cleanName)) setHoveredImage(cleanName) }}
                      onMouseLeave={() => setHoveredImage(null)}
                 >
                     <div className="w-[20px] h-[20px] shrink-0 rounded-full bg-[#3c3c3c] overflow-hidden">
-                        <img src={`/${cleanName}.webp`} alt={name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.src = '/default_avatar.svg'; }} />
+                        <img src={`/${cleanName}.webp`} alt={name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.src = '/default_avatar.svg'; handleImageError(cleanName); }} />
                     </div>
                     <span className="text-[#E5E5E5] text-[12px] font-medium group-hover:text-white transition-colors leading-none">{name}</span>
                 </div>
@@ -37,11 +46,11 @@ export default function StakeInternal() {
         const cleanName = name.split('(')[0];
         return (
         <div className="flex items-center gap-[12px]"
-             onMouseEnter={() => setHoveredImage(cleanName)}
+             onMouseEnter={() => { if(!noImageNames.has(cleanName)) setHoveredImage(cleanName) }}
              onMouseLeave={() => setHoveredImage(null)}
         >
             <div className="relative w-[36px] h-[36px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden">
-                <img src={`/${cleanName}.webp`} alt={name} className="w-full h-full object-cover" onError={(e) => { e.target.src = '/default_avatar.svg'; }} />
+                <img src={`/${cleanName}.webp`} alt={name} className="w-full h-full object-cover" onError={(e) => { e.target.src = '/default_avatar.svg'; handleImageError(cleanName); }} />
                 <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none"></div>
             </div>
             <div className="flex flex-col text-left">
