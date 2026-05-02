@@ -140,59 +140,59 @@ const stakeholderGroups = [
                             {
                                 name: '박준호',
                                 photo: '박준호',
-                                roles: ['LFC 센터장'],
+                                roles: ['Loan Finance센터/센터장+'],
                                 responsibility: '파이낸싱 책임인력',
-                                email: 'jhpark@igisam.com',
-                                phone: '010-0000-0000',
+                                email: 'junhopark@igisam.com',
+                                phone: '010-9230-5400',
                             },
                             {
                                 name: '강석민',
                                 photo: '강석민',
-                                roles: ['LFC 실무진'],
-                                email: 'smkang@igisam.com',
-                                phone: '010-0000-0000',
+                                roles: ['Loan Finance센터/Sr.Manager'],
+                                email: 'sm.kang@igisam.com',
+                                phone: '010-9091-1055',
                             },
                             {
                                 name: '정리훈',
                                 photo: '정리훈',
-                                roles: ['LFC 실무진'],
-                                email: 'rhjung@igisam.com',
-                                phone: '010-0000-0000',
+                                roles: ['Loan Finance센터/Sr.Manager'],
+                                email: 'jlh@igisam.com',
+                                phone: '010-2983-1503',
                             },
                             {
                                 name: '손유정',
                                 photo: '손유정',
-                                roles: ['LFC 실무진'],
-                                email: 'yjson@igisam.com',
-                                phone: '010-0000-0000',
+                                roles: ['Loan Finance센터'],
+                                email: 'yujung.son@igisam.com',
+                                phone: '010-2863-3892',
                             },
                             {
                                 name: '김지우',
                                 photo: '김지우',
-                                roles: ['LFC 실무진'],
-                                email: 'jwkim@igisam.com',
-                                phone: '010-0000-0000',
+                                roles: ['Loan Finance센터'],
+                                email: 'jiwoo@igisam.com',
+                                phone: '010-5541-5394',
                             },
                             {
                                 name: '박현승',
                                 photo: '박현승',
-                                roles: ['LFC 실무진'],
-                                email: 'hspark@igisam.com',
-                                phone: '010-0000-0000',
+                                roles: ['Loan Finance센터'],
+                                email: 'hyunpark@igisam.com',
+                                phone: '010-5376-8842',
                             },
                             {
-                                name: '이성민',
-                                photo: '이성민',
-                                roles: ['LFC 실무진'],
-                                email: 'smlee@igisam.com',
-                                phone: '010-0000-0000',
+                                name: '이성민A',
+                                photo: '이성민A',
+                                roles: ['Loan Finance센터'],
+                                email: 'stealth@igisam.com',
+                                phone: '010-3074-3396',
                             },
                             {
                                 name: '한승환',
                                 photo: '한승환',
-                                roles: ['LFC 실무진'],
-                                email: 'shhan@igisam.com',
-                                phone: '010-0000-0000',
+                                roles: ['Loan Finance센터'],
+                                email: 'seunghwanhan@igisam.com',
+                                phone: '010-2722-9946',
                             },
                         ]
                     },
@@ -326,10 +326,10 @@ const stakeholderGroups = [
                             {
                                 name: '김행단',
                                 photo: '김행단',
-                                roles: ['KAM그룹장'],
+                                roles: ['국내자산관리그룹/그룹장', '자산관리2파트/그룹장', '전략펀드운용1실', 'IOTA CFT'],
                                 responsibility: '펀드운용 책임인력',
-                                email: 'hdkim@igisam.com',
-                                phone: '010-0000-0000',
+                                email: 'hkim@igisam.com',
+                                phone: '010-2995-2352',
                             },
                         ]
                     },
@@ -507,7 +507,7 @@ export default function StakeInternal() {
                             <td className="px-[14px] py-[16px] ">
                                 {renderLeader('박준호', 'LFC 센터장')}
                             </td>
-                            <td className="px-[14px] py-[16px] text-[13px] border-r border-[#333] leading-[22px]"><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('강석민 정리훈 손유정 김지우 박현승 이성민 한승환')}</div></td>
+                            <td className="px-[14px] py-[16px] text-[13px] border-r border-[#333] leading-[22px]"><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('강석민 정리훈 손유정 김지우 박현승 이성민A 한승환')}</div></td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">본PF·통합PF 구조, 대주단 모니터링<br/>리파이낸싱 옵션 상시 검토</td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af]">LFC</td>
                         </tr>
