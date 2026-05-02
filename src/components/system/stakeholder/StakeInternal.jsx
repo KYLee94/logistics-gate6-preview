@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 
 export default function StakeInternal() {
     const [hoveredRow, setHoveredRow] = useState(null);
+    const [hoveredImage, setHoveredImage] = useState(null);
     const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
     const handleMouseMove = (e) => {
@@ -18,9 +19,13 @@ export default function StakeInternal() {
         return namesString.split(' ').map((name, idx) => {
             const cleanName = name.split('(')[0];
             return (
-                <div key={idx} className="flex items-center gap-[6px] bg-[#222] hover:bg-[#333] transition-colors rounded-full pl-[4px] pr-[10px] py-[4px] border border-[#333] cursor-pointer group">
+                <div key={idx} 
+                     className="flex items-center gap-[6px] bg-[#222] hover:bg-[#333] transition-colors rounded-full pl-[4px] pr-[10px] py-[4px] border border-[#333] cursor-pointer group"
+                     onMouseEnter={() => setHoveredImage(cleanName)}
+                     onMouseLeave={() => setHoveredImage(null)}
+                >
                     <div className="w-[20px] h-[20px] shrink-0 rounded-full bg-[#3c3c3c] overflow-hidden">
-                        <img src={`/${cleanName}.webp`} alt={name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.src = '/lee.webp'; }} />
+                        <img src={`/${cleanName}.webp`} alt={name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" onError={(e) => { e.target.src = '/default_avatar.webp'; }} />
                     </div>
                     <span className="text-[#E5E5E5] text-[12px] font-medium group-hover:text-white transition-colors leading-none">{name}</span>
                 </div>
@@ -31,9 +36,12 @@ export default function StakeInternal() {
     const renderLeader = (name, title) => {
         const cleanName = name.split('(')[0];
         return (
-        <div className="flex items-center gap-[12px]">
+        <div className="flex items-center gap-[12px]"
+             onMouseEnter={() => setHoveredImage(cleanName)}
+             onMouseLeave={() => setHoveredImage(null)}
+        >
             <div className="relative w-[36px] h-[36px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden">
-                <img src={`/${cleanName}.webp`} alt={name} className="w-full h-full object-cover" onError={(e) => { e.target.src = '/lee.webp'; }} />
+                <img src={`/${cleanName}.webp`} alt={name} className="w-full h-full object-cover" onError={(e) => { e.target.src = '/default_avatar.webp'; }} />
                 <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none"></div>
             </div>
             <div className="flex flex-col text-left">
@@ -213,6 +221,20 @@ export default function StakeInternal() {
                 >
                     
                     {hoveredRow} 워크스페이스 가기
+                </div>
+            )}
+
+            {hoveredImage && (
+                <div 
+                    className="fixed z-[110] pointer-events-none rounded-[16px] overflow-hidden border border-[#333] shadow-2xl bg-[#1A1A1A]"
+                    style={{
+                        left: mousePos.x + 20,
+                        top: mousePos.y + 20,
+                        width: '160px',
+                        height: '160px'
+                    }}
+                >
+                    <img src={`/${hoveredImage}.webp`} alt="preview" className="w-full h-full object-cover" onError={(e) => { e.target.src = '/default_avatar.webp'; }} />
                 </div>
             )}
         </div>
