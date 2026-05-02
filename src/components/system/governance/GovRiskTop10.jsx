@@ -21,7 +21,7 @@ export default function GovRiskTop10() {
                     <div className="flex -space-x-2 shrink-0">
                         {members.map((name, idx) => (
                             <div key={idx} className="w-[36px] h-[36px] rounded-full overflow-hidden bg-[#3c3c3c] border border-[#1A1A1A] relative z-[1]">
-                                <img src={`/${name}.webp`} alt={name} className="w-full h-full object-cover" onError={(e) => { e.target.src = '/default_avatar.svg'; }} />
+                                <img src={`${import.meta.env.BASE_URL}${name}.webp`} alt={name} className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
                             </div>
                         ))}
                     </div>

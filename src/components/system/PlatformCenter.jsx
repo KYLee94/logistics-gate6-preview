@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import GovSystem from './governance/GovSystem';
 import GovPrinciples from './governance/GovPrinciples';
 import GovRaci from './governance/GovRaci';
@@ -22,6 +22,14 @@ import WorkspaceIpr from './workspace/WorkspaceIpr';
 import IotaDashboard from './IotaDashboard';
 
 export default function PlatformCenter({ currentPath = '' }) {
+    const scrollRef = useRef(null);
+
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = 0;
+        }
+    }, [currentPath]);
+
     const renderGovernance = () => {
         switch(currentPath) {
             case 'platform/iotaseoul/governance/system': return <GovSystem />;
@@ -72,7 +80,7 @@ export default function PlatformCenter({ currentPath = '' }) {
     if (activeContent) {
         return (
             <div className="flex-1 h-full bg-transparent flex flex-col relative font-sans text-[#1D1D1F] dark:text-[#E5E5E5] overflow-hidden transition-colors duration-300">
-                <div className="flex-1 w-full overflow-y-auto hide-scrollbar flex flex-col relative">
+                <div ref={scrollRef} className="flex-1 w-full overflow-y-auto hide-scrollbar flex flex-col relative">
                     {activeContent}
                 </div>
             </div>
@@ -97,7 +105,7 @@ export default function PlatformCenter({ currentPath = '' }) {
         <div className="flex-1 h-full bg-transparent flex flex-col relative font-sans text-[#1D1D1F] dark:text-[#E5E5E5] overflow-hidden transition-colors duration-300">
 
             {/* Dedicated Scroll Container */}
-            <div className="flex-1 w-full overflow-y-auto hide-scrollbar flex flex-col relative">
+            <div ref={scrollRef} className="flex-1 w-full overflow-y-auto hide-scrollbar flex flex-col relative">
                 {/* Main Content Area */}
                 <div className="w-[1200px] mx-auto flex-1 flex flex-col pt-[77px] shrink-0 pb-[60px]">
                 
