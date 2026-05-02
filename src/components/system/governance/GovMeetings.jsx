@@ -101,7 +101,7 @@ export default function GovMeetings() {
                             <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[180px]">회의체</th>
                             <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[120px]">주기</th>
                             <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[160px]">주재자</th>
-                            <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[260px]">주요 참석자</th>
+                            <th className="pl-[42px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[280px]">주요 참석자</th>
                             <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
                         </tr>
                     </thead>
@@ -111,7 +111,7 @@ export default function GovMeetings() {
                                 <td className="pl-[22px] pr-[12px] py-[12px] text-[15px] text-[#E5E5E5]  group-hover:text-white transition-colors text-left font-semibold">{row.meeting}</td>
                                 <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] transition-colors"><span className="inline-block px-[10px] py-[4px] rounded-[6px] bg-[#111] text-[#c3c2b7] group-hover:text-white transition-colors whitespace-nowrap">{row.period}</span></td>
                                 <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-white whitespace-nowrap transition-colors">{row.leader}</td>
-                                <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#c3c2b7]  text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
+                                <td className="pl-[42px] pr-[12px] py-[12px] text-[14px] text-[#c3c2b7]  text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
                                 <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
                             </tr>
                         ))}
@@ -127,7 +127,7 @@ export default function GovMeetings() {
                             <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[180px]">회의체</th>
                             <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[120px]">주기</th>
                             <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[160px]">주재자</th>
-                            <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[260px]">주요 참석자</th>
+                            <th className="pl-[42px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]  w-[280px]">주요 참석자</th>
                             <th className="pl-[22px] pr-[12px] py-[12px] text-[15px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
                         </tr>
                     </thead>
@@ -137,7 +137,7 @@ export default function GovMeetings() {
                                 <td className="pl-[22px] pr-[12px] py-[12px] text-[15px] text-[#E5E5E5]  group-hover:text-white transition-colors text-left font-semibold">{row.meeting}</td>
                                 <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] transition-colors"><span className="inline-block px-[10px] py-[4px] rounded-[6px] bg-[#111] text-[#c3c2b7] group-hover:text-white transition-colors whitespace-nowrap">{row.period}</span></td>
                                 <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-white whitespace-nowrap transition-colors">{row.leader}</td>
-                                <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#c3c2b7]  text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
+                                <td className="pl-[42px] pr-[12px] py-[12px] text-[14px] text-[#c3c2b7]  text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
                                 <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
                             </tr>
                         ))}
@@ -146,7 +146,7 @@ export default function GovMeetings() {
             </div>
 
             {/* 비정기 회의체 */}
-            <h2 className="text-[28px] font-bold text-white mt-[60px] mb-[16px] tracking-tight">비정기 회의체 (Trigger 기반)</h2>
+            <h2 className="text-[28px] font-bold text-white mt-[40px] mb-[16px] tracking-tight">비정기 회의체 (Trigger 기반)</h2>
             <p className="text-[17px] text-[#A1A1AA] leading-[26px] mb-[32px]">
                 아래 트리거가 발생하는 즉시 24시간 내 비정기 회의가 자동 소집됩니다.<br/>
                 트리거는 통합 데이터룸의 <strong className="text-[#E5E5E5]">‘리스크 등록부’</strong>에 등록된 항목과 연동됩니다.
