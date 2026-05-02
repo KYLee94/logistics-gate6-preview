@@ -234,7 +234,7 @@ export default function StakeInternal() {
                                 responsibility: 'CFT 총괄 책임인력',
                                 email: 'ethan.lee@igisam.com',
                                 phone: '010-3186-0868',
-                            }
+                            },
                         ]
                     },
                     {
@@ -269,9 +269,305 @@ export default function StakeInternal() {
                                 roles: ['사업그룹1파트', 'IOTA CFT'],
                                 email: 'hryu@igisam.com',
                                 phone: '010-0000-0000',
-                            }
+                            },
+                            {
+                                name: '김제익',
+                                photo: '김제익',
+                                roles: ['사업그룹1파트', 'IOTA CFT'],
+                                email: 'jikim@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '박만진',
+                                photo: '박만진',
+                                roles: ['사업그룹1파트', 'IOTA CFT'],
+                                email: 'mjpark@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '박일훈',
+                                photo: '박일훈',
+                                roles: ['사업그룹1파트', 'IOTA CFT'],
+                                email: 'ihpark@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '이정원',
+                                photo: '이정원',
+                                roles: ['사업그룹1파트', 'IOTA CFT'],
+                                email: 'jwlee@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '전무경',
+                                photo: '전무경',
+                                roles: ['사업그룹1파트', 'IOTA CFT'],
+                                email: 'mkjeon@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '한찬호',
+                                photo: '한찬호',
+                                roles: ['사업그룹2파트', 'IOTA CFT'],
+                                email: 'chhan@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '박석제',
+                                photo: '박석제',
+                                roles: ['사업그룹2파트', 'IOTA CFT'],
+                                email: 'sjpark@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '박채현',
+                                photo: '박채현',
+                                roles: ['사업그룹2파트', 'IOTA CFT'],
+                                email: 'chpark@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '소현준',
+                                photo: '소현준',
+                                roles: ['사업그룹2파트', 'IOTA CFT'],
+                                email: 'hjso@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '이수정',
+                                photo: '이수정',
+                                roles: ['사업그룹2파트', 'IOTA CFT'],
+                                email: 'sjlee@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '조영비',
+                                photo: '조영비',
+                                roles: ['사업그룹2파트', 'IOTA CFT'],
+                                email: 'ybcho@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '한수정',
+                                photo: '한수정',
+                                roles: ['사업그룹2파트', 'IOTA CFT'],
+                                email: 'sjhan@igisam.com',
+                                phone: '010-0000-0000',
+                            },
                         ]
-                    }
+                    },
+                    {
+                        groupTitle: '파이낸싱',
+                        members: [
+                            {
+                                name: '박준호',
+                                photo: '박준호',
+                                roles: ['LFC 센터장'],
+                                responsibility: '파이낸싱 책임인력',
+                                email: 'jhpark@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '강석민',
+                                photo: '강석민',
+                                roles: ['LFC 실무진'],
+                                email: 'smkang@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '정리훈',
+                                photo: '정리훈',
+                                roles: ['LFC 실무진'],
+                                email: 'rhjung@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '손유정',
+                                photo: '손유정',
+                                roles: ['LFC 실무진'],
+                                email: 'yjson@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '김지우',
+                                photo: '김지우',
+                                roles: ['LFC 실무진'],
+                                email: 'jwkim@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '박현승',
+                                photo: '박현승',
+                                roles: ['LFC 실무진'],
+                                email: 'hspark@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '이성민',
+                                photo: '이성민',
+                                roles: ['LFC 실무진'],
+                                email: 'smlee@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '한승환',
+                                photo: '한승환',
+                                roles: ['LFC 실무진'],
+                                email: 'shhan@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                        ]
+                    },
+                    {
+                        groupTitle: '개발관리',
+                        members: [
+                            {
+                                name: '홍장군',
+                                photo: '홍장군',
+                                roles: ['개발솔루션센터장'],
+                                responsibility: '개발관리 책임인력',
+                                email: 'jghong@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '채원',
+                                photo: '채원',
+                                roles: ['건설담당 실무진'],
+                                email: 'wchae@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '김보성',
+                                photo: '김보성',
+                                roles: ['건설담당 실무진'],
+                                email: 'bskim@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '전승희',
+                                photo: '전승희',
+                                roles: ['건설담당 실무진'],
+                                email: 'shjeon@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '김대익',
+                                photo: '김대익',
+                                roles: ['설계담당 실무진'],
+                                email: 'dikim@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '장성진',
+                                photo: '장성진',
+                                roles: ['설계담당 실무진'],
+                                email: 'sjjang@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '이정훈',
+                                photo: '이정훈',
+                                roles: ['인허가 실무진'],
+                                email: 'jhlee@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '박봉서',
+                                photo: '박봉서',
+                                roles: ['전문위원'],
+                                email: 'bspark@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                        ]
+                    },
+                    {
+                        groupTitle: '기업마케팅',
+                        members: [
+                            {
+                                name: '김민지',
+                                photo: '김민지',
+                                roles: ['기업마케팅담당'],
+                                responsibility: '기업마케팅 책임인력',
+                                email: 'mjkim@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '고아라',
+                                photo: '고아라',
+                                roles: ['EMC 실무진'],
+                                email: 'arkoh@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '이가현',
+                                photo: '이가현',
+                                roles: ['SSC 실무진'],
+                                email: 'ghlee@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '정수명',
+                                photo: '정수명',
+                                roles: ['SSC 실무진'],
+                                email: 'smjung@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                        ]
+                    },
+                    {
+                        groupTitle: '상품·디지털',
+                        members: [
+                            {
+                                name: '김현수',
+                                photo: '김현수',
+                                roles: ['공간솔루션센터장'],
+                                responsibility: '상품·디지털 책임인력',
+                                email: 'hskim@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '현철호',
+                                photo: '현철호',
+                                roles: ['디지털사업그룹장'],
+                                responsibility: '상품·디지털 책임인력',
+                                email: 'chhyun@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                            {
+                                name: '신민호',
+                                photo: '신민호',
+                                roles: ['디지털사업그룹 실무진'],
+                                email: 'mhshin@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                        ]
+                    },
+                    {
+                        groupTitle: '펀드운용',
+                        members: [
+                            {
+                                name: '김행단',
+                                photo: '김행단',
+                                roles: ['KAM그룹장'],
+                                responsibility: '펀드운용 책임인력',
+                                email: 'hdkim@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                        ]
+                    },
+                    {
+                        groupTitle: 'IPR',
+                        members: [
+                            {
+                                name: '윤용택',
+                                photo: '윤용택',
+                                roles: ['(관리) 사업3파트'],
+                                responsibility: 'IPR 책임인력',
+                                email: 'ytyoon@igisam.com',
+                                phone: '010-0000-0000',
+                            },
+                        ]
+                    },
                 ].map((group, gIdx) => (
                     <div key={gIdx} className="w-full flex flex-col gap-[32px]">
                         {/* Group Header */}
