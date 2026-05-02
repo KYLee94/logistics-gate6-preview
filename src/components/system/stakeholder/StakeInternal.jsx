@@ -434,10 +434,10 @@ export default function StakeInternal() {
                     </div>
                     <input 
                         type="text" 
-                        placeholder="이름, 직무 등 검색" 
+                        placeholder="이름, 직무, 활동 등 자유롭게 검색하세요" 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="bg-transparent border border-[#333] hover:border-[#555] rounded-full pl-[36px] pr-[16px] py-[8px] text-[13px] text-white w-[220px] focus:outline-none focus:border-[#2997ff] transition-colors" 
+                        className="bg-[#272726] border border-[#545451] hover:border-[#666] rounded-[8px] pl-[36px] pr-[16px] py-[8px] text-[13px] text-white w-[280px] focus:outline-none focus:border-[#2997ff] transition-colors" 
                     />
                     <button type="submit" className="hidden"></button>
                 </form>
