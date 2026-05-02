@@ -16,8 +16,17 @@ export default function GovExternalComm() {
 
     const renderWindow = (text, members) => {
         return (
-            <div className="flex flex-col gap-2">
-                <div>
+            <div className="flex items-center gap-[12px]">
+                {members.length > 0 && (
+                    <div className="flex -space-x-2 shrink-0">
+                        {members.map((name, idx) => (
+                            <div key={idx} className="w-[36px] h-[36px] rounded-full overflow-hidden bg-[#3c3c3c] border-2 border-[#1A1A1A] relative z-[1]">
+                                <img src={`/${name}.webp`} alt={name} className="w-full h-full object-cover" onError={(e) => { e.target.src = '/default_avatar.svg'; }} />
+                            </div>
+                        ))}
+                    </div>
+                )}
+                <div className="leading-snug whitespace-normal">
                     {text}
                     {members.map((name, idx) => (
                         <React.Fragment key={idx}>
@@ -26,15 +35,6 @@ export default function GovExternalComm() {
                         </React.Fragment>
                     ))}
                 </div>
-                {members.length > 0 && (
-                    <div className="flex gap-2">
-                        {members.map((name, idx) => (
-                            <div key={idx} className="w-[28px] h-[28px] rounded-full overflow-hidden bg-[#3c3c3c] border border-[#444]">
-                                <img src={`/${name}.webp`} alt={name} className="w-full h-full object-cover" onError={(e) => { e.target.src = '/default_avatar.svg'; }} />
-                            </div>
-                        ))}
-                    </div>
-                )}
             </div>
         );
     };
@@ -59,7 +59,7 @@ export default function GovExternalComm() {
                     <thead className="bg-transparent">
                         <tr>
                             <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[200px]">외부 파트너</th>
-                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#2997FF] border-b border-[#333] border-r border-[#333] w-[260px]">1차 단일창구</th>
+                            <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#2997FF] border-b border-[#333] border-r border-[#333] w-[340px]">1차 단일창구</th>
                             <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[200px]">백업 창구</th>
                             <th className="px-[24px] py-[16px] text-[14px] font-bold text-[#86868B] border-b border-[#333]">승인 한도 / 주의</th>
                         </tr>
@@ -68,7 +68,7 @@ export default function GovExternalComm() {
                         {rulesData.map((row, idx) => (
                             <tr key={idx} className="hover:bg-[#292928] transition-colors">
                                 <td className="px-[24px] py-[16px] text-[15px] font-bold text-[#E5E5E5] border-r border-[#333] whitespace-nowrap">{row.partner}</td>
-                                <td className="px-[24px] py-[16px] text-[15px] font-bold text-[#E5E5E5] border-r border-[#333] whitespace-nowrap">{renderWindow(row.windowText, row.members)}</td>
+                                <td className="px-[24px] py-[16px] text-[15px] font-bold text-[#E5E5E5] border-r border-[#333]">{renderWindow(row.windowText, row.members)}</td>
                                 <td className="px-[24px] py-[16px] text-[14px] text-[#A1A1AA] border-r border-[#333]" dangerouslySetInnerHTML={{ __html: row.backup }}></td>
                                 <td className="px-[24px] py-[16px] text-[14px] text-[#A1A1AA]">{row.auth}</td>
                             </tr>
