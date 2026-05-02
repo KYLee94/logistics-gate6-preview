@@ -75,7 +75,7 @@ export default function StakeInternal() {
     };
 
     return (
-        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1112px] mx-auto" onMouseMove={handleMouseMove}>
+        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[100px] max-w-[1112px] mx-auto" onMouseMove={handleMouseMove}>
             <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">IGIS 내부인력</h1>
             <p className="text-[15px] text-[#86868B] mb-[36px]">이오타서울 통합 업무수행 조직(CFT)의 핵심 책임/실무 인력 명단입니다.</p>
             
