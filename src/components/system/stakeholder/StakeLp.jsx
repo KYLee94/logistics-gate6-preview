@@ -404,7 +404,7 @@ export default function StakeLp() {
                         ) : (
                             <>
                                 {/* IOTA 427 */}
-                                <div className="mb-8 mt-[20px]">
+                                <div className="mt-[20px]">
                                     <h2 className="text-[22px] font-bold text-white mb-[14px] tracking-tight">IOTA One (427 PFV)</h2>
                                     <div className="grid grid-cols-2 gap-8">
                                         <div><TransparentTable title="Equity (수익자)" items={iotaData[427].equity} isLoan={false} vehicle={427} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
@@ -413,7 +413,7 @@ export default function StakeLp() {
                                 </div>
 
                                 {/* IOTA 816 (Highest Priority currently) */}
-                                <div className="mb-8">
+                                <div>
                                     <h2 className="text-[22px] font-bold text-white mb-[14px] tracking-tight">IOTA Two (816 PFV)</h2>
                                     <div className="grid grid-cols-2 gap-8">
                                         <div><TransparentTable title="Equity (수익자)" items={iotaData[816].equity} isLoan={false} vehicle={816} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
@@ -422,7 +422,7 @@ export default function StakeLp() {
                                 </div>
 
                                 {/* IOTA 421 */}
-                                <div id="section-421" className="mb-8">
+                                <div id="section-421">
                                     <h2 className="text-[22px] font-bold text-white mb-[14px] tracking-tight">421호 펀드</h2>
                                     <div className="grid grid-cols-2 gap-8">
                                         <div><TransparentTable title="Equity (수익자)" items={iotaData[421].equity} isLoan={false} vehicle={421} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
