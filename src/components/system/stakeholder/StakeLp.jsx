@@ -2,6 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../../utils/supabaseClient';
 
+const getTrancheColor = (trancheName) => {
+    if (!trancheName) return 'text-[#86868B]';
+    if (trancheName.includes('Equity') || trancheName.includes('보통주') || (trancheName.includes('종류주') && !trancheName.includes('수익증권')) || trancheName.includes('주주대여금')) return 'text-[#e5e5e5]';
+    if (trancheName.includes('Tr.A') || trancheName.includes('Tr. A') || trancheName.includes('A종')) return 'text-[#5da0e7]';
+    if (trancheName.includes('Tr.B') || trancheName.includes('Tr. B') || trancheName.includes('B종')) return 'text-[#3aaab3]';
+    if (trancheName.includes('Tr.C') || trancheName.includes('Tr. C') || trancheName.includes('C종')) return 'text-[#b889d9]';
+    if (trancheName.includes('Tr.D') || trancheName.includes('Tr. D') || trancheName.includes('D종')) return 'text-[#cd879c]';
+    return 'text-[#86868B]';
+};
+
 const AccordionContent = ({ instName, contactsCache, isLast }) => {
     const contacts = contactsCache[instName];
     return (
@@ -128,7 +138,10 @@ const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicl
                                     <span className="text-[15px] font-medium text-white">{item.name}</span>
                                 </div>
                                 <div className="flex items-center gap-6">
-                                    <span className="text-[15px] font-bold text-white text-right w-[100px]">{item.amount}억</span>
+                                    {item.tranche && (
+                                        <span className={`text-[12px] font-medium tracking-tight ${getTrancheColor(item.tranche)}`}>{item.tranche}</span>
+                                    )}
+                                    <span className="text-[15px] font-bold text-white text-right w-[90px]">{item.amount}억</span>
                                     <svg className={`w-4 h-4 text-[#86868B] transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
                                 </div>
                             </div>
@@ -179,7 +192,8 @@ export default function StakeLp() {
                         const obj = {
                             name: item.institution_name,
                             amount: item.amount_krw_100m.toLocaleString(),
-                            rawAmount: item.amount_krw_100m
+                            rawAmount: item.amount_krw_100m,
+                            tranche: item.tranche_name
                         };
 
                         if (type === 'equity') {
@@ -378,6 +392,12 @@ export default function StakeLp() {
                                             {item.isIota ? `IOTA ${item.vehicle} (${item.type === 'loan' ? '대주' : '출자'})` : (item.category || '기타 투자자')}
                                         </div>
                                         <h3 className="text-[18px] font-bold text-white leading-tight mb-4">{item.name}</h3>
+                                        {item.tranche && (
+                                            <div className="flex justify-between items-center mb-1">
+                                                <span className="text-[13px] text-[#A1A1AA]">트랜치</span>
+                                                <span className={`text-[13px] font-medium ${getTrancheColor(item.tranche)}`}>{item.tranche}</span>
+                                            </div>
+                                        )}
                                         <div className="flex justify-between items-center mt-auto">
                                             <span className="text-[13px] text-[#A1A1AA]">총 약정/투자액</span>
                                             <span className="text-[15px] font-bold text-white">{item.amount}억</span>
