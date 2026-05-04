@@ -246,8 +246,8 @@ export default function StakeLp() {
 
                     // List of IOTA names to exclude from "Other"
                     const iotaNames = new Set([
-                        ...parsedIota[427].equity.map(i=>i.name), ...parsedIota[427].loan.map(i=>i.name),
-                        ...parsedIota[816].equity.map(i=>i.name), ...parsedIota[816].loan.map(i=>i.name),
+                        ...parsedIota[427].equity.map(i=>i.name), ...parsedIota[427].bridgeLoan.map(i=>i.name), ...parsedIota[427].refiLoan.map(i=>i.name),
+                        ...parsedIota[816].equity.map(i=>i.name), ...parsedIota[816].bridgeLoan.map(i=>i.name), ...parsedIota[816].refiLoan.map(i=>i.name),
                         ...parsedIota[421].equity.map(i=>i.name), ...parsedIota[421].loan.map(i=>i.name)
                     ]);
 
@@ -469,8 +469,8 @@ export default function StakeLp() {
                         )}
 
                         {/* Non-IOTA Investors */}
-                        <div className="mt-8 p-6">
-                            <h2 className="text-[22px] font-bold text-white mb-2 tracking-tight">기타 이지스 마스터 투자자</h2>
+                        <div className="mt-8">
+                            <h2 className="text-[22px] font-bold text-white mb-1 tracking-tight">기타 이지스 마스터 투자자</h2>
                             <p className="text-[14px] text-[#86868B] mb-6">IOTA에 참여하지 않은 기관 중 이지스 총 약정액이 높은 순서입니다.</p>
                             
                             {loading ? (
