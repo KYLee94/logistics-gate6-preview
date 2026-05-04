@@ -36,7 +36,7 @@ const formatKoreanAmount = (amountStrOrNum) => {
     return `${num.toLocaleString()}억`;
 };
 
-const AccordionContent = ({ instName, contactsCache, metaCache, isLast, isMaster = false, iotaInvestments = [] }) => {
+const AccordionContent = ({ instName, contactsCache, metaCache, isLast, isMaster = false, iotaInvestments = [], igisInvestments = [] }) => {
     const contacts = contactsCache[instName];
     const metaData = metaCache ? metaCache[instName] : undefined;
     const meta = metaData?.investment || [];
@@ -83,13 +83,35 @@ const AccordionContent = ({ instName, contactsCache, metaCache, isLast, isMaster
 
                                 {iotaInvestments.length > 0 && (
                                     <div className="flex flex-col gap-2 mt-4 pt-5 border-t border-[#333]">
-                                        <div className="text-[13px] font-bold text-[#86868B] mb-2 uppercase">IOTA 프로젝트 투자 현황</div>
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="text-[13px] font-bold text-[#86868B] uppercase">IOTA 프로젝트 투자 현황</div>
+                                        </div>
                                         {iotaInvestments.map((inv, idx) => (
                                             <div key={`inv-${idx}`} className="flex justify-between items-center text-[13px] py-1 border-b border-[#333] border-dashed last:border-0">
                                                 <span className="text-[#A1A1AA]">{inv.label}</span>
                                                 <span className="text-white font-bold">{formatKoreanAmount(inv.amount)}</span>
                                             </div>
                                         ))}
+                                    </div>
+                                )}
+
+                                {igisInvestments.length > 0 && (
+                                    <div className="flex flex-col gap-2 mt-4 pt-5 border-t border-[#333]">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <div className="text-[13px] font-bold text-[#86868B] uppercase">이지스 펀드 약정 현황</div>
+                                            <div className="text-[11px] text-[#555] px-2 py-0.5 border border-[#333] rounded-full">전체</div>
+                                        </div>
+                                        {igisInvestments.slice(0, 15).map((inv, idx) => (
+                                            <div key={`igis-inv-${idx}`} className="flex justify-between items-center text-[13px] py-1 border-b border-[#333] border-dashed last:border-0">
+                                                <span className="text-[#A1A1AA]">{inv.fund}</span>
+                                                <span className="text-white font-bold">{formatKoreanAmount(Math.floor(inv.amount / 100000000))}</span>
+                                            </div>
+                                        ))}
+                                        {igisInvestments.length > 15 && (
+                                            <div className="text-center text-[12px] text-[#555] mt-2">
+                                                외 {igisInvestments.length - 15}개 펀드 (생략)
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -284,6 +306,7 @@ export default function StakeLp() {
     const [expandedRow, setExpandedRow] = useState(null); // { name: string }
     const [contactsCache, setContactsCache] = useState({});
     const [metaCache, setMetaCache] = useState({});
+    const [igisInvestmentsData, setIgisInvestmentsData] = useState({});
 
     // Fetch master DB for "Other Investors" and IOTA Stack
     useEffect(() => {
@@ -344,16 +367,32 @@ export default function StakeLp() {
                 // Fetch counterparties
                 const { data: cps } = await supabase.from('counterparties').select('counterparty_id, name, category');
                 // Fetch exposures
-                const { data: exps } = await supabase.from('beneficiary_exposures').select('beneficiary_clean, beneficiary_raw, committed_amt');
+                const { data: exps } = await supabase.from('beneficiary_exposures').select('beneficiary_clean, beneficiary_raw, committed_amt, funds(short_name)');
                 
                 if (cps && exps && parsedIota) {
                     const amounts = {};
+                    const igisInv = {};
                     exps.forEach(ex => {
                         const name = ex.beneficiary_clean || ex.beneficiary_raw;
                         if (name && ex.committed_amt) {
-                            amounts[name] = (amounts[name] || 0) + parseInt(ex.committed_amt);
+                            const amt = parseInt(ex.committed_amt);
+                            amounts[name] = (amounts[name] || 0) + amt;
+                            
+                            if (ex.funds && ex.funds.short_name) {
+                                if (!igisInv[name]) igisInv[name] = [];
+                                igisInv[name].push({
+                                    fund: `이지스${ex.funds.short_name}`,
+                                    amount: amt
+                                });
+                            }
                         }
                     });
+
+                    // Sort investments
+                    Object.keys(igisInv).forEach(k => {
+                        igisInv[k].sort((a, b) => b.amount - a.amount);
+                    });
+                    setIgisInvestmentsData(igisInv);
 
                     // List of IOTA names to exclude from "Other"
                     const iotaNames = new Set([
@@ -427,7 +466,8 @@ export default function StakeLp() {
                     if (name.includes('투자자 참석자') || name.includes('당사 참석자') || name.includes('주요 회의록')) return;
 
                     // 1. Is Investment Profile?
-                    if (['AUM', '펀드', '위탁', '운용자산', '모펀드', '규모'].some(w => name.includes(w))) {
+                    const investmentKeywords = ['AUM', '펀드', '위탁', '운용자산', '모펀드', '규모', '조원', '부동산', '투자부', '대체투자', '전체'];
+                    if (investmentKeywords.some(w => name.includes(w))) {
                         investmentMeta.push(c);
                         return;
                     }
@@ -682,7 +722,7 @@ export default function StakeLp() {
                                                     </div>
                                                 </div>
                                                 <AnimatePresence>
-                                                    {isExpanded && <AccordionContent instName={item.name} contactsCache={contactsCache} metaCache={metaCache} isLast={idx === otherInvestors.length - 1} isMaster={true} iotaInvestments={getIotaInvestments(item.name)} />}
+                                                    {isExpanded && <AccordionContent instName={item.name} contactsCache={contactsCache} metaCache={metaCache} isLast={idx === otherInvestors.length - 1} isMaster={true} iotaInvestments={getIotaInvestments(item.name)} igisInvestments={igisInvestmentsData[item.name] || []} />}
                                                 </AnimatePresence>
                                             </div>
                                         );
