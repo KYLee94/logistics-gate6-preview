@@ -14,7 +14,12 @@ export default function VehicleIntegrated() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const { data } = await supabase.from('iota_capital_stack').select('*');
+                const { data, error } = await supabase.from('iota_capital_stack').select('*');
+                if (error) {
+                    console.error("Supabase API Error:", error);
+                    setIotaData({ error: error.message });
+                    return;
+                }
                 if (data) {
                     // Group data by vehicle -> phase -> tranche -> array of institutions
                     const grouped = {
@@ -605,6 +610,17 @@ export default function VehicleIntegrated() {
             </div>
         );
     };
+
+    if (iotaData && iotaData.error) {
+        return (
+            <div className="w-full flex-1 flex flex-col items-center justify-center text-[#ff453a] gap-4">
+                <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <span className="font-bold text-lg">DB 연동 오류 발생</span>
+                <span className="text-[#86868B]">{iotaData.error}</span>
+                <span className="text-[#666] text-sm mt-2">※ 인증 토큰이 만료되었거나 접근 권한이 없습니다. 페이지를 새로고침하거나 다시 로그인해주세요.</span>
+            </div>
+        );
+    }
 
     if (loading || !iotaData) {
         return <div className="w-full flex-1 flex items-center justify-center text-[#86868B]">DB 데이터 로딩 중...</div>;

@@ -62,7 +62,25 @@ export function AuthProvider({ children }) {
     };
 
     const signOut = async () => {
-        await supabase.auth.signOut();
+        try {
+            await supabase.auth.signOut();
+        } catch (error) {
+            console.error("Error during sign out:", error);
+        } finally {
+            // Force clean up any corrupted supabase tokens in local storage
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('sb-')) {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+            setUser(null);
+            setMemberInfo(null);
+            // Hard redirect to login page to clear all React states
+            window.location.href = import.meta.env.BASE_URL + 'auth-setup';
+        }
     };
 
     return (

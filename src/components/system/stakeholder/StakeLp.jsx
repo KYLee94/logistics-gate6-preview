@@ -328,7 +328,13 @@ export default function StakeLp() {
         const fetchMaster = async () => {
             try {
                 // Fetch IOTA Capital Stack
-                const { data: stackData } = await supabase.from('iota_capital_stack').select('*');
+                const { data: stackData, error: stackError } = await supabase.from('iota_capital_stack').select('*');
+                if (stackError) {
+                    console.error("Supabase API Error:", stackError);
+                    setIotaData({ error: stackError.message });
+                    setLoading(false);
+                    return;
+                }
                 
                 let parsedIota = {
                     427: { equity: [], loan: [], bridgeLoan: [], refiLoan: [] },
@@ -676,7 +682,14 @@ export default function StakeLp() {
                     <div className="flex flex-col gap-6">
                         
                         {loading || !iotaData ? (
-                            <div className="text-center text-[#86868B] py-10">DB 데이터 연동 중...</div>
+                            <div className="text-center text-[#86868B] py-10">
+                                {iotaData && iotaData.error ? (
+                                    <div className="flex flex-col items-center gap-2">
+                                        <span className="text-[#ff453a] font-bold">DB 연동 오류 발생</span>
+                                        <span className="text-[#86868B] text-[13px]">{iotaData.error}</span>
+                                    </div>
+                                ) : "DB 데이터 연동 중..."}
+                            </div>
                         ) : (
                             <>
                                 {/* IOTA 427 */}
