@@ -150,7 +150,7 @@ export default function AuthSetup({ onLogin }) {
                         </div>
                         <h3 className="text-[22px] font-bold text-[#1D1D1F] dark:text-white mb-2 tracking-tight">관리팀 문의</h3>
                         <p className="text-[15px] font-medium text-[#86868B] dark:text-[#A1A1AA] text-center leading-relaxed mb-8">
-                            jk.jeon@igisam.com<br/>010-9076-5369<br/>전기영 부장에게 연락해주세요.
+                            jk.jeon@igisam.com<br/>010-9076-5369<br/>전기영 매니저에게 연락해주세요.
                         </p>
                         <button onClick={() => setShowContactModal(false)} className="w-full py-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white font-semibold text-[16px] hover:bg-[#E8E8ED] dark:hover:bg-[#3A3A3C] transition-colors">
                             닫기
