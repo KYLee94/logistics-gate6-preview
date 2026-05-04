@@ -134,10 +134,15 @@ export default function StakeLp() {
                     stackData.forEach(item => {
                         // Phase filtering based on user requirement
                         if (item.vehicle_name == '816' && item.phase !== 'Refinancing') return;
-                        if (item.vehicle_name == '427' && item.phase !== 'Bridge') return;
+                        if (item.vehicle_name == '427' && item.phase !== 'Refinancing') return;
                         
                         const v = parseInt(item.vehicle_name);
-                        const type = item.tranche_type === 'Equity' ? 'equity' : 'loan';
+                        let type = item.tranche_type === 'Equity' ? 'equity' : 'loan';
+                        
+                        // Hardcode override: 816호의 이지스421호(2400억)는 주주대여금이므로 Equity로 처리
+                        if (v === 816 && item.institution_name === '이지스421호') {
+                            type = 'equity';
+                        }
                         
                         if (parsedIota[v] && parsedIota[v][type]) {
                             parsedIota[v][type].push({
