@@ -109,13 +109,14 @@ const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicl
             </div>
             <div className="w-full">
                 {displayItems.length > 0 ? displayItems.map((item, idx) => {
-                    const isExpanded = expandedRow === item.name;
+                    const uniqueKey = `${vehicle}-${isLoan ? 'loan' : 'equity'}-${item.name}-${item.rawAmount}-${idx}`;
+                    const isExpanded = expandedRow === uniqueKey;
                     const isLastItem = idx === displayItems.length - 1;
                     
                     return (
                         <div key={idx} className="flex flex-col">
                             <div 
-                                onClick={() => toggleRow(item.name)}
+                                onClick={() => toggleRow(uniqueKey, item.name)}
                                 className={`flex items-center justify-between px-5 py-[13px] cursor-pointer transition-colors border border-[#3c3c3c] bg-transparent
                                     ${idx === 0 ? 'rounded-t-[12px]' : ''} 
                                     ${isLastItem && !isExpanded ? 'rounded-b-[12px]' : ''}
@@ -279,11 +280,11 @@ export default function StakeLp() {
         }
     };
 
-    const toggleRow = (instName) => {
-        if (expandedRow === instName) {
+    const toggleRow = (uniqueKey, instName) => {
+        if (expandedRow === uniqueKey) {
             setExpandedRow(null);
         } else {
-            setExpandedRow(instName);
+            setExpandedRow(uniqueKey);
             fetchContacts(instName);
         }
     };
@@ -360,11 +361,12 @@ export default function StakeLp() {
                     // Search Mode (Grid View like StakeInternal)
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {searchResults.length > 0 ? searchResults.map((item, idx) => {
-                            const isExpanded = expandedRow === item.name;
+                            const uniqueKey = `search-${idx}-${item.name}`;
+                            const isExpanded = expandedRow === uniqueKey;
                             return (
                                 <div key={idx} className="col-span-1 md:col-span-1">
                                     <div 
-                                        onClick={() => toggleRow(item.name)}
+                                        onClick={() => toggleRow(uniqueKey, item.name)}
                                         className={`bg-[#1c1c1c] border transition-all cursor-pointer p-5 flex flex-col
                                             ${isExpanded ? 'border-[#0A84FF] rounded-t-[16px]' : 'border-[#3c3c3c] rounded-[16px] hover:border-[#555]'}
                                         `}
