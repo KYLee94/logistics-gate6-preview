@@ -28,23 +28,17 @@ export default function StakeLp() {
                 if (stackData) {
                     stackData.forEach(item => {
                         // For 816 and 427, only take Refinancing for the directory
-                        if ((item.vehicle_name === '816' || item.vehicle_name === '427') && item.phase !== 'Refinancing') return;
+                        if ((item.vehicle_name == '816' || item.vehicle_name == '427') && item.phase !== 'Refinancing') return;
                         
                         const v = parseInt(item.vehicle_name);
                         const type = item.tranche_type === 'Equity' ? 'equity' : 'loan';
                         
                         if (parsedIota[v] && parsedIota[v][type]) {
-                            const existingIdx = parsedIota[v][type].findIndex(x => x.name === item.institution_name);
-                            if (existingIdx !== -1) {
-                                parsedIota[v][type][existingIdx].rawAmount += item.amount_krw_100m;
-                                parsedIota[v][type][existingIdx].amount = parsedIota[v][type][existingIdx].rawAmount.toLocaleString();
-                            } else {
-                                parsedIota[v][type].push({
-                                    name: item.institution_name,
-                                    amount: item.amount_krw_100m.toLocaleString(),
-                                    rawAmount: item.amount_krw_100m
-                                });
-                            }
+                            parsedIota[v][type].push({
+                                name: item.institution_name,
+                                amount: item.amount_krw_100m.toLocaleString(),
+                                rawAmount: item.amount_krw_100m
+                            });
                         }
                     });
                     
