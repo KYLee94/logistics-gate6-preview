@@ -388,7 +388,10 @@ export default function StakeLp() {
                     const amounts = {};
                     const igisInv = {};
                     exps.forEach(ex => {
-                        const name = ex.beneficiary_clean || ex.beneficiary_raw;
+                        let name = ex.beneficiary_clean || ex.beneficiary_raw;
+                        // Map official name to CRM alias
+                        if (name === '사립학교교직원연금공단') name = '사학연금';
+                        
                         if (name && ex.committed_amt) {
                             const amt = parseInt(ex.committed_amt);
                             amounts[name] = (amounts[name] || 0) + amt;
