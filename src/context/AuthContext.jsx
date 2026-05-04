@@ -10,9 +10,19 @@ export function AuthProvider({ children }) {
 
     useEffect(() => {
         // Fetch current session and setup listener
+        let subscription;
+
         const initializeAuth = async () => {
+            let timeoutId;
             try {
+                timeoutId = setTimeout(() => {
+                    console.error("Auth initialization timed out! Forcing load.");
+                    setLoading(false);
+                }, 5000);
+
                 const { data: { session } } = await supabase.auth.getSession();
+                clearTimeout(timeoutId);
+
                 if (session?.user) {
                     setUser(session.user);
                     await fetchMemberInfo(session.user.email);
@@ -23,22 +33,25 @@ export function AuthProvider({ children }) {
             } catch (err) {
                 console.error("Auth initialization error:", err);
             } finally {
+                clearTimeout(timeoutId);
                 setLoading(false);
+                
+                // Only subscribe AFTER initial session is loaded to prevent concurrent lock conflicts
+                const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+                    if (session?.user) {
+                        setUser(session.user);
+                        await fetchMemberInfo(session.user.email);
+                    } else {
+                        setUser(null);
+                        setMemberInfo(null);
+                    }
+                    setLoading(false);
+                });
+                subscription = data.subscription;
             }
         };
 
         initializeAuth();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-            if (session?.user) {
-                setUser(session.user);
-                await fetchMemberInfo(session.user.email);
-            } else {
-                setUser(null);
-                setMemberInfo(null);
-            }
-            setLoading(false);
-        });
 
         return () => {
             subscription?.unsubscribe();
@@ -85,7 +98,12 @@ export function AuthProvider({ children }) {
 
     return (
         <AuthContext.Provider value={{ user, memberInfo, loading, signOut }}>
-            {!loading && children}
+            {loading ? (
+                <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center bg-[#F5F5F7] dark:bg-[#1C1C1E] z-[99999]">
+                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#0071E3] mb-4"></div>
+                    <span className="text-[#86868B] text-sm font-medium">인증 정보를 확인하는 중입니다...</span>
+                </div>
+            ) : children}
         </AuthContext.Provider>
     );
 }

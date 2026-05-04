@@ -75,7 +75,8 @@ export default function SystemFund421() {
                     setIotaData(grouped);
                 }
             } catch (error) {
-                console.error(error);
+                console.error("Unhandled Exception in SystemFund421:", error);
+                setIotaData({ error: error.message || "데이터 로딩 중 예기치 않은 오류가 발생했습니다." });
             } finally {
                 setLoading(false);
             }
