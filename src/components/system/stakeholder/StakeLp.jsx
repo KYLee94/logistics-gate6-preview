@@ -800,7 +800,6 @@ export default function StakeLp() {
                         </div>
 
                     </div>
-                )}
             </div>
         </div>
     );
