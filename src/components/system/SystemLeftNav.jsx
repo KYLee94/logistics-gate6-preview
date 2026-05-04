@@ -139,13 +139,21 @@ export default function SystemLeftNav({ isCore, isPlatform = false }) {
 
             {/* Bottom Profile */}
             <div className="px-[15px] pt-4 pb-3 border-t border-black/10 dark:border-[#3A3A3C] w-full flex items-center justify-between transition-colors duration-300">
-                <div className="flex items-center gap-3 hover:bg-gray-200 dark:hover:bg-[#2C2C2E] p-1.5 -ml-1.5 rounded-lg cursor-pointer transition-colors duration-300">
-                    <div className="w-10 h-10 rounded-full bg-[#E5E5EA] dark:bg-[#c3c2b7] text-[#111] dark:text-[#1F1F1E] flex items-center justify-center text-[16px] font-bold tracking-tighter -ml-[2px] transition-colors duration-300">
-                        JK
+                <div 
+                    className="flex items-center gap-3 hover:bg-gray-200 dark:hover:bg-[#2C2C2E] p-1.5 -ml-1.5 rounded-lg cursor-pointer transition-colors duration-300"
+                    onClick={() => alert("개인 활동 로그 및 권한 설정 패널이 노출됩니다.")}
+                >
+                    <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#E5E5EA] dark:bg-[#2C2C2E] -ml-[2px] border border-black/5 dark:border-white/10 transition-colors duration-300">
+                        <img 
+                            src={`${import.meta.env.BASE_URL}전기영.webp`} 
+                            alt="전기영 매니저" 
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = 'JK'; e.target.parentNode.className = 'w-10 h-10 rounded-full bg-[#E5E5EA] dark:bg-[#c3c2b7] text-[#111] dark:text-[#1F1F1E] flex items-center justify-center text-[16px] font-bold tracking-tighter -ml-[2px] transition-colors duration-300'; }}
+                        />
                     </div>
                     <div className="flex flex-col">
-                        <span className="font-normal text-[14px] leading-tight mb-0.5 text-[#1D1D1F] dark:text-white transition-colors duration-300">Jeon Kiyoung</span>
-                        <span className="text-[#86868B] dark:text-gray-400 text-[12px] leading-none font-normal transition-colors duration-300">설정하기</span>
+                        <span className="font-semibold text-[14px] leading-tight mb-0.5 text-[#1D1D1F] dark:text-white transition-colors duration-300 tracking-tight">전기영 매니저</span>
+                        <span className="text-[#86868B] dark:text-gray-400 text-[12px] leading-none font-medium transition-colors duration-300">활동 로그 보기</span>
                     </div>
                 </div>
                 

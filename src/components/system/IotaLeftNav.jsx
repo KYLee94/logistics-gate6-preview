@@ -282,13 +282,21 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
 
             {/* Bottom Profile */}
             <div className="pl-[15px] pr-[17px] pt-[10px] pb-3 border-t border-[#3A3A3C] w-full flex items-center justify-between transition-colors duration-300">
-                <div className="flex items-center gap-3 hover:bg-[#2C2C2E] p-1.5 -ml-1.5 rounded-lg cursor-pointer transition-colors duration-300">
-                    <div className="w-10 h-10 rounded-full bg-[#c3c2b7] text-[#1F1F1E] flex items-center justify-center text-[16px] font-bold tracking-tighter -ml-[2px]">
-                        JK
+                <div 
+                    className="flex items-center gap-3 hover:bg-[#2C2C2E] p-1.5 -ml-1.5 rounded-lg cursor-pointer transition-colors duration-300"
+                    onClick={() => alert("개인 활동 로그 및 권한 설정 패널이 노출됩니다.")}
+                >
+                    <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#2C2C2E] -ml-[2px] border border-white/10">
+                        <img 
+                            src={`${import.meta.env.BASE_URL}전기영.webp`} 
+                            alt="전기영 매니저" 
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = 'JK'; e.target.parentNode.className = 'w-10 h-10 rounded-full bg-[#c3c2b7] text-[#1F1F1E] flex items-center justify-center text-[16px] font-bold tracking-tighter -ml-[2px]'; }}
+                        />
                     </div>
                     <div className="flex flex-col">
-                        <span className="font-normal text-[14px] leading-tight mb-0.5 text-white">Jeon Kiyoung</span>
-                        <span className="text-[#86868B] text-[12px] leading-none font-normal">설정하기</span>
+                        <span className="font-semibold text-[14px] leading-tight mb-0.5 text-white tracking-tight">전기영 매니저</span>
+                        <span className="text-[#86868B] text-[12px] leading-none font-medium">활동 로그 보기</span>
                     </div>
                 </div>
             </div>
