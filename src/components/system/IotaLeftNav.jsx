@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 
 const menuItems = [
     {
@@ -122,6 +123,7 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
         window.dispatchEvent(new Event('popstate'));
         onMenuChange?.(path);
     };
+    const { user, memberInfo, signOut } = useAuth();
     const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(true);
     const [isStakeholderOpen, setIsStakeholderOpen] = useState(true);
     const [isGovOpen, setIsGovOpen] = useState(true);
@@ -281,23 +283,44 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
             </div>
 
             {/* Bottom Profile */}
-            <div className="pl-[15px] pr-[17px] pt-[10px] pb-3 border-t border-[#3A3A3C] w-full flex items-center justify-between transition-colors duration-300">
-                <div 
-                    className="flex items-center gap-3 hover:bg-[#2C2C2E] p-1.5 -ml-1.5 rounded-lg cursor-pointer transition-colors duration-300"
-                    onClick={() => alert("개인 활동 로그 및 권한 설정 패널이 노출됩니다.")}
-                >
+            <div className="pl-[15px] pr-[17px] pt-[10px] pb-3 border-t border-[#3A3A3C] w-full flex items-center justify-between transition-colors duration-300 relative">
+                
+                <div className="flex items-center gap-3 p-1.5 -ml-1.5 rounded-lg transition-colors duration-300">
                     <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#2C2C2E] -ml-[2px] border border-white/10">
-                        <img 
-                            src={`${import.meta.env.BASE_URL}전기영.webp`} 
-                            alt="전기영 매니저" 
-                            className="w-full h-full object-cover"
-                            onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = 'JK'; e.target.parentNode.className = 'w-10 h-10 rounded-full bg-[#c3c2b7] text-[#1F1F1E] flex items-center justify-center text-[16px] font-bold tracking-tighter -ml-[2px]'; }}
-                        />
+                        {memberInfo?.staff_name ? (
+                            <img 
+                                src={`${import.meta.env.BASE_URL}${memberInfo.staff_name}.webp`} 
+                                alt={`${memberInfo.staff_name} 프로필`} 
+                                className="w-full h-full object-cover"
+                                onError={(e) => { 
+                                    e.target.style.display = 'none'; 
+                                    e.target.parentNode.innerHTML = memberInfo.staff_name.substring(0,2); 
+                                    e.target.parentNode.className = 'w-10 h-10 rounded-full bg-[#c3c2b7] text-[#1F1F1E] flex items-center justify-center text-[15px] font-bold tracking-tighter -ml-[2px]'; 
+                                }}
+                            />
+                        ) : (
+                            <span className="text-[#1F1F1E] font-bold">U</span>
+                        )}
                     </div>
-                    <div className="flex flex-col">
-                        <span className="font-semibold text-[14px] leading-tight mb-0.5 text-white tracking-tight">전기영 매니저</span>
-                        <span className="text-[#86868B] text-[12px] leading-none font-medium">활동 로그 보기</span>
+                    <div className="flex flex-col max-w-[100px]">
+                        <span className="font-semibold text-[14px] leading-tight mb-0.5 text-white tracking-tight truncate">
+                            {memberInfo?.staff_name ? `${memberInfo.staff_name} ${memberInfo.role_code === 'master' ? '마스터' : memberInfo.role_code === 'director' ? '책임' : '매니저'}` : '로그인 필요'}
+                        </span>
+                        <span className="text-[#86868B] text-[11px] leading-none font-medium truncate">
+                            {user?.email || '권한 없음'}
+                        </span>
                     </div>
+                </div>
+
+                <div className="flex items-center">
+                    {/* Logout Button */}
+                    <button 
+                        onClick={async () => { await signOut(); }}
+                        className="text-[#86868B] hover:text-red-500 transition-colors cursor-pointer p-1"
+                        title="로그아웃"
+                    >
+                        <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </button>
                 </div>
             </div>
         </div>

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
+import { useAuth } from '../../context/AuthContext';
 
 export default function SystemLeftNav({ isCore, isPlatform = false }) {
     const { isLightMode, toggleTheme } = useTheme();
+    const { user, memberInfo, signOut } = useAuth();
     const [fakeLight, setFakeLight] = useState(false);
 
     const activeLight = isCore ? fakeLight : isLightMode;
@@ -138,34 +140,53 @@ export default function SystemLeftNav({ isCore, isPlatform = false }) {
             </div>
 
             {/* Bottom Profile */}
-            <div className="px-[15px] pt-4 pb-3 border-t border-black/10 dark:border-[#3A3A3C] w-full flex items-center justify-between transition-colors duration-300">
-                <div 
-                    className="flex items-center gap-3 hover:bg-gray-200 dark:hover:bg-[#2C2C2E] p-1.5 -ml-1.5 rounded-lg cursor-pointer transition-colors duration-300"
-                    onClick={() => alert("개인 활동 로그 및 권한 설정 패널이 노출됩니다.")}
-                >
+            <div className="px-[15px] pt-4 pb-3 border-t border-black/10 dark:border-[#3A3A3C] w-full flex items-center justify-between transition-colors duration-300 relative">
+                
+                <div className="flex items-center gap-3 p-1.5 -ml-1.5 rounded-lg transition-colors duration-300">
                     <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#E5E5EA] dark:bg-[#2C2C2E] -ml-[2px] border border-black/5 dark:border-white/10 transition-colors duration-300">
-                        <img 
-                            src={`${import.meta.env.BASE_URL}전기영.webp`} 
-                            alt="전기영 매니저" 
-                            className="w-full h-full object-cover"
-                            onError={(e) => { e.target.style.display = 'none'; e.target.parentNode.innerHTML = 'JK'; e.target.parentNode.className = 'w-10 h-10 rounded-full bg-[#E5E5EA] dark:bg-[#c3c2b7] text-[#111] dark:text-[#1F1F1E] flex items-center justify-center text-[16px] font-bold tracking-tighter -ml-[2px] transition-colors duration-300'; }}
-                        />
+                        {memberInfo?.staff_name ? (
+                            <img 
+                                src={`${import.meta.env.BASE_URL}${memberInfo.staff_name}.webp`} 
+                                alt={`${memberInfo.staff_name} 프로필`} 
+                                className="w-full h-full object-cover"
+                                onError={(e) => { 
+                                    e.target.style.display = 'none'; 
+                                    e.target.parentNode.innerHTML = memberInfo.staff_name.substring(0,2); 
+                                    e.target.parentNode.className = 'w-10 h-10 rounded-full bg-[#E5E5EA] dark:bg-[#c3c2b7] text-[#111] dark:text-[#1F1F1E] flex items-center justify-center text-[15px] font-bold tracking-tighter -ml-[2px] transition-colors duration-300'; 
+                                }}
+                            />
+                        ) : (
+                            <span className="text-[#111] dark:text-[#1F1F1E] font-bold">U</span>
+                        )}
                     </div>
-                    <div className="flex flex-col">
-                        <span className="font-semibold text-[14px] leading-tight mb-0.5 text-[#1D1D1F] dark:text-white transition-colors duration-300 tracking-tight">전기영 매니저</span>
-                        <span className="text-[#86868B] dark:text-gray-400 text-[12px] leading-none font-medium transition-colors duration-300">활동 로그 보기</span>
+                    <div className="flex flex-col max-w-[100px]">
+                        <span className="font-semibold text-[14px] leading-tight mb-0.5 text-[#1D1D1F] dark:text-white transition-colors duration-300 tracking-tight truncate">
+                            {memberInfo?.staff_name ? `${memberInfo.staff_name} ${memberInfo.role_code === 'master' ? '마스터' : memberInfo.role_code === 'director' ? '책임' : '매니저'}` : '로그인 필요'}
+                        </span>
+                        <span className="text-[#86868B] dark:text-gray-400 text-[11px] leading-none font-medium transition-colors duration-300 truncate">
+                            {user?.email || '권한 없음'}
+                        </span>
                     </div>
                 </div>
                 
-                {/* Theme Toggle Switch */}
-                <div 
-                    className="flex shrink-0 items-center justify-center cursor-default ml-2"
-                >
-                    <div className={`w-[42px] h-[24px] rounded-full relative transition-colors duration-300 ${activeLight ? 'bg-[#c3c2b7]' : 'bg-[#3A3A3C]'} border border-black/10 dark:border-[#4A4A4C]`}>
-                        <div className={`w-[18px] h-[18px] bg-white rounded-full absolute top-[2px] transition-transform duration-300 shadow-sm ${activeLight ? 'translate-x-[20px]' : 'translate-x-[2px]'}`}></div>
-                        {/* Sun/Moon icons */}
-                        <svg className={`absolute left-[4px] top-[4px] w-4 h-4 text-[#111] transition-opacity duration-300 ${activeLight ? 'opacity-100' : 'opacity-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                        <svg className={`absolute right-[3px] top-[3.5px] w-[15px] h-[15px] text-[#A1A1AA] transition-opacity duration-300 ${activeLight ? 'opacity-0' : 'opacity-100'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                <div className="flex items-center gap-2">
+                    {/* Logout Button */}
+                    <button 
+                        onClick={async () => { await signOut(); }}
+                        className="text-[#86868B] hover:text-red-500 transition-colors cursor-pointer p-1"
+                        title="로그아웃"
+                    >
+                        <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                    </button>
+
+                    {/* Theme Toggle Switch */}
+                    <div className="flex shrink-0 items-center justify-center cursor-default">
+                        <div className={`w-[42px] h-[24px] rounded-full relative transition-colors duration-300 ${activeLight ? 'bg-[#c3c2b7]' : 'bg-[#3A3A3C]'} border border-black/10 dark:border-[#4A4A4C]`}>
+                            <div className={`w-[18px] h-[18px] bg-white rounded-full absolute top-[2px] transition-transform duration-300 shadow-sm ${activeLight ? 'translate-x-[20px]' : 'translate-x-[2px]'}`}></div>
+                            {/* Sun/Moon icons */}
+                            <svg className={`absolute left-[4px] top-[4px] w-4 h-4 text-[#111] transition-opacity duration-300 ${activeLight ? 'opacity-100' : 'opacity-0'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                            <svg className={`absolute right-[3px] top-[3.5px] w-[15px] h-[15px] text-[#A1A1AA] transition-opacity duration-300 ${activeLight ? 'opacity-0' : 'opacity-100'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+                        </div>
                     </div>
                 </div>
             </div>

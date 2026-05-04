@@ -3,6 +3,7 @@ import Header from './components/Header';
 import MainLayout from './components/MainLayout';
 import { useAnimations } from './hooks/useAnimations';
 import { useLanguage } from './context/LanguageContext';
+import { useAuth } from './context/AuthContext';
 import Notes from './components/Notes';
 import SystemFullChat from './components/system/SystemFullChat';
 import SystemCore from './components/system/SystemCore';
@@ -65,6 +66,14 @@ export default function App() {
   }, [currentPage]);
 
   const { lang } = useLanguage();
+  const { user, loading } = useAuth();
+
+  // Protect platform routes
+  React.useEffect(() => {
+      if (!loading && !user && currentPage.startsWith('platform/iotaseoul')) {
+          navigateTo('auth-setup');
+      }
+  }, [user, loading, currentPage]);
 
   React.useEffect(() => {
     const applyLanguage = () => {
