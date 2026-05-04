@@ -8,6 +8,7 @@ import SystemFullChat from './components/system/SystemFullChat';
 import SystemCore from './components/system/SystemCore';
 import SystemPlan from './components/system/SystemPlan';
 import SystemLogin from './components/system/SystemLogin';
+import AuthSetup from './components/system/AuthSetup';
 import PlatformCore from './components/system/PlatformCore';
 
 export default function App() {
@@ -110,8 +111,8 @@ export default function App() {
         </div>
       </div>
 
-      <div className={(['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform'].includes(currentPage) || currentPage.startsWith('platform/iotaseoul')) ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
-        {!(['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform'].includes(currentPage) || currentPage.startsWith('platform/iotaseoul')) && (
+      <div className={(['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform', 'auth-setup'].includes(currentPage) || currentPage.startsWith('platform/iotaseoul')) ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
+        {!(['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform', 'auth-setup'].includes(currentPage) || currentPage.startsWith('platform/iotaseoul')) && (
             <Header
               onNavigateToHome={() => setCurrentPage('home')}
               currentPage={currentPage}
@@ -122,6 +123,7 @@ export default function App() {
         {currentPage === 'action-plan' && <Notes />}
         
         {/* Navigation Handlers overriding the inline SystemPlan internal stage logic */}
+        {currentPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo('system-bridge')} />}
         {currentPage === 'system-plan' && <SystemLogin onLogin={() => navigateTo('system-bridge')} />}
         {['system-bridge', 'system-chat', 'system-detail'].includes(currentPage) && (
             <SystemPlan 
