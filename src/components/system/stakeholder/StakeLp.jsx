@@ -21,8 +21,9 @@ const formatTrancheName = (name) => {
     return name;
 };
 
-const AccordionContent = ({ instName, contactsCache, isLast }) => {
+const AccordionContent = ({ instName, contactsCache, metaCache, isLast }) => {
     const contacts = contactsCache[instName];
+    const meta = metaCache ? metaCache[instName] : undefined;
     return (
         <motion.div 
             initial={{ height: 0, opacity: 0 }} 
@@ -31,18 +32,45 @@ const AccordionContent = ({ instName, contactsCache, isLast }) => {
             className={`overflow-hidden bg-transparent border-x border-b border-[#3c3c3c] -mt-[1px] ${isLast ? 'rounded-b-[12px]' : ''}`}
         >
             <div className="p-6 grid grid-cols-2 gap-8">
-                {/* CRM Contacts */}
-                <div>
-                    <h4 className="text-[14px] font-bold text-[#86868B] mb-3 uppercase">Key Contacts (CRM)</h4>
-                    <div className="text-[13px] text-[#A1A1AA] p-4 bg-[#1c1c1c] rounded-xl border border-[#333] text-center h-[120px] flex items-center justify-center">
-                        연락처 정보 구조화 진행중
+                {/* Investment Profile & CRM Contacts */}
+                <div className="flex flex-col gap-6">
+                    <div>
+                        <h4 className="text-[14px] font-bold text-[#86868B] mb-3 uppercase">Investment Profile (투자 현황)</h4>
+                        {!meta ? (
+                            <div className="text-[13px] text-[#A1A1AA]">데이터 연동 중...</div>
+                        ) : meta.length > 0 ? (
+                            <div className="flex flex-col gap-2">
+                                {meta.map((m, i) => (
+                                    <div key={i} className="flex flex-col p-4 bg-transparent border border-[#333] rounded-xl">
+                                        <div className="text-[14px] font-bold text-white mb-1.5">{m.name}</div>
+                                        {m.title && <div className="text-[13px] text-[#A1A1AA] leading-relaxed whitespace-pre-line">{m.title}</div>}
+                                        {(m.email || m.mobile) && (
+                                            <div className="text-[12px] text-[#86868B] mt-2 pt-2 border-t border-[#333] break-all">
+                                                {m.email} {m.email && m.mobile && '|'} {m.mobile}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-[13px] text-[#A1A1AA] p-4 bg-transparent rounded-xl border border-dashed border-[#444] text-center">
+                                등록된 투자 현황이 없습니다.
+                            </div>
+                        )}
+                    </div>
+                    
+                    <div>
+                        <h4 className="text-[14px] font-bold text-[#86868B] mb-3 uppercase">Key Contacts (CRM)</h4>
+                        <div className="text-[13px] text-[#A1A1AA] p-4 bg-transparent rounded-xl border border-dashed border-[#444] text-center h-[80px] flex items-center justify-center">
+                            연락처 정보 구조화 진행중
+                        </div>
                     </div>
                 </div>
                 
                 {/* History / Info */}
                 <div>
                     <h4 className="text-[14px] font-bold text-[#86868B] mb-3 uppercase">소통 히스토리 & Notes</h4>
-                    <div className="p-4 bg-[#1e1e1e] rounded-xl border border-[#333] h-[120px] flex items-center justify-center">
+                    <div className="p-4 bg-transparent rounded-xl border border-dashed border-[#444] h-[120px] flex items-center justify-center">
                         <span className="text-[13px] text-[#555]">최근 미팅 노트 연동 준비중</span>
                     </div>
                 </div>
@@ -51,7 +79,7 @@ const AccordionContent = ({ instName, contactsCache, isLast }) => {
     );
 };
 
-const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicle, expandedRow, toggleRow, contactsCache }) => {
+const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicle, expandedRow, toggleRow, contactsCache, metaCache }) => {
     const [showAll, setShowAll] = useState(false);
     const [activePhase, setActivePhase] = useState('refi');
     
@@ -137,7 +165,7 @@ const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicl
                                 </div>
                             </div>
                             <AnimatePresence>
-                                {isExpanded && <AccordionContent instName={item.name} contactsCache={contactsCache} isLast={isLastItem} />}
+                                {isExpanded && <AccordionContent instName={item.name} contactsCache={contactsCache} metaCache={metaCache} isLast={isLastItem} />}
                             </AnimatePresence>
                         </div>
                     );
@@ -156,6 +184,7 @@ export default function StakeLp() {
     const [loading, setLoading] = useState(true);
     const [expandedRow, setExpandedRow] = useState(null); // { name: string }
     const [contactsCache, setContactsCache] = useState({});
+    const [metaCache, setMetaCache] = useState({});
 
     // Fetch master DB for "Other Investors" and IOTA Stack
     useEffect(() => {
@@ -288,10 +317,14 @@ export default function StakeLp() {
                     if (title.length > 20) return false;
                     return true;
                 });
+                
+                const metaContacts = (ctData || []).filter(c => !validContacts.includes(c));
 
                 setContactsCache(prev => ({ ...prev, [instName]: validContacts }));
+                setMetaCache(prev => ({ ...prev, [instName]: metaContacts }));
             } else {
                 setContactsCache(prev => ({ ...prev, [instName]: [] }));
+                setMetaCache(prev => ({ ...prev, [instName]: [] }));
             }
         } catch (error) {
             console.error(error);
@@ -414,7 +447,7 @@ export default function StakeLp() {
                                     <AnimatePresence>
                                         {isExpanded && (
                                             <div className="col-span-full">
-                                                <AccordionContent instName={item.name} />
+                                                <AccordionContent instName={item.name} contactsCache={contactsCache} metaCache={metaCache} isLast={true} />
                                             </div>
                                         )}
                                     </AnimatePresence>
@@ -495,7 +528,7 @@ export default function StakeLp() {
                                                     </div>
                                                 </div>
                                                 <AnimatePresence>
-                                                    {isExpanded && <AccordionContent instName={item.name} contactsCache={contactsCache} isLast={idx === otherInvestors.length - 1} />}
+                                                    {isExpanded && <AccordionContent instName={item.name} contactsCache={contactsCache} metaCache={metaCache} isLast={idx === otherInvestors.length - 1} />}
                                                 </AnimatePresence>
                                             </div>
                                         );
