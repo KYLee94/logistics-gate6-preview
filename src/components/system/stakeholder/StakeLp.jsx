@@ -131,10 +131,17 @@ const AccordionContent = ({ instName, contactsCache, metaCache, isLast, isMaster
                                     <div className="flex flex-col gap-3">
                                         {historyMeta.map((h, i) => (
                                             <div key={i} className="p-4 bg-transparent rounded-xl border border-[#333]">
-                                                {h.name && <div className="text-[13px] font-bold text-[#34d399] mb-1">[{h.name}]</div>}
-                                                {h.title && <div className="text-[12px] text-[#A1A1AA] mb-2 font-medium">참석자: {h.title}</div>}
-                                                {h.email && <div className="text-[13px] text-white leading-relaxed whitespace-pre-line mb-2">{h.email}</div>}
-                                                {h.mobile && <div className="text-[13px] text-[#A1A1AA] leading-relaxed whitespace-pre-line">{h.mobile}</div>}
+                                                {h.created_at && (
+                                                    <div className="text-[12px] font-medium text-[#86868B] mb-2">{new Date(h.created_at).toLocaleDateString()}</div>
+                                                )}
+                                                {h.name && <div className="text-[13px] font-bold text-[#34d399] mb-2">[{h.name}]</div>}
+                                                {h.title && <div className="text-[12px] text-[#A1A1AA] mb-1 font-medium">투자자 참석자: {h.title}</div>}
+                                                {h.department && <div className="text-[12px] text-[#A1A1AA] mb-2 font-medium">우리측 담당자: {h.department}</div>}
+                                                {(h.metadata?.full_text || h.email) && (
+                                                    <div className="text-[13px] text-[#e5e5e5] leading-relaxed whitespace-pre-line mt-3 p-3 bg-[#111] rounded-lg border border-[#333]">
+                                                        {h.metadata?.full_text || h.email}
+                                                    </div>
+                                                )}
                                             </div>
                                         ))}
                                     </div>
@@ -183,12 +190,14 @@ const AccordionContent = ({ instName, contactsCache, metaCache, isLast, isMaster
                                             {h.created_at && (
                                                 <div className="text-[12px] font-medium text-[#86868B] mb-2">{new Date(h.created_at).toLocaleDateString()}</div>
                                             )}
-                                            <div className="text-[13px] text-[#e5e5e5] leading-relaxed whitespace-pre-line mb-1">
-                                                {h.metadata?.full_text || h.name}
-                                            </div>
-                                            {h.title && <div className="text-[12px] text-[#A1A1AA] mb-2 font-medium">참석자: {h.title}</div>}
-                                            {h.email && <div className="text-[13px] text-white leading-relaxed whitespace-pre-line mb-2">{h.email}</div>}
-                                            {h.mobile && <div className="text-[13px] text-[#A1A1AA] leading-relaxed whitespace-pre-line">{h.mobile}</div>}
+                                            {h.name && <div className="text-[13px] font-bold text-[#34d399] mb-2">[{h.name}]</div>}
+                                            {h.title && <div className="text-[12px] text-[#A1A1AA] mb-1 font-medium">투자자 참석자: {h.title}</div>}
+                                            {h.department && <div className="text-[12px] text-[#A1A1AA] mb-2 font-medium">우리측 담당자: {h.department}</div>}
+                                            {(h.metadata?.full_text || h.email) && (
+                                                <div className="text-[13px] text-[#e5e5e5] leading-relaxed whitespace-pre-line mt-3 p-3 bg-[#111] rounded-lg border border-[#333]">
+                                                    {h.metadata?.full_text || h.email}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
