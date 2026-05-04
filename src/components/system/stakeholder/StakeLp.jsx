@@ -738,6 +738,7 @@ export default function StakeLp() {
                                                     `}
                                                 >
                                                     <div className="flex items-center gap-4">
+                                                        <div className="w-[24px] text-[13px] font-medium text-[#555] text-center">{idx + 1}</div>
                                                         <span className="text-[15px] font-medium text-white">{item.name}</span>
                                                         <span className="text-[12px] text-[#86868B] border border-[#444] px-2 py-0.5 rounded-md">{item.category || '기타'}</span>
                                                     </div>
