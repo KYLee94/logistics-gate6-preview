@@ -7,6 +7,8 @@ export default function AuthSetup({ onLogin }) {
     const [dissolved, setDissolved] = useState(false);
     const [hasError, setHasError] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
+    const [showContactModal, setShowContactModal] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
 
     useEffect(() => {
         const timer = setTimeout(() => setMounted(true), 100);
@@ -32,9 +34,11 @@ export default function AuthSetup({ onLogin }) {
             return;
         }
         
-        const confirmed = window.confirm(`설정하신 패스워드: ${password}\n\n이대로 진행할까요?`);
-        if (!confirmed) return;
-        
+        setShowConfirmModal(true);
+    };
+
+    const proceedLogin = () => {
+        setShowConfirmModal(false);
         // 실제 연동 시 이곳에서 supabase.auth.signUp 또는 updateUser 등을 호출하여 비밀번호를 DB에 저장하게 됩니다.
         
         setDissolved(true);
@@ -64,7 +68,7 @@ export default function AuthSetup({ onLogin }) {
                         window.history.pushState(null, '', import.meta.env.BASE_URL);
                         window.dispatchEvent(new Event('popstate'));
                     }} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">IFPDP 소개</button>
-                    <button onClick={() => alert("jk.jeon@igisam.com 010-9076-5369 전기영 매니저에게 연락해주세요.")} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">관리팀 문의</button>
+                    <button onClick={() => setShowContactModal(true)} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">관리팀 문의</button>
                 </div>
             </div>
 
@@ -134,6 +138,49 @@ export default function AuthSetup({ onLogin }) {
 
                 </div>
             </div>
+
+            {/* Custom Contact Modal */}
+            {showContactModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => setShowContactModal(false)}>
+                    <div className="bg-white dark:bg-[#1C1C1E] w-[420px] rounded-[24px] p-8 shadow-2xl flex flex-col items-center" onClick={e => e.stopPropagation()}>
+                        <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-[#2C2C2E] flex items-center justify-center mb-5">
+                            <svg className="w-6 h-6 text-[#1D1D1F] dark:text-white" fill="none" strokeWidth="2" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-[22px] font-bold text-[#1D1D1F] dark:text-white mb-2 tracking-tight">관리팀 문의</h3>
+                        <p className="text-[15px] font-medium text-[#86868B] dark:text-[#A1A1AA] text-center leading-relaxed mb-8">
+                            jk.jeon@igisam.com<br/>010-9076-5369<br/>전기영 매니저에게 연락해주세요.
+                        </p>
+                        <button onClick={() => setShowContactModal(false)} className="w-full py-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white font-semibold text-[16px] hover:bg-[#E8E8ED] dark:hover:bg-[#3A3A3C] transition-colors">
+                            닫기
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Custom Confirm Modal */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
+                    <div className="bg-white dark:bg-[#1C1C1E] w-[400px] rounded-[24px] p-8 shadow-2xl flex flex-col items-center">
+                        <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-5">
+                            <svg className="w-6 h-6 text-[#0071E3] dark:text-[#47A1FF]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                        </div>
+                        <h3 className="text-[20px] font-bold text-[#1D1D1F] dark:text-white mb-4 tracking-tight">패스워드 확인</h3>
+                        <div className="bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-lg px-6 py-3 mb-6 flex flex-col items-center">
+                            <span className="text-[13px] text-[#86868B] dark:text-[#A1A1AA] mb-1">설정하신 패스워드</span>
+                            <span className="text-[18px] font-semibold text-[#1D1D1F] dark:text-white tracking-widest">{password}</span>
+                        </div>
+                        <p className="text-[16px] font-medium text-[#1D1D1F] dark:text-white mb-8">이대로 진행할까요?</p>
+                        <div className="w-full flex gap-3">
+                            <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white font-semibold text-[15px] hover:bg-[#E8E8ED] dark:hover:bg-[#3A3A3C] transition-colors">취소</button>
+                            <button onClick={proceedLogin} className="flex-1 py-3.5 rounded-xl bg-[#0071E3] text-white font-semibold text-[15px] hover:bg-[#0077ED] transition-colors">진행하기</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
