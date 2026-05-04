@@ -44,8 +44,17 @@ const AccordionContent = ({ instName, contactsCache, metaCache, isLast, isMaster
                                     <div className="flex flex-col gap-4">
                                         {meta.map((m, i) => (
                                             <div key={i} className="flex flex-col pb-4 border-b border-[#333] last:border-0">
-                                                <div className="text-[14px] font-bold text-white mb-1.5">{m.name}</div>
+                                                <div className="flex items-baseline gap-2 mb-1.5">
+                                                    <div className="text-[14px] font-bold text-white">{m.name}</div>
+                                                    {m.department && m.department !== '0' && (
+                                                        <div className="text-[14px] text-white">
+                                                            {!isNaN(m.department) ? `${Number(m.department).toLocaleString()}억` : m.department}
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 {m.title && <div className="text-[13px] text-[#A1A1AA] leading-relaxed whitespace-pre-line">{m.title}</div>}
+                                                {m.email && <div className="text-[13px] text-[#A1A1AA] leading-relaxed whitespace-pre-line">{m.email}</div>}
+                                                {m.mobile && <div className="text-[13px] text-[#A1A1AA] leading-relaxed whitespace-pre-line">{m.mobile}</div>}
                                             </div>
                                         ))}
                                     </div>
