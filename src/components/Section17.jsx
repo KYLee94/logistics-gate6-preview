@@ -83,7 +83,7 @@ export default function Section16({ isActive }) {
                 {/* RIGHT: iPad Image Asset */}
                 <div className={`relative w-full flex justify-end lg:justify-start lg:-ml-[90px] items-center transition-all duration-[1500ms] ease-[cubic-bezier(0.16,1,0.3,1)] transform ${step >= 1 ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-32'}`}>
                     <img 
-                        src={`${import.meta.env.BASE_URL}ipad.jpg`}
+                        src={`${import.meta.env.BASE_URL}ipad.webp`}
                         alt="iPad Dashboard Graphic" 
                         className="w-[1200px] h-auto max-w-[1200px] object-contain origin-left mix-blend-darken"
                     />

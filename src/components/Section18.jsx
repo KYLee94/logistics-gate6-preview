@@ -26,7 +26,7 @@ export default function Section17({ isActive }) {
                 {/* Image constrained by viewport height instead of wrapper width */}
                 <div className={`relative flex flex-col justify-center items-center overflow-hidden transition-all duration-[1600ms] ${isZooming ? 'ease-[cubic-bezier(0.7,0,0.1,1)]' : 'ease-[cubic-bezier(0.16,1,0.3,1)]'} transform ${isZooming ? 'scale-[20] origin-[50%_35%]' : (step >= 1 ? 'opacity-100 scale-100 origin-center' : 'opacity-0 scale-[0.98] origin-center')}`}>
                     <img 
-                        src={`${import.meta.env.BASE_URL}inside_IFPDP.jpg`} 
+                        src={`${import.meta.env.BASE_URL}inside_IFPDP.webp`} 
                         alt="Inside IFPDP Monitor Graphic" 
                         className="h-[84vh] w-auto object-contain block mx-auto"
                     />
