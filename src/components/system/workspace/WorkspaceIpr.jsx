@@ -90,6 +90,9 @@ export default function WorkspaceIpr() {
                     {activeTab === 0 && (
                         // 1. 투자구조
                         <div className="flex flex-col items-center">
+                            <div className="w-[800px] mb-[10px]">
+                                <h3 className="text-[16px] text-white font-bold tracking-tight text-left">2026년 10월 Closing 시점에 보통주 Equity 및 Bridge Loan을 통해 잔금100% 구조로 매매대금 지급</h3>
+                            </div>
                             <div className="bg-[#0A2640] text-white px-[40px] py-[16px] rounded-[20px] font-bold text-[15px] border border-[#2997ff]/30 shadow-lg mt-[10px]">이지스프로젝트리츠(IPR)</div>
                             
                             {/* Branching Lines */}
@@ -101,33 +104,33 @@ export default function WorkspaceIpr() {
 
                             <div className="flex gap-[40px] w-[800px] mt-[-1px]">
                                 {/* YD427PFV */}
-                                <div className="flex-1 bg-[#2a2d24] border border-[#4d5341] rounded-[24px] pt-[10px] px-[20px] pb-[14px] flex flex-col gap-[16px]">
-                                    <div className="text-center font-bold text-white pb-3 border-b border-[#4d5341] mt-[4px]">YD427PFV</div>
+                                <div className="flex-1 bg-[#1c1c1e] border border-[#3c3c3c] rounded-[24px] pt-[16px] px-[20px] pb-[20px] flex flex-col gap-[16px]">
+                                    <div className="text-center font-bold text-white pb-3 border-b border-[#3c3c3c] mt-[4px]">YD427PFV</div>
                                     <div className="flex justify-between text-[13px] text-[#E5E5E5] px-2">
                                         <div className="flex flex-col items-center"><span className="font-bold underline underline-offset-2">누적 투입금액</span><span className="text-[#A1A1AA]">(2조 2,800억원)</span></div>
                                         <div className="flex flex-col items-center"><span className="font-bold underline underline-offset-2">투자 자산</span><span className="text-[#A1A1AA]">밀레니엄 힐튼호텔</span></div>
                                     </div>
-                                    <div className="flex flex-col gap-2 -mt-1">
-                                        <div className="bg-[#0A2640] text-white p-[16px] rounded-[16px] text-center text-[13px] h-[80px] flex flex-col justify-center border border-[#2997ff]/20 shadow-inner">
+                                    <div className="flex flex-col gap-2 -mt-1 h-full justify-end">
+                                        <div className="bg-[#0A2640] text-white p-[16px] rounded-[16px] text-center text-[13px] h-[90px] flex flex-col justify-center border border-[#2997ff]/20 shadow-inner">
                                             <span className="font-bold">Pre-PF Loan</span><span className="text-[#A1A1AA]">(2조 2,000억원)</span>
                                         </div>
-                                        <div className="bg-[#e0f2fe] text-[#0A2640] p-[12px] rounded-[16px] text-center text-[13px] font-bold shadow-inner mb-[6px]">
+                                        <div className="bg-[#e0f2fe] text-[#0A2640] py-[16px] px-[12px] rounded-[16px] text-center text-[13px] font-bold shadow-inner mb-[6px]">
                                             Equity (800억원)
                                         </div>
                                     </div>
                                 </div>
                                 {/* YD816PFV */}
-                                <div className="flex-1 bg-[#2a2d24] border border-[#4d5341] rounded-[24px] pt-[10px] px-[20px] pb-[14px] flex flex-col gap-[16px]">
-                                    <div className="text-center font-bold text-white pb-3 border-b border-[#4d5341] mt-[4px]">YD816PFV</div>
+                                <div className="flex-1 bg-[#1c1c1e] border border-[#3c3c3c] rounded-[24px] pt-[16px] px-[20px] pb-[20px] flex flex-col gap-[16px]">
+                                    <div className="text-center font-bold text-white pb-3 border-b border-[#3c3c3c] mt-[4px]">YD816PFV</div>
                                     <div className="flex justify-between text-[13px] text-[#E5E5E5] px-2">
                                         <div className="flex flex-col items-center"><span className="font-bold underline underline-offset-2">누적 투입금액</span><span className="text-[#A1A1AA]">(1조 434억원)</span></div>
                                         <div className="flex flex-col items-center"><span className="font-bold underline underline-offset-2">투자 자산</span><span className="text-[#A1A1AA]">서울·메트로타워</span></div>
                                     </div>
-                                    <div className="flex flex-col gap-2 -mt-1">
-                                        <div className="bg-[#0A2640] text-white p-[16px] rounded-[16px] text-center text-[13px] h-[80px] flex flex-col justify-center border border-[#2997ff]/20 shadow-inner">
+                                    <div className="flex flex-col gap-2 -mt-1 h-full justify-end">
+                                        <div className="bg-[#0A2640] text-white p-[16px] rounded-[16px] text-center text-[13px] h-[90px] flex flex-col justify-center border border-[#2997ff]/20 shadow-inner">
                                             <span className="font-bold">Bridge Loan</span><span className="text-[#A1A1AA]">(7,970억원)</span>
                                         </div>
-                                        <div className="bg-[#e0f2fe] text-[#0A2640] p-[12px] rounded-[16px] text-center text-[13px] font-bold shadow-inner mb-[6px]">
+                                        <div className="bg-[#e0f2fe] text-[#0A2640] py-[16px] px-[12px] rounded-[16px] text-center text-[13px] font-bold shadow-inner mb-[6px]">
                                             Equity* (2,464억원)
                                         </div>
                                     </div>
