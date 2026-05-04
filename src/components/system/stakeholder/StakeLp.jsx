@@ -2,7 +2,112 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../../utils/supabaseClient';
 
-// Fetched dynamically from DB
+const AccordionContent = ({ instName, contactsCache, isLast }) => {
+    const contacts = contactsCache[instName];
+    return (
+        <motion.div 
+            initial={{ height: 0, opacity: 0 }} 
+            animate={{ height: 'auto', opacity: 1 }} 
+            exit={{ height: 0, opacity: 0 }}
+            className={`overflow-hidden bg-[#2a2a2a] border-x border-b border-[#3c3c3c] -mt-[1px] ${isLast ? 'rounded-b-[12px]' : ''}`}
+        >
+            <div className="p-6 grid grid-cols-2 gap-8">
+                {/* CRM Contacts */}
+                <div>
+                    <h4 className="text-[14px] font-bold text-[#86868B] mb-3 uppercase">Key Contacts (CRM)</h4>
+                    {!contacts ? (
+                        <div className="text-[13px] text-[#A1A1AA]">데이터 연동 중...</div>
+                    ) : contacts.length > 0 ? (
+                        <div className="flex flex-col gap-3">
+                            {contacts.map((c, i) => (
+                                <div key={i} className="flex items-center gap-3 p-3 bg-[#1e1e1e] rounded-xl border border-[#333]">
+                                    <div className="w-10 h-10 rounded-full bg-[#111] flex items-center justify-center text-[14px] font-bold text-white border border-[#444]">
+                                        {c.name.substring(0,1)}
+                                    </div>
+                                    <div>
+                                        <div className="text-[14px] font-bold text-white">{c.name} <span className="text-[#A1A1AA] font-normal text-[13px] ml-1">{c.title}</span></div>
+                                        <div className="text-[12px] text-[#86868B] mt-0.5">{c.department} | {c.mobile} | {c.email}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-[13px] text-[#A1A1AA] p-4 bg-[#1e1e1e] rounded-xl border border-[#333] text-center">
+                            등록된 CRM 정보가 없습니다.
+                        </div>
+                    )}
+                </div>
+                
+                {/* History / Info */}
+                <div>
+                    <h4 className="text-[14px] font-bold text-[#86868B] mb-3 uppercase">소통 히스토리 & Notes</h4>
+                    <div className="p-4 bg-[#1e1e1e] rounded-xl border border-[#333] h-[120px] flex items-center justify-center">
+                        <span className="text-[13px] text-[#555]">최근 미팅 노트 연동 준비중</span>
+                    </div>
+                </div>
+            </div>
+        </motion.div>
+    );
+};
+
+const TransparentTable = ({ title, items, isLoan, expandedRow, toggleRow, contactsCache }) => {
+    const [showAll, setShowAll] = useState(false);
+    const displayItems = showAll ? items : items.slice(0, 5);
+
+    return (
+        <div className="mb-10">
+            <h3 className="text-[16px] font-bold text-white mb-3 pl-2 flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${isLoan ? 'bg-[#0A84FF]' : 'bg-[#34d399]'}`}></span>
+                {title}
+            </h3>
+            <div className="w-full">
+                {displayItems.length > 0 ? displayItems.map((item, idx) => {
+                    const isExpanded = expandedRow === item.name;
+                    const isLastItem = idx === displayItems.length - 1 && (showAll || items.length <= 5);
+                    
+                    return (
+                        <div key={idx} className="flex flex-col">
+                            <div 
+                                onClick={() => toggleRow(item.name)}
+                                className={`flex items-center justify-between px-5 py-[13px] cursor-pointer transition-colors border border-[#3c3c3c] bg-transparent
+                                    ${idx === 0 ? 'rounded-t-[12px]' : ''} 
+                                    ${isLastItem && !isExpanded ? 'rounded-b-[12px]' : ''}
+                                    ${idx !== 0 ? '-mt-[1px]' : ''}
+                                    ${isExpanded ? 'bg-[#2a2a2a] border-b-transparent z-10' : 'hover:bg-[#222]'}
+                                `}
+                            >
+                                <div className="flex items-center gap-4">
+                                    <span className="text-[15px] font-medium text-white">{item.name}</span>
+                                </div>
+                                <div className="flex items-center gap-6">
+                                    <span className="text-[15px] font-bold text-white text-right w-[100px]">{item.amount}억</span>
+                                    <svg className={`w-4 h-4 text-[#86868B] transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
+                                </div>
+                            </div>
+                            <AnimatePresence>
+                                {isExpanded && <AccordionContent instName={item.name} contactsCache={contactsCache} isLast={isLastItem} />}
+                            </AnimatePresence>
+                        </div>
+                    );
+                }) : (
+                    <div className="px-5 py-4 border border-[#3c3c3c] rounded-[12px] text-[14px] text-[#A1A1AA] text-center">데이터 없음</div>
+                )}
+                
+                {items.length > 5 && !showAll && (
+                    <div 
+                        onClick={() => setShowAll(true)}
+                        className="flex items-center justify-center px-5 py-[13px] cursor-pointer transition-colors border border-[#3c3c3c] border-t-0 bg-[#1c1c1c] hover:bg-[#222] rounded-b-[12px]"
+                    >
+                        <span className="text-[14px] text-[#86868B] font-medium flex items-center gap-2">
+                            전체보기 ({items.length - 5}개 더보기)
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" transform="rotate(180 12 12)"/></svg>
+                        </span>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
 
 export default function StakeLp() {
     const [searchTerm, setSearchTerm] = useState('');
@@ -174,93 +279,7 @@ export default function StakeLp() {
     const searchResults = getSearchResults();
     const isSearchResultNonIota = isSearching && searchResults.every(r => !r.isIota);
 
-    const AccordionContent = ({ instName }) => {
-        const contacts = contactsCache[instName];
-        return (
-            <motion.div 
-                initial={{ height: 0, opacity: 0 }} 
-                animate={{ height: 'auto', opacity: 1 }} 
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden bg-[#1c1c1c] border-x border-b border-[#3c3c3c] rounded-b-[12px] -mt-[1px] mb-[10px]"
-            >
-                <div className="p-6 grid grid-cols-2 gap-8">
-                    {/* CRM Contacts */}
-                    <div>
-                        <h4 className="text-[14px] font-bold text-[#86868B] mb-3 uppercase">Key Contacts (CRM)</h4>
-                        {!contacts ? (
-                            <div className="text-[13px] text-[#A1A1AA]">데이터 연동 중...</div>
-                        ) : contacts.length > 0 ? (
-                            <div className="flex flex-col gap-3">
-                                {contacts.map((c, i) => (
-                                    <div key={i} className="flex items-center gap-3 p-3 bg-[#252525] rounded-xl border border-[#333]">
-                                        <div className="w-10 h-10 rounded-full bg-[#111] flex items-center justify-center text-[14px] font-bold text-white border border-[#444]">
-                                            {c.name.substring(0,1)}
-                                        </div>
-                                        <div>
-                                            <div className="text-[14px] font-bold text-white">{c.name} <span className="text-[#A1A1AA] font-normal text-[13px] ml-1">{c.title}</span></div>
-                                            <div className="text-[12px] text-[#86868B] mt-0.5">{c.department} | {c.mobile} | {c.email}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="text-[13px] text-[#A1A1AA] p-4 bg-[#252525] rounded-xl border border-[#333] text-center">
-                                등록된 CRM 정보가 없습니다.
-                            </div>
-                        )}
-                    </div>
-                    
-                    {/* History / Info */}
-                    <div>
-                        <h4 className="text-[14px] font-bold text-[#86868B] mb-3 uppercase">소통 히스토리 & Notes</h4>
-                        <div className="p-4 bg-[#252525] rounded-xl border border-[#333] h-[120px] flex items-center justify-center">
-                            <span className="text-[13px] text-[#555]">최근 미팅 노트 연동 준비중</span>
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
-        );
-    };
 
-    const TransparentTable = ({ title, items, isLoan }) => (
-        <div className="mb-8">
-            <h3 className="text-[16px] font-bold text-white mb-3 pl-2 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${isLoan ? 'bg-[#0A84FF]' : 'bg-[#34d399]'}`}></span>
-                {title}
-            </h3>
-            <div className="w-full">
-                {items.length > 0 ? items.map((item, idx) => {
-                    const isExpanded = expandedRow === item.name;
-                    return (
-                        <div key={idx} className="flex flex-col">
-                            <div 
-                                onClick={() => toggleRow(item.name)}
-                                className={`flex items-center justify-between px-5 py-[14px] cursor-pointer transition-colors border border-[#3c3c3c] bg-transparent
-                                    ${idx === 0 && !isExpanded ? 'rounded-t-[12px]' : ''} 
-                                    ${idx === items.length - 1 && !isExpanded ? 'rounded-b-[12px]' : ''}
-                                    ${idx !== 0 ? '-mt-[1px]' : ''}
-                                    ${isExpanded ? 'bg-[#2a2a2a] rounded-t-[12px] border-b-transparent z-10' : 'hover:bg-[#222]'}
-                                `}
-                            >
-                                <div className="flex items-center gap-4">
-                                    <span className="text-[15px] font-medium text-white">{item.name}</span>
-                                </div>
-                                <div className="flex items-center gap-6">
-                                    <span className="text-[15px] font-bold text-white text-right w-[100px]">{item.amount}억</span>
-                                    <svg className={`w-4 h-4 text-[#86868B] transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"/></svg>
-                                </div>
-                            </div>
-                            <AnimatePresence>
-                                {isExpanded && <AccordionContent instName={item.name} />}
-                            </AnimatePresence>
-                        </div>
-                    );
-                }) : (
-                    <div className="px-5 py-4 border border-[#3c3c3c] rounded-[12px] text-[14px] text-[#A1A1AA] text-center">데이터 없음</div>
-                )}
-            </div>
-        </div>
-    );
 
     return (
         <div className="w-full flex-1 flex flex-col pt-[40px] pb-[60px] px-[40px] max-w-[1200px] mx-auto">
@@ -336,30 +355,30 @@ export default function StakeLp() {
                             <div className="text-center text-[#86868B] py-10">DB 데이터 연동 중...</div>
                         ) : (
                             <>
-                                {/* IOTA 816 (Highest Priority currently) */}
-                                <div className="bg-[#151515] p-6 rounded-[24px] border border-[#2c2c2e]">
-                                    <h2 className="text-[22px] font-bold text-white mb-6 tracking-tight">IOTA Two (816 PFV)</h2>
+                                {/* IOTA 427 */}
+                                <div className="mb-12">
+                                    <h2 className="text-[22px] font-bold text-white mb-6 tracking-tight">IOTA One (427 PFV)</h2>
                                     <div className="grid grid-cols-2 gap-8">
-                                        <div><TransparentTable title="Equity (출자자)" items={iotaData[816].equity} isLoan={false} /></div>
-                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[816].loan} isLoan={true} /></div>
+                                        <div><TransparentTable title="Equity (수익자)" items={iotaData[427].equity} isLoan={false} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
+                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[427].loan} isLoan={true} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
                                     </div>
                                 </div>
 
-                                {/* IOTA 427 */}
-                                <div className="bg-[#151515] p-6 rounded-[24px] border border-[#2c2c2e]">
-                                    <h2 className="text-[22px] font-bold text-white mb-6 tracking-tight">IOTA One (427 PFV)</h2>
+                                {/* IOTA 816 (Highest Priority currently) */}
+                                <div className="mb-12">
+                                    <h2 className="text-[22px] font-bold text-white mb-6 tracking-tight">IOTA Two (816 PFV)</h2>
                                     <div className="grid grid-cols-2 gap-8">
-                                        <div><TransparentTable title="Equity (출자자)" items={iotaData[427].equity} isLoan={false} /></div>
-                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[427].loan} isLoan={true} /></div>
+                                        <div><TransparentTable title="Equity (수익자)" items={iotaData[816].equity} isLoan={false} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
+                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[816].loan} isLoan={true} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
                                     </div>
                                 </div>
 
                                 {/* IOTA 421 */}
-                                <div id="section-421" className="bg-[#151515] p-6 rounded-[24px] border border-[#2c2c2e]">
+                                <div id="section-421" className="mb-12">
                                     <h2 className="text-[22px] font-bold text-white mb-6 tracking-tight">421호 펀드</h2>
                                     <div className="grid grid-cols-2 gap-8">
-                                        <div><TransparentTable title="Equity (출자자)" items={iotaData[421].equity} isLoan={false} /></div>
-                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[421].loan} isLoan={true} /></div>
+                                        <div><TransparentTable title="Equity (수익자)" items={iotaData[421].equity} isLoan={false} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
+                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[421].loan} isLoan={true} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
                                     </div>
                                 </div>
                             </>
@@ -397,7 +416,7 @@ export default function StakeLp() {
                                                     </div>
                                                 </div>
                                                 <AnimatePresence>
-                                                    {isExpanded && <AccordionContent instName={item.name} />}
+                                                    {isExpanded && <AccordionContent instName={item.name} contactsCache={contactsCache} isLast={false} />}
                                                 </AnimatePresence>
                                             </div>
                                         );
