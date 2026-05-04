@@ -234,13 +234,14 @@ export default function StakeLp() {
                 // Fetch counterparties
                 const { data: cps } = await supabase.from('counterparties').select('counterparty_id, name, category');
                 // Fetch exposures
-                const { data: exps } = await supabase.from('beneficiary_exposures').select('counterparty_id, committed_amt');
+                const { data: exps } = await supabase.from('beneficiary_exposures').select('beneficiary_clean, beneficiary_raw, committed_amt');
                 
                 if (cps && exps && parsedIota) {
                     const amounts = {};
                     exps.forEach(ex => {
-                        if (ex.counterparty_id && ex.committed_amt) {
-                            amounts[ex.counterparty_id] = (amounts[ex.counterparty_id] || 0) + parseInt(ex.committed_amt);
+                        const name = ex.beneficiary_clean || ex.beneficiary_raw;
+                        if (name && ex.committed_amt) {
+                            amounts[name] = (amounts[name] || 0) + parseInt(ex.committed_amt);
                         }
                     });
 
@@ -255,7 +256,7 @@ export default function StakeLp() {
                         .filter(cp => cp.name && !iotaNames.has(cp.name))
                         .map(cp => ({
                             ...cp,
-                            total_amt: amounts[cp.counterparty_id] || 0
+                            total_amt: amounts[cp.name] || 0
                         }))
                         .filter(cp => cp.total_amt > 0)
                         .sort((a, b) => b.total_amt - a.total_amt)
