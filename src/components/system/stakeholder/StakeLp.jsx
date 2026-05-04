@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../../utils/supabaseClient';
+import { fetchWithRetry } from '../../../utils/fetchWithRetry';
 
 const getTrancheColor = (trancheName) => {
     if (!trancheName) return 'text-[#86868B]';
@@ -328,7 +329,7 @@ export default function StakeLp() {
         const fetchMaster = async () => {
             try {
                 // Fetch IOTA Capital Stack
-                const { data: stackData, error: stackError } = await supabase.from('iota_capital_stack').select('*');
+                const { data: stackData, error: stackError } = await fetchWithRetry(() => supabase.from('iota_capital_stack').select('*'));
                 if (stackError) {
                     console.error("Supabase API Error:", stackError);
                     setIotaData({ error: stackError.message });

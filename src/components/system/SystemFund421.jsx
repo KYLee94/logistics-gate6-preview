@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../utils/supabaseClient';
+import { fetchWithRetry } from '../../utils/fetchWithRetry';
 
 export default function SystemFund421() {
     const [iotaData, setIotaData] = useState(null);
@@ -19,7 +20,7 @@ export default function SystemFund421() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const { data, error } = await supabase.from('iota_capital_stack').select('*');
+                const { data, error } = await fetchWithRetry(() => supabase.from('iota_capital_stack').select('*'));
                 if (error) {
                     console.error("Supabase API Error:", error);
                     setIotaData({ error: error.message });
