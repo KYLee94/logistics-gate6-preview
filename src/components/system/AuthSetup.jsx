@@ -4,6 +4,7 @@ export default function AuthSetup({ onLogin }) {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [mounted, setMounted] = useState(false);
+    const [dissolved, setDissolved] = useState(false);
     const [hasError, setHasError] = useState(false);
 
     useEffect(() => {
