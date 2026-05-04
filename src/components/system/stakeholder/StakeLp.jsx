@@ -474,8 +474,8 @@ export default function StakeLp() {
 
                     // 1. Is Investment Profile?
                     // Match specific AUM prefixes, and ensure it's not a multi-line meeting note or bracketed topic
-                    const isInvestment = (name.startsWith('전체 AUM') || name.startsWith('프로젝트펀드') || name.startsWith('위탁운용펀드')) || 
-                                         (['AUM', '운용자산', '모펀드'].some(w => name.includes(w)) && !name.includes('\n') && !name.startsWith('['));
+                    const isInvestment = (name.startsWith('전체 AUM') || name.startsWith('프로젝트펀드') || name.startsWith('위탁운용펀드') || name.startsWith('전체 ')) || 
+                                         (['AUM', '운용자산', '모펀드', '조원', '투자자산', '운용규모'].some(w => name.includes(w)) && !name.includes('\n') && !name.startsWith('['));
                     
                     if (isInvestment) {
                         investmentMeta.push(c);
@@ -504,7 +504,7 @@ export default function StakeLp() {
                 // Sort investmentMeta: AUM first, 프로젝트펀드 second, 위탁운용펀드 last
                 investmentMeta.sort((a, b) => {
                     const getOrder = (name) => {
-                        if (name.includes('AUM') || name.includes('운용자산')) return 1;
+                        if (['AUM', '운용자산', '투자자산', '운용규모', '조원'].some(w => name.includes(w)) || name.startsWith('전체 ')) return 1;
                         if (name.includes('프로젝트펀드')) return 2;
                         if (name.includes('위탁운용펀드')) return 3;
                         return 4;
