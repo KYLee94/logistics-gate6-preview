@@ -50,20 +50,70 @@ const AccordionContent = ({ instName, contactsCache, isLast }) => {
     );
 };
 
-const TransparentTable = ({ title, items, isLoan, expandedRow, toggleRow, contactsCache }) => {
+const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicle, expandedRow, toggleRow, contactsCache }) => {
     const [showAll, setShowAll] = useState(false);
-    const displayItems = showAll ? items : items.slice(0, 5);
+    const [activePhase, setActivePhase] = useState('refi');
+    
+    const hasToggle = isLoan && bridgeItems && refiItems;
+    let currentItems = items;
+    if (hasToggle) {
+        currentItems = activePhase === 'refi' ? refiItems : bridgeItems;
+    }
+    
+    const displayItems = showAll ? currentItems : currentItems.slice(0, 5);
+
+    const bridgeLabel = "기존 브릿지 대출";
+    const refiLabel = vehicle === 427 ? "본PF 1차" : "금번 리파이낸싱";
+    const refiDate = vehicle === 427 ? "2025.05" : "2026.05.24";
 
     return (
         <div className="mb-10">
-            <h3 className="text-[16px] font-bold text-white mb-3 pl-2 flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${isLoan ? 'bg-[#0A84FF]' : 'bg-[#34d399]'}`}></span>
-                {title}
-            </h3>
+            <div className="flex justify-between items-end mb-3 pl-2 pr-1">
+                <h3 className="text-[16px] font-bold text-white flex items-center gap-2 m-0 leading-none pb-2">
+                    <span className={`w-2 h-2 rounded-full ${isLoan ? 'bg-[#0A84FF]' : 'bg-[#34d399]'}`}></span>
+                    {title}
+                </h3>
+                
+                <div className="flex items-center gap-4">
+                    {/* Toggle Buttons */}
+                    {hasToggle && (
+                        <div className="flex bg-[#1a1a1a] rounded-[10px] p-[3px] border border-[#2c2c2e] relative items-center h-[34px]">
+                            <button
+                                onClick={() => { setActivePhase('bridge'); setShowAll(false); }}
+                                className={`px-4 h-full text-[13px] rounded-[7px] transition-colors ${activePhase === 'bridge' ? 'bg-[#2c2c2e] text-white font-medium shadow-sm' : 'text-[#86868B] hover:text-white'}`}
+                            >
+                                {bridgeLabel}
+                            </button>
+                            <div className="relative h-full flex">
+                                <div className="absolute -top-[21px] left-1/2 -translate-x-1/2 text-[12px] text-[#86868B] font-medium tracking-tight whitespace-nowrap">
+                                    {refiDate}
+                                </div>
+                                <button
+                                    onClick={() => { setActivePhase('refi'); setShowAll(false); }}
+                                    className={`px-4 h-full text-[13px] rounded-[7px] transition-colors ${activePhase === 'refi' ? 'bg-[#2c2c2e] text-[#0A84FF] font-medium shadow-sm' : 'text-[#86868B] hover:text-white'}`}
+                                >
+                                    {refiLabel}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* View All Button */}
+                    {currentItems.length > 5 && (
+                        <button 
+                            onClick={() => setShowAll(!showAll)}
+                            className="text-[12px] font-medium text-[#86868B] hover:text-white transition-colors flex items-center gap-1.5 bg-[#1c1c1c] hover:bg-[#252525] px-3 h-[34px] rounded-lg border border-[#3c3c3c]"
+                        >
+                            {showAll ? '접기' : `전체보기 (${currentItems.length}개)`}
+                            <svg className={`w-3.5 h-3.5 transition-transform ${showAll ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" transform="rotate(180 12 12)"/></svg>
+                        </button>
+                    )}
+                </div>
+            </div>
             <div className="w-full">
                 {displayItems.length > 0 ? displayItems.map((item, idx) => {
                     const isExpanded = expandedRow === item.name;
-                    const isLastItem = idx === displayItems.length - 1 && (showAll || items.length <= 5);
+                    const isLastItem = idx === displayItems.length - 1 && (showAll || currentItems.length <= 5);
                     
                     return (
                         <div key={idx} className="flex flex-col">
@@ -92,18 +142,6 @@ const TransparentTable = ({ title, items, isLoan, expandedRow, toggleRow, contac
                 }) : (
                     <div className="px-5 py-4 border border-[#3c3c3c] rounded-[12px] text-[14px] text-[#A1A1AA] text-center">데이터 없음</div>
                 )}
-                
-                {items.length > 5 && !showAll && (
-                    <div 
-                        onClick={() => setShowAll(true)}
-                        className="flex items-center justify-center px-5 py-[13px] cursor-pointer transition-colors border border-[#3c3c3c] border-t-0 bg-[#1c1c1c] hover:bg-[#222] rounded-b-[12px]"
-                    >
-                        <span className="text-[14px] text-[#86868B] font-medium flex items-center gap-2">
-                            전체보기 ({items.length - 5}개 더보기)
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" transform="rotate(180 12 12)"/></svg>
-                        </span>
-                    </div>
-                )}
             </div>
         </div>
     );
@@ -125,17 +163,13 @@ export default function StakeLp() {
                 const { data: stackData } = await supabase.from('iota_capital_stack').select('*');
                 
                 let parsedIota = {
-                    427: { equity: [], loan: [] },
-                    816: { equity: [], loan: [] },
+                    427: { equity: [], loan: [], bridgeLoan: [], refiLoan: [] },
+                    816: { equity: [], loan: [], bridgeLoan: [], refiLoan: [] },
                     421: { equity: [], loan: [] }
                 };
 
                 if (stackData) {
                     stackData.forEach(item => {
-                        // Phase filtering based on user requirement
-                        if (item.vehicle_name == '816' && item.phase !== 'Refinancing') return;
-                        if (item.vehicle_name == '427' && item.phase !== 'Refinancing') return;
-                        
                         const v = parseInt(item.vehicle_name);
                         let type = item.tranche_type === 'Equity' ? 'equity' : 'loan';
                         
@@ -144,20 +178,34 @@ export default function StakeLp() {
                             type = 'equity';
                         }
                         
-                        if (parsedIota[v] && parsedIota[v][type]) {
-                            parsedIota[v][type].push({
-                                name: item.institution_name,
-                                amount: item.amount_krw_100m.toLocaleString(),
-                                rawAmount: item.amount_krw_100m
-                            });
+                        const obj = {
+                            name: item.institution_name,
+                            amount: item.amount_krw_100m.toLocaleString(),
+                            rawAmount: item.amount_krw_100m
+                        };
+
+                        if (type === 'equity') {
+                            if (v === 816 && item.phase !== 'Refinancing') return;
+                            if (v === 427 && item.phase !== 'Refinancing') return;
+                            if (parsedIota[v] && parsedIota[v].equity) parsedIota[v].equity.push(obj);
+                        } else {
+                            if (v === 427 || v === 816) {
+                                if (item.phase === 'Bridge') parsedIota[v].bridgeLoan.push(obj);
+                                if (item.phase === 'Refinancing') parsedIota[v].refiLoan.push(obj);
+                            } else {
+                                if (parsedIota[v] && parsedIota[v].loan) parsedIota[v].loan.push(obj);
+                            }
                         }
                     });
                     
                     // Sort descending by amount
-                    [427, 816, 421].forEach(v => {
-                        ['equity', 'loan'].forEach(t => {
+                    [427, 816].forEach(v => {
+                        ['equity', 'bridgeLoan', 'refiLoan'].forEach(t => {
                             parsedIota[v][t].sort((a, b) => b.rawAmount - a.rawAmount);
                         });
+                    });
+                    ['equity', 'loan'].forEach(t => {
+                        parsedIota[421][t].sort((a, b) => b.rawAmount - a.rawAmount);
                     });
                 }
                 setIotaData(parsedIota);
@@ -364,8 +412,8 @@ export default function StakeLp() {
                                 <div className="mb-12">
                                     <h2 className="text-[22px] font-bold text-white mb-6 tracking-tight">IOTA One (427 PFV)</h2>
                                     <div className="grid grid-cols-2 gap-8">
-                                        <div><TransparentTable title="Equity (수익자)" items={iotaData[427].equity} isLoan={false} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
-                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[427].loan} isLoan={true} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
+                                        <div><TransparentTable title="Equity (수익자)" items={iotaData[427].equity} isLoan={false} vehicle={427} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
+                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[427].refiLoan} bridgeItems={iotaData[427].bridgeLoan} refiItems={iotaData[427].refiLoan} isLoan={true} vehicle={427} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
                                     </div>
                                 </div>
 
@@ -373,8 +421,8 @@ export default function StakeLp() {
                                 <div className="mb-12">
                                     <h2 className="text-[22px] font-bold text-white mb-6 tracking-tight">IOTA Two (816 PFV)</h2>
                                     <div className="grid grid-cols-2 gap-8">
-                                        <div><TransparentTable title="Equity (수익자)" items={iotaData[816].equity} isLoan={false} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
-                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[816].loan} isLoan={true} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
+                                        <div><TransparentTable title="Equity (수익자)" items={iotaData[816].equity} isLoan={false} vehicle={816} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
+                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[816].refiLoan} bridgeItems={iotaData[816].bridgeLoan} refiItems={iotaData[816].refiLoan} isLoan={true} vehicle={816} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
                                     </div>
                                 </div>
 
@@ -382,8 +430,8 @@ export default function StakeLp() {
                                 <div id="section-421" className="mb-12">
                                     <h2 className="text-[22px] font-bold text-white mb-6 tracking-tight">421호 펀드</h2>
                                     <div className="grid grid-cols-2 gap-8">
-                                        <div><TransparentTable title="Equity (수익자)" items={iotaData[421].equity} isLoan={false} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
-                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[421].loan} isLoan={true} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
+                                        <div><TransparentTable title="Equity (수익자)" items={iotaData[421].equity} isLoan={false} vehicle={421} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
+                                        <div><TransparentTable title="Loan (대주단)" items={iotaData[421].loan} isLoan={true} vehicle={421} expandedRow={expandedRow} toggleRow={toggleRow} contactsCache={contactsCache} /></div>
                                     </div>
                                 </div>
                             </>
