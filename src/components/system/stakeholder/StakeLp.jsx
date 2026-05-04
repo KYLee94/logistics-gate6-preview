@@ -98,14 +98,13 @@ const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicl
                         </div>
                     )}
                     
-                    {currentItems.length > 5 && (
-                        <button 
-                            onClick={() => setShowAll(!showAll)}
-                            className="cursor-pointer text-[13px] font-medium text-[#86868B] hover:text-white transition-colors flex items-center justify-center bg-[#1a1a1a] hover:bg-[#2c2c2e] w-[72px] h-[34px] rounded-[10px] border border-[#2c2c2e]"
-                        >
-                            {showAll ? '접기' : '전체보기'}
-                        </button>
-                    )}
+                    {/* View All Button */}
+                    <button 
+                        onClick={() => setShowAll(!showAll)}
+                        className="cursor-pointer text-[13px] font-medium text-[#86868B] hover:text-white transition-colors flex items-center justify-center bg-[#1a1a1a] hover:bg-[#2c2c2e] w-[72px] h-[34px] rounded-[10px] border border-[#2c2c2e]"
+                    >
+                        {showAll ? '접기' : '전체보기'}
+                    </button>
                 </div>
             </div>
             <div className="w-full">
