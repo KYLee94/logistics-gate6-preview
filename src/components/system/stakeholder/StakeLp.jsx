@@ -469,7 +469,7 @@ export default function StakeLp() {
                         )}
 
                         {/* Non-IOTA Investors */}
-                        <div className="mt-8">
+                        <div className="mt-3">
                             <h2 className="text-[22px] font-bold text-white mb-1 tracking-tight">기타 이지스 마스터 투자자</h2>
                             <p className="text-[14px] text-[#86868B] mb-6">IOTA에 참여하지 않은 기관 중 이지스 총 약정액이 높은 순서입니다.</p>
                             
