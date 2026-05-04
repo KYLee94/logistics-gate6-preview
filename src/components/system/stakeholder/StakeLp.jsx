@@ -490,11 +490,12 @@ export default function StakeLp() {
                     }
 
                     // 2. Is Meeting History?
-                    // Normal contacts have short names (<= 15 chars). Anything longer is a note.
+                    // Imported meeting notes have metadata.full_text. Otherwise check for long fields.
                     if (
                         (c.mobile && c.mobile.length > 20) || 
                         (c.email && c.email.length > 20 && !c.email.includes('@')) ||
-                        name.length > 15 || title.length > 20 || name.includes('\n')
+                        name.length > 15 || title.length > 20 || name.includes('\n') ||
+                        c.metadata?.full_text
                     ) {
                         historyMeta.push(c);
                         return;
