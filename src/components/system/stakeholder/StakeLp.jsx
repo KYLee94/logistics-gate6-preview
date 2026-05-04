@@ -80,7 +80,7 @@ const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicl
                         <div className="flex bg-[#1a1a1a] rounded-[10px] p-[3px] border border-[#2c2c2e] relative items-center h-[34px]">
                             <button
                                 onClick={() => { setActivePhase('bridge'); setShowAll(false); }}
-                                className={`px-4 h-full text-[13px] rounded-[7px] transition-colors ${activePhase === 'bridge' ? 'bg-[#2c2c2e] text-white font-medium shadow-sm' : 'text-[#86868B] hover:text-white'}`}
+                                className={`cursor-pointer px-4 h-full text-[13px] rounded-[7px] transition-colors ${activePhase === 'bridge' ? 'bg-[#2c2c2e] text-white font-medium shadow-sm' : 'text-[#86868B] hover:text-white'}`}
                             >
                                 {bridgeLabel}
                             </button>
@@ -90,7 +90,7 @@ const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicl
                                 </div>
                                 <button
                                     onClick={() => { setActivePhase('refi'); setShowAll(false); }}
-                                    className={`px-4 h-full text-[13px] rounded-[7px] transition-colors ${activePhase === 'refi' ? 'bg-[#2c2c2e] text-[#0A84FF] font-medium shadow-sm' : 'text-[#86868B] hover:text-white'}`}
+                                    className={`cursor-pointer px-4 h-full text-[13px] rounded-[7px] transition-colors ${activePhase === 'refi' ? 'bg-[#2c2c2e] text-[#0A84FF] font-medium shadow-sm' : 'text-[#86868B] hover:text-white'}`}
                                 >
                                     {refiLabel}
                                 </button>
@@ -102,7 +102,7 @@ const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicl
                     {currentItems.length > 5 && (
                         <button 
                             onClick={() => setShowAll(!showAll)}
-                            className="text-[12px] font-medium text-[#86868B] hover:text-white transition-colors flex items-center gap-1.5 bg-[#1c1c1c] hover:bg-[#252525] px-3 h-[34px] rounded-lg border border-[#3c3c3c]"
+                            className="cursor-pointer text-[12px] font-medium text-[#86868B] hover:text-white transition-colors flex items-center gap-1.5 bg-[#1c1c1c] hover:bg-[#252525] px-3 h-[34px] rounded-lg border border-[#3c3c3c]"
                         >
                             {showAll ? '접기' : `전체보기 (${currentItems.length}개)`}
                             <svg className={`w-3.5 h-3.5 transition-transform ${showAll ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" transform="rotate(180 12 12)"/></svg>
@@ -113,7 +113,7 @@ const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicl
             <div className="w-full">
                 {displayItems.length > 0 ? displayItems.map((item, idx) => {
                     const isExpanded = expandedRow === item.name;
-                    const isLastItem = idx === displayItems.length - 1 && (showAll || currentItems.length <= 5);
+                    const isLastItem = idx === displayItems.length - 1;
                     
                     return (
                         <div key={idx} className="flex flex-col">
@@ -335,30 +335,26 @@ export default function StakeLp() {
 
 
     return (
-        <div className="w-full flex-1 flex flex-col pt-[40px] pb-[60px] px-[40px] max-w-[1200px] mx-auto">
+        <div className="w-full flex-1 flex flex-col pt-[77px] pb-[100px] max-w-[1112px] mx-auto">
             {/* Header */}
-            <div className="flex justify-between items-end mb-[30px]">
-                <div>
-                    <h1 className="text-[32px] font-bold text-white tracking-tight leading-none mb-3">LP / 대주 / SI</h1>
-                    <p className="text-[15px] text-[#86868B]">이지스 전체 파트너사 마스터 디렉토리 및 CRM 연동 현황</p>
-                </div>
+            <div className="flex items-center justify-between mb-[12px]">
+                <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter']">LP / 대주 / SI</h1>
                 
                 {/* Search Bar */}
-                <div className="relative w-[320px]">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg className="h-5 w-5 text-[#86868B]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
+                <div className="relative w-[280px]">
+                    <div className="absolute inset-y-0 left-[14px] flex items-center pointer-events-none">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                     </div>
                     <input
                         type="text"
-                        className="block w-full pl-10 pr-3 py-2.5 border border-[#3A3A3C] rounded-[12px] leading-5 bg-[#1C1C1E] text-white placeholder-[#86868B] focus:outline-none focus:border-[#0A84FF] transition-colors sm:text-[14px]"
+                        className="bg-[#272726] border border-[#545451] hover:border-[#666] rounded-[12px] pl-[36px] pr-[16px] py-[8px] text-[13px] text-white w-[280px] focus:outline-none focus:border-[#2997ff] transition-colors"
                         placeholder="기관명 검색 (예: 국민연금)"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
                 </div>
             </div>
+            <p className="text-[15px] text-[#86868B] mb-[36px]">이지스 전체 파트너사 마스터 디렉토리 및 CRM 연동 현황</p>
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto hide-scrollbar">
