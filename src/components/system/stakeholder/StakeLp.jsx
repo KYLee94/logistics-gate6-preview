@@ -74,7 +74,7 @@ const TransparentTable = ({ title, items, bridgeItems, refiItems, isLoan, vehicl
                     {title}
                 </h3>
                 
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-[10px]">
                     {/* Toggle Buttons */}
                     {hasToggle && (
                         <div className="flex bg-[#1a1a1a] rounded-[10px] p-[3px] border border-[#2c2c2e] relative items-center h-[34px]">
