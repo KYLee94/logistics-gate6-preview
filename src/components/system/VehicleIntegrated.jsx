@@ -15,7 +15,7 @@ export default function VehicleIntegrated() {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const { data, error } = await fetchWithRetry(() => supabase.from('iota_capital_stack').select('*'));
+                const { data, error } = await supabase.from('iota_capital_stack').select('*');
                 if (error) {
                     console.error("Supabase API Error:", error);
                     setIotaData({ error: error.message });

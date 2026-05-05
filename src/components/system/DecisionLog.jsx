@@ -4,6 +4,9 @@ import { supabase } from '../../utils/supabaseClient';
 export default function DecisionLog() {
     const [logs, setLogs] = useState([]);
     const [expandedLogs, setExpandedLogs] = useState({});
+    const [logsViewMode, setLogsViewMode] = useState('full');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [logSearchQuery, setLogSearchQuery] = useState('');
 
     const formatDateYYMMDD = (dateString) => {
         if (!dateString) return '';
@@ -56,6 +59,22 @@ export default function DecisionLog() {
         }));
     };
 
+    const itemsPerPage = logsViewMode === 'summary' ? 5 : 20;
+    
+    // Filter by search query
+    const searchFilteredLogs = logs.filter(log => {
+        if (!logSearchQuery) return true;
+        const query = logSearchQuery.toLowerCase();
+        const rawMatch = (log.raw_text || '').toLowerCase().includes(query);
+        const nameMatch = (log.writer_name || '').toLowerCase().includes(query);
+        const cellMatch = getCellName(log.writer_name).toLowerCase().includes(query);
+        const shMatch = (log.iota_seoul_log_stakeholders?.[0]?.sh_name || '').toLowerCase().includes(query);
+        return rawMatch || nameMatch || cellMatch || shMatch;
+    });
+
+    const totalPages = Math.ceil(searchFilteredLogs.length / itemsPerPage);
+    const displayedLogs = searchFilteredLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
     return (
         <div className="w-full flex-1 flex flex-col pt-[77px] pb-[60px] max-w-[1200px] mx-auto">
             {/* Header Metadata */}
@@ -68,11 +87,71 @@ export default function DecisionLog() {
 
             {/* Log Viewer */}
             <div className="flex justify-between items-center mb-[12px]">
-                <h2 className="text-[18px] font-bold text-white tracking-tight">사업 PM 업무 내역 (전체)</h2>
+                <h2 className="text-[18px] font-bold text-white tracking-tight">활동내역 전체보기</h2>
+                <div className="flex items-center gap-[12px]">
+                    {/* Search Box */}
+                    <div className="relative">
+                        <div className="absolute inset-y-0 left-[12px] flex items-center pointer-events-none">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#86868B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        </div>
+                        <input 
+                            type="text" 
+                            placeholder="검색어 입력..." 
+                            value={logSearchQuery}
+                            onChange={(e) => setLogSearchQuery(e.target.value)}
+                            className="bg-[#222] border border-[#333] hover:border-[#444] rounded-[8px] pl-[32px] pr-[12px] py-[6px] text-[12px] text-white w-[180px] focus:outline-none focus:border-[#2997ff] transition-all"
+                        />
+                    </div>
+                    <button 
+                        type="button"
+                        onClick={() => { setLogsViewMode(prev => prev === 'summary' ? 'full' : 'summary'); setCurrentPage(1); }} 
+                        className="px-[12px] py-[6px] rounded-[8px] bg-[#222] border border-[#333] text-[12px] text-[#A1A1AA] hover:text-white hover:border-[#444] transition-all font-medium"
+                    >
+                        {logsViewMode === 'summary' ? '전체보기' : '간략히 보기'}
+                    </button>
+                </div>
             </div>
             <div className="w-full border border-[#333] rounded-[24px] mb-[40px] flex flex-col bg-transparent">
-                {logs.map((log, index) => (
-                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex ${expandedLogs[log.log_id] ? 'items-start' : 'items-center'} group transition-colors hover:bg-white/5 first:rounded-t-[24px] last:rounded-b-[24px] ${index !== logs.length - 1 ? 'border-b border-[#333]' : ''}`}>
+                {/* Header Row */}
+                <div className="w-full px-[20px] py-[12px] flex items-center border-b border-[#333] bg-[#222]/50 rounded-t-[24px]">
+                    {/* Left Section */}
+                    <div className="flex flex-1 min-w-0">
+                        <div className="w-[86px] mr-[16px] text-left">
+                            <span className="text-[13px] font-bold text-[#86868B]">프로젝트</span>
+                        </div>
+                        <div className="flex flex-1 min-w-0 translate-x-[-20px]">
+                            <div className="w-[80px] shrink-0 translate-x-[14px]">
+                                <span className="text-[13px] font-bold text-[#86868B]">기능셀</span>
+                            </div>
+                            <div className="w-[110px] shrink-0 translate-x-[4px]">
+                                <span className="text-[13px] font-bold text-[#86868B]">등록자</span>
+                            </div>
+                            <div className="flex-1 min-w-0 translate-x-[-4px]">
+                                <span className="text-[13px] font-bold text-[#86868B]">내용</span>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Right Section */}
+                    <div className="flex gap-[12px] shrink-0 ml-[12px] justify-end">
+                        <div className="w-[120px] mr-[4px] text-right">
+                            <span className="text-[13px] font-bold text-[#86868B]">이해관계자</span>
+                        </div>
+                        <div className="w-[60px] text-right">
+                            <span className="text-[13px] font-bold text-[#86868B]">등록 목적</span>
+                        </div>
+                        <div className="w-[60px] text-center">
+                            <span className="text-[13px] font-bold text-[#86868B]">진행상태</span>
+                        </div>
+                        <div className="w-[40px] text-center">
+                            <span className="text-[13px] font-bold text-[#86868B]">중요도</span>
+                        </div>
+                        <div className="w-[60px] text-center">
+                            <span className="text-[13px] font-bold text-[#86868B]">등록일</span>
+                        </div>
+                    </div>
+                </div>
+                {displayedLogs.map((log, index) => (
+                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex ${expandedLogs[log.log_id] ? 'items-start' : 'items-center'} group transition-colors hover:bg-white/5 last:rounded-b-[24px] ${index !== displayedLogs.length - 1 ? 'border-b border-[#333]' : ''}`}>
                         {/* Left Section */}
                         <div className={`flex ${expandedLogs[log.log_id] ? 'items-start' : 'items-center'} flex-1 min-w-0`}>
                             {/* Project Button */}
@@ -151,12 +230,28 @@ export default function DecisionLog() {
                                     {log.metadata?.priority || '중간'}
                                 </span>
                             </div>
-                            <div className="h-[24px] flex items-center w-[60px] justify-end"><span className="text-[13px] text-[#86868B] font-['Inter']">{formatDateYYMMDD(log.work_date)}</span></div>
+                            <div className="h-[24px] flex items-center w-[60px] justify-center"><span className="text-[13px] text-[#86868B] font-['Inter']">{formatDateYYMMDD(log.work_date)}</span></div>
                         </div>
                     </div>
                 ))}
-                {logs.length === 0 && (
+                {displayedLogs.length === 0 && (
                     <div className="py-[60px] text-center text-[14px] text-[#86868B]">등록된 업무가 없습니다.</div>
+                )}
+
+                {logsViewMode === 'full' && totalPages > 1 && (
+                    <div className="w-full py-[24px] flex justify-center items-center gap-[12px]">
+                        <button 
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            className="px-[12px] py-[6px] rounded bg-[#222] border border-[#333] text-[#E5E5E5] text-[13px] hover:bg-[#333] disabled:opacity-50 transition-colors"
+                        >이전</button>
+                        <span className="text-[13px] text-[#A1A1AA] font-bold">{currentPage} / {totalPages}</span>
+                        <button 
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            className="px-[12px] py-[6px] rounded bg-[#222] border border-[#333] text-[#E5E5E5] text-[13px] hover:bg-[#333] disabled:opacity-50 transition-colors"
+                        >다음</button>
+                    </div>
                 )}
             </div>
         </div>
