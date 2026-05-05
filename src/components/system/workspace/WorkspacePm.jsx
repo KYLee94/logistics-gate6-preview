@@ -648,9 +648,9 @@ export default function WorkspacePm() {
                         {/* Right Section */}
                         <div className="flex items-center gap-[16px] shrink-0 ml-[20px] justify-end">
                             {/* Stakeholder Info */}
-                            <div className={`shrink-0 flex justify-end items-center w-[80px] translate-x-[30px]`}>
+                            <div className={`shrink-0 flex justify-start items-center w-[80px] translate-x-[50px]`}>
                                 {log.iota_seoul_log_stakeholders?.[0]?.sh_name && (
-                                    <span className={`text-[13px] text-[#A1A1AA] text-right ${expandedLogs[log.log_id] ? 'break-words whitespace-pre-wrap' : 'truncate'}`} title={log.iota_seoul_log_stakeholders[0].sh_name}>
+                                    <span className={`text-[13px] text-[#A1A1AA] text-left ${expandedLogs[log.log_id] ? 'break-words whitespace-pre-wrap' : 'truncate'}`} title={log.iota_seoul_log_stakeholders[0].sh_name}>
                                         {log.iota_seoul_log_stakeholders[0].sh_name}
                                     </span>
                                 )}
