@@ -342,9 +342,15 @@ export default function AuthSetup({ onLogin }) {
                     ) : step === 2 ? (
                         <>
                             <div className="flex items-center justify-between w-full mt-1 mb-6">
-                                <span className="text-[#333] dark:text-[#E5E5E5] text-[17px] font-semibold tracking-tight transition-colors duration-300">
-                                    {staffName}님 반갑습니다. 패스워드를 {isFirstTime ? '설정' : '입력'}해주세요.
-                                </span>
+                                <div className="flex items-center">
+                                    <div className="w-[36px] h-[36px] shrink-0 rounded-full bg-[#3c3c3c] overflow-hidden relative shadow-sm mr-3">
+                                        <img src={`${import.meta.env.BASE_URL}${(staffName || '').replace(/\\s/g, '')}.webp`} alt={staffName} className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
+                                        <div className="absolute inset-0 rounded-full border border-black/10 dark:border-white/10 pointer-events-none"></div>
+                                    </div>
+                                    <span className="text-[#333] dark:text-[#E5E5E5] text-[16px] font-semibold tracking-tight transition-colors duration-300">
+                                        {staffName}님 반갑습니다. 패스워드를 {isFirstTime ? '설정' : '입력'}해주세요.
+                                    </span>
+                                </div>
                                 <button onClick={() => setStep(1)} className="text-[#86868B] hover:text-[#111] dark:hover:text-white transition-colors flex items-center text-[13px] shrink-0">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"/></svg>
                                     뒤로

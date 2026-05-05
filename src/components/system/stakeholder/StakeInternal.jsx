@@ -370,6 +370,27 @@ const stakeholderGroups = [
                             },
                         ]
                     },
+                    {
+                        groupTitle: '기획추진',
+                        members: [
+                            {
+                                name: '이시정',
+                                photo: '이시정',
+                                roles: ['기획추진센터/리더', 'People Architecture TF'],
+                                responsibility: '',
+                                email: 'sjlee@igisam.com',
+                                phone: '010-8852-9482',
+                            },
+                            {
+                                name: '이관용',
+                                photo: '이관용',
+                                roles: ['기획추진센터'],
+                                responsibility: '',
+                                email: 'kylee@igisam.com',
+                                phone: '010-2927-3685',
+                            },
+                        ]
+                    },
 ];
 
 export default function StakeInternal() {
