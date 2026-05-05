@@ -321,20 +321,19 @@ export default function AuthSetup({ onLogin }) {
                                         placeholder="이메일을 입력하세요."
                                         value={email}
                                         onChange={(e) => { setEmail(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
                                 {errorMessage && (
-                                    <div className="w-full flex items-center px-1 mt-2 mb-4">
+                                    <div className="w-full flex items-center px-1 mt-2 mb-2">
                                         <span className="text-red-500 dark:text-[#FF453A] text-[13px] font-medium animate-pulse">
                                             * {errorMessage}
                                         </span>
                                     </div>
                                 )}
-                                {!errorMessage && <div className="h-4"></div>}
                                 <button 
                                     type="submit"
-                                    className="w-full bg-[#111] dark:bg-[#0A84FF] text-white dark:text-white hover:bg-[#333] dark:hover:bg-[#0071E3] rounded-lg py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
+                                    className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
                                 >
                                     다음
                                 </button>
@@ -365,7 +364,7 @@ export default function AuthSetup({ onLogin }) {
                                         placeholder={isFirstTime ? "패스워드를 설정하세요." : "패스워드를 입력하세요."}
                                         value={password}
                                         onChange={(e) => { setPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
 
@@ -380,7 +379,7 @@ export default function AuthSetup({ onLogin }) {
                                                     setConfirmPassword(e.target.value);
                                                     if (errorMessage) setErrorMessage('');
                                                 }}
-                                                className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                                className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                             />
                                         </div>
                                         <div className="w-full mb-2">
@@ -392,13 +391,13 @@ export default function AuthSetup({ onLogin }) {
                                                     setAccessCode(e.target.value);
                                                     if (errorMessage) setErrorMessage('');
                                                 }}
-                                                className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                                className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                             />
                                         </div>
                                     </>
                                 )}
 
-                                <div className="w-full h-[24px] mb-4 flex items-center px-1">
+                                <div className="w-full h-[8px] mb-0 flex items-center px-1">
                                     {errorMessage && (
                                         <span className="text-red-500 dark:text-[#FF453A] text-[13px] font-medium animate-pulse">
                                             * {errorMessage}
@@ -408,7 +407,7 @@ export default function AuthSetup({ onLogin }) {
 
                                 <button 
                                     type="submit"
-                                    className="w-full bg-[#111] dark:bg-[#0A84FF] text-white dark:text-white hover:bg-[#333] dark:hover:bg-[#0071E3] rounded-lg py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
+                                    className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
                                 >
                                     확인하기
                                 </button>
@@ -453,7 +452,7 @@ export default function AuthSetup({ onLogin }) {
                                         placeholder="기존 패스워드"
                                         value={oldPassword}
                                         onChange={(e) => { setOldPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
                                 <div className="w-full mb-2">
@@ -462,7 +461,7 @@ export default function AuthSetup({ onLogin }) {
                                         placeholder="새 패스워드"
                                         value={newPassword}
                                         onChange={(e) => { setNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
                                 <div className="w-full mb-2">
@@ -471,11 +470,11 @@ export default function AuthSetup({ onLogin }) {
                                         placeholder="새 패스워드 확인"
                                         value={confirmNewPassword}
                                         onChange={(e) => { setConfirmNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
 
-                                <div className="w-full h-[24px] mb-4 flex items-center px-1">
+                                <div className="w-full h-[8px] mb-0 flex items-center px-1">
                                     {errorMessage && (
                                         <span className="text-red-500 dark:text-[#FF453A] text-[13px] font-medium animate-pulse">
                                             * {errorMessage}
@@ -485,7 +484,7 @@ export default function AuthSetup({ onLogin }) {
 
                                 <button 
                                     type="submit"
-                                    className="w-full bg-[#111] dark:bg-[#0A84FF] text-white dark:text-white hover:bg-[#333] dark:hover:bg-[#0071E3] rounded-lg py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
+                                    className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
                                 >
                                     변경 및 접속하기
                                 </button>
@@ -514,11 +513,11 @@ export default function AuthSetup({ onLogin }) {
                                         placeholder="이메일을 입력하세요."
                                         value={email}
                                         onChange={(e) => { setEmail(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
 
-                                <div className="w-full h-[24px] mb-4 flex items-center px-1">
+                                <div className="w-full h-[8px] mb-0 flex items-center px-1">
                                     {errorMessage && (
                                         <span className="text-red-500 dark:text-[#FF453A] text-[13px] font-medium animate-pulse">
                                             * {errorMessage}
@@ -528,7 +527,7 @@ export default function AuthSetup({ onLogin }) {
 
                                 <button 
                                     type="submit"
-                                    className="w-full bg-[#111] dark:bg-[#0A84FF] text-white dark:text-white hover:bg-[#333] dark:hover:bg-[#0071E3] rounded-lg py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
+                                    className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
                                 >
                                     재설정 링크 받기
                                 </button>
@@ -549,7 +548,7 @@ export default function AuthSetup({ onLogin }) {
                                         placeholder="새 패스워드"
                                         value={newPassword}
                                         onChange={(e) => { setNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
                                 <div className="w-full mb-2">
@@ -558,11 +557,11 @@ export default function AuthSetup({ onLogin }) {
                                         placeholder="새 패스워드 확인"
                                         value={confirmNewPassword}
                                         onChange={(e) => { setConfirmNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-lg border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
 
-                                <div className="w-full h-[24px] mb-4 flex items-center px-1">
+                                <div className="w-full h-[8px] mb-0 flex items-center px-1">
                                     {errorMessage && (
                                         <span className="text-red-500 dark:text-[#FF453A] text-[13px] font-medium animate-pulse">
                                             * {errorMessage}
@@ -572,7 +571,7 @@ export default function AuthSetup({ onLogin }) {
 
                                 <button 
                                     type="submit"
-                                    className="w-full bg-[#111] dark:bg-[#0A84FF] text-white dark:text-white hover:bg-[#333] dark:hover:bg-[#0071E3] rounded-lg py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
+                                    className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
                                 >
                                     패스워드 저장 및 접속하기
                                 </button>
@@ -595,7 +594,7 @@ export default function AuthSetup({ onLogin }) {
                         <p className="text-[15px] font-medium text-[#86868B] dark:text-[#A1A1AA] text-center leading-relaxed mb-8">
                             jk.jeon@igisam.com<br/>010-9076-5369<br/>전기영 매니저에게 연락해주세요.
                         </p>
-                        <button onClick={() => setShowContactModal(false)} className="w-full py-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white font-semibold text-[16px] hover:bg-[#E8E8ED] dark:hover:bg-[#3A3A3C] transition-colors">
+                        <button onClick={() => setShowContactModal(false)} className="w-full py-3.5 rounded-[16px] bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white font-semibold text-[16px] hover:bg-[#E8E8ED] dark:hover:bg-[#3A3A3C] transition-colors cursor-pointer">
                             닫기
                         </button>
                     </div>
@@ -606,8 +605,8 @@ export default function AuthSetup({ onLogin }) {
             {showConfirmModal && (
                 <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
                     <div className="bg-white dark:bg-[#1C1C1E] w-[400px] rounded-[24px] p-8 shadow-2xl flex flex-col items-center">
-                        <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center mb-5">
-                            <svg className="w-6 h-6 text-[#0071E3] dark:text-[#47A1FF]" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-[#2C2C2E] flex items-center justify-center mb-5">
+                            <svg className="w-6 h-6 text-[#1D1D1F] dark:text-white" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                             </svg>
                         </div>
@@ -618,8 +617,8 @@ export default function AuthSetup({ onLogin }) {
                         </div>
                         <p className="text-[16px] font-medium text-[#1D1D1F] dark:text-white mb-8">이대로 진행할까요?</p>
                         <div className="w-full flex gap-3">
-                            <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3.5 rounded-xl bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white font-semibold text-[15px] hover:bg-[#E8E8ED] dark:hover:bg-[#3A3A3C] transition-colors">취소</button>
-                            <button onClick={proceedLogin} className="flex-1 py-3.5 rounded-xl bg-[#0071E3] text-white font-semibold text-[15px] hover:bg-[#0077ED] transition-colors">진행하기</button>
+                            <button onClick={() => setShowConfirmModal(false)} className="flex-1 py-3.5 rounded-[16px] bg-[#F5F5F7] dark:bg-[#2C2C2E] text-[#1D1D1F] dark:text-white font-semibold text-[15px] hover:bg-[#E8E8ED] dark:hover:bg-[#3A3A3C] transition-colors cursor-pointer">취소</button>
+                            <button onClick={proceedLogin} className="flex-1 py-3.5 rounded-[16px] bg-[#111] dark:bg-white text-white dark:text-[#111111] font-semibold text-[15px] hover:bg-[#333] dark:hover:bg-gray-200 transition-colors cursor-pointer">진행하기</button>
                         </div>
                     </div>
                 </div>
@@ -650,7 +649,7 @@ export default function AuthSetup({ onLogin }) {
                                     if(onLogin) onLogin();
                                 }, 700);
                             }} 
-                            className="w-full py-3.5 rounded-xl bg-[#0071E3] text-white font-semibold text-[15px] hover:bg-[#0077ED] transition-colors"
+                            className="w-full py-3.5 rounded-[16px] bg-[#111] dark:bg-white text-white dark:text-[#111111] font-semibold text-[15px] hover:bg-[#333] dark:hover:bg-gray-200 transition-colors cursor-pointer"
                         >
                             접속하기
                         </button>
