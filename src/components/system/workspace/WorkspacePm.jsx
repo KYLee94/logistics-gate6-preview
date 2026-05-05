@@ -66,11 +66,18 @@ export default function WorkspacePm() {
     const registerMasterStakeholder = async () => {
         setIsSubmitting(true);
         try {
-            const { error: masterError } = await supabase.from('iota_stakeholder_master').insert({
+            // Add a 10-second timeout to prevent UI freezing on network issues
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000));
+            const insertPromise = supabase.from('iota_stakeholder_master').insert({
                 company_name: companyQuery,
                 contact_name: contactQuery || null,
                 role_category: stakeholderCat || null
             });
+
+            // Use Promise.race to race the insert against the timeout
+            const result = await Promise.race([insertPromise, timeoutPromise]);
+            const masterError = result.error;
+
             if (masterError && masterError.code !== '23505') {
                 console.error('Master insert error:', masterError);
                 alert('이해관계자 등록 중 오류가 발생했습니다.');
@@ -78,6 +85,10 @@ export default function WorkspacePm() {
                 await fetchMasterStakeholders();
                 setShowNewStakeholderModal(false);
             }
+        } catch (err) {
+            console.error('Master insert exception:', err);
+            alert('데이터베이스 연결 지연이 발생했습니다. 새로고침 후 다시 시도해주세요.');
+            setShowNewStakeholderModal(false);
         } finally {
             setIsSubmitting(false);
         }
@@ -303,7 +314,7 @@ export default function WorkspacePm() {
             </div>
             
             {/* PM Team Structure */}
-            <div className="w-full border border-[#333] rounded-[24px] -mt-[4px] mb-[32px] flex flex-col">
+            <div className="w-full border border-[#333] rounded-[24px] -mt-[4px] mb-[40px] flex flex-col">
                 {/* 사업1파트 */}
                 <div className="flex items-center px-[24px] py-[16px]">
                     <div className="w-[100px] shrink-0">
@@ -645,9 +656,9 @@ export default function WorkspacePm() {
             </div>
             <div className="w-full border border-[#333] rounded-[24px] mb-[40px] flex flex-col bg-transparent">
                 {displayedLogs.map((log, index) => (
-                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex items-start group transition-colors hover:bg-white/5 first:rounded-t-[24px] last:rounded-b-[24px] ${index !== displayedLogs.length - 1 ? 'border-b border-[#333]' : ''}`}>
+                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex ${expandedLogs[log.log_id] ? 'items-start' : 'items-center'} group transition-colors hover:bg-white/5 first:rounded-t-[24px] last:rounded-b-[24px] ${index !== displayedLogs.length - 1 ? 'border-b border-[#333]' : ''}`}>
                         {/* Left Section */}
-                        <div className="flex items-start flex-1 min-w-0">
+                        <div className={`flex ${expandedLogs[log.log_id] ? 'items-start' : 'items-center'} flex-1 min-w-0`}>
                             {/* Project Button */}
                             <div className="py-[6px] bg-[#222] border border-[#333] rounded-[8px] text-[12px] font-bold text-[#A1A1AA] shrink-0 mr-[16px] w-[86px] text-center">
                                 {(() => {
@@ -659,9 +670,9 @@ export default function WorkspacePm() {
                                 })()}
                             </div>
 
-                            <div className="flex items-start flex-1 min-w-0 translate-x-[-20px] pt-[2px]">
+                            <div className={`flex ${expandedLogs[log.log_id] ? 'items-start pt-[2px]' : 'items-center'} flex-1 min-w-0 translate-x-[-20px]`}>
                                 {/* Cell Name */}
-                                <div className="w-[80px] shrink-0 translate-x-[14px] pt-[4px]">
+                                <div className={`w-[80px] shrink-0 translate-x-[14px] ${expandedLogs[log.log_id] ? 'pt-[4px]' : ''}`}>
                                     <span className="text-[13px] font-medium text-[#86868B]">{getCellName(log.writer_name)}</span>
                                 </div>
 
@@ -679,15 +690,15 @@ export default function WorkspacePm() {
                                 </div>
 
                                 {/* Content */}
-                                <div className="flex-1 min-w-0 pr-0 flex items-start gap-[8px] translate-x-[-4px]">
-                                    <div className={`flex-1 min-w-0 text-[14px] text-[#E5E5E5] leading-relaxed transition-all duration-300 ${expandedLogs[log.log_id] ? '' : 'truncate'}`}>
+                                <div className={`flex-1 min-w-0 pr-0 flex ${expandedLogs[log.log_id] ? 'items-start' : 'items-center'} gap-[8px] translate-x-[-4px]`}>
+                                    <div className={`flex-1 min-w-0 text-[14px] text-[#E5E5E5] transition-all duration-300 ${expandedLogs[log.log_id] ? 'leading-relaxed' : 'truncate'}`}>
                                         {log.raw_text}
                                     </div>
                                     {log.raw_text && log.raw_text.length > 40 && (
                                         <button 
                                             type="button"
                                             onClick={(e) => { e.stopPropagation(); toggleExpand(log.log_id); }}
-                                            className="text-[12px] text-[#2997ff] hover:underline cursor-pointer font-medium shrink-0 pt-[2px]"
+                                            className={`text-[12px] text-[#2997ff] hover:underline cursor-pointer font-medium shrink-0 ${expandedLogs[log.log_id] ? 'pt-[2px]' : ''}`}
                                         >
                                             {expandedLogs[log.log_id] ? '[접기]' : '[펼쳐보기]'}
                                         </button>
@@ -697,9 +708,9 @@ export default function WorkspacePm() {
                         </div>
 
                         {/* Right Section */}
-                        <div className="flex items-start gap-[12px] shrink-0 ml-[12px] justify-end pt-[4px]">
+                        <div className={`flex ${expandedLogs[log.log_id] ? 'items-start pt-[4px]' : 'items-center'} gap-[12px] shrink-0 ml-[12px] justify-end`}>
                             {/* Stakeholder Info */}
-                            <div className={`shrink-0 flex justify-end items-start w-[120px] mr-[4px]`}>
+                            <div className={`shrink-0 flex justify-end w-[120px] mr-[4px]`}>
                                 {log.iota_seoul_log_stakeholders?.[0]?.sh_name && (
                                     <span className={`text-[13px] text-[#A1A1AA] text-right ${expandedLogs[log.log_id] ? 'break-words whitespace-pre-wrap' : 'truncate'}`} title={log.iota_seoul_log_stakeholders[0].sh_name}>
                                         {log.iota_seoul_log_stakeholders[0].sh_name}
@@ -823,7 +834,7 @@ export default function WorkspacePm() {
                         </div>
                         <h3 className="text-[16px] font-bold text-white mb-[8px]">새로운 이해관계자입니다</h3>
                         <p className="text-[13px] text-[#86868B] text-center mb-[24px]">
-                            <strong className="text-[#E5E5E5]">{companyQuery || contactQuery}</strong> 항목이 기존 마스터 DB에 없습니다.<br/>마스터 DB에 새로운 이해관계자로 등록하시겠습니까?
+                            <strong className="text-[#E5E5E5]">{[companyQuery, contactQuery].filter(Boolean).join(' - ')}</strong> 항목이 기존 마스터 DB에 없습니다.<br/>마스터 DB에 새로운 이해관계자로 등록하시겠습니까?
                         </p>
                         <div className="flex items-center gap-[12px] w-full">
                             <button 
