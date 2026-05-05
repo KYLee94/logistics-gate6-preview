@@ -32,6 +32,7 @@ export default function WorkspacePm() {
     const [logToDelete, setLogToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
     const [showNewStakeholderModal, setShowNewStakeholderModal] = useState(false);
+    const [showCompanyWarningModal, setShowCompanyWarningModal] = useState(false);
 
     const formatDisplayDate = (dateString) => {
         if (!dateString) return '';
@@ -41,8 +42,13 @@ export default function WorkspacePm() {
     };
 
     const handleSubmit = async (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) e.preventDefault();
         if (!content.trim()) return;
+
+        if (!companyQuery && contactQuery) {
+            setShowCompanyWarningModal(true);
+            return;
+        }
 
         if (companyQuery || contactQuery) {
             const existing = masterStakeholders.find(s => 
@@ -55,6 +61,26 @@ export default function WorkspacePm() {
             }
         }
         await processSubmit();
+    };
+
+    const registerMasterStakeholder = async () => {
+        setIsSubmitting(true);
+        try {
+            const { error: masterError } = await supabase.from('iota_stakeholder_master').insert({
+                company_name: companyQuery,
+                contact_name: contactQuery || null,
+                role_category: stakeholderCat || null
+            });
+            if (masterError && masterError.code !== '23505') {
+                console.error('Master insert error:', masterError);
+                alert('이해관계자 등록 중 오류가 발생했습니다.');
+            } else {
+                await fetchMasterStakeholders();
+                setShowNewStakeholderModal(false);
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     const processSubmit = async () => {
@@ -375,7 +401,7 @@ export default function WorkspacePm() {
 
             {/* Task Input Form */}
             <div className="w-full bg-[#262626] border border-[#333] rounded-[24px] overflow-hidden mb-[40px]">
-                <form onSubmit={handleSubmit}>
+                <div>
                     {/* Header */}
                     <div className="w-full px-[20px] py-[10px] border-b border-[#333] flex items-center gap-[12px]">
                         <div className="relative w-[40px] h-[40px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden border border-white/10">
@@ -498,6 +524,18 @@ export default function WorkspacePm() {
                                     onChange={(e) => { setCompanyQuery(e.target.value); setShowCompanyDropdown(true); }}
                                     onFocus={() => setShowCompanyDropdown(true)}
                                     onBlur={() => setTimeout(() => setShowCompanyDropdown(false), 200)}
+                                    onKeyDown={(e) => { 
+                                        if (e.nativeEvent.isComposing) return;
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            if (!companyQuery && contactQuery) {
+                                                setShowCompanyWarningModal(true);
+                                                return;
+                                            }
+                                            const existing = masterStakeholders.find(s => s.company_name === companyQuery && (contactQuery ? s.contact_name === contactQuery : true));
+                                            if (!existing && companyQuery) setShowNewStakeholderModal(true);
+                                        }
+                                    }}
                                     placeholder="회사명 검색/입력"
                                     className="bg-[#222] border border-[#333] hover:border-[#444] rounded-[8px] pl-[28px] pr-[12px] py-[6px] text-[13px] text-white w-[160px] focus:outline-none focus:border-[#2997ff] transition-all"
                                 />
@@ -528,6 +566,18 @@ export default function WorkspacePm() {
                                     onChange={(e) => { setContactQuery(e.target.value); setShowContactDropdown(true); }}
                                     onFocus={() => setShowContactDropdown(true)}
                                     onBlur={() => setTimeout(() => setShowContactDropdown(false), 200)}
+                                    onKeyDown={(e) => { 
+                                        if (e.nativeEvent.isComposing) return;
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            if (!companyQuery) {
+                                                setShowCompanyWarningModal(true);
+                                                return;
+                                            }
+                                            const existing = masterStakeholders.find(s => (companyQuery ? s.company_name === companyQuery : true) && s.contact_name === contactQuery);
+                                            if (!existing && contactQuery) setShowNewStakeholderModal(true);
+                                        }
+                                    }}
                                     placeholder="담당자명 검색/입력"
                                     className="bg-[#222] border border-[#333] hover:border-[#444] rounded-[8px] px-[12px] py-[6px] text-[13px] text-white w-[160px] focus:outline-none focus:border-[#2997ff] transition-all"
                                 />
@@ -556,14 +606,15 @@ export default function WorkspacePm() {
                             </div>
                         </div>
                         <button 
-                            type="submit"
+                            type="button"
+                            onClick={handleSubmit}
                             disabled={isSubmitting}
                             className={`px-[32px] py-[10px] rounded-[10px] border border-[#444] text-[#E5E5E5] font-bold text-[13px] transition-all duration-200 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#333] hover:border-[#555] cursor-pointer'}`}
                         >
                             {isSubmitting ? '저장 중...' : '작성하기'}
                         </button>
                     </div>
-                </form>
+                </div>
             </div>
 
             {/* Log Viewer */}
@@ -628,7 +679,7 @@ export default function WorkspacePm() {
                                 </div>
 
                                 {/* Content */}
-                                <div className="flex-1 min-w-0 pr-[0px] flex items-start gap-[8px] translate-x-[-4px]">
+                                <div className="flex-1 min-w-0 pr-0 flex items-start gap-[8px] translate-x-[-4px]">
                                     <div className={`flex-1 min-w-0 text-[14px] text-[#E5E5E5] leading-relaxed transition-all duration-300 ${expandedLogs[log.log_id] ? '' : 'truncate'}`}>
                                         {log.raw_text}
                                     </div>
@@ -646,9 +697,9 @@ export default function WorkspacePm() {
                         </div>
 
                         {/* Right Section */}
-                        <div className="flex items-start gap-[16px] shrink-0 ml-[20px] justify-end pt-[4px]">
+                        <div className="flex items-start gap-[12px] shrink-0 ml-[12px] justify-end pt-[4px]">
                             {/* Stakeholder Info */}
-                            <div className={`shrink-0 flex justify-end items-start w-[140px] mr-[8px]`}>
+                            <div className={`shrink-0 flex justify-end items-start w-[120px] mr-[4px]`}>
                                 {log.iota_seoul_log_stakeholders?.[0]?.sh_name && (
                                     <span className={`text-[13px] text-[#A1A1AA] text-right ${expandedLogs[log.log_id] ? 'break-words whitespace-pre-wrap' : 'truncate'}`} title={log.iota_seoul_log_stakeholders[0].sh_name}>
                                         {log.iota_seoul_log_stakeholders[0].sh_name}
@@ -763,6 +814,39 @@ export default function WorkspacePm() {
                 </div>
             </div>
 
+            {/* New Stakeholder Confirmation Modal */}
+            {showNewStakeholderModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+                    <div className="bg-[#222] border border-[#333] rounded-[16px] w-[360px] p-[24px] shadow-2xl flex flex-col items-center">
+                        <div className="w-[48px] h-[48px] rounded-full bg-white/10 flex items-center justify-center mb-[16px]">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                        </div>
+                        <h3 className="text-[16px] font-bold text-white mb-[8px]">새로운 이해관계자입니다</h3>
+                        <p className="text-[13px] text-[#86868B] text-center mb-[24px]">
+                            <strong className="text-[#E5E5E5]">{companyQuery || contactQuery}</strong> 항목이 기존 마스터 DB에 없습니다.<br/>마스터 DB에 새로운 이해관계자로 등록하시겠습니까?
+                        </p>
+                        <div className="flex items-center gap-[12px] w-full">
+                            <button 
+                                type="button"
+                                onClick={() => setShowNewStakeholderModal(false)}
+                                className="flex-1 py-[10px] rounded-[8px] bg-[#333] hover:bg-[#444] text-white text-[13px] font-medium transition-colors"
+                                disabled={isSubmitting}
+                            >
+                                취소
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => registerMasterStakeholder()}
+                                className="flex-1 py-[10px] rounded-[8px] bg-[#2997ff] hover:bg-[#007aff] text-white text-[13px] font-bold transition-colors flex justify-center items-center"
+                                disabled={isSubmitting}
+                            >
+                                {isSubmitting ? '등록 중...' : '마스터 DB에 등록'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Delete Confirmation Modal */}
             {logToDelete && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
@@ -788,6 +872,30 @@ export default function WorkspacePm() {
                                 disabled={isDeleting}
                             >
                                 {isDeleting ? '삭제 중...' : '삭제'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Company Warning Modal */}
+            {showCompanyWarningModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+                    <div className="bg-[#222] border border-[#333] rounded-[16px] w-[320px] p-[24px] shadow-2xl flex flex-col items-center">
+                        <div className="w-[48px] h-[48px] rounded-full bg-white/10 flex items-center justify-center mb-[16px]">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF453A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                        </div>
+                        <h3 className="text-[16px] font-bold text-white mb-[8px]">회사명 입력 필요</h3>
+                        <p className="text-[13px] text-[#86868B] text-center mb-[24px]">
+                            담당자만 입력되었습니다.<br/>데이터 무결성을 위해 <strong className="text-[#E5E5E5]">회사명</strong>을<br/>먼저 입력하거나 선택해 주세요.
+                        </p>
+                        <div className="flex items-center justify-center w-full">
+                            <button 
+                                type="button"
+                                onClick={() => setShowCompanyWarningModal(false)}
+                                className="w-full py-[10px] rounded-[8px] bg-[#333] hover:bg-[#444] text-white text-[13px] font-bold transition-colors"
+                            >
+                                확인
                             </button>
                         </div>
                     </div>
