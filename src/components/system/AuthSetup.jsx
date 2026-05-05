@@ -315,7 +315,7 @@ export default function AuthSetup({ onLogin }) {
                             </div>
 
                             <form onSubmit={handleEmailSubmit} className="w-full">
-                                <div className="w-full">
+                                <div className="w-full mb-2">
                                     <input 
                                         type="email" 
                                         placeholder="이메일을 입력하세요."
@@ -324,13 +324,13 @@ export default function AuthSetup({ onLogin }) {
                                         className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
-                                {errorMessage && (
-                                    <div className="w-full flex items-center px-1 mt-2 mb-2">
+                                <div className="w-full h-[8px] mb-0 flex items-center px-1">
+                                    {errorMessage && (
                                         <span className="text-red-500 dark:text-[#FF453A] text-[13px] font-medium animate-pulse">
                                             * {errorMessage}
                                         </span>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                                 <button 
                                     type="submit"
                                     className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
