@@ -21,6 +21,32 @@ export default function DecisionLog() {
     // Delete states
     const [logToDelete, setLogToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [showMeetingsInfo, setShowMeetingsInfo] = useState(false);
+    const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
+
+    const internalMeetings = [
+        { meeting: 'Iota 임원 보고회', period: '월 1회 (3주차)', leader: '부문대표(이철승)', attendees: '부대표진·CFT 총괄·셀 리드 5인', output: '월간 사업보고서, T1 의사결정 사안 통과' },
+        { meeting: 'CFT 운영위\n(Steering)', period: '격주 (수)', leader: 'CFT 총괄(부문대표 겸직)', attendees: 'PM·5개 셀 리드·KAM 1파트', output: 'UW 범위 외 의사결정, 변경관리 승인' },
+        { meeting: '주간 PM Stand-up', period: '주 1회 (월)', leader: 'PM(강순용)', attendees: '5개 셀 실무 책임자', output: '주간 진척, Top10 리스크, 7일 액션' },
+        { meeting: 'LP 정기보고 미팅', period: '분기 1회', leader: 'KAM 1파트(김행단)', attendees: 'PM·LFC·운용지원·외부 LP', output: '분기보고서, Q&A 로그' },
+        { meeting: '대주단 보고', period: '월/분기', leader: 'LFC(박준호)', attendees: 'PM·KAM·외부 대주단', output: 'Covenants 모니터링 보드, 차주 통지' },
+        { meeting: 'IPR WG', period: '격주 (목)', leader: '프리츠 TFT (권순일)', attendees: 'CFT 총괄·PM·외부자문(법무·회계·감정)', output: 'Forward Purchase 구조설계서, 약정 초안' },
+        { meeting: '분기 회고(Retro)', period: '분기 말', leader: 'CFT 총괄', attendees: '전 셀 리드·실무 핵심 인력', output: 'KPI/OKR 리뷰, 원인분석, 차분기 OKR' }
+    ];
+
+    const externalMeetings = [
+        { meeting: '이오타 1 (현대건설)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: '현대건설 및 금융주관사들', output: '' },
+        { meeting: '이오타 2 (삼성물산)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: '삼성물산 및 금융주관사들', output: '' },
+        { meeting: '통합PF (NH투자증권)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: 'NH투자증권', output: '' }
+    ];
+
+    const triggers = [
+        { condition: 'UW 범위 외 일정/예산 변경이 식별된 경우', action: 'CFT 운영위 임시 소집' },
+        { condition: '대주단 Covenants 위반 가능성 식별', action: 'LFC 주재 긴급 라운드' },
+        { condition: '핵심 임차인 협상 결렬 또는 LOI 철회', action: 'EMC 주재 임시 LM 회의' },
+        { condition: '규제·인허가·소송 이슈 발생', action: 'CFT 총괄 직속 비상 회의' },
+        { condition: 'LP 임시 출자·임시 분배 요청', action: 'KAM 1파트 주재 펀드 회의' }
+    ];
 
     const formatDateYYMMDD = (dateString) => {
         if (!dateString) return '';
@@ -45,34 +71,28 @@ export default function DecisionLog() {
         return cells[name] || '기타';
     };
 
-    const fetchLogs = async (isMounted) => {
-        setIsLoading(true);
-        try {
-            const { data, error } = await supabase
-                .from('iota_seoul_logs')
-                .select('*, iota_seoul_log_stakeholders(sh_name, role_category)')
-                .order('work_date', { ascending: false })
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            
-            if (isMounted) {
+    useEffect(() => {
+        const fetchLogs = async () => {
+            setIsLoading(true);
+            try {
+                const { data, error } = await supabase
+                    .from('iota_seoul_logs')
+                    .select('*, iota_seoul_log_stakeholders(sh_name, role_category)')
+                    .order('work_date', { ascending: false })
+                    .order('created_at', { ascending: false });
+                if (error) throw error;
+                
                 // Filter out non-members ('기타')
                 const validLogs = (data || []).filter(log => getCellName(log.writer_name) !== '기타');
                 setLogs(validLogs);
-            }
-        } catch (e) {
-            console.error('Error fetching logs:', e);
-        } finally {
-            if (isMounted) {
+            } catch (e) {
+                console.error('Error fetching logs:', e);
+            } finally {
                 setIsLoading(false);
             }
-        }
-    };
+        };
 
-    useEffect(() => {
-        let isMounted = true;
-        fetchLogs(isMounted);
-        return () => { isMounted = false; };
+        fetchLogs();
     }, []);
 
     const toggleExpand = (id) => {
@@ -121,6 +141,7 @@ export default function DecisionLog() {
     
     // Filter by search query and dropdowns
     const searchFilteredLogs = logs.filter(log => {
+        if (showMyLogsOnly && log.writer_staff_id !== memberInfo?.email) return false;
         if (filterStakeholder && log.iota_seoul_log_stakeholders?.[0]?.role_category !== filterStakeholder) return false;
         if (filterCell && getCellName(log.writer_name) !== filterCell) return false;
         if (filterPurpose && (log.metadata?.triage_type || '공유') !== filterPurpose) return false;
@@ -149,10 +170,123 @@ export default function DecisionLog() {
                 </div>
             </div>
 
+            {/* Meeting Info Banner */}
+            <div className="w-full bg-transparent border border-[#333] rounded-[24px] p-[28px] mb-[30px] shadow-sm">
+                <h3 className="text-[20px] font-bold text-[#E5E5E5] mb-[8px] tracking-tight">주요 의사결정 히스토리는 정기/비정기 회의체 개최 후 업데이트 될 예정입니다.</h3>
+                
+                <button 
+                    onClick={() => setShowMeetingsInfo(!showMeetingsInfo)}
+                    className="text-[14px] text-[#A1A1AA] hover:text-white transition-colors focus:outline-none flex items-center gap-[6px]"
+                >
+                    정기/비정기 회의체 운영방침 자세히보기
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-300 ${showMeetingsInfo ? 'rotate-180' : ''}`}>
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+
+                {showMeetingsInfo && (
+                    <div className="mt-[28px] pt-[28px] border-t border-[#333] animate-fade-in">
+                        {/* 정기 회의체 */}
+                        <h2 className="text-[24px] font-bold text-white mb-0 tracking-tight">정기 회의체 (Cadence)</h2>
+                        
+                        <h3 className="text-[16px] font-bold text-white mt-[24px] mb-[12px]">[이지스 내부]</h3>
+                        <div className="w-full border border-[#333] rounded-[16px] overflow-hidden mb-[24px]">
+                            <table className="w-full text-left table-fixed">
+                                <thead className="bg-transparent">
+                                    <tr>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[180px]">회의체</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[120px]">주기</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[160px]">주재자</th>
+                                        <th className="pl-[42px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[280px]">주요 참석자</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#333]">
+                                    {internalMeetings.map((row, idx) => (
+                                        <tr key={idx} className="hover:bg-[#292928] transition-colors group">
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#E5E5E5] group-hover:text-white transition-colors text-left font-semibold whitespace-pre-wrap">{row.meeting}</td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] transition-colors"><span className="inline-block px-[10px] py-[4px] rounded-[6px] bg-white/5 text-[#c3c2b7] group-hover:text-white transition-colors whitespace-nowrap">{row.period}</span></td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] font-bold text-white whitespace-nowrap transition-colors">{row.leader}</td>
+                                            <td className="pl-[42px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3 className="text-[16px] font-bold text-white mt-[16px] mb-[12px]">[이지스 외부]</h3>
+                        <div className="w-full border border-[#333] rounded-[16px] overflow-hidden mb-[40px]">
+                            <table className="w-full text-left table-fixed">
+                                <thead className="bg-transparent">
+                                    <tr>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[180px]">회의체</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[120px]">주기</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[160px]">주재자</th>
+                                        <th className="pl-[42px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[280px]">주요 참석자</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#333]">
+                                    {externalMeetings.map((row, idx) => (
+                                        <tr key={idx} className="hover:bg-[#292928] transition-colors group">
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#E5E5E5] group-hover:text-white transition-colors text-left font-semibold">{row.meeting}</td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] transition-colors"><span className="inline-block px-[10px] py-[4px] rounded-[6px] bg-white/5 text-[#c3c2b7] group-hover:text-white transition-colors whitespace-nowrap">{row.period}</span></td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] font-bold text-white whitespace-nowrap transition-colors">{row.leader}</td>
+                                            <td className="pl-[42px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* 비정기 회의체 */}
+                        <h2 className="text-[24px] font-bold text-white mt-[30px] mb-[12px] tracking-tight">비정기 회의체 (Trigger 기반)</h2>
+                        <p className="text-[15px] text-[#A1A1AA] leading-[24px] mb-[24px]">
+                            아래 트리거가 발생하는 즉시 24시간 내 비정기 회의가 자동 소집됩니다.<br/>
+                            트리거는 통합 데이터룸의 <strong className="text-[#E5E5E5]">‘리스크 등록부’</strong>에 등록된 항목과 연동됩니다.
+                        </p>
+
+                        <div className="flex flex-col gap-[12px]">
+                            {triggers.map((item, idx) => (
+                                <div key={idx} className="flex flex-col md:flex-row md:items-stretch gap-[12px] group">
+                                    {/* Left Box (Condition) */}
+                                    <div className="flex-1 flex items-center bg-transparent border border-[#3c3c3c] rounded-[16px] p-[16px] transition-colors group-hover:bg-white/5">
+                                        <div className="w-[8px] h-[8px] rounded-full bg-[#86868B] mr-[16px] shrink-0"></div>
+                                        <div className="text-[16px] text-[#E5E5E5] font-medium text-left leading-snug">{item.condition}</div>
+                                    </div>
+
+                                    {/* Arrow */}
+                                    <div className="flex items-center justify-center text-[#666] shrink-0 px-[4px]">
+                                        <svg className="hidden md:block" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                                        <svg className="block md:hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                                    </div>
+
+                                    {/* Right Box (Action) */}
+                                    <div className="flex-1 flex items-center bg-transparent border border-[#3c3c3c] rounded-[16px] p-[16px] transition-colors group-hover:bg-white/5">
+                                        <div className="w-[8px] h-[8px] rounded-full bg-[#5da0e7] mr-[16px] shrink-0"></div>
+                                        <div className="text-[16px] text-[#5da0e7] font-bold text-left leading-snug">{item.action}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
+
             {/* Log Viewer */}
             <div className="flex justify-between items-center mb-[12px]">
                 <h2 className="text-[18px] font-bold text-white tracking-tight">활동내역 전체보기</h2>
                 <div className="flex items-center gap-[12px]">
+                    {/* My Logs Toggle */}
+                    <button 
+                        onClick={() => { setShowMyLogsOnly(!showMyLogsOnly); setCurrentPage(1); }}
+                        className={`flex items-center px-[12px] py-[6px] rounded-[8px] text-[12px] font-bold border cursor-pointer transition-colors ${showMyLogsOnly ? 'bg-[#2997ff]/10 text-[#2997ff] border-[#2997ff]/30' : 'bg-transparent text-[#86868B] border-[#333] hover:text-[#E5E5E5] hover:border-[#444]'}`}
+                    >
+                        내 활동내역만 보기
+                    </button>
+
                     {/* Search Box */}
                     <div className="relative">
                         <div className="absolute inset-y-0 left-[12px] flex items-center pointer-events-none">
