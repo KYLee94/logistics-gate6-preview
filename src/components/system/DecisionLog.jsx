@@ -706,7 +706,7 @@ export default function DecisionLog() {
                                                                 {new Date(comment.created_at).toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                                             </span>
                                                         </div>
-                                                        <div className="text-[13px] text-[#A1A1AA] whitespace-pre-wrap break-words">{comment.text}</div>
+                                                        <div className="text-[13px] text-[#A1A1AA] whitespace-pre-wrap break-words ml-[36px]">{comment.text}</div>
                                                     </div>
                                                     {comment.author_email === memberInfo?.email && (
                                                         <button
