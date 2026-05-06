@@ -38,6 +38,7 @@ export default function WorkspacePm() {
     const [showMentionDropdown, setShowMentionDropdown] = useState(false);
     const [mentionQuery, setMentionQuery] = useState('');
     const [mentionCursorIndex, setMentionCursorIndex] = useState(0);
+    const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
 
     const formatDisplayDate = (dateString) => {
         if (!dateString) return '';
@@ -71,6 +72,29 @@ export default function WorkspacePm() {
     const mentionCandidates = Array.from(new Set(masterStakeholders.map(s => s.contact_name).filter(Boolean)));
     const filteredMentions = mentionCandidates.filter(name => name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5);
 
+    const getCaretCoordinates = (element, position) => {
+        const div = document.createElement('div');
+        const style = window.getComputedStyle(element);
+        for (const prop of style) {
+            div.style[prop] = style[prop];
+        }
+        div.style.position = 'absolute';
+        div.style.visibility = 'hidden';
+        div.style.whiteSpace = 'pre-wrap';
+        div.style.wordWrap = 'break-word';
+        div.textContent = element.value.substring(0, position);
+        const span = document.createElement('span');
+        span.textContent = element.value.substring(position) || '.';
+        div.appendChild(span);
+        document.body.appendChild(div);
+        const coordinates = {
+            top: span.offsetTop - element.scrollTop,
+            left: span.offsetLeft
+        };
+        document.body.removeChild(div);
+        return coordinates;
+    };
+
     const handleContentChange = (e) => {
         const text = e.target.value;
         setContent(text);
@@ -85,6 +109,12 @@ export default function WorkspacePm() {
             setShowMentionDropdown(true);
             setMentionQuery(mentionMatch[1]);
             setMentionCursorIndex(mentionMatch.index);
+            
+            const coords = getCaretCoordinates(e.target, cursorPosition);
+            setMentionPosition({ 
+                top: coords.top + 20 + 24, // 20px wrapper padding + 24px line height offset
+                left: coords.left + 20     // 20px wrapper padding
+            });
         } else {
             setShowMentionDropdown(false);
         }
@@ -573,7 +603,10 @@ export default function WorkspacePm() {
                         
                         {/* Mention Dropdown */}
                         {showMentionDropdown && filteredMentions.length > 0 && (
-                            <div className="absolute left-[20px] bottom-[20px] bg-[#222] border border-[#333] rounded-[8px] py-[6px] w-[180px] max-h-[150px] overflow-y-auto z-50 shadow-xl">
+                            <div 
+                                className="absolute bg-[#222] border border-[#333] rounded-[8px] py-[6px] w-[180px] max-h-[150px] overflow-y-auto z-50 shadow-xl"
+                                style={{ top: `${mentionPosition.top}px`, left: `${mentionPosition.left}px` }}
+                            >
                                 {filteredMentions.map((name, i) => (
                                     <div 
                                         key={i} 
