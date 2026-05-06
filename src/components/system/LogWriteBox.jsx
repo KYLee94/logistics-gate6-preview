@@ -286,7 +286,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
     const filteredMentions = mentionCandidates.filter(name => name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5);
 
     return (
-        <div className="w-full rounded-[24px] p-[1px] bg-gradient-to-br from-[#d6efe9] via-[#82afb9] to-[#4c6e86] mb-[40px]">
+        <div className="w-full rounded-[24px] p-[1px] bg-gradient-to-br from-[#d6efe9] via-[#82afb9] to-[#4c6e86] mb-[30px]">
             <div className="w-full h-full bg-[#262626] rounded-[23px] overflow-hidden">
                 {/* Header */}
                 <div className="w-full px-[20px] py-[10px] border-b border-[#333] flex items-center gap-[12px]">
