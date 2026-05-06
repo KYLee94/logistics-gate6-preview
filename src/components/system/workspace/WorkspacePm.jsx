@@ -283,12 +283,12 @@ export default function WorkspacePm() {
             {/* PM Team Structure */}
             <div className="w-full border border-[#333] rounded-[24px] -mt-[4px] mb-[40px] flex flex-col">
                 {/* 사업1파트 */}
-                <div className="flex items-center px-[24px] py-[16px]">
-                    <div className="w-[100px] shrink-0">
+                <div className="flex items-center px-[24px] py-[11px]">
+                    <div className="w-[90px] shrink-0">
                         <span className="text-[13px] font-bold text-[#86868B]">Co-PM 전략</span>
                     </div>
                     <div className="flex items-center gap-[12px] w-[180px] shrink-0">
-                        <div className="relative w-[40px] h-[40px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden">
+                        <div className="relative w-[28px] h-[28px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden">
                             <img src={`${import.meta.env.BASE_URL}권순일.webp`} alt="권순일" className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
                             <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none"></div>
                         </div>
@@ -312,12 +312,12 @@ export default function WorkspacePm() {
                 <div className="w-full h-px bg-[#333]"></div>
 
                 {/* 사업2파트 */}
-                <div className="flex items-center px-[24px] py-[16px]">
-                    <div className="w-[100px] shrink-0">
+                <div className="flex items-center px-[24px] py-[11px]">
+                    <div className="w-[90px] shrink-0">
                         <span className="text-[13px] font-bold text-[#86868B]">Co-PM 사업</span>
                     </div>
                     <div className="flex items-center gap-[12px] w-[180px] shrink-0">
-                        <div className="relative w-[40px] h-[40px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden">
+                        <div className="relative w-[28px] h-[28px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden">
                             <img src={`${import.meta.env.BASE_URL}강순용.webp`} alt="강순용" className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
                             <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none"></div>
                         </div>
