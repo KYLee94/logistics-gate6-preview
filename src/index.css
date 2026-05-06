@@ -179,6 +179,10 @@
         }
     }
 
+    .animate-content-blink {
+        animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+
 
 
     @keyframes marquee {
