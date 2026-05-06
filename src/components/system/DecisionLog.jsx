@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
+import LogWriteBox from './LogWriteBox';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function DecisionLog() {
     const { memberInfo } = useAuth();
@@ -23,6 +25,7 @@ export default function DecisionLog() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showMeetingsInfo, setShowMeetingsInfo] = useState(false);
     const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
+    const [showWriteBox, setShowWriteBox] = useState(false);
     const [masterStakeholders, setMasterStakeholders] = useState([]);
 
     // Edit states
@@ -95,52 +98,40 @@ export default function DecisionLog() {
         return cells[name] || '기타';
     };
 
+    const fetchMasterStakeholders = async () => {
+        try {
+            const { data, error } = await supabase.from('iota_stakeholder_master').select('*');
+            if (!error && data) {
+                setMasterStakeholders(data);
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    const fetchLogs = async () => {
+        setIsLoading(true);
+        try {
+            const { data, error } = await supabase
+                .from('iota_seoul_logs')
+                .select('*, iota_seoul_log_stakeholders(sh_name, role_category)')
+                .order('work_date', { ascending: false })
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            
+            const validLogs = (data || []).filter(log => getCellName(log.writer_name) !== '기타');
+            setLogs(validLogs);
+        } catch (e) {
+            console.error('Error fetching logs:', e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     useEffect(() => {
-        const controller = new AbortController();
-
-        const fetchLogs = async () => {
-            setIsLoading(true);
-            try {
-                const { data, error } = await supabase
-                    .from('iota_seoul_logs')
-                    .select('*, iota_seoul_log_stakeholders(sh_name, role_category)')
-                    .order('work_date', { ascending: false })
-                    .order('created_at', { ascending: false })
-                    .abortSignal(controller.signal);
-                
-                if (controller.signal.aborted) return;
-                if (error) throw error;
-                
-                // Filter out non-members ('기타')
-                const validLogs = (data || []).filter(log => getCellName(log.writer_name) !== '기타');
-                setLogs(validLogs);
-            } catch (e) {
-                if (controller.signal.aborted) return;
-                console.error('Error fetching logs:', e);
-            } finally {
-                if (!controller.signal.aborted) {
-                    setIsLoading(false);
-                }
-            }
-        };
-
-        const fetchMasterStakeholders = async () => {
-            try {
-                const { data, error } = await supabase.from('iota_stakeholder_master').select('*');
-                if (!error && data) {
-                    setMasterStakeholders(data);
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        };
-
         fetchLogs();
         fetchMasterStakeholders();
-
-        return () => {
-            controller.abort();
-        };
     }, []);
 
     const toggleExpand = (id) => {
@@ -230,6 +221,27 @@ export default function DecisionLog() {
     const totalPages = Math.ceil(searchFilteredLogs.length / itemsPerPage);
     const displayedLogs = searchFilteredLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+
+    const workspaces = [
+        { id: 'ws1', label: '사업 PM', cell: '사업PM', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+        { id: 'ws2', label: '파이낸싱', cell: '파이낸싱', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+        { id: 'ws3', label: '개발관리', cell: '개발관리', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg> },
+        { id: 'ws4', label: '기업마케팅', cell: '기업마케팅', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg> },
+        { id: 'ws5', label: '상품·디지털', cell: '상품·디지털', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> },
+        { id: 'ws6', label: '펀드 운용', cell: '펀드운용', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
+        { id: 'ws7', label: 'IPR-WG', cell: 'IPR', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg> }
+    ];
+
+    const activeStatus = ['신규', '검토중', '진행중'];
+    const activeLogs = logs.filter(l => activeStatus.includes(l.metadata?.issue_status || '진행중'));
+    
+    // Group active logs by cell
+    const issuesByWorkspace = workspaces.map(ws => {
+        const wsLogs = activeLogs.filter(l => getCellName(l.writer_name) === ws.cell).slice(0, 3);
+        const count = activeLogs.filter(l => getCellName(l.writer_name) === ws.cell).length;
+        return { ...ws, logs: wsLogs, count };
+    });
+
     return (
         <div className="w-full flex-1 flex flex-col pt-[60px] pb-[60px] max-w-[1200px] mx-auto">
             {/* Header Metadata */}
@@ -240,115 +252,87 @@ export default function DecisionLog() {
                 </div>
             </div>
 
-            {/* Meeting Info Banner */}
-            <div className="w-full bg-transparent border border-[#333] rounded-[24px] p-[28px] mb-[30px] shadow-sm">
-                <h3 className="text-[20px] font-bold text-[#E5E5E5] mb-[8px] tracking-tight">주요 의사결정 히스토리는 정기/비정기 회의체 개최 후 업데이트 될 예정입니다.</h3>
-                
-                <button 
-                    onClick={() => setShowMeetingsInfo(!showMeetingsInfo)}
-                    className="text-[14px] text-[#A1A1AA] hover:text-white transition-colors focus:outline-none flex items-center gap-[6px]"
-                >
-                    정기/비정기 회의체 운영방침 자세히보기
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-300 ${showMeetingsInfo ? 'rotate-180' : ''}`}>
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
-                </button>
-
-                {showMeetingsInfo && (
-                    <div className="mt-[28px] pt-[28px] border-t border-[#333] animate-fade-in">
-                        {/* 정기 회의체 */}
-                        <h2 className="text-[24px] font-bold text-white mb-0 tracking-tight">정기 회의체 (Cadence)</h2>
-                        
-                        <h3 className="text-[16px] font-bold text-white mt-[24px] mb-[12px]">[이지스 내부]</h3>
-                        <div className="w-full border border-[#333] rounded-[16px] overflow-hidden mb-[24px]">
-                            <table className="w-full text-left table-fixed">
-                                <thead className="bg-transparent">
-                                    <tr>
-                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[180px]">회의체</th>
-                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[120px]">주기</th>
-                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[160px]">주재자</th>
-                                        <th className="pl-[42px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[280px]">주요 참석자</th>
-                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#333]">
-                                    {internalMeetings.map((row, idx) => (
-                                        <tr key={idx} className="hover:bg-[#292928] transition-colors group">
-                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#E5E5E5] group-hover:text-white transition-colors text-left font-semibold whitespace-pre-wrap">{row.meeting}</td>
-                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] transition-colors"><span className="inline-block px-[10px] py-[4px] rounded-[6px] bg-white/5 text-[#c3c2b7] group-hover:text-white transition-colors whitespace-nowrap">{row.period}</span></td>
-                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] font-bold text-white whitespace-nowrap transition-colors">{row.leader}</td>
-                                            <td className="pl-[42px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
-                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <h3 className="text-[16px] font-bold text-white mt-[16px] mb-[12px]">[이지스 외부]</h3>
-                        <div className="w-full border border-[#333] rounded-[16px] overflow-hidden mb-[40px]">
-                            <table className="w-full text-left table-fixed">
-                                <thead className="bg-transparent">
-                                    <tr>
-                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[180px]">회의체</th>
-                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[120px]">주기</th>
-                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[160px]">주재자</th>
-                                        <th className="pl-[42px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[280px]">주요 참석자</th>
-                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-[#333]">
-                                    {externalMeetings.map((row, idx) => (
-                                        <tr key={idx} className="hover:bg-[#292928] transition-colors group">
-                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#E5E5E5] group-hover:text-white transition-colors text-left font-semibold">{row.meeting}</td>
-                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] transition-colors"><span className="inline-block px-[10px] py-[4px] rounded-[6px] bg-white/5 text-[#c3c2b7] group-hover:text-white transition-colors whitespace-nowrap">{row.period}</span></td>
-                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] font-bold text-white whitespace-nowrap transition-colors">{row.leader}</td>
-                                            <td className="pl-[42px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
-                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* 비정기 회의체 */}
-                        <h2 className="text-[24px] font-bold text-white mt-[30px] mb-[12px] tracking-tight">비정기 회의체 (Trigger 기반)</h2>
-                        <p className="text-[15px] text-[#A1A1AA] leading-[24px] mb-[24px]">
-                            아래 트리거가 발생하는 즉시 24시간 내 비정기 회의가 자동 소집됩니다.<br/>
-                            트리거는 통합 데이터룸의 <strong className="text-[#E5E5E5]">‘리스크 등록부’</strong>에 등록된 항목과 연동됩니다.
-                        </p>
-
-                        <div className="flex flex-col gap-[12px]">
-                            {triggers.map((item, idx) => (
-                                <div key={idx} className="flex flex-col md:flex-row md:items-stretch gap-[12px] group">
-                                    {/* Left Box (Condition) */}
-                                    <div className="flex-1 flex items-center bg-transparent border border-[#3c3c3c] rounded-[16px] p-[16px] transition-colors group-hover:bg-white/5">
-                                        <div className="w-[8px] h-[8px] rounded-full bg-[#86868B] mr-[16px] shrink-0"></div>
-                                        <div className="text-[16px] text-[#E5E5E5] font-medium text-left leading-snug">{item.condition}</div>
+                        {/* Workspace Issues Overview */}
+            <div className="w-full flex flex-col gap-[16px] mb-[30px]">
+                {/* 1st Row: 4 Workspaces */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-[16px]">
+                    {issuesByWorkspace.slice(0, 4).map((ws, idx) => (
+                        <div key={idx} className="flex flex-col p-[20px] rounded-[16px] border border-[#333] bg-transparent hover:bg-white/5 transition-colors cursor-pointer group" onClick={() => { setFilterCell(ws.cell); document.getElementById('log-viewer-header')?.scrollIntoView({behavior: 'smooth'}); }}>
+                            <div className="flex items-center gap-[8px] mb-[16px]">
+                                <span className="text-[#86868B] group-hover:text-white transition-colors">{ws.icon}</span>
+                                <span className="text-[15px] font-bold text-white tracking-tight">{ws.label}</span>
+                                {ws.count > 0 && <span className="ml-auto text-[11px] font-bold bg-[#FF453A]/10 text-[#FF453A] px-[8px] py-[2px] rounded-full">{ws.count}건 진행</span>}
+                            </div>
+                            <div className="flex flex-col gap-[8px] flex-1">
+                                {ws.logs.length > 0 ? ws.logs.map(log => (
+                                    <div key={log.log_id} className="text-[13px] text-[#A1A1AA] group-hover:text-[#E5E5E5] transition-colors leading-snug truncate" title={log.raw_text}>
+                                        <span className="text-[#555] mr-[6px]">•</span>{log.raw_text.split('\n')[0]}
                                     </div>
-
-                                    {/* Arrow */}
-                                    <div className="flex items-center justify-center text-[#666] shrink-0 px-[4px]">
-                                        <svg className="hidden md:block" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
-                                        <svg className="block md:hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
-                                    </div>
-
-                                    {/* Right Box (Action) */}
-                                    <div className="flex-1 flex items-center bg-transparent border border-[#3c3c3c] rounded-[16px] p-[16px] transition-colors group-hover:bg-white/5">
-                                        <div className="w-[8px] h-[8px] rounded-full bg-[#5da0e7] mr-[16px] shrink-0"></div>
-                                        <div className="text-[16px] text-[#5da0e7] font-bold text-left leading-snug">{item.action}</div>
-                                    </div>
-                                </div>
-                            ))}
+                                )) : (
+                                    <div className="text-[13px] text-[#555] font-medium mt-[4px]">진행중인 업무 없음</div>
+                                )}
+                            </div>
                         </div>
-                    </div>
-                )}
+                    ))}
+                </div>
+                {/* 2nd Row: 3 Workspaces */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
+                    {issuesByWorkspace.slice(4, 7).map((ws, idx) => (
+                        <div key={idx} className="flex flex-col p-[20px] rounded-[16px] border border-[#333] bg-transparent hover:bg-white/5 transition-colors cursor-pointer group" onClick={() => { setFilterCell(ws.cell); document.getElementById('log-viewer-header')?.scrollIntoView({behavior: 'smooth'}); }}>
+                            <div className="flex items-center gap-[8px] mb-[16px]">
+                                <span className="text-[#86868B] group-hover:text-white transition-colors">{ws.icon}</span>
+                                <span className="text-[15px] font-bold text-white tracking-tight">{ws.label}</span>
+                                {ws.count > 0 && <span className="ml-auto text-[11px] font-bold bg-[#FF453A]/10 text-[#FF453A] px-[8px] py-[2px] rounded-full">{ws.count}건 진행</span>}
+                            </div>
+                            <div className="flex flex-col gap-[8px] flex-1">
+                                {ws.logs.length > 0 ? ws.logs.map(log => (
+                                    <div key={log.log_id} className="text-[13px] text-[#A1A1AA] group-hover:text-[#E5E5E5] transition-colors leading-snug truncate" title={log.raw_text}>
+                                        <span className="text-[#555] mr-[6px]">•</span>{log.raw_text.split('\n')[0]}
+                                    </div>
+                                )) : (
+                                    <div className="text-[13px] text-[#555] font-medium mt-[4px]">진행중인 업무 없음</div>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
 
+
+            <AnimatePresence>
+                {showWriteBox && (
+                    <motion.div 
+                        initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                        animate={{ opacity: 1, height: 'auto', overflow: 'visible' }}
+                        exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    >
+                        <LogWriteBox 
+                            memberInfo={memberInfo}
+                            masterStakeholders={masterStakeholders}
+                            fetchLogs={fetchLogs}
+                            fetchMasterStakeholders={fetchMasterStakeholders}
+                            workspaceCode="WS_DECISION"
+                            workspaceLabel="의사결정 로그"
+                        />
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Log Viewer */}
-            <div className="flex justify-between items-center mb-[12px]">
+            <div id="log-viewer-header" className="flex justify-between items-center mb-[12px] scroll-mt-[80px]">
                 <h2 className="text-[18px] font-bold text-white tracking-tight">활동내역 전체보기</h2>
                 <div className="flex items-center gap-[12px]">
+                    {/* Write Log Toggle */}
+                    <div className="rounded-[8px] p-[1px] bg-gradient-to-br from-[#d6efe9] via-[#82afb9] to-[#4c6e86]">
+                        <button
+                            onClick={() => setShowWriteBox(!showWriteBox)}
+                            className="flex items-center px-[12px] py-[6px] rounded-[7px] text-[12px] font-bold cursor-pointer transition-colors bg-[#222] text-[#E5E5E5] hover:bg-[#333]"
+                        >
+                            글작성하기
+                        </button>
+                    </div>
+
                     {/* My Logs Toggle */}
                     <button 
                         onClick={() => { setShowMyLogsOnly(!showMyLogsOnly); setCurrentPage(1); }}
@@ -425,7 +409,7 @@ export default function DecisionLog() {
                                 style={{ textAlignLast: 'center' }}
                             >
                                 <option value="" className="bg-[#222] text-[#E5E5E5]">목적</option>
-                                {Array.from(new Set(logs.map(log => log.metadata?.triage_type || '공유'))).filter(Boolean).map(val => (
+                                {['공유', '협업', '리스크 판단', '의사결정'].map(val => (
                                     <option key={val} value={val} className="bg-[#222] text-[#E5E5E5]">{val}</option>
                                 ))}
                             </select>
@@ -670,6 +654,112 @@ export default function DecisionLog() {
                             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                             className="px-[12px] py-[6px] rounded bg-[#222] border border-[#333] text-[#E5E5E5] text-[13px] hover:bg-[#333] disabled:opacity-50 transition-colors"
                         >다음</button>
+                    </div>
+                )}
+            </div>
+
+            
+{/* Meeting Info Banner */}
+            <div className="w-full bg-transparent border border-[#333] rounded-[24px] p-[28px] mb-[30px] shadow-sm">
+                <h3 className="text-[20px] font-bold text-[#E5E5E5] mb-[8px] tracking-tight">주요 의사결정 히스토리는 정기/비정기 회의체 개최 후 업데이트 될 예정입니다.</h3>
+                
+                <button 
+                    onClick={() => setShowMeetingsInfo(!showMeetingsInfo)}
+                    className="text-[14px] text-[#A1A1AA] hover:text-white transition-colors focus:outline-none flex items-center gap-[6px]"
+                >
+                    정기/비정기 회의체 운영방침 자세히보기
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform duration-300 ${showMeetingsInfo ? 'rotate-180' : ''}`}>
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </button>
+
+                {showMeetingsInfo && (
+                    <div className="mt-[28px] pt-[28px] border-t border-[#333] animate-fade-in">
+                        {/* 정기 회의체 */}
+                        <h2 className="text-[24px] font-bold text-white mb-0 tracking-tight">정기 회의체 (Cadence)</h2>
+                        
+                        <h3 className="text-[16px] font-bold text-white mt-[24px] mb-[12px]">[이지스 내부]</h3>
+                        <div className="w-full border border-[#333] rounded-[16px] overflow-hidden mb-[24px]">
+                            <table className="w-full text-left table-fixed">
+                                <thead className="bg-transparent">
+                                    <tr>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[180px]">회의체</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[120px]">주기</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[160px]">주재자</th>
+                                        <th className="pl-[42px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[280px]">주요 참석자</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#333]">
+                                    {internalMeetings.map((row, idx) => (
+                                        <tr key={idx} className="hover:bg-[#292928] transition-colors group">
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#E5E5E5] group-hover:text-white transition-colors text-left font-semibold whitespace-pre-wrap">{row.meeting}</td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] transition-colors"><span className="inline-block px-[10px] py-[4px] rounded-[6px] bg-white/5 text-[#c3c2b7] group-hover:text-white transition-colors whitespace-nowrap">{row.period}</span></td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] font-bold text-white whitespace-nowrap transition-colors">{row.leader}</td>
+                                            <td className="pl-[42px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <h3 className="text-[16px] font-bold text-white mt-[16px] mb-[12px]">[이지스 외부]</h3>
+                        <div className="w-full border border-[#333] rounded-[16px] overflow-hidden mb-[40px]">
+                            <table className="w-full text-left table-fixed">
+                                <thead className="bg-transparent">
+                                    <tr>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[180px]">회의체</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[120px]">주기</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[160px]">주재자</th>
+                                        <th className="pl-[42px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333] w-[280px]">주요 참석자</th>
+                                        <th className="pl-[22px] pr-[12px] py-[12px] text-[14px] font-bold text-[#86868B] border-b border-[#333]">핵심 산출물</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-[#333]">
+                                    {externalMeetings.map((row, idx) => (
+                                        <tr key={idx} className="hover:bg-[#292928] transition-colors group">
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[14px] text-[#E5E5E5] group-hover:text-white transition-colors text-left font-semibold">{row.meeting}</td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] transition-colors"><span className="inline-block px-[10px] py-[4px] rounded-[6px] bg-white/5 text-[#c3c2b7] group-hover:text-white transition-colors whitespace-nowrap">{row.period}</span></td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] font-bold text-white whitespace-nowrap transition-colors">{row.leader}</td>
+                                            <td className="pl-[42px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.attendees}</td>
+                                            <td className="pl-[22px] pr-[12px] py-[12px] text-[13px] text-[#c3c2b7] text-left group-hover:text-[#E5E5E5] transition-colors">{row.output}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* 비정기 회의체 */}
+                        <h2 className="text-[24px] font-bold text-white mt-[30px] mb-[12px] tracking-tight">비정기 회의체 (Trigger 기반)</h2>
+                        <p className="text-[15px] text-[#A1A1AA] leading-[24px] mb-[24px]">
+                            아래 트리거가 발생하는 즉시 24시간 내 비정기 회의가 자동 소집됩니다.<br/>
+                            트리거는 통합 데이터룸의 <strong className="text-[#E5E5E5]">‘리스크 등록부’</strong>에 등록된 항목과 연동됩니다.
+                        </p>
+
+                        <div className="flex flex-col gap-[12px]">
+                            {triggers.map((item, idx) => (
+                                <div key={idx} className="flex flex-col md:flex-row md:items-stretch gap-[12px] group">
+                                    {/* Left Box (Condition) */}
+                                    <div className="flex-1 flex items-center bg-transparent border border-[#3c3c3c] rounded-[16px] p-[16px] transition-colors group-hover:bg-white/5">
+                                        <div className="w-[8px] h-[8px] rounded-full bg-[#86868B] mr-[16px] shrink-0"></div>
+                                        <div className="text-[16px] text-[#E5E5E5] font-medium text-left leading-snug">{item.condition}</div>
+                                    </div>
+
+                                    {/* Arrow */}
+                                    <div className="flex items-center justify-center text-[#666] shrink-0 px-[4px]">
+                                        <svg className="hidden md:block" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                                        <svg className="block md:hidden" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
+                                    </div>
+
+                                    {/* Right Box (Action) */}
+                                    <div className="flex-1 flex items-center bg-transparent border border-[#3c3c3c] rounded-[16px] p-[16px] transition-colors group-hover:bg-white/5">
+                                        <div className="w-[8px] h-[8px] rounded-full bg-[#5da0e7] mr-[16px] shrink-0"></div>
+                                        <div className="text-[16px] text-[#5da0e7] font-bold text-left leading-snug">{item.action}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
