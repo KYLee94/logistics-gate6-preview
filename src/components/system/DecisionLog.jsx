@@ -23,6 +23,25 @@ export default function DecisionLog() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showMeetingsInfo, setShowMeetingsInfo] = useState(false);
     const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
+    const [masterStakeholders, setMasterStakeholders] = useState([]);
+
+    const renderLogTextWithMentions = (text) => {
+        if (!text) return null;
+        if (!masterStakeholders || masterStakeholders.length === 0) return text;
+        const names = Array.from(new Set(masterStakeholders.map(s => s.contact_name).filter(Boolean)));
+        if (names.length === 0) return text;
+
+        const escapedNames = names.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const regex = new RegExp(`(${escapedNames.join('|')})`, 'g');
+        const parts = text.split(regex);
+
+        return parts.map((part, i) => {
+            if (names.includes(part)) {
+                return <span key={i} className="text-[#82afb9] font-bold">{part}</span>;
+            }
+            return part;
+        });
+    };
 
     const internalMeetings = [
         { meeting: 'Iota 임원 보고회', period: '월 1회 (3주차)', leader: '부문대표(이철승)', attendees: '부대표진·CFT 총괄·셀 리드 5인', output: '월간 사업보고서, T1 의사결정 사안 통과' },
@@ -100,7 +119,19 @@ export default function DecisionLog() {
             }
         };
 
+        const fetchMasterStakeholders = async () => {
+            try {
+                const { data, error } = await supabase.from('iota_seoul_master_stakeholders').select('*');
+                if (!error && data) {
+                    setMasterStakeholders(data);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+
         fetchLogs();
+        fetchMasterStakeholders();
 
         return () => {
             controller.abort();
@@ -404,102 +435,139 @@ export default function DecisionLog() {
                     </div>
                 </div>
                 {displayedLogs.map((log, index) => (
-                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex ${expandedLogs[log.log_id] ? 'items-start' : 'items-center'} group transition-colors hover:bg-white/5 last:rounded-b-[24px] ${index !== displayedLogs.length - 1 ? 'border-b border-[#333]' : ''}`}>
-                        {/* Left Section */}
-                        <div className={`flex ${expandedLogs[log.log_id] ? 'items-start' : 'items-center'} flex-1 min-w-0`}>
-                            {/* Project Button */}
-                            {(() => {
-                                let projName = 'IOTA 427';
-                                if (log.metadata?.project_name) {
-                                    projName = log.metadata.project_name;
-                                } else {
-                                    const text = log.metadata?.workspace_label || log.metadata?.source_project_text || '';
-                                    if (text.includes('816') || text.includes('서울 2') || text.includes('IOTA 2') || text.includes('Two')) projName = 'IOTA 816';
-                                    else if (text.includes('421')) projName = '421 Fund';
-                                }
-                                
-                                let textColorClass = 'text-[#E5E5E5]'; // IOTA 427 (Lightest)
-                                if (projName === 'IOTA 816') textColorClass = 'text-[#A1A1AA]'; // IOTA 816 (Medium)
-                                else if (projName === '421 Fund') textColorClass = 'text-[#737373]'; // 421 Fund (Darkest)
-                                
-                                return (
-                                    <div className={`py-[6px] bg-[#222] border border-[#333] rounded-[8px] text-[12px] font-bold ${textColorClass} shrink-0 mr-[16px] w-[86px] text-center`}>
-                                        {projName}
-                                    </div>
-                                );
-                            })()}
+                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex flex-col group transition-colors hover:bg-white/5 last:rounded-b-[24px] ${index !== displayedLogs.length - 1 ? 'border-b border-[#333]' : ''}`}>
+                        {/* Main Row */}
+                        <div className="w-full flex items-center justify-between">
+                            {/* Left Section */}
+                            <div className="flex items-center flex-1 min-w-0">
+                                {/* Project Button */}
+                                {(() => {
+                                    let projName = 'IOTA 427';
+                                    if (log.metadata?.project_name) {
+                                        projName = log.metadata.project_name;
+                                    } else {
+                                        const text = log.metadata?.workspace_label || log.metadata?.source_project_text || '';
+                                        if (text.includes('816') || text.includes('서울 2') || text.includes('IOTA 2') || text.includes('Two')) projName = 'IOTA 816';
+                                        else if (text.includes('421')) projName = '421 Fund';
+                                    }
+                                    
+                                    let textColorClass = 'text-[#E5E5E5]'; // IOTA 427 (Lightest)
+                                    if (projName === 'IOTA 816') textColorClass = 'text-[#A1A1AA]'; // IOTA 816 (Medium)
+                                    else if (projName === '421 Fund') textColorClass = 'text-[#737373]'; // 421 Fund (Darkest)
+                                    
+                                    return (
+                                        <div className={`py-[6px] bg-[#222] border border-[#333] rounded-[8px] text-[12px] font-bold ${textColorClass} shrink-0 mr-[16px] w-[86px] text-center`}>
+                                            {projName}
+                                        </div>
+                                    );
+                                })()}
 
-                            <div className={`flex ${expandedLogs[log.log_id] ? 'items-start pt-[2px]' : 'items-center'} flex-1 min-w-0 translate-x-[-20px]`}>
-                                {/* Cell Name */}
-                                <div className={`w-[80px] shrink-0 translate-x-[4px] flex justify-center ${expandedLogs[log.log_id] ? 'pt-[4px]' : ''}`}>
-                                    <span className="text-[13px] font-medium text-[#86868B]">{getCellName(log.writer_name)}</span>
+                                <div className="flex items-center flex-1 min-w-0 translate-x-[-20px]">
+                                    {/* Cell Name */}
+                                    <div className="w-[80px] shrink-0 translate-x-[4px] flex justify-center">
+                                        <span className="text-[13px] font-medium text-[#86868B]">{getCellName(log.writer_name)}</span>
+                                    </div>
+
+                                    {/* Avatar & Name */}
+                                    <div className="flex items-center gap-[8px] w-[110px] shrink-0 translate-x-[10px]">
+                                        <div className="w-[28px] h-[28px] rounded-full bg-[#333] overflow-hidden">
+                                            <img 
+                                                src={`${import.meta.env.BASE_URL}${log.writer_name}.webp`} 
+                                                alt={log.writer_name} 
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }}
+                                            />
+                                        </div>
+                                        <span className="text-[14px] font-bold text-white">{log.writer_name}</span>
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0 pr-0 flex items-center gap-[8px] translate-x-[2px]">
+                                        <div className="flex-1 min-w-0 text-[14px] text-[#E5E5E5] truncate">
+                                            {log.raw_text ? log.raw_text.split('\n')[0] : ''}
+                                        </div>
+                                        {log.raw_text && log.raw_text.length > 40 && (
+                                            <button 
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); toggleExpand(log.log_id); }}
+                                                className="text-[12px] text-[#2997ff] hover:underline cursor-pointer font-medium shrink-0"
+                                            >
+                                                {expandedLogs[log.log_id] ? '[접기]' : '[펼쳐보기]'}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
+                            </div>
 
-                                {/* Avatar & Name */}
-                                <div className="flex items-center gap-[8px] w-[110px] shrink-0 translate-x-[10px]">
-                                    <div className="w-[28px] h-[28px] rounded-full bg-[#333] overflow-hidden">
-                                        <img 
-                                            src={`${import.meta.env.BASE_URL}${log.writer_name}.webp`} 
-                                            alt={log.writer_name} 
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }}
-                                        />
-                                    </div>
-                                    <span className="text-[14px] font-bold text-white">{log.writer_name}</span>
-                                </div>
-
-                                {/* Content */}
-                                <div className={`flex-1 min-w-0 pr-0 flex ${expandedLogs[log.log_id] ? 'items-start' : 'items-center'} gap-[8px] translate-x-[2px]`}>
-                                    <div 
-                                        onClick={(e) => { e.stopPropagation(); toggleExpand(log.log_id); }}
-                                        className={`flex-1 min-w-0 text-[14px] text-[#E5E5E5] transition-all duration-300 cursor-pointer ${expandedLogs[log.log_id] ? 'leading-relaxed' : 'truncate'}`}
-                                    >
-                                        {log.raw_text}
-                                    </div>
-                                    {log.raw_text && log.raw_text.length > 40 && (
-                                        <button 
-                                            type="button"
-                                            onClick={(e) => { e.stopPropagation(); toggleExpand(log.log_id); }}
-                                            className={`text-[12px] text-[#2997ff] hover:underline cursor-pointer font-medium shrink-0 ${expandedLogs[log.log_id] ? 'pt-[2px]' : ''}`}
-                                        >
-                                            {expandedLogs[log.log_id] ? '[접기]' : '[펼쳐보기]'}
-                                        </button>
+                            {/* Right Section */}
+                            <div className="flex items-center gap-[12px] shrink-0 ml-[12px] justify-end">
+                                {/* Stakeholder Info */}
+                                <div className="shrink-0 flex justify-end w-[110px] mr-[4px]">
+                                    {log.iota_seoul_log_stakeholders?.[0]?.sh_name && (
+                                        <span className="text-[13px] text-[#A1A1AA] text-right truncate" title={log.iota_seoul_log_stakeholders[0].sh_name}>
+                                            {log.iota_seoul_log_stakeholders[0].sh_name}
+                                        </span>
                                     )}
                                 </div>
+                                <div className="h-[24px] flex items-center w-[60px] justify-center translate-x-[6px]"><span className="text-[13px] text-[#A1A1AA] truncate">{log.metadata?.triage_type || '공유'}</span></div>
+                                <div className="h-[24px] flex items-center w-[60px] justify-center"><span className="text-[13px] text-[#E5E5E5]">{log.metadata?.issue_status || '진행중'}</span></div>
+                                <div className="h-[24px] flex items-center w-[40px] justify-center">
+                                    <span className={`text-[13px] font-bold ${log.metadata?.priority === '높음' ? 'text-[#FF453A]' : (log.metadata?.priority === '낮음' ? 'text-[#86868B]' : 'text-[#3b82f6]')}`}>
+                                        {log.metadata?.priority || '중간'}
+                                    </span>
+                                </div>
+                                <div className="relative flex flex-col items-center w-[60px] shrink-0 justify-center">
+                                    <span className="text-[13px] text-[#86868B] font-['Inter'] leading-tight">
+                                        {formatDateYYMMDD(log.work_date)}
+                                    </span>
+                                    {expandedLogs[log.log_id] && log.created_at && (
+                                        <span className="absolute top-[100%] text-[11px] text-[#555] font-['Inter'] leading-tight mt-[2px] whitespace-nowrap">
+                                            {new Date(log.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
+                                </div>
+                                
+                                {/* Delete Button */}
+                                {(memberInfo?.email === log.writer_staff_id || memberInfo?.name === log.writer_name) && (
+                                    <button 
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(log); }}
+                                        className="absolute right-[-24px] top-1/2 -translate-y-1/2 w-[24px] h-[24px] bg-black rounded-none flex items-center justify-center transition-opacity opacity-100 border border-[#333] shadow-none cursor-pointer hover:bg-[#222]"
+                                        title="삭제"
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                    </button>
+                                )}
                             </div>
                         </div>
 
-                        {/* Right Section */}
-                        <div className={`flex ${expandedLogs[log.log_id] ? 'items-start pt-[4px]' : 'items-center'} gap-[12px] shrink-0 ml-[12px] justify-end`}>
-                            {/* Stakeholder Info */}
-                            <div className={`shrink-0 flex justify-end w-[110px] mr-[4px]`}>
-                                {log.iota_seoul_log_stakeholders?.[0]?.sh_name && (
-                                    <span className={`text-[13px] text-[#A1A1AA] text-right ${expandedLogs[log.log_id] ? 'break-words whitespace-pre-wrap' : 'truncate'}`} title={log.iota_seoul_log_stakeholders[0].sh_name}>
-                                        {log.iota_seoul_log_stakeholders[0].sh_name}
-                                    </span>
-                                )}
-                            </div>
-                            <div className="h-[24px] flex items-center w-[60px] justify-center translate-x-[6px]"><span className="text-[13px] text-[#A1A1AA] truncate">{log.metadata?.triage_type || '공유'}</span></div>
-                            <div className="h-[24px] flex items-center w-[60px] justify-center"><span className="text-[13px] text-[#E5E5E5]">{log.metadata?.issue_status || '진행중'}</span></div>
-                            <div className="h-[24px] flex items-center w-[40px] justify-center">
-                                <span className={`text-[13px] font-bold ${log.metadata?.priority === '높음' ? 'text-[#FF453A]' : (log.metadata?.priority === '낮음' ? 'text-[#86868B]' : 'text-[#3b82f6]')}`}>
-                                    {log.metadata?.priority || '중간'}
-                                </span>
-                            </div>
-                            <div className="h-[24px] flex items-center w-[60px] justify-center"><span className="text-[13px] text-[#86868B] font-['Inter']">{formatDateYYMMDD(log.work_date)}</span></div>
-                            
-                            {/* Delete Button (Absolute positioned outside content flow) */}
-                            {(memberInfo?.email === log.writer_staff_id || memberInfo?.name === log.writer_name) && (
-                                <button 
-                                    type="button"
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(log); }}
-                                    className="absolute right-[-24px] top-1/2 -translate-y-1/2 w-[24px] h-[24px] bg-black rounded-none flex items-center justify-center transition-opacity opacity-100 border border-[#333] shadow-none cursor-pointer hover:bg-[#222]"
-                                    title="삭제"
+                        {/* Expanded Box */}
+                        {expandedLogs[log.log_id] && (
+                            <div className="w-full flex mt-[14px]">
+                                <div 
+                                    className="bg-[#1c1c1e] border border-[#333] rounded-[12px] p-[16px] flex-1 relative"
+                                    style={{ marginLeft: '166px', marginRight: '344px' }}
                                 >
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                                </button>
-                            )}
-                        </div>
+                                    {/* Stakeholder Pill (Floated Right) */}
+                                    {log.iota_seoul_log_stakeholders?.[0]?.sh_name && (
+                                        <div className="float-right ml-[16px] mb-[12px] flex flex-col items-end gap-[4px]">
+                                            <span className="text-[11px] font-bold text-[#86868B] pr-[14px]">이해관계자</span>
+                                            <div className="bg-[#2a2a2c] border border-[#444] rounded-full pl-[8px] pr-[12px] py-[4px] flex items-center gap-[6px]">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                                <span className="text-[12px] font-medium text-[#E5E5E5]">
+                                                    {log.iota_seoul_log_stakeholders[0].sh_name}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="whitespace-pre-wrap break-words text-[14px] text-[#E5E5E5] leading-relaxed">
+                                        {renderLogTextWithMentions(log.raw_text)}
+                                    </div>
+                                    <div className="clear-both"></div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ))}
                 {isLoading ? (
