@@ -40,7 +40,7 @@ const menuItems = [
             },
             {
                 id: 'vision-book',
-                label: 'Vision Book',
+                label: <span className="italic">IOTA Seoul Vision Book</span>,
                 path: 'external/vision-book',
                 externalUrl: 'https://iotaseoul.site/'
             }
