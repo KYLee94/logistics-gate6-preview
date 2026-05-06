@@ -115,7 +115,9 @@ export default function PlatformCenter({ currentPath = '' }) {
     const workspaceContent = renderWorkspace();
     
     let activeContent = govContent || stakeContent || workspaceContent;
-    if (!currentPath || currentPath === '' || currentPath === 'platform/iotaseoul/dashboard' || currentPath === 'platform/iotaseoul/home') {
+    if (!currentPath || currentPath === '' || currentPath === 'platform/iotaseoul' || currentPath === 'platform/iotaseoul/home') {
+        activeContent = <DecisionLog />;
+    } else if (currentPath === 'platform/iotaseoul/dashboard') {
         activeContent = <IotaDashboard />;
     }
 
