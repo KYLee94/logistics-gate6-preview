@@ -277,13 +277,13 @@ export default function WorkspacePm() {
                 {/* Header Metadata */}
                 <div className="shrink-0 max-w-[300px]">
                     <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">사업 PM</h1>
-                    <p className="text-[15px] text-[#86868B] leading-[24px]">전체 사업 일정 및 예산 통제, 변경관리 결정, PFV 외부 단일창구</p>
+                    <p className="text-[15px] text-[#86868B] leading-[24px]">전체 사업 일정 및 예산 통제, 변경관리 결정,<br />PFV 외부 단일창구</p>
                 </div>
                 
                 {/* PM Team Structure */}
-                <div className="flex-1 border border-[#333] rounded-[24px] flex flex-col bg-transparent max-w-[850px]">
+                <div className="border border-[#333] rounded-[24px] flex flex-col bg-transparent shrink-0">
                     {/* 사업1파트 */}
-                    <div className="flex items-center pl-[20px] pr-[10px] py-[11px]">
+                    <div className="flex items-center pl-[20px] pr-[20px] py-[11px]">
                         <div className="w-[80px] shrink-0">
                             <span className="text-[13px] font-bold text-[#86868B]">Co-PM 전략</span>
                         </div>
@@ -294,7 +294,7 @@ export default function WorkspacePm() {
                             </div>
                             <div className="flex flex-col text-left">
                                 <span className="text-white font-bold text-[14px] leading-tight">권순일</span>
-                                <span className="text-[#A1A1AA] text-[12px] mt-[2px] leading-tight">사업1파트장</span>
+                                <span className="text-[#A1A1AA] text-[12px] mt-[1px] leading-tight">사업1파트장</span>
                             </div>
                         </div>
                         <div className="flex flex-wrap gap-x-1.5 gap-y-2 -ml-[10px]">
@@ -312,7 +312,7 @@ export default function WorkspacePm() {
                     <div className="w-full h-px bg-[#333]"></div>
 
                     {/* 사업2파트 */}
-                    <div className="flex items-center pl-[20px] pr-[10px] py-[11px]">
+                    <div className="flex items-center pl-[20px] pr-[20px] py-[11px]">
                         <div className="w-[80px] shrink-0">
                             <span className="text-[13px] font-bold text-[#86868B]">Co-PM 사업</span>
                         </div>
@@ -323,7 +323,7 @@ export default function WorkspacePm() {
                             </div>
                             <div className="flex flex-col text-left">
                                 <span className="text-white font-bold text-[14px] leading-tight">강순용</span>
-                                <span className="text-[#A1A1AA] text-[12px] mt-[2px] leading-tight">사업2파트장</span>
+                                <span className="text-[#A1A1AA] text-[12px] mt-[1px] leading-tight">사업2파트장</span>
                             </div>
                         </div>
                         <div className="flex flex-wrap gap-x-1.5 gap-y-2 -ml-[10px]">
