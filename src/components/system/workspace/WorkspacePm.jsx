@@ -33,6 +33,11 @@ export default function WorkspacePm() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showNewStakeholderModal, setShowNewStakeholderModal] = useState(false);
     const [showCompanyWarningModal, setShowCompanyWarningModal] = useState(false);
+    
+    // Mention states
+    const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+    const [mentionQuery, setMentionQuery] = useState('');
+    const [mentionCursorIndex, setMentionCursorIndex] = useState(0);
 
     const formatDisplayDate = (dateString) => {
         if (!dateString) return '';
@@ -61,6 +66,46 @@ export default function WorkspacePm() {
             }
         }
         await processSubmit();
+    };
+
+    const mentionCandidates = Array.from(new Set(masterStakeholders.map(s => s.contact_name).filter(Boolean)));
+    const filteredMentions = mentionCandidates.filter(name => name.toLowerCase().includes(mentionQuery.toLowerCase())).slice(0, 5);
+
+    const handleContentChange = (e) => {
+        const text = e.target.value;
+        setContent(text);
+
+        const cursorPosition = e.target.selectionStart;
+        const textBeforeCursor = text.slice(0, cursorPosition);
+        
+        // Match '@' followed by non-whitespace characters up to the cursor
+        const mentionMatch = textBeforeCursor.match(/@([^\s@]*)$/);
+
+        if (mentionMatch) {
+            setShowMentionDropdown(true);
+            setMentionQuery(mentionMatch[1]);
+            setMentionCursorIndex(mentionMatch.index);
+        } else {
+            setShowMentionDropdown(false);
+        }
+    };
+
+    const handleMentionSelect = (name) => {
+        const textBeforeMention = content.slice(0, mentionCursorIndex);
+        const textAfterCursor = content.slice(mentionCursorIndex + mentionQuery.length + 1);
+        
+        const newText = textBeforeMention + `@${name} ` + textAfterCursor;
+        setContent(newText);
+        setShowMentionDropdown(false);
+        
+        setTimeout(() => {
+            const textarea = document.getElementById('pm-textarea');
+            if (textarea) {
+                textarea.focus();
+                const newPos = mentionCursorIndex + name.length + 2;
+                textarea.setSelectionRange(newPos, newPos);
+            }
+        }, 0);
     };
 
     const registerMasterStakeholder = async () => {
@@ -516,14 +561,30 @@ export default function WorkspacePm() {
                     </div>
 
                     {/* Text Area */}
-                    <div className="w-full px-[20px] pt-[20px] pb-[24px]">
+                    <div className="w-full px-[20px] pt-[20px] pb-[24px] relative">
                         <textarea
+                            id="pm-textarea"
                             value={content}
-                            onChange={(e) => setContent(e.target.value)}
-                            placeholder="진행 이력, 협업 요청, 리스크 판단 필요사항, 의사결정 필요항목을 입력하세요."
+                            onChange={handleContentChange}
+                            placeholder="진행 이력, 협업 요청, 리스크 판단 필요사항, 의사결정 필요항목을 입력하세요. (@를 입력하여 담당자를 멘션할 수 있습니다)"
                             className="w-full bg-transparent text-[#E5E5E5] text-[15px] outline-none resize-none min-h-[140px] placeholder-[#555] leading-relaxed"
                             required
                         ></textarea>
+                        
+                        {/* Mention Dropdown */}
+                        {showMentionDropdown && filteredMentions.length > 0 && (
+                            <div className="absolute left-[20px] bottom-[20px] bg-[#222] border border-[#333] rounded-[8px] py-[6px] w-[180px] max-h-[150px] overflow-y-auto z-50 shadow-xl">
+                                {filteredMentions.map((name, i) => (
+                                    <div 
+                                        key={i} 
+                                        className="px-[12px] py-[8px] text-[13px] text-[#E5E5E5] hover:bg-[#333] cursor-pointer truncate"
+                                        onClick={() => handleMentionSelect(name)}
+                                    >
+                                        <span className="text-[#86868B] mr-2">@</span>{name}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Footer */}
