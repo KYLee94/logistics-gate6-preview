@@ -643,7 +643,7 @@ export default function WorkspacePm() {
                                 const bg = document.getElementById('pm-highlight-bg');
                                 if (bg) bg.scrollTop = e.target.scrollTop;
                             }}
-                            className="w-full bg-transparent text-transparent caret-white outline-none resize-none min-h-[140px] leading-relaxed text-[15px] relative z-10 font-sans"
+                            className="w-full bg-transparent text-transparent caret-white outline-none resize-y min-h-[140px] leading-relaxed text-[15px] relative z-10 font-sans"
                             style={{ caretColor: '#E5E5E5' }}
                             required
                         ></textarea>
