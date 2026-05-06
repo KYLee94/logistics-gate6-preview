@@ -659,7 +659,7 @@ export default function VehicleIntegrated() {
     };
 
     return (
-        <div className="w-[1200px] mx-auto flex-1 flex flex-col pt-[77px] shrink-0 pb-[100px]">
+        <div className="w-[1200px] mx-auto flex-1 flex flex-col pt-[60px] shrink-0 pb-[100px]">
             
             {/* 1. 종합 */}
             <div className="mb-12">
