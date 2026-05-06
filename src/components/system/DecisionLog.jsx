@@ -561,7 +561,7 @@ export default function DecisionLog() {
                                         </div>
                                     )}
                                     
-                                    <div className="whitespace-pre-wrap break-words text-[14px] text-[#E5E5E5] leading-relaxed">
+                                    <div className="whitespace-pre-wrap break-words text-[15px] text-[#E5E5E5] leading-relaxed">
                                         {renderLogTextWithMentions(log.raw_text)}
                                     </div>
                                     <div className="clear-both"></div>

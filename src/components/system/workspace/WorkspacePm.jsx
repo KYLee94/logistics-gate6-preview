@@ -830,8 +830,46 @@ export default function WorkspacePm() {
                 </div>
             </div>
             <div className="w-full border border-[#333] rounded-[24px] mb-[40px] flex flex-col bg-transparent">
+                {/* Header Row */}
+                <div className="w-full px-[20px] py-[12px] flex items-center border-b border-[#333] bg-[#222]/50 rounded-t-[24px]">
+                    {/* Left Section */}
+                    <div className="flex flex-1 min-w-0">
+                        <div className="w-[86px] mr-[16px] text-center">
+                            <span className="text-[13px] font-bold text-[#86868B]">프로젝트</span>
+                        </div>
+                        <div className="flex flex-1 min-w-0 translate-x-[-20px]">
+                            <div className="w-[80px] shrink-0 translate-x-[4px] flex justify-center">
+                                <span className="text-[13px] font-bold text-[#86868B]">기능셀</span>
+                            </div>
+                            <div className="w-[110px] shrink-0 translate-x-[10px] flex items-center">
+                                <span className="text-[13px] font-bold text-[#86868B] pl-[20px]">등록자</span>
+                            </div>
+                            <div className="flex-1 min-w-0 translate-x-[2px] flex items-center">
+                                <span className="text-[13px] font-bold text-[#86868B] px-[4px]">내용</span>
+                            </div>
+                        </div>
+                    </div>
+                    {/* Right Section */}
+                    <div className="flex gap-[12px] shrink-0 ml-[12px] justify-end items-center">
+                        <div className="w-[110px] mr-[4px] text-right flex items-center justify-end">
+                            <span className="text-[13px] font-bold text-[#86868B] pr-[4px]">이해관계자</span>
+                        </div>
+                        <div className="w-[60px] flex items-center justify-center translate-x-[6px]">
+                            <span className="text-[13px] font-bold text-[#86868B]">목적</span>
+                        </div>
+                        <div className="w-[60px] flex items-center justify-center">
+                            <span className="text-[13px] font-bold text-[#86868B]">진행상태</span>
+                        </div>
+                        <div className="w-[40px] flex items-center justify-center">
+                            <span className="text-[13px] font-bold text-[#86868B]">중요도</span>
+                        </div>
+                        <div className="w-[60px] text-center flex items-center justify-center">
+                            <span className="text-[13px] font-bold text-[#86868B] px-[4px]">등록일</span>
+                        </div>
+                    </div>
+                </div>
                 {displayedLogs.map((log, index) => (
-                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex flex-col group transition-colors hover:bg-white/5 first:rounded-t-[24px] last:rounded-b-[24px] ${index !== displayedLogs.length - 1 ? 'border-b border-[#333]' : ''}`}>
+                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex flex-col group transition-colors hover:bg-white/5 last:rounded-b-[24px] ${index !== displayedLogs.length - 1 ? 'border-b border-[#333]' : ''}`}>
                         {/* Main Row */}
                         <div className="w-full flex items-center justify-between">
                             {/* Left Section */}
@@ -897,17 +935,27 @@ export default function WorkspacePm() {
 
                             {/* Right Section */}
                             <div className="flex items-center gap-[12px] shrink-0 ml-[12px] justify-end">
-                                <span className="text-[13px] text-[#A1A1AA] w-[60px] text-right truncate shrink-0">{log.metadata?.triage_type || '공유'}</span>
-                                <span className="text-[13px] text-[#E5E5E5] w-[60px] text-center shrink-0">{log.metadata?.issue_status || '진행중'}</span>
-                                <span className={`text-[13px] font-bold w-[40px] text-center shrink-0 ${log.metadata?.priority === '높음' ? 'text-[#FF453A]' : (log.metadata?.priority === '낮음' ? 'text-[#86868B]' : 'text-[#3b82f6]')}`}>
-                                    {log.metadata?.priority || '중간'}
-                                </span>
-                                <div className="relative flex flex-col items-end w-[60px] shrink-0 justify-center">
+                                {/* Stakeholder Info */}
+                                <div className="shrink-0 flex justify-end w-[110px] mr-[4px]">
+                                    {log.iota_seoul_log_stakeholders?.[0]?.sh_name && (
+                                        <span className="text-[13px] text-[#A1A1AA] text-right truncate" title={log.iota_seoul_log_stakeholders[0].sh_name}>
+                                            {log.iota_seoul_log_stakeholders[0].sh_name}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="h-[24px] flex items-center w-[60px] justify-center translate-x-[6px]"><span className="text-[13px] text-[#A1A1AA] truncate">{log.metadata?.triage_type || '공유'}</span></div>
+                                <div className="h-[24px] flex items-center w-[60px] justify-center"><span className="text-[13px] text-[#E5E5E5]">{log.metadata?.issue_status || '진행중'}</span></div>
+                                <div className="h-[24px] flex items-center w-[40px] justify-center">
+                                    <span className={`text-[13px] font-bold ${log.metadata?.priority === '높음' ? 'text-[#FF453A]' : (log.metadata?.priority === '낮음' ? 'text-[#86868B]' : 'text-[#3b82f6]')}`}>
+                                        {log.metadata?.priority || '중간'}
+                                    </span>
+                                </div>
+                                <div className="relative flex flex-col items-center w-[60px] shrink-0 justify-center">
                                     <span className="text-[13px] text-[#86868B] font-['Inter'] leading-tight">
                                         {formatDateYYMMDD(log.work_date)}
                                     </span>
                                     {expandedLogs[log.log_id] && log.created_at && (
-                                        <span className="absolute top-[100%] right-0 text-[11px] text-[#555] font-['Inter'] leading-tight mt-[2px] whitespace-nowrap">
+                                        <span className="absolute top-[100%] text-[11px] text-[#555] font-['Inter'] leading-tight mt-[2px] whitespace-nowrap">
                                             {new Date(log.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                     )}
@@ -947,7 +995,7 @@ export default function WorkspacePm() {
                                         </div>
                                     )}
                                     
-                                    <div className="whitespace-pre-wrap break-words text-[14px] text-[#E5E5E5] leading-relaxed">
+                                    <div className="whitespace-pre-wrap break-words text-[15px] text-[#E5E5E5] leading-relaxed">
                                         {renderLogTextWithMentions(log.raw_text)}
                                     </div>
                                     <div className="clear-both"></div>
