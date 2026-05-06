@@ -297,7 +297,7 @@ export default function WorkspacePm() {
                             <span className="text-[#A1A1AA] text-[13px] mt-[2px] leading-tight">사업1파트장</span>
                         </div>
                     </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-2 -ml-[10px]">
+                    <div className="flex flex-wrap gap-x-3 gap-y-2 -ml-[30px]">
                         {['윤주형', '김제익', '류홍', '박만진', '박일훈', '이정원', '전무경'].map(name => (
                             <div key={name} className="flex items-center gap-[6px] bg-[#222] border border-[#333] rounded-full pl-[4px] pr-[10px] py-[4px] min-w-[76px]">
                                 <div className="w-[21px] h-[21px] shrink-0 rounded-full bg-[#3c3c3c] overflow-hidden">
@@ -326,7 +326,7 @@ export default function WorkspacePm() {
                             <span className="text-[#A1A1AA] text-[13px] mt-[2px] leading-tight">사업2파트장</span>
                         </div>
                     </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-2 -ml-[10px]">
+                    <div className="flex flex-wrap gap-x-3 gap-y-2 -ml-[30px]">
                         {['한찬호', '박석제', '박채현', '소현준', '이수정', '조영비', '한수정'].map(name => (
                             <div key={name} className="flex items-center gap-[6px] bg-[#222] border border-[#333] rounded-full pl-[4px] pr-[10px] py-[4px] min-w-[76px]">
                                 <div className="w-[21px] h-[21px] shrink-0 rounded-full bg-[#3c3c3c] overflow-hidden">
