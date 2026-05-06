@@ -288,7 +288,7 @@ export default function WorkspacePm() {
                             <span className="text-[13px] font-bold text-[#86868B]">Co-PM 전략</span>
                         </div>
                         <div className="flex items-center gap-[12px] w-[130px] shrink-0">
-                            <div className="relative w-[30px] h-[30px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden">
+                            <div className="relative w-[30px] h-[30px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden ml-[2px]">
                                 <img src={`${import.meta.env.BASE_URL}권순일.webp`} alt="권순일" className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
                                 <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none"></div>
                             </div>
@@ -317,7 +317,7 @@ export default function WorkspacePm() {
                             <span className="text-[13px] font-bold text-[#86868B]">Co-PM 사업</span>
                         </div>
                         <div className="flex items-center gap-[12px] w-[130px] shrink-0">
-                            <div className="relative w-[30px] h-[30px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden">
+                            <div className="relative w-[30px] h-[30px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden ml-[2px]">
                                 <img src={`${import.meta.env.BASE_URL}강순용.webp`} alt="강순용" className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
                                 <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none"></div>
                             </div>
