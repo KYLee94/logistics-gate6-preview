@@ -897,7 +897,16 @@ export default function WorkspacePm() {
                                 <span className={`text-[13px] font-bold w-[40px] text-center shrink-0 ${log.metadata?.priority === '높음' ? 'text-[#FF453A]' : (log.metadata?.priority === '낮음' ? 'text-[#86868B]' : 'text-[#3b82f6]')}`}>
                                     {log.metadata?.priority || '중간'}
                                 </span>
-                                <span className="text-[13px] text-[#86868B] w-[60px] text-right font-['Inter'] shrink-0">{formatDateYYMMDD(log.work_date)}</span>
+                                <div className="flex flex-col items-end w-[60px] shrink-0 justify-center">
+                                    <span className="text-[13px] text-[#86868B] font-['Inter'] leading-tight">
+                                        {formatDateYYMMDD(log.work_date)}
+                                    </span>
+                                    {expandedLogs[log.log_id] && log.created_at && (
+                                        <span className="text-[11px] text-[#555] font-['Inter'] leading-tight mt-[2px]">
+                                            {new Date(log.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    )}
+                                </div>
                                 
                                 {/* Delete Button (Absolute positioned outside content flow) */}
                                 {log.writer_staff_id === memberInfo?.email && (
