@@ -67,7 +67,10 @@ export default function SystemLogin({ onLogin }) {
             <div className={`w-full flex justify-between items-center px-12 py-8 relative z-50 transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
                 <div className="text-[20px] font-bold tracking-wide text-[#1D1D1F] dark:text-white transition-colors duration-300">IFPDP</div>
                 <div className="flex gap-8 text-[17px] font-medium text-[#86868B] dark:text-[#A1A1AA] transition-colors duration-300">
-                    <a href="?page=home" className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors">IFPDP 소개</a>
+                    <button onClick={() => {
+                        window.history.pushState(null, '', import.meta.env.BASE_URL + 'home');
+                        window.dispatchEvent(new Event('popstate'));
+                    }} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">IFPDP 소개</button>
                     <button onClick={(e) => { e.stopPropagation(); alert("[리소스 데이터베이스] 데모 시연을 위해 준비 중인 메뉴입니다."); }} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">리소스</button>
                     <button onClick={(e) => { e.stopPropagation(); alert("[Help Desk] IFPDP 관리 및 지원을 위한 연락처 팝업이 노출될 예정입니다."); }} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">플랫폼 이용 문의</button>
                 </div>

@@ -286,7 +286,7 @@ export default function AuthSetup({ onLogin }) {
                 <div className="text-[20px] font-bold tracking-wide text-[#1D1D1F] dark:text-white transition-colors duration-300">IFPDP</div>
                 <div className="flex gap-8 text-[17px] font-medium text-[#86868B] dark:text-[#A1A1AA] transition-colors duration-300">
                     <button onClick={() => {
-                        window.history.pushState(null, '', import.meta.env.BASE_URL);
+                        window.history.pushState(null, '', import.meta.env.BASE_URL + 'home');
                         window.dispatchEvent(new Event('popstate'));
                     }} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">IFPDP 소개</button>
                     <button onClick={() => setShowContactModal(true)} className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium">플랫폼 이용 문의</button>
