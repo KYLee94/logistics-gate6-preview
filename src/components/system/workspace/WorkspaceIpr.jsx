@@ -15,10 +15,10 @@ export default function WorkspaceIpr() {
                 </div>
                 
                 {/* Team Structure */}
-                <div className="border border-[#333] rounded-[24px] flex items-center bg-transparent shrink-0 pl-[20px] pr-[10px] py-[10px]">
+                <div className="border border-[#333] rounded-[24px] flex items-center bg-transparent shrink-0 pl-[20px] pr-[14px] py-[10px]">
 
                     {/* 투자 */}
-                    <div className="w-[80px] shrink-0">
+                    <div className="w-[50px] shrink-0">
                         <span className="text-[13px] font-bold text-[#86868B]">투자</span>
                     </div>
                     <div className="flex items-center gap-[12px] w-[130px] shrink-0">
@@ -39,10 +39,10 @@ export default function WorkspaceIpr() {
                     <div className="w-px h-[30px] bg-[#333] mx-[20px]"></div>
 
                     {/* 관리 */}
-                    <div className="w-[80px] shrink-0">
+                    <div className="w-[50px] shrink-0">
                         <span className="text-[13px] font-bold text-[#86868B]">관리</span>
                     </div>
-                    <div className="flex items-center gap-[12px] w-[130px] shrink-0">
+                    <div className="flex items-center gap-[12px] w-[124px] shrink-0">
                         <div className="relative w-[30px] h-[30px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden ml-[2px]">
                             <img src={`${import.meta.env.BASE_URL}윤용택.webp`} alt="윤용택" className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
                             <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none"></div>
