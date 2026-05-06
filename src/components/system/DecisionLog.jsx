@@ -430,9 +430,9 @@ export default function DecisionLog() {
                     </div>
                 </div>
             </div>
-            <div className="w-full border border-[#333] rounded-[24px] mb-[40px] flex flex-col bg-transparent">
+            <div className="w-full border border-[#3c3c3c] rounded-[24px] mb-[40px] flex flex-col bg-[#292928]">
                 {/* Header Row */}
-                <div className="w-full px-[20px] py-[12px] flex items-center border-b border-[#333] bg-[#222]/50 rounded-t-[24px]">
+                <div className="w-full px-[20px] py-[12px] flex items-center border-b border-[#3c3c3c] bg-transparent rounded-t-[24px]">
                     {/* Left Section */}
                     <div className="flex flex-1 min-w-0">
                         <div className="w-[86px] mr-[16px] text-center">
@@ -520,7 +520,7 @@ export default function DecisionLog() {
                     </div>
                 </div>
                 {displayedLogs.map((log, index) => (
-                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex flex-col group transition-colors hover:bg-white/5 last:rounded-b-[24px] ${index !== displayedLogs.length - 1 ? 'border-b border-[#333]' : ''}`}>
+                    <div key={log.log_id} className={`relative w-full px-[20px] py-[16px] flex flex-col group transition-colors hover:bg-white/5 last:rounded-b-[24px] ${index !== displayedLogs.length - 1 ? 'border-b border-[#3c3c3c]' : ''}`}>
                         {/* Main Row */}
                         <div className="w-full flex items-center justify-between">
                             {/* Left Section */}
