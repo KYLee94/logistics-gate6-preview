@@ -922,11 +922,14 @@ export default function WorkspacePm() {
                                 >
                                     {/* Stakeholder Pill (Floated Right) */}
                                     {log.iota_seoul_log_stakeholders?.[0]?.sh_name && (
-                                        <div className="float-right ml-[16px] mb-[8px] bg-[#2a2a2c] border border-[#444] rounded-full pl-[8px] pr-[12px] py-[4px] flex items-center gap-[6px]">
-                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-                                            <span className="text-[12px] font-medium text-[#E5E5E5]">
-                                                {log.iota_seoul_log_stakeholders[0].sh_name}
-                                            </span>
+                                        <div className="float-right ml-[16px] mb-[12px] flex flex-col items-end gap-[4px]">
+                                            <span className="text-[11px] font-bold text-[#86868B] pr-[4px]">이해관계자</span>
+                                            <div className="bg-[#2a2a2c] border border-[#444] rounded-full pl-[8px] pr-[12px] py-[4px] flex items-center gap-[6px]">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                                <span className="text-[12px] font-medium text-[#E5E5E5]">
+                                                    {log.iota_seoul_log_stakeholders[0].sh_name}
+                                                </span>
+                                            </div>
                                         </div>
                                     )}
                                     
