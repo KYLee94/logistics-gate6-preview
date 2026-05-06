@@ -6,7 +6,7 @@ export default function WorkspacePm() {
     const { memberInfo } = useAuth();
     
     // Form States
-    const [projectId, setProjectId] = useState('P00030');
+    const [projectId, setProjectId] = useState('IOTA_COMMON');
     const [triageType, setTriageType] = useState('공유');
     const [issueStatus, setIssueStatus] = useState('검토중');
     const [priority, setPriority] = useState('중간');
@@ -160,7 +160,7 @@ export default function WorkspacePm() {
             <>
                 {parts.map((part, i) => {
                     if (mentionedNames.includes(part)) {
-                        return <span key={i} className="text-[#4c6e86] font-bold">{part}</span>;
+                        return <span key={i} className="text-[#82afb9] font-bold">{part}</span>;
                     }
                     return <span key={i} className="text-[#E5E5E5]">{part}</span>;
                 })}
@@ -222,7 +222,7 @@ export default function WorkspacePm() {
                 metadata: {
                     workspace_code: 'WS_PM',
                     workspace_label: '사업 PM',
-                    project_name: projectId === 'P00030' ? 'IOTA 427' : projectId === 'P00037' ? 'IOTA 816' : '421 Fund',
+                    project_name: projectId === 'IOTA_COMMON' ? 'IOTA 공통' : projectId === 'P00030' ? 'IOTA 427' : projectId === 'P00037' ? 'IOTA 816' : '421 Fund',
                     triage_type: triageType,
                     issue_status: issueStatus,
                     priority: priority
@@ -529,6 +529,7 @@ export default function WorkspacePm() {
                         </div>
 
                         <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="bg-transparent border border-[#333] rounded-[16px] px-[16px] py-[8px] ml-[-2px] text-white font-semibold text-[14px] outline-none cursor-pointer appearance-none pr-[32px] relative" style={{ backgroundImage: iconChevronGray, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}>
+                            <option value="IOTA_COMMON">IOTA 공통</option>
                             <option value="P00030">IOTA 427</option>
                             <option value="P00037">IOTA 816</option>
                             <option value="112614">421 Fund</option>
