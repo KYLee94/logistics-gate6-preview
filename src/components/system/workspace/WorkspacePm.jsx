@@ -1016,9 +1016,15 @@ export default function WorkspacePm() {
                                             <button 
                                                 type="button"
                                                 onClick={(e) => { e.stopPropagation(); toggleExpand(log.log_id); }}
-                                                className="bg-white/5 border border-[#333] hover:border-[#555] rounded-[6px] px-[4px] py-[3px] text-[13px] font-medium transition-colors text-[#86868B] hover:text-[#E5E5E5] cursor-pointer shrink-0 ml-[8px] w-[64px] flex items-center justify-center"
+                                                className="bg-white/5 border border-[#333] hover:border-[#555] rounded-[6px] px-[6px] py-[3px] transition-colors text-[#86868B] hover:text-[#E5E5E5] cursor-pointer shrink-0 ml-[8px] w-[74px] flex items-center justify-center gap-[4px]"
                                             >
-                                                {expandedLogs[log.log_id] ? '접기' : '펼쳐보기'}
+                                                <span className="text-[12px] font-medium leading-none">{expandedLogs[log.log_id] ? '접기' : '펼쳐보기'}</span>
+                                                <svg 
+                                                    width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                                    className={`transition-transform duration-200 ${expandedLogs[log.log_id] ? 'rotate-180' : ''}`}
+                                                >
+                                                    <polyline points="6 9 12 15 18 9"></polyline>
+                                                </svg>
                                             </button>
                                         )}
                                     </div>
