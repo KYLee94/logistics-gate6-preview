@@ -32,9 +32,9 @@ export default function WorkspaceMarketing() {
             {/* Header & Team Structure */}
             <div className="w-full flex justify-between items-center mb-[40px] gap-[40px]">
                 {/* Header Metadata */}
-                <div className="shrink-0 max-w-[300px]">
+                <div className="shrink-0 max-w-[400px]">
                     <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">기업마케팅</h1>
-                    <p className="text-[15px] text-[#86868B] leading-[24px]">기업마케팅센터 (CMC) 업무 프로그레스 및 기업마케팅 DB</p>
+                    <p className="text-[15px] text-[#86868B] leading-[24px] break-keep">기업마케팅센터 (CMC) 업무 프로그레스 및 기업마케팅 DB</p>
                 </div>
                 
                 {/* Team Structure */}
@@ -56,12 +56,12 @@ export default function WorkspaceMarketing() {
                             </div>
                         </div>
                         <div className="flex flex-wrap gap-x-1.5 gap-y-2 -ml-[6px]">
-                            {["고아라","권순일"].map(name => (
-                                <div key={name} className="flex items-center gap-[6px] bg-[#222] border border-[#333] rounded-full pl-[4px] pr-[10px] py-[4px] min-w-[76px]">
+                            {[{img: '고아라', label: '고아라'}, {img: '권순일', label: '권순일(자문)'}].map(member => (
+                                <div key={member.label} className="flex items-center gap-[6px] bg-[#222] border border-[#333] rounded-full pl-[4px] pr-[10px] py-[4px] min-w-[76px]">
                                     <div className="w-[21px] h-[21px] shrink-0 rounded-full bg-[#3c3c3c] overflow-hidden">
-                                        <img src={`${import.meta.env.BASE_URL}${name}.webp`} alt={name} className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
+                                        <img src={`${import.meta.env.BASE_URL}${member.img}.webp`} alt={member.label} className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
                                     </div>
-                                    <span className="text-[#E5E5E5] text-[12px] font-medium leading-none">{name}</span>
+                                    <span className="text-[#E5E5E5] text-[12px] font-medium leading-none">{member.label}</span>
                                 </div>
                             ))}
                         </div>
