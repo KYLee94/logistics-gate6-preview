@@ -37,7 +37,8 @@ export default function GovMeetings() {
 
     return (
         <div className="w-full flex-1 flex flex-col pt-[60px] pb-[110px] max-w-[1112px] mx-auto">
-            <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[8px]">회의체 운영 방침</h1>
+            <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">회의체 운영 방침</h1>
+            <p className="text-[16px] text-[#86868B] mb-[32px] leading-[26px]">프로젝트의 원활한 소통과 신속한 의사결정을 위해 내/외부 정기 및 비정기 회의체 운영 기준과 표준 어젠다를 정의합니다.</p>
             
             <div className="w-full border border-[#333] rounded-[24px] overflow-hidden mb-[32px] bg-transparent">
                 <div className="px-[28px] py-[20px] border-b border-[#333] bg-transparent">

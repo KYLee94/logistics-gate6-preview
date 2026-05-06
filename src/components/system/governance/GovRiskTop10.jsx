@@ -50,7 +50,7 @@ export default function GovRiskTop10() {
                     <thead className="bg-transparent">
                         <tr>
                             <th className="px-[16px] py-[16px] text-[15px] font-bold text-[#555] border-b border-[#333] w-[50px] text-center">#</th>
-                            <th className="pl-[14px] pr-[24px] py-[16px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[300px]">리스크</th>
+                            <th className="pl-[4px] pr-[24px] py-[16px] text-[15px] font-bold text-[#86868B] border-b border-[#333] border-r border-[#333] w-[300px]">리스크</th>
                             <th className="px-[24px] py-[16px] text-[15px] font-bold text-[#E5E5E5] border-b border-[#333] border-r border-[#333] w-[240px]">1차 대응 셀</th>
                             <th className="px-[24px] py-[16px] text-[15px] font-bold text-[#e11d48] border-b border-[#333] border-r border-[#333] w-[200px]">트리거</th>
                             <th className="px-[24px] py-[16px] text-[15px] font-bold text-white border-b border-[#333] border-r border-[#333] w-[130px] text-center">최종 책임</th>
@@ -61,7 +61,7 @@ export default function GovRiskTop10() {
                         {riskData.map((row, idx) => (
                             <tr key={idx} className="hover:bg-[#292928] transition-colors">
                                 <td className="px-[16px] py-[16px] text-[15px] font-bold text-[#555] text-center">{row.no}</td>
-                                <td className="pl-[14px] pr-[24px] py-[16px] text-[16px] font-bold text-white border-r border-[#333]">{row.risk}</td>
+                                <td className="pl-[4px] pr-[24px] py-[16px] text-[16px] font-bold text-white border-r border-[#333]">{row.risk}</td>
                                 <td className="px-[24px] py-[16px] text-[15px] text-white border-r border-[#333]">{renderCell(row.cellText, row.cellMembers, row.cellSuffix, row.hideNames)}</td>
                                 <td className="px-[24px] py-[16px] text-[15px] font-medium text-[#c3c2b7] border-r border-[#333]">{row.trigger}</td>
                                 <td className="px-[24px] py-[16px] text-[15px] font-bold text-white border-r border-[#333] text-center">{row.final}</td>

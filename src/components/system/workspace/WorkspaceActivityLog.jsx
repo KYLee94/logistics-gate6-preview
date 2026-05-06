@@ -292,7 +292,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                                 >
                                     <option value="" className="bg-[#222] text-[#E5E5E5]">기능셀</option>
                                     {['사업PM', '파이낸싱-LFC', '개발솔루션-DSC', '기업마케팅-EMC', '상품·디지털-SSC', '펀드운용-KAM', 'IPR', '기획추진', 'CFT 총괄'].map(val => (
-                                        <option key={val} value={val} className="bg-[#222] text-[#E5E5E5]">{val}</option>
+                                        <option key={val} value={val} className="bg-[#222] text-[#E5E5E5]">{val.replace(/-(LFC|DSC|EMC|SSC|KAM)$/, '')}</option>
                                     ))}
                                 </select>
                             </div>
