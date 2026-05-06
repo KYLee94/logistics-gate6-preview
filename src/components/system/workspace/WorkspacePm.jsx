@@ -39,6 +39,7 @@ export default function WorkspacePm() {
     const [mentionQuery, setMentionQuery] = useState('');
     const [mentionCursorIndex, setMentionCursorIndex] = useState(0);
     const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
+    const [mentionedNames, setMentionedNames] = useState([]);
 
     const formatDisplayDate = (dateString) => {
         if (!dateString) return '';
@@ -124,18 +125,48 @@ export default function WorkspacePm() {
         const textBeforeMention = content.slice(0, mentionCursorIndex);
         const textAfterCursor = content.slice(mentionCursorIndex + mentionQuery.length + 1);
         
-        const newText = textBeforeMention + `@${name} ` + textAfterCursor;
+        const newText = textBeforeMention + `${name} ` + textAfterCursor;
         setContent(newText);
         setShowMentionDropdown(false);
+        
+        if (!mentionedNames.includes(name)) {
+            setMentionedNames(prev => [...prev, name]);
+        }
         
         setTimeout(() => {
             const textarea = document.getElementById('pm-textarea');
             if (textarea) {
                 textarea.focus();
-                const newPos = mentionCursorIndex + name.length + 2;
+                const newPos = mentionCursorIndex + name.length + 1;
                 textarea.setSelectionRange(newPos, newPos);
             }
         }, 0);
+    };
+
+    const renderHighlightedText = () => {
+        if (!content) {
+            return <span className="text-[#555]">진행 이력, 협업 요청, 리스크 판단 필요사항, 의사결정 필요항목을 입력하세요. (@를 입력하여 담당자를 멘션할 수 있습니다)</span>;
+        }
+
+        if (mentionedNames.length === 0) {
+            return <span className="text-[#E5E5E5]">{content}{content.endsWith('\n') ? <br/> : null}</span>;
+        }
+
+        const escapedNames = mentionedNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+        const regex = new RegExp(`(${escapedNames.join('|')})`, 'g');
+        const parts = content.split(regex);
+
+        return (
+            <>
+                {parts.map((part, i) => {
+                    if (mentionedNames.includes(part)) {
+                        return <span key={i} className="text-[#4c6e86] font-bold">{part}</span>;
+                    }
+                    return <span key={i} className="text-[#E5E5E5]">{part}</span>;
+                })}
+                {content.endsWith('\n') ? <br /> : null}
+            </>
+        );
     };
 
     const registerMasterStakeholder = async () => {
@@ -591,13 +622,28 @@ export default function WorkspacePm() {
                     </div>
 
                     {/* Text Area */}
-                    <div className="w-full px-[20px] pt-[20px] pb-[24px] relative">
+                    <div className="w-full px-[20px] pt-[20px] pb-[24px] relative bg-transparent">
+                        
+                        {/* Background Div for Highlights */}
+                        <div 
+                            id="pm-highlight-bg"
+                            className="absolute top-[20px] left-[20px] right-[20px] bottom-[24px] pointer-events-none whitespace-pre-wrap break-words text-[15px] leading-relaxed overflow-hidden font-sans"
+                            aria-hidden="true"
+                        >
+                            {renderHighlightedText()}
+                        </div>
+
+                        {/* Actual Textarea */}
                         <textarea
                             id="pm-textarea"
                             value={content}
                             onChange={handleContentChange}
-                            placeholder="진행 이력, 협업 요청, 리스크 판단 필요사항, 의사결정 필요항목을 입력하세요. (@를 입력하여 담당자를 멘션할 수 있습니다)"
-                            className="w-full bg-transparent text-[#E5E5E5] text-[15px] outline-none resize-none min-h-[140px] placeholder-[#555] leading-relaxed"
+                            onScroll={(e) => {
+                                const bg = document.getElementById('pm-highlight-bg');
+                                if (bg) bg.scrollTop = e.target.scrollTop;
+                            }}
+                            className="w-full bg-transparent text-transparent caret-white outline-none resize-none min-h-[140px] leading-relaxed text-[15px] relative z-10 font-sans"
+                            style={{ caretColor: '#E5E5E5' }}
                             required
                         ></textarea>
                         
