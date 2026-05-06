@@ -518,7 +518,7 @@ export default function DecisionLog() {
                                             <button 
                                                 type="button"
                                                 onClick={(e) => { e.stopPropagation(); toggleExpand(log.log_id); }}
-                                                className="bg-white/5 border border-[#333] hover:border-[#555] rounded-[6px] px-[6px] h-[23px] transition-colors text-[#86868B] hover:text-[#E5E5E5] cursor-pointer shrink-0 ml-[8px] w-[74px] flex items-center justify-center gap-[4px]"
+                                                className="bg-white/5 border border-[#333] hover:border-[#555] rounded-[6px] pl-[6px] pr-[5px] h-[23px] transition-colors text-[#86868B] hover:text-[#E5E5E5] cursor-pointer shrink-0 ml-[8px] w-[73px] flex items-center justify-center gap-[4px]"
                                             >
                                                 <span className="text-[12px] font-medium leading-none">{expandedLogs[log.log_id] ? '접기' : '펼쳐보기'}</span>
                                                 <svg 
