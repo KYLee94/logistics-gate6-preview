@@ -880,7 +880,7 @@ export default function WorkspacePm() {
                                     {/* Content */}
                                     <div className="flex-1 min-w-0 pr-0 flex items-center gap-[8px] translate-x-[-4px]">
                                         <div className="flex-1 min-w-0 text-[14px] text-[#E5E5E5] truncate">
-                                            {log.raw_text}
+                                            {log.raw_text ? log.raw_text.split('\n')[0] : ''}
                                         </div>
                                         {log.raw_text && log.raw_text.length > 40 && (
                                             <button 
@@ -1051,7 +1051,7 @@ export default function WorkspacePm() {
                             </div>
                             <div className="w-[100px] shrink-0"><span className="text-[12px] px-2 py-0.5 bg-[#222] border border-[#333] text-[#A1A1AA] rounded">{log.project}</span></div>
                             <div className="flex-1 px-4 border-l border-[#333] flex items-center gap-[8px]">
-                                <span className="text-[15px] font-bold text-white truncate">{log.title}</span>
+                                <span className="text-[15px] font-bold text-white truncate">{log.raw_text ? log.raw_text.split('\n')[0] : ''}</span>
                                 <button 
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); toggleDecisionExpand(log.id); }}
