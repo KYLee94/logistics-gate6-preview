@@ -329,7 +329,7 @@ export default function DecisionLog() {
                     {issuesByWorkspace.slice(0, 4).map((ws, idx) => (
                         <div key={idx} className="flex flex-col bg-[#292928] border border-[#3c3c3c] rounded-[24px] p-[24px] hover:border-[#555] transition-colors relative overflow-hidden cursor-pointer group" onClick={() => { setFilterCell(ws.cell); document.getElementById('log-viewer-header')?.scrollIntoView({behavior: 'smooth'}); }}>
                             <div className="flex items-center gap-[6px] mb-[16px]">
-                                <span className="text-[#86868B] group-hover:text-white transition-colors">{ws.icon}</span>
+                                <span className="text-white transition-colors">{ws.icon}</span>
                                 <span className="text-[16px] font-bold text-white tracking-tight">{ws.label}</span>
                                 <span className="ml-auto text-[11px] font-bold bg-[#3b82f6]/10 text-[#3b82f6] px-[8px] py-[2px] rounded-full">
                                     최근 {ws.recentCount}건 / 총 {ws.totalCount}건
@@ -352,7 +352,7 @@ export default function DecisionLog() {
                     {issuesByWorkspace.slice(4, 8).map((ws, idx) => (
                         <div key={idx} className="flex flex-col bg-[#292928] border border-[#3c3c3c] rounded-[24px] p-[24px] hover:border-[#555] transition-colors relative overflow-hidden cursor-pointer group" onClick={() => { setFilterCell(ws.cell); document.getElementById('log-viewer-header')?.scrollIntoView({behavior: 'smooth'}); }}>
                             <div className="flex items-center gap-[6px] mb-[16px]">
-                                <span className="text-[#86868B] group-hover:text-white transition-colors">{ws.icon}</span>
+                                <span className="text-white transition-colors">{ws.icon}</span>
                                 <span className="text-[16px] font-bold text-white tracking-tight">{ws.label}</span>
                                 <span className="ml-auto text-[11px] font-bold bg-[#3b82f6]/10 text-[#3b82f6] px-[8px] py-[2px] rounded-full">
                                     최근 {ws.recentCount}건 / 총 {ws.totalCount}건
