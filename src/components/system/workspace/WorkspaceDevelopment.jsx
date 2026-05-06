@@ -6,9 +6,9 @@ export default function WorkspaceDevelopment() {
             {/* Header & Team Structure */}
             <div className="w-full flex justify-between items-center mb-[40px] gap-[40px]">
                 {/* Header Metadata */}
-                <div className="shrink-0 max-w-[300px]">
+                <div className="shrink-0 max-w-[350px]">
                     <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">개발관리</h1>
-                    <p className="text-[15px] text-[#86868B] leading-[24px]">설계·시공·CM·감리 통제, 인허가/명도 대응, 공정·품질·안전 KPI</p>
+                    <p className="text-[15px] text-[#86868B] leading-[24px] break-keep">설계·시공·CM·감리 통제, 인허가/명도 대응, 공정·품질·안전 KPI</p>
                 </div>
                 
                 {/* Team Structure */}
@@ -19,7 +19,7 @@ export default function WorkspaceDevelopment() {
                         <div className="w-[80px] shrink-0">
                             <span className="text-[13px] font-bold text-[#86868B]">개발솔루션</span>
                         </div>
-                        <div className="flex items-center gap-[12px] w-[130px] shrink-0">
+                        <div className="flex items-center gap-[12px] w-[116px] shrink-0">
                             <div className="relative w-[30px] h-[30px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden ml-[2px]">
                                 <img src={`${import.meta.env.BASE_URL}홍장군.webp`} alt="홍장군" className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
                                 <div className="absolute inset-0 rounded-full border border-white/10 pointer-events-none"></div>
