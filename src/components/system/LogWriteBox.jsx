@@ -122,7 +122,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
 
     const renderHighlightedText = () => {
         if (!content) {
-            return <span className="text-[#555]">진행 이력, 협업 요청, 리스크 판단 필요사항, 의사결정 필요항목을 입력하세요. (@를 입력하여 담당자를 멘션할 수 있습니다)</span>;
+            return <span className="text-[#bbb9af]">진행 이력, 협업 요청, 리스크 판단 필요사항, 의사결정 필요항목을 입력하세요. (@를 입력하여 담당자를 멘션할 수 있습니다)</span>;
         }
 
         if (mentionedNames.length === 0) {
