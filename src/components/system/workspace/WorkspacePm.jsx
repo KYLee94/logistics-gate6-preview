@@ -21,6 +21,7 @@ export default function WorkspacePm() {
     const [logsViewMode, setLogsViewMode] = useState('summary');
     const [currentPage, setCurrentPage] = useState(1);
     const [expandedLogs, setExpandedLogs] = useState({});
+    const [expandedDecisions, setExpandedDecisions] = useState({});
     const [logSearchQuery, setLogSearchQuery] = useState('');
     const [masterStakeholders, setMasterStakeholders] = useState([]);
     const [companyQuery, setCompanyQuery] = useState('');
@@ -401,6 +402,10 @@ export default function WorkspacePm() {
 
     const toggleExpand = (id) => {
         setExpandedLogs(prev => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const toggleDecisionExpand = (id) => {
+        setExpandedDecisions(prev => ({ ...prev, [id]: !prev[id] }));
     };
 
     const logsPerPage = logsViewMode === 'summary' ? 5 : 20;
@@ -1010,32 +1015,85 @@ export default function WorkspacePm() {
             {/* Decision Log */}
             <h2 className="text-[18px] font-bold text-white mb-[12px]">최근 의사결정 로그 (Change Order)</h2>
             <div className="flex flex-col gap-3">
-                <div className="bg-[#292928] border border-[#3c3c3c] rounded-[16px] p-[20px] flex items-center hover:border-[#555] transition-colors">
-                    <div className="w-[120px]"><span className="text-[13px] text-[#86868B] font-medium">2026-04-10</span></div>
-                    <div className="w-[100px]"><span className="text-[12px] px-2 py-0.5 bg-[#222] border border-[#333] text-[#A1A1AA] rounded">Iota 1</span></div>
-                    <div className="flex-1 px-4 border-l border-[#333]">
-                        <span className="text-[15px] font-bold text-white">Foster+Partners 설계 Alt B 채택 (UW 내)</span>
+                {[
+                    {
+                        id: 'd1',
+                        date: '2026-04-10',
+                        created_at: '2026-04-10T14:30:00',
+                        project: 'Iota 1',
+                        title: 'Foster+Partners 설계 Alt B 채택 (UW 내)',
+                        raw_text: 'Foster+Partners 설계 Alt B 채택 (UW 내)\n\n주요 안건:\n- 외부 입면 디자인은 B안이 가장 효율적이라는 판단\n- 예상 공사비 한도(UW) 내에서 구현 가능함\n- 강순용 전무님 승인 완료',
+                        sh_name: '이지스자산운용 - 강순용',
+                        status: 'Approved',
+                        statusColor: 'text-[#34d399]'
+                    },
+                    {
+                        id: 'd2',
+                        date: '2026-04-01',
+                        created_at: '2026-04-01T09:15:00',
+                        project: 'Iota 2',
+                        title: '삼성물산 도급 변경분 정산안 합의',
+                        raw_text: '삼성물산 도급 변경분 정산안 합의\n\n세부 내역:\n- 물가상승분(Escalation) 반영한 최종 도급액 합의\n- 당초 예산 대비 2% 증가분은 예비비에서 충당\n- 윤관식 대표님 최종 결재 대기 중',
+                        sh_name: '삼성물산 - 윤관식',
+                        status: 'In Review',
+                        statusColor: 'text-[#fbf167]'
+                    }
+                ].map((log) => (
+                    <div key={log.id} className="relative bg-[#292928] border border-[#3c3c3c] rounded-[16px] p-[20px] flex flex-col hover:border-[#555] transition-colors">
+                        <div className="flex items-center w-full">
+                            <div className="relative flex flex-col justify-center w-[120px] shrink-0">
+                                <span className="text-[13px] text-[#86868B] font-medium leading-tight">{log.date}</span>
+                                {expandedDecisions[log.id] && log.created_at && (
+                                    <span className="absolute top-[100%] left-0 text-[11px] text-[#555] font-['Inter'] leading-tight mt-[2px] whitespace-nowrap">
+                                        {new Date(log.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="w-[100px] shrink-0"><span className="text-[12px] px-2 py-0.5 bg-[#222] border border-[#333] text-[#A1A1AA] rounded">{log.project}</span></div>
+                            <div className="flex-1 px-4 border-l border-[#333] flex items-center gap-[8px]">
+                                <span className="text-[15px] font-bold text-white truncate">{log.title}</span>
+                                <button 
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); toggleDecisionExpand(log.id); }}
+                                    className="text-[12px] text-[#2997ff] hover:underline cursor-pointer font-medium shrink-0 ml-[4px]"
+                                >
+                                    {expandedDecisions[log.id] ? '[접기]' : '[펼쳐보기]'}
+                                </button>
+                            </div>
+                            <div className="w-[100px] text-right shrink-0">
+                                <span className={`text-[13px] ${log.statusColor} font-bold`}>{log.status}</span>
+                            </div>
+                        </div>
+
+                        {/* Expanded Box */}
+                        {expandedDecisions[log.id] && (
+                            <div className="w-full flex mt-[14px]">
+                                <div 
+                                    className="bg-[#1c1c1e] border border-[#333] rounded-[12px] p-[16px] flex-1"
+                                    style={{ marginLeft: '220px', marginRight: '0px' }}
+                                >
+                                    {/* Stakeholder Pill (Floated Right) */}
+                                    {log.sh_name && (
+                                        <div className="float-right ml-[16px] mb-[12px] flex flex-col items-end gap-[4px]">
+                                            <span className="text-[11px] font-bold text-[#86868B] pr-[14px]">이해관계자</span>
+                                            <div className="bg-[#2a2a2c] border border-[#444] rounded-full pl-[8px] pr-[12px] py-[4px] flex items-center gap-[6px]">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                                <span className="text-[12px] font-medium text-[#E5E5E5]">
+                                                    {log.sh_name}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    )}
+                                    
+                                    <div className="whitespace-pre-wrap break-words text-[14px] text-[#E5E5E5] leading-relaxed">
+                                        {renderLogTextWithMentions(log.raw_text)}
+                                    </div>
+                                    <div className="clear-both"></div>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                    <div className="w-[120px] text-right">
-                        <span className="text-[13px] text-[#666]">결정: <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">강순용</span></span>
-                    </div>
-                    <div className="w-[100px] text-right">
-                        <span className="text-[13px] text-[#34d399] font-bold">Approved</span>
-                    </div>
-                </div>
-                <div className="bg-[#292928] border border-[#3c3c3c] rounded-[16px] p-[20px] flex items-center hover:border-[#555] transition-colors">
-                    <div className="w-[120px]"><span className="text-[13px] text-[#86868B] font-medium">2026-04-01</span></div>
-                    <div className="w-[100px]"><span className="text-[12px] px-2 py-0.5 bg-[#222] border border-[#333] text-[#A1A1AA] rounded">Iota 2</span></div>
-                    <div className="flex-1 px-4 border-l border-[#333]">
-                        <span className="text-[15px] font-bold text-white">삼성물산 도급 변경분 정산안 합의</span>
-                    </div>
-                    <div className="w-[120px] text-right">
-                        <span className="text-[13px] text-[#666]">결정: <span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">강순용</span></span>
-                    </div>
-                    <div className="w-[100px] text-right">
-                        <span className="text-[13px] text-[#fbf167] font-bold">In Review</span>
-                    </div>
-                </div>
+                ))}
             </div>
 
             {/* New Stakeholder Confirmation Modal */}
