@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import LogWriteBox from '../LogWriteBox';
 
 export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) {
@@ -482,8 +483,15 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                         </div>
 
                         {/* Expanded Box */}
-                        {expandedLogs[log.log_id] && (
-                            <div className="w-full flex mt-[14px]">
+                        <AnimatePresence>
+                            {expandedLogs[log.log_id] && (
+                                <motion.div 
+                                    className="w-full flex overflow-hidden"
+                                    initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                                    animate={{ height: 'auto', opacity: 1, marginTop: 14 }}
+                                    exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                                >
                                 <div 
                                     className="bg-[#1c1c1e] border border-[#333] rounded-[12px] p-[16px] flex-1"
                                     style={{ marginLeft: '166px', marginRight: '72px' }}
@@ -631,8 +639,9 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 ))}
                 {displayedLogs.length === 0 && (

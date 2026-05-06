@@ -164,7 +164,7 @@ const stakeholderGroups = [
                             {
                                 name: '박준호',
                                 photo: '박준호',
-                                roles: ['Loan Finance센터/센터장+'],
+                                roles: ['Loan Finance센터/센터장+', 'IOTA CFT'],
                                 responsibility: '파이낸싱 책임인력',
                                 email: 'junhopark@igisam.com',
                                 phone: '010-9230-5400',
@@ -172,49 +172,49 @@ const stakeholderGroups = [
                             {
                                 name: '강석민',
                                 photo: '강석민',
-                                roles: ['Loan Finance센터/Sr.Manager'],
+                                roles: ['Loan Finance센터/Sr.Manager', 'IOTA CFT'],
                                 email: 'sm.kang@igisam.com',
                                 phone: '010-9091-1055',
                             },
                             {
                                 name: '정리훈',
                                 photo: '정리훈',
-                                roles: ['Loan Finance센터/Sr.Manager'],
+                                roles: ['Loan Finance센터/Sr.Manager', 'IOTA CFT'],
                                 email: 'jlh@igisam.com',
                                 phone: '010-2983-1503',
                             },
                             {
                                 name: '손유정',
                                 photo: '손유정',
-                                roles: ['Loan Finance센터'],
+                                roles: ['Loan Finance센터', 'IOTA CFT'],
                                 email: 'yujung.son@igisam.com',
                                 phone: '010-2863-3892',
                             },
                             {
                                 name: '김지우',
                                 photo: '김지우',
-                                roles: ['Loan Finance센터'],
+                                roles: ['Loan Finance센터', 'IOTA CFT'],
                                 email: 'jiwoo@igisam.com',
                                 phone: '010-5541-5394',
                             },
                             {
                                 name: '박현승',
                                 photo: '박현승',
-                                roles: ['Loan Finance센터'],
+                                roles: ['Loan Finance센터', 'IOTA CFT'],
                                 email: 'hyunpark@igisam.com',
                                 phone: '010-5376-8842',
                             },
                             {
                                 name: '이성민A',
                                 photo: '이성민A',
-                                roles: ['Loan Finance센터'],
+                                roles: ['Loan Finance센터', 'IOTA CFT'],
                                 email: 'stealth@igisam.com',
                                 phone: '010-3074-3396',
                             },
                             {
                                 name: '한승환',
                                 photo: '한승환',
-                                roles: ['Loan Finance센터'],
+                                roles: ['Loan Finance센터', 'IOTA CFT'],
                                 email: 'seunghwanhan@igisam.com',
                                 phone: '010-2722-9946',
                             },
@@ -226,7 +226,7 @@ const stakeholderGroups = [
                             {
                                 name: '홍장군',
                                 photo: '홍장군',
-                                roles: ['개발솔루션센터/센터장+'],
+                                roles: ['개발솔루션센터/센터장+', 'IOTA CFT'],
                                 responsibility: '개발관리 책임인력',
                                 email: 'jghong@igisam.com',
                                 phone: '010-6229-8919',
@@ -234,49 +234,49 @@ const stakeholderGroups = [
                             {
                                 name: '채원',
                                 photo: '채원',
-                                roles: ['개발솔루션센터/담당+'],
+                                roles: ['개발솔루션센터/담당+', 'IOTA CFT'],
                                 email: 'won.chae@igisam.com',
                                 phone: '010-7222-7469',
                             },
                             {
                                 name: '김보성',
                                 photo: '김보성',
-                                roles: ['개발솔루션센터'],
+                                roles: ['개발솔루션센터', 'IOTA CFT'],
                                 email: 'kbs1208@igisam.com',
                                 phone: '010-2369-2069',
                             },
                             {
                                 name: '전승희',
                                 photo: '전승희',
-                                roles: ['개발솔루션센터'],
+                                roles: ['개발솔루션센터', 'IOTA CFT'],
                                 email: 'shjeon@igisam.com',
                                 phone: '010-3804-6529',
                             },
                             {
                                 name: '김대익',
                                 photo: '김대익',
-                                roles: ['개발솔루션센터'],
+                                roles: ['개발솔루션센터', 'IOTA CFT'],
                                 email: 'dikim@igisam.com',
                                 phone: '010-9251-3466',
                             },
                             {
                                 name: '장성진',
                                 photo: '장성진',
-                                roles: ['개발솔루션센터'],
+                                roles: ['개발솔루션센터', 'IOTA CFT'],
                                 email: 'jang.sj@igisam.com',
                                 phone: '010-9680-3293',
                             },
                             {
                                 name: '이정훈',
                                 photo: '이정훈',
-                                roles: ['개발솔루션센터/담당'],
+                                roles: ['개발솔루션센터/담당', 'IOTA CFT'],
                                 email: '2019jhlee@igisam.com',
                                 phone: '010-4175-5799',
                             },
                             {
                                 name: '박봉서',
                                 photo: '박봉서',
-                                roles: ['개발솔루션센터/담당'],
+                                roles: ['개발솔루션센터/담당', 'IOTA CFT'],
                                 email: 'okbong21@igisam.com',
                                 phone: '010-3370-3594',
                             },
@@ -288,7 +288,7 @@ const stakeholderGroups = [
                             {
                                 name: '김민지',
                                 photo: '김민지',
-                                roles: ['기업마케팅센터/Sr.Manager'],
+                                roles: ['기업마케팅센터/Sr.Manager', 'IOTA CFT'],
                                 responsibility: '기업마케팅 책임인력',
                                 email: 'minjik@igisam.com',
                                 phone: '010-5454-5322',
@@ -296,7 +296,7 @@ const stakeholderGroups = [
                             {
                                 name: '고아라',
                                 photo: '고아라',
-                                roles: ['기업마케팅센터'],
+                                roles: ['기업마케팅센터', 'IOTA CFT'],
                                 email: 'argoh@igisam.com',
                                 phone: '010-4701-7725',
                             },
@@ -308,7 +308,7 @@ const stakeholderGroups = [
                             {
                                 name: '김현수',
                                 photo: '김현수',
-                                roles: ['공간솔루션센터/센터장+'],
+                                roles: ['공간솔루션센터/센터장+', 'IOTA CFT'],
                                 responsibility: '상품·디지털 책임인력',
                                 email: 'hyunsoo.kim@igisam.com',
                                 phone: '010-2078-2999',
@@ -324,21 +324,21 @@ const stakeholderGroups = [
                             {
                                 name: '신민호',
                                 photo: '신민호',
-                                roles: ['솔루션파트/Sr.Manager'],
+                                roles: ['솔루션파트/Sr.Manager', 'IOTA CFT'],
                                 email: 'rossshin@igisam.com',
                                 phone: '010-6593-2239',
                             },
                             {
                                 name: '이가현',
                                 photo: '이가현',
-                                roles: ['공간솔루션센터/리더'],
+                                roles: ['공간솔루션센터/리더', 'IOTA CFT'],
                                 email: 'ghlee@igisam.com',
                                 phone: '010-7114-5070',
                             },
                             {
                                 name: '정수명',
                                 photo: '정수명',
-                                roles: ['공간솔루션센터'],
+                                roles: ['공간솔루션센터', 'IOTA CFT'],
                                 email: 'smchung@igisam.com',
                                 phone: '010-5011-9459',
                             },
@@ -363,20 +363,20 @@ const stakeholderGroups = [
                             {
                                 name: '윤용택',
                                 photo: '윤용택',
-                                roles: ['사업그룹3파트/Sr.Manager', '전략펀드운용1실', '개발PFV TF'],
+                                roles: ['사업그룹3파트/Sr.Manager', '전략펀드운용1실', '개발PFV TF', 'IOTA CFT'],
                                 responsibility: 'IPR 책임인력',
                                 email: 'yongtek.yoon@igisam.com',
                                 phone: '010-2655-1185',
                             },
                         ]
                     },
-                    {
+                                        {
                         groupTitle: '기획추진',
                         members: [
                             {
                                 name: '이시정',
                                 photo: '이시정',
-                                roles: ['기획추진센터/리더', 'People Architecture TF'],
+                                roles: ['기획추진센터/리더', 'People Architecture TF', 'IOTA CFT'],
                                 responsibility: '',
                                 email: 'sjlee@igisam.com',
                                 phone: '010-8852-9482',
@@ -384,10 +384,18 @@ const stakeholderGroups = [
                             {
                                 name: '이관용',
                                 photo: '이관용',
-                                roles: ['기획추진센터'],
+                                roles: ['기획추진센터', 'IOTA CFT'],
                                 responsibility: '',
                                 email: 'kylee@igisam.com',
                                 phone: '010-2927-3685',
+                            },
+                            {
+                                name: '전기영',
+                                photo: '전기영',
+                                roles: ['기획추진센터', 'IOTA CFT'],
+                                responsibility: '',
+                                email: 'jkjeon2025@igisam.com',
+                                phone: '',
                             },
                         ]
                     },
@@ -775,8 +783,8 @@ export default function StakeInternal() {
                     style={{
                         left: mousePos.x + 10,
                         top: mousePos.y - 50,
-                        width: '160px',
-                        height: '160px'
+                        width: '128px',
+                        height: '128px'
                     }}
                 >
                     <img src={`${import.meta.env.BASE_URL}${hoveredImage}.webp`} alt="preview" className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />

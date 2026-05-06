@@ -10,35 +10,35 @@ export default function GovPrinciples() {
                 <div className="w-full h-px bg-[#333] mb-[22px]"></div>
                 
                 <div className="flex flex-col">
-                    <h3 className="text-[20px] font-bold text-[#7da2fb] mb-[4px]">1. 단일 진실의 원칙(Single Source of Truth)</h3>
+                    <h3 className="text-[20px] font-bold text-[#2997FF] mb-[4px]">1. 단일 진실의 원칙(Single Source of Truth)</h3>
                     <p className="text-[17px] text-[#c3c2b7] leading-[24px]">모든 보고·KPI·자금흐름 데이터는 통합 데이터룸을 통해서만 인용합니다.</p>
                 </div>
 
                 <div className="w-full h-px bg-[#333] my-[22px]"></div>
 
                 <div className="flex flex-col">
-                    <h3 className="text-[20px] font-bold text-[#7da2fb] mb-[4px]">2. 결정자·승인자 분리 원칙(Two-Lock)</h3>
+                    <h3 className="text-[20px] font-bold text-[#2997FF] mb-[4px]">2. 결정자·승인자 분리 원칙(Two-Lock)</h3>
                     <p className="text-[17px] text-[#c3c2b7] leading-[24px]">일정 또는 비용에 영향이 있는 변경은 PM이 결정자, 부대표/대표가 승인자로 분리됩니다.</p>
                 </div>
 
                 <div className="w-full h-px bg-[#333] my-[22px]"></div>
 
                 <div className="flex flex-col">
-                    <h3 className="text-[20px] font-bold text-[#7da2fb] mb-[4px]">3. UW 범위 안과 밖의 분리 원칙</h3>
+                    <h3 className="text-[20px] font-bold text-[#2997FF] mb-[4px]">3. UW 범위 안과 밖의 분리 원칙</h3>
                     <p className="text-[17px] text-[#c3c2b7] leading-[24px]">UW 범위 내 변경은 사업파트 co-PM 자율, UW 범위 외는 즉시 부문대표 보고와 LP 통지 절차가 트리거 됩니다.</p>
                 </div>
 
                 <div className="w-full h-px bg-[#333] my-[22px]"></div>
 
                 <div className="flex flex-col">
-                    <h3 className="text-[20px] font-bold text-[#7da2fb] mb-[4px]">4. 이해상충 방화벽 원칙</h3>
+                    <h3 className="text-[20px] font-bold text-[#2997FF] mb-[4px]">4. 이해상충 방화벽 원칙</h3>
                     <p className="text-[17px] text-[#c3c2b7] leading-[24px]">421호 펀드 운용역과 IPR 워킹그룹은 동일 인물이 동시 결정권을 가질 수 없습니다(자문/검토는 가능).</p>
                 </div>
 
                 <div className="w-full h-px bg-[#333] my-[22px]"></div>
 
                 <div className="flex flex-col">
-                    <h3 className="text-[20px] font-bold text-[#7da2fb] mb-[4px]">5. 기록과 복기의 원칙</h3>
+                    <h3 className="text-[20px] font-bold text-[#2997FF] mb-[4px]">5. 기록과 복기의 원칙</h3>
                     <p className="text-[17px] text-[#c3c2b7] leading-[24px]">모든 의사결정은 회의록·결정문 형태로 통합 데이터룸에 잔존하며, 매 분기 회고 세션에서의 복기 대상이 됩니다.</p>
                 </div>
 

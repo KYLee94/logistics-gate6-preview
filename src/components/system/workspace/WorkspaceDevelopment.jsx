@@ -44,6 +44,8 @@ export default function WorkspaceDevelopment() {
                 </div>
             </div>
             
+            <WorkspaceActivityLog workspaceCode="WS_DSC" workspaceLabel="개발솔루션-DSC" />
+
             {/* Top 3 KPI Cards */}
             <div className="flex w-full gap-[24px] mb-[40px]">
                 <div className="flex-1 bg-[#292928] border border-[#3c3c3c] rounded-[24px] p-[28px] hover:border-[#555] transition-colors relative overflow-hidden group">
@@ -66,7 +68,7 @@ export default function WorkspaceDevelopment() {
                 </div>
             </div>
 
-            <WorkspaceActivityLog workspaceCode="WS_DSC" workspaceLabel="개발솔루션-DSC" />
+
 
             {/* Design & Construction Pipeline */}
             <h2 className="text-[18px] font-bold text-white mb-[16px]">주요 변경관리 / 인허가 마일스톤</h2>

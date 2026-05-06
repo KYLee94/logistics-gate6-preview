@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabaseClient';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs, fetchMasterStakeholders, workspaceCode, workspaceLabel }) {
     // Form States
@@ -10,6 +11,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
     const [stakeholderCat, setStakeholderCat] = useState('');
     const [workDate, setWorkDate] = useState(new Date().toISOString().slice(0, 10));
     const [content, setContent] = useState('');
+    const [isExpanded, setIsExpanded] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
     // Stakeholder Search States
@@ -249,6 +251,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
             setContactQuery('');
             if(fetchLogs) fetchLogs();
             setShowSuccessModal(true);
+            setIsExpanded(false);
             setTimeout(() => {
                 setShowSuccessModal(false);
             }, 2000);
@@ -386,9 +389,29 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                         />
                     </label>
+                    <div className="w-px h-[14px] bg-[#333] mx-[4px]"></div>
+                    <div className="rounded-[8px] p-[1px] bg-gradient-to-br from-[#d6efe9] via-[#82afb9] to-[#4c6e86]">
+                        <button
+                            type="button"
+                            onClick={() => setIsExpanded(!isExpanded)}
+                            className="flex items-center px-[12px] py-[6px] rounded-[7px] text-[12px] font-bold cursor-pointer transition-colors bg-[#222] text-[#E5E5E5] hover:bg-[#333]"
+                        >
+                            {isExpanded ? '접기' : '글작성하기'}
+                        </button>
+                    </div>
                 </div>
 
-                {/* Text Area */}
+                
+                <AnimatePresence>
+                    {isExpanded && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                            className="overflow-hidden w-full flex flex-col"
+                        >
+{/* Text Area */}
                 <div className="w-full px-[20px] pt-[20px] pb-[24px] relative bg-transparent">
                     
                     {/* Background Div for Highlights */}
@@ -409,7 +432,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                             const bg = document.getElementById(`highlight-bg-${workspaceCode}`);
                             if (bg) bg.scrollTop = e.target.scrollTop;
                         }}
-                        className="w-full bg-transparent text-transparent caret-white outline-none resize-y min-h-[140px] leading-relaxed text-[15px] relative z-10 font-sans"
+                        className="w-full bg-transparent text-transparent caret-white outline-none resize-y min-h-[120px] leading-relaxed text-[15px] relative z-10 font-sans"
                         style={{ caretColor: '#E5E5E5' }}
                         required
                     ></textarea>
@@ -539,6 +562,10 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                         {isSubmitting ? '저장 중...' : '작성하기'}
                     </button>
                 </div>
+            
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Modals */}

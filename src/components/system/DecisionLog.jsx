@@ -25,8 +25,7 @@ export default function DecisionLog() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showMeetingsInfo, setShowMeetingsInfo] = useState(false);
     const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
-    const [showWriteBox, setShowWriteBox] = useState(false);
-    const [masterStakeholders, setMasterStakeholders] = useState([]);
+        const [masterStakeholders, setMasterStakeholders] = useState([]);
 
     // Edit states
     const [editingLogId, setEditingLogId] = useState(null);
@@ -373,15 +372,8 @@ export default function DecisionLog() {
             </div>
 
 
-            <AnimatePresence>
-                {showWriteBox && (
-                    <motion.div 
-                        initial={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                        animate={{ opacity: 1, height: 'auto', overflow: 'visible' }}
-                        exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
-                        transition={{ duration: 0.3, ease: 'easeInOut' }}
-                    >
-                        <LogWriteBox 
+            <div className="w-full mb-[20px]">
+                <LogWriteBox 
                             memberInfo={memberInfo}
                             masterStakeholders={masterStakeholders}
                             fetchLogs={fetchLogs}
@@ -389,23 +381,13 @@ export default function DecisionLog() {
                             workspaceCode="WS_DECISION"
                             workspaceLabel="의사결정 로그"
                         />
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            </div>
 
             {/* Log Viewer */}
             <div id="log-viewer-header" className="flex justify-between items-center mb-[12px] scroll-mt-[80px]">
                 <h2 className="text-[18px] font-bold text-white tracking-tight">활동내역 전체보기</h2>
                 <div className="flex items-center gap-[12px]">
-                    {/* Write Log Toggle */}
-                    <div className="rounded-[8px] p-[1px] bg-gradient-to-br from-[#d6efe9] via-[#82afb9] to-[#4c6e86]">
-                        <button
-                            onClick={() => setShowWriteBox(!showWriteBox)}
-                            className="flex items-center px-[12px] py-[6px] rounded-[7px] text-[12px] font-bold cursor-pointer transition-colors bg-[#222] text-[#E5E5E5] hover:bg-[#333]"
-                        >
-                            글작성하기
-                        </button>
-                    </div>
+                    
 
                     {/* My Logs Toggle */}
                     <button 
@@ -639,8 +621,15 @@ export default function DecisionLog() {
                         </div>
 
                         {/* Expanded Box */}
-                        {expandedLogs[log.log_id] && (
-                            <div className="w-full flex mt-[14px]">
+                        <AnimatePresence>
+                            {expandedLogs[log.log_id] && (
+                                <motion.div 
+                                    className="w-full flex overflow-hidden"
+                                    initial={{ height: 0, opacity: 0, marginTop: 0 }}
+                                    animate={{ height: 'auto', opacity: 1, marginTop: 14 }}
+                                    exit={{ height: 0, opacity: 0, marginTop: 0 }}
+                                    transition={{ duration: 0.2, ease: "easeInOut" }}
+                                >
                                 <div 
                                     className="bg-[#1c1c1e] border border-[#333] rounded-[12px] p-[16px] flex-1 relative"
                                     style={{ marginLeft: '166px', marginRight: '72px' }}
@@ -787,8 +776,9 @@ export default function DecisionLog() {
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 ))}
                 {isLoading ? (
