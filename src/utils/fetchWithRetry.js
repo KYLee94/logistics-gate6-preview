@@ -5,24 +5,23 @@ export const fetchWithRetry = async (queryFn, maxRetries = 3, delayMs = 500) => 
     for (let i = 0; i < maxRetries; i++) {
         let data = null, error = null;
         try {
-            // Add a timeout to prevent infinite hangs if Supabase lock is deadlocked
-            const timeoutPromise = new Promise((_, reject) => {
-                setTimeout(() => reject(new Error('Query timeout - possible Lock deadlock')), 5000);
-            });
-            const result = await Promise.race([queryFn(), timeoutPromise]);
+            const result = await queryFn();
             data = result.data;
             error = result.error;
         } catch (err) {
-            // Supabase occasionally throws the Lock error as an exception instead of returning it
-            // Or our timeout triggers
             error = err;
         }
 
         if (!error) return { data, error: null };
         
         lastError = error;
-        // If it's a lock stolen error or network issue, retry
-        if ((error.message && error.message.includes('Lock')) || (error.message && error.message.includes('fetch'))) {
+        // If it's a lock stolen error, network issue, or our custom timeout abort, retry
+        if (
+            (error.message && error.message.includes('Lock')) || 
+            (error.message && error.message.toLowerCase().includes('fetch')) ||
+            (error.message && error.message.toLowerCase().includes('abort')) ||
+            error.name === 'AbortError'
+        ) {
             await new Promise(resolve => setTimeout(resolve, delayMs));
             continue;
         }
