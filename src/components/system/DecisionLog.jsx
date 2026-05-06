@@ -475,7 +475,7 @@ export default function DecisionLog() {
                                 ))}
                             </select>
                         </div>
-                        <div className="w-[60px] flex items-center justify-center translate-x-[6px]">
+                        <div className="w-[70px] flex items-center justify-center translate-x-[6px]">
                             <select 
                                 value={filterPurpose}
                                 onChange={e => { setFilterPurpose(e.target.value); setCurrentPage(1); }}
@@ -488,7 +488,7 @@ export default function DecisionLog() {
                                 ))}
                             </select>
                         </div>
-                        <div className="w-[60px] flex items-center justify-center">
+                        <div className="w-[70px] flex items-center justify-center">
                             <select 
                                 value={filterStatus}
                                 onChange={e => { setFilterStatus(e.target.value); setCurrentPage(1); }}
@@ -501,7 +501,7 @@ export default function DecisionLog() {
                                 ))}
                             </select>
                         </div>
-                        <div className="w-[40px] flex items-center justify-center">
+                        <div className="w-[50px] flex items-center justify-center">
                             <select 
                                 value={filterPriority}
                                 onChange={e => { setFilterPriority(e.target.value); setCurrentPage(1); }}
@@ -514,7 +514,7 @@ export default function DecisionLog() {
                                 ))}
                             </select>
                         </div>
-                        <div className="w-[60px] text-center flex items-center justify-center">
+                        <div className="w-[80px] text-center flex items-center justify-center">
                             <span className="text-[13px] font-bold text-[#86868B] px-[4px]">등록일</span>
                         </div>
                     </div>
@@ -606,14 +606,14 @@ export default function DecisionLog() {
                                         </span>
                                     )}
                                 </div>
-                                <div className="h-[24px] flex items-center w-[60px] justify-center translate-x-[6px]"><span className="text-[13px] text-[#A1A1AA] truncate">{log.metadata?.triage_type || '공유'}</span></div>
-                                <div className="h-[24px] flex items-center w-[60px] justify-center"><span className="text-[13px] text-[#E5E5E5]">{log.metadata?.issue_status || '진행중'}</span></div>
-                                <div className="h-[24px] flex items-center w-[40px] justify-center">
+                                <div className="h-[24px] flex items-center w-[70px] justify-center translate-x-[6px]"><span className="text-[13px] text-[#A1A1AA] truncate">{log.metadata?.triage_type || '공유'}</span></div>
+                                <div className="h-[24px] flex items-center w-[70px] justify-center"><span className="text-[13px] text-[#E5E5E5]">{log.metadata?.issue_status || '진행중'}</span></div>
+                                <div className="h-[24px] flex items-center w-[50px] justify-center">
                                     <span className={`text-[13px] font-bold ${log.metadata?.priority === '높음' ? 'text-[#FF453A]' : (log.metadata?.priority === '낮음' ? 'text-[#86868B]' : 'text-[#3b82f6]')}`}>
                                         {log.metadata?.priority || '중간'}
                                     </span>
                                 </div>
-                                <div className="relative flex flex-col items-center w-[60px] shrink-0 justify-center">
+                                <div className="relative flex flex-col items-center w-[80px] shrink-0 justify-center">
                                     <span className="text-[13px] text-[#86868B] font-['Inter'] leading-tight">
                                         {formatDateYYMMDD(log.work_date)}
                                     </span>
