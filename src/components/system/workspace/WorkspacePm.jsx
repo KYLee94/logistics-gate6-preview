@@ -1065,7 +1065,7 @@ export default function WorkspacePm() {
                                     </div>
                                     <div className="clear-both"></div>
                                     
-                                    <div className="mt-[24px] pt-[16px] border-t border-[#333]/50 flex items-end justify-between">
+                                    <div className="mt-[24px] flex items-end justify-between">
                                         <div className="text-[12px] text-[#555] font-medium">
                                             수정일자: {log.updated_at ? new Date(log.updated_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : new Date(log.created_at || log.work_date).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                         </div>
