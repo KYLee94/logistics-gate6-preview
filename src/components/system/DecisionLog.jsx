@@ -466,7 +466,7 @@ export default function DecisionLog() {
                             <select 
                                 value={filterStakeholder}
                                 onChange={e => { setFilterStakeholder(e.target.value); setCurrentPage(1); }}
-                                className={`bg-white/5 border border-transparent text-[12px] font-bold cursor-pointer appearance-none focus:outline-none w-[76px] hover:text-white hover:bg-white/10 rounded-[8px] px-[2px] py-[4px] transition-colors translate-x-[-24px] ${filterStakeholder ? 'text-[#fbf167]' : 'text-[#A1A1AA]'}`}
+                                className={`bg-white/5 border border-transparent text-[12px] font-bold cursor-pointer appearance-none focus:outline-none w-[76px] hover:text-white hover:bg-white/10 rounded-[8px] px-[2px] py-[4px] transition-colors translate-x-[-26px] ${filterStakeholder ? 'text-[#fbf167]' : 'text-[#A1A1AA]'}`}
                                 style={{ textAlignLast: 'center' }}
                             >
                                 <option value="" className="bg-[#222] text-[#E5E5E5]">이해관계자</option>
