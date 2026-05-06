@@ -300,20 +300,6 @@ const stakeholderGroups = [
                                 email: 'argoh@igisam.com',
                                 phone: '010-4701-7725',
                             },
-                            {
-                                name: '이가현',
-                                photo: '이가현',
-                                roles: ['공간솔루션센터/리더'],
-                                email: 'ghlee@igisam.com',
-                                phone: '010-7114-5070',
-                            },
-                            {
-                                name: '정수명',
-                                photo: '정수명',
-                                roles: ['공간솔루션센터'],
-                                email: 'smchung@igisam.com',
-                                phone: '010-5011-9459',
-                            },
                         ]
                     },
                     {
@@ -341,6 +327,20 @@ const stakeholderGroups = [
                                 roles: ['솔루션파트/Sr.Manager'],
                                 email: 'rossshin@igisam.com',
                                 phone: '010-6593-2239',
+                            },
+                            {
+                                name: '이가현',
+                                photo: '이가현',
+                                roles: ['공간솔루션센터/리더'],
+                                email: 'ghlee@igisam.com',
+                                phone: '010-7114-5070',
+                            },
+                            {
+                                name: '정수명',
+                                photo: '정수명',
+                                roles: ['공간솔루션센터'],
+                                email: 'smchung@igisam.com',
+                                phone: '010-5011-9459',
                             },
                         ]
                     },
@@ -600,11 +600,10 @@ export default function StakeInternal() {
                             </td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">
                                 <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0 pt-[3px]">EMC</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('고아라')}</div></div>
-                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0 pt-[3px]">SSC</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('이가현 정수명')}</div></div>
-                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0 pt-[3px]">사업1</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('권순일(자문)')}</div></div>
+                                <div className="flex gap-4 mt-[4px]"><span className="w-[60px] text-[#86868B] shrink-0 pt-[3px]">사업1</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('권순일(자문)')}</div></div>
                             </td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">LM 전략·잠재 임차인 피칭<br/>임대차 조건 협의<br/>LM사 관리</td>
-                            <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] leading-[22px]">EMC<br/>SSC</td>
+                            <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] leading-[22px]">EMC</td>
                         </tr>
 
                         {/* 상품·디지털 */}
