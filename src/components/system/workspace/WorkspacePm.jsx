@@ -414,8 +414,8 @@ export default function WorkspacePm() {
             </div>
 
             {/* Task Input Form */}
-            <div className="w-full bg-[#262626] border border-[#333] rounded-[24px] overflow-hidden mb-[40px]">
-                <div>
+            <div className="w-full rounded-[24px] p-[1px] bg-gradient-to-br from-[#d6efe9] via-[#82afb9] to-[#4c6e86] mb-[40px]">
+                <div className="w-full h-full bg-[#262626] rounded-[23px] overflow-hidden">
                     {/* Header */}
                     <div className="w-full px-[20px] py-[10px] border-b border-[#333] flex items-center gap-[12px]">
                         <div className="relative w-[40px] h-[40px] shrink-0 rounded-full bg-[#3c3c3c] flex items-center justify-center overflow-hidden border border-white/10">
@@ -494,9 +494,12 @@ export default function WorkspacePm() {
                         <div className="flex-1"></div>
 
                         {/* Date Picker */}
-                        <label className="relative inline-flex items-center gap-[8px] cursor-pointer group">
+                        <label 
+                            className="relative inline-flex items-center gap-[8px] cursor-pointer group"
+                            onClick={(e) => { const input = e.currentTarget.querySelector('input'); if (input && input.showPicker) input.showPicker(); }}
+                        >
                             <span className="text-[#E5E5E5] text-[14px] font-medium tracking-wide group-hover:text-white transition-colors">{formatDisplayDate(workDate)}</span>
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-hover:stroke-white transition-colors">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-hover:stroke-white transition-colors pointer-events-none">
                                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                                 <line x1="16" y1="2" x2="16" y2="6"></line>
                                 <line x1="8" y1="2" x2="8" y2="6"></line>
@@ -506,6 +509,7 @@ export default function WorkspacePm() {
                                 type="date" 
                                 value={workDate}
                                 onChange={(e) => setWorkDate(e.target.value)}
+                                onClick={(e) => { if (e.target.showPicker) e.target.showPicker(); }}
                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                             />
                         </label>
