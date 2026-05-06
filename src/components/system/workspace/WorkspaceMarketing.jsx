@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import WorkspaceActivityLog from './WorkspaceActivityLog';
 
 export default function WorkspaceMarketing() {
     const [projectShowAll, setProjectShowAll] = useState(false);
@@ -69,6 +70,8 @@ export default function WorkspaceMarketing() {
                 </div>
             </div>
             
+            <WorkspaceActivityLog workspaceCode="WS_EMC" workspaceLabel="기업마케팅-EMC" />
+
             {/* 1. 주간 플래닝 칸반 */}
             <h2 className="text-[18px] font-bold text-white mb-[16px]">주간 플래닝 보드 (Weekly Sprints)</h2>
             <div className="grid grid-cols-2 gap-[24px] mb-[40px]">

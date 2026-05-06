@@ -1,4 +1,5 @@
 import React from 'react';
+import WorkspaceActivityLog from './WorkspaceActivityLog';
 
 export default function WorkspaceFinancing() {
     return (
@@ -42,6 +43,8 @@ export default function WorkspaceFinancing() {
                     </div>
                 </div>
             </div>
+
+            <WorkspaceActivityLog workspaceCode="WS_LFC" workspaceLabel="파이낸싱-LFC" />
 
             {/* 421 Fund Equity Stack */}
             <h2 className="text-[20px] font-bold text-white mb-[20px]">421 REF Equity Structure</h2>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import WorkspaceActivityLog from './WorkspaceActivityLog';
 
 export default function WorkspaceIpr() {
     const [activeTab, setActiveTab] = useState(0);
@@ -76,6 +77,8 @@ export default function WorkspaceIpr() {
                     <div className="text-[32px] font-black text-white">3<span className="text-[16px] font-normal text-[#A1A1AA] ml-2">건</span></div>
                 </div>
             </div>
+
+            <WorkspaceActivityLog workspaceCode="WS_IPR" workspaceLabel="IPR" />
 
             {/* IPR Stage Map */}
             <h2 className="text-[18px] font-bold text-white mb-[16px]">IPR Working Group 진행 단계</h2>

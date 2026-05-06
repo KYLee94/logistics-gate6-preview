@@ -7,17 +7,6 @@ import { useTheme } from '../../context/ThemeContext';
 export default function PlatformCore({ isPlatform = true, isIotaWorkspaceOverride = false, currentPath = '', refreshKey = 0 }) {
     const { isLightMode, toggleTheme } = useTheme();
     const [isIotaWorkspace, setIsIotaWorkspace] = useState(isIotaWorkspaceOverride);
-    const [isRefreshing, setIsRefreshing] = useState(false);
-
-    useEffect(() => {
-        if (refreshKey > 0) {
-            setIsRefreshing(true);
-            const timer = setTimeout(() => {
-                setIsRefreshing(false);
-            }, 100); // 100ms delay to clear fetch aborts and provide visual feedback
-            return () => clearTimeout(timer);
-        }
-    }, [refreshKey]);
 
     useEffect(() => {
         if (isLightMode) toggleTheme();
@@ -47,13 +36,7 @@ export default function PlatformCore({ isPlatform = true, isIotaWorkspaceOverrid
                 {/* 컨텐츠 박스 (PlatformCenter) */}
                 <div className="w-full h-full overflow-hidden shrink-0 flex flex-col items-stretch opacity-100">
                     <div className="w-full h-full flex flex-col items-stretch min-w-[600px] opacity-100">
-                        {isRefreshing ? (
-                            <div className="w-full flex-1 flex items-center justify-center">
-                                {/* Blank state for 100ms during refresh */}
-                            </div>
-                        ) : (
-                            <PlatformCenter currentPath={currentPath} />
-                        )}
+                        <PlatformCenter key={refreshKey} currentPath={currentPath} />
                     </div>
                 </div>
             </div>

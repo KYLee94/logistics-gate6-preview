@@ -1,4 +1,5 @@
 import React from 'react';
+import WorkspaceActivityLog from './WorkspaceActivityLog';
 
 export default function WorkspaceDevelopment() {
     return (
@@ -64,6 +65,8 @@ export default function WorkspaceDevelopment() {
                     <p className="text-[13px] text-[#e11d48] mt-2">인허가 2주 누적 지연 영향</p>
                 </div>
             </div>
+
+            <WorkspaceActivityLog workspaceCode="WS_DSC" workspaceLabel="개발솔루션-DSC" />
 
             {/* Design & Construction Pipeline */}
             <h2 className="text-[18px] font-bold text-white mb-[16px]">주요 변경관리 / 인허가 마일스톤</h2>
