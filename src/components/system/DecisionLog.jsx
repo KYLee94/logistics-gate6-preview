@@ -805,7 +805,7 @@ export default function DecisionLog() {
                 )}
 
                 {logsViewMode === 'full' && totalPages > 1 && (
-                    <div className="w-full py-[14px] flex justify-center items-center gap-[12px]">
+                    <div className="w-full py-3 flex justify-center items-center gap-[12px]">
                         <button 
                             disabled={currentPage === 1}
                             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
