@@ -190,7 +190,7 @@ export default function WorkspaceMarketing() {
             </div>
             <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] mb-[40px]">
                 <table className="w-full text-left table-fixed">
-                    <thead className="bg-[#272726]">
+                    <thead>
                         <tr>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[18%]">Task 명</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[12%]">연결 기업</th>
@@ -316,7 +316,7 @@ export default function WorkspaceMarketing() {
                     </tbody>
                 </table>
                 {tasks.length > 5 && (
-                    <div className="w-full border-t border-[#3c3c3c] p-2 flex justify-center bg-[#1A1A1A]">
+                    <div className="w-full border-t border-[#3c3c3c] p-2 flex justify-center bg-[#1A1A1A] rounded-b-[23px]">
                         <button 
                             onClick={() => setProjectShowAll(!projectShowAll)}
                             className="text-[13px] font-bold text-[#A1A1AA] hover:text-white transition-colors px-4 py-2 cursor-pointer"
@@ -334,7 +334,7 @@ export default function WorkspaceMarketing() {
             </div>
             <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] overflow-hidden mb-[40px]">
                 <table className="w-full text-left">
-                    <thead className="bg-[#272726]">
+                    <thead>
                         <tr>
                             <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">채널명</th>
                             <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">상태</th>
@@ -362,7 +362,7 @@ export default function WorkspaceMarketing() {
                     </tbody>
                 </table>
                 {pipelines.length > 5 && (
-                    <div className="w-full border-t border-[#333] p-2 flex justify-center bg-[#222]">
+                    <div className="w-full border-t border-[#333] p-2 flex justify-center bg-[#222] rounded-b-[23px]">
                         <button 
                             onClick={() => setPipelineShowAll(!pipelineShowAll)}
                             className="text-[13px] font-bold text-[#A1A1AA] hover:text-white transition-colors px-4 py-2 cursor-pointer"
