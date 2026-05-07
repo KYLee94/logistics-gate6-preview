@@ -273,7 +273,7 @@ export default function VehicleIntegrated() {
         const hotelArea = vehicleId === '427' ? '5,121평' : '-평';
 
         return (
-            <div id={id} className="mb-[38px]">
+            <div id={id} className="mb-[28px]">
                 <div className="flex justify-between items-end mb-[16px]">
                     <h2 className="text-[24px] font-bold text-white tracking-tight">{title}</h2>
                     {toggleContent}
@@ -818,7 +818,7 @@ export default function VehicleIntegrated() {
             <div className="w-full h-[38px]"></div>
 
             {/* 5. IPR */}
-            <div id="section-ipr" className="mb-[38px]">
+            <div id="section-ipr" className="mb-[28px]">
                 <div className="flex justify-between items-end mb-[16px]">
                     <h2 className="text-[24px] font-bold text-white tracking-tight">4. IPR (Iota Project REITs)</h2>
                     <button 
