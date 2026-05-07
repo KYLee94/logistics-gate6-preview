@@ -197,8 +197,8 @@ export default function WorkspaceMarketing() {
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[11%] text-center">관련 자산</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[9%] text-center">상태</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[7%] text-center">중요도</th>
-                            <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[18%] text-left">다음 액션 준비사항</th>
-                            <th className="pl-[80px] pr-[0px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[16%] text-center whitespace-nowrap">마감일</th>
+                            <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[24%] text-left">다음 액션 준비사항</th>
+                            <th className="pl-[16px] pr-[22px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[10%] text-right whitespace-nowrap">마감일</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[5%]"></th>
                         </tr>
                     </thead>
@@ -306,7 +306,7 @@ export default function WorkspaceMarketing() {
                                         <span className={`text-[13px] font-bold ${row.priority === '높음' ? 'text-[#ef4444]' : row.priority === '중간' ? 'text-[#3b82f6]' : 'text-[#10b981]'}`}>{row.priority}</span>
                                     </td>
                                     <td className="px-[16px] py-[16px] text-[14px] text-[#bbb9af] leading-relaxed break-keep text-left">{parseNames(row.next_action)}</td>
-                                    <td className="pl-[80px] pr-[0px] py-[16px] text-[13px] text-[#A1A1AA] font-['Inter'] text-center whitespace-nowrap">{row.due_date}</td>
+                                    <td className="pl-[16px] pr-[22px] py-[16px] text-[13px] text-[#A1A1AA] font-['Inter'] text-right whitespace-nowrap">{row.due_date}</td>
                                     <td className="px-[8px] py-[16px] text-center">
                                         <button onClick={() => handleDeleteRow(row.id)} className="text-[#ef4444] opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-[12px] font-bold p-1">삭제</button>
                                     </td>
