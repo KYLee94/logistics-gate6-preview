@@ -68,6 +68,101 @@ export default function WorkspaceDevelopment() {
                 </div>
             </div>
 
+            {/* Project Timelines */}
+            <div className="w-full flex flex-col gap-[24px] mb-[40px]">
+                {/* 1. IOTA One 427 개발일정 */}
+                <div>
+                    <h2 className="text-[18px] font-bold text-white mb-[12px]">1. IOTA One 427 개발일정</h2>
+                    <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[24px] py-[16px]">
+                        <div className="w-full h-[120px] relative group cursor-pointer rounded-[24px] hover:bg-[#333] transition-colors duration-300 px-[40px]">
+                            <div className="absolute top-[56px] left-[40px] right-[40px] h-px bg-[#444] group-hover:bg-[#E5E5E5] transition-colors duration-300 z-0">
+                                {[
+                                    { date: '2022.12', label: 'PFV설립', left: 0 },
+                                    { date: '2024.03', label: '자산매입', left: 0.11 },
+                                    { date: '2024.12', label: '통합심의 完', left: 0.18 },
+                                    { date: '2025.4', label: '사업시행인가 完', left: 0.28 },
+                                    { date: '2025.6', label: '1차연장', left: 0.37 },
+                                    { date: '2025.09', label: '2차연장', left: 0.43 },
+                                    { date: '2025.10', label: '3차연장', left: 0.49 },
+                                    { date: '2026.01', label: 'EOD', left: 0.55 },
+                                    { date: 'NOW', label: '', type: 'now', left: 0.59 },
+                                    { date: '2027.02', label: '통합PF', left: 0.67 },
+                                    { date: '2027.05', label: 'IOTA1 착공', left: 0.76 },
+                                    { date: '2028.06', label: 'IOTA2 착공', left: 0.86 },
+                                    { date: '2032.08', label: '준공', left: 1.0 }
+                                ].map((ms, index) => (
+                                    <div key={`iota1-tl-${index}`} className={`absolute flex flex-col items-center justify-center top-1/2 -translate-y-1/2 -translate-x-1/2 ${ms.type === 'now' ? 'ml-[4px]' : ''}`} style={{ left: `${ms.left * 100}%` }}>
+                                        <div className="absolute bottom-[20px] w-[120px] text-center pointer-events-none">
+                                            <span className={`text-[13px] font-['Inter'] transition-colors duration-300 ${ms.type === 'now' ? 'font-bold text-[#c3c2b7]' : 'text-[#86868B] group-hover:text-[#E5E5E5]'}`}>
+                                                {ms.date}
+                                            </span>
+                                        </div>
+                                        <div className="relative z-10 flex items-center justify-center w-[14px] h-[14px]">
+                                            {ms.type === 'now' ? (
+                                                <div className="absolute w-[2px] h-[36px] border-l-[2px] border-dotted border-[#c3c2b7] -top-[14px] left-[6px]" />
+                                            ) : (
+                                                <div className="w-[14px] h-[14px] rounded-full bg-[#555] group-hover:bg-white transition-colors duration-300 shadow-sm" />
+                                            )}
+                                        </div>
+                                        <div className="absolute top-[22px] w-[160px] text-center pointer-events-none">
+                                            <span className="text-[15px] font-medium text-[#A1A1AA] group-hover:text-white transition-colors duration-300 whitespace-nowrap">
+                                                {ms.label}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2. IOTA Two 816 개발일정 */}
+                <div>
+                    <h2 className="text-[18px] font-bold text-white mb-[12px]">2. IOTA Two 816 개발일정</h2>
+                    <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[24px] py-[16px]">
+                        <div className="w-full h-[120px] relative group cursor-pointer rounded-[24px] hover:bg-[#333] transition-colors duration-300 px-[40px]">
+                            <div className="absolute top-[56px] left-[40px] right-[40px] h-px bg-[#444] group-hover:bg-[#E5E5E5] transition-colors duration-300 z-0">
+                                {[
+                                    { date: '2022.12', label: 'PFV설립', left: 0 },
+                                    { date: '2024.03', label: '자산매입', left: 0.11 },
+                                    { date: '2024.12', label: '통합심의 完', left: 0.18 },
+                                    { date: '2025.4', label: '사업시행인가 完', left: 0.28 },
+                                    { date: '2025.6', label: '1차연장', left: 0.37 },
+                                    { date: '2025.09', label: '2차연장', left: 0.43 },
+                                    { date: '2025.10', label: '3차연장', left: 0.49 },
+                                    { date: '2026.01', label: 'EOD', left: 0.55 },
+                                    { date: 'NOW', label: '', type: 'now', left: 0.59 },
+                                    { date: '2027.02', label: '통합PF', left: 0.67 },
+                                    { date: '2027.05', label: 'IOTA1 착공', left: 0.76 },
+                                    { date: '2028.06', label: 'IOTA2 착공', left: 0.86 },
+                                    { date: '2032.08', label: '준공', left: 1.0 }
+                                ].map((ms, index) => (
+                                    <div key={`iota2-tl-${index}`} className={`absolute flex flex-col items-center justify-center top-1/2 -translate-y-1/2 -translate-x-1/2 ${ms.type === 'now' ? 'ml-[4px]' : ''}`} style={{ left: `${ms.left * 100}%` }}>
+                                        <div className="absolute bottom-[20px] w-[120px] text-center pointer-events-none">
+                                            <span className={`text-[13px] font-['Inter'] transition-colors duration-300 ${ms.type === 'now' ? 'font-bold text-[#c3c2b7]' : 'text-[#86868B] group-hover:text-[#E5E5E5]'}`}>
+                                                {ms.date}
+                                            </span>
+                                        </div>
+                                        <div className="relative z-10 flex items-center justify-center w-[14px] h-[14px]">
+                                            {ms.type === 'now' ? (
+                                                <div className="absolute w-[2px] h-[36px] border-l-[2px] border-dotted border-[#c3c2b7] -top-[14px] left-[6px]" />
+                                            ) : (
+                                                <div className="w-[14px] h-[14px] rounded-full bg-[#555] group-hover:bg-white transition-colors duration-300 shadow-sm" />
+                                            )}
+                                        </div>
+                                        <div className="absolute top-[22px] w-[160px] text-center pointer-events-none">
+                                            <span className="text-[15px] font-medium text-[#A1A1AA] group-hover:text-white transition-colors duration-300 whitespace-nowrap">
+                                                {ms.label}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Development Milestones */}
             <div className="w-full mb-[40px]">
                 <div className="mb-[16px] pl-[4px]">
