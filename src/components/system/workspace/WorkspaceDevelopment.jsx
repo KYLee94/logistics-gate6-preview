@@ -163,37 +163,7 @@ export default function WorkspaceDevelopment() {
                 </div>
             </div>
 
-            {/* Design & Construction Pipeline */}
-            <h2 className="text-[18px] font-bold text-white mb-[16px]">주요 변경관리 / 인허가 마일스톤</h2>
-            <div className="w-full bg-[#1A1A1A] border border-[#333] rounded-[24px] overflow-hidden mb-[40px]">
-                <table className="w-full text-left">
-                    <thead className="bg-[#222]">
-                        <tr>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">구분</th>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">파트너</th>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">내용</th>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">기한</th>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">Status</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#333]">
-                        <tr className="hover:bg-[#292928] transition-colors">
-                            <td className="px-[20px] py-[16px] text-[13px] font-bold text-white">설계 Alt</td>
-                            <td className="px-[20px] py-[16px] text-[14px] text-[#E5E5E5]"><span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">Foster + Partners</span></td>
-                            <td className="px-[20px] py-[16px] text-[14px] text-[#A1A1AA]">Iota 1 코어 설계 변경 적용건</td>
-                            <td className="px-[20px] py-[16px] text-[14px] text-[#A1A1AA]">2026.04</td>
-                            <td className="px-[20px] py-[16px]"><span className="px-3 py-1 bg-[#059669]/20 text-[#34d399] rounded text-[13px] border border-[#059669]/30 font-bold">Approved</span></td>
-                        </tr>
-                        <tr className="hover:bg-[#292928] transition-colors">
-                            <td className="px-[20px] py-[16px] text-[13px] font-bold text-white">도급정산</td>
-                            <td className="px-[20px] py-[16px] text-[14px] text-[#E5E5E5]"><span className="text-[#E5E5E5] hover:text-[#fbf167] cursor-pointer transition-colors hover:underline underline-offset-4 decoration-[#fbf167]/50">삼성물산</span></td>
-                            <td className="px-[20px] py-[16px] text-[14px] text-[#A1A1AA]">Iota 2 도급 변경분 정산 (에스컬레이션 반영)</td>
-                            <td className="px-[20px] py-[16px] text-[14px] text-[#A1A1AA]">2026.05</td>
-                            <td className="px-[20px] py-[16px]"><span className="px-3 py-1 bg-[#d97706]/20 text-[#fbf167] rounded text-[13px] border border-[#d97706]/30 font-bold">In Review</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+
         </div>
     );
 }
