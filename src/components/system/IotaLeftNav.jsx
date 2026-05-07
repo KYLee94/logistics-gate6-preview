@@ -177,9 +177,6 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
                                 <div
                                     onClick={() => {
                                         handleNavigation(item.path);
-                                        if (hasSubItems && item.id === 2) {
-                                            setIsVehicleOpen(!isVehicleOpen);
-                                        }
                                     }}
                                     className={`flex items-center justify-between py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}
                                 >
@@ -198,9 +195,19 @@ export default function IotaLeftNav({ onMenuChange, currentPath = '' }) {
                                             </div>
                                         )}
                                         {hasSubItems ? (
-                                            <svg className={`w-3.5 h-3.5 text-[#86868B] transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                            </svg>
+                                            <div 
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    if (item.id === 2) {
+                                                        setIsVehicleOpen(!isVehicleOpen);
+                                                    }
+                                                }}
+                                                className="p-1 -mr-1 hover:bg-white/10 rounded-md transition-colors flex items-center justify-center cursor-pointer"
+                                            >
+                                                <svg className={`w-3.5 h-3.5 text-[#86868B] transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </div>
                                         ) : (
                                             <svg className="w-3.5 h-3.5 text-white translate-x-[2px] hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7-7" /></svg>
                                         )}
