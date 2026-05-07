@@ -535,17 +535,20 @@ export default function DecisionLog() {
                             <div className="flex items-center flex-1 min-w-0">
                                 {/* Project Button */}
                                 {(() => {
-                                    let projName = 'IOTA 427';
+                                    let projName = '427 PFV';
                                     if (log.metadata?.project_name) {
-                                        projName = log.metadata.project_name;
+                                        let name = log.metadata.project_name;
+                                        if (name === 'IOTA 427') name = '427 PFV';
+                                        if (name === 'IOTA 816') name = '816 PFV';
+                                        projName = name;
                                     } else {
                                         const text = log.metadata?.workspace_label || log.metadata?.source_project_text || '';
-                                        if (text.includes('816') || text.includes('서울 2') || text.includes('IOTA 2') || text.includes('Two')) projName = 'IOTA 816';
+                                        if (text.includes('816') || text.includes('서울 2') || text.includes('IOTA 2') || text.includes('Two')) projName = '816 PFV';
                                         else if (text.includes('421')) projName = '421 Fund';
                                     }
                                     
-                                    let textColorClass = 'text-[#E5E5E5] border-[#444]'; // IOTA 427 (Lightest)
-                                    if (projName === 'IOTA 816') textColorClass = 'text-[#A1A1AA] border-[#333]'; // IOTA 816 (Medium)
+                                    let textColorClass = 'text-[#E5E5E5] border-[#444]'; // 427 PFV (Lightest)
+                                    if (projName === '816 PFV') textColorClass = 'text-[#A1A1AA] border-[#333]'; // 816 PFV (Medium)
                                     else if (projName === '421 Fund') textColorClass = 'text-[#737373] border-[#222]'; // 421 Fund (Darkest)
                                     else if (projName === 'IOTA 공통') textColorClass = 'text-[#A1A1AA] border-[#333]';
                                     

@@ -200,7 +200,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                 metadata: {
                     workspace_code: workspaceCode,
                     workspace_label: workspaceLabel,
-                    project_name: projectId === 'IOTA_COMMON' ? 'IOTA 공통' : projectId === 'P00030' ? 'IOTA 427' : projectId === 'P00037' ? 'IOTA 816' : '421 Fund',
+                    project_name: projectId === 'IOTA_COMMON' ? 'IOTA 공통' : projectId === 'P00030' ? '427 PFV' : projectId === 'P00037' ? '816 PFV' : '421 Fund',
                     triage_type: triageType,
                     issue_status: issueStatus,
                     priority: priority
@@ -322,8 +322,8 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                         <>
                             <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="bg-transparent border border-[#333] rounded-[16px] px-[16px] py-[8px] ml-[-2px] text-white font-semibold text-[14px] outline-none cursor-pointer appearance-none pr-[32px] relative" style={{ backgroundImage: iconChevronGray, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}>
                         <option value="IOTA_COMMON">IOTA 공통</option>
-                        <option value="P00030">IOTA 427</option>
-                        <option value="P00037">IOTA 816</option>
+                        <option value="P00030">427 PFV</option>
+                        <option value="P00037">816 PFV</option>
                         <option value="112614">421 Fund</option>
                     </select>
 
