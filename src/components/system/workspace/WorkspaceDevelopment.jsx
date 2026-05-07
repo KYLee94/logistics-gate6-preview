@@ -165,32 +165,24 @@ export default function WorkspaceDevelopment() {
 
             {/* Development Milestones */}
             <div className="w-full mb-[40px]">
-                <div className="mb-[16px] pl-[4px]">
-                    <span className="text-[12px] font-bold text-[#86868B] tracking-widest uppercase">DEVELOPMENT MILESTONES</span>
-                    <h2 className="text-[24px] font-bold text-white mt-1">개발 일정 / 마일스톤</h2>
-                </div>
-
-                <div className="w-full bg-[#1A1A1A] border border-[#333] rounded-[24px] p-[32px] flex gap-[32px]">
+                <div className="w-full flex gap-[32px]">
                     
                     {/* IOTA One 427 */}
                     <div className="flex-1 bg-transparent border border-[#333] rounded-[24px] p-[28px]">
-                        <div className="flex justify-between items-start mb-[24px]">
-                            <div>
-                                <h3 className="text-[24px] font-bold text-white leading-none">IOTA One 427</h3>
-                                <span className="text-[13px] font-medium text-[#86868B] mt-[8px] block">IOTA Seoul One</span>
-                            </div>
+                        <div className="flex justify-between items-center mb-[24px]">
+                            <h3 className="text-[24px] font-bold text-white leading-none">IOTA One 427</h3>
                             <div className="px-[12px] py-[6px] bg-[#222] border border-[#333] rounded-full">
                                 <span className="text-[12px] font-bold text-[#A1A1AA]">준공 2032.08</span>
                             </div>
                         </div>
 
                         {/* Table Header */}
-                        <div className="grid grid-cols-[1fr_50px_60px_50px_60px] gap-[16px] mb-[16px] border-b border-[#333] pb-[16px] px-[8px]">
-                            <span className="text-[12px] font-bold text-[#86868B]">마일스톤</span>
-                            <span className="text-[12px] font-bold text-[#86868B] text-center">UW</span>
-                            <span className="text-[12px] font-bold text-[#86868B] text-center">실제</span>
-                            <span className="text-[12px] font-bold text-[#86868B] text-center">지연</span>
-                            <span className="text-[12px] font-bold text-[#86868B] text-center">상태</span>
+                        <div className="grid grid-cols-[1fr_50px_60px_50px_60px] gap-[16px] mb-[16px] pb-[8px] px-[8px]">
+                            <span className="text-[13px] font-bold text-[#86868B]">마일스톤</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-center">UW</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-center">실제</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-center">지연</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-center">상태</span>
                         </div>
 
                         {/* Rows */}
@@ -221,23 +213,20 @@ export default function WorkspaceDevelopment() {
 
                     {/* IOTA Two 816 */}
                     <div className="flex-1 bg-transparent border border-[#333] rounded-[24px] p-[28px]">
-                        <div className="flex justify-between items-start mb-[24px]">
-                            <div>
-                                <h3 className="text-[24px] font-bold text-white leading-none">IOTA Two 816</h3>
-                                <span className="text-[13px] font-medium text-[#86868B] mt-[8px] block">IOTA Seoul Two</span>
-                            </div>
+                        <div className="flex justify-between items-center mb-[24px]">
+                            <h3 className="text-[24px] font-bold text-white leading-none">IOTA Two 816</h3>
                             <div className="px-[12px] py-[6px] bg-[#222] border border-[#333] rounded-full">
                                 <span className="text-[12px] font-bold text-[#A1A1AA]">준공 2032.06</span>
                             </div>
                         </div>
 
                         {/* Table Header */}
-                        <div className="grid grid-cols-[1fr_50px_60px_50px_60px] gap-[16px] mb-[16px] border-b border-[#333] pb-[16px] px-[8px]">
-                            <span className="text-[12px] font-bold text-[#86868B]">마일스톤</span>
-                            <span className="text-[12px] font-bold text-[#86868B] text-center">UW</span>
-                            <span className="text-[12px] font-bold text-[#86868B] text-center">실제</span>
-                            <span className="text-[12px] font-bold text-[#86868B] text-center">지연</span>
-                            <span className="text-[12px] font-bold text-[#86868B] text-center">상태</span>
+                        <div className="grid grid-cols-[1fr_50px_60px_50px_60px] gap-[16px] mb-[16px] pb-[8px] px-[8px]">
+                            <span className="text-[13px] font-bold text-[#86868B]">마일스톤</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-center">UW</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-center">실제</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-center">지연</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-center">상태</span>
                         </div>
 
                         {/* Rows */}
