@@ -263,8 +263,8 @@ export default function WorkspaceFinancing() {
 
         return (
             <div id={id} className="mb-12">
-                <div className="flex justify-between items-end mb-[24px]">
-                    <h2 className="text-[24px] font-bold text-white tracking-tight">{title}</h2>
+                <div className="flex justify-between items-end mb-[12px]">
+                    <h2 className="text-[20px] font-bold text-white">{title}</h2>
                     {toggleContent}
                 </div>
 
