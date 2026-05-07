@@ -1,23 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
+import { PROJECTS, COSTS, RR, COUNTERPARTIES } from '../../../data/iotaDevelopmentData';
 
 export default function WorkspaceDevelopment() {
     const [hoveredProject, setHoveredProject] = useState(null);
+    const [activeProject, setActiveProject] = useState('total');
+
+    // Local filters for R&R and Counterparty
+    const [rrTabType, setRrTabType] = useState('internal'); // 'internal' or 'external'
+    const [rrTabProject, setRrTabProject] = useState('total');
+    const [cpTabProject, setCpTabProject] = useState('total');
+
+    // Sync local filters when global activeProject changes
+    useEffect(() => {
+        setRrTabProject(activeProject);
+        setCpTabProject(activeProject);
+    }, [activeProject]);
 
     return (
-        <div className="w-full flex-1 flex flex-col pt-[50px] pb-[60px] max-w-[1200px] mx-auto">
+        <div className="w-full flex-1 flex flex-col pt-[50px] pb-[60px] max-w-[1200px] mx-auto relative">
             {/* Header & Team Structure */}
             <div className="w-full flex justify-between items-center mb-[40px] gap-[40px]">
-                {/* Header Metadata */}
                 <div className="shrink-0 max-w-[400px]">
                     <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[12px]">개발관리</h1>
                     <p className="text-[15px] text-[#86868B] leading-[24px] break-keep">설계·시공·CM·감리 통제, 인허가/명도 대응, 공정·품질·안전 KPI</p>
                 </div>
                 
-                {/* Team Structure */}
                 <div className="border border-[#333] rounded-[24px] flex flex-col bg-transparent shrink-0">
-
-                    
                     <div className="flex items-center pl-[20px] pr-[10px] py-[10px]">
                         <div className="w-[76px] shrink-0">
                             <span className="text-[13px] font-bold text-[#86868B]">개발솔루션</span>
@@ -48,149 +57,22 @@ export default function WorkspaceDevelopment() {
             
             <WorkspaceActivityLog workspaceCode="WS_DSC" workspaceLabel="개발솔루션-DSC" />
 
-            {/* Top 3 KPI Cards */}
-            <div className="flex w-full gap-[24px] mb-[40px]">
-                <div className="flex-1 bg-[#292928] border border-[#3c3c3c] rounded-[24px] p-[28px] hover:border-[#555] transition-colors relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 w-full h-[4px] bg-[#fbf167]"></div>
-                    <h3 className="text-[15px] font-bold text-[#86868B] mb-[12px]">Iota 1 공정률 (현대건설)</h3>
-                    <div className="text-[42px] font-black text-white">18<span className="text-[20px] text-[#A1A1AA]">%</span></div>
-                    <div className="w-full bg-[#1A1A1A] h-2 rounded-full mt-4"><div className="h-full bg-[#fbf167] rounded-full w-[18%]"></div></div>
-                </div>
-                <div className="flex-1 bg-[#292928] border border-[#3c3c3c] rounded-[24px] p-[28px] hover:border-[#555] transition-colors relative overflow-hidden group">
-                    <div className="absolute top-0 left-0 w-full h-[4px] bg-[#34d399]"></div>
-                    <h3 className="text-[15px] font-bold text-[#86868B] mb-[12px]">Iota 2 공정률 (삼성물산)</h3>
-                    <div className="text-[42px] font-black text-white">12<span className="text-[20px] text-[#A1A1AA]">%</span></div>
-                    <div className="w-full bg-[#1A1A1A] h-2 rounded-full mt-4"><div className="h-full bg-[#34d399] rounded-full w-[12%]"></div></div>
-                </div>
-                <div className="flex-1 bg-[#292928] border border-[#3c3c3c] rounded-[24px] p-[28px] hover:border-[#555] transition-colors relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-[4px] bg-[#e11d48]"></div>
-                    <h3 className="text-[15px] font-bold text-[#86868B] mb-[12px]">누적 공정 지연</h3>
-                    <div className="text-[42px] font-black text-white">7<span className="text-[16px] font-normal text-[#A1A1AA] ml-2">일</span></div>
-                    <p className="text-[13px] text-[#e11d48] mt-2">인허가 2주 누적 지연 영향</p>
-                </div>
-            </div>
-
-            {/* Project Timelines */}
-            <div className="w-full flex flex-col gap-[24px] mb-[40px]">
-                {/* 1. IOTA One 427 개발일정 */}
-                <div>
-                    <h2 className="text-[18px] font-bold text-white mb-[12px]">1. IOTA One 427 개발일정</h2>
-                    <div 
-                        className={`w-full border border-[#3c3c3c] rounded-[24px] py-[16px] transition-colors duration-300 cursor-pointer group ${hoveredProject === 'iota1' ? 'bg-[#333]' : 'bg-[#292928]'}`}
-                        onMouseEnter={() => setHoveredProject('iota1')}
-                        onMouseLeave={() => setHoveredProject(null)}
-                    >
-                        <div className="w-full h-[120px] relative px-[40px]">
-                            <div className="absolute top-[56px] left-[40px] right-[40px] h-px bg-[#444] group-hover:bg-[#E5E5E5] transition-colors duration-300 z-0">
-                                {[
-                                    { date: '2022.12', label: 'PFV설립', left: 0 },
-                                    { date: '2024.03', label: '자산매입', left: 0.11 },
-                                    { date: '2024.12', label: '통합심의 完', left: 0.18 },
-                                    { date: '2025.4', label: '사업시행인가 完', left: 0.28 },
-                                    { date: '2025.6', label: '1차연장', left: 0.37 },
-                                    { date: '2025.09', label: '2차연장', left: 0.43 },
-                                    { date: '2025.10', label: '3차연장', left: 0.49 },
-                                    { date: '2026.01', label: 'EOD', left: 0.55 },
-                                    { date: 'NOW', label: '', type: 'now', left: 0.59 },
-                                    { date: '2027.02', label: '통합PF', left: 0.67 },
-                                    { date: '2027.05', label: 'IOTA1 착공', left: 0.76 },
-                                    { date: '2028.06', label: 'IOTA2 착공', left: 0.86 },
-                                    { date: '2032.08', label: '준공', left: 1.0 }
-                                ].map((ms, index) => (
-                                    <div key={`iota1-tl-${index}`} className={`absolute flex flex-col items-center justify-center top-1/2 -translate-y-1/2 -translate-x-1/2 ${ms.type === 'now' ? 'ml-[4px]' : ''}`} style={{ left: `${ms.left * 100}%` }}>
-                                        <div className="absolute bottom-[20px] w-[120px] text-center pointer-events-none">
-                                            <span className={`text-[13px] font-['Inter'] transition-colors duration-300 ${ms.type === 'now' ? 'font-bold text-[#c3c2b7]' : 'text-[#86868B] group-hover:text-[#E5E5E5]'}`}>
-                                                {ms.date}
-                                            </span>
-                                        </div>
-                                        <div className="relative z-10 flex items-center justify-center w-[14px] h-[14px]">
-                                            {ms.type === 'now' ? (
-                                                <div className="absolute w-[2px] h-[36px] border-l-[2px] border-dotted border-[#c3c2b7] -top-[14px] left-[6px]" />
-                                            ) : (
-                                                <div className="w-[14px] h-[14px] rounded-full bg-[#555] group-hover:bg-white transition-colors duration-300 shadow-sm" />
-                                            )}
-                                        </div>
-                                        <div className="absolute top-[22px] w-[160px] text-center pointer-events-none">
-                                            <span className="text-[15px] font-medium text-[#A1A1AA] group-hover:text-white transition-colors duration-300 whitespace-nowrap">
-                                                {ms.label}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 2. IOTA Two 816 개발일정 */}
-                <div>
-                    <h2 className="text-[18px] font-bold text-white mb-[12px]">2. IOTA Two 816 개발일정</h2>
-                    <div 
-                        className={`w-full border border-[#3c3c3c] rounded-[24px] py-[16px] transition-colors duration-300 cursor-pointer group ${hoveredProject === 'iota2' ? 'bg-[#333]' : 'bg-[#292928]'}`}
-                        onMouseEnter={() => setHoveredProject('iota2')}
-                        onMouseLeave={() => setHoveredProject(null)}
-                    >
-                        <div className="w-full h-[120px] relative px-[40px]">
-                            <div className="absolute top-[56px] left-[40px] right-[40px] h-px bg-[#444] group-hover:bg-[#E5E5E5] transition-colors duration-300 z-0">
-                                {[
-                                    { date: '2022.12', label: 'PFV설립', left: 0 },
-                                    { date: '2024.03', label: '자산매입', left: 0.11 },
-                                    { date: '2024.12', label: '통합심의 完', left: 0.18 },
-                                    { date: '2025.4', label: '사업시행인가 完', left: 0.28 },
-                                    { date: '2025.6', label: '1차연장', left: 0.37 },
-                                    { date: '2025.09', label: '2차연장', left: 0.43 },
-                                    { date: '2025.10', label: '3차연장', left: 0.49 },
-                                    { date: '2026.01', label: 'EOD', left: 0.55 },
-                                    { date: 'NOW', label: '', type: 'now', left: 0.59 },
-                                    { date: '2027.02', label: '통합PF', left: 0.67 },
-                                    { date: '2027.05', label: 'IOTA1 착공', left: 0.76 },
-                                    { date: '2028.06', label: 'IOTA2 착공', left: 0.86 },
-                                    { date: '2032.08', label: '준공', left: 1.0 }
-                                ].map((ms, index) => (
-                                    <div key={`iota2-tl-${index}`} className={`absolute flex flex-col items-center justify-center top-1/2 -translate-y-1/2 -translate-x-1/2 ${ms.type === 'now' ? 'ml-[4px]' : ''}`} style={{ left: `${ms.left * 100}%` }}>
-                                        <div className="absolute bottom-[20px] w-[120px] text-center pointer-events-none">
-                                            <span className={`text-[13px] font-['Inter'] transition-colors duration-300 ${ms.type === 'now' ? 'font-bold text-[#c3c2b7]' : 'text-[#86868B] group-hover:text-[#E5E5E5]'}`}>
-                                                {ms.date}
-                                            </span>
-                                        </div>
-                                        <div className="relative z-10 flex items-center justify-center w-[14px] h-[14px]">
-                                            {ms.type === 'now' ? (
-                                                <div className="absolute w-[2px] h-[36px] border-l-[2px] border-dotted border-[#c3c2b7] -top-[14px] left-[6px]" />
-                                            ) : (
-                                                <div className="w-[14px] h-[14px] rounded-full bg-[#555] group-hover:bg-white transition-colors duration-300 shadow-sm" />
-                                            )}
-                                        </div>
-                                        <div className="absolute top-[22px] w-[160px] text-center pointer-events-none">
-                                            <span className="text-[15px] font-medium text-[#A1A1AA] group-hover:text-white transition-colors duration-300 whitespace-nowrap">
-                                                {ms.label}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             {/* Development Milestones */}
             <div className="w-full mb-[40px] -mt-[14px]">
                 <div className="w-full flex gap-[24px]">
-                    
                     {/* IOTA One 427 */}
                     <div 
-                        className={`flex-1 border border-[#333] rounded-[24px] p-[28px] transition-colors duration-300 ${hoveredProject === 'iota1' ? 'bg-[#333]' : 'bg-[#292928]/50'}`}
+                        className={`flex-1 border border-[#3c3c3c] rounded-[24px] p-[28px] transition-colors duration-300 ${hoveredProject === 'iota1' ? 'bg-[#333]' : 'bg-[#272726]'}`}
                         onMouseEnter={() => setHoveredProject('iota1')}
                         onMouseLeave={() => setHoveredProject(null)}
                     >
                         <div className="flex justify-between items-center mb-[24px]">
-                            <h3 className="text-[24px] font-bold text-white leading-none">IOTA One 427</h3>
+                            <h3 className="text-[24px] font-bold text-white leading-none">IOTA One 427 개발일정</h3>
                             <div className="px-[12px] py-[6px] bg-[#222] border border-[#333] rounded-full">
                                 <span className="text-[12px] font-bold text-[#A1A1AA]">준공 2032.08</span>
                             </div>
                         </div>
 
-                        {/* Table Header */}
                         <div className="grid grid-cols-[1fr_50px_60px_50px_60px] gap-[16px] mb-[16px] px-[8px]">
                             <span className="text-[14px] font-bold text-[#86868B]">마일스톤</span>
                             <span className="text-[14px] font-bold text-[#86868B] text-center">UW</span>
@@ -199,7 +81,6 @@ export default function WorkspaceDevelopment() {
                             <span className="text-[14px] font-bold text-[#86868B] text-center">상태</span>
                         </div>
 
-                        {/* Rows */}
                         <div className="flex flex-col gap-[12px]">
                             {[
                                 { title: '사업시행인가', uw: '2024.12', actual: '2024.12', delay: 'D+0月', delayColor: 'text-[#86868B]', status: '완료', statusClass: 'text-[#34d399] border-[#059669]' },
@@ -227,18 +108,17 @@ export default function WorkspaceDevelopment() {
 
                     {/* IOTA Two 816 */}
                     <div 
-                        className={`flex-1 border border-[#333] rounded-[24px] p-[28px] transition-colors duration-300 ${hoveredProject === 'iota2' ? 'bg-[#333]' : 'bg-[#292928]/50'}`}
+                        className={`flex-1 border border-[#3c3c3c] rounded-[24px] p-[28px] transition-colors duration-300 ${hoveredProject === 'iota2' ? 'bg-[#333]' : 'bg-[#272726]'}`}
                         onMouseEnter={() => setHoveredProject('iota2')}
                         onMouseLeave={() => setHoveredProject(null)}
                     >
                         <div className="flex justify-between items-center mb-[24px]">
-                            <h3 className="text-[24px] font-bold text-white leading-none">IOTA Two 816</h3>
+                            <h3 className="text-[24px] font-bold text-white leading-none">IOTA Two 816 개발일정</h3>
                             <div className="px-[12px] py-[6px] bg-[#222] border border-[#333] rounded-full">
                                 <span className="text-[12px] font-bold text-[#A1A1AA]">준공 2032.06</span>
                             </div>
                         </div>
 
-                        {/* Table Header */}
                         <div className="grid grid-cols-[1fr_50px_60px_50px_60px] gap-[16px] mb-[16px] px-[8px]">
                             <span className="text-[14px] font-bold text-[#86868B]">마일스톤</span>
                             <span className="text-[14px] font-bold text-[#86868B] text-center">UW</span>
@@ -247,7 +127,6 @@ export default function WorkspaceDevelopment() {
                             <span className="text-[14px] font-bold text-[#86868B] text-center">상태</span>
                         </div>
 
-                        {/* Rows */}
                         <div className="flex flex-col gap-[12px]">
                             {[
                                 { title: '통합심의 완료', uw: '2024.12', actual: '2024.12', delay: 'D+0月', delayColor: 'text-[#86868B]', status: '완료', statusClass: 'text-[#34d399] border-[#059669]' },
@@ -274,6 +153,180 @@ export default function WorkspaceDevelopment() {
                 </div>
             </div>
 
+            {/* Filtered Content */}
+            <div className="w-full flex flex-col">
+                {/* PHYSICAL KPIS */}
+                <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-[40px] mb-[24px]">
+                    <div className="flex flex-col mb-[32px]">
+                        <span className="text-[12px] font-bold text-[#86868B] tracking-wider uppercase mb-[8px]">PHYSICAL KPIS</span>
+                        <h2 className="text-[24px] font-bold text-white">물리 제원 핵심 지표</h2>
+                    </div>
+                    <div className="grid grid-cols-4 gap-[20px]">
+                        {PROJECTS[activeProject]?.kpis.map((item, idx) => (
+                            <div key={idx} className="bg-transparent border border-[#333] rounded-[16px] p-[24px] flex flex-col justify-center">
+                                <span className="text-[13px] font-medium text-[#86868B] mb-[12px]">{item[0]}</span>
+                                <span className="text-[24px] font-black text-white leading-tight mb-[4px]">{item[1]}</span>
+                                {item[2] && <span className="text-[13px] text-[#A1A1AA]">{item[2]}</span>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* CONSTRUCTION COST */}
+                <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-[40px] mb-[24px]">
+                    <div className="flex flex-col mb-[32px]">
+                        <span className="text-[12px] font-bold text-[#86868B] tracking-wider uppercase mb-[8px]">CONSTRUCTION COST</span>
+                        <h2 className="text-[24px] font-bold text-white">공사비 break down</h2>
+                    </div>
+                    <div className="w-full border border-[#333] rounded-[16px] overflow-hidden">
+                        <div className="grid grid-cols-[1fr_120px_100px_1.5fr] border-b border-[#333] px-[24px] py-[16px]">
+                            <span className="text-[13px] font-bold text-[#86868B]">항목</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-right">금액(억원)</span>
+                            <span className="text-[13px] font-bold text-[#86868B] text-right">비율</span>
+                            <span className="text-[13px] font-bold text-[#86868B] pl-[40px]">메모</span>
+                        </div>
+                        
+                        <div className="flex flex-col">
+                            {COSTS[activeProject] && (
+                                <div className="grid grid-cols-[1fr_120px_100px_1.5fr] px-[24px] py-[20px] border-b border-[#333] items-center hover:bg-[#222] transition-colors">
+                                    <div className="flex items-center gap-[12px]">
+                                        <div className="w-[20px] h-[20px] rounded-[6px] border border-[#555] flex items-center justify-center cursor-pointer hover:bg-[#333]">
+                                            <span className="text-[#A1A1AA] text-[16px] leading-none -mt-[2px]">-</span>
+                                        </div>
+                                        <span className="text-[15px] font-bold text-white">{COSTS[activeProject][0].label}</span>
+                                    </div>
+                                    <span className="text-[15px] font-medium text-white text-right">{COSTS[activeProject][0].amount?.toLocaleString()}</span>
+                                    <span className="text-[15px] text-[#E5E5E5] text-right">100.0%</span>
+                                    <span className="text-[14px] text-[#A1A1AA] pl-[40px]">{COSTS[activeProject][0].memo}</span>
+                                </div>
+                            )}
+                            
+                            {COSTS[activeProject]?.[0]?.children.map((child, idx) => (
+                                <div key={idx} className="grid grid-cols-[1fr_120px_100px_1.5fr] px-[24px] py-[20px] border-b border-[#333] last:border-b-0 items-center hover:bg-[#222] transition-colors">
+                                    <span className="text-[15px] font-bold text-white pl-[48px]">{child.label}</span>
+                                    <span className="text-[15px] font-medium text-white text-right">{child.amount ? child.amount.toLocaleString() : '-'}</span>
+                                    <span className="text-[15px] text-[#E5E5E5] text-right">
+                                        {child.amount ? ((child.amount / COSTS[activeProject][0].amount) * 100).toFixed(1) + '%' : '-'}
+                                    </span>
+                                    <span className="text-[14px] text-[#A1A1AA] pl-[40px]">{child.memo}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* ARCHITECTURE */}
+                <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-[40px] mb-[24px]">
+                    <div className="flex flex-col mb-[32px]">
+                        <span className="text-[12px] font-bold text-[#86868B] tracking-wider uppercase mb-[8px]">ARCHITECTURE</span>
+                        <h2 className="text-[24px] font-bold text-white">건축개요</h2>
+                    </div>
+                    <div className="w-full border border-[#333] rounded-[16px] overflow-hidden">
+                        <div className="grid grid-cols-3">
+                            {PROJECTS[activeProject]?.specs.map((spec, idx) => (
+                                <div key={idx} className="flex flex-col px-[24px] py-[24px] border-b border-[#333] border-r [&:nth-child(3n)]:border-r-0 hover:bg-[#222] transition-colors">
+                                    <span className="text-[13px] font-medium text-[#86868B] mb-[8px]">{spec[0]}</span>
+                                    <span className="text-[15px] font-bold text-white leading-snug">{spec[1]}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* RESPONSIBILITY */}
+                <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-[40px] mb-[24px]">
+                    <div className="flex flex-col mb-[32px]">
+                        <span className="text-[12px] font-bold text-[#86868B] tracking-wider uppercase mb-[8px]">RESPONSIBILITY</span>
+                        <h2 className="text-[24px] font-bold text-white">이해관계자 / R&R</h2>
+                    </div>
+                    
+                    <div className="flex justify-between items-center mb-[24px]">
+                        <div className="flex bg-[#222] border border-[#333] rounded-full p-[4px]">
+                            <button className={`px-[16px] py-[6px] rounded-full text-[13px] font-bold ${rrTabType === 'internal' ? 'bg-[#333] text-white' : 'text-[#86868B] hover:text-white'}`} onClick={() => setRrTabType('internal')}>내부</button>
+                            <button className={`px-[16px] py-[6px] rounded-full text-[13px] font-bold ${rrTabType === 'external' ? 'bg-[#333] text-white' : 'text-[#86868B] hover:text-white'}`} onClick={() => setRrTabType('external')}>외부</button>
+                        </div>
+                        <div className="flex bg-[#222] border border-[#333] rounded-full p-[4px]">
+                            <button className={`px-[16px] py-[6px] rounded-full text-[13px] font-bold ${rrTabProject === 'total' ? 'bg-[#333] text-white' : 'text-[#86868B] hover:text-white'}`} onClick={() => setRrTabProject('total')}>통합</button>
+                            <button className={`px-[16px] py-[6px] rounded-full text-[13px] font-bold ${rrTabProject === '427' ? 'bg-[#333] text-white' : 'text-[#86868B] hover:text-white'}`} onClick={() => setRrTabProject('427')}>427</button>
+                            <button className={`px-[16px] py-[6px] rounded-full text-[13px] font-bold ${rrTabProject === '816' ? 'bg-[#333] text-white' : 'text-[#86868B] hover:text-white'}`} onClick={() => setRrTabProject('816')}>816</button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-[16px]">
+                        {RR.filter(item => item.type === rrTabType)
+                           .filter(item => rrTabProject === 'total' || item.project === 'total' || item.project === rrTabProject)
+                           .map((item, idx) => (
+                            <div key={idx} className="bg-transparent border border-[#333] rounded-[16px] p-[24px] flex flex-col hover:border-[#555] transition-colors">
+                                <div className="flex justify-between items-start mb-[16px]">
+                                    <h3 className="text-[18px] font-bold text-white">{item.name}</h3>
+                                    <span className="text-[12px] font-bold text-[#A1A1AA]">{item.project === 'total' ? '통합' : item.project}</span>
+                                </div>
+                                <span className="text-[14px] font-medium text-[#c3c2b7] mb-[16px]">{item.role}</span>
+                                <div className="flex flex-col gap-[8px]">
+                                    <span className="text-[13px] text-[#A1A1AA] leading-snug">{item.issue}</span>
+                                    <span className="text-[13px] text-[#A1A1AA] leading-snug">{item.next}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* COUNTERPARTY */}
+                <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-[40px] mb-[40px]">
+                    <div className="flex flex-col mb-[32px]">
+                        <span className="text-[12px] font-bold text-[#86868B] tracking-wider uppercase mb-[8px]">COUNTERPARTY</span>
+                        <h2 className="text-[24px] font-bold text-white">개발 카운터파티 관리 포인트</h2>
+                    </div>
+                    
+                    <div className="flex mb-[24px]">
+                        <div className="flex bg-[#222] border border-[#333] rounded-full p-[4px]">
+                            <button className={`px-[16px] py-[6px] rounded-full text-[13px] font-bold ${cpTabProject === 'total' ? 'bg-[#333] text-white' : 'text-[#86868B] hover:text-white'}`} onClick={() => setCpTabProject('total')}>통합</button>
+                            <button className={`px-[16px] py-[6px] rounded-full text-[13px] font-bold ${cpTabProject === '427' ? 'bg-[#333] text-white' : 'text-[#86868B] hover:text-white'}`} onClick={() => setCpTabProject('427')}>427</button>
+                            <button className={`px-[16px] py-[6px] rounded-full text-[13px] font-bold ${cpTabProject === '816' ? 'bg-[#333] text-white' : 'text-[#86868B] hover:text-white'}`} onClick={() => setCpTabProject('816')}>816</button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-[16px]">
+                        {COUNTERPARTIES.filter(item => cpTabProject === 'total' || item.project === 'total' || item.project === cpTabProject)
+                           .map((item, idx) => (
+                            <div key={idx} className="bg-transparent border border-[#333] rounded-[16px] p-[24px] flex flex-col hover:border-[#555] transition-colors min-h-[160px]">
+                                <div className="flex justify-between items-start mb-[20px]">
+                                    <h3 className="text-[18px] font-bold text-white">{item.name}</h3>
+                                    <span className="text-[12px] font-bold text-[#A1A1AA]">{item.category}</span>
+                                </div>
+                                <div className="flex flex-col gap-[10px]">
+                                    <span className="text-[14px] text-[#A1A1AA] leading-snug break-keep">{item.point}</span>
+                                    <span className="text-[14px] text-[#A1A1AA] leading-snug break-keep">{item.action}</span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* Right Wing Absolute */}
+            <div className="absolute top-[100px] bottom-[100px] -right-[180px] w-[140px]">
+                <div className="sticky top-[120px] flex flex-col gap-[8px]">
+                    <span className="text-[11px] font-bold text-[#86868B] tracking-widest uppercase mb-[4px]">PROJECT</span>
+                    {[
+                        { id: 'total', label: 'IOTA Seoul 통합' },
+                        { id: '427', label: 'IOTA One 427' },
+                        { id: '816', label: 'IOTA Two 816' }
+                    ].map(btn => (
+                        <button
+                            key={btn.id}
+                            onClick={() => setActiveProject(btn.id)}
+                            className={`w-full text-left px-[16px] py-[12px] rounded-[12px] transition-colors duration-200 text-[13px] font-bold ${
+                                activeProject === btn.id 
+                                ? 'bg-[#E5F059] text-black shadow-sm' 
+                                : 'text-[#86868B] hover:text-white hover:bg-[#333]'
+                            }`}
+                        >
+                            {btn.label}
+                        </button>
+                    ))}
+                </div>
+            </div>
 
         </div>
     );
