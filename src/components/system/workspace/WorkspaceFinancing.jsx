@@ -262,7 +262,7 @@ export default function WorkspaceFinancing() {
         const hotelArea = vehicleId === '427' ? '5,121평' : '-평';
 
         return (
-            <div id={id} className="mb-12">
+            <div id={id} className="mb-[38px]">
                 <div className="flex justify-between items-end mb-[12px]">
                     <h2 className="text-[20px] font-bold text-white">{title}</h2>
                     {toggleContent}
@@ -774,14 +774,14 @@ export default function WorkspaceFinancing() {
                                         <div key={idx} className="flex items-start py-[24px] first:pt-0 last:pb-0">
                                             {/* Left side: Lender & Relation */}
                                             <div className="w-[300px] shrink-0 flex flex-col gap-[4px] pr-[20px]">
-                                                <span className="text-white font-bold text-[15px]">{group.lender}</span>
-                                                <span className="text-[#86868B] text-[13px] leading-snug break-keep">{group.relation}</span>
+                                                <span className="text-white font-bold text-[16px]">{group.lender}</span>
+                                                <span className="text-[#86868B] text-[14px] leading-snug break-keep">{group.relation}</span>
                                             </div>
                                             
                                             {/* Right side: 3 Articles */}
                                             <div className="flex-1 flex flex-col gap-[14px]">
                                                 {group.articles.slice(0, 3).map((article, aIdx) => (
-                                                    <a key={aIdx} href={article.url} target="_blank" rel="noreferrer" className="text-[#E5E5E5] text-[14px] hover:text-[#0a84ff] transition-colors leading-none truncate">
+                                                    <a key={aIdx} href={article.url} target="_blank" rel="noreferrer" className="text-[#E5E5E5] text-[15px] hover:text-[#0a84ff] transition-colors leading-none truncate">
                                                         {article.title}
                                                     </a>
                                                 ))}
@@ -790,7 +790,7 @@ export default function WorkspaceFinancing() {
                                     ))}
                                 </div>
                             ) : (
-                                <div className="w-full h-[200px] flex items-center justify-center text-[#666] text-[14px]">
+                                <div className="w-full h-[200px] flex items-center justify-center text-[#666] text-[15px]">
                                     데이터를 불러오는 중입니다...
                                 </div>
                             )}
