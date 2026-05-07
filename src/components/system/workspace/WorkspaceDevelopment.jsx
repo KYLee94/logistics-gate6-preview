@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
 
 export default function WorkspaceDevelopment() {
+    const [hoveredProject, setHoveredProject] = useState(null);
+
     return (
-                <div className="w-full flex-1 flex flex-col pt-[50px] pb-[60px] max-w-[1200px] mx-auto">
+        <div className="w-full flex-1 flex flex-col pt-[50px] pb-[60px] max-w-[1200px] mx-auto">
             {/* Header & Team Structure */}
             <div className="w-full flex justify-between items-center mb-[40px] gap-[40px]">
                 {/* Header Metadata */}
@@ -73,8 +75,12 @@ export default function WorkspaceDevelopment() {
                 {/* 1. IOTA One 427 개발일정 */}
                 <div>
                     <h2 className="text-[18px] font-bold text-white mb-[12px]">1. IOTA One 427 개발일정</h2>
-                    <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[24px] py-[16px]">
-                        <div className="w-full h-[120px] relative group cursor-pointer rounded-[24px] hover:bg-[#333] transition-colors duration-300 px-[40px]">
+                    <div 
+                        className={`w-full border border-[#3c3c3c] rounded-[24px] py-[16px] transition-colors duration-300 cursor-pointer group ${hoveredProject === 'iota1' ? 'bg-[#333]' : 'bg-[#292928]'}`}
+                        onMouseEnter={() => setHoveredProject('iota1')}
+                        onMouseLeave={() => setHoveredProject(null)}
+                    >
+                        <div className="w-full h-[120px] relative px-[40px]">
                             <div className="absolute top-[56px] left-[40px] right-[40px] h-px bg-[#444] group-hover:bg-[#E5E5E5] transition-colors duration-300 z-0">
                                 {[
                                     { date: '2022.12', label: 'PFV설립', left: 0 },
@@ -119,8 +125,12 @@ export default function WorkspaceDevelopment() {
                 {/* 2. IOTA Two 816 개발일정 */}
                 <div>
                     <h2 className="text-[18px] font-bold text-white mb-[12px]">2. IOTA Two 816 개발일정</h2>
-                    <div className="w-full bg-[#292928] border border-[#3c3c3c] rounded-[24px] py-[16px]">
-                        <div className="w-full h-[120px] relative group cursor-pointer rounded-[24px] hover:bg-[#333] transition-colors duration-300 px-[40px]">
+                    <div 
+                        className={`w-full border border-[#3c3c3c] rounded-[24px] py-[16px] transition-colors duration-300 cursor-pointer group ${hoveredProject === 'iota2' ? 'bg-[#333]' : 'bg-[#292928]'}`}
+                        onMouseEnter={() => setHoveredProject('iota2')}
+                        onMouseLeave={() => setHoveredProject(null)}
+                    >
+                        <div className="w-full h-[120px] relative px-[40px]">
                             <div className="absolute top-[56px] left-[40px] right-[40px] h-px bg-[#444] group-hover:bg-[#E5E5E5] transition-colors duration-300 z-0">
                                 {[
                                     { date: '2022.12', label: 'PFV설립', left: 0 },
@@ -164,11 +174,15 @@ export default function WorkspaceDevelopment() {
             </div>
 
             {/* Development Milestones */}
-            <div className="w-full mb-[40px]">
+            <div className="w-full mb-[40px] -mt-[10px]">
                 <div className="w-full flex gap-[24px]">
                     
                     {/* IOTA One 427 */}
-                    <div className="flex-1 bg-[#292928]/50 border border-[#333] rounded-[24px] p-[28px]">
+                    <div 
+                        className={`flex-1 border border-[#333] rounded-[24px] p-[28px] transition-colors duration-300 ${hoveredProject === 'iota1' ? 'bg-[#333]' : 'bg-[#292928]/50'}`}
+                        onMouseEnter={() => setHoveredProject('iota1')}
+                        onMouseLeave={() => setHoveredProject(null)}
+                    >
                         <div className="flex justify-between items-center mb-[24px]">
                             <h3 className="text-[24px] font-bold text-white leading-none">IOTA One 427</h3>
                             <div className="px-[12px] py-[6px] bg-[#222] border border-[#333] rounded-full">
@@ -212,7 +226,11 @@ export default function WorkspaceDevelopment() {
                     </div>
 
                     {/* IOTA Two 816 */}
-                    <div className="flex-1 bg-[#292928]/50 border border-[#333] rounded-[24px] p-[28px]">
+                    <div 
+                        className={`flex-1 border border-[#333] rounded-[24px] p-[28px] transition-colors duration-300 ${hoveredProject === 'iota2' ? 'bg-[#333]' : 'bg-[#292928]/50'}`}
+                        onMouseEnter={() => setHoveredProject('iota2')}
+                        onMouseLeave={() => setHoveredProject(null)}
+                    >
                         <div className="flex justify-between items-center mb-[24px]">
                             <h3 className="text-[24px] font-bold text-white leading-none">IOTA Two 816</h3>
                             <div className="px-[12px] py-[6px] bg-[#222] border border-[#333] rounded-full">
