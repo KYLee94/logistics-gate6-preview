@@ -197,9 +197,8 @@ export default function WorkspaceMarketing() {
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[11%] text-center">관련 자산</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[9%] text-center">상태</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[7%] text-center">중요도</th>
-                            <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[24%] text-left">다음 액션 준비사항</th>
+                            <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[29%] text-left">다음 액션 준비사항</th>
                             <th className="pl-[16px] pr-[22px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[10%] text-right whitespace-nowrap">마감일</th>
-                            <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[5%]"></th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-[#3c3c3c]">
@@ -278,11 +277,9 @@ export default function WorkspaceMarketing() {
                                 <td className="px-[12px] py-[12px]">
                                     <input type="text" value={newTask.next_action} onChange={e => setNewTask({...newTask, next_action: e.target.value})} className="w-full bg-[#272726] border border-[#444] rounded-[6px] px-[8px] py-[6px] text-white text-[13px] outline-none focus:border-[#888]" placeholder="액션 플랜 입력" />
                                 </td>
-                                <td className="pl-[12px] pr-[18px] py-[12px]">
+                                <td className="pl-[12px] pr-[18px] py-[12px] relative">
                                     <input type="date" value={newTask.due_date} onChange={e => setNewTask({...newTask, due_date: e.target.value})} className="w-full bg-[#272726] border border-[#444] rounded-[6px] px-[8px] py-[6px] text-[#A1A1AA] text-[13px] outline-none focus:border-[#888] [color-scheme:dark]" />
-                                </td>
-                                <td className="px-[12px] py-[12px] text-center">
-                                    <div className="flex flex-col gap-1">
+                                    <div className="absolute right-[-45px] top-1/2 -translate-y-1/2 flex flex-col gap-1 items-center">
                                         <button onClick={handleSaveRow} className="text-[#34d399] hover:text-[#10b981] text-[12px] font-bold">저장</button>
                                         <button onClick={() => { setIsAdding(false); setCompanyQuery(''); }} className="text-[#86868B] hover:text-white text-[12px]">취소</button>
                                     </div>
@@ -290,7 +287,7 @@ export default function WorkspaceMarketing() {
                             </tr>
                         )}
                         {isLoading ? (
-                            <tr><td colSpan="8" className="text-center py-[40px] text-[#86868B]">데이터를 불러오는 중입니다...</td></tr>
+                            <tr><td colSpan="7" className="text-center py-[40px] text-[#86868B]">데이터를 불러오는 중입니다...</td></tr>
                         ) : (
                             (projectShowAll ? tasks : tasks.slice(0, 5)).map((row) => (
                                 <tr key={row.id} className="hover:bg-[#272726] transition-colors group">
@@ -306,9 +303,11 @@ export default function WorkspaceMarketing() {
                                         <span className={`text-[13px] font-bold ${row.priority === '높음' ? 'text-[#ef4444]' : row.priority === '중간' ? 'text-[#3b82f6]' : 'text-[#10b981]'}`}>{row.priority}</span>
                                     </td>
                                     <td className="px-[16px] py-[16px] text-[14px] text-[#bbb9af] leading-relaxed break-keep text-left">{parseNames(row.next_action)}</td>
-                                    <td className="pl-[16px] pr-[22px] py-[16px] text-[13px] text-[#A1A1AA] font-['Inter'] text-right whitespace-nowrap">{row.due_date}</td>
-                                    <td className="px-[8px] py-[16px] text-center">
-                                        <button onClick={() => handleDeleteRow(row.id)} className="text-[#ef4444] opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-[12px] font-bold p-1">삭제</button>
+                                    <td className="pl-[16px] pr-[22px] py-[16px] text-[13px] text-[#A1A1AA] font-['Inter'] text-right whitespace-nowrap relative">
+                                        {row.due_date}
+                                        <div className="absolute right-[-45px] top-1/2 -translate-y-1/2">
+                                            <button onClick={() => handleDeleteRow(row.id)} className="text-[#ef4444] opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-[12px] font-bold px-2 py-1">삭제</button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))
