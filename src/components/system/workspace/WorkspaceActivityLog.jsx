@@ -316,11 +316,11 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                     </div>
                     {/* Right Section */}
                     <div className="flex gap-[12px] shrink-0 ml-[12px] justify-end items-center">
-                        <div className="w-[110px] mr-[4px] text-right flex items-center justify-end">
+                        <div className="w-[110px] mr-[4px] text-center flex items-center justify-center">
                             <select 
                                 value={filterStakeholder}
                                 onChange={e => { setFilterStakeholder(e.target.value); setCurrentPage(1); }}
-                                className={`bg-white/5 border border-transparent text-[12px] font-bold cursor-pointer appearance-none focus:outline-none w-[76px] hover:text-white hover:bg-white/10 rounded-[8px] px-[2px] py-[4px] transition-colors translate-x-[-26px] ${filterStakeholder ? 'text-[#fbf167]' : 'text-[#A1A1AA]'}`}
+                                className={`bg-white/5 border border-transparent text-[12px] font-bold cursor-pointer appearance-none focus:outline-none w-[76px] hover:text-white hover:bg-white/10 rounded-[8px] px-[2px] py-[4px] transition-colors ${filterStakeholder ? 'text-[#fbf167]' : 'text-[#A1A1AA]'}`}
                                 style={{ textAlignLast: 'center' }}
                             >
                                 <option value="" className="bg-[#222] text-[#E5E5E5]">이해관계자</option>
@@ -444,9 +444,9 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                             {/* Right Section */}
                             <div className="flex items-center gap-[12px] shrink-0 ml-[12px] justify-end">
                                 {/* Stakeholder Info */}
-                                <div className="shrink-0 flex justify-end w-[110px] mr-[4px]">
+                                <div className="shrink-0 flex justify-center w-[110px] mr-[4px]">
                                     {log.iota_seoul_log_stakeholders?.[0]?.sh_name && (
-                                        <span className="text-[13px] text-[#A1A1AA] text-right truncate" title={log.iota_seoul_log_stakeholders[0].sh_name.split(' - ')[0]}>
+                                        <span className="text-[13px] text-[#A1A1AA] text-center truncate" title={log.iota_seoul_log_stakeholders[0].sh_name.split(' - ')[0]}>
                                             {log.iota_seoul_log_stakeholders[0].sh_name.split(' - ')[0]}
                                         </span>
                                     )}
