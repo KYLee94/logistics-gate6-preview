@@ -10,6 +10,7 @@ export default function WorkspaceMarketing() {
     const [tasks, setTasks] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
+    const [sortBy, setSortBy] = useState('마감일');
     const [newTask, setNewTask] = useState({
         task_name: '', company_name: '', related_asset: 'IOTA 공통', status: '아이데이션', priority: '중간', due_date: '', next_action: ''
     });
@@ -133,6 +134,22 @@ export default function WorkspaceMarketing() {
     const thisWeekTasks = pipelines.filter(t => t.bucket === '이번주');
     const nextWeekTasks = pipelines.filter(t => t.bucket === '다음주');
 
+    const sortedTasks = [...tasks].sort((a, b) => {
+        if (sortBy === '마감일') {
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(a.due_date) - new Date(b.due_date);
+        } else {
+            const priorityOrder = { '높음': 3, '중간': 2, '낮음': 1 };
+            const pA = priorityOrder[a.priority] || 0;
+            const pB = priorityOrder[b.priority] || 0;
+            if (pA !== pB) return pB - pA;
+            if (!a.due_date) return 1;
+            if (!b.due_date) return -1;
+            return new Date(a.due_date) - new Date(b.due_date);
+        }
+    });
+
     return (
                 <div className="w-full flex-1 flex flex-col pt-[50px] pb-[60px] max-w-[1200px] mx-auto">
             {/* Header & Team Structure */}
@@ -181,12 +198,29 @@ export default function WorkspaceMarketing() {
             <div className="w-full mt-[6px] border-t border-[#3c3c3c] pt-[32px]"></div>
             <div className="flex justify-between items-center mb-[14px]">
                 <h2 className="text-[18px] font-bold text-white tracking-tight">기업마케팅 주요 테스크 관리</h2>
-                <button 
-                    onClick={handleAddClick}
-                    className="px-[14px] py-[6px] bg-[#333] hover:bg-[#444] border border-[#444] text-[#E5E5E5] text-[13px] font-bold rounded-[8px] transition-colors cursor-pointer"
-                >
-                    + Task 등록하기
-                </button>
+                <div className="flex gap-2 items-center">
+                    <div className="relative">
+                        <select 
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            className="px-[12px] py-[6px] bg-[#272726] border border-[#3c3c3c] text-[#A1A1AA] text-[13px] rounded-[8px] outline-none focus:border-[#555] appearance-none pr-[30px] cursor-pointer"
+                        >
+                            <option value="마감일">마감일 순으로 보기</option>
+                            <option value="중요도">중요도 순으로 보기</option>
+                        </select>
+                        <div className="absolute right-[10px] top-1/2 -translate-y-1/2 pointer-events-none text-[#86868B]">
+                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={handleAddClick}
+                        className="px-[14px] py-[6px] bg-[#333] hover:bg-[#444] border border-[#444] text-[#E5E5E5] text-[13px] font-bold rounded-[8px] transition-colors cursor-pointer"
+                    >
+                        + Task 등록하기
+                    </button>
+                </div>
             </div>
             <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] mb-[40px]">
                 <table className="w-full text-left table-fixed">
@@ -327,7 +361,7 @@ export default function WorkspaceMarketing() {
             </div>
             
             {/* 3. Pipeline 관리 */}
-            <div className="flex justify-between items-end mb-[24px]">
+            <div className="flex justify-between items-end mb-[16px]">
                 <h2 className="text-[18px] font-bold text-white">Pipe line 관리</h2>
                 <span className="text-[13px] text-[#86868B]">수기 입력 중심 운영 (컨택 포인트 포함)</span>
             </div>
