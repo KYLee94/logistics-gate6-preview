@@ -178,7 +178,7 @@ export default function WorkspaceMarketing() {
             <WorkspaceActivityLog workspaceCode="WS_EMC" workspaceLabel="기업마케팅-EMC" />
 
                         {/* 2. Task 관리 */}
-            <div className="w-full mt-[16px] border-t border-[#3c3c3c] pt-[26px]"></div>
+            <div className="w-full mt-[6px] border-t border-[#3c3c3c] pt-[32px]"></div>
             <div className="flex justify-between items-center mb-[14px]">
                 <h2 className="text-[18px] font-bold text-white tracking-tight">기업마케팅 주요 테스크 관리</h2>
                 <button 
