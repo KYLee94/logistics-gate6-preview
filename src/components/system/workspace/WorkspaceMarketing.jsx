@@ -188,17 +188,17 @@ export default function WorkspaceMarketing() {
                     + Task 등록하기
                 </button>
             </div>
-            <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] overflow-hidden mb-[40px]">
+            <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] mb-[40px]">
                 <table className="w-full text-left table-fixed">
                     <thead className="bg-[#272726]">
                         <tr>
-                            <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[15%]">Task 명</th>
+                            <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[18%]">Task 명</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[12%]">연결 기업</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[12%]">관련 자산</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[10%]">상태</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[8%]">중요도</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[12%]">마감일</th>
-                            <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[26%]">다음 액션 준비사항</th>
+                            <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[23%]">다음 액션 준비사항</th>
                             <th className="px-[16px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#3c3c3c] w-[5%]"></th>
                         </tr>
                     </thead>
