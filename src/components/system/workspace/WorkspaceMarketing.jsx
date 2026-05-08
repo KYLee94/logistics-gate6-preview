@@ -332,7 +332,7 @@ export default function WorkspaceMarketing() {
                             </div>
                             <div className="flex justify-between items-start gap-8">
                                 <div className="flex-1 flex gap-8">
-                                    <div className="w-[450px] shrink-0 flex flex-col gap-[2px] border-r border-[#444]/50 pr-8">
+                                    <div className="w-[430px] shrink-0 flex flex-col gap-[2px] border-r border-[#444]/50 pr-8">
                                         <span className="text-[13px] font-bold text-[#86868B]">Task</span>
                                         <h3 className="text-[21px] font-bold text-white tracking-tight leading-tight">
                                             {row.task_name}
