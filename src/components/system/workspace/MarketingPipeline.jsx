@@ -435,7 +435,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                         >
                             {/* 삭제 및 정렬 버튼 (우측 바깥 영역) */}
                             {isAllowedEditor && (
-                                <div className="absolute right-[-110px] w-[110px] top-0 bottom-0 flex items-center justify-start gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                                <div className="absolute right-[-118px] w-[118px] pl-[8px] top-0 bottom-0 flex items-center justify-start gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
                                     <div className="flex flex-col gap-1">
                                         <button 
                                             onClick={(e) => { e.stopPropagation(); handleMovePipelineUp(index); }}
