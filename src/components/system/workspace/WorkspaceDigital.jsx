@@ -33,9 +33,32 @@ export default function WorkspaceDigital() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showAuthAlert, setShowAuthAlert] = useState(false);
 
+    // Asset filter and custom assets
+    const [assetFilter, setAssetFilter] = useState('ALL');
+    const [customAssets, setCustomAssets] = useState([]);
+    const [showNewAssetModal, setShowNewAssetModal] = useState(false);
+    const [newAssetName, setNewAssetName] = useState('');
+    const [isSubmittingAsset, setIsSubmittingAsset] = useState(false);
+
     useEffect(() => {
         fetchTasks();
+        const savedAssets = localStorage.getItem('iota_marketing_custom_assets');
+        if (savedAssets) setCustomAssets(JSON.parse(savedAssets));
     }, []);
+
+    const registerNewAsset = () => {
+        if (!newAssetName.trim()) return;
+        setIsSubmittingAsset(true);
+        setTimeout(() => {
+            const updated = [...customAssets, newAssetName.trim()];
+            setCustomAssets(updated);
+            localStorage.setItem('iota_marketing_custom_assets', JSON.stringify(updated));
+            setNewTask({...newTask, related_asset: newAssetName.trim()});
+            setIsSubmittingAsset(false);
+            setShowNewAssetModal(false);
+            setNewAssetName('');
+        }, 300);
+    };
 
     const fetchTasks = async () => {
         setIsLoading(true);
@@ -46,6 +69,31 @@ export default function WorkspaceDigital() {
                 .order('created_at', { ascending: false });
             
             if (error) throw error;
+
+            // [자동 동기화 로직] DB가 비어있고, 로컬 스토리지에 백업본이 있다면 자동으로 DB에 업로드합니다.
+            const saved = localStorage.getItem('iota_digital_tasks_fallback');
+            if ((!data || data.length === 0) && saved) {
+                const localTasks = JSON.parse(saved);
+                if (localTasks.length > 0) {
+                    console.log("Syncing local tasks to newly created Supabase table...");
+                    // temp- id를 제거하고 삽입 (DB에서 uuid 자동 생성)
+                    const tasksToInsert = localTasks.map(t => {
+                        const { id, ...rest } = t;
+                        return (id && String(id).startsWith('temp-')) ? rest : t;
+                    });
+                    
+                    const { error: insertError } = await supabase.from('iota_digital_tasks').insert(tasksToInsert);
+                    if (!insertError) {
+                        localStorage.removeItem('iota_digital_tasks_fallback'); // 동기화 성공 시 백업 삭제
+                        
+                        // 다시 DB에서 최신 데이터 불러오기
+                        const { data: newData } = await supabase.from('iota_digital_tasks').select('*').order('created_at', { ascending: false });
+                        setTasks(newData || []);
+                        return;
+                    }
+                }
+            }
+            
             setTasks(data || []);
         } catch (e) {
             console.error('Failed to fetch tasks, falling back to localStorage:', e);
@@ -98,6 +146,20 @@ export default function WorkspaceDigital() {
             setShowAuthAlert(true);
             return;
         }
+
+        let defaultTheme = '01. 자산 상품화 전략 및 포지셔닝';
+        if (selectedTheme) {
+            const matchedScope = sscScopes.find(scope => scope.no === selectedTheme);
+            if (matchedScope) {
+                defaultTheme = `${matchedScope.no}. ${matchedScope.title}`;
+            }
+        }
+
+        setNewTask(prev => ({
+            ...prev,
+            ssc_theme: defaultTheme
+        }));
+
         setIsAdding(true);
     };
 
@@ -285,7 +347,7 @@ export default function WorkspaceDigital() {
                 </div>
             </div>
             
-            <div className="w-full flex flex-col gap-[16px] mb-[40px]">
+            <motion.div layout className="w-full flex flex-col gap-[16px] mb-[40px]">
                 {isAdding && (
                     <div className="bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-6 flex flex-col gap-4">
                         <div className="flex gap-4">
@@ -349,11 +411,11 @@ export default function WorkspaceDigital() {
                 )}
                 
                 {isLoading ? (
-                    <div className="text-center py-[40px] text-[#86868B]">데이터를 불러오는 중입니다...</div>
+                    <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-[40px] text-[#86868B]">데이터를 불러오는 중입니다...</motion.div>
                 ) : sortedTasks.length === 0 ? (
-                    <div className="text-center py-[60px] text-[#A1A1AA] bg-[#1a1a1a] rounded-[24px] border border-[#333]">
+                    <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-[60px] text-[#A1A1AA] bg-[#1a1a1a] rounded-[24px] border border-[#333]">
                         {selectedTheme ? '해당 주제로 등록된 테스크가 없습니다.' : '등록된 테스크가 없습니다.'}
-                    </div>
+                    </motion.div>
                 ) : (
                     <div className="flex flex-col gap-[10px]">
                         <AnimatePresence>
@@ -458,7 +520,7 @@ export default function WorkspaceDigital() {
                         </AnimatePresence>
                     </div>
                 )}
-            </div>
+            </motion.div>
 
             {/* Delete Confirmation Modal */}
             {itemToDelete && (
