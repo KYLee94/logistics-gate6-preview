@@ -22,6 +22,7 @@ export default function DecisionLog() {
 
     // Delete states
     const [logToDelete, setLogToDelete] = useState(null);
+    const [commentToDelete, setCommentToDelete] = useState(null); // { logId, commentId }
     const [isDeleting, setIsDeleting] = useState(false);
     const [showMeetingsInfo, setShowMeetingsInfo] = useState(false);
     const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
@@ -261,7 +262,7 @@ export default function DecisionLog() {
     };
 
     const handleDeleteComment = async (logId, commentId) => {
-        if (!confirm('댓글을 삭제하시겠습니까?')) return;
+        setIsDeleting(true);
         try {
             const log = logs.find(l => l.log_id === logId);
             const metadata = log.metadata || {};
@@ -280,6 +281,9 @@ export default function DecisionLog() {
         } catch (e) {
             console.error('Error deleting comment:', e);
             alert('댓글 삭제 중 오류가 발생했습니다.');
+        } finally {
+            setIsDeleting(false);
+            setCommentToDelete(null);
         }
     };
 
@@ -715,7 +719,7 @@ export default function DecisionLog() {
                                                     </div>
                                                     {comment.author_email === memberInfo?.email && (
                                                         <button
-                                                            onClick={(e) => { e.stopPropagation(); handleDeleteComment(log.log_id, comment.id); }}
+                                                            onClick={(e) => { e.stopPropagation(); setCommentToDelete({ logId: log.log_id, commentId: comment.id }); }}
                                                             className="text-[12px] text-[#FF453A] opacity-0 group-hover:opacity-100 transition-opacity hover:underline cursor-pointer"
                                                         >
                                                             삭제

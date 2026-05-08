@@ -94,8 +94,7 @@ export default function WorkspaceMarketing() {
     };
 
     const handleDeleteRow = async (id) => {
-        if (!isAuthorized) return alert('삭제 권한이 없습니다.');
-        if (!confirm('정말 삭제하시겠습니까?')) return;
+        setIsDeleting(true);
         try {
             const { error } = await supabase.from('iota_marketing_tasks').delete().eq('id', id);
             if (error) throw error;
@@ -103,6 +102,9 @@ export default function WorkspaceMarketing() {
         } catch (e) {
             console.error('Failed to delete task:', e);
             alert('삭제 중 오류가 발생했습니다.');
+        } finally {
+            setIsDeleting(false);
+            setItemToDelete(null);
         }
     };
 
@@ -388,7 +390,7 @@ export default function WorkspaceMarketing() {
                                         </div>
                                     )}
                                     <button 
-                                        onClick={(e) => { e.stopPropagation(); handleDeleteRow(row.id); }} 
+                                        onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: row.id, message: '정말 삭제하시겠습니까?' }); }} 
                                         className="px-3 py-2 h-[60px] bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[8px] text-[13px] font-bold hover:bg-[#ef4444]/20 cursor-pointer"
                                     >
                                         삭제
@@ -497,6 +499,36 @@ export default function WorkspaceMarketing() {
                         <div className="flex items-center gap-[12px] w-full">
                             <button onClick={() => setShowNewStakeholderModal(false)} className="flex-1 py-[10px] rounded-[8px] bg-[#333] hover:bg-[#444] text-white text-[13px] font-medium transition-colors cursor-pointer">취소</button>
                             <button onClick={registerMasterStakeholder} className="flex-1 py-[10px] rounded-[8px] bg-[#2997ff] hover:bg-[#0071e3] text-white text-[13px] font-bold transition-colors cursor-pointer">등록 후 저장</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Delete Confirmation Modal */}
+            {itemToDelete && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+                    <div className="bg-[#222] border border-[#333] rounded-[16px] w-[320px] p-[24px] shadow-2xl flex flex-col items-center">
+                        <div className="w-[48px] h-[48px] rounded-full bg-white/10 flex items-center justify-center mb-[16px]">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+                        </div>
+                        <h3 className="text-[16px] font-bold text-white mb-[8px] text-center">{itemToDelete.message}</h3>
+                        <p className="text-[13px] text-[#86868B] text-center mb-[24px]">이 작업은 되돌릴 수 없습니다.</p>
+                        <div className="flex items-center gap-[12px] w-full">
+                            <button 
+                                type="button"
+                                onClick={() => setItemToDelete(null)}
+                                className="flex-1 py-[10px] rounded-[8px] bg-[#333] hover:bg-[#444] text-white text-[13px] font-medium transition-colors"
+                                disabled={isDeleting}
+                            >
+                                취소
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => handleDeleteRow(itemToDelete.id)}
+                                className="flex-1 py-[10px] rounded-[8px] bg-white hover:bg-gray-200 text-black text-[13px] font-bold transition-colors flex justify-center items-center"
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? '삭제 중...' : '삭제'}
+                            </button>
                         </div>
                     </div>
                 </div>
