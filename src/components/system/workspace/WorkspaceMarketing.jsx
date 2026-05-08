@@ -346,7 +346,9 @@ export default function WorkspaceMarketing() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">
-                                    <span className="text-[13px] font-bold text-[#86868B]">연결기업</span>
+                                    {row.company_name && (
+                                        <span className="text-[13px] font-medium text-[#86868B]">연결기업</span>
+                                    )}
                                     <span className="text-[15px] font-bold text-[#E5E5E5] px-4 py-2 bg-[#1A1A1A] rounded-[12px] border border-[#333]">
                                         {row.company_name || '내부업무'}
                                     </span>
