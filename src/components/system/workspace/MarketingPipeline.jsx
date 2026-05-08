@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const MOCK_PIPELINES = [
     {"id": "task-pipe-pwc", "channel_name": "PwC삼일회계법인", "related_asset": "이오타서울, 현대차새만금프로젝트", "status": "진행중", "contact_point": "박성진 부대표 메인", "created_at": "2026-05-08T00:00:00Z"},
@@ -145,7 +146,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
             } else {
                 if (fetchMasterStakeholders) await fetchMasterStakeholders();
                 setShowNewStakeholderModal(false);
-                await submitPipeline();
+                // Removed automatic submitPipeline() here based on user feedback
             }
         } catch (err) {
             alert('데이터베이스 연결 오류');
@@ -297,12 +298,12 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
     return (
         <div className="w-full">
             <div className="flex justify-between items-end mb-[12px]">
-                <h2 className="text-[18px] font-bold text-white">Pipe line 관리</h2>
+                <h2 className="text-[18px] font-bold text-white">파이프라인 관리</h2>
                 <div className="flex items-center gap-4">
                     {isAllowedEditor && (
                         <button 
                             onClick={() => setIsAddingPipeline(!isAddingPipeline)}
-                            className="px-4 py-2 bg-[#3b82f6]/20 text-[#60a5fa] rounded-[8px] text-[13px] font-bold border border-[#3b82f6]/30 hover:bg-[#3b82f6]/30 transition-all"
+                            className="px-4 py-2 bg-[#3b82f6]/20 text-[#60a5fa] rounded-[8px] text-[13px] font-bold border border-[#3b82f6]/30 hover:bg-[#3b82f6]/30 transition-all cursor-pointer"
                         >
                             {isAddingPipeline ? '취소' : '+ 신규 파이프라인'}
                         </button>
@@ -491,16 +492,22 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
             )}
 
             <div className="flex flex-col gap-[10px]">
-                {pipelines.map((pipe, index) => {
-                    const pipeLogs = logs.filter(l => l.pipeline_id === pipe.id);
-                    const isExpanded = expandedPipelineId === pipe.id;
+                <AnimatePresence>
+                    {pipelines.map((pipe, index) => {
+                        const pipeLogs = logs.filter(l => l.pipeline_id === pipe.id);
+                        const isExpanded = expandedPipelineId === pipe.id;
 
-                    return (
-                        <div 
-                            key={pipe.id}
-                            className={`w-full relative bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-6 transition-all duration-300 group/row ${isExpanded ? '' : 'hover:bg-[#333] cursor-pointer'}`}
-                            onClick={() => !isExpanded && setExpandedPipelineId(pipe.id)}
-                        >
+                        return (
+                            <motion.div 
+                                layout
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                key={pipe.id}
+                                className={`w-full relative bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-6 pt-[21px] pb-[20px] transition-colors duration-300 group/row ${isExpanded ? '' : 'hover:bg-[#333] cursor-pointer'}`}
+                                onClick={() => setExpandedPipelineId(isExpanded ? null : pipe.id)}
+                            >
                             {/* 삭제 및 정렬 버튼 (우측 바깥 영역) */}
                             {isAllowedEditor && (
                                 <div className="absolute right-[-118px] w-[118px] pl-[8px] top-0 bottom-0 flex items-center justify-start gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
@@ -529,43 +536,43 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                                 </div>
                             )}
 
-                            <div className="flex justify-between items-center gap-8 relative">
+                            <motion.div layout="position" className="flex justify-between items-center gap-8 relative">
                                 <div className="flex-1 flex gap-8 items-center">
                                     {/* 채널명 (부각) */}
-                                    <div className="w-[300px] shrink-0 border-r border-[#444]/50 pr-8">
+                                    <div className="w-[290px] shrink-0 border-r border-[#444]/50 pr-8">
                                         <span className="text-[13px] font-bold text-[#86868B] block mb-1">채널명</span>
                                         <h3 className="text-[26px] font-bold text-white tracking-tight leading-tight">{pipe.channel_name}</h3>
                                     </div>
                                     
                                     {/* 나머지 정보 */}
-                                    <div className="flex-1 flex flex-col justify-center gap-4">
-                                        <div className="flex gap-12 items-center">
-                                            <div className="flex flex-col gap-1">
+                                    <div className="flex-1 flex flex-col justify-center gap-2">
+                                        <div className="flex gap-8 items-center mt-0">
+                                            <div className="flex items-center gap-2">
                                                 <span className="text-[13px] font-bold text-[#86868B]">상태</span>
                                                 <span className={`px-2 py-1 rounded-[6px] text-[13px] font-bold w-max ${pipe.status === '진행중' ? 'bg-[#059669]/20 text-[#34d399]' : pipe.status === '검토필요' ? 'bg-[#d97706]/20 text-[#fbf167]' : pipe.status === '완료' ? 'bg-[#2563eb]/20 text-[#60a5fa]' : pipe.status === '지연' ? 'bg-[#ef4444]/20 text-[#f87171]' : 'bg-[#4b5563]/20 text-[#9ca3af]'}`}>
                                                     {pipe.status}
                                                 </span>
                                             </div>
-                                            <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-2">
                                                 <span className="text-[13px] font-bold text-[#86868B]">관련 자산</span>
-                                                <span className="text-[16px] font-bold text-white">{pipe.related_asset}</span>
+                                                <span className="text-[15px] font-bold text-white">{pipe.related_asset}</span>
                                             </div>
-                                            <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-2">
                                                 <span className="text-[13px] font-bold text-[#86868B]">컨택포인트</span>
-                                                <span className="text-[16px] text-[#bbb9af] font-medium">{pipe.contact_point || '-'}</span>
+                                                <span className="text-[15px] text-[#bbb9af] font-medium">{pipe.contact_point || '-'}</span>
                                             </div>
                                         </div>
                                         
                                         {/* 최근 진행내용 및 관리방안 */}
                                         {pipeLogs.length > 0 && !isExpanded && (
-                                            <div className="flex gap-8 mt-1 border-t border-[#444]/30 pt-3">
-                                                <div className="flex-1">
+                                            <div className="flex gap-8 mt-[10px] border-t border-[#444]/30 pt-[14px]">
+                                                <div className="flex-1 flex flex-col justify-center">
                                                     <span className="text-[12px] font-bold text-[#86868B] block mb-1">최근 진행내용</span>
-                                                    <p className="text-[14px] text-[#E5E5E5] line-clamp-1">{pipeLogs[0].progress_detail || '-'}</p>
+                                                    <p className="text-[15px] text-[#E5E5E5] line-clamp-1">{pipeLogs[0].progress_detail || '-'}</p>
                                                 </div>
-                                                <div className="flex-1">
+                                                <div className="flex-1 flex flex-col justify-center">
                                                     <span className="text-[12px] font-bold text-[#86868B] block mb-1">최근 관리방안</span>
-                                                    <p className="text-[14px] text-[#E5E5E5] line-clamp-1">{pipeLogs[0].management_plan || '-'}</p>
+                                                    <p className="text-[15px] text-[#E5E5E5] line-clamp-1">{pipeLogs[0].management_plan || '-'}</p>
                                                 </div>
                                             </div>
                                         )}
@@ -580,11 +587,19 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                                         ✕
                                     </button>
                                 )}
-                            </div>
+                            </motion.div>
 
-                            {isExpanded && (
-                                <div className="mt-6 pt-6 border-t border-[#3c3c3c]">
-                                    <div className="flex justify-between items-center mb-6">
+                            <AnimatePresence initial={false}>
+                                {isExpanded && (
+                                    <motion.div 
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: "auto", opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={{ duration: 0.3, ease: "easeInOut" }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="mt-6 pt-6 border-t border-[#3c3c3c]">
+                                            <div className="flex justify-between items-center mb-6">
                                         <h4 className="text-[16px] font-bold text-white">타임라인</h4>
                                         {isAllowedEditor && (
                                             <button 
@@ -656,10 +671,13 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                                         )}
                                     </div>
                                 </div>
-                            )}
-                        </div>
-                    );
-                })}
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                            </motion.div>
+                        );
+                    })}
+                </AnimatePresence>
             </div>
 
             {showNewStakeholderModal && (

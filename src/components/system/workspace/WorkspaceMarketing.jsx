@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
 import MarketingPipeline from './MarketingPipeline';
 
@@ -200,7 +201,7 @@ export default function WorkspaceMarketing() {
     });
 
     return (
-                <div className="w-full flex-1 flex flex-col pt-[50px] pb-[60px] max-w-[1200px] mx-auto">
+                <div className="w-full flex-1 flex flex-col pt-[50px] pb-[160px] max-w-[1200px] mx-auto">
             {/* Header & Team Structure */}
             <div className="w-full flex justify-between items-center mb-[40px] gap-[40px]">
                 {/* Header Metadata */}
@@ -264,6 +265,12 @@ export default function WorkspaceMarketing() {
                             </svg>
                         </div>
                     </div>
+                    <button 
+                        onClick={() => setExpandedTaskId(expandedTaskId === 'ALL' ? null : 'ALL')}
+                        className="w-[80px] py-[6px] bg-[#272726] border border-[#3c3c3c] text-[#86868B] hover:text-[#E5E5E5] hover:bg-[#333] text-[13px] font-medium rounded-[8px] transition-colors cursor-pointer"
+                    >
+                        {expandedTaskId === 'ALL' ? '전체접기' : '전체보기'}
+                    </button>
                     <button 
                         onClick={handleAddClick}
                         className="px-[14px] py-[6px] bg-[#3b82f6]/20 text-[#60a5fa] border border-[#3b82f6]/30 text-[13px] font-bold rounded-[8px] transition-all hover:bg-[#3b82f6]/30 cursor-pointer"
@@ -364,12 +371,18 @@ export default function WorkspaceMarketing() {
                     <div className="text-center py-[40px] text-[#86868B]">데이터를 불러오는 중입니다...</div>
                 ) : (
                     <div className="flex flex-col gap-[10px]">
-                        {(projectShowAll ? sortedTasks : sortedTasks.slice(0, 5)).map((row, index) => (
-                        <div 
-                            key={row.id} 
-                            onClick={() => setExpandedTaskId(expandedTaskId === row.id ? null : row.id)}
-                            className={`w-full relative bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-6 pt-6 pb-4 cursor-pointer transition-all duration-300 group/row ${expandedTaskId === row.id ? 'hover:bg-[#272726]' : 'hover:bg-[#333]'}`}
-                        >
+                        <AnimatePresence>
+                            {(projectShowAll ? sortedTasks : sortedTasks.slice(0, 5)).map((row, index) => (
+                            <motion.div 
+                                layout
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                                key={row.id} 
+                                onClick={() => setExpandedTaskId((expandedTaskId === 'ALL' || expandedTaskId === row.id) ? null : row.id)}
+                                className={`w-full relative bg-[#272726] border border-[#3c3c3c] rounded-[24px] px-6 pt-6 pb-4 cursor-pointer transition-colors duration-300 group/row ${(expandedTaskId === 'ALL' || expandedTaskId === row.id) ? 'hover:bg-[#272726]' : 'hover:bg-[#333]'}`}
+                            >
                             {/* 삭제 및 정렬 버튼 (우측 바깥 영역) */}
                             {isAuthorized && (
                                 <div className="absolute right-[-118px] w-[118px] pl-[8px] top-0 bottom-0 flex items-center justify-start gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
@@ -424,7 +437,7 @@ export default function WorkspaceMarketing() {
                                 </div>
                             </div>
                             
-                            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedTaskId === row.id ? 'max-h-[200px] mt-4 pt-4 border-t border-[#3c3c3c] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${(expandedTaskId === 'ALL' || expandedTaskId === row.id) ? 'max-h-[200px] mt-4 pt-4 border-t border-[#3c3c3c] opacity-100' : 'max-h-0 opacity-0'}`}>
                                 <div className="flex justify-start items-center gap-12">
                                     <div className="flex items-center gap-3">
                                         <span className="text-[13px] font-bold text-[#86868B]">관련 자산</span>
@@ -445,9 +458,10 @@ export default function WorkspaceMarketing() {
                                         <span className="text-[16px] text-[#A1A1AA] font-['Inter'] font-medium">{row.due_date}</span>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
-                        ))}
+                                </div>
+                            </motion.div>
+                            ))}
+                        </AnimatePresence>
                     </div>
                 )}
                 
