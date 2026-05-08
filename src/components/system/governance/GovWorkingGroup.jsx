@@ -78,7 +78,7 @@ export default function GovWorkingGroup() {
             </div>
 
             <div className="mt-[56px] pt-[48px] border-t border-[#333]">
-                <h2 className="text-[20px] font-bold text-white mb-[16px]">외부 자문 선정 프로세스</h2>
+                <h2 className="text-[20px] font-bold text-white mb-[8px]">외부 자문 선정 프로세스</h2>
                 <p className="text-[15px] text-[#A1A1AA] leading-[26px] mb-[28px]">
                     법무·회계·감정 3개 분야 모두 <strong className="text-white font-bold">‘이오타 전담’</strong> 자문사를 별도 선정합니다. 부문 전체 자문사 풀과는 분리하여 이해상충을 최소화합니다.
                 </p>
