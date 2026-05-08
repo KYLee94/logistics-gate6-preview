@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
+import MarketingPipeline from './MarketingPipeline';
 
 export default function WorkspaceMarketing() {
     const { memberInfo } = useAuth();
@@ -394,49 +395,12 @@ export default function WorkspaceMarketing() {
                 )}
             </div>
             {/* 3. Pipeline 관리 */}
-            <div className="flex justify-between items-end mb-[12px]">
-                <h2 className="text-[18px] font-bold text-white">Pipe line 관리</h2>
-                <span className="text-[13px] text-[#86868B]">수기 입력 중심 운영 (컨택 포인트 포함)</span>
-            </div>
-            <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] overflow-hidden mb-[40px]">
-                <table className="w-full text-left">
-                    <thead>
-                        <tr>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">채널명</th>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">상태</th>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">매칭 프로젝트</th>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333] w-[25%]">진행 내용</th>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333] w-[20%]">관리 방안</th>
-                            <th className="px-[20px] py-[16px] text-[13px] font-bold text-[#86868B] border-b border-[#333]">컨택 포인트</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#333]">
-                        {visiblePipelines.map((row, idx) => (
-                            <tr key={idx} className="hover:bg-[#292928] transition-colors">
-                                <td className="px-[20px] py-[16px] text-[15px] font-bold text-white">{row.channelName}</td>
-                                <td className="px-[20px] py-[16px]">
-                                    <span className={`px-2 py-1 rounded text-[12px] font-bold border ${row.status === '진행 중' ? 'bg-[#059669]/20 text-[#34d399] border-[#059669]/30' : 'bg-[#4b5563]/20 text-[#9ca3af] border-[#4b5563]/30'}`}>
-                                        {row.status}
-                                    </span>
-                                </td>
-                                <td className="px-[20px] py-[16px] text-[14px] text-[#A1A1AA]">{row.matchedProject}</td>
-                                <td className="px-[20px] py-[16px] text-[14px] text-[#E5E5E5] leading-relaxed">{parseNames(row.progressDetail)}</td>
-                                <td className="px-[20px] py-[16px] text-[14px] text-[#A1A1AA] leading-relaxed">{parseNames(row.managementPlan)}</td>
-                                <td className="px-[20px] py-[16px] text-[14px] text-[#A1A1AA]">{parseNames(row.contactPoint)}</td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-                {pipelines.length > 5 && (
-                    <div className="w-full border-t border-[#333] p-2 flex justify-center bg-[#222] rounded-b-[23px]">
-                        <button 
-                            onClick={() => setPipelineShowAll(!pipelineShowAll)}
-                            className="text-[13px] font-bold text-[#A1A1AA] hover:text-white transition-colors px-4 py-2 cursor-pointer"
-                        >
-                            {pipelineShowAll ? '접기' : `더보기 (${pipelines.length - 5}개)`}
-                        </button>
-                    </div>
-                )}
+            <div className="mb-[40px]">
+                <MarketingPipeline 
+                    memberInfo={memberInfo} 
+                    masterStakeholders={masterStakeholders} 
+                    fetchMasterStakeholders={fetchMasterStakeholders} 
+                />
             </div>
             {/* Pipeline 관리 하단 */}
             {showNewStakeholderModal && (
