@@ -315,7 +315,7 @@ export default function WorkspaceMarketing() {
                 {isLoading ? (
                     <div className="text-center py-[40px] text-[#86868B]">데이터를 불러오는 중입니다...</div>
                 ) : (
-                    <div className="flex flex-col gap-[12px]">
+                    <div className="flex flex-col gap-[10px]">
                         {(projectShowAll ? sortedTasks : sortedTasks.slice(0, 5)).map((row) => (
                         <div 
                             key={row.id} 
