@@ -23,6 +23,13 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
 
     const isAllowedEditor = ['김민지', '고아라', '전기영'].includes(memberInfo?.staff_name);
 
+    // Asset Management States
+    const [assetFilter, setAssetFilter] = useState('427 PFV');
+    const [customAssets, setCustomAssets] = useState([]);
+    const [showNewAssetModal, setShowNewAssetModal] = useState(false);
+    const [newAssetName, setNewAssetName] = useState('');
+    const [isSubmittingAsset, setIsSubmittingAsset] = useState(false);
+
     // States for Adding Pipeline
     const [isAddingPipeline, setIsAddingPipeline] = useState(false);
     const [newPipeline, setNewPipeline] = useState({ channel_name: '', status: '대기', related_asset: 'IOTA 공통', contact_point: '', progress_detail: '', management_plan: '' });
@@ -74,7 +81,23 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
     useEffect(() => {
         setIsLoading(true);
         Promise.all([fetchPipelines(), fetchLogs()]).then(() => setIsLoading(false));
+        const saved = localStorage.getItem('iota_marketing_custom_assets');
+        if (saved) setCustomAssets(JSON.parse(saved));
     }, []);
+
+    const registerNewAsset = () => {
+        if (!newAssetName.trim()) return;
+        setIsSubmittingAsset(true);
+        setTimeout(() => {
+            const updated = [...customAssets, newAssetName.trim()];
+            setCustomAssets(updated);
+            localStorage.setItem('iota_marketing_custom_assets', JSON.stringify(updated));
+            setNewPipeline({...newPipeline, related_asset: newAssetName.trim()});
+            setIsSubmittingAsset(false);
+            setShowNewAssetModal(false);
+            setNewAssetName('');
+        }, 300);
+    };
 
     const submitPipeline = async () => {
         const insertData = { 
@@ -300,6 +323,10 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
             <div className="flex justify-between items-end mb-[12px]">
                 <h2 className="text-[18px] font-bold text-white">파이프라인 관리</h2>
                 <div className="flex items-center gap-4">
+                    <div className="flex bg-[#272726] border border-[#3c3c3c] rounded-[8px] overflow-hidden p-[2px]">
+                        <button onClick={() => setAssetFilter('427 PFV')} className={`px-[12px] py-[4px] text-[13px] font-bold rounded-[6px] transition-colors ${assetFilter === '427 PFV' ? 'bg-[#3c3c3c] text-white' : 'text-[#86868B] hover:text-[#E5E5E5]'}`}>이오타서울만 보기</button>
+                        <button onClick={() => setAssetFilter('ALL')} className={`px-[12px] py-[4px] text-[13px] font-bold rounded-[6px] transition-colors ${assetFilter === 'ALL' ? 'bg-[#3c3c3c] text-white' : 'text-[#86868B] hover:text-[#E5E5E5]'}`}>전체 자산 보기</button>
+                    </div>
                     {isAllowedEditor && (
                         <button 
                             onClick={() => setIsAddingPipeline(!isAddingPipeline)}
@@ -441,17 +468,22 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                                     <option>지연</option>
                                 </select>
                             </div>
-                            <div className="w-[150px]">
+                            <div className="flex-1">
                                 <label className="block text-[#86868B] text-[13px] font-bold mb-2">관련 자산</label>
                                 <select 
-                                    value={newPipeline.related_asset}
-                                    onChange={e => setNewPipeline({...newPipeline, related_asset: e.target.value})}
-                                    className="w-full bg-[#272726] border border-[#444] rounded-[12px] px-4 py-3 text-white text-[15px] outline-none focus:border-[#888] appearance-none cursor-pointer"
+                                    value={newPipeline.related_asset} 
+                                    onChange={e => {
+                                        if (e.target.value === 'ADD_NEW') setShowNewAssetModal(true);
+                                        else setNewPipeline({...newPipeline, related_asset: e.target.value});
+                                    }} 
+                                    className="w-full bg-[#272726] border border-[#444] rounded-[12px] px-4 py-3 text-white text-[15px] outline-none focus:border-[#888] cursor-pointer"
                                 >
-                                    <option>IOTA 공통</option>
-                                    <option>427 PFV</option>
-                                    <option>816 PFV</option>
-                                    <option>421 Fund</option>
+                                    <option value="IOTA 공통">IOTA 공통</option>
+                                    <option value="427 PFV">427 PFV</option>
+                                    <option value="816 PFV">816 PFV</option>
+                                    <option value="421 Fund">421 Fund</option>
+                                    {Array.isArray(customAssets) && customAssets.map(a => typeof a === 'string' ? <option key={a} value={a}>{a}</option> : null)}
+                                    <option value="ADD_NEW" className="text-[#3b82f6] font-bold">+ 자산 신규 추가</option>
                                 </select>
                             </div>
                         </div>
@@ -493,8 +525,15 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
 
             <div className="flex flex-col gap-[10px]">
                 <AnimatePresence>
-                    {pipelines.map((pipe, index) => {
-                        const pipeLogs = logs.filter(l => l.pipeline_id === pipe.id);
+                    {(Array.isArray(pipelines) ? pipelines : []).filter(p => {
+                        const isCoreAsset = (asset) => {
+                            if (!asset || typeof asset !== 'string') return false;
+                            const lower = asset.toLowerCase();
+                            return lower.includes('iota') || lower.includes('이오타') || lower.includes('427') || lower.includes('816') || lower.includes('421');
+                        };
+                        return assetFilter === 'ALL' || isCoreAsset(p.related_asset);
+                    }).map((pipe, index) => {
+                        const pipeLogs = (Array.isArray(logs) ? logs : []).filter(l => l.pipeline_id === pipe.id);
                         const isExpanded = expandedPipelineId === pipe.id;
 
                         return (
@@ -599,7 +638,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                                         className="overflow-hidden"
                                     >
                                         <div className="mt-6 pt-6 border-t border-[#3c3c3c]">
-                                            <div className="flex justify-between items-center mb-6">
+                                            <div className="flex justify-between items-center mb-4">
                                         <h4 className="text-[16px] font-bold text-white">타임라인</h4>
                                         {isAllowedEditor && (
                                             <button 
@@ -746,6 +785,33 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                             >
                                 {isDeleting ? '삭제 중...' : '삭제'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showNewAssetModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+                    <div className="bg-[#222] border border-[#333] rounded-[16px] w-[320px] p-[24px] shadow-2xl flex flex-col items-center">
+                        <div className="w-[48px] h-[48px] rounded-full bg-white/10 flex items-center justify-center mb-[16px]">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2997ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                        </div>
+                        <h3 className="text-white text-[16px] font-bold mb-[8px]">신규 자산 등록</h3>
+                        <p className="text-[#86868B] text-[13px] text-center mb-[20px]">마케팅 관리가 필요한<br/>새로운 관련 자산을 등록합니다.</p>
+                        
+                        <div className="w-full flex flex-col gap-[12px] mb-[20px]">
+                            <input 
+                                type="text"
+                                value={newAssetName}
+                                onChange={e => setNewAssetName(e.target.value)}
+                                placeholder="자산명 (예: 타임워크 신도림)"
+                                className="w-full bg-[#1A1A1A] border border-[#444] rounded-[8px] px-[12px] py-[10px] text-white text-[13px] outline-none focus:border-[#888]"
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-[12px] w-full">
+                            <button onClick={() => { setShowNewAssetModal(false); setNewAssetName(''); }} className="flex-1 py-[10px] rounded-[8px] bg-[#333] hover:bg-[#444] text-white text-[13px] font-medium transition-colors">취소</button>
+                            <button onClick={registerNewAsset} disabled={isSubmittingAsset} className="flex-1 py-[10px] rounded-[8px] bg-[#2997ff] hover:bg-[#0071e3] text-white text-[13px] font-bold transition-colors">{isSubmittingAsset ? '등록 중...' : '등록 후 저장'}</button>
                         </div>
                     </div>
                 </div>

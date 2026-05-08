@@ -12,7 +12,6 @@ export default function WorkspaceMarketing() {
     const [tasks, setTasks] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
-    const [sortBy, setSortBy] = useState('기본');
     const [newTask, setNewTask] = useState({
         task_name: '', company_name: '', related_asset: 'IOTA 공통', status: '아이데이션', priority: '중간', due_date: '', next_action: ''
     });
@@ -20,6 +19,13 @@ export default function WorkspaceMarketing() {
     const [expandedTaskId, setExpandedTaskId] = useState(null);
     const [projectShowAll, setProjectShowAll] = useState(false);
     const [pipelineShowAll, setPipelineShowAll] = useState(false);
+
+    // Asset Management States
+    const [assetFilter, setAssetFilter] = useState('427 PFV');
+    const [customAssets, setCustomAssets] = useState([]);
+    const [showNewAssetModal, setShowNewAssetModal] = useState(false);
+    const [newAssetName, setNewAssetName] = useState('');
+    const [isSubmittingAsset, setIsSubmittingAsset] = useState(false);
 
     // Stakeholder States
     const [masterStakeholders, setMasterStakeholders] = useState([]);
@@ -33,7 +39,23 @@ export default function WorkspaceMarketing() {
     useEffect(() => {
         fetchTasks();
         fetchMasterStakeholders();
+        const saved = localStorage.getItem('iota_marketing_custom_assets');
+        if (saved) setCustomAssets(JSON.parse(saved));
     }, []);
+
+    const registerNewAsset = () => {
+        if (!newAssetName.trim()) return;
+        setIsSubmittingAsset(true);
+        setTimeout(() => {
+            const updated = [...customAssets, newAssetName.trim()];
+            setCustomAssets(updated);
+            localStorage.setItem('iota_marketing_custom_assets', JSON.stringify(updated));
+            setNewTask({...newTask, related_asset: newAssetName.trim()});
+            setIsSubmittingAsset(false);
+            setShowNewAssetModal(false);
+            setNewAssetName('');
+        }, 300);
+    };
 
     const fetchMasterStakeholders = async () => {
         try {
@@ -182,22 +204,18 @@ export default function WorkspaceMarketing() {
         }
     };
 
-    const sortedTasks = [...tasks].sort((a, b) => {
-        if (sortBy === '기본') {
-            return new Date(b.created_at) - new Date(a.created_at);
-        } else if (sortBy === '마감일') {
-            if (!a.due_date) return 1;
-            if (!b.due_date) return -1;
-            return new Date(a.due_date) - new Date(b.due_date);
-        } else {
-            const priorityOrder = { '높음': 3, '중간': 2, '낮음': 1 };
-            const pA = priorityOrder[a.priority] || 0;
-            const pB = priorityOrder[b.priority] || 0;
-            if (pA !== pB) return pB - pA;
-            if (!a.due_date) return 1;
-            if (!b.due_date) return -1;
-            return new Date(a.due_date) - new Date(b.due_date);
-        }
+    const isCoreAsset = (asset) => {
+        if (!asset || typeof asset !== 'string') return false;
+        const lower = asset.toLowerCase();
+        return lower.includes('iota') || lower.includes('이오타') || lower.includes('427') || lower.includes('816') || lower.includes('421');
+    };
+
+    const safeTasks = Array.isArray(tasks) ? tasks : [];
+    const filteredTasks = safeTasks.filter(t => assetFilter === 'ALL' || isCoreAsset(t.related_asset));
+    const sortedTasks = [...filteredTasks].sort((a, b) => {
+        const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
     });
 
     return (
@@ -249,27 +267,15 @@ export default function WorkspaceMarketing() {
             <div className="flex justify-between items-center mb-[10px]">
                 <h2 className="text-[18px] font-bold text-white tracking-tight">기업마케팅 주요 테스크 관리</h2>
                 <div className="flex gap-2 items-center">
-                    <div className="relative">
-                        <select 
-                            value={sortBy}
-                            onChange={(e) => setSortBy(e.target.value)}
-                            className="px-[12px] py-[6px] bg-[#272726] border border-[#3c3c3c] text-[#A1A1AA] text-[13px] rounded-[8px] outline-none focus:border-[#555] appearance-none pr-[30px] cursor-pointer"
-                        >
-                            <option value="기본">기본 순으로 보기</option>
-                            <option value="마감일">마감일 순으로 보기</option>
-                            <option value="중요도">중요도 순으로 보기</option>
-                        </select>
-                        <div className="absolute right-[10px] top-1/2 -translate-y-1/2 pointer-events-none text-[#86868B]">
-                            <svg width="10" height="6" viewBox="0 0 10 6" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M1 1L5 5L9 1" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                        </div>
+                    <div className="flex bg-[#272726] border border-[#3c3c3c] rounded-[8px] overflow-hidden p-[2px]">
+                        <button onClick={() => setAssetFilter('427 PFV')} className={`px-[12px] py-[4px] text-[13px] font-bold rounded-[6px] transition-colors ${assetFilter === '427 PFV' ? 'bg-[#3c3c3c] text-white' : 'text-[#86868B] hover:text-[#E5E5E5]'}`}>이오타서울만 보기</button>
+                        <button onClick={() => setAssetFilter('ALL')} className={`px-[12px] py-[4px] text-[13px] font-bold rounded-[6px] transition-colors ${assetFilter === 'ALL' ? 'bg-[#3c3c3c] text-white' : 'text-[#86868B] hover:text-[#E5E5E5]'}`}>전체 자산 보기</button>
                     </div>
                     <button 
-                        onClick={() => setExpandedTaskId(expandedTaskId === 'ALL' ? null : 'ALL')}
+                        onClick={() => setProjectShowAll(!projectShowAll)}
                         className="w-[80px] py-[6px] bg-[#272726] border border-[#3c3c3c] text-[#86868B] hover:text-[#E5E5E5] hover:bg-[#333] text-[13px] font-medium rounded-[8px] transition-colors cursor-pointer"
                     >
-                        {expandedTaskId === 'ALL' ? '전체접기' : '전체보기'}
+                        {projectShowAll ? '접기' : '전체보기'}
                     </button>
                     <button 
                         onClick={handleAddClick}
@@ -345,10 +351,20 @@ export default function WorkspaceMarketing() {
                             placeholder="다음 액션 준비사항 입력" 
                         />
                         <div className="flex flex-wrap gap-4 items-center">
-                            <select value={newTask.related_asset} onChange={e => setNewTask({...newTask, related_asset: e.target.value})} className="bg-[#1A1A1A] border border-[#444] rounded-[10px] px-3 py-2 text-white text-[14px] outline-none focus:border-[#888]">
-                                <option>IOTA 공통</option>
-                                <option>IOTA 427</option>
-                                <option>IOTA 816</option>
+                            <select 
+                                value={newTask.related_asset} 
+                                onChange={e => {
+                                    if (e.target.value === 'ADD_NEW') setShowNewAssetModal(true);
+                                    else setNewTask({...newTask, related_asset: e.target.value});
+                                }} 
+                                className="bg-[#1A1A1A] border border-[#444] rounded-[10px] px-3 py-2 text-white text-[14px] outline-none focus:border-[#888] cursor-pointer"
+                            >
+                                <option value="IOTA 공통">IOTA 공통</option>
+                                <option value="427 PFV">427 PFV</option>
+                                <option value="816 PFV">816 PFV</option>
+                                <option value="421 Fund">421 Fund</option>
+                                {Array.isArray(customAssets) && customAssets.map(a => typeof a === 'string' ? <option key={a} value={a}>{a}</option> : null)}
+                                <option value="ADD_NEW" className="text-[#3b82f6] font-bold">+ 자산 신규 추가</option>
                             </select>
                             <select value={newTask.status} onChange={e => setNewTask({...newTask, status: e.target.value})} className="bg-[#1A1A1A] border border-[#444] rounded-[10px] px-3 py-2 text-white text-[14px] outline-none focus:border-[#888]">
                                 {['아이데이션', '자료준비', '제안진행', '미팅후속', '협상', '보류', '완료'].map(s => <option key={s}>{s}</option>)}
@@ -386,7 +402,6 @@ export default function WorkspaceMarketing() {
                             {/* 삭제 및 정렬 버튼 (우측 바깥 영역) */}
                             {isAuthorized && (
                                 <div className="absolute right-[-118px] w-[118px] pl-[8px] top-0 bottom-0 flex items-center justify-start gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                                    {sortBy === '기본' && (
                                         <div className="flex flex-col gap-1">
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); handleMoveTaskUp(index); }}
@@ -403,7 +418,6 @@ export default function WorkspaceMarketing() {
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E5E5E5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                             </button>
                                         </div>
-                                    )}
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: row.id, message: '정말 삭제하시겠습니까?' }); }} 
                                         className="px-3 py-2 h-[60px] bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[8px] text-[13px] font-bold hover:bg-[#ef4444]/20 cursor-pointer"
@@ -464,17 +478,7 @@ export default function WorkspaceMarketing() {
                         </AnimatePresence>
                     </div>
                 )}
-                
-                {tasks.length > 6 && (
-                    <div className="w-full flex justify-center mt-2">
-                        <button 
-                            onClick={() => setProjectShowAll(!projectShowAll)}
-                            className="text-[14px] font-bold text-[#A1A1AA] hover:text-white bg-[#272726] hover:bg-[#333] border border-[#3c3c3c] rounded-[16px] transition-colors px-6 py-3 cursor-pointer"
-                        >
-                            {projectShowAll ? '접기' : `더보기 (${tasks.length - 5}개)`}
-                        </button>
-                    </div>
-                )}
+
             </div>
             {/* 3. Pipeline 관리 */}
             <div className="mb-[40px]">
@@ -545,6 +549,33 @@ export default function WorkspaceMarketing() {
                             >
                                 {isDeleting ? '삭제 중...' : '삭제'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showNewAssetModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
+                    <div className="bg-[#222] border border-[#333] rounded-[16px] w-[320px] p-[24px] shadow-2xl flex flex-col items-center">
+                        <div className="w-[48px] h-[48px] rounded-full bg-white/10 flex items-center justify-center mb-[16px]">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2997ff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                        </div>
+                        <h3 className="text-white text-[16px] font-bold mb-[8px]">신규 자산 등록</h3>
+                        <p className="text-[#86868B] text-[13px] text-center mb-[20px]">마케팅 관리가 필요한<br/>새로운 관련 자산을 등록합니다.</p>
+                        
+                        <div className="w-full flex flex-col gap-[12px] mb-[20px]">
+                            <input 
+                                type="text"
+                                value={newAssetName}
+                                onChange={e => setNewAssetName(e.target.value)}
+                                placeholder="자산명 (예: 타임워크 신도림)"
+                                className="w-full bg-[#1A1A1A] border border-[#444] rounded-[8px] px-[12px] py-[10px] text-white text-[13px] outline-none focus:border-[#888]"
+                            />
+                        </div>
+
+                        <div className="flex items-center gap-[12px] w-full">
+                            <button onClick={() => { setShowNewAssetModal(false); setNewAssetName(''); }} className="flex-1 py-[10px] rounded-[8px] bg-[#333] hover:bg-[#444] text-white text-[13px] font-medium transition-colors">취소</button>
+                            <button onClick={registerNewAsset} disabled={isSubmittingAsset} className="flex-1 py-[10px] rounded-[8px] bg-[#2997ff] hover:bg-[#0071e3] text-white text-[13px] font-bold transition-colors">{isSubmittingAsset ? '등록 중...' : '등록 후 저장'}</button>
                         </div>
                     </div>
                 </div>
