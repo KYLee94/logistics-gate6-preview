@@ -176,8 +176,10 @@ export default function WorkspaceDigital() {
         setTasks(newTasks);
         
         try {
-            await supabase.from('iota_digital_tasks').update({ created_at: current.created_at }).eq('id', current.id);
-            await supabase.from('iota_digital_tasks').update({ created_at: prev.created_at }).eq('id', prev.id);
+            const { error: e1 } = await supabase.from('iota_digital_tasks').update({ created_at: current.created_at }).eq('id', current.id);
+            if (e1) throw e1;
+            const { error: e2 } = await supabase.from('iota_digital_tasks').update({ created_at: prev.created_at }).eq('id', prev.id);
+            if (e2) throw e2;
         } catch (e) {
             localStorage.setItem('iota_digital_tasks_fallback', JSON.stringify(newTasks));
         }
@@ -196,8 +198,10 @@ export default function WorkspaceDigital() {
         setTasks(newTasks);
         
         try {
-            await supabase.from('iota_digital_tasks').update({ created_at: current.created_at }).eq('id', current.id);
-            await supabase.from('iota_digital_tasks').update({ created_at: next.created_at }).eq('id', next.id);
+            const { error: e1 } = await supabase.from('iota_digital_tasks').update({ created_at: current.created_at }).eq('id', current.id);
+            if (e1) throw e1;
+            const { error: e2 } = await supabase.from('iota_digital_tasks').update({ created_at: next.created_at }).eq('id', next.id);
+            if (e2) throw e2;
         } catch (e) {
             localStorage.setItem('iota_digital_tasks_fallback', JSON.stringify(newTasks));
         }
