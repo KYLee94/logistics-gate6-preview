@@ -261,18 +261,9 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
 
     return (
         <div className="w-full flex flex-col mt-0">
-            {/* Task Input Form */}
-            <LogWriteBox 
-                memberInfo={memberInfo}
-                masterStakeholders={masterStakeholders}
-                fetchLogs={fetchLogs}
-                fetchMasterStakeholders={fetchMasterStakeholders}
-                workspaceCode={workspaceCode}
-                workspaceLabel={workspaceLabel}
-            />
             {/* Log Viewer */}
-            <div className="flex justify-between items-center mt-[2px] mb-[12px]">
-                <h2 className="text-[18px] font-bold text-white tracking-tight translate-y-[2px]">{workspaceLabel ? workspaceLabel.split('-')[0].trim() : ''} 협업게시판</h2>
+            <div className="flex justify-between items-center mt-[-14px] mb-[12px]">
+                <h2 className="text-[18px] font-bold text-white tracking-tight translate-y-[6px]">{workspaceLabel ? workspaceLabel.split('-')[0].trim() : ''} 협업게시판</h2>
                 <div className="flex items-center gap-[12px]">
                     {/* Search Box */}
                     <div className="relative">
@@ -296,7 +287,19 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                     </button>
                 </div>
             </div>
-            <div className="w-full border border-[#3c3c3c] rounded-[24px] mb-[40px] flex flex-col bg-[#252525]">
+            
+            
+            <div className="-mx-[7px] p-[6px] border border-[#333] rounded-[30px] mb-[40px]">
+                <div className="w-full flex flex-col mt-0">{/* Task Input Form */}
+            <LogWriteBox 
+                memberInfo={memberInfo}
+                masterStakeholders={masterStakeholders}
+                fetchLogs={fetchLogs}
+                fetchMasterStakeholders={fetchMasterStakeholders}
+                workspaceCode={workspaceCode}
+                workspaceLabel={workspaceLabel}
+            />
+            <div className="w-full border border-[#3c3c3c] rounded-[24px] flex flex-col bg-[#252525]">
                 {/* Header Row */}
                 <div className="w-full px-[20px] py-[12px] flex items-center border-b border-[#3c3c3c] bg-transparent rounded-t-[24px]">
                     {/* Left Section */}
@@ -705,6 +708,8 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                     </div>
                 </div>
             )}
+                </div>
+            </div>
         </div>
     );
 }

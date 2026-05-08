@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import LogWriteBox from './LogWriteBox';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function DecisionLog() {
@@ -398,17 +397,6 @@ export default function DecisionLog() {
                     ))}
                 </div>
             </div>
-
-
-            <LogWriteBox 
-                memberInfo={memberInfo}
-                masterStakeholders={masterStakeholders}
-                fetchLogs={fetchLogs}
-                fetchMasterStakeholders={fetchMasterStakeholders}
-                workspaceCode="WS_DECISION"
-                workspaceLabel="전체 업무 현황"
-                defaultExpanded={false}
-            />
 
             {/* Log Viewer */}
             <div id="log-viewer-header" className="flex justify-between items-center mt-[20px] mb-[12px] scroll-mt-[80px]">
