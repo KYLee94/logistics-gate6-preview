@@ -422,7 +422,7 @@ export default function WorkspaceMarketing() {
                                 </div>
                             </div>
                         </div>
-                        {isAllowedEditor && sortBy === '기본' && (
+                        {isAuthorized && sortBy === '기본' && (
                             <div className="w-[32px] flex flex-col gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
                                 <button 
                                     onClick={(e) => { e.stopPropagation(); handleMoveTaskUp(index); }}
