@@ -198,7 +198,7 @@ export default function WorkspaceMarketing() {
 
                         {/* 2. Task 관리 */}
             <div className="w-full mt-[6px] border-t border-[#3c3c3c] pt-[32px]"></div>
-            <div className="flex justify-between items-center mb-[14px]">
+            <div className="flex justify-between items-center mb-[10px]">
                 <h2 className="text-[18px] font-bold text-white tracking-tight">기업마케팅 주요 테스크 관리</h2>
                 <div className="flex gap-2 items-center">
                     <div className="relative">
@@ -394,7 +394,7 @@ export default function WorkspaceMarketing() {
                 )}
             </div>
             {/* 3. Pipeline 관리 */}
-            <div className="flex justify-between items-end mb-[16px]">
+            <div className="flex justify-between items-end mb-[12px]">
                 <h2 className="text-[18px] font-bold text-white">Pipe line 관리</h2>
                 <span className="text-[13px] text-[#86868B]">수기 입력 중심 운영 (컨택 포인트 포함)</span>
             </div>
