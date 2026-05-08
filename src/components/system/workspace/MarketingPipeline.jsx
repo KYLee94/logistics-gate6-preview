@@ -212,8 +212,13 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
     const uniqueCompanies = [...new Set((masterStakeholders || []).map(s => s.company_name).filter(Boolean))];
     const filteredCompanies = uniqueCompanies.filter(c => c.toLowerCase().includes(newPipeline.channel_name.toLowerCase()));
     
-    const uniqueContacts = [...new Set((masterStakeholders || []).map(s => s.contact_name).filter(Boolean))];
-    const filteredContacts = uniqueContacts.filter(c => c.toLowerCase().includes(newPipeline.contact_point.toLowerCase()));
+    let availableContacts = [];
+    if (newPipeline.channel_name) {
+        availableContacts = [...new Set((masterStakeholders || []).filter(s => s.company_name === newPipeline.channel_name).map(s => s.contact_name).filter(Boolean))];
+    } else {
+        availableContacts = [...new Set((masterStakeholders || []).map(s => s.contact_name).filter(Boolean))];
+    }
+    const filteredContacts = availableContacts.filter(c => c.toLowerCase().includes(newPipeline.contact_point.toLowerCase()));
 
     const formatTime = (isoString) => {
         const d = new Date(isoString);
