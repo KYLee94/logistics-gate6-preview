@@ -315,21 +315,30 @@ export default function WorkspaceMarketing() {
                 {isLoading ? (
                     <div className="text-center py-[40px] text-[#86868B]">데이터를 불러오는 중입니다...</div>
                 ) : (
-                    (projectShowAll ? sortedTasks : sortedTasks.slice(0, 5)).map((row) => (
+                    <div className="grid grid-cols-2 gap-4">
+                        {(projectShowAll ? sortedTasks : sortedTasks.slice(0, 6)).map((row) => (
                         <div 
                             key={row.id} 
                             onClick={() => setExpandedTaskId(expandedTaskId === row.id ? null : row.id)}
                             className={`bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-6 cursor-pointer transition-all duration-300 group ${expandedTaskId === row.id ? 'hover:bg-[#272726]' : 'hover:bg-[#333]'}`}
                         >
                             <div className="flex justify-between items-start gap-4">
-                                <div className="flex flex-col gap-3 flex-1">
-                                    <h3 className="text-[26px] font-bold text-white tracking-tight leading-tight flex items-center gap-3">
-                                        {row.task_name}
-                                    </h3>
-                                    <p className="text-[18px] text-[#A1A1AA] leading-relaxed break-keep font-medium">{parseNames(row.next_action)}</p>
+                                <div className="flex flex-col gap-4 flex-1 pr-2">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[12px] font-bold text-[#86868B] uppercase tracking-wider">Task</span>
+                                        <h3 className="text-[20px] font-bold text-white tracking-tight leading-tight">
+                                            {row.task_name}
+                                        </h3>
+                                    </div>
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[12px] font-bold text-[#86868B] uppercase tracking-wider">Next Action</span>
+                                        <p className="text-[15px] text-[#A1A1AA] leading-relaxed break-keep font-medium">
+                                            {parseNames(row.next_action)}
+                                        </p>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-3 shrink-0">
-                                    <span className="text-[18px] font-bold text-[#E5E5E5] px-4 py-2 bg-[#1A1A1A] rounded-[12px] border border-[#333]">{row.company_name}</span>
+                                    <span className="text-[14px] font-bold text-[#E5E5E5] px-3 py-1.5 bg-[#1A1A1A] rounded-[8px] border border-[#333]">{row.company_name}</span>
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); handleDeleteRow(row.id); }} 
                                         className="px-4 py-2 bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[12px] text-[14px] font-bold opacity-0 group-hover:opacity-100 transition-all hover:bg-[#ef4444]/20 cursor-pointer"
@@ -340,7 +349,7 @@ export default function WorkspaceMarketing() {
                             </div>
                             
                             <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedTaskId === row.id ? 'max-h-[200px] mt-6 pt-6 border-t border-[#3c3c3c] opacity-100' : 'max-h-0 opacity-0'}`}>
-                                <div className="flex flex-wrap gap-12">
+                                <div className="flex flex-wrap gap-6">
                                     <div className="flex flex-col gap-2">
                                         <span className="text-[13px] font-bold text-[#86868B]">관련 자산</span>
                                         <span className="text-[16px] text-white font-medium">{row.related_asset}</span>
@@ -362,10 +371,11 @@ export default function WorkspaceMarketing() {
                                 </div>
                             </div>
                         </div>
-                    ))
+                        ))}
+                    </div>
                 )}
                 
-                {tasks.length > 5 && (
+                {tasks.length > 6 && (
                     <div className="w-full flex justify-center mt-2">
                         <button 
                             onClick={() => setProjectShowAll(!projectShowAll)}
