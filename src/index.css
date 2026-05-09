@@ -534,3 +534,20 @@ html[lang="kr"] .font-light {
         --font-inter: "Inter", Pretendard, sans-serif;
     }
 }
+.custom-thin-scrollbar::-webkit-scrollbar {
+    height: 6px;
+}
+.custom-thin-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-thin-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 10px;
+}
+.custom-thin-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+.custom-thin-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.4) transparent;
+}

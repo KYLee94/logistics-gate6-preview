@@ -467,13 +467,18 @@ export default function DecisionLog() {
                             <button
                                 key={ws.id}
                                 onClick={() => {
+                                    setActiveWorkspaceTab(ws.id);
                                     const container = document.getElementById('focus-scroll-container');
                                     const card = document.getElementById(`focus-card-${ws.id}`);
                                     if (container && card) {
                                         container.scrollTo({ left: card.offsetLeft - container.offsetLeft, behavior: 'smooth' });
                                     }
                                 }}
-                                className="px-[12px] py-[6px] rounded-full text-[13px] font-bold bg-transparent border border-[#333] text-[#86868B] hover:text-white hover:border-[#555] transition-colors whitespace-nowrap"
+                                className={`px-[12px] py-[6px] rounded-full text-[13px] font-bold whitespace-nowrap transition-colors ${
+                                    activeWorkspaceTab === ws.id
+                                        ? 'text-white border-[1px] border-transparent [background:linear-gradient(#1F1F1E,#1F1F1E)_padding-box,linear-gradient(to_bottom_right,#d6efe9,#82afb9,#4c6e86)_border-box]'
+                                        : 'bg-transparent border border-[#333] text-[#86868B] hover:text-white hover:border-[#555]'
+                                }`}
                             >
                                 {ws.name}
                             </button>
@@ -486,15 +491,40 @@ export default function DecisionLog() {
                         <span className="text-[#86868B] text-[15px]">데이터를 불러오는 중입니다...</span>
                     </div>
                 ) : (
-                    <div className="-mx-[7px] p-[6px] border border-[#333] rounded-[30px]">
-                        <div id="focus-scroll-container" className="w-[calc(50vw-140px+50%)] max-w-none flex gap-[6px] overflow-x-auto pb-[20px] snap-x scrollbar-hide pr-[40px]">
+                    <div className="-mx-[7px] p-[6px] border border-[#333] rounded-[30px] translate-x-[-24px]">
+                        <div 
+                            id="focus-scroll-container" 
+                            className="w-[calc(50vw-140px+50%)] max-w-none flex gap-[6px] overflow-x-auto snap-x pr-[40px] custom-thin-scrollbar rounded-[24px]"
+                            onScroll={(e) => {
+                                const container = e.target;
+                                const scrollLeft = container.scrollLeft;
+                                let activeId = WORKSPACE_CONFIG[0].id;
+                                let minDiff = Infinity;
+                                
+                                WORKSPACE_CONFIG.forEach(ws => {
+                                    const card = document.getElementById(`focus-card-${ws.id}`);
+                                    if (card) {
+                                        const diff = Math.abs((card.offsetLeft - container.offsetLeft) - scrollLeft);
+                                        if (diff < minDiff) {
+                                            minDiff = diff;
+                                            activeId = ws.id;
+                                        }
+                                    }
+                                });
+                                setActiveWorkspaceTab(activeId);
+                            }}
+                        >
                         {WORKSPACE_CONFIG.map(ws => {
                             const tasks = focusTasks[ws.id] || [];
                             return (
                                 <div 
                                     key={ws.id}
                                     id={`focus-card-${ws.id}`}
-                                    className="min-w-[480px] max-w-[480px] shrink-0 bg-[#272727] border border-[#3c3c3c] rounded-[24px] px-[24px] pt-[16px] pb-[26px] snap-start flex flex-col gap-[16px] min-h-[380px]"
+                                    className={`min-w-[480px] max-w-[480px] shrink-0 rounded-[24px] px-[24px] pt-[16px] pb-[26px] snap-start flex flex-col gap-[16px] min-h-[380px] transition-colors ${
+                                        activeWorkspaceTab === ws.id
+                                            ? 'border-[2px] border-transparent [background:linear-gradient(#272727,#272727)_padding-box,linear-gradient(to_bottom_right,#d6efe9,#82afb9,#4c6e86)_border-box]'
+                                            : 'bg-[#272727] border border-[#3c3c3c]'
+                                    }`}
                                 >
                                     {/* Card Title */}
                                     <h3 className="text-[18px] font-bold text-white mb-[0]">{ws.name}</h3>
@@ -533,6 +563,12 @@ export default function DecisionLog() {
                                 </div>
                             );
                         })}
+                        {/* Spacer to allow the last card to snap to the left edge */}
+                        <div className="min-w-[calc(100vw-480px)] shrink-0 flex items-center justify-start pl-[60px] select-none pointer-events-none">
+                            <div className="text-white opacity-[0.04] font-bold leading-[0.9] tracking-tighter" style={{ fontSize: 'min(7vw, 120px)' }}>
+                                IOTA Seoul<br />Cross Functional Team
+                            </div>
+                        </div>
                         </div>
                     </div>
                 )}

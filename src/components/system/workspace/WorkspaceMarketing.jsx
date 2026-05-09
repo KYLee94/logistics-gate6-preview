@@ -106,7 +106,7 @@ export default function WorkspaceMarketing() {
     };
 
     useEffect(() => {
-        if (!isLoadingTasks && tasks.length > 0) {
+        if (!isLoading && tasks.length > 0) {
             const targetTaskId = localStorage.getItem('iota_target_task_id');
             if (targetTaskId) {
                 const targetTask = tasks.find(t => t.id === targetTaskId);
@@ -125,7 +125,7 @@ export default function WorkspaceMarketing() {
                 }
             }
         }
-    }, [isLoadingTasks, tasks]);
+    }, [isLoading, tasks]);
 
     const handleEditRow = (row) => {
         setEditingTaskId(row.id);
