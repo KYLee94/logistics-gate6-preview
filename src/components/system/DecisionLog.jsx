@@ -460,7 +460,7 @@ export default function DecisionLog() {
             {/* This Week's Focus */}
             <div className="w-full mb-[50px]">
                 {/* Header with Title and Nav Links */}
-                <div className="flex items-center gap-[16px] mb-[14px]">
+                <div className="flex items-center gap-[16px] mb-[10px]">
                     <h2 className="text-[20px] font-bold text-white tracking-tight shrink-0">이번주 포커스</h2>
                     <div className="flex items-center gap-[8px] overflow-x-auto scrollbar-hide">
                         {WORKSPACE_CONFIG.map(ws => (
@@ -564,8 +564,8 @@ export default function DecisionLog() {
                             );
                         })}
                         {/* Spacer to allow the last card to snap to the left edge */}
-                        <div className="min-w-[calc(100vw-480px)] shrink-0 flex items-center justify-start pl-[60px] select-none pointer-events-none">
-                            <div className="text-white opacity-[0.04] font-bold leading-[0.9] tracking-tighter" style={{ fontSize: 'min(7vw, 120px)' }}>
+                        <div className="min-w-[calc(100vw-480px)] shrink-0 flex items-center justify-start px-[40px] select-none pointer-events-none box-border">
+                            <div className="text-white opacity-[0.04] font-bold leading-[0.9] tracking-tighter w-full" style={{ fontSize: 'clamp(40px, 4vw, 80px)' }}>
                                 IOTA Seoul<br />Cross Functional Team
                             </div>
                         </div>
