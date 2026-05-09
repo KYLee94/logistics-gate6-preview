@@ -465,22 +465,22 @@ export default function DecisionLog() {
 
             {/* This Week's Focus */}
             <div className="w-full mb-[50px]">
-                <h2 className="text-[20px] font-bold text-white mb-[16px] tracking-tight">이번주 포커스</h2>
-                
-                {/* Workspace Tabs */}
-                <div className="w-full flex items-center gap-[12px] mb-[24px] overflow-x-auto scrollbar-hide pb-[8px]">
-                    {WORKSPACE_CONFIG.map(ws => (
-                        <button
-                            key={ws.id}
-                            onClick={() => {
-                                setActiveWorkspaceTab(ws.id);
-                                setExpandedFocusTaskId(null);
-                            }}
-                            className={`px-[20px] py-[10px] rounded-[14px] text-[15px] font-bold whitespace-nowrap transition-all border ${activeWorkspaceTab === ws.id ? 'bg-[#2C2C2E] border-[#444] text-white shadow-lg' : 'bg-transparent border-[#333] text-[#86868B] hover:text-[#E5E5E5] hover:border-[#555]'}`}
-                        >
-                            {ws.name}
-                        </button>
-                    ))}
+                {/* Header with Title and Nav Links */}
+                <div className="flex items-center gap-[16px] mb-[24px]">
+                    <h2 className="text-[20px] font-bold text-white tracking-tight shrink-0">이번주 포커스</h2>
+                    <div className="flex items-center gap-[8px] overflow-x-auto scrollbar-hide">
+                        {WORKSPACE_CONFIG.map(ws => (
+                            <button
+                                key={ws.id}
+                                onClick={() => {
+                                    document.getElementById(`focus-card-${ws.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+                                }}
+                                className="px-[12px] py-[6px] rounded-full text-[13px] font-bold bg-transparent border border-[#333] text-[#86868B] hover:text-white hover:border-[#555] transition-colors whitespace-nowrap"
+                            >
+                                {ws.name}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 {isLoadingFocus ? (
@@ -488,103 +488,78 @@ export default function DecisionLog() {
                         <span className="text-[#86868B] text-[15px]">데이터를 불러오는 중입니다...</span>
                     </div>
                 ) : (
-                    <div className="w-full flex flex-col gap-[16px]">
-                        {(focusTasks[activeWorkspaceTab] || []).map((task, idx) => (
-                            <div 
-                                key={task.id} 
-                                className={`w-full rounded-[24px] border ${expandedFocusTaskId === task.id ? 'border-[#555] bg-[#1a1a1a]/50' : 'border-[#444]/50 bg-transparent hover:border-[#666]'} overflow-hidden transition-all duration-300`}
-                            >
-                                {/* Header / Summary (Clickable) */}
+                    <div className="w-full flex gap-[16px] overflow-x-auto pb-[20px] snap-x scrollbar-hide">
+                        {WORKSPACE_CONFIG.map(ws => {
+                            const tasks = focusTasks[ws.id] || [];
+                            return (
                                 <div 
-                                    className="p-[24px] md:p-[32px] cursor-pointer flex justify-between items-start"
-                                    onClick={() => setExpandedFocusTaskId(expandedFocusTaskId === task.id ? null : task.id)}
+                                    key={ws.id}
+                                    id={`focus-card-${ws.id}`}
+                                    className="min-w-[320px] max-w-[320px] shrink-0 bg-[#272727] border border-[#3c3c3c] rounded-[16px] p-[24px] snap-start flex flex-col gap-[24px]"
                                 >
-                                    <div className="flex flex-col gap-[8px]">
-                                        <span className="text-[14px] font-bold text-[#86868B]">Task {idx + 1}</span>
-                                        <h3 className="text-[21px] font-bold text-[#e2aa29] leading-tight tracking-tight">
-                                            {task.task_name}
-                                        </h3>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-[12px]">
-                                        <span className={`px-[8px] py-[3px] rounded-[6px] text-[12px] font-bold ${task.priority === '높음' ? 'bg-[#ef4444]/20 text-[#ef4444]' : task.priority === '중간' ? 'bg-[#3b82f6]/20 text-[#3b82f6]' : 'bg-[#10b981]/20 text-[#10b981]'}`}>{task.priority || '중간'}</span>
-                                        <motion.div 
-                                            animate={{ rotate: expandedFocusTaskId === task.id ? 180 : 0 }} 
-                                            className="w-[28px] h-[28px] rounded-full bg-[#333] flex items-center justify-center text-[#86868B]"
-                                        >
-                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                                        </motion.div>
-                                    </div>
-                                </div>
+                                    {/* Card Title */}
+                                    <h3 className="text-[18px] font-bold text-white mb-[-8px]">{ws.name}</h3>
 
-                                {/* Accordion Content */}
-                                <AnimatePresence>
-                                    {expandedFocusTaskId === task.id && (
-                                        <motion.div
-                                            initial={{ height: 0, opacity: 0 }}
-                                            animate={{ height: 'auto', opacity: 1 }}
-                                            exit={{ height: 0, opacity: 0 }}
-                                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                                            className="overflow-hidden border-t border-[#3c3c3c]"
-                                        >
-                                            <div className="p-[24px] md:p-[32px] pt-[24px] flex flex-col gap-[24px]">
-                                                {/* Next Action & Due Date */}
-                                                <div className="flex flex-col md:flex-row gap-[32px]">
-                                                    <div className="flex-1 flex flex-col gap-[6px]">
-                                                        <span className="text-[14px] font-bold text-[#86868B]">Next Action</span>
-                                                        <p className="text-[18px] text-[#bbb9af] leading-relaxed break-keep font-medium">
-                                                            {task.next_action || '작성된 내용이 없습니다.'}
-                                                        </p>
-                                                    </div>
-                                                    <div className="w-[200px] shrink-0 flex flex-col gap-[6px]">
-                                                        <span className="text-[14px] font-bold text-[#86868B]">목표 마감일</span>
-                                                        <span className="text-[18px] text-white font-medium">{task.due_date || '미정'}</span>
-                                                    </div>
+                                    {tasks.length === 0 ? (
+                                        <div className="text-[#86868B] text-[14px]">진행 중인 주요 테스크가 없습니다.</div>
+                                    ) : (
+                                        tasks.map((task, idx) => (
+                                            <div key={task.id} className="flex flex-col gap-[8px]">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-[13px] font-bold text-[#86868B]">Task {idx + 1}</span>
+                                                    <span className="text-[12px] font-bold text-[#A1A1AA]">목표 마감일 {task.due_date || '미정'}</span>
                                                 </div>
-                                                
-                                                {/* Details Row */}
-                                                <div className="flex flex-wrap gap-[32px] pt-[20px] border-t border-[#3c3c3c]/50">
-                                                    <div className="flex flex-col gap-[6px]">
-                                                        <span className="text-[13px] font-bold text-[#86868B]">상태</span>
-                                                        <span className={`px-[8px] py-[4px] rounded-[6px] text-[14px] font-bold w-max ${task.status === '진행중' ? 'bg-[#059669]/20 text-[#34d399]' : task.status === '검토중' ? 'bg-[#d97706]/20 text-[#fbf167]' : task.status === '완료' ? 'bg-[#2563eb]/20 text-[#60a5fa]' : 'bg-[#4b5563]/20 text-[#9ca3af]'}`}>{task.status || '-'}</span>
-                                                    </div>
-                                                    {task.related_asset && (
-                                                        <div className="flex flex-col gap-[6px]">
-                                                            <span className="text-[13px] font-bold text-[#86868B]">관련 자산</span>
-                                                            <span className="text-[15px] text-white font-medium">{task.related_asset}</span>
-                                                        </div>
-                                                    )}
-                                                    {task.company_name && (
-                                                        <div className="flex flex-col gap-[6px]">
-                                                            <span className="text-[13px] font-bold text-[#86868B]">이해관계자</span>
-                                                            <span className="text-[15px] text-[#E5E5E5] font-bold bg-[#1A1A1A] px-[12px] py-[4px] rounded-[8px] border border-[#333]">{task.company_name}</span>
-                                                        </div>
-                                                    )}
+                                                <div 
+                                                    className="cursor-pointer group"
+                                                    onClick={() => setExpandedFocusTaskId(expandedFocusTaskId === task.id ? null : task.id)}
+                                                >
+                                                    <h4 className="text-[20px] font-bold text-[#e2aa29] leading-tight mb-[6px] group-hover:underline underline-offset-4 decoration-[#e2aa29]/50 break-keep">
+                                                        {task.task_name}
+                                                    </h4>
+                                                    <p className="text-[14px] text-[#86868B] truncate">
+                                                        {task.next_action || '작성된 내용이 없습니다.'}
+                                                    </p>
                                                 </div>
 
-                                                {/* Notes / Links */}
-                                                {task.notes && (
-                                                    <div className="flex flex-col gap-[6px] pt-[20px] border-t border-[#3c3c3c]/50">
-                                                        <span className="text-[13px] font-bold text-[#86868B]">비고 / 링크</span>
-                                                        <span className="text-[15px] text-white font-medium break-all">
-                                                            {task.notes.startsWith('http') ? <a href={task.notes} target="_blank" rel="noreferrer" className="text-[#2997ff] hover:underline">{task.notes}</a> : task.notes}
-                                                        </span>
-                                                    </div>
-                                                )}
+                                                {/* Accordion Expansion inside the card */}
+                                                <AnimatePresence>
+                                                    {expandedFocusTaskId === task.id && (
+                                                        <motion.div
+                                                            initial={{ height: 0, opacity: 0 }}
+                                                            animate={{ height: 'auto', opacity: 1 }}
+                                                            exit={{ height: 0, opacity: 0 }}
+                                                            className="overflow-hidden border-t border-[#3c3c3c]/50 mt-[8px] pt-[12px] flex flex-col gap-[12px]"
+                                                        >
+                                                            <div className="flex flex-col gap-[4px]">
+                                                                <span className="text-[12px] font-bold text-[#86868B]">상태</span>
+                                                                <span className={`px-[6px] py-[2px] rounded-[4px] text-[12px] font-bold w-max ${task.status === '진행중' ? 'bg-[#059669]/20 text-[#34d399]' : 'bg-[#4b5563]/20 text-[#9ca3af]'}`}>{task.status || '-'}</span>
+                                                            </div>
+                                                            <div className="flex flex-col gap-[4px]">
+                                                                <span className="text-[12px] font-bold text-[#86868B]">비고 / 링크</span>
+                                                                <span className="text-[13px] text-white font-medium break-all">
+                                                                    {task.notes ? (task.notes.startsWith('http') ? <a href={task.notes} target="_blank" rel="noreferrer" className="text-[#2997ff] hover:underline">{task.notes}</a> : task.notes) : '-'}
+                                                                </span>
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => window.location.hash = `#/${ws.path}`}
+                                                                className="w-full mt-[4px] py-[8px] bg-[#333] hover:bg-[#444] text-white text-[13px] font-bold rounded-[8px] transition-colors"
+                                                            >
+                                                                해당 워크스페이스로 이동
+                                                            </button>
+                                                        </motion.div>
+                                                    )}
+                                                </AnimatePresence>
                                             </div>
-                                        </motion.div>
+                                        ))
                                     )}
-                                </AnimatePresence>
-                            </div>
-                        ))}
-                        
-                        {(focusTasks[activeWorkspaceTab] || []).length === 0 && (
-                            <div className="w-full h-[200px] flex items-center justify-center border border-[#333] rounded-[24px]">
-                                <span className="text-[#86868B] text-[15px]">해당 워크스페이스에 진행 중인 주요 테스크가 없습니다.</span>
-                            </div>
-                        )}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
-            </div>                        {/* Workspace Issues Overview */}
+            </div>
+
+                        {/* Workspace Issues Overview */}
             <div className="w-full flex flex-col gap-[16px] mb-[30px]">
                 {/* 1st Row: 4 Workspaces */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-[16px]">
