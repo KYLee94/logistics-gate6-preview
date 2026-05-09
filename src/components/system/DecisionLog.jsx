@@ -7,10 +7,10 @@ const WORKSPACE_CONFIG = [
     { id: 'pm', name: '사업 PM', path: 'platform/iotaseoul/workspace/pm', table: 'iota_pm_tasks', color: 'bg-[#ff9f0a]' },
     { id: 'financing', name: '파이낸싱', path: 'platform/iotaseoul/workspace/financing', table: 'iota_financing_tasks', color: 'bg-[#30d158]' },
     { id: 'development', name: '개발솔루션', path: 'platform/iotaseoul/workspace/development', table: 'iota_development_tasks', color: 'bg-[#0a84ff]' },
-    { id: 'fund', name: '펀드운용', path: 'platform/iotaseoul/workspace/fund', table: 'iota_fund_tasks', color: 'bg-[#bf5af2]' },
-    { id: 'ipr', name: 'IPR', path: 'platform/iotaseoul/workspace/ipr', table: 'iota_ipr_tasks', color: 'bg-[#ff453a]' },
     { id: 'marketing', name: '기업마케팅', path: 'platform/iotaseoul/workspace/marketing', table: 'iota_marketing_tasks', color: 'bg-[#64d2ff]' },
-    { id: 'digital', name: '상품·디지털', path: 'platform/iotaseoul/workspace/digital', table: 'iota_digital_tasks', color: 'bg-[#ffd60a]' }
+    { id: 'digital', name: '상품·디지털', path: 'platform/iotaseoul/workspace/digital', table: 'iota_digital_tasks', color: 'bg-[#ffd60a]' },
+    { id: 'fund', name: '펀드운용', path: 'platform/iotaseoul/workspace/fund', table: 'iota_fund_tasks', color: 'bg-[#bf5af2]' },
+    { id: 'ipr', name: 'IPR', path: 'platform/iotaseoul/workspace/ipr', table: 'iota_ipr_tasks', color: 'bg-[#ff453a]' }
 ];
 
 export default function DecisionLog() {
@@ -508,7 +508,7 @@ export default function DecisionLog() {
                                                         {task.task_name}
                                                     </h4>
                                                     <div className="flex items-center gap-[6px]">
-                                                        <span className="text-[15px] font-medium text-[#666] shrink-0">다음 액션 :</span>
+                                                        <span className="text-[15px] font-medium text-[#555] opacity-80 shrink-0">다음 액션</span>
                                                         <p className="text-[15px] text-[#86868B] truncate w-full leading-none group-hover:text-[#A1A1AA] transition-colors">
                                                             {task.next_action || '작성된 내용이 없습니다.'}
                                                         </p>
