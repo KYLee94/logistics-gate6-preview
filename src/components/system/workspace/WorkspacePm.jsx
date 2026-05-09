@@ -524,18 +524,20 @@ export default function WorkspacePm() {
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E5E5E5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                             </button>
                                         </div>
-                                                                        <button 
-                                        onClick={(e) => { e.stopPropagation(); handleEditRow(row); }} 
-                                        className="px-3 py-2 h-[60px] bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/30 rounded-[8px] text-[13px] font-bold hover:bg-[#3b82f6]/20 cursor-pointer"
-                                    >
-                                        수정
-                                    </button>
-<button 
-                                        onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: row.id, message: '정말 삭제하시겠습니까?' }); }} 
-                                        className="px-3 py-2 h-[60px] bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[8px] text-[13px] font-bold hover:bg-[#ef4444]/20 cursor-pointer"
-                                    >
-                                        삭제
-                                    </button>
+                                                                        <div className="flex flex-col gap-1 w-[46px]">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: row.id, message: '정말 삭제하시겠습니까?' }); }} 
+                                            className="w-full h-[28px] flex items-center justify-center bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[6px] text-[12px] font-bold hover:bg-[#ef4444]/20 cursor-pointer"
+                                        >
+                                            삭제
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleEditRow(row); }} 
+                                            className="w-full h-[28px] flex items-center justify-center bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/30 rounded-[6px] text-[12px] font-bold hover:bg-[#3b82f6]/20 cursor-pointer"
+                                        >
+                                            수정
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                             <div className="flex justify-between items-start gap-8">

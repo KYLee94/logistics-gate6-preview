@@ -1,30 +1,65 @@
-import sys
+import os
+import re
 
-path = 'src/components/system/workspace/WorkspaceMarketing.jsx'
-with open(path, 'r') as f:
-    content = f.read()
+files = [
+    'WorkspacePm.jsx',
+    'WorkspaceDevelopment.jsx',
+    'WorkspaceFinancing.jsx',
+    'WorkspaceMarketing.jsx',
+    'WorkspaceDigital.jsx',
+    'WorkspaceFund.jsx',
+    'WorkspaceIpr.jsx'
+]
 
-old_isadding_buttons = """                                    <div className="absolute right-[-45px] top-1/2 -translate-y-1/2 flex flex-col gap-1 items-center">
-                                        <button onClick={handleSaveRow} className="text-[#34d399] hover:text-[#10b981] text-[12px] font-bold">저장</button>
-                                        <button onClick={() => { setIsAdding(false); setCompanyQuery(''); }} className="text-[#86868B] hover:text-white text-[12px]">취소</button>
+base_path = 'src/components/system/workspace'
+
+for filename in files:
+    filepath = os.path.join(base_path, filename)
+    with open(filepath, 'r') as f:
+        content = f.read()
+
+    # The current buttons are:
+    # <button onClick={(e) => { e.stopPropagation(); handleEditRow(row); }} className="px-3 py-2 h-[60px] bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/30 rounded-[8px] text-[13px] font-bold hover:bg-[#3b82f6]/20 cursor-pointer">
+    #     수정
+    # </button>
+    # <button onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: row.id, message: '정말 삭제하시겠습니까?' }); }} className="px-3 py-2 h-[60px] bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[8px] text-[13px] font-bold hover:bg-[#ef4444]/20 cursor-pointer">
+    #     삭제
+    # </button>
+
+    # I will replace them with:
+    # <div className="flex flex-col gap-1 w-[46px]">
+    #     <button onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: row.id, message: '정말 삭제하시겠습니까?' }); }} className="w-full h-[28px] flex items-center justify-center bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[6px] text-[12px] font-bold hover:bg-[#ef4444]/20 cursor-pointer">
+    #         삭제
+    #     </button>
+    #     <button onClick={(e) => { e.stopPropagation(); handleEditRow(row); }} className="w-full h-[28px] flex items-center justify-center bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/30 rounded-[6px] text-[12px] font-bold hover:bg-[#3b82f6]/20 cursor-pointer">
+    #         수정
+    #     </button>
+    # </div>
+    
+    # We can match everything from the edit button to the end of the delete button
+    pattern = re.compile(
+        r'<button\s+onClick=\{\(e\) => { e\.stopPropagation\(\); handleEditRow\(row\); \}\}\s+className="px-3 py-2 h-\[60px\] bg-\[#3b82f6\]/10 text-\[#3b82f6\] border border-\[#3b82f6\]/30 rounded-\[8px\] text-\[13px\] font-bold hover:bg-\[#3b82f6\]/20 cursor-pointer"\s*>\s*수정\s*</button>\s*<button\s+onClick=\{\(e\) => { e\.stopPropagation\(\); setItemToDelete\({ id: row\.id, message: \'정말 삭제하시겠습니까\?\' }\); \}\}\s+className="px-3 py-2 h-\[60px\] bg-\[#ef4444\]/10 text-\[#ef4444\] border border-\[#ef4444\]/30 rounded-\[8px\] text-\[13px\] font-bold hover:bg-\[#ef4444\]/20 cursor-pointer"\s*>\s*삭제\s*</button>',
+        re.DOTALL
+    )
+    
+    replacement = """<div className="flex flex-col gap-1 w-[46px]">
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: row.id, message: '정말 삭제하시겠습니까?' }); }} 
+                                            className="w-full h-[28px] flex items-center justify-center bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[6px] text-[12px] font-bold hover:bg-[#ef4444]/20 cursor-pointer"
+                                        >
+                                            삭제
+                                        </button>
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleEditRow(row); }} 
+                                            className="w-full h-[28px] flex items-center justify-center bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/30 rounded-[6px] text-[12px] font-bold hover:bg-[#3b82f6]/20 cursor-pointer"
+                                        >
+                                            수정
+                                        </button>
                                     </div>"""
+                                    
+    if "flex flex-col gap-1 w-[46px]" not in content:
+        content = re.sub(pattern, replacement, content)
+        
+        with open(filepath, 'w') as f:
+            f.write(content)
 
-new_isadding_buttons = """                                    <div className="absolute right-[-66px] top-1/2 -translate-y-1/2 flex flex-col gap-[6px]">
-                                        <button onClick={handleSaveRow} className="flex items-center justify-center w-[54px] py-[6px] bg-[#059669]/20 text-[#34d399] border border-[#059669]/30 rounded-[6px] text-[12px] font-bold hover:bg-[#059669]/40 transition-colors">저장</button>
-                                        <button onClick={() => { setIsAdding(false); setCompanyQuery(''); }} className="flex items-center justify-center w-[54px] py-[6px] bg-[#3c3c3c]/50 text-[#86868B] border border-[#444] rounded-[6px] text-[12px] font-bold hover:bg-[#3c3c3c] hover:text-white transition-colors">취소</button>
-                                    </div>"""
-content = content.replace(old_isadding_buttons, new_isadding_buttons)
-
-old_normal_buttons = """                                        <div className="absolute right-[-45px] top-1/2 -translate-y-1/2">
-                                            <button onClick={() => handleDeleteRow(row.id)} className="text-[#ef4444] opacity-0 group-hover:opacity-100 transition-opacity hover:underline text-[12px] font-bold px-2 py-1">삭제</button>
-                                        </div>"""
-
-new_normal_buttons = """                                        <div className="absolute right-[-66px] top-1/2 -translate-y-1/2">
-                                            <button onClick={() => handleDeleteRow(row.id)} className="flex items-center justify-center w-[54px] py-[6px] bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[6px] text-[12px] font-bold opacity-0 group-hover:opacity-100 transition-all hover:bg-[#ef4444]/20">삭제</button>
-                                        </div>"""
-content = content.replace(old_normal_buttons, new_normal_buttons)
-
-with open(path, 'w') as f:
-    f.write(content)
-
-print("Fixed buttons styling!")
