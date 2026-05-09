@@ -3,6 +3,16 @@ import { supabase } from '../../utils/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
+const WORKSPACE_CONFIG = [
+    { id: 'pm', name: '사업 PM', path: 'platform/iotaseoul/workspace/pm', table: 'iota_pm_tasks', color: 'bg-[#ff9f0a]' },
+    { id: 'financing', name: '파이낸싱', path: 'platform/iotaseoul/workspace/financing', table: 'iota_financing_tasks', color: 'bg-[#30d158]' },
+    { id: 'development', name: '개발솔루션', path: 'platform/iotaseoul/workspace/development', table: 'iota_development_tasks', color: 'bg-[#0a84ff]' },
+    { id: 'fund', name: '펀드운용', path: 'platform/iotaseoul/workspace/fund', table: 'iota_fund_tasks', color: 'bg-[#bf5af2]' },
+    { id: 'ipr', name: 'IPR', path: 'platform/iotaseoul/workspace/ipr', table: 'iota_ipr_tasks', color: 'bg-[#ff453a]' },
+    { id: 'marketing', name: '기업마케팅', path: 'platform/iotaseoul/workspace/marketing', table: 'iota_marketing_tasks', color: 'bg-[#64d2ff]' },
+    { id: 'digital', name: '상품·디지털', path: 'platform/iotaseoul/workspace/digital', table: 'iota_digital_tasks', color: 'bg-[#ffd60a]' }
+];
+
 export default function DecisionLog() {
     const { memberInfo } = useAuth();
     const [logs, setLogs] = useState([]);
@@ -11,6 +21,10 @@ export default function DecisionLog() {
     const [logsViewMode, setLogsViewMode] = useState('full');
     const [currentPage, setCurrentPage] = useState(1);
     const [logSearchQuery, setLogSearchQuery] = useState('');
+    
+    // Focus Tasks states
+    const [focusTasks, setFocusTasks] = useState({});
+    const [isLoadingFocus, setIsLoadingFocus] = useState(true);
     
     // Header Filter states
     const [filterStakeholder, setFilterStakeholder] = useState('');
@@ -208,6 +222,47 @@ export default function DecisionLog() {
     };
 
     useEffect(() => {
+        const fetchFocusTasks = async () => {
+            setIsLoadingFocus(true);
+            try {
+                const results = {};
+                const priorityWeight = { '높음': 3, '중간': 2, '낮음': 1 };
+                
+                await Promise.all(WORKSPACE_CONFIG.map(async (ws) => {
+                    const { data, error } = await supabase
+                        .from(ws.table)
+                        .select('id, task_name, due_date, priority, status')
+                        .eq('status', '진행중');
+                        
+                    if (!error && data) {
+                        const sorted = data.sort((a, b) => {
+                            // 1. Priority desc
+                            if (priorityWeight[a.priority] !== priorityWeight[b.priority]) {
+                                return (priorityWeight[b.priority] || 0) - (priorityWeight[a.priority] || 0);
+                            }
+                            // 2. Due date asc
+                            if (a.due_date && b.due_date) {
+                                return new Date(a.due_date) - new Date(b.due_date);
+                            }
+                            if (a.due_date) return -1;
+                            if (b.due_date) return 1;
+                            return 0;
+                        });
+                        results[ws.id] = sorted.slice(0, 3);
+                    } else {
+                        results[ws.id] = [];
+                    }
+                }));
+                
+                setFocusTasks(results);
+            } catch (err) {
+                console.error("Error fetching focus tasks:", err);
+            } finally {
+                setIsLoadingFocus(false);
+            }
+        };
+
+        fetchFocusTasks();
         fetchLogs();
         fetchMasterStakeholders();
         
@@ -399,14 +454,63 @@ export default function DecisionLog() {
     return (
         <div className="w-full flex-1 flex flex-col pt-[60px] pb-[60px] max-w-[1200px] mx-auto">
             {/* Header Metadata */}
-            <div className="w-full flex justify-between items-end mb-[24px]">
+            <div className="w-full flex justify-between items-end mb-[32px]">
                 <div>
-                    <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[8px]">전체 업무 현황</h1>
-                    <p className="text-[16px] text-[#86868B] leading-[26px]">통합 수행 체계에서 IOTA CFT의 전체 업무 현황을 공유·협업·리스크·의사결정 관점으로 모아 봅니다.</p>
+                    <h1 className="text-[36px] font-bold text-white tracking-tight leading-none font-['Inter'] mb-[8px]">통합 수행 체계</h1>
+                    <p className="text-[16px] text-[#86868B] leading-[26px]">통합 수행 체계에서 IOTA CFT의 전체 업무 현황을 한 화면에서 모아 봅니다.</p>
                 </div>
             </div>
 
-                        {/* Workspace Issues Overview */}
+            {/* This Week's Focus */}
+            <div className="w-full mb-[40px]">
+                <h2 className="text-[20px] font-bold text-white mb-[16px] tracking-tight">이번주 포커스</h2>
+                {isLoadingFocus ? (
+                    <div className="w-full h-[180px] rounded-[16px] border border-[#333] bg-[#1A1A1A] flex items-center justify-center">
+                        <span className="text-[#86868B] text-[15px]">포커스 테스크를 불러오는 중입니다...</span>
+                    </div>
+                ) : (
+                    <div className="w-full flex gap-[16px] overflow-x-auto pb-[16px] snap-x scrollbar-hide">
+                        {WORKSPACE_CONFIG.map(ws => {
+                            const tasks = focusTasks[ws.id] || [];
+                            if (tasks.length === 0) return null;
+                            
+                            return (
+                                <div 
+                                    key={ws.id}
+                                    onClick={() => window.location.hash = `#/${ws.path}`}
+                                    className="min-w-[340px] max-w-[340px] flex-shrink-0 bg-[#1A1A1A] border border-[#333] rounded-[16px] p-[20px] snap-start cursor-pointer hover:border-[#555] hover:bg-[#222] transition-all group"
+                                >
+                                    <div className="flex items-center justify-between mb-[20px]">
+                                        <div className="flex items-center gap-[8px]">
+                                            <div className={`w-[8px] h-[8px] rounded-full ${ws.color}`}></div>
+                                            <span className="text-[16px] font-bold text-white">{ws.name}</span>
+                                        </div>
+                                        <span className="text-[12px] font-bold text-[#86868B] bg-[#333] px-[10px] py-[4px] rounded-full group-hover:text-white transition-colors tracking-tight">바로가기</span>
+                                    </div>
+                                    <div className="flex flex-col gap-[16px]">
+                                        {tasks.map(task => (
+                                            <div key={task.id} className="flex items-start gap-[10px]">
+                                                <span className={`mt-[2px] px-[6px] py-[2px] rounded-[4px] text-[10px] font-bold shrink-0 ${task.priority === '높음' ? 'bg-[#ef4444]/20 text-[#ef4444]' : task.priority === '중간' ? 'bg-[#3b82f6]/20 text-[#3b82f6]' : 'bg-[#10b981]/20 text-[#10b981]'}`}>{task.priority || '중간'}</span>
+                                                <div className="flex flex-col gap-[4px] overflow-hidden">
+                                                    <span className="text-[14px] text-[#E5E5E5] font-medium truncate leading-tight">{task.task_name}</span>
+                                                    <span className="text-[12px] text-[#86868B] font-medium flex items-center gap-[6px]">
+                                                        마감일 목표 {task.due_date || '미정'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                        {Object.values(focusTasks).every(tasks => tasks.length === 0) && (
+                            <div className="w-full h-[120px] flex items-center justify-center text-[#86868B] text-[15px]">
+                                이번주 진행 중인 주요 테스크가 없습니다.
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>                        {/* Workspace Issues Overview */}
             <div className="w-full flex flex-col gap-[16px] mb-[30px]">
                 {/* 1st Row: 4 Workspaces */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-[16px]">
