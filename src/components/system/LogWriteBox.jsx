@@ -101,8 +101,8 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
             
             const coords = getCaretCoordinates(e.target, cursorPosition);
             setMentionPosition({ 
-                top: coords.top + 20 + 24, 
-                left: coords.left + 20     
+                top: coords.top + 24, 
+                left: coords.left     
             });
         } else {
             setShowMentionDropdown(false);
@@ -490,7 +490,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                             className="overflow-hidden w-full flex flex-col"
                         >
 {/* Text Area */}
-                <div className="w-full px-[20px] pt-[20px] pb-[24px] relative bg-transparent">
+                <div className="w-full px-[20px] pt-[20px] pb-[24px] bg-transparent">
                     <input
                         type="text"
                         value={title}
@@ -500,12 +500,13 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                         required
                     />
                     
-                    {/* Background Div for Highlights */}
-                    <div 
-                        id={`highlight-bg-${workspaceCode}`}
-                        className="absolute top-[20px] left-[20px] right-[20px] bottom-[24px] pointer-events-none whitespace-pre-wrap break-words text-[15px] leading-relaxed overflow-hidden font-sans"
-                        aria-hidden="true"
-                    >
+                    <div className="relative w-full">
+                        {/* Background Div for Highlights */}
+                        <div 
+                            id={`highlight-bg-${workspaceCode}`}
+                            className="absolute inset-0 pointer-events-none whitespace-pre-wrap break-words text-[15px] leading-relaxed overflow-hidden font-sans"
+                            aria-hidden="true"
+                        >
                         {renderHighlightedText()}
                     </div>
 
@@ -540,6 +541,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                             ))}
                         </div>
                     )}
+                    </div>
                 </div>
 
                 {/* Footer */}
