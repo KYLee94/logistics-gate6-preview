@@ -422,7 +422,7 @@ export default function WorkspaceDigital() {
                 </div>
             </div>
             
-            <div className="-mx-[7px] p-[6px] border border-[#333] rounded-[30px] mb-[32px]">
+            <div className="-mx-[7px] p-[6px] border border-[#333] rounded-[30px] mb-[24px]">
                 <motion.div layout className="w-full flex flex-col gap-[16px]">
                 {isAdding && (
                     <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-6 flex flex-col gap-4">
