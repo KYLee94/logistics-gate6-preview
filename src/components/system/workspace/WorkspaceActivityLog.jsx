@@ -260,45 +260,42 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
     };
 
     const logsPerPage = logsViewMode === 'summary' ? 5 : 20;
+    const checkUserAccess = (log) => {
+        const perms = log.metadata?.permissions;
+        if (!perms) return true;
+        
+        const hasGroups = perms.groups && perms.groups.length > 0;
+        const hasIndivs = perms.individuals && perms.individuals.length > 0;
+        
+        if (!hasGroups && !hasIndivs) return true;
+
+        const myEmail = memberInfo?.email;
+        const myName = memberInfo?.staff_name || memberInfo?.name;
+        const isAuthor = log.writer_staff_id === myEmail || log.writer_name === myName;
+        
+        if (isAuthor) return true;
+        
+        if (hasIndivs && perms.individuals.includes(myName)) return true;
+        
+        if (hasGroups) {
+            const myStakeholderRecords = masterStakeholders.filter(s => s.contact_name === myName);
+            const myRoles = myStakeholderRecords.map(s => s.role_category).filter(Boolean);
+            
+            for (const group of perms.groups) {
+                if (group === "각 워크스페이스" && myStakeholderRecords.length > 0) return true;
+                if (myRoles.includes(group)) return true;
+                
+                if (group === "PO" && myName === "이철승") return true;
+                if (group === "Sub-PO" && ["윤관식", "정조민", "우형석"].includes(myName)) return true;
+            }
+        }
+        
+        return false;
+    };
+
     const filteredLogs = logs.filter(log => {
         // Filter out non-members
         if (getCellName(log.writer_name) === '기타') return false;
-
-        // --- Access Permission Check ---
-        const perms = log.metadata?.permissions;
-        if (perms) {
-            const hasGroups = perms.groups && perms.groups.length > 0;
-            const hasIndivs = perms.individuals && perms.individuals.length > 0;
-            
-            if (hasGroups || hasIndivs) {
-                const myEmail = memberInfo?.email;
-                const myName = memberInfo?.staff_name || memberInfo?.name;
-                const isAuthor = log.writer_staff_id === myEmail || log.writer_name === myName;
-                
-                let hasAccess = isAuthor;
-                
-                if (!hasAccess && hasIndivs) {
-                    if (perms.individuals.includes(myName)) hasAccess = true;
-                }
-                
-                if (!hasAccess && hasGroups) {
-                    const myStakeholderRecords = masterStakeholders.filter(s => s.contact_name === myName);
-                    const myRoles = myStakeholderRecords.map(s => s.role_category).filter(Boolean);
-                    
-                    for (const group of perms.groups) {
-                        if (group === "각 워크스페이스" && myStakeholderRecords.length > 0) hasAccess = true;
-                        else if (myRoles.includes(group)) hasAccess = true;
-                        
-                        // Hardcode fallbacks as requested
-                        if (group === "PO" && myName === "이철승") hasAccess = true;
-                        if (group === "Sub-PO" && ["윤관식", "정조민", "우형석"].includes(myName)) hasAccess = true;
-                    }
-                }
-                
-                if (!hasAccess) return false;
-            }
-        }
-        // --- End Access Permission Check ---
 
         const cell = getLogCell(log);
         
@@ -511,7 +508,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                                                     </div>
                                                 </div>
                                             )}
-                                            <span className="truncate">{log.raw_text ? log.raw_text.split('\n')[0] : ''}</span>
+                                            <span className="truncate">{log.summary || (log.raw_text ? log.raw_text.split('\n')[0] : '')}</span>
                                             {log.metadata?.comments?.length > 0 && <span className="text-[#3b82f6] ml-[6px] font-bold text-[13px] shrink-0">({log.metadata.comments.length})</span>}
                                         </div>
                                     </div>
@@ -626,14 +623,20 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                                             </div>
                                         </div>
                                     ) : (
-                                        <div className={`whitespace-pre-wrap break-words text-[15px] leading-relaxed ${commentingLogId === log.log_id ? 'text-[#86868B] opacity-70' : 'text-[#E5E5E5]'}`}>
-                                            {renderLogTextWithMentions(log.raw_text)}
-                                        </div>
+                                        checkUserAccess(log) ? (
+                                            <div className={`whitespace-pre-wrap break-words text-[15px] leading-relaxed ${commentingLogId === log.log_id ? 'text-[#86868B] opacity-70' : 'text-[#E5E5E5]'}`}>
+                                                {renderLogTextWithMentions(log.raw_text)}
+                                            </div>
+                                        ) : (
+                                            <div className="text-[#86868B] text-[14px] italic py-[20px] text-center border border-[#333] rounded-[8px] bg-[#1a1a1a]">
+                                                🔒 열람 권한이 없습니다.
+                                            </div>
+                                        )
                                     )}
                                     <div className="clear-both mb-[16px]"></div>
                                     
                                     {/* Comments List */}
-                                    {log.metadata?.comments && log.metadata.comments.length > 0 && (
+                                    {checkUserAccess(log) && log.metadata?.comments && log.metadata.comments.length > 0 && (
                                         <div className="flex flex-col gap-[8px] mb-[16px] border-t border-[#333] pt-[12px]">
                                             {log.metadata.comments.map(comment => (
                                                 <div key={comment.id} className="bg-[#222] rounded-[8px] p-[12px] flex justify-between group">
@@ -698,37 +701,39 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                                         <div className="text-[12px] text-[#555] font-medium">
                                             수정일자: {log.updated_at ? new Date(log.updated_at).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : new Date(log.created_at || log.work_date).toLocaleString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
                                         </div>
-                                        <div className="flex items-center gap-[8px]">
-                                            {!editingLogId && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => { 
-                                                        e.stopPropagation(); 
-                                                        setCommentingLogId(log.log_id);
-                                                        setCommentContent('');
-                                                        setEditingLogId(null);
-                                                    }}
-                                                    className="px-[12px] py-[6px] bg-[#222] hover:bg-[#333] border border-[#333] hover:border-[#444] rounded-[6px] text-[12px] text-[#A1A1AA] hover:text-[#E5E5E5] font-medium transition-all flex items-center gap-[6px] cursor-pointer"
-                                                >
-                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-                                                    댓글
-                                                </button>
-                                            )}
-                                            {!editingLogId && (memberInfo?.email === log.writer_staff_id || memberInfo?.name === log.writer_name) && (
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => { 
-                                                        e.stopPropagation(); 
-                                                        setEditingLogId(log.log_id);
-                                                        setEditingContent(log.raw_text);
-                                                        setCommentingLogId(null);
-                                                    }}
-                                                    className="px-[12px] py-[6px] bg-[#222] hover:bg-[#333] border border-[#333] hover:border-[#444] rounded-[6px] text-[12px] text-[#A1A1AA] hover:text-[#E5E5E5] font-medium transition-all cursor-pointer"
-                                                >
-                                                    수정하기
-                                                </button>
-                                            )}
-                                        </div>
+                                        {checkUserAccess(log) && (
+                                            <div className="flex items-center gap-[8px]">
+                                                {!editingLogId && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setCommentingLogId(log.log_id);
+                                                            setCommentContent('');
+                                                            setEditingLogId(null);
+                                                        }}
+                                                        className="px-[12px] py-[6px] bg-[#222] hover:bg-[#333] border border-[#333] hover:border-[#444] rounded-[6px] text-[12px] text-[#A1A1AA] hover:text-[#E5E5E5] font-medium transition-all flex items-center gap-[6px] cursor-pointer"
+                                                    >
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                                                        댓글
+                                                    </button>
+                                                )}
+                                                {!editingLogId && (memberInfo?.email === log.writer_staff_id || memberInfo?.name === log.writer_name) && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            setEditingLogId(log.log_id);
+                                                            setEditingContent(log.raw_text);
+                                                            setCommentingLogId(null);
+                                                        }}
+                                                        className="px-[12px] py-[6px] bg-[#222] hover:bg-[#333] border border-[#333] hover:border-[#444] rounded-[6px] text-[12px] text-[#A1A1AA] hover:text-[#E5E5E5] font-medium transition-all cursor-pointer"
+                                                    >
+                                                        수정하기
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 </motion.div>

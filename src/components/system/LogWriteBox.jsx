@@ -10,6 +10,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
     const [priority, setPriority] = useState('중간');
     const [stakeholderCat, setStakeholderCat] = useState('');
     const [workDate, setWorkDate] = useState(new Date().toISOString().slice(0, 10));
+    const [title, setTitle] = useState('');
     const [content, setContent] = useState('');
     const [isExpanded, setIsExpanded] = useState(defaultExpanded);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -202,7 +203,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                 writer_name: writerName,
                 work_date: workDate,
                 raw_text: content,
-                summary: content.slice(0, 160),
+                summary: title,
                 input_status: 'submitted',
                 source_system: workspaceCode === 'WS_PM' ? 'workspace_pm_form' : 'decision_log_form',
                 metadata: {
@@ -259,6 +260,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
             }
 
             // Success, reset form
+            setTitle('');
             setContent('');
             setCompanyQuery('');
             setContactQuery('');
@@ -280,7 +282,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
 
     const handlePreSubmit = (e) => {
         if (e && e.preventDefault) e.preventDefault();
-        if (!content.trim()) return;
+        if (!title.trim() || !content.trim()) return;
         if (visibilityGroups.length === 0 && visibilityIndividuals.length === 0) {
             setShowPublicWarningModal(true);
         } else {
@@ -290,7 +292,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
 
     const handleSubmit = async (e) => {
         if (e && e.preventDefault) e.preventDefault();
-        if (!content.trim()) return;
+        if (!title.trim() || !content.trim()) return;
 
         if (!companyQuery && contactQuery) {
             setShowCompanyWarningModal(true);
@@ -489,6 +491,14 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                         >
 {/* Text Area */}
                 <div className="w-full px-[20px] pt-[20px] pb-[24px] relative bg-transparent">
+                    <input
+                        type="text"
+                        value={title}
+                        onChange={(e) => setTitle(e.target.value)}
+                        placeholder="제목을 입력하세요"
+                        className="w-full bg-transparent text-[#E5E5E5] text-[16px] font-bold outline-none mb-[12px] border-b border-[#333] pb-[12px]"
+                        required
+                    />
                     
                     {/* Background Div for Highlights */}
                     <div 
