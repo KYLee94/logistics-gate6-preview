@@ -126,18 +126,24 @@ export default function WorkspaceMarketing() {
         if (!newTask.task_name) return alert('Task 명을 입력해주세요.');
         setIsSubmittingTask(true);
         try {
-            const { error } = await supabase.from('iota_marketing_tasks').insert([newTask]);
-            if (error) throw error;
+            if (editingTaskId) {
+                const { error } = await supabase.from('iota_marketing_tasks').update(newTask).eq('id', editingTaskId);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('iota_marketing_tasks').insert([{...newTask, id: `temp-${Date.now()}`, created_at: new Date().toISOString()}]);
+                if (error) throw error;
+            }
             
             setNewTask({ task_name: '', company_name: '', related_asset: 'IOTA 공통', status: '아이데이션', priority: '중간', due_date: new Date().toLocaleDateString('en-CA'), next_action: '', notes: '' });
             setCompanyQuery('');
             setIsAdding(false);
-        setEditingTaskId(null);
-        setIsSubmittingTask(false);
+            setEditingTaskId(null);
+            setIsSubmittingTask(false);
             fetchTasks();
         } catch (e) {
             console.error('Failed to save task:', e);
             alert('저장 중 오류가 발생했습니다.');
+            setIsSubmittingTask(false);
         }
     };
 

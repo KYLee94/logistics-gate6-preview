@@ -135,11 +135,19 @@ export default function WorkspacePm() {
         setIsSubmittingTask(true);
         const taskToSave = { ...newTask, id: Date.now().toString(), created_at: new Date().toISOString() };
         try {
-            const { error } = await supabase.from('iota_pm_tasks').insert([taskToSave]);
-            if (error) throw error;
+            if (editingTaskId) {
+                const { error } = await supabase.from('iota_pm_tasks').update(newTask).eq('id', editingTaskId);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase.from('iota_pm_tasks').insert([taskToSave]);
+                if (error) throw error;
+            }
         } catch (e) {
             console.warn('Saving to local storage fallback due to error:', e);
-            const updated = [taskToSave, ...tasks];
+            const updated = editingTaskId 
+                ? tasks.map(t => t.id === editingTaskId ? { ...t, ...newTask } : t)
+                : [taskToSave, ...tasks];
+            setTasks(updated);
             localStorage.setItem('iota_pm_tasks_fallback', JSON.stringify(updated));
         }
         
