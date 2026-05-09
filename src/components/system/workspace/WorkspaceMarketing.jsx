@@ -40,7 +40,7 @@ export default function WorkspaceMarketing() {
     useEffect(() => {
         fetchTasks();
         fetchMasterStakeholders();
-        const saved = localStorage.getItem('iota_marketing_custom_assets');
+        const saved = localStorage.getItem('iota_shared_custom_assets');
         if (saved) setCustomAssets(JSON.parse(saved));
     }, []);
 
@@ -50,7 +50,7 @@ export default function WorkspaceMarketing() {
         setTimeout(() => {
             const updated = [...customAssets, newAssetName.trim()];
             setCustomAssets(updated);
-            localStorage.setItem('iota_marketing_custom_assets', JSON.stringify(updated));
+            localStorage.setItem('iota_shared_custom_assets', JSON.stringify(updated));
             setNewTask({...newTask, related_asset: newAssetName.trim()});
             setIsSubmittingAsset(false);
             setShowNewAssetModal(false);
@@ -431,7 +431,7 @@ export default function WorkspaceMarketing() {
                                 <div className="flex-1 flex gap-8">
                                     <div className="w-[430px] shrink-0 flex flex-col gap-[2px] border-r border-[#444]/50 pr-8">
                                         <span className="text-[13px] font-bold text-[#86868B] relative -top-[1px]">Task {index + 1}</span>
-                                        <h3 className="text-[21px] font-bold text-white tracking-tight leading-tight">
+                                        <h3 className={`text-[21px] font-bold ${index < 5 ? 'text-[#e2aa29]' : 'text-white'} tracking-tight leading-tight`}>
                                             {row.task_name}
                                         </h3>
                                     </div>

@@ -42,7 +42,7 @@ export default function WorkspaceDigital() {
 
     useEffect(() => {
         fetchTasks();
-        const savedAssets = localStorage.getItem('iota_marketing_custom_assets');
+        const savedAssets = localStorage.getItem('iota_shared_custom_assets');
         if (savedAssets) setCustomAssets(JSON.parse(savedAssets));
     }, []);
 
@@ -52,7 +52,7 @@ export default function WorkspaceDigital() {
         setTimeout(() => {
             const updated = [...customAssets, newAssetName.trim()];
             setCustomAssets(updated);
-            localStorage.setItem('iota_marketing_custom_assets', JSON.stringify(updated));
+            localStorage.setItem('iota_shared_custom_assets', JSON.stringify(updated));
             setNewTask({...newTask, related_asset: newAssetName.trim()});
             setIsSubmittingAsset(false);
             setShowNewAssetModal(false);
@@ -522,7 +522,7 @@ export default function WorkspaceDigital() {
                                                 </div>
                                             )}
                                         </div>
-                                        <h3 className="text-[21px] font-bold text-white tracking-tight leading-tight mt-1">
+                                        <h3 className={`text-[21px] font-bold ${index < 5 ? 'text-[#e2aa29]' : 'text-white'} tracking-tight leading-tight mt-1`}>
                                             {row.task_name}
                                         </h3>
                                     </div>
