@@ -40,6 +40,7 @@ export default function WorkspaceDigital() {
     const [newAssetName, setNewAssetName] = useState('');
     const [isSubmittingAsset, setIsSubmittingAsset] = useState(false);
     const [isSubmittingTask, setIsSubmittingTask] = useState(false);
+    const [editingTaskId, setEditingTaskId] = useState(null);
 
     useEffect(() => {
         fetchTasks();
@@ -106,6 +107,22 @@ export default function WorkspaceDigital() {
         }
     };
 
+    const handleEditRow = (row) => {
+        setEditingTaskId(row.id);
+        setNewTask({
+            task_name: row.task_name || '',
+            company_name: row.company_name || '',
+            related_asset: row.related_asset || 'IOTA 공통',
+            status: row.status || '신규',
+            priority: row.priority || '중간',
+            due_date: row.due_date || '',
+            next_action: row.next_action || ''
+        });
+        setCompanyQuery(row.company_name || '');
+        setIsAdding(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
     const handleSaveRow = async () => {
         if (!newTask.task_name) return alert('Task 명을 입력해주세요.');
         setIsSubmittingTask(true);
@@ -123,6 +140,7 @@ export default function WorkspaceDigital() {
         } finally {
             setNewTask({ task_name: '', ssc_theme: '01. 자산 상품화 전략 및 포지셔닝', related_asset: 'IOTA 공통', status: '아이데이션', priority: '중간', due_date: new Date().toLocaleDateString('en-CA'), next_action: '', notes: '' });
             setIsAdding(false);
+        setEditingTaskId(null);
         setIsSubmittingTask(false);
         }
     };
@@ -450,7 +468,7 @@ export default function WorkspaceDigital() {
                             <div className="flex items-center gap-2"><span className="text-[#86868B] text-[13px] font-bold shrink-0">목표 마감일</span><input type="date" value={newTask.due_date} onClick={(e) => e.target.showPicker && e.target.showPicker()} onChange={e => setNewTask({...newTask, due_date: e.target.value})} className="bg-[#1A1A1A] border border-[#444] rounded-[10px] px-3 py-2 text-[#A1A1AA] text-[14px] outline-none focus:border-[#888] cursor-pointer [color-scheme:dark]" /></div>
                             <div className="flex gap-2 ml-auto">
                                 <button onClick={() => setIsAdding(false)} className="px-5 py-2 bg-[#3c3c3c]/50 text-[#86868B] border border-[#444] rounded-[10px] text-[14px] font-bold hover:bg-[#3c3c3c] hover:text-white transition-colors cursor-pointer">취소</button>
-                                <button onClick={handleSaveRow} disabled={isSubmittingTask} className="px-5 py-2 bg-[#059669]/20 text-[#34d399] border border-[#059669]/30 rounded-[10px] text-[14px] font-bold hover:bg-[#059669]/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{isSubmittingTask ? '저장 중...' : '저장'}</button>
+                                <button onClick={handleSaveRow} disabled={isSubmittingTask} className="px-5 py-2 bg-[#059669]/20 text-[#34d399] border border-[#059669]/30 rounded-[10px] text-[14px] font-bold hover:bg-[#059669]/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{isSubmittingTask ? '저장 중...' : editingTaskId ? '수정 완료' : '저장'}</button>
                             </div>
                         </div>
                     </div>
@@ -495,7 +513,13 @@ export default function WorkspaceDigital() {
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E5E5E5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
                                             </button>
                                         </div>
-                                    <button 
+                                                                        <button 
+                                        onClick={(e) => { e.stopPropagation(); handleEditRow(row); }} 
+                                        className="px-3 py-2 h-[60px] bg-[#3b82f6]/10 text-[#3b82f6] border border-[#3b82f6]/30 rounded-[8px] text-[13px] font-bold hover:bg-[#3b82f6]/20 cursor-pointer"
+                                    >
+                                        수정
+                                    </button>
+<button 
                                         onClick={(e) => { e.stopPropagation(); setItemToDelete({ id: row.id, message: '정말 삭제하시겠습니까?' }); }} 
                                         className="px-3 py-2 h-[60px] bg-[#ef4444]/10 text-[#ef4444] border border-[#ef4444]/30 rounded-[8px] text-[13px] font-bold hover:bg-[#ef4444]/20 cursor-pointer"
                                     >
