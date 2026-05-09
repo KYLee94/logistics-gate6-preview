@@ -831,7 +831,7 @@ export default function WorkspaceFund() {
             {/* 2. Task 관리 */}
             <div className="w-full mt-0"></div>
             <div className="flex justify-between items-center mb-[10px]">
-                <h2 className="text-[18px] font-bold text-white tracking-tight">펀드운용 주요 테스크 관리</h2>
+                <h2 id="task-management" className="text-[18px] font-bold text-white tracking-tight">펀드운용 주요 테스크 관리</h2>
                 <div className="flex gap-2 items-center">
                     <div className="flex bg-[#272726] border border-[#3c3c3c] rounded-[8px] overflow-hidden p-[2px]">
                         <button onClick={() => setAssetFilter('427 PFV')} className={`px-[12px] py-[4px] text-[13px] font-bold rounded-[6px] transition-colors ${assetFilter === '427 PFV' ? 'bg-[#3c3c3c] text-white' : 'text-[#86868B] hover:text-[#E5E5E5]'}`}>이오타서울만 보기</button>

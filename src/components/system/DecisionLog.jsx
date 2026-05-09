@@ -493,23 +493,29 @@ export default function DecisionLog() {
                                     ) : (
                                         tasks.map((task, idx) => (
                                             <div key={task.id} className="flex flex-col gap-[4px] mt-[8px]">
-                                                <div className="flex justify-between items-center">
+                                                <div className="flex justify-between items-center mb-[2px]">
                                                     <span className="text-[13px] font-bold text-[#86868B]">Task {idx + 1}</span>
-                                                    <span className="text-[12px] font-medium text-[#777]">목표 마감일 {task.due_date || '미정'}</span>
+                                                    <span className="text-[12px] font-medium text-[#555] opacity-60">목표 마감일 {task.due_date || '미정'}</span>
                                                 </div>
                                                 <div 
-                                                    className="cursor-pointer group overflow-hidden"
+                                                    className="cursor-pointer group overflow-hidden flex flex-col gap-[8px]"
                                                     onClick={() => {
                                                         const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL.slice(0, -1) : import.meta.env.BASE_URL;
-                                                        window.location.href = `${base}/${ws.path}`;
+                                                        window.location.href = `${base}/${ws.path}#task-management`;
                                                     }}
                                                 >
-                                                    <h4 className="text-[20px] font-bold text-[#e2aa29] leading-tight mb-[2px] group-hover:text-[#fbf167] transition-colors truncate block w-full">
-                                                        {task.task_name}
-                                                    </h4>
-                                                    <p className="text-[14px] text-[#86868B] truncate">
-                                                        {task.next_action || '작성된 내용이 없습니다.'}
-                                                    </p>
+                                                    <div className="flex items-start gap-[8px]">
+                                                        <span className="px-[6px] py-[2px] bg-[#e2aa29]/10 border border-[#e2aa29]/30 text-[#e2aa29] text-[10px] font-bold rounded-[4px] shrink-0 translate-y-[3px]">NOW</span>
+                                                        <h4 className="text-[20px] font-bold text-[#e2aa29] leading-tight group-hover:text-[#fbf167] transition-colors truncate block w-full">
+                                                            {task.task_name}
+                                                        </h4>
+                                                    </div>
+                                                    <div className="flex items-start gap-[8px]">
+                                                        <span className="px-[6px] py-[2px] bg-[#86868B]/10 border border-[#86868B]/30 text-[#86868B] text-[10px] font-bold rounded-[4px] shrink-0 translate-y-[2px]">NEXT</span>
+                                                        <p className="text-[16px] text-[#86868B] truncate w-full group-hover:text-[#A1A1AA] transition-colors">
+                                                            {task.next_action || '작성된 내용이 없습니다.'}
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             </div>
                                         ))

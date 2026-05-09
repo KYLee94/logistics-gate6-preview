@@ -381,7 +381,7 @@ export default function WorkspaceDigital() {
 
             {/* 2. 주요 테스크 관리 */}
             <div className="flex justify-between items-center mt-[20px] mb-[10px]">
-                <h2 className="text-[18px] font-bold text-white tracking-tight flex items-center">
+                <h2 id="task-management" className="text-[18px] font-bold text-white tracking-tight flex items-center">
                     상품·디지털 주요 테스크 관리
                     {selectedTheme && <span className="ml-3 px-2 py-1 bg-[#2997ff]/10 text-[#2997ff] rounded-[6px] text-[13px] font-bold">필터: {getThemeTitle(selectedTheme)}</span>}
                 </h2>
