@@ -397,6 +397,13 @@ export default function WorkspaceIpr() {
                             className="w-full bg-[#1A1A1A] border border-[#444] rounded-[12px] px-4 py-3 text-white text-[15px] outline-none focus:border-[#888]" 
                             placeholder="다음 액션 준비사항 입력" 
                         />
+                        <input 
+                            type="text" 
+                            value={newTask.notes || ''} 
+                            onChange={e => setNewTask({...newTask, notes: e.target.value})} 
+                            className="w-full bg-[#1A1A1A] border border-[#444] rounded-[12px] px-4 py-3 text-[#A1A1AA] text-[14px] outline-none focus:border-[#888]" 
+                            placeholder="비고 / 링크 입력 (선택사항)" 
+                        />
                         <div className="flex flex-wrap gap-4 items-center">
                             <select 
                                 value={newTask.related_asset} 
