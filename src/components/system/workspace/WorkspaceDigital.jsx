@@ -118,9 +118,7 @@ export default function WorkspaceDigital() {
                     setTimeout(() => {
                         const el = document.getElementById(`task-${targetTaskId}`);
                         if (el) {
-                            // offset scroll so it's not under fixed header
-                            const y = el.getBoundingClientRect().top + window.scrollY - 100;
-                            window.scrollTo({top: y, behavior: 'smooth'});
+                            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                         }
                         localStorage.removeItem('iota_target_task_id');
                     }, 500);
@@ -142,7 +140,7 @@ export default function WorkspaceDigital() {
             notes: row.notes || ''
         });
         setIsAdding(true);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        document.getElementById('task-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const handleSaveRow = async () => {
@@ -524,7 +522,7 @@ export default function WorkspaceDigital() {
                                 key={row.id}
                                 id={`task-${row.id}`} 
                                 onClick={() => setExpandedTaskId((expandedTaskId === 'ALL' || expandedTaskId === row.id) ? null : row.id)}
-                                className={`w-full relative rounded-[24px] px-6 pt-[20px] pb-[20px] cursor-pointer transition-all duration-300 group/row ${(expandedTaskId === 'ALL' || expandedTaskId === row.id) ? 'border-[2px] border-transparent [background:linear-gradient(#272726,#272726)_padding-box,linear-gradient(to_bottom_right,#d6efe9,#82afb9,#4c6e86)_border-box]' : 'bg-[#272726] border border-[#3c3c3c] hover:bg-[#333]'}`}
+                                className={`scroll-mt-[100px] w-full relative rounded-[24px] px-6 pt-[20px] pb-[20px] cursor-pointer transition-all duration-300 group/row ${(expandedTaskId === 'ALL' || expandedTaskId === row.id) ? 'border-[2px] border-transparent [background:linear-gradient(#272726,#272726)_padding-box,linear-gradient(to_bottom_right,#d6efe9,#82afb9,#4c6e86)_border-box]' : 'bg-[#272726] border border-[#3c3c3c] hover:bg-[#333]'}`}
                             >
                             {/* 삭제 및 정렬 버튼 */}
                             {isAuthorized && (
