@@ -495,60 +495,31 @@ export default function DecisionLog() {
                                 <div 
                                     key={ws.id}
                                     id={`focus-card-${ws.id}`}
-                                    className="min-w-[380px] max-w-[380px] shrink-0 bg-[#272727] border border-[#3c3c3c] rounded-[16px] p-[24px] snap-start flex flex-col gap-[24px]"
+                                    className="min-w-[380px] max-w-[380px] shrink-0 bg-[#272727] border border-[#3c3c3c] rounded-[16px] p-[24px] pb-[32px] snap-start flex flex-col gap-[16px] min-h-[380px]"
                                 >
                                     {/* Card Title */}
-                                    <h3 className="text-[18px] font-bold text-white mb-[-8px]">{ws.name}</h3>
+                                    <h3 className="text-[18px] font-bold text-white mb-[4px]">{ws.name}</h3>
 
                                     {tasks.length === 0 ? (
-                                        <div className="text-[#86868B] text-[14px]">진행 중인 주요 테스크가 없습니다.</div>
+                                        <div className="text-[#86868B] text-[14px] mt-[10px]">진행 중인 주요 테스크가 없습니다.</div>
                                     ) : (
                                         tasks.map((task, idx) => (
-                                            <div key={task.id} className="flex flex-col gap-[8px]">
+                                            <div key={task.id} className="flex flex-col gap-[4px] mt-[8px]">
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-[13px] font-bold text-[#86868B]">Task {idx + 1}</span>
-                                                    <span className="text-[12px] font-bold text-[#A1A1AA]">목표 마감일 {task.due_date || '미정'}</span>
+                                                    <span className="text-[12px] font-medium text-[#777]">목표 마감일 {task.due_date || '미정'}</span>
                                                 </div>
                                                 <div 
                                                     className="cursor-pointer group overflow-hidden"
-                                                    onClick={() => setExpandedFocusTaskId(expandedFocusTaskId === task.id ? null : task.id)}
+                                                    onClick={() => window.location.hash = `#/${ws.path}`}
                                                 >
-                                                    <h4 className="text-[20px] font-bold text-[#e2aa29] leading-tight mb-[6px] group-hover:underline underline-offset-4 decoration-[#e2aa29]/50 truncate block w-full">
+                                                    <h4 className="text-[20px] font-bold text-[#e2aa29] leading-tight mb-[2px] group-hover:text-[#fbf167] transition-colors truncate block w-full">
                                                         {task.task_name}
                                                     </h4>
                                                     <p className="text-[14px] text-[#86868B] truncate">
                                                         {task.next_action || '작성된 내용이 없습니다.'}
                                                     </p>
                                                 </div>
-
-                                                {/* Accordion Expansion inside the card */}
-                                                <AnimatePresence>
-                                                    {expandedFocusTaskId === task.id && (
-                                                        <motion.div
-                                                            initial={{ height: 0, opacity: 0 }}
-                                                            animate={{ height: 'auto', opacity: 1 }}
-                                                            exit={{ height: 0, opacity: 0 }}
-                                                            className="overflow-hidden border-t border-[#3c3c3c]/50 mt-[8px] pt-[12px] flex flex-col gap-[12px]"
-                                                        >
-                                                            <div className="flex flex-col gap-[4px]">
-                                                                <span className="text-[12px] font-bold text-[#86868B]">상태</span>
-                                                                <span className={`px-[6px] py-[2px] rounded-[4px] text-[12px] font-bold w-max ${task.status === '진행중' ? 'bg-[#059669]/20 text-[#34d399]' : 'bg-[#4b5563]/20 text-[#9ca3af]'}`}>{task.status || '-'}</span>
-                                                            </div>
-                                                            <div className="flex flex-col gap-[4px]">
-                                                                <span className="text-[12px] font-bold text-[#86868B]">비고 / 링크</span>
-                                                                <span className="text-[13px] text-white font-medium break-all">
-                                                                    {task.notes ? (task.notes.startsWith('http') ? <a href={task.notes} target="_blank" rel="noreferrer" className="text-[#2997ff] hover:underline">{task.notes}</a> : task.notes) : '-'}
-                                                                </span>
-                                                            </div>
-                                                            <button 
-                                                                onClick={() => window.location.hash = `#/${ws.path}`}
-                                                                className="w-full mt-[4px] py-[8px] bg-[#333] hover:bg-[#444] text-white text-[13px] font-bold rounded-[8px] transition-colors"
-                                                            >
-                                                                해당 워크스페이스로 이동
-                                                            </button>
-                                                        </motion.div>
-                                                    )}
-                                                </AnimatePresence>
                                             </div>
                                         ))
                                     )}
