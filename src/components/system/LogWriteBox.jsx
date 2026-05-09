@@ -262,6 +262,8 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
             setContent('');
             setCompanyQuery('');
             setContactQuery('');
+            setVisibilityGroups([]);
+            setVisibilityIndividuals([]);
             if(fetchLogs) fetchLogs();
             setShowSuccessModal(true);
             setIsExpanded(false);
