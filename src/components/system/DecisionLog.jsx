@@ -504,20 +504,11 @@ export default function DecisionLog() {
                                                         window.location.href = `${base}/${ws.path}#task-management`;
                                                     }}
                                                 >
-                                                    <div className="flex items-center gap-[10px]">
-                                                        <div className="flex items-center gap-[8px] shrink-0">
-                                                            <span className="text-[#e2aa29] text-[11px] font-bold tracking-widest shrink-0 w-[36px]">NOW</span>
-                                                            <div className="w-[1px] h-[12px] bg-[#e2aa29]/30"></div>
-                                                        </div>
-                                                        <h4 className="text-[20px] font-bold text-[#e2aa29] leading-none group-hover:text-[#fbf167] transition-colors truncate block w-full pt-[2px]">
-                                                            {task.task_name}
-                                                        </h4>
-                                                    </div>
-                                                    <div className="flex items-center gap-[10px]">
-                                                        <div className="flex items-center gap-[8px] shrink-0">
-                                                            <span className="text-[#86868B] text-[11px] font-bold tracking-widest shrink-0 w-[36px]">NEXT</span>
-                                                            <div className="w-[1px] h-[12px] bg-[#86868B]/30"></div>
-                                                        </div>
+                                                    <h4 className="text-[20px] font-bold text-[#e2aa29] leading-none group-hover:text-[#fbf167] transition-colors truncate block w-full pt-[2px]">
+                                                        {task.task_name}
+                                                    </h4>
+                                                    <div className="flex items-center gap-[6px] mt-[2px]">
+                                                        <span className="text-[14px] font-medium text-[#666] shrink-0 pt-[2px]">다음 액션 :</span>
                                                         <p className="text-[16px] text-[#86868B] truncate w-full leading-none group-hover:text-[#A1A1AA] transition-colors pt-[2px]">
                                                             {task.next_action || '작성된 내용이 없습니다.'}
                                                         </p>
