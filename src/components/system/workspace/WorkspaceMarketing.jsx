@@ -13,7 +13,7 @@ export default function WorkspaceMarketing() {
     const [isLoading, setIsLoading] = useState(true);
     const [isAdding, setIsAdding] = useState(false);
     const [newTask, setNewTask] = useState({
-        task_name: '', company_name: '', related_asset: 'IOTA 공통', status: '아이데이션', priority: '중간', due_date: '', next_action: ''
+        task_name: '', company_name: '', related_asset: 'IOTA 공통', status: '아이데이션', priority: '중간', due_date: new Date().toLocaleDateString('en-CA'), next_action: ''
     });
 
     const [expandedTaskId, setExpandedTaskId] = useState(null);
@@ -26,6 +26,7 @@ export default function WorkspaceMarketing() {
     const [showNewAssetModal, setShowNewAssetModal] = useState(false);
     const [newAssetName, setNewAssetName] = useState('');
     const [isSubmittingAsset, setIsSubmittingAsset] = useState(false);
+    const [isSubmittingTask, setIsSubmittingTask] = useState(false);
 
     // Stakeholder States
     const [masterStakeholders, setMasterStakeholders] = useState([]);
@@ -105,13 +106,15 @@ export default function WorkspaceMarketing() {
 
     const handleSaveRow = async () => {
         if (!newTask.task_name) return alert('Task 명을 입력해주세요.');
+        setIsSubmittingTask(true);
         try {
             const { error } = await supabase.from('iota_marketing_tasks').insert([newTask]);
             if (error) throw error;
             
-            setNewTask({ task_name: '', company_name: '', related_asset: 'IOTA 공통', status: '아이데이션', priority: '중간', due_date: '', next_action: '' });
+            setNewTask({ task_name: '', company_name: '', related_asset: 'IOTA 공통', status: '아이데이션', priority: '중간', due_date: new Date().toLocaleDateString('en-CA'), next_action: '' });
             setCompanyQuery('');
             setIsAdding(false);
+        setIsSubmittingTask(false);
             fetchTasks();
         } catch (e) {
             console.error('Failed to save task:', e);
@@ -375,10 +378,10 @@ export default function WorkspaceMarketing() {
                                 <option>중간</option>
                                 <option>낮음</option>
                             </select>
-                            <input type="date" value={newTask.due_date} onChange={e => setNewTask({...newTask, due_date: e.target.value})} className="bg-[#1A1A1A] border border-[#444] rounded-[10px] px-3 py-2 text-[#A1A1AA] text-[14px] outline-none focus:border-[#888] [color-scheme:dark]" />
+                            <div className="flex items-center gap-2"><span className="text-[#86868B] text-[13px] font-bold shrink-0">목표 마감일</span><input type="date" value={newTask.due_date} onClick={(e) => e.target.showPicker && e.target.showPicker()} onChange={e => setNewTask({...newTask, due_date: e.target.value})} className="bg-[#1A1A1A] border border-[#444] rounded-[10px] px-3 py-2 text-[#A1A1AA] text-[14px] outline-none focus:border-[#888] cursor-pointer [color-scheme:dark]" /></div>
                             <div className="flex gap-2 ml-auto">
                                 <button onClick={() => { setIsAdding(false); setCompanyQuery(''); }} className="px-5 py-2 bg-[#3c3c3c]/50 text-[#86868B] border border-[#444] rounded-[10px] text-[14px] font-bold hover:bg-[#3c3c3c] hover:text-white transition-colors cursor-pointer">취소</button>
-                                <button onClick={handleSaveRow} className="px-5 py-2 bg-[#059669]/20 text-[#34d399] border border-[#059669]/30 rounded-[10px] text-[14px] font-bold hover:bg-[#059669]/40 transition-colors cursor-pointer">저장</button>
+                                <button onClick={handleSaveRow} disabled={isSubmittingTask} className="px-5 py-2 bg-[#059669]/20 text-[#34d399] border border-[#059669]/30 rounded-[10px] text-[14px] font-bold hover:bg-[#059669]/40 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">{isSubmittingTask ? '저장 중...' : '저장'}</button>
                             </div>
                         </div>
                     </div>
