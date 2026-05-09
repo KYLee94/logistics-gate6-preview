@@ -331,10 +331,7 @@ export default function WorkspaceDevelopment() {
                     </div>
                 </div>
             </div>
-            
-            <WorkspaceActivityLog workspaceCode="WS_DSC" workspaceLabel="개발솔루션-DSC" />
-
-            {/* 2. Task 관리 */}
+{/* 2. Task 관리 */}
             <div className="w-full mt-0"></div>
             <div className="flex justify-between items-center mb-[10px]">
                 <h2 id="task-management" className="text-[18px] font-bold text-white tracking-tight">개발솔루션 주요 테스크 관리</h2>
@@ -579,6 +576,10 @@ export default function WorkspaceDevelopment() {
                 )}
                 </div>
             </div>
+
+            <div className="w-full mt-[10px]"></div>
+            <WorkspaceActivityLog workspaceCode="WS_DSC" workspaceLabel="개발솔루션-DSC" />
+
 
 
             {/* Development Milestones */}

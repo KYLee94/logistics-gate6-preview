@@ -392,12 +392,7 @@ export default function WorkspacePm() {
                     </div>
                 </div>
             </div>
-
-
-
-            <WorkspaceActivityLog workspaceCode="WS_PM" workspaceLabel="사업 PM" />
-
-            {/* 2. Task 관리 */}
+{/* 2. Task 관리 */}
             <div className="w-full mt-0"></div>
             <div className="flex justify-between items-center mb-[10px]">
                 <h2 id="task-management" className="text-[18px] font-bold text-white tracking-tight">사업 PM 주요 테스크 관리</h2>
@@ -643,6 +638,10 @@ export default function WorkspacePm() {
                 )}
                 </div>
             </div>
+
+            <div className="w-full mt-[10px]"></div>
+            <WorkspaceActivityLog workspaceCode="WS_PM" workspaceLabel="사업 PM" />
+
 
 
             {/* Top 10 Risks Board */}

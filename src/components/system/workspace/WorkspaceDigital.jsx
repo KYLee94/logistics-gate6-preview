@@ -370,14 +370,11 @@ export default function WorkspaceDigital() {
 
                 </div>
             </div>
-
-            <WorkspaceActivityLog workspaceCode="WS_SSC" workspaceLabel="상품·디지털-SSC" />
-
-            {/* SSC 상품·디지털 업무 범위 */}
+{/* SSC 상품·디지털 업무 범위 */}
             <div className="w-full mt-[10px] mb-0 relative">
                 <h2 className="text-[22px] font-bold text-white mb-[12px]">SSC 상품·디지털 업무 범위</h2>
                 <div className="max-w-none overflow-x-auto hide-scrollbar pb-[20px] w-[calc(50vw-140px+50%)]">
-                    <div className="flex gap-[20px] w-max pr-[40px]">
+                    <div className="flex gap-[12px] w-max pr-[40px]">
                         {sscScopes.map((item, idx) => {
                             const isSelected = selectedTheme === item.no;
                             return (
@@ -638,6 +635,10 @@ export default function WorkspaceDigital() {
                 )}
                 </motion.div>
             </div>
+
+            <div className="w-full mt-[10px]"></div>
+            <WorkspaceActivityLog workspaceCode="WS_SSC" workspaceLabel="상품·디지털-SSC" />
+
 
             {/* Delete Confirmation Modal */}
             {itemToDelete && (

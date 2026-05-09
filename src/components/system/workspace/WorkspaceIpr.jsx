@@ -326,10 +326,7 @@ export default function WorkspaceIpr() {
                     </div>
                 </div>
             </div>
-
-            <WorkspaceActivityLog workspaceCode="WS_IPR" workspaceLabel="IPR" />
-
-            {/* 2. Task 관리 */}
+{/* 2. Task 관리 */}
             <div className="w-full mt-0"></div>
             <div className="flex justify-between items-center mb-[10px]">
                 <h2 id="task-management" className="text-[18px] font-bold text-white tracking-tight">IPR 주요 테스크 관리</h2>
@@ -574,6 +571,10 @@ export default function WorkspaceIpr() {
                 )}
                 </div>
             </div>
+
+            <div className="w-full mt-[10px]"></div>
+            <WorkspaceActivityLog workspaceCode="WS_IPR" workspaceLabel="IPR" />
+
 
             
             <div className="w-full border-b border-[#333] mt-[20px] mb-[40px]"></div>
