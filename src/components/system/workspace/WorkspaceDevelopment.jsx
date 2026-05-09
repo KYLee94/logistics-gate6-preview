@@ -475,7 +475,7 @@ export default function WorkspaceDevelopment() {
                                 key={row.id}
                                 id={`task-${row.id}`} 
                                 onClick={() => setExpandedTaskId((expandedTaskId === 'ALL' || expandedTaskId === row.id) ? null : row.id)}
-                                className={`scroll-mt-[100px] w-full relative rounded-[24px] px-6 pt-6 pb-4 cursor-pointer transition-all duration-300 group/row ${(expandedTaskId === 'ALL' || expandedTaskId === row.id) ? 'border-[2px] border-transparent [background:linear-gradient(#272726,#272726)_padding-box,linear-gradient(to_bottom_right,#d6efe9,#82afb9,#4c6e86)_border-box]' : 'bg-[#272726] border border-[#3c3c3c] hover:bg-[#333]'}`}
+                                className={`scroll-mt-[100px] w-full relative rounded-[24px] px-6 pt-[22px] pb-[14px] cursor-pointer transition-all duration-300 group/row ${(expandedTaskId === 'ALL' || expandedTaskId === row.id) ? 'border-[2px] border-transparent [background:linear-gradient(#272726,#272726)_padding-box,linear-gradient(to_bottom_right,#d6efe9,#82afb9,#4c6e86)_border-box]' : 'bg-[#272726] border border-[#3c3c3c] hover:bg-[#333]'}`}
                             >
                             {isAuthorized && (
                                 <div className="absolute right-[-118px] w-[118px] pl-[8px] top-0 bottom-0 flex items-center justify-start gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">

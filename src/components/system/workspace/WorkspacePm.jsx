@@ -536,7 +536,7 @@ export default function WorkspacePm() {
                                 key={row.id}
                                 id={`task-${row.id}`} 
                                 onClick={() => setExpandedTaskId((expandedTaskId === 'ALL' || expandedTaskId === row.id) ? null : row.id)}
-                                className={`scroll-mt-[100px] w-full relative rounded-[24px] px-6 pt-6 pb-4 cursor-pointer transition-all duration-300 group/row ${(expandedTaskId === 'ALL' || expandedTaskId === row.id) ? 'border-[2px] border-transparent [background:linear-gradient(#272726,#272726)_padding-box,linear-gradient(to_bottom_right,#d6efe9,#82afb9,#4c6e86)_border-box]' : 'bg-[#272726] border border-[#3c3c3c] hover:bg-[#333]'}`}
+                                className={`scroll-mt-[100px] w-full relative rounded-[24px] px-6 pt-[22px] pb-[14px] cursor-pointer transition-all duration-300 group/row ${(expandedTaskId === 'ALL' || expandedTaskId === row.id) ? 'border-[2px] border-transparent [background:linear-gradient(#272726,#272726)_padding-box,linear-gradient(to_bottom_right,#d6efe9,#82afb9,#4c6e86)_border-box]' : 'bg-[#272726] border border-[#3c3c3c] hover:bg-[#333]'}`}
                             >
                             {/* 삭제 및 정렬 버튼 (우측 바깥 영역) */}
                             {isAuthorized && (
