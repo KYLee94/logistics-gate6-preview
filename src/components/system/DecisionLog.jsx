@@ -158,23 +158,20 @@ export default function DecisionLog() {
         if (!perms) return '';
         const parts = [];
         if (perms.groups && perms.groups.length > 0) parts.push(...perms.groups);
-        if (perms.individuals && perms.individuals.length > 0) {
-            parts.push(`지정된 인원 ${perms.individuals.length}명`);
-        }
+        if (perms.individuals && perms.individuals.length > 0) parts.push(...perms.individuals);
         return parts.join(', ');
     };
 
     const getShortPermissionString = (log) => {
         const perms = log.metadata?.permissions;
         if (!perms) return '';
-        if (perms.groups && perms.groups.length > 0 && perms.groups[0] === "각 워크스페이스") {
-            return "워크스페이스 전용";
-        }
-        if (perms.groups && perms.groups.length > 0 && perms.groups[0] === "PO") {
-            return "PO 전용";
-        }
-        const total = (perms.groups?.length || 0) + (perms.individuals?.length || 0);
-        return `PO 외 ${total}명`;
+        const parts = [];
+        if (perms.groups && perms.groups.length > 0) parts.push(...perms.groups);
+        if (perms.individuals && perms.individuals.length > 0) parts.push(...perms.individuals);
+        
+        if (parts.length === 0) return '';
+        if (parts.length === 1) return parts[0];
+        return `${parts[0]} 외 ${parts.length - 1}`;
     };
 
     const checkUserAccess = (log) => {
