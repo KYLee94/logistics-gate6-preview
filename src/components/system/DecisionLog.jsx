@@ -609,7 +609,7 @@ export default function DecisionLog() {
             <div className="w-full flex flex-col gap-[12px] mb-[16px] -mt-[4px]">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-[16px]">
-                        <h3 className="text-[20px] font-bold text-white tracking-tight">지금 사람들이 모여 논의하는 주제</h3>
+                        <h3 className="text-[20px] font-bold text-white tracking-tight mt-[4px]">지금 사람들이 모여 논의하는 주제</h3>
                         <p className="text-[14px] text-[#A1A1AA] font-medium">최근 2주간 타 기능셀의 협업게시판에 등록된 크로스펑셔널(Cross-functional) 업무 내역입니다.</p>
                     </div>
                     {crossFunctionalLogs.length > 6 && (
@@ -822,7 +822,7 @@ export default function DecisionLog() {
 
             {/* Log Viewer */}
             <div id="log-viewer-header" className="flex justify-between items-center mt-[26px] mb-[12px] scroll-mt-[80px]">
-                <h2 className="text-[18px] font-bold text-white tracking-tight translate-y-[2px]">CFT 협업 활동 전체보기</h2>
+                <h2 className="text-[18px] font-bold text-white tracking-tight translate-y-[2px] mt-[4px]">CFT 협업 활동 전체보기</h2>
                 <div className="flex items-center gap-[12px]">
                     
 
