@@ -522,10 +522,10 @@ export default function DecisionLog() {
                         <span className="text-[#86868B] text-[15px]">데이터를 불러오는 중입니다...</span>
                     </div>
                 ) : (
-                    <div className="-mr-[calc(50vw-50%)]">
+                    <div className="-mr-[calc(50vw-50%)] p-[6px] border-y border-l border-[#333] rounded-l-[30px]">
                         <div 
                             id="focus-scroll-container" 
-                            className="w-full flex gap-[6px] overflow-x-auto snap-x pr-[40px] custom-thin-scrollbar"
+                            className="w-full flex gap-[6px] overflow-x-auto snap-x pr-[40px] custom-thin-scrollbar rounded-l-[24px]"
                             onScroll={(e) => {
                                 const container = e.target;
                                 const scrollLeft = container.scrollLeft;
