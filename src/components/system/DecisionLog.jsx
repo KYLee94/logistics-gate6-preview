@@ -606,7 +606,7 @@ export default function DecisionLog() {
             </div>
 
                         {/* Workspace Issues Overview */}
-            <div className="w-full flex flex-col gap-[12px] mb-[16px] -mt-[10px]">
+            <div className="w-full flex flex-col gap-[12px] mb-[16px] -mt-[4px]">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-[16px]">
                         <h3 className="text-[20px] font-bold text-white tracking-tight">지금 사람들이 모여 논의하는 주제</h3>
@@ -755,7 +755,7 @@ export default function DecisionLog() {
             </div>
 
             {/* 주요 회의체 히스토리 */}
-            <div className="w-full flex flex-col mt-[16px] mb-[10px]">
+            <div className="w-full flex flex-col mt-[22px] mb-[10px]">
                 <div className="flex items-center justify-between mb-[8px]">
                     <h3 className="text-[20px] font-bold text-white tracking-tight">주요 회의체 히스토리</h3>
                     
@@ -816,7 +816,7 @@ export default function DecisionLog() {
             </div>
 
             {/* Log Viewer */}
-            <div id="log-viewer-header" className="flex justify-between items-center mt-[20px] mb-[12px] scroll-mt-[80px]">
+            <div id="log-viewer-header" className="flex justify-between items-center mt-[26px] mb-[12px] scroll-mt-[80px]">
                 <h2 className="text-[18px] font-bold text-white tracking-tight translate-y-[2px]">CFT 협업 활동 전체보기</h2>
                 <div className="flex items-center gap-[12px]">
                     
