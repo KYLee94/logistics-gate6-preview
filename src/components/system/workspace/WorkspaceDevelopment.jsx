@@ -8,7 +8,7 @@ import { PROJECTS, COSTS, RR, COUNTERPARTIES } from '../../../data/iotaDevelopme
 export default function WorkspaceDevelopment() {
 
     const { memberInfo } = useAuth();
-    const isAuthorized = ['전기영', '홍장군', '채원', '김보성', '전승희', '김대익', '장성진', '이정훈', '박봉서'].includes(memberInfo?.staff_name);
+    const isAuthorized = ['전기영', '홍장군', '채원', '김보성', '전승희', '김대익', '장성진', '이정훈', '박봉서', '김형주'].includes(memberInfo?.staff_name);
 
     // Task Management States
     const [tasks, setTasks] = useState([]);
@@ -263,7 +263,7 @@ export default function WorkspaceDevelopment() {
 
     const parseNames = (text) => {
         if (!text) return text;
-        const names = ['전기영', '홍장군', '채원', '김보성', '전승희', '김대익', '장성진', '이정훈', '박봉서'];
+        const names = ['전기영', '홍장군', '채원', '김보성', '전승희', '김대익', '장성진', '이정훈', '박봉서', '김형주'];
         let result = text;
         names.forEach(name => {
             const regex = new RegExp(name, 'g');

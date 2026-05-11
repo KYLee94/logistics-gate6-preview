@@ -280,6 +280,13 @@ const stakeholderGroups = [
                                 email: '***@igisam.com',
                                 phone: '010-****-****',
                             },
+                            {
+                                name: '김형주',
+                                photo: '김형주',
+                                roles: ['개발솔루션센터/자산관리3파트1', 'IOTA CFT'],
+                                email: 'hj.kim@igisam.com',
+                                phone: '010-7157-4325',
+                            },
                         ]
                     },
                     {
