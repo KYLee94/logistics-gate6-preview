@@ -21,6 +21,7 @@ export default function AuthSetup({ onLogin }) {
     const [dissolved, setDissolved] = useState(false);
     const [hasError, setHasError] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
+    const [isCheckingEmail, setIsCheckingEmail] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [showChangeSuccessModal, setShowChangeSuccessModal] = useState(false);
@@ -51,6 +52,7 @@ export default function AuthSetup({ onLogin }) {
             return;
         }
 
+        setIsCheckingEmail(true);
         try {
             // Check if email exists in our pilot members list
             const { data, error } = await fetchWithRetry(() => supabase
@@ -70,6 +72,8 @@ export default function AuthSetup({ onLogin }) {
             setStep(2);
         } catch (err) {
             triggerError('서버 연결에 실패했습니다.');
+        } finally {
+            setIsCheckingEmail(false);
         }
     };
 
@@ -320,8 +324,9 @@ export default function AuthSetup({ onLogin }) {
                                         type="email" 
                                         placeholder="이메일을 입력하세요."
                                         value={email}
+                                        disabled={isCheckingEmail}
                                         onChange={(e) => { setEmail(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
+                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'} ${isCheckingEmail ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     />
                                 </div>
                                 <div className="w-full h-[8px] mb-0 flex items-center px-1">
@@ -333,9 +338,17 @@ export default function AuthSetup({ onLogin }) {
                                 </div>
                                 <button 
                                     type="submit"
-                                    className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
+                                    disabled={isCheckingEmail}
+                                    className={`w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] flex justify-center items-center ${isCheckingEmail ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                                 >
-                                    다음
+                                    {isCheckingEmail ? (
+                                        <svg className="animate-spin h-5 w-5 text-white dark:text-[#111]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    ) : (
+                                        '다음'
+                                    )}
                                 </button>
                             </form>
                         </>
