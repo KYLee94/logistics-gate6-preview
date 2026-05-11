@@ -393,11 +393,16 @@ export default function WorkspaceMarketing() {
                         <span className="mt-[2px]">기업마케팅 주요 테스크 관리</span>
                         <span className="bg-[#333] text-[#b3b0a6] px-[8px] py-[3px] rounded-[6px] ml-[8px] font-bold text-[14px]">{getCurrentWeekInfo().weekLabel}</span>
                     </h2>
-                    <a href={`${import.meta.env.BASE_URL}platform/iotaseoul/workspace/archive?workspace=marketing`} target="_blank" rel="noopener noreferrer" className="text-[#86868B] hover:text-[#3b82f6] text-[13px] font-bold ml-[8px] mt-[2px] transition-colors flex items-center gap-1 cursor-pointer">
-                        지난 테스크 보기 ↗
+                    <a href={`${import.meta.env.BASE_URL}platform/iotaseoul/workspace/archive?workspace=marketing`} target="_blank" rel="noopener noreferrer" className="text-[#86868B] hover:text-[#3b82f6] text-[13px] font-bold ml-[18px] mt-[2px]  transition-colors flex items-center gap-[3px] cursor-pointer">
+                        지난 테스크 보기
+                        <svg className="w-[14px] h-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
                     </a>
+                    
                 </div>
                 <div className="flex gap-2 items-center">
+                    
                     <div className="flex bg-[#272726] border border-[#3c3c3c] rounded-[8px] overflow-hidden p-[2px]">
                         <button onClick={() => setAssetFilter('427 PFV')} className={`px-[12px] py-[4px] text-[13px] font-bold rounded-[6px] transition-colors ${assetFilter === '427 PFV' ? 'bg-[#3c3c3c] text-white' : 'text-[#86868B] hover:text-[#E5E5E5]'}`}>이오타서울만 보기</button>
                         <button onClick={() => setAssetFilter('ALL')} className={`px-[12px] py-[4px] text-[13px] font-bold rounded-[6px] transition-colors ${assetFilter === 'ALL' ? 'bg-[#3c3c3c] text-white' : 'text-[#86868B] hover:text-[#E5E5E5]'}`}>전체 자산 보기</button>

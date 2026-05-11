@@ -367,8 +367,8 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                         </div>
                         <div className="flex flex-1 min-w-0 translate-x-[-20px]">
                             <div className="w-[80px] shrink-0 translate-x-[4px] flex justify-center">
-                                <div className="text-[12px] font-bold text-[#fbf167] px-[2px] py-[4px] text-center w-[60px]">
-                                    {filterCell ? filterCell.replace(/-(LFC|DSC|EMC|SSC|KAM)$/, '') : '기능셀'}
+                                <div className="text-[13px] font-bold text-[#86868B] px-[2px] py-[4px] text-center w-[60px]">
+                                    기능셀
                                 </div>
                             </div>
                             <div className="w-[110px] shrink-0 translate-x-[10px] flex items-center">

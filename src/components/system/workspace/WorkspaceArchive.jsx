@@ -13,56 +13,48 @@ export default function WorkspacePmArchive() {
     });
 
     const workspaces = [
-        { id: 'pm', name: '사업 PM' },
-        { id: 'digital', name: '공간솔루션/디지털' },
-        { id: 'marketing', name: '기업마케팅' },
-        { id: 'fund', name: '펀드운용' },
-        { id: 'development', name: '개발솔루션' },
-        { id: 'financing', name: '파이낸싱' },
-        { id: 'ipr', name: 'IPR' }
+        { id: 'pm', name: '사업 PM', icon: <svg className="w-[18px] h-[18px] mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
+        { id: 'financing', name: '파이낸싱-LFC', icon: <svg className="w-[18px] h-[18px] mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+        { id: 'development', name: '개발솔루션-DSC', icon: <svg className="w-[18px] h-[18px] mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg> },
+        { id: 'marketing', name: '기업마케팅-EMC', icon: <svg className="w-[18px] h-[18px] mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg> },
+        { id: 'digital', name: '상품·디지털-SSC', icon: <svg className="w-[18px] h-[18px] mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> },
+        { id: 'fund', name: '펀드운용-KAM', icon: <svg className="w-[18px] h-[18px] mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
+        { id: 'ipr', name: 'IPR-WG', icon: <svg className="w-[18px] h-[18px] mr-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg> }
     ];
 
     useEffect(() => {
         const fetchSnapshots = async () => {
             setIsLoading(true);
             try {
-                const { data, error } = await supabase
-                    .from('iota_weekly_snapshots')
-                    .select('*')
-                    .eq('workspace', workspaceFilter)
-                    .order('created_at', { ascending: false });
+                const tableMap = {
+                    pm: 'iota_pm_tasks',
+                    digital: 'iota_digital_tasks',
+                    marketing: 'iota_marketing_tasks',
+                    fund: 'iota_fund_tasks',
+                    development: 'iota_development_tasks',
+                    financing: 'iota_financing_tasks',
+                    ipr: 'iota_ipr_tasks'
+                };
+                const tableName = tableMap[workspaceFilter];
+
+                // 병렬 통신(Promise.all)을 통한 로딩 속도 최적화
+                const [snapshotRes, liveRes] = await Promise.all([
+                    supabase.from('iota_weekly_snapshots').select('*').eq('workspace', workspaceFilter).order('created_at', { ascending: false }),
+                    tableName ? supabase.from(tableName).select('*').order('created_at', { ascending: false }) : Promise.resolve({ data: null, error: null })
+                ]);
                 
-                if (error) throw error;
-                let fetchedData = data || [];
+                if (snapshotRes.error) throw snapshotRes.error;
+                let fetchedData = snapshotRes.data || [];
                 
-                // Fallback: If no snapshot exists at all, fetch from the live workspace table
-                if (fetchedData.length === 0) {
-                    const tableMap = {
-                        pm: 'iota_pm_tasks',
-                        digital: 'iota_digital_tasks',
-                        marketing: 'iota_marketing_tasks',
-                        fund: 'iota_fund_tasks',
-                        development: 'iota_development_tasks',
-                        financing: 'iota_financing_tasks',
-                        ipr: 'iota_ipr_tasks'
-                    };
-                    const tableName = tableMap[workspaceFilter];
-                    if (tableName) {
-                        try {
-                            const { data: liveData } = await supabase.from(tableName).select('*').order('created_at', { ascending: false });
-                            if (liveData && liveData.length > 0) {
-                                fetchedData.push({
-                                    id: workspaceFilter + '-live-fallback',
-                                    workspace: workspaceFilter,
-                                    week_label: '26년 5월 3주',
-                                    created_at: new Date().toISOString(),
-                                    snapshot_data: liveData
-                                });
-                            }
-                        } catch (e) {
-                            console.error('Live data fetch fallback failed', e);
-                        }
-                    }
+                // Fallback: If no snapshot exists, use the pre-fetched live data
+                if (fetchedData.length === 0 && liveRes.data && liveRes.data.length > 0) {
+                    fetchedData.push({
+                        id: workspaceFilter + '-live-fallback',
+                        workspace: workspaceFilter,
+                        week_label: '26년 5월 3주',
+                        created_at: new Date().toISOString(),
+                        snapshot_data: liveRes.data
+                    });
                 }
                 
                 // Add dummy 5월 2주 snapshot if we have a current one
@@ -207,7 +199,7 @@ export default function WorkspacePmArchive() {
                         <div key={row.id} className="w-full relative rounded-[24px] px-6 pt-[22px] pb-[14px] bg-[#272726] border border-[#3c3c3c] mb-4">
                             <div className="flex justify-between items-start gap-8">
                                 <div className="flex-1 flex gap-8">
-                                    <div className="w-[65%] shrink-0 flex flex-col gap-[2px] border-r border-[#444]/50 pr-8">
+                                    <div className="w-[60%] shrink-0 flex flex-col gap-[2px] border-r border-[#444]/50 pr-8">
                                         <div className="flex items-center gap-2">
                                             {row.related_asset && (
                                                 <span className="px-[6px] py-[2px] bg-[#333] text-[#A1A1AA] border border-[#444] rounded-[4px] text-[11px] font-bold whitespace-nowrap">
@@ -231,7 +223,7 @@ export default function WorkspacePmArchive() {
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="w-[35%] pl-4">
+                                    <div className="w-[40%] pl-4">
                                         <span className="block text-[13px] font-bold text-[#86868B] mb-[6px]">Next Action</span>
                                         <p className="text-[16px] text-[#E5E5E5] leading-relaxed break-keep whitespace-pre-wrap">{row.next_action || '-'}</p>
                                     </div>
@@ -261,8 +253,9 @@ export default function WorkspacePmArchive() {
                             <button
                                 key={ws.id}
                                 onClick={() => setWorkspaceFilter(ws.id)}
-                                className={`text-left px-3 py-[6px] rounded-[8px] text-[14px] font-bold transition-colors ${workspaceFilter === ws.id ? 'bg-[#3c3c3c] text-white' : 'text-[#86868B] hover:text-[#E5E5E5] hover:bg-[#333]'}`}
+                                className={`flex items-center text-left px-[14px] py-[10px] rounded-[10px] text-[15px] transition-colors ${workspaceFilter === ws.id ? 'bg-[#3c3c3c] text-white font-bold' : 'text-[#E5E5E5] hover:bg-[#333] font-medium'}`}
                             >
+                                {ws.icon}
                                 {ws.name}
                             </button>
                         ))}
@@ -322,12 +315,12 @@ export default function WorkspacePmArchive() {
 
             {/* Main Viewer Area */}
             <div className="flex-1 flex flex-col h-full overflow-hidden relative bg-[#111] print:w-full print:block">
-                <div className="absolute inset-0 bg-gradient-to-b from-[#1a1a1a] to-transparent h-[200px] pointer-events-none z-0"></div>
+                <div className="absolute inset-0 bg-gradient-to-b from-[#1a1a1a] to-transparent h-[200px] pointer-events-none z-0 print:hidden"></div>
                 
                 {selectedSnapshotIds.length > 0 ? (
                     <>
                         <div className="relative z-10 px-12 py-6 border-b border-[#333] bg-[#1a1a1a]/80 backdrop-blur-md">
-                            <div className="max-w-[1200px]">
+                            <div className="max-w-[1200px] print:mx-auto">
                                 <div className="w-full flex gap-3 print:hidden">
                                     <div className="relative flex-1">
                                         <input 
@@ -351,7 +344,7 @@ export default function WorkspacePmArchive() {
                         </div>
 
                         <div className="flex-1 overflow-y-auto px-12 py-8 relative z-10 custom-scrollbar">
-                            <div className="max-w-[1200px]">
+                            <div className="max-w-[1200px] print:mx-auto">
                                 {renderTasks()}
                             </div>
                         </div>
@@ -362,14 +355,22 @@ export default function WorkspacePmArchive() {
                     </div>
                 )}
             </div>
-            <style jsx>{`
+            <style>{`
                 @media print {
-                    body { 
+                    html, body, #root { 
+                        display: block !important;
+                        height: auto !important;
+                        overflow: visible !important;
                         -webkit-print-color-adjust: exact; 
                         print-color-adjust: exact; 
                         background: #ffffff !important; 
                         color: #111827 !important;
+                        zoom: 0.76;
                     }
+                    /* Remove flex from main wrappers to prevent blank first page */
+                    .flex.h-screen { display: block !important; height: auto !important; overflow: visible !important; }
+                    .flex-1.flex.flex-col { display: block !important; height: auto !important; overflow: visible !important; }
+                    
                     .h-screen { height: auto !important; }
                     .overflow-hidden, .overflow-y-auto, .custom-scrollbar { overflow: visible !important; }
                     .mb-4, .mb-16 { page-break-inside: avoid; margin-bottom: 24px !important; }
@@ -389,7 +390,7 @@ export default function WorkspacePmArchive() {
                     .border-\[\#333\] { border-color: #e5e7eb !important; }
                     .border-\[\#444\]\/50 { border-color: #d1d5db !important; }
                     /* Layout fixes */
-                    .w-\[65\%\] { border-right: 1px solid #e5e7eb !important; padding-right: 24px !important; }
+                    .w-\[60\%\] { border-right: 1px solid #e5e7eb !important; padding-right: 24px !important; }
                     .gap-8 { gap: 24px !important; }
                     .px-12 { padding-left: 0 !important; padding-right: 0 !important; }
                     .py-8 { padding-top: 16px !important; padding-bottom: 16px !important; }
