@@ -307,13 +307,6 @@ const stakeholderGroups = [
                                 email: '***@igisam.com',
                                 phone: '010-****-****',
                             },
-                            {
-                                name: '홍창의',
-                                photo: '홍창의',
-                                roles: ['사업파트/파트장', 'People Architecture TF', 'IOTA CFT'],
-                                email: 'cu.hong@igisam.com',
-                                phone: '010-9189-2365',
-                            },
                         ]
                     },
                     {
@@ -328,21 +321,6 @@ const stakeholderGroups = [
                                 phone: '010-****-****',
                             },
                             {
-                                name: '현철호',
-                                photo: '현철호',
-                                roles: ['디지털사업그룹/그룹장', '솔루션파트/그룹장', 'IOTA CFT'],
-                                responsibility: '상품·디지털 책임인력',
-                                email: '***@igisam.com',
-                                phone: '010-****-****',
-                            },
-                            {
-                                name: '신민호',
-                                photo: '신민호',
-                                roles: ['솔루션파트/Sr.Manager', 'IOTA CFT'],
-                                email: '***@igisam.com',
-                                phone: '010-****-****',
-                            },
-                            {
                                 name: '이가현',
                                 photo: '이가현',
                                 roles: ['공간솔루션센터/리더', 'IOTA CFT'],
@@ -353,6 +331,33 @@ const stakeholderGroups = [
                                 name: '정수명',
                                 photo: '정수명',
                                 roles: ['공간솔루션센터', 'IOTA CFT'],
+                                email: '***@igisam.com',
+                                phone: '010-****-****',
+                            },
+                        ]
+                    },
+                    {
+                        groupTitle: '디지털 사업그룹 (자문)',
+                        members: [
+                            {
+                                name: '현철호',
+                                photo: '현철호',
+                                roles: ['디지털사업그룹/그룹장', '솔루션파트/그룹장', 'IOTA CFT'],
+                                responsibility: '상품·디지털 책임인력',
+                                email: '***@igisam.com',
+                                phone: '010-****-****',
+                            },
+                            {
+                                name: '홍창의',
+                                photo: '홍창의',
+                                roles: ['사업파트/파트장', 'People Architecture TF', 'IOTA CFT'],
+                                email: 'cu.hong@igisam.com',
+                                phone: '010-9189-2365',
+                            },
+                            {
+                                name: '신민호',
+                                photo: '신민호',
+                                roles: ['솔루션파트/Sr.Manager', 'IOTA CFT'],
                                 email: '***@igisam.com',
                                 phone: '010-****-****',
                             },
@@ -608,7 +613,7 @@ export default function StakeInternal() {
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">
                                 <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0 pt-[3px]">건설담당</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('채원 김보성 전승희')}</div></div>
                                 <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0 pt-[3px]">설계담당</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('김대익 장성진')}</div></div>
-                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0 pt-[3px]">인허가</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('이정훈')}</div></div>
+                                <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0 pt-[3px]">인허가</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('이정훈 김형주')}</div></div>
                                 <div className="flex gap-4"><span className="w-[60px] text-[#86868B] shrink-0 pt-[3px]">전문위원</span><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('박봉서')}</div></div>
                             </td>
                             <td className="px-[14px] py-[16px] text-[13px] text-[#bbb9af] border-r border-[#333] leading-[22px]">설계·시공·CM·감리 통제<br/>인허가/명도 대응<br/>공정·품질·안전 KPI</td>
@@ -644,7 +649,12 @@ export default function StakeInternal() {
                             <td className="px-[14px] py-[16px] ">
                                 {renderLeader('현철호', '디지털사업그룹장')}
                             </td>
-                            <td className="px-[14px] py-[16px] text-[13px] border-r border-[#333] leading-[22px]"><div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('신민호')}</div></td>
+                            <td className="px-[14px] py-[16px] text-[13px] border-r border-[#333] leading-[22px]">
+                                <div className="flex items-center gap-[16px]">
+                                    {renderLeader('홍창의', '사업파트장')}
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1">{renderMembers('신민호')}</div>
+                                </div>
+                            </td>
                         </tr>
 
                         {/* 펀드운용 */}
