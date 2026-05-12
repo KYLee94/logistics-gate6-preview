@@ -3,11 +3,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../utils/supabaseClient';
 import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import Fund421DetailCard from './shared/Fund421DetailCard';
+import IotaOne427DetailCard from './shared/IotaOne427DetailCard';
 
 
 export default function VehicleIntegrated() {
     const [phase816, setPhase816] = useState('refi'); // 'bridge' | 'refi'
-    const [phase427, setPhase427] = useState('refi'); // 'bridge' | 'refi'
+    const [phase427, setPhase427] = useState('phase4');
     const [phase421, setPhase421] = useState('new'); // 'current' | 'new'
     const [selectedInst, setSelectedInst] = useState(null);
     const [iotaData, setIotaData] = useState(null);
@@ -701,10 +702,34 @@ export default function VehicleIntegrated() {
         return sum;
     };
 
-    const displayTotal427 = getTotal(427, phase427 === 'bridge' ? 'Bridge' : 'Refinancing');
+    const get427MockPhaseTotal = (phase, typeStr) => {
+        if (phase === 'phase1') {
+            if (typeStr === 'Equity') return 2800;
+            if (typeStr === 'Loan') return 28400;
+            return 31200;
+        }
+        if (phase === 'phase2') {
+            if (typeStr === 'Equity') return 2800;
+            if (typeStr === 'Loan') return 16200;
+            return 19000;
+        }
+        return 0;
+    };
+
+    const displayTotal427 = phase427 === 'phase1' || phase427 === 'phase2' 
+        ? get427MockPhaseTotal(phase427, 'Total') 
+        : getTotal(427, phase427 === 'phase3' ? 'Bridge' : 'Refinancing');
     const displayTotal816 = getTotal(816, phase816 === 'bridge' ? 'Bridge' : 'Refinancing');
     const activePhase421 = phase421 === 'current' ? '2024.10.ver' : 'new';
     const total421 = getTotal(421, activePhase421);
+
+    const equity427 = phase427 === 'phase1' || phase427 === 'phase2'
+        ? get427MockPhaseTotal(phase427, 'Equity')
+        : getTypeTotal(427, phase427 === 'phase3' ? 'Bridge' : 'Refinancing', 'Equity');
+        
+    const loan427 = phase427 === 'phase1' || phase427 === 'phase2'
+        ? get427MockPhaseTotal(phase427, 'Loan')
+        : getTypeTotal(427, phase427 === 'phase3' ? 'Bridge' : 'Refinancing', 'Loan');
     
     // Grand total uses latest refinancing (or fixed values) for stability, or dynamic if preferred. Let's make it dynamic based on current toggles.
     const grandTotal = displayTotal427 + total421 + displayTotal816;
@@ -747,11 +772,11 @@ export default function VehicleIntegrated() {
                                 <div className="flex flex-col gap-[6px]">
                                     <div className="flex justify-between items-center text-[13px]">
                                         <span className="text-[#86868B]">Equity</span>
-                                        <span className="text-[#E5E5E5] font-semibold">{formatAmount(getTypeTotal(427, phase427 === 'bridge' ? 'Bridge' : 'Refinancing', 'Equity'))}</span>
+                                        <span className="text-[#E5E5E5] font-semibold">{formatAmount(equity427)}</span>
                                     </div>
                                     <div className="flex justify-between items-center text-[13px]">
                                         <span className="text-[#86868B]">Loan</span>
-                                        <span className="text-[#E5E5E5] font-semibold">{formatAmount(getTypeTotal(427, phase427 === 'bridge' ? 'Bridge' : 'Refinancing', 'Loan'))}</span>
+                                        <span className="text-[#E5E5E5] font-semibold">{formatAmount(loan427)}</span>
                                     </div>
                                     <div className="border-t border-[#333] pt-[10px] mt-[6px] flex justify-between items-end">
                                         <span className="text-[13px] text-[#86868B] font-medium leading-none mb-[2px]">Total</span>
@@ -803,13 +828,14 @@ export default function VehicleIntegrated() {
             <div className="w-full h-[20px]"></div>
 
             {/* 2. IOTA One (427) */}
-            <VehicleDetailCard 
+            <IotaOne427DetailCard 
                 id="section-427" 
                 vehicleId="427"
                 title="IOTA One (427 PFV)" 
-                totalAmountStr={formatAmount(displayTotal427)} 
-                data={iotaData[427][phase427 === 'bridge' ? 'Bridge' : 'Refinancing']} 
-                toggleContent={toggle427}
+                dbData={iotaData[427] || {}}
+                navigateTo={navigateTo}
+                externalPhase={phase427}
+                setExternalPhase={setPhase427}
             />
 
             <div className="w-full h-[38px]"></div>
