@@ -78,7 +78,7 @@ const Fund421DetailCard = ({ id, vehicleId, title, totalAmountStr, data, toggleC
             </div>
 
             {/* Visual Tranche Bar */}
-            <div className="w-full mb-[20px]">
+            <div className="w-full mb-[16px]">
                 {(() => {
                     const allItems = Object.values(data).flat();
                     const barGroups = {};

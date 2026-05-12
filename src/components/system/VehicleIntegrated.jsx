@@ -437,7 +437,7 @@ export default function VehicleIntegrated() {
                 )}
 
                 {/* Visual Tranche Bar */}
-                <div className="w-full">
+                <div className="w-full mt-[8px] mb-[8px]">
                     {(() => {
                         const allItems = Object.values(data).flat();
                         const barGroups = {};
@@ -806,7 +806,7 @@ export default function VehicleIntegrated() {
             <VehicleDetailCard 
                 id="section-427" 
                 vehicleId="427"
-                title="1. IOTA One (427 PFV)" 
+                title="IOTA One (427 PFV)" 
                 totalAmountStr={formatAmount(displayTotal427)} 
                 data={iotaData[427][phase427 === 'bridge' ? 'Bridge' : 'Refinancing']} 
                 toggleContent={toggle427}
@@ -818,7 +818,7 @@ export default function VehicleIntegrated() {
             <VehicleDetailCard 
                 id="section-816" 
                 vehicleId="816"
-                title="2. IOTA Two (816 PFV)" 
+                title="IOTA Two (816 PFV)" 
                 totalAmountStr={formatAmount(displayTotal816)} 
                 data={iotaData[816][phase816 === 'bridge' ? 'Bridge' : 'Refinancing']} 
                 toggleContent={toggle816}
@@ -830,7 +830,7 @@ export default function VehicleIntegrated() {
             <Fund421DetailCard 
                 id="section-421" 
                 vehicleId="421"
-                title="3. 421호 펀드" 
+                title="421호 펀드" 
                 totalAmountStr={formatAmount(total421)} 
                 data={iotaData[421]?.[activePhase421] || {}} 
                 toggleContent={toggle421}
@@ -841,7 +841,7 @@ export default function VehicleIntegrated() {
             {/* 5. IPR */}
             <div id="section-ipr" className="mb-[28px]">
                 <div className="flex justify-between items-end mb-[12px]">
-                    <h2 className="text-[24px] font-bold text-white tracking-tight">4. IPR (Iota Project REITs)</h2>
+                    <h2 className="text-[24px] font-bold text-white tracking-tight">IPR (Iota Project REITs)</h2>
                     <button 
                         onClick={() => navigateTo('platform/iotaseoul/workspace/ipr')}
                         className="px-[12px] py-[6px] rounded-[10px] border border-[#333] bg-transparent text-[12px] text-[#2997ff] hover:bg-[#2997ff]/10 transition-colors font-medium cursor-pointer tracking-tight"
