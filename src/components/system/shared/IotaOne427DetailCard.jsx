@@ -137,7 +137,7 @@ const IotaOne427DetailCard = ({ id, vehicleId, title, dbData, navigateTo, extern
         phase3: {
             title: '2차 리파',
             subtitle: '2025.01',
-            cost: '재정비 중',
+            cost: '취합중',
             costPyeong: '-',
             revenue: '5조 1,177억',
             revenuePyeong: '4,990 만원/평',
@@ -176,15 +176,15 @@ const IotaOne427DetailCard = ({ id, vehicleId, title, dbData, navigateTo, extern
     const richData = [
         { category: '분석 대상 문서', phase1: '0. Hilton_IM_v2.06_PFV', phase2: '1. TM_밀레니엄힐튼 담보대출 Refi', phase3: '2. 만기연장 IM / 2.5. 추가투자 펀드', phase4: '3-1. 1차 PF대출 / 3-2. 현대건설 PF' },
         { category: '연면적', phase1: '85,159평', phase2: '104,111평', phase3: '104,741평', phase4: '102,124평' },
-        { category: '총사업비 (지출)', phase1: '2조 9,044억원', phase2: '3조 9,231억원 (+35.1%)', phase3: '- (재정비 중)', phase4: '4조 9,751억원 (+71.3%)' },
+        { category: '총사업비 (지출)', phase1: '2조 9,044억원', phase2: '3조 9,231억원 (+35.1%)', phase3: '- (취합중)', phase4: '4조 9,751억원 (+71.3%)' },
         { category: '총매출 (수입)', phase1: '3조 2,907억원', phase2: '4조 4,944억원 (+36.6%)', phase3: '5조 1,177억원 (+55.5%)', phase4: '5조 3,288억원 (+61.9%)' },
         { category: '예상 사업이익', phase1: '2,962억원 (이익률 9.0%)', phase2: '5,712억원 (이익률 12.7%)', phase3: '4,540억원 (이익률 9.0%)', phase4: '3,536억원 (이익률 6.6%)' },
         { category: '토지 매입가', phase1: '1조 1,000억원 (평당 1.78억)', phase2: '1조 1,000억원 (동일)', phase3: '1조 1,000억원 (동일)', phase4: '1조 1,000억원 (동일)' },
         { category: '자산매입 비용 (명도/보상 포함)', phase1: '1조 4,519억원', phase2: '1조 3,078억원 (명도비 절감)', phase3: '1조 3,869억원 (일부 재상승)', phase4: '1조 3,005억원 (최종 확정)' },
         { category: '평당 도급공사비', phase1: '820만원 / 평', phase2: '900만원 / 평 (+15.4%)', phase3: '1,139만원 / 평 (+46.0%)', phase4: '1,130만원 / 평 (+44.9%)' },
         { category: '직접 공사비 총액', phase1: '6,983억원', phase2: '9,370억원 (+34.2%)', phase3: '1조 1,930억원 (+70.8%)', phase4: '1조 1,540억원 (+65.3%)' },
-        { category: '금융 비용 총액', phase1: '6,172억원', phase2: '1조 2,196억원 (+97.6%)', phase3: '-', phase4: '1조 9,529억원 (+216.4%)' },
-        { category: '대출 구조 (총액)', phase1: '브릿지론 1.44조원', phase2: '리파이낸싱 1.62조원 (계획)', phase3: '브릿지 단기연장 1.44조원', phase4: '1차 PF 2.20조원 (실행)' },
+        { category: '금융 비용 총액', phase1: '6,172억원', phase2: '1조 2,196억원 (+97.6%)', phase3: '- (취합중)', phase4: '1조 9,529억원 (+216.4%)' },
+        { category: '대출 구조 (총액)', phase1: '브릿지론 1.44조원', phase2: '리파이낸싱 1.44조원 (계획)', phase3: '브릿지 단기연장 1.44조원', phase4: '1차 PF 2.20조원 (실행)' },
         { category: '토지 감정가 (LTV)', phase1: '1조 4,069억원 (LTV 102.4%)', phase2: '2조 90억원 (LTV 80.6%)', phase3: '2조 6,535억원 (LTV 54.3%)', phase4: '2조 6,535억원 (LTV 82.91%)' },
         { category: '본공사 착공 시점', phase1: '2024년 05월 (예정)', phase2: '2025년 05월 (12개월 지연)', phase3: '2026년 07월 (26개월 지연)', phase4: '2027년 05월 (36개월 지연)' },
         { category: '사업 준공 시점', phase1: '2027년 09월 (68개월 소요)', phase2: '2029년 10월 (+25개월 지연)', phase3: '2031년 02월 (+41개월 지연)', phase4: '2032년 03월 (+54개월 지연)' }
