@@ -1,0 +1,175 @@
+{
+  "urlHome": "http://127.0.0.1:8083/platform/iotaseoul/workspace/logistics/dashboard/home",
+  "urlAsset": "http://127.0.0.1:8083/platform/iotaseoul/workspace/logistics/dashboard/asset",
+  "mapMode": "naver",
+  "checks": {
+    "homeHasDynamicMapStatus": true,
+    "homeMapRendered": true,
+    "assetActive": true,
+    "assetSelector": true,
+    "assetKpis": true,
+    "assetSections": true,
+    "noAdminData": true
+  },
+  "popupChecks": {
+    "assetMap": true,
+    "enoc": true,
+    "roster": true,
+    "rent": true,
+    "expiry": true
+  },
+  "debug": {
+    "mapDebug": {
+      "hasNaver": true,
+      "hasLeaflet": false,
+      "scripts": [
+        "https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=xmxdr3l9ij"
+      ],
+      "canvas": {
+        "rect": {
+          "width": 577.5625,
+          "height": 418,
+          "top": 373,
+          "left": 329
+        },
+        "childCount": 160,
+        "imageCount": 58,
+        "images": [
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/109/50.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/109/49.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/109/51.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/109/48.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/110/48.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/108/51.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/110/49.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/108/50.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/110/50.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/108/49.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/110/51.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          },
+          {
+            "src": "http://nrbe.map.naver.net/styles/basic/1778232861/7/108/48.png?mt=bg.ol.sw.ar.lko",
+            "width": 256,
+            "height": 256,
+            "naturalWidth": 256,
+            "naturalHeight": 256,
+            "display": "block",
+            "opacity": "1"
+          }
+        ]
+      },
+      "statusText": "큰 화면의 PC 모니터에서 확인해주세요.IOTA Seoul홈전체 업무 현황Vehicle 통합Iota Project REITs워크스페이스사업 PM파이낸싱-LFC개발솔루션-DSC기업마케팅-EMC상품·디지털-SSC펀드운용-KAMIPR-WG물류센터 섹터이해관계자IGIS 내부인력LP / 대주 / SI잠재 임차사 (TBD)운영 파트너 (TBD)IOTA CFT 거번넌스통합 수행체계의사결정 및 평가 체계90 Day RoadmapRACI회의체 운영 방침펀드 운용 R&R프로젝트리츠 워킹그룹대외 소통 정책Top 10 리스크 대응 방향QAQA Reader 매니저reader.qa@igis.localINTERNAL MODULE임대차 Dashboard원본 기준WeeklyHomeAssetCompanySectorAnalysis ToolsData PlaygroundData Quality운영 자산 수17총 임대면적1,340,655㎡총 공실면적280,417㎡공실률17.2%월 임관리비 총액111억LOCATION포트폴리오 위치지도 크게 보기좌표 표50km© NAVER Corp.더보기 /OpenStreetMap지도 데이터x© NAVER Corp. /OpenStreetMap네이버 동적 지도 · 17개 자산지도 제공: Naver Maps 우선, 인증 실패 시 OpenStreetMap 동적 지도 대체.01경산 쿠팡물류센터경상북도 경산시 진량읍 공단12로 213-1802동산물류센터경기도 이천시 호법면 덕평로 257-2103두동 LG전자 통합물류센터경상남도 창원시 진해구 두동로 3204부국물류센터경기도 이천시 대월면 대월로 627-6105부산송정물류센터부산광역시 강서구 녹산산단232로 38-1706스카이박스1, 스카이박스2인천광역시 서구 갑문1로 20, 인천광역시 서구 갑문3로 3407아레나스안성경기도 안성시 양성면 양성로 30108아레나스양지물류센터경기도 용인시 처인구 양지면 남평로 111-7309안성 성은지구 물류센터경기도 안성시 원곡면 지문로 459-1410안성 홈플러스 중부허브 물류센터경기도 안성시 원곡면 원곡물류단지1로 10311양산 유산동 물류센터경상남도 양산시 유산공단4길 28-17012에이블로지스물류센터경기도 용인시 처인구 백암면 죽양대로 956-813여주 본두리 물류센터경기도 여주시 가남읍 여주남로 53614이천 마장면 물류센터경기도 이천시 마장면 억만리로 140-1815인천석남물류센터인천광역시 서구 봉수대로 37016평택아디다스물류센터경기도 평택시 도일유통길 6417화성 석포리 물류센터경기도 화성시 장안면 북부마을길 42SNAPSHOT포트폴리오 스냅샷운영 자산 수17개현재 공실률17.2%표시 임차인 수30개좌표 보유 자산17개TREND임대료 추이원본 표 보기2024-07금액 추이 / 자산·임차인 수2026-06VACANCY공실 요약자산명연면적공실면적공실률아레나스안성124,499㎡93,110㎡74.8%양산 유산동 물류센터52,740㎡19,287㎡36.6%스카이박스1, 스카이박스285,651㎡26,304㎡30.7%안성 성은지구 물류센터116,112㎡34,989㎡30.1%경산 쿠팡물류센터98,674㎡22,439㎡22.7%아레나스양지물류센터349,722㎡77,504㎡22.2%여주 본두리 물류센터108,777㎡3,818㎡3.5%이천 마장면 물류센터33,702㎡1,027㎡3.0%부산송정물류센터24,388㎡659㎡2.7%안성 홈플러스 중부허브 물류센터33,377㎡553㎡1.7%EXPIRY만기 집중도월별 상세 보기2027-11면적 추이 / 자산·임차인 수2029-04TENANTS상위 임차인임관리비 합계임대면적임차인명임대면적(㎡)월 임대료월 관리비월 임관리비쿠팡(주)436,904㎡45억1억46억삼성전자로지텍(주)107,010㎡12억9,916만13억아디다스코리아유한책임회사77,115㎡7억2,169만7억LG전자(주), ㈜엘엑스판토스54,566㎡6억3,301만6억홈플러스(주)32,824㎡6억06억한국머스크물류서비스(주)50,205㎡5억3,873만5억(주)버킷플레이스38,300㎡3억3,545만4억씨제이대한통운(주)256,029㎡3억2,569만4억아워박스(주)29,980㎡2억1,790만2억(주)에이스코리아로지스10,910㎡2억990만2억CONTRACTS주요 임차인 계약 요약임차인명자산 수자산 목록임대면적(㎡)월 임관리비최근 만기일쿠팡(주)4스카이박스1, 스카이박스2, 경산 쿠팡물류센터, 인천석남물류센터, 동산물류센터436,904㎡46억2028-01-11삼성전자로지텍(주)1화성 석포리 물류센터107,010㎡13억-아디다스코리아유한책임회사2평택아디다스물류센터, 안성 성은지구 물류센터77,115㎡7억2027-08-31LG전자(주), ㈜엘엑스판토스1두동 LG전자 통합물류센터54,566㎡6억2026-12-15홈플러스(주)1안성 홈플러스 중부허브 물류센터32,824㎡6억2032-12-20한국머스크물류서비스(주)1여주 본두리 물류센터50,205㎡5억2029-05-31(주)버킷플레이스1여주 본두리 물류센터38,300㎡4억2030-02-28씨제이대한통운(주)1아레나스양지물류센터256,029㎡4억2028-01-08아워박스(주)1에이블로지스물류센터29,980㎡2억2027-12-31(주)에이스코리아로지스1안성 성은지구 물류센터10,910㎡2억2027-05-16"
+    },
+    "failedRequests": [
+      {
+        "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-QNHPD2C1K4&gtm=45je6581v9248855510za200zd9248855510&_p=1778640692856&gcd=13l3l3l3l1l1&npa=0&dma=0&are=1&cid=79405261.1778640693&frm=0&pscdl=noapi&rcb=7&sr=1440x1200&uaa=x86&uab=64&uafvl=HeadlessChrome%3B147.0.7727.15%7CNot.A%252FBrand%3B8.0.0.0%7CChromium%3B147.0.7727.15&uam=&uamb=0&uap=Windows&uapv=19.0.0&uaw=0&ul=ko&_s=1&tag_exp=0~115938466~115938469~118463262~118719172&sid=1778640693&sct=1&seg=0&dl=http%3A%2F%2F127.0.0.1%2Fplatform%2Fiotaseoul%2Fworkspace%2Flogistics%2Fdashboard%2Fhome&dt=IGIS%20Fund%20Production%20DP&en=page_view&_fv=1&_nsi=1&_ss=1&_ee=1&tfd=871",
+        "failure": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-QNHPD2C1K4&gtm=45je6581v9248855510za200zd9248855510&_p=1778640692856&gcd=13l3l3l3l1l1&npa=0&dma=0&_eu=AEAAAAQ&ae=a&are=1&cid=79405261.1778640693&frm=0&pscdl=noapi&rcb=7&sr=1440x1200&uaa=x86&uab=64&uafvl=HeadlessChrome%3B147.0.7727.15%7CNot.A%252FBrand%3B8.0.0.0%7CChromium%3B147.0.7727.15&uam=&uamb=0&uap=Windows&uapv=19.0.0&uaw=0&ul=ko&_s=2&tag_exp=0~115938466~115938469~118463262~118719172&sid=1778640693&sct=1&seg=0&dl=http%3A%2F%2F127.0.0.1%2Fplatform%2Fiotaseoul%2Fworkspace%2Flogistics%2Fdashboard%2Fhome&dt=IGIS%20Fund%20Production%20DP&en=scroll&epn.percent_scrolled=90&_et=33&tfd=5915",
+        "failure": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-QNHPD2C1K4&gtm=45je6581v9248855510za200zd9248855510&_p=1778640692856&gcd=13l3l3l3l1l1&npa=0&dma=0&_eu=AAAAAAQ&are=1&cid=79405261.1778640693&frm=0&pscdl=noapi&rcb=7&sr=1440x1200&uaa=x86&uab=64&uafvl=HeadlessChrome%3B147.0.7727.15%7CNot.A%252FBrand%3B8.0.0.0%7CChromium%3B147.0.7727.15&uam=&uamb=0&uap=Windows&uapv=19.0.0&uaw=0&ul=ko&_s=3&tag_exp=0~115938466~115938469~118463262~118719172&sid=1778640693&sct=1&seg=1&dl=http%3A%2F%2F127.0.0.1%2Fplatform%2Fiotaseoul%2Fworkspace%2Flogistics%2Fdashboard%2Fhome&dt=IGIS%20Fund%20Production%20DP&en=user_engagement&_et=10017&tfd=10930",
+        "failure": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-QNHPD2C1K4&gtm=45je6581v9248855510za200zd9248855510&_p=1778640703517&gcd=13l3l3l3l1l1&npa=0&dma=0&_eu=AAAAAAQ&are=1&cid=79405261.1778640693&frm=0&pscdl=noapi&rcb=2&sr=1440x1200&uaa=x86&uab=64&uafvl=HeadlessChrome%3B147.0.7727.15%7CNot.A%252FBrand%3B8.0.0.0%7CChromium%3B147.0.7727.15&uam=&uamb=0&uap=Windows&uapv=19.0.0&uaw=0&ul=ko&_s=1&tag_exp=0~115938466~115938469~118463261~118719171&sid=1778640693&sct=1&seg=1&dl=http%3A%2F%2F127.0.0.1%2Fplatform%2Fiotaseoul%2Fworkspace%2Flogistics%2Fdashboard%2Fasset&dt=IGIS%20Fund%20Production%20DP&en=page_view&_ee=1&tfd=83",
+        "failure": "net::ERR_ABORTED"
+      },
+      {
+        "url": "https://www.google-analytics.com/g/collect?v=2&tid=G-QNHPD2C1K4&gtm=45je6581v9248855510za200zd9248855510&_p=1778640703517&gcd=13l3l3l3l1l1&npa=0&dma=0&_eu=AEAAAAQ&ae=a&are=1&cid=79405261.1778640693&frm=0&pscdl=noapi&rcb=2&sr=1440x1200&uaa=x86&uab=64&uafvl=HeadlessChrome%3B147.0.7727.15%7CNot.A%252FBrand%3B8.0.0.0%7CChromium%3B147.0.7727.15&uam=&uamb=0&uap=Windows&uapv=19.0.0&uaw=0&ul=ko&_s=2&tag_exp=0~115938466~115938469~118463261~118719171&sid=1778640693&sct=1&seg=1&dl=http%3A%2F%2F127.0.0.1%2Fplatform%2Fiotaseoul%2Fworkspace%2Flogistics%2Fdashboard%2Fasset&dt=IGIS%20Fund%20Production%20DP&en=scroll&epn.percent_scrolled=90&_et=7&tfd=5097",
+        "failure": "net::ERR_ABORTED"
+      }
+    ],
+    "pageErrors": [],
+    "consoleMessages": []
+  }
+}

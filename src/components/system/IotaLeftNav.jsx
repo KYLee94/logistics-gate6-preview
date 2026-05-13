@@ -427,9 +427,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     alt={`${memberInfo.staff_name} 프로필`} 
                                     className="w-full h-full object-cover"
                                     onError={(e) => { 
-                                        e.target.style.display = 'none'; 
-                                        e.target.parentNode.innerHTML = memberInfo.staff_name.substring(0,2); 
-                                        e.target.parentNode.className = 'w-10 h-10 rounded-full bg-[#c3c2b7] text-[#1F1F1E] flex items-center justify-center text-[15px] font-bold tracking-tighter -ml-[2px]'; 
+                                        const target = e.currentTarget;
+                                        const avatar = target.parentElement;
+                                        target.style.display = 'none';
+                                        if (!avatar) return;
+                                        avatar.textContent = memberInfo.staff_name.substring(0, 2);
+                                        avatar.className = 'w-10 h-10 rounded-full bg-[#c3c2b7] text-[#1F1F1E] flex items-center justify-center text-[15px] font-bold tracking-tighter -ml-[2px]';
                                     }}
                                 />
                             ) : (

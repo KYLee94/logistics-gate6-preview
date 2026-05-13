@@ -1,0 +1,47 @@
+{
+  "result": {
+    "hasNaver": true,
+    "created": true,
+    "error": null,
+    "mapMethods": [
+      "_unsetMapTypeSetting",
+      "setMapTypeId",
+      "removePane",
+      "removeOverlayPane",
+      "_initEventGL",
+      "fromEventToPointerEvent",
+      "destroy",
+      "_getPointerEvent",
+      "_getDefaultEventParameters"
+    ]
+  },
+  "messages": [
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=xmxdr3l9ij, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "warning",
+      "text": "A parser-blocking, cross site (i.e. different eTLD+1) script, https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=xmxdr3l9ij, is invoked via document.write. The network request for this script MAY be blocked by the browser in this or a future page load due to poor network connectivity. If blocked in this page load, it will be confirmed in a subsequent console message. See https://www.chromestatus.com/feature/5718547946799104 for more details."
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "type": "info",
+      "text": "%c NAVER Maps JavaScript API v3 %c\n\n잠시 후에 다시 요청해 주세요.,  * Error Code / Error Message: 500 / Internal Server Error (내부 서버 오류),  * Client ID: xmxdr3l9ij,  * URI: about:blank background:#f00;color:#fff;display:block; font-family:helvetica,dotum;font-size:14px;background: #fff; color: #334231; display: inline;"
+    },
+    {
+      "type": "log",
+      "text": "%c NAVER Maps JavaScript API v3 \n\n%c안드로이드 9 이상에서는 HTTP 평문 통신이 기본적으로 사용되지 않습니다.\n%c앱에서 네트워크 보안 구성 (https://developer.android.com/training/articles/security-config) 을 통해 *.map.naver.com, *.map.naver.net 에 대한 평문 통신을 허용해 주세요.\n font-family:helvetica,dotum;font-size:16px;background: #2db400; color: white; display: block; font-family:helvetica,dotum; font-size:14px;color:green; font-family:helvetica,dotum; font-size:14px;"
+    }
+  ],
+  "errors": [],
+  "failedRequests": [
+    {
+      "url": "http://oapi.map.naver.com/v3/auth?ncpKeyId=xmxdr3l9ij&url=about%3Ablank&time=1778639370020&callback=__naver_maps_callback__0",
+      "failure": "net::ERR_ABORTED"
+    }
+  ]
+}

@@ -1,8 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
 import weeklyReportData from './logisticsWeeklyReportData.json';
 import homeData from './logisticsHomeData.json';
+import assetOptionsData from './logisticsAssetOptionsData.json';
+
+const assetPayloadModules = import.meta.glob('./logisticsAssetData/*.json', { eager: true });
+const ASSET_PAYLOADS = Object.fromEntries(Object.values(assetPayloadModules)
+  .map((module) => module.default)
+  .filter(Boolean)
+  .map((payload) => [payload.overview?.assetId || payload.meta?.selection?.assetId, payload]));
 
 const MODULES = [
   { id: 'weekly', label: 'Weekly', source: '주간 업무' },
@@ -36,6 +43,8 @@ const DATA_STATUS = [
   { label: 'API 미인증 차단', value: '차단 확인', detail: '미인증 요청 차단' },
   { label: '외부 API 연결', value: '준비', detail: '서버 연결 후 노출' },
 ];
+
+const NAVER_MAPS_CLIENT_ID = import.meta.env.VITE_NAVER_MAPS_CLIENT_ID || 'xmxdr3l9ij';
 
 const STATUS_STYLES = {
   진행: 'bg-[#173522] text-[#B5E48C] border-[#2E6B45]',
@@ -120,6 +129,12 @@ function formatArea(value) {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric)) return '-';
   return `${formatNumber(Math.round(numeric))}㎡`;
+}
+
+function formatPy(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return '-';
+  return `${formatNumber(Math.round(numeric / 3.305785))}평`;
 }
 
 function formatCurrency(value) {
@@ -478,7 +493,60 @@ function TrendChart({ rows, valueKey, secondaryKey, valueType = 'currency' }) {
   );
 }
 
-function PortfolioMapPlot({ points }) {
+function loadLeafletSdk() {
+  if (typeof window === 'undefined') return Promise.reject(new Error('browser unavailable'));
+  if (window.L?.map) return Promise.resolve(window.L);
+  if (window.__logisticsLeafletPromise) return window.__logisticsLeafletPromise;
+  window.__logisticsLeafletPromise = new Promise((resolve, reject) => {
+    if (!document.getElementById('logistics-leaflet-css')) {
+      const link = document.createElement('link');
+      link.id = 'logistics-leaflet-css';
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
+    script.onload = () => (window.L?.map ? resolve(window.L) : reject(new Error('Leaflet SDK unavailable')));
+    script.onerror = () => reject(new Error('Leaflet SDK load failed'));
+    document.head.appendChild(script);
+  }).catch((error) => {
+    window.__logisticsLeafletPromise = null;
+    throw error;
+  });
+  return window.__logisticsLeafletPromise;
+}
+
+function loadNaverMapsSdk() {
+  if (typeof window === 'undefined') return Promise.reject(new Error('browser unavailable'));
+  if (!NAVER_MAPS_CLIENT_ID) return Promise.reject(new Error('NAVER_MAPS_CLIENT_ID missing'));
+  if (window.naver?.maps?.Map) return Promise.resolve(window.naver);
+  if (window.__logisticsNaverMapPromise) return window.__logisticsNaverMapPromise;
+  window.__logisticsNaverMapPromise = new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => reject(new Error('Naver Maps SDK timeout')), 5000);
+    const resolveWhenReady = () => {
+      window.clearTimeout(timeoutId);
+      if (window.naver?.maps?.Map) resolve(window.naver);
+      else reject(new Error('Naver Maps SDK unavailable'));
+    };
+    const script = document.createElement('script');
+    script.async = true;
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(NAVER_MAPS_CLIENT_ID)}`;
+    script.onload = resolveWhenReady;
+    script.onerror = () => {
+      window.clearTimeout(timeoutId);
+      reject(new Error('Naver Maps SDK load failed'));
+    };
+    document.head.appendChild(script);
+  }).catch((error) => {
+    window.__logisticsNaverMapPromise = null;
+    throw error;
+  });
+  return window.__logisticsNaverMapPromise;
+}
+
+function PortfolioMapSchematic({ points }) {
   const validPoints = (points || []).filter((point) => point.latitude != null && point.longitude != null);
   if (!validPoints.length) return <div className="text-[13px] text-[#86868B]">좌표가 등록된 자산이 없습니다.</div>;
   const minLat = Math.min(...validPoints.map((point) => Number(point.latitude)));
@@ -503,6 +571,126 @@ function PortfolioMapPlot({ points }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function PortfolioMapPlot({ points }) {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const validPoints = useMemo(() => (points || []).filter((point) => point.latitude != null && point.longitude != null), [points]);
+  const [mode, setMode] = useState('loading');
+  const [status, setStatus] = useState('동적 지도를 준비하고 있습니다.');
+
+  useEffect(() => {
+    let disposed = false;
+    if (!validPoints.length) {
+      return undefined;
+    }
+
+    const mountLeaflet = () => loadLeafletSdk()
+      .then((L) => {
+        if (disposed || !containerRef.current) return;
+        setMode('leaflet');
+        setStatus(`동적 지도 · ${validPoints.length}개 자산`);
+        if (mapRef.current) {
+          if (typeof mapRef.current.destroy === 'function') mapRef.current.destroy();
+          if (typeof mapRef.current.remove === 'function') mapRef.current.remove();
+          mapRef.current = null;
+        }
+        const latLngs = validPoints.map((point) => [Number(point.latitude), Number(point.longitude)]);
+        const map = L.map(containerRef.current, {
+          scrollWheelZoom: true,
+          zoomControl: true,
+          attributionControl: true,
+        });
+        mapRef.current = map;
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors',
+        }).addTo(map);
+        validPoints.forEach((point, index) => {
+          const marker = L.marker([Number(point.latitude), Number(point.longitude)], { title: point.assetName || `자산 ${index + 1}` }).addTo(map);
+          marker.bindPopup(`<strong>${point.assetName || `자산 ${index + 1}`}</strong><br>${point.address || ''}`);
+        });
+        if (latLngs.length > 1) map.fitBounds(latLngs, { padding: [28, 28] });
+        else map.setView(latLngs[0], 13);
+        [80, 300, 800].forEach((delay) => window.setTimeout(() => {
+          if (!disposed && mapRef.current) mapRef.current.invalidateSize();
+        }, delay));
+      })
+      .catch(() => {
+        if (disposed) return;
+        setMode('schematic');
+        setStatus(`스케매틱 지도 대체 · ${validPoints.length}개 자산`);
+      });
+
+    loadNaverMapsSdk()
+      .then((naver) => {
+        if (disposed || !containerRef.current) return;
+        setMode('naver');
+        setStatus(`네이버 동적 지도 · ${validPoints.length}개 자산`);
+        const latLngs = validPoints.map((point) => new naver.maps.LatLng(Number(point.latitude), Number(point.longitude)));
+        const map = new naver.maps.Map(containerRef.current, {
+          center: latLngs[0],
+          zoom: validPoints.length === 1 ? 13 : 8,
+        });
+        mapRef.current = map;
+        const bounds = new naver.maps.LatLngBounds();
+        validPoints.forEach((point, index) => {
+          const position = latLngs[index];
+          bounds.extend(position);
+          const marker = new naver.maps.Marker({
+            position,
+            map,
+            title: point.assetName || `자산 ${index + 1}`,
+          });
+          const infoWindow = new naver.maps.InfoWindow({
+            content: `<div style="padding:10px 12px;font-size:12px;line-height:1.4;"><strong>${point.assetName || `자산 ${index + 1}`}</strong><br>${point.address || ''}</div>`,
+          });
+          naver.maps.Event.addListener(marker, 'click', () => {
+            if (infoWindow.getMap()) infoWindow.close();
+            else infoWindow.open(map, marker);
+          });
+        });
+        if (validPoints.length > 1) map.fitBounds(bounds);
+        [80, 300, 800].forEach((delay) => window.setTimeout(() => {
+          if (!disposed && mapRef.current && naver.maps?.Event) {
+            naver.maps.Event.trigger(mapRef.current, 'resize');
+            mapRef.current.setCenter(validPoints.length > 1 ? bounds.getCenter() : latLngs[0]);
+          }
+        }, delay));
+      })
+      .catch(() => {
+        if (!disposed) mountLeaflet();
+      });
+
+    return () => {
+      disposed = true;
+      if (mapRef.current) {
+        if (typeof mapRef.current.destroy === 'function') mapRef.current.destroy();
+        if (typeof mapRef.current.remove === 'function') mapRef.current.remove();
+        mapRef.current = null;
+      }
+    };
+  }, [validPoints]);
+
+  if (!validPoints.length) {
+    return <div className="text-[13px] text-[#86868B]">좌표가 등록된 자산이 없습니다.</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="relative rounded-[14px] border border-[#333333] bg-[#1F1F1E] overflow-hidden" style={{ height: 420 }}>
+        <div ref={containerRef} className="logistics-map-canvas [&_img]:!max-w-none [&_*]:box-content" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-label="동적 지도" />
+        {mode !== 'leaflet' && mode !== 'naver' ? <PortfolioMapSchematic points={validPoints} /> : null}
+        <div className={`absolute left-3 top-3 rounded-full border px-3 py-1 text-[12px] font-semibold ${mode === 'leaflet' || mode === 'naver' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
+          {status}
+        </div>
+      </div>
+      <div className="text-[12px] text-[#86868B]">
+        지도 제공: Naver Maps 우선, 인증 실패 시 OpenStreetMap 동적 지도 대체.
+      </div>
     </div>
   );
 }
@@ -715,6 +903,343 @@ function HomeDashboard() {
   );
 }
 
+function SimpleBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick }) {
+  const chartRows = (rows || []).filter((row) => Number(row?.[valueKey] || 0) > 0).slice(0, 10);
+  const maxValue = Math.max(...chartRows.map((row) => Number(row[valueKey] || 0)), 1);
+  if (!chartRows.length) return <div className="text-[13px] text-[#86868B]">차트로 표시할 값이 없습니다.</div>;
+  return (
+    <div className="space-y-3">
+      {chartRows.map((row) => {
+        const value = Number(row[valueKey] || 0);
+        return (
+          <button key={`${row[labelKey]}-${valueKey}`} type="button" onClick={onClick} className="w-full text-left group">
+            <div className="flex items-center justify-between gap-3 text-[12px]">
+              <span className="text-[#C7C7CC] font-semibold truncate">{row[labelKey] || '-'}</span>
+              <span className="text-[#86868B]">{formatMetric(value, valueType)}</span>
+            </div>
+            <div className="mt-1 h-2 rounded-full bg-[#1F1F1E] overflow-hidden">
+              <div className="h-full rounded-full bg-[#9AD7FF] group-hover:bg-[#B5E48C]" style={{ width: `${Math.max(4, (value / maxValue) * 100)}%` }} />
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function StackingPlan({ floors, onTenantClick }) {
+  const rows = (floors || []).slice().sort((a, b) => Number(String(b.floorLabel).replace(/[^0-9.-]/g, '')) - Number(String(a.floorLabel).replace(/[^0-9.-]/g, '')));
+  if (!rows.length) return <div className="text-[13px] text-[#86868B]">층별 배치 정보가 없습니다.</div>;
+  return (
+    <div className="space-y-2">
+      {rows.map((floor) => (
+        <div key={floor.floorLabel} className="grid grid-cols-[52px_1fr] gap-3 items-stretch">
+          <div className="rounded-[8px] border border-[#333333] bg-[#1F1F1E] flex items-center justify-center text-[13px] text-white font-semibold">{floor.floorLabel}</div>
+          <div className="min-h-[38px] rounded-[8px] border border-[#333333] bg-[#191918] overflow-hidden flex">
+            {(floor.tenants || []).map((tenant, index) => (
+              <button
+                type="button"
+                key={`${tenant.tenantId}-${index}`}
+                onClick={() => onTenantClick?.(tenant)}
+                className="text-left border-r border-[#252524] last:border-r-0 bg-[#263A45] px-3 py-2 text-[12px] text-white overflow-hidden hover:bg-[#315268] focus:outline-none focus:ring-2 focus:ring-[#9AD7FF]"
+                style={{ width: `${Math.max(8, Number(tenant.share || 0.08) * 100)}%` }}
+                title={`${tenant.tenantMasterName || '-'} · ${formatArea(tenant.leasedAreaSqm)}`}
+              >
+                <div className="truncate font-semibold">{tenant.tenantMasterName || '-'}</div>
+                <div className="truncate text-[#B8DFFF]">{formatArea(tenant.leasedAreaSqm)}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function normalizeAssetPayload(payload) {
+  const rentLookup = Object.fromEntries((payload.analytics?.rentVsMf || []).map((row) => [row.leaseSpaceId, row]));
+  const expiryLookup = Object.fromEntries((payload.analytics?.contractExpiry || []).map((row) => [row.leaseSpaceId, row]));
+  const rows = (payload.rows || []).map((row) => {
+    const rent = rentLookup[row.leaseSpaceId] || {};
+    const expiry = expiryLookup[row.leaseSpaceId] || {};
+    const leasedAreaSqm = firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm, row.totalLeasedAreaSqm, row.areaSqm);
+    const monthlyRentTotal = firstDefined(row.currentMonthlyRentTotal, rent.monthlyRentTotal, row.monthlyRentTotal, row.currentRentTotal);
+    const monthlyMfTotal = firstDefined(row.currentMonthlyMfTotal, rent.monthlyMfTotal, row.monthlyMfTotal, row.currentMfTotal);
+    const monthlyCombinedTotal = firstDefined(row.currentMonthlyCostTotal, rent.monthlyTotal, row.monthlyCostTotal, Number(monthlyRentTotal || 0) + Number(monthlyMfTotal || 0));
+    return {
+      ...row,
+      tenantMasterName: firstDefined(row.tenantMasterName, row.tenantName, row.companyName, row.tenantLabel, '-'),
+      leasedAreaSqm,
+      monthlyRentTotal,
+      monthlyMfTotal,
+      monthlyCombinedTotal,
+      currentRentPerPy: firstDefined(row.currentRentPerPy, rent.rentPerPy),
+      currentMfPerPy: firstDefined(row.currentMfPerPy, rent.mfPerPy),
+      currentStartDate: firstDefined(row.currentStartDate, row.startDate, row.latestStartDate),
+      currentEndDate: firstDefined(row.currentEndDate, expiry.currentEndDate, row.endDate, row.latestExpiry),
+      spaceLabel: [row.floorLabel, row.detailAreaLabel].filter(Boolean).join(' / ') || '-',
+      eNoc: firstDefined(row.eNoc, row.averageENoc),
+    };
+  });
+  return {
+    ...payload,
+    normalizedRows: rows,
+    uniqueTenants: payload.analytics?.uniqueTenants || payload.topTenants || [],
+    monthlyCostByTenant: payload.analytics?.monthlyCostByTenant || payload.analytics?.coreTenants || [],
+    expiryRows: payload.analytics?.expirySnapshot?.entries || payload.analytics?.contractExpiry || [],
+  };
+}
+
+function AssetDashboard() {
+  const defaultAssetId = assetOptionsData[0]?.assetId || Object.keys(ASSET_PAYLOADS)[0];
+  const [selectedAssetId, setSelectedAssetId] = useState(defaultAssetId);
+  const [modal, setModal] = useState(null);
+  const rawPayload = ASSET_PAYLOADS[selectedAssetId] || ASSET_PAYLOADS[defaultAssetId] || Object.values(ASSET_PAYLOADS)[0];
+  const asset = useMemo(() => normalizeAssetPayload(rawPayload || {}), [rawPayload]);
+  const overview = asset.overview || {};
+  const breakdown = asset.areaBreakdown || {};
+  const rows = asset.normalizedRows || [];
+  const kpis = (asset.kpis || []).filter((item) => item.key !== 'unique_tenant_count').slice(0, 5);
+  const mapPoint = overview.latitude != null && overview.longitude != null ? [{
+    assetId: overview.assetId,
+    assetName: overview.assetName,
+    address: overview.standardizedAddress,
+    latitude: overview.latitude,
+    longitude: overview.longitude,
+  }] : [];
+  const openTableModal = (title, headers, tableRows) => setModal({ title, headers, rows: tableRows });
+  const openTenantDetail = (tenant, title = '임차인 상세') => {
+    if (!tenant) return;
+    const matchedRows = rows.filter((row) => (
+      (tenant.tenantId && row.tenantId === tenant.tenantId)
+      || row.tenantMasterName === tenant.tenantMasterName
+    ));
+    const source = matchedRows[0] || tenant;
+    setModal({
+      title,
+      content: (
+        <div className="space-y-4">
+          <DataTable
+            headers={['항목', '내용']}
+            rows={[
+              ['임차인명', source.tenantMasterName || '-'],
+              ['층/세부구역', source.spaceLabel || source.floorLabel || source.detailAreaLabel || '-'],
+              ['임대면적', formatArea(firstDefined(source.leasedAreaSqm, tenant.leasedAreaSqm))],
+              ['월 임대료', formatCurrency(firstDefined(source.monthlyRentTotal, tenant.monthlyRentTotal))],
+              ['월 관리비', formatCurrency(firstDefined(source.monthlyMfTotal, tenant.monthlyMfTotal))],
+              ['월 임관리비', formatCurrency(firstDefined(source.monthlyCombinedTotal, source.monthlyCostTotal, tenant.monthlyCombinedTotal, tenant.monthlyCostTotal))],
+              ['평당 임대료', formatCurrency(firstDefined(source.currentRentPerPy, tenant.rentPerPy))],
+              ['평당 관리비', formatCurrency(firstDefined(source.currentMfPerPy, tenant.mfPerPy))],
+              ['현재 계약개시일', formatDate(source.currentStartDate)],
+              ['현재 계약만기일', formatDate(firstDefined(source.currentEndDate, tenant.latestExpiry, tenant.earliestExpiry))],
+            ]}
+            compact
+          />
+          {matchedRows.length > 1 ? (
+            <DataTable
+              headers={rosterHeaders}
+              rows={matchedRows.map((row) => [
+                row.tenantMasterName,
+                row.spaceLabel,
+                formatArea(row.leasedAreaSqm),
+                formatPy(row.leasedAreaSqm),
+                formatCurrency(row.monthlyRentTotal),
+                formatCurrency(row.monthlyMfTotal),
+                formatCurrency(row.monthlyCombinedTotal),
+                formatCurrency(row.currentRentPerPy),
+                formatCurrency(row.currentMfPerPy),
+                formatDate(row.currentStartDate),
+                formatDate(row.currentEndDate),
+              ])}
+              compact
+            />
+          ) : null}
+        </div>
+      ),
+    });
+  };
+  const openENocAudit = () => {
+    const audit = asset.analytics?.eNocAudit || {};
+    const auditRows = audit.rows || [];
+    const computableRows = auditRows.filter((row) => row.calculationStatus === 'ok' || row.recomputedENoc != null);
+    const missingRows = auditRows.filter((row) => row.calculationStatus && row.calculationStatus !== 'ok');
+    const varianceRows = auditRows.filter((row) => Math.abs(Number(row.variance || 0)) > 1);
+    setModal({
+      title: 'E.NOC 검산 결과',
+      content: (
+        <div className="space-y-4">
+          <DataTable
+            headers={['항목', '내용']}
+            rows={[
+              ['현재 자산', overview.assetName || '-'],
+              ['평균 E.NOC', formatCurrency(firstDefined(overview.averageENoc, kpis.find((item) => item.key === 'average_e_noc')?.value))],
+              ['검산 가능 row', `${formatNumber(computableRows.length)}개`],
+              ['입력 누락 row', `${formatNumber(missingRows.length)}개`],
+              ['차이 발생 row', `${formatNumber(varianceRows.length)}개`],
+              ['수식 기준', asset.meta?.basis?.eNoc || 'rent_per_py + mf_per_py, adjusted by RF/FO/TI and exclusive ratio'],
+            ]}
+            compact
+          />
+          <DataTable
+            headers={['임차인명', '저장 E.NOC', '재계산 E.NOC', '차이', 'rent/평', 'mf/평']}
+            rows={auditRows.slice(0, 30).map((row) => [
+              row.tenantMasterName || '-',
+              formatCurrency(row.storedENoc),
+              formatCurrency(row.recomputedENoc),
+              formatNumber(row.variance),
+              formatCurrency(row.rentPerPy),
+              formatCurrency(row.mfPerPy),
+            ])}
+            compact
+          />
+        </div>
+      ),
+    });
+  };
+  const areaRows = [
+    ['전체 연면적', formatArea(firstDefined(breakdown.grossFloorAreaSqm, overview.grossFloorAreaSqm)), '100%'],
+    ['임대면적', formatArea(firstDefined(breakdown.leasedAreaSqm, overview.leasedAreaSqm)), formatPercent(Number(firstDefined(breakdown.leasedAreaSqm, overview.leasedAreaSqm) || 0) / Number(firstDefined(breakdown.grossFloorAreaSqm, overview.grossFloorAreaSqm) || 1))],
+    ['공실면적', formatArea(firstDefined(breakdown.vacancyAreaSqm, overview.vacancyAreaSqm)), formatPercent(firstDefined(breakdown.vacancyRate, overview.vacancyRate))],
+    ['전용면적', formatArea(breakdown.exclusiveAreaSqm), formatPercent(breakdown.exclusiveRatio)],
+    ['창고', formatArea(breakdown.warehouseAreaSqm), '-'],
+    ['하역장', formatArea(breakdown.dockAreaSqm), '-'],
+    ['사무실', formatArea(breakdown.officeAreaSqm), '-'],
+    ['기타 전용', formatArea(breakdown.otherExclusiveAreaSqm), '-'],
+    ['공용면적 subtotal', formatArea(Number(breakdown.coreAreaSqm || 0) + Number(breakdown.corridorAreaSqm || 0) + Number(breakdown.mechanicalAreaSqm || 0) + Number(breakdown.otherCommonAreaSqm || 0) + Number(breakdown.rampAreaSqm || 0) + Number(breakdown.parkingAreaSqm || 0)), '-'],
+    ['기계전기실', formatArea(breakdown.mechanicalAreaSqm), '-'],
+    ['층별 코어', formatArea(breakdown.coreAreaSqm), '-'],
+    ['기타 공용', formatArea(breakdown.otherCommonAreaSqm), '-'],
+    ['통로', formatArea(breakdown.corridorAreaSqm), '-'],
+    ['램프', formatArea(breakdown.rampAreaSqm), '-'],
+    ['주차장', formatArea(breakdown.parkingAreaSqm), '-'],
+  ];
+  const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(㎡)', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
+  const rosterRows = rows.map((row) => [
+    row.tenantMasterName,
+    row.spaceLabel,
+    formatArea(row.leasedAreaSqm),
+    formatPy(row.leasedAreaSqm),
+    formatCurrency(row.monthlyRentTotal),
+    formatCurrency(row.monthlyMfTotal),
+    formatCurrency(row.monthlyCombinedTotal),
+    formatCurrency(row.currentRentPerPy),
+    formatCurrency(row.currentMfPerPy),
+    formatDate(row.currentStartDate),
+    formatDate(row.currentEndDate),
+  ]);
+  const expiryRows = (asset.expiryRows || []).map((row) => [
+    row.tenantMasterName || '-',
+    row.spaceLabel || row.detailAreaLabel || row.floorLabel || '-',
+    formatDate(firstDefined(row.currentEndDate, row.earliestExpiry, row.latestExpiry)),
+    formatNumber(row.monthsToExpiry),
+    formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal)),
+  ]);
+  const monthlyCostHeaders = ['임차인명', 'Lease Space 수', '임대면적', '월 임대료', '월 관리비', '월 임관리비'];
+  const monthlyCostRows = (asset.monthlyCostByTenant || []).map((row) => [
+    row.tenantMasterName,
+    formatNumber(row.leaseSpaceCount),
+    formatArea(row.leasedAreaSqm),
+    formatCurrency(row.monthlyRentTotal),
+    formatCurrency(row.monthlyMfTotal),
+    formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal)),
+  ]);
+
+  return (
+    <div className="space-y-6">
+      <LogisticsModal modal={modal} onClose={() => setModal(null)} />
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <div className="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+          <div>
+            <div className="text-[12px] text-[#86868B] font-semibold">자산 개요</div>
+            <h3 className="text-[26px] text-white font-semibold mt-1">{overview.assetName || '자산'}</h3>
+            <p className="text-[13px] text-[#A1A1AA] mt-2">{overview.standardizedAddress || '주소 미입력'} · 사용승인 {formatDate(overview.approvalDate)}</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select value={selectedAssetId} onChange={(event) => setSelectedAssetId(event.target.value)} className="h-10 min-w-[280px] rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white">
+              {assetOptionsData.map((item) => <option key={item.assetId} value={item.assetId}>{item.assetName}</option>)}
+            </select>
+            <button type="button" onClick={() => (mapPoint.length ? setModal({ title: '포트폴리오 위치', content: <div className="space-y-4"><PortfolioMapPlot points={mapPoint} /><DataTable headers={['자산명', '주소', '좌표']} rows={[[overview.assetName, overview.standardizedAddress || '-', `${overview.latitude}, ${overview.longitude}`]]} compact /></div> }) : openTableModal('자산 위치 정보', ['항목', '내용'], [['자산명', overview.assetName || '-'], ['주소', overview.standardizedAddress || '-'], ['좌표', '미입력']]))} className="h-10 px-3 rounded-[8px] bg-white text-[#1F1F1E] text-[13px] font-semibold hover:bg-[#E5E5E5]">자산 위치 보기</button>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        {kpis.map((item) => (
+          <button key={item.key || item.label} type="button" onClick={() => {
+            if (item.key === 'average_e_noc') {
+              openENocAudit();
+              return;
+            }
+            openTableModal(item.label, ['항목', '내용'], [['값', formatMetric(item.value, item.valueType)], ['자산', overview.assetName || '-'], ['상태', item.status || '-']]);
+          }} className="text-left rounded-[14px] border border-[#333333] bg-[#252524] px-4 py-4 hover:bg-[#2A2A29]">
+            <div className="text-[12px] text-[#86868B] font-semibold">{item.label}</div>
+            <div className="text-[22px] text-white font-semibold mt-2">{formatMetric(item.value, item.valueType)}</div>
+          </button>
+        ))}
+      </section>
+
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader eyebrow="TENANTS" title="임차인 현황" right={<button type="button" onClick={() => openTableModal('임차인 현황', rosterHeaders, rosterRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>} />
+        <DataTable headers={rosterHeaders} rows={rosterRows} onRowClick={(index) => openTenantDetail(rows[index], '임차인 상세')} compact />
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="SUMMARY" title="자산 핵심 요약" />
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              ['현재 임차인 수', `${formatNumber(firstDefined(overview.uniqueTenantCount, rows.length))}개`],
+              ['Lease Space 수', `${formatNumber(firstDefined(overview.leaseSpaceCount, rows.length))}개`],
+              ['총 임대면적', formatArea(overview.leasedAreaSqm)],
+              ['월 임관리비', formatCurrency(overview.monthlyCostTotal)],
+              ['평균 E.NOC', formatCurrency(overview.averageENoc)],
+              ['건축물대장 상태', overview.reviewStatus || overview.buildingHubStatus || '-'],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4">
+                <div className="text-[12px] text-[#86868B] font-semibold">{label}</div>
+                <div className="text-[20px] text-white font-semibold mt-2">{value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="RENT" title="임차인별 월 임관리비" right={<button type="button" onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세 보기</button>} />
+          <SimpleBarChart rows={asset.monthlyCostByTenant} labelKey="tenantMasterName" valueKey="monthlyCostTotal" valueType="currency" onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} />
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="STACKING" title="층별 배치" />
+          <StackingPlan floors={overview.floors || asset.stackingPlan} onTenantClick={(tenant) => openTenantDetail(tenant, '임차인 상세')} />
+        </div>
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="AREA" title="면적 구성" />
+          <DataTable headers={['항목', '면적', '비율']} rows={areaRows} compact />
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="EXPIRY" title="만기 스냅샷" right={<button type="button" onClick={() => openTableModal('만기 스냅샷', ['임차인명', '세부 구역', '계약만기일', '잔여 개월', '월 임관리비'], expiryRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>} />
+          <SimpleBarChart rows={asset.expiryRows} labelKey="tenantMasterName" valueKey="monthsToExpiry" valueType="number" onClick={() => openTableModal('만기 스냅샷', ['임차인명', '세부 구역', '계약만기일', '잔여 개월', '월 임관리비'], expiryRows)} />
+        </div>
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="CORE TENANTS" title="핵심 임차인" />
+          <div className="space-y-2">
+            {(asset.analytics?.coreTenants || asset.uniqueTenants || []).slice(0, 5).map((tenant) => (
+              <button key={tenant.tenantId || tenant.tenantMasterName} type="button" onClick={() => openTenantDetail(tenant, '임차인 상세')} className="w-full text-left rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4 hover:bg-[#2A2A29]">
+                <div className="text-[14px] text-white font-semibold">{tenant.tenantMasterName}</div>
+                <div className="text-[12px] text-[#86868B] mt-1">월 임관리비 {formatCurrency(firstDefined(tenant.monthlyCostTotal, tenant.monthlyCombinedTotal))} · 임대면적 {formatArea(tenant.leasedAreaSqm)} · 최근 만기 {formatDate(firstDefined(tenant.latestExpiry, tenant.earliestExpiry))}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function DashboardShell({ activeModule }) {
   const selected = MODULES.find((item) => item.id === activeModule) || MODULES[0];
 
@@ -742,7 +1267,7 @@ function DashboardShell({ activeModule }) {
         })}
       </div>
 
-      {selected.id === 'weekly' ? <WeeklyDashboard /> : selected.id === 'home' ? <HomeDashboard /> : (
+      {selected.id === 'weekly' ? <WeeklyDashboard /> : selected.id === 'home' ? <HomeDashboard /> : selected.id === 'asset' ? <AssetDashboard /> : (
       <section className="border border-[#333333] rounded-[20px] bg-[#252524] overflow-hidden">
         <div className="px-6 py-5 border-b border-[#333333] flex items-center justify-between gap-4">
           <div>
