@@ -70,6 +70,14 @@ async function main() {
   await page.goto(url, { waitUntil: 'networkidle', timeout: 90000 });
   await wait(2500);
   await page.screenshot({ path: path.join(outDir, 'worklog-main-initial.png'), fullPage: true });
+  const uploadLocatorCheck = {
+    fileInput: await page.locator('input[type="file"]').count(),
+    wordButton: await page.getByRole('button', { name: /Word/ }).count(),
+    weeklySelects: await page.locator('select').count(),
+  };
+  await page.getByRole('button', { name: /Word/ }).click();
+  await wait(300);
+  const uploadValidationText = await page.locator('body').innerText();
 
   await page.getByPlaceholder('제목을 입력하세요').fill('QA 작성 테스트 - 물류센터 업무 로그');
   await page.getByPlaceholder(/진행 이력/).fill('QA에서 작성 버튼 동작과 업무 로그 테이블 반영을 확인합니다.');
@@ -87,6 +95,9 @@ async function main() {
   await page.getByRole('button', { name: 'Weekly 탭 보기' }).click();
   await page.waitForURL(/dashboard\/weekly/, { timeout: 10000 });
   const weeklyText = await page.locator('body').innerText();
+  const weeklySelectorCheck = {
+    weeklySelects: await page.locator('select').count(),
+  };
 
   await page.goto(url, { waitUntil: 'networkidle', timeout: 90000 });
   await wait(1000);
@@ -104,6 +115,7 @@ async function main() {
     url,
     checks: {
       hasMainBoard: text.includes('물류센터 섹터 협업게시판'),
+      hasWordUploadPanel: uploadLocatorCheck.fileInput > 0 && uploadLocatorCheck.wordButton > 0 && uploadValidationText.includes('Word'),
       hasComposer: Object.values(composerLocatorCheck).every((count) => count > 0),
       hasWorklogTable: text.includes('프로젝트') && text.includes('기능셀') && text.includes('등록자') && text.includes('진행상태'),
       hasWeeklyStatus: text.includes('이번 주 공유 현황') && text.includes('주요 이슈'),
@@ -112,8 +124,11 @@ async function main() {
       dashboardRouteWorks: dashboardText.includes('Home') || dashboardText.includes('Portfolio'),
       dashboardStorylineWorks: dashboardText.includes('DASHBOARD STORYLINE') && dashboardText.includes('업무 흐름 기준 탭 배치'),
       weeklyRouteWorks: weeklyText.includes('Weekly') || weeklyText.includes('주간'),
+      weeklyPeriodSelectorsWork: weeklySelectorCheck.weeklySelects >= 5,
     },
     composerLocatorCheck,
+    uploadLocatorCheck,
+    weeklySelectorCheck,
     pageErrors,
   };
   result.allPass = Object.values(result.checks).every(Boolean) && pageErrors.length === 0;

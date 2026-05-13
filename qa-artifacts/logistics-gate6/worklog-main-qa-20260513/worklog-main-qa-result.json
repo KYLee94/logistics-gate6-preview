@@ -2,6 +2,7 @@
   "url": "http://127.0.0.1:8101/platform/iotaseoul/workspace/logistics",
   "checks": {
     "hasMainBoard": true,
+    "hasWordUploadPanel": true,
     "hasComposer": true,
     "hasWorklogTable": true,
     "hasWeeklyStatus": true,
@@ -9,7 +10,8 @@
     "excludesDataQaFromMain": true,
     "dashboardRouteWorks": true,
     "dashboardStorylineWorks": true,
-    "weeklyRouteWorks": true
+    "weeklyRouteWorks": true,
+    "weeklyPeriodSelectorsWork": true
   },
   "composerLocatorCheck": {
     "titleInput": 1,
@@ -17,6 +19,14 @@
     "stakeholderInput": 1,
     "writeButton": 1,
     "permissionButton": 1
+  },
+  "uploadLocatorCheck": {
+    "fileInput": 1,
+    "wordButton": 1,
+    "weeklySelects": 5
+  },
+  "weeklySelectorCheck": {
+    "weeklySelects": 5
   },
   "pageErrors": [],
   "allPass": true

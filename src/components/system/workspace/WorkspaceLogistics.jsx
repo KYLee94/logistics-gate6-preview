@@ -338,12 +338,17 @@ function ProjectDetail({ project, section, onRaw }) {
 }
 
 function WeeklyDashboard() {
-  const report = weeklyReportData;
+  const [selectedWeekKey, setSelectedWeekKey] = useState(WEEKLY_REPORT_LIBRARY[0]?.key || '');
+  const selectedWeeklyEntry = WEEKLY_REPORT_LIBRARY.find((item) => item.key === selectedWeekKey) || WEEKLY_REPORT_LIBRARY[0];
+  const report = selectedWeeklyEntry?.report || weeklyReportData;
   const assetRows = useMemo(() => normalizeWeeklyAssetRows(report.assetRows || []), [report.assetRows]);
   const [assetView, setAssetView] = useState('core');
   const [selectedNewId, setSelectedNewId] = useState(report.newProjects?.[0]?.id || '');
   const [selectedManagementId, setSelectedManagementId] = useState(report.managementProjects?.[0]?.id || '');
   const [modal, setModal] = useState(null);
+  const availableYears = [...new Set(WEEKLY_REPORT_LIBRARY.map((item) => item.year))];
+  const availableMonths = [...new Set(WEEKLY_REPORT_LIBRARY.filter((item) => item.year === selectedWeeklyEntry?.year).map((item) => item.month))];
+  const availableWeeks = WEEKLY_REPORT_LIBRARY.filter((item) => item.year === selectedWeeklyEntry?.year && item.month === selectedWeeklyEntry?.month);
 
   const selectedNew = (report.newProjects || []).find((item) => item.id === selectedNewId) || report.newProjects?.[0];
   const selectedManagement = (report.managementProjects || []).find((item) => item.id === selectedManagementId) || report.managementProjects?.[0];
@@ -394,6 +399,44 @@ function WeeklyDashboard() {
             <h3 className="text-[24px] text-white font-semibold tracking-tight mt-1">{report.reportTitle}</h3>
           </div>
           <StatusPill className="bg-[#173522] text-[#B5E48C] border-[#2E6B45]">읽기 전용</StatusPill>
+        </div>
+        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+          <label className="block">
+            <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">연도</span>
+            <select
+              value={selectedWeeklyEntry?.year || ''}
+              onChange={(event) => {
+                const next = WEEKLY_REPORT_LIBRARY.find((item) => item.year === event.target.value) || WEEKLY_REPORT_LIBRARY[0];
+                setSelectedWeekKey(next.key);
+              }}
+              className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white outline-none"
+            >
+              {availableYears.map((year) => <option key={year} value={year}>{year}년</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">월</span>
+            <select
+              value={selectedWeeklyEntry?.month || ''}
+              onChange={(event) => {
+                const next = WEEKLY_REPORT_LIBRARY.find((item) => item.year === selectedWeeklyEntry?.year && item.month === event.target.value) || WEEKLY_REPORT_LIBRARY[0];
+                setSelectedWeekKey(next.key);
+              }}
+              className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white outline-none"
+            >
+              {availableMonths.map((month) => <option key={month} value={month}>{Number(month)}월</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">주차</span>
+            <select
+              value={selectedWeekKey}
+              onChange={(event) => setSelectedWeekKey(event.target.value)}
+              className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white outline-none"
+            >
+              {availableWeeks.map((week) => <option key={week.key} value={week.key}>{week.label}</option>)}
+            </select>
+          </label>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4">
@@ -566,6 +609,18 @@ const DASHBOARD_STORYLINES = [
   { id: 'quality', step: '06', title: '데이터 확인', body: '원본 보존, 빈값, QA 이슈는 업무 화면이 아닌 검증 탭에서 봅니다.' },
 ];
 
+const WEEKLY_REPORT_LIBRARY = [
+  {
+    key: '2026-04-w4',
+    year: '2026',
+    month: '04',
+    week: '4',
+    label: '2026년 4월 4주',
+    sourceName: weeklyReportData.sourceDocumentName || 'RA부문_사업그룹4파트_주간업무자료(안)_260427_취합.docx',
+    report: weeklyReportData,
+  },
+];
+
 const MAIN_STATUS_STYLES = {
   신규: 'bg-[#202C3D] text-[#9AD7FF] border-[#34537A]',
   검토중: 'bg-[#2B2613] text-[#FFD166] border-[#7A6425]',
@@ -636,6 +691,92 @@ function sortMainTasks(tasks, sortMode) {
   if (sortMode === 'due') return next.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
   if (sortMode === 'status') return next.sort((a, b) => mainStatusWeight(a.status) - mainStatusWeight(b.status));
   return next.sort((a, b) => mainPriorityWeight(a.priority) - mainPriorityWeight(b.priority));
+}
+
+function WeeklyWordUploadPanel() {
+  const [selectedWeekKey, setSelectedWeekKey] = useState(WEEKLY_REPORT_LIBRARY[0]?.key || '');
+  const [file, setFile] = useState(null);
+  const [uploadState, setUploadState] = useState({ status: 'idle', message: '' });
+  const selectedWeek = WEEKLY_REPORT_LIBRARY.find((item) => item.key === selectedWeekKey) || WEEKLY_REPORT_LIBRARY[0];
+
+  async function handleSubmit() {
+    if (!file) {
+      setUploadState({ status: 'blocked', message: '업로드할 Word 파일을 먼저 선택해 주세요.' });
+      return;
+    }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('year', selectedWeek?.year || '');
+    formData.append('month', selectedWeek?.month || '');
+    formData.append('week', selectedWeek?.week || '');
+    formData.append('week_key', selectedWeek?.key || '');
+    formData.append('source_template', 'RA부문_사업그룹4파트_주간업무자료');
+
+    setUploadState({ status: 'loading', message: 'Word 파일을 서버 함수로 전송하는 중입니다.' });
+    try {
+      const { data, error } = await supabase.functions.invoke('ll-weekly-doc-ingest', { body: formData });
+      if (error) throw error;
+      setUploadState({
+        status: 'success',
+        message: data?.message || '서버 반영 요청이 접수되었습니다. Weekly 주차 선택에서 반영 결과를 확인하세요.',
+      });
+    } catch (error) {
+      setUploadState({
+        status: 'blocked',
+        message: `서버 함수 ll-weekly-doc-ingest 연결이 필요합니다. 현재 화면 계약은 준비됐고, 실제 Supabase 반영은 Edge Function 배포 후 가능합니다. (${error.message || 'unknown error'})`,
+      });
+    }
+  }
+
+  return (
+    <section className="mb-4 rounded-[22px] border border-[#333333] bg-[#252524] p-5">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_260px_220px] xl:items-end">
+        <div>
+          <div className="text-[11px] font-semibold tracking-[0.03em] text-[#86868B]">WEEKLY WORD INGEST</div>
+          <h2 className="mt-1 text-[18px] font-semibold text-white">주간업무자료 Word 업로드</h2>
+          <p className="mt-2 text-[13px] leading-6 text-[#A1A1AA] break-keep">
+            기준 양식과 유사한 Word 파일을 올리면 서버에서 표와 본문을 읽어 주차별 Weekly 데이터와 Supabase ll_* 저장 대상으로 변환합니다.
+          </p>
+        </div>
+        <div>
+          <label className="mb-2 block text-[12px] font-semibold text-[#86868B]">반영 주차</label>
+          <select
+            value={selectedWeekKey}
+            onChange={(event) => setSelectedWeekKey(event.target.value)}
+            className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white outline-none"
+          >
+            {WEEKLY_REPORT_LIBRARY.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="mb-2 block text-[12px] font-semibold text-[#86868B]">Word 파일</label>
+          <input
+            type="file"
+            accept=".doc,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+            onChange={(event) => setFile(event.target.files?.[0] || null)}
+            className="block w-full text-[12px] text-[#A1A1AA] file:mr-3 file:h-10 file:rounded-[8px] file:border-0 file:bg-[#30302F] file:px-3 file:text-[12px] file:font-semibold file:text-white hover:file:bg-[#3A3A3A]"
+          />
+        </div>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-[12px] text-[#86868B]">
+          기준 파일: {selectedWeek?.sourceName || '주간업무자료 Word'} · DB 반영은 브라우저가 아니라 서버 함수에서만 처리합니다.
+        </div>
+        <button
+          type="button"
+          onClick={handleSubmit}
+          className="h-10 rounded-[10px] border border-[#2C66A2] bg-[#17314E] px-5 text-[13px] font-semibold text-[#9AD7FF] hover:bg-[#1E3C5F]"
+        >
+          Word 읽기 및 Weekly 반영
+        </button>
+      </div>
+      {uploadState.message && (
+        <div className={`mt-3 rounded-[10px] border px-4 py-3 text-[13px] leading-6 ${uploadState.status === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : uploadState.status === 'loading' ? 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
+          {uploadState.message}
+        </div>
+      )}
+    </section>
+  );
 }
 
 function MainWorklogRow({ item }) {
@@ -799,6 +940,8 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           </button>
         </div>
       </header>
+
+      <WeeklyWordUploadPanel />
 
       <section className="mb-4 rounded-[26px] border border-[#8ECBE6]/80 bg-[#252524] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)_inset]">
         <div className="flex flex-wrap items-center gap-4 border-b border-[#333333] pb-4">

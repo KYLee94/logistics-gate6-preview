@@ -12,6 +12,8 @@
 - Added Weekly status summary and major issue copy on the main screen.
 - Added Weekly Task cards with sortable modes: priority, due date, status.
 - Added dashboard storyline rail for tab-level work flow.
+- Added Weekly Word upload entry point and week target selector.
+- Added Weekly page year/month/week selector with baseline fallback data.
 
 ## Evidence
 - Initial screenshot: `qa-artifacts/logistics-gate6/worklog-main-qa-20260513/worklog-main-initial.png`
@@ -29,7 +31,10 @@
 - dashboardRouteWorks: PASS
 - dashboardStorylineWorks: PASS
 - weeklyRouteWorks: PASS
+- hasWordUploadPanel: PASS
+- weeklyPeriodSelectorsWork: PASS
 - pageErrors: 0
 
 ## Notes
 - OpenDART, building-register API, and Supabase cell-level integrity were not rechecked in this QA pass. They are deferred to the next data/API integrity pass per user direction.
+- The Word upload UI calls the expected server function contract `ll-weekly-doc-ingest`; actual Supabase mutation is intentionally not performed in the browser.
