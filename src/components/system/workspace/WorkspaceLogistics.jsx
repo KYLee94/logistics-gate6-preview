@@ -1157,6 +1157,112 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   );
 }
 
+function chartMetricLabel(key, valueType = 'number') {
+  const labels = {
+    monthlyCostTotalAdjusted: '월 임관리비 합계',
+    monthlyCostTotal: '월 임관리비 합계',
+    monthlyRentTotal: '월 임대료',
+    monthlyMfTotal: '월 관리비',
+    activeAssetCount: '운영 자산 수',
+    expiringAreaSqm: '만기 예정 임대면적',
+    uniqueTenantCount: '임차인 수',
+    monthsToExpiry: '잔여 개월',
+    leasedAreaSqm: '임대면적',
+    value: valueType === 'currency' ? '월 임관리비 합계' : valueType === 'area' ? '임대면적' : '값',
+  };
+  return labels[key] || key || '값';
+}
+
+function shortChartValue(value, valueType = 'number') {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return '-';
+  if (valueType === 'currency') {
+    if (Math.abs(numeric) >= 100000000) return `${formatNumber(Math.round(numeric / 100000000))}억`;
+    if (Math.abs(numeric) >= 10000) return `${formatNumber(Math.round(numeric / 10000))}만`;
+    return formatNumber(Math.round(numeric));
+  }
+  if (valueType === 'area') return `${formatNumber(Math.round(numeric))}㎡`;
+  if (valueType === 'percent') return `${(numeric * 100).toFixed(1)}%`;
+  return formatNumber(Math.round(numeric));
+}
+
+function chartLabel(row, labelKey = 'label') {
+  return cleanDisplay(row?.[labelKey] || row?.month || row?.assetName || row?.tenantMasterName || row?.label, '-');
+}
+
+function RichTrendChart({ rows, valueKey, secondaryKey, valueType = 'currency', labelKey = 'month', valueLabel, secondaryLabel }) {
+  const points = (rows || []).filter((row) => row?.[valueKey] != null).slice(-18);
+  if (!points.length) return <div className="text-[13px] text-[#86868B]">표시할 차트 데이터가 없습니다.</div>;
+  const width = 820;
+  const height = 270;
+  const paddingLeft = 86;
+  const paddingRight = 58;
+  const paddingTop = 30;
+  const paddingBottom = 62;
+  const plotWidth = width - paddingLeft - paddingRight;
+  const plotHeight = height - paddingTop - paddingBottom;
+  const maxValue = Math.max(...points.map((row) => Number(row[valueKey] || 0)), 1);
+  const secondaryMax = Math.max(...points.map((row) => Number(row[secondaryKey] || 0)), 1);
+  const yTicks = [1, 0.75, 0.5, 0.25, 0];
+  const primaryName = valueLabel || chartMetricLabel(valueKey, valueType);
+  const secondaryName = secondaryLabel || chartMetricLabel(secondaryKey, 'number');
+  const coords = points.map((row, index) => {
+    const x = paddingLeft + (index * plotWidth) / Math.max(points.length - 1, 1);
+    const y = paddingTop + (1 - Number(row[valueKey] || 0) / maxValue) * plotHeight;
+    const y2 = paddingTop + (1 - Number(row[secondaryKey] || 0) / secondaryMax) * plotHeight;
+    return { x, y, y2, row };
+  });
+  return (
+    <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="text-[12px] text-[#86868B]">
+          X축: 월별 기간 · 왼쪽 Y축: {primaryName} · 오른쪽 Y축: {secondaryName}
+        </div>
+        <div className="flex flex-wrap items-center gap-4 text-[12px] text-[#D1D1D6]">
+          <span><span className="mr-1 inline-block h-[3px] w-5 bg-[#9AD7FF] align-middle" />{primaryName}</span>
+          {secondaryKey && <span><span className="mr-1 inline-block h-[3px] w-5 bg-[#B5E48C] align-middle" />{secondaryName}</span>}
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[260px]" role="img" aria-label={`${primaryName} 추이 차트`}>
+        {yTicks.map((tick) => {
+          const y = paddingTop + (1 - tick) * plotHeight;
+          return (
+            <g key={tick}>
+              <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#303033" strokeDasharray="3 5" />
+              <text x={paddingLeft - 10} y={y + 4} textAnchor="end" fill="#A1A1AA" fontSize="11">{shortChartValue(maxValue * tick, valueType)}</text>
+              {secondaryKey && <text x={width - paddingRight + 10} y={y + 4} fill="#8AAE76" fontSize="11">{shortChartValue(secondaryMax * tick, 'number')}</text>}
+            </g>
+          );
+        })}
+        <line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={paddingTop + plotHeight} stroke="#4A4A4D" />
+        <line x1={width - paddingRight} y1={paddingTop} x2={width - paddingRight} y2={paddingTop + plotHeight} stroke="#3A3A3C" />
+        <line x1={paddingLeft} y1={paddingTop + plotHeight} x2={width - paddingRight} y2={paddingTop + plotHeight} stroke="#4A4A4D" />
+        <polyline points={coords.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke="#9AD7FF" strokeWidth="3" />
+        {secondaryKey && <polyline points={coords.map((point) => `${point.x},${point.y2}`).join(' ')} fill="none" stroke="#B5E48C" strokeWidth="2.5" strokeDasharray="6 5" />}
+        {coords.map((point, index) => {
+          const label = chartLabel(point.row, labelKey);
+          const showLabel = points.length <= 10 || index % Math.ceil(points.length / 8) === 0 || index === points.length - 1;
+          return (
+            <g key={`${label}-${point.x}`}>
+              <line x1={point.x} y1={paddingTop + plotHeight} x2={point.x} y2={paddingTop + plotHeight + 5} stroke="#4A4A4D" />
+              {showLabel && <text x={point.x} y={height - 34} textAnchor="middle" fill="#A1A1AA" fontSize="11">{label}</text>}
+              <circle cx={point.x} cy={point.y} r="5" fill="#9AD7FF" stroke="#111" strokeWidth="1.5">
+                <title>{`${label}\n${primaryName}: ${formatMetric(point.row[valueKey], valueType)}${secondaryKey ? `\n${secondaryName}: ${formatNumber(point.row[secondaryKey])}` : ''}`}</title>
+              </circle>
+              {secondaryKey && (
+                <circle cx={point.x} cy={point.y2} r="4" fill="#B5E48C" stroke="#111" strokeWidth="1.2">
+                  <title>{`${label}\n${secondaryName}: ${formatNumber(point.row[secondaryKey])}\n${primaryName}: ${formatMetric(point.row[valueKey], valueType)}`}</title>
+                </circle>
+              )}
+            </g>
+          );
+        })}
+        <text x={paddingLeft} y={height - 10} fill="#86868B" fontSize="11">마우스를 점에 올리면 해당 월의 세부값이 표시됩니다.</text>
+      </svg>
+    </div>
+  );
+}
+
 function TrendChart({ rows, valueKey, secondaryKey, valueType = 'currency' }) {
   const points = (rows || []).filter((row) => row?.[valueKey] != null).slice(-18);
   if (!points.length) return <div className="text-[13px] text-[#86868B]">표시할 차트 데이터가 없습니다.</div>;
@@ -1590,7 +1696,7 @@ function HomeDashboard() {
           title="임대료 추이"
           right={<button type="button" onClick={() => openTableModal('임대료 추이 원본 표', ['월', '월 임대료(RF/FO 반영)', '월 관리비', '월 임관리비(RF/FO 반영)', '원 월임대료', '원 월관리비', '원 월임관리비', '자산 수', '총 연면적', '신규 편입 자산'], rentTrendRows.map((row) => [row.month, formatCurrency(row.monthlyRentTotalAdjusted), formatCurrency(row.monthlyMfTotalAdjusted), formatCurrency(row.monthlyCostTotalAdjusted), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyTotal), formatNumber(row.activeAssetCount), formatArea(row.grossFloorAreaSqm), (row.newlyAddedAssets || []).map((asset) => asset.assetName).join(', ') || '-']))} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>}
         />
-        <TrendChart rows={rentTrendRows} valueKey="monthlyCostTotalAdjusted" secondaryKey="activeAssetCount" />
+        <RichTrendChart rows={rentTrendRows} valueKey="monthlyCostTotalAdjusted" secondaryKey="activeAssetCount" valueLabel="월 임관리비 합계" secondaryLabel="운영 자산 수" />
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
@@ -1604,7 +1710,7 @@ function HomeDashboard() {
             title="만기 집중도"
             right={<button type="button" onClick={() => openTableModal('만기 집중도 월별 상세', ['만기월', '임차인', '자산', '임대면적', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', 'E.NOC', '공간'], expiryDetailRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">월별 상세 보기</button>}
           />
-          <TrendChart rows={data.monthlyExpiryRows} valueKey="expiringAreaSqm" secondaryKey="uniqueTenantCount" valueType="area" />
+          <RichTrendChart rows={data.monthlyExpiryRows} valueKey="expiringAreaSqm" secondaryKey="uniqueTenantCount" valueType="area" valueLabel="만기 예정 임대면적" secondaryLabel="임차인 수" />
         </div>
       </section>
 
@@ -1672,6 +1778,50 @@ function SimpleBarChart({ rows, labelKey, valueKey, valueType = 'number', onClic
   );
 }
 
+function RichBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick, valueLabel }) {
+  const chartRows = (rows || []).filter((row) => Number(row?.[valueKey] || 0) > 0).slice(0, 10);
+  const maxValue = Math.max(...chartRows.map((row) => Number(row[valueKey] || 0)), 1);
+  const metricName = valueLabel || chartMetricLabel(valueKey, valueType);
+  if (!chartRows.length) return <div className="text-[13px] text-[#86868B]">차트로 표시할 값이 없습니다.</div>;
+  return (
+    <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[12px]">
+        <span className="text-[#86868B]">Y축: 항목 · X축: {metricName}</span>
+        <span className="text-[#D1D1D6]"><span className="mr-1 inline-block h-2 w-6 rounded-full bg-[#9AD7FF]" />막대 길이 = {metricName}</span>
+      </div>
+      <div className="space-y-3">
+        {chartRows.map((row) => {
+          const value = Number(row[valueKey] || 0);
+          const label = chartLabel(row, labelKey);
+          return (
+            <button key={`${label}-${valueKey}`} type="button" onClick={onClick} className="group relative w-full rounded-[10px] px-2 py-1.5 text-left hover:bg-[#282827]">
+              <div className="grid grid-cols-[168px_1fr_108px] items-center gap-3 text-[12px]">
+                <span className="truncate font-semibold text-[#E5E5E5]" title={label}>{label}</span>
+                <div className="relative h-5 rounded-full bg-[#151515]">
+                  <div className="h-full rounded-full bg-[#9AD7FF] transition-colors group-hover:bg-[#B5E48C]" style={{ width: `${Math.max(3, (value / maxValue) * 100)}%` }} />
+                  <div className="pointer-events-none absolute left-2 top-1/2 hidden -translate-y-1/2 rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-[12px] text-white shadow-xl group-hover:block">
+                    <div className="font-semibold">{label}</div>
+                    <div className="mt-1 text-[#A1A1AA]">{metricName}: {formatMetric(value, valueType)}</div>
+                    <div className="text-[#86868B]">전체 최대값 대비 {((value / maxValue) * 100).toFixed(1)}%</div>
+                  </div>
+                </div>
+                <span className="text-right font-semibold text-[#D1D1D6]">{formatMetric(value, valueType)}</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-3 grid grid-cols-5 border-t border-[#333333] pt-2 text-[11px] text-[#86868B]">
+        {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
+          <span key={tick} className={tick === 1 ? 'text-right' : tick === 0 ? 'text-left' : 'text-center'}>
+            {shortChartValue(maxValue * tick, valueType)}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function MiniLineChart({ rows, series, labelKey = 'month', onClick }) {
   const chartRows = (rows || []).slice(-24);
   const maxValue = Math.max(...chartRows.flatMap((row) => (series || []).map((item) => Number(row[item.key] || 0))), 1);
@@ -1708,6 +1858,75 @@ function MiniLineChart({ rows, series, labelKey = 'month', onClick }) {
         <span>Y축: 금액</span>
         <span><span className="inline-block w-2 h-2 rounded-full bg-[#9AD7FF] mr-1" />월 임대료</span>
         <span><span className="inline-block w-2 h-2 rounded-full bg-[#B5E48C] mr-1" />월 관리비</span>
+      </div>
+    </button>
+  );
+}
+
+function RichStackedPeriodChart({ rows, series, labelKey = 'month', onClick }) {
+  const chartRows = (rows || []).slice(-24);
+  const activeSeries = (series || []).length ? series : [{ key: 'monthlyRentTotal' }, { key: 'monthlyMfTotal' }];
+  const maxValue = Math.max(...chartRows.map((row) => activeSeries.reduce((sum, item) => sum + Number(row[item.key] || 0), 0)), 1);
+  const colors = ['#9AD7FF', '#B5E48C', '#FFD166'];
+  if (!chartRows.length) return <div className="text-[13px] text-[#86868B]">추이로 표시할 값이 없습니다.</div>;
+  return (
+    <button type="button" onClick={onClick} className="w-full rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4 text-left hover:bg-[#242423]">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[12px]">
+        <span className="text-[#86868B]">X축: 월별 기간 · Y축: 월 임대료/관리비 금액</span>
+        <span className="text-[#86868B]">막대 hover 시 월별 세부값 표시</span>
+      </div>
+      <div className="grid grid-cols-[74px_1fr] gap-3">
+        <div className="relative h-[230px] border-r border-[#333333] text-[11px] text-[#A1A1AA]">
+          {[1, 0.75, 0.5, 0.25, 0].map((tick) => (
+            <span key={tick} className="absolute right-2 -translate-y-1/2" style={{ top: `${(1 - tick) * 100}%` }}>
+              {shortChartValue(maxValue * tick, 'currency')}
+            </span>
+          ))}
+        </div>
+        <div>
+          <div className="relative flex h-[230px] items-end gap-1 border-b border-[#333333]">
+            {[1, 0.75, 0.5, 0.25].map((tick) => (
+              <div key={tick} className="pointer-events-none absolute left-0 right-0 border-t border-dashed border-[#303033]" style={{ bottom: `${tick * 100}%` }} />
+            ))}
+            {chartRows.map((row, rowIndex) => {
+              const label = chartLabel(row, labelKey);
+              const total = activeSeries.reduce((sum, item) => sum + Number(row[item.key] || 0), 0);
+              const showLabel = chartRows.length <= 10 || rowIndex % Math.ceil(chartRows.length / 8) === 0 || rowIndex === chartRows.length - 1;
+              return (
+                <div key={label} className="group relative flex min-w-[10px] flex-1 flex-col justify-end">
+                  <div className="flex h-full flex-col justify-end gap-[2px]" title={`${label} · 합계 ${formatCurrency(total)}`}>
+                    {activeSeries.map((item, index) => {
+                      const value = Number(row[item.key] || 0);
+                      return (
+                        <div
+                          key={item.key}
+                          className="rounded-t-[3px]"
+                          style={{ height: `${Math.max(2, (value / maxValue) * 210)}px`, backgroundColor: colors[index % colors.length] }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-[220px] -translate-x-1/2 rounded-[10px] border border-[#3A3A3C] bg-[#252524] p-3 text-[12px] text-white shadow-xl group-hover:block">
+                    <div className="font-semibold">{label}</div>
+                    {activeSeries.map((item, index) => (
+                      <div key={item.key} className="mt-1 flex justify-between gap-3 text-[#D1D1D6]">
+                        <span><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />{chartMetricLabel(item.key, 'currency')}</span>
+                        <span>{formatCurrency(row[item.key])}</span>
+                      </div>
+                    ))}
+                    <div className="mt-1 flex justify-between border-t border-[#333333] pt-1 text-[#A1A1AA]"><span>합계</span><span>{formatCurrency(total)}</span></div>
+                  </div>
+                  {showLabel && <span className="mt-2 -rotate-35 text-[10px] text-[#86868B]">{label}</span>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-[12px] text-[#D1D1D6]">
+        {activeSeries.map((item, index) => (
+          <span key={item.key}><span className="mr-1 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />{chartMetricLabel(item.key, 'currency')}</span>
+        ))}
       </div>
     </button>
   );
@@ -2009,13 +2228,13 @@ function SectorDashboard() {
         <main className="space-y-5">
           <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
             <SectionHeader eyebrow="REGION" title="권역별 노출도" right={<button type="button" onClick={() => openTableModal('권역별 노출도 원본 표', ['권역', '자산 수', '임대면적', '월 임관리비', '공실률'], regionTableRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>} />
-            <SimpleBarChart rows={regionRows.map((row) => ({ ...row, value: firstDefined(row.monthlyCostTotal, row.assetCount) }))} labelKey="label" valueKey="value" valueType="currency" onClick={() => openTableModal('권역별 노출도 원본 표', ['권역', '자산 수', '임대면적', '월 임관리비', '공실률'], regionTableRows)} />
+            <RichBarChart rows={regionRows.map((row) => ({ ...row, value: firstDefined(row.monthlyCostTotal, row.assetCount) }))} labelKey="label" valueKey="value" valueType="currency" valueLabel="권역별 월 임관리비 합계" onClick={() => openTableModal('권역별 노출도 원본 표', ['권역', '자산 수', '임대면적', '월 임관리비', '공실률'], regionTableRows)} />
           </div>
 
           <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
             <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
               <SectionHeader eyebrow="TREND" title="월 임관리비 추이" />
-              <MiniLineChart rows={monthlyRentRows} series={[{ key: 'monthlyRentTotal' }, { key: 'monthlyMfTotal' }]} onClick={() => openTableModal('월 임관리비 추이 원본 표', ['월', '월 임대료', '월 관리비'], trendTableRows)} />
+              <RichStackedPeriodChart rows={monthlyRentRows} series={[{ key: 'monthlyRentTotal' }, { key: 'monthlyMfTotal' }]} onClick={() => openTableModal('월 임관리비 추이 원본 표', ['월', '월 임대료', '월 관리비'], trendTableRows)} />
             </div>
             <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
               <SectionHeader eyebrow="ASSETS" title="자산 랭킹" />
@@ -2212,7 +2431,7 @@ function CompanyDashboard() {
                 </div>
               )}
             />
-            <SimpleBarChart rows={exposureRows} labelKey="label" valueKey="value" valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적', '월 임대료', '월 관리비', '월 임관리비'], exposureTableRows)} />
+            <RichBarChart rows={exposureRows} labelKey="label" valueKey="value" valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} valueLabel={effectiveExposureMode === 'area' ? '자산별 임대면적' : '자산별 월 임관리비'} onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적', '월 임대료', '월 관리비', '월 임관리비'], exposureTableRows)} />
             {!hasCostExposure && exposureMode === 'cost' ? <div className="mt-2 text-[12px] text-[#86868B]">월 임관리비 값이 비어 있어 임대면적 기준으로 표시했습니다.</div> : null}
           </div>
         </div>
@@ -2441,7 +2660,7 @@ function AssetDashboard() {
         </div>
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="RENT" title="임차인별 월 임관리비" right={<button type="button" onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세 보기</button>} />
-          <SimpleBarChart rows={asset.monthlyCostByTenant} labelKey="tenantMasterName" valueKey="monthlyCostTotal" valueType="currency" onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} />
+          <RichBarChart rows={asset.monthlyCostByTenant} labelKey="tenantMasterName" valueKey="monthlyCostTotal" valueType="currency" valueLabel="임차인별 월 임관리비" onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} />
         </div>
       </section>
 
@@ -2459,7 +2678,7 @@ function AssetDashboard() {
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="EXPIRY" title="만기 스냅샷" right={<button type="button" onClick={() => openTableModal('만기 스냅샷', ['임차인명', '세부 구역', '계약만기일', '잔여 개월', '월 임관리비'], expiryRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>} />
-          <SimpleBarChart rows={asset.expiryRows} labelKey="tenantMasterName" valueKey="monthsToExpiry" valueType="number" onClick={() => openTableModal('만기 스냅샷', ['임차인명', '세부 구역', '계약만기일', '잔여 개월', '월 임관리비'], expiryRows)} />
+          <RichBarChart rows={asset.expiryRows} labelKey="tenantMasterName" valueKey="monthsToExpiry" valueType="number" valueLabel="계약만기까지 잔여 개월" onClick={() => openTableModal('만기 스냅샷', ['임차인명', '세부 구역', '계약만기일', '잔여 개월', '월 임관리비'], expiryRows)} />
         </div>
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="CORE TENANTS" title="핵심 임차인" />

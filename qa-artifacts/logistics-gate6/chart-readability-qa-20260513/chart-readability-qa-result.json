@@ -1,0 +1,34 @@
+{
+  "checks": {
+    "home": {
+      "url": "http://127.0.0.1:8102/platform/iotaseoul/workspace/logistics/dashboard/home",
+      "hasAxisCopy": true,
+      "hasSpecificLegend": true,
+      "hasHoverDetailDom": true,
+      "noVagueLegend": true
+    },
+    "sector": {
+      "url": "http://127.0.0.1:8102/platform/iotaseoul/workspace/logistics/dashboard/sector",
+      "hasAxisCopy": true,
+      "hasSpecificLegend": true,
+      "hasHoverDetailDom": true,
+      "noVagueLegend": true
+    },
+    "company": {
+      "url": "http://127.0.0.1:8102/platform/iotaseoul/workspace/logistics/dashboard/company",
+      "hasAxisCopy": true,
+      "hasSpecificLegend": true,
+      "hasHoverDetailDom": true,
+      "noVagueLegend": true
+    },
+    "asset": {
+      "url": "http://127.0.0.1:8102/platform/iotaseoul/workspace/logistics/dashboard/asset",
+      "hasAxisCopy": true,
+      "hasSpecificLegend": true,
+      "hasHoverDetailDom": true,
+      "noVagueLegend": true
+    }
+  },
+  "pageErrors": [],
+  "allPass": true
+}
