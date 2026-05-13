@@ -473,6 +473,547 @@ function WeeklyDashboard() {
   );
 }
 
+void LegacyWorkspaceLogistics;
+
+const MAIN_WORKLOGS = [
+  {
+    id: 'log-001',
+    project: '물류센터 섹터',
+    cell: '사업PM',
+    owner: '이서정',
+    title: '[리스크 판단] 이천 회억리 Refi 및 임대차 진행 상황 점검',
+    body: '대주단 미팅 일정과 지상 1층 임대차 마케팅 후속 액션을 이번 주 우선 확인합니다.',
+    stakeholder: '대주단 / 잠재임차사',
+    purpose: '리스크 판단',
+    status: '검토중',
+    priority: '높음',
+    date: '26.05.13',
+    locked: true,
+  },
+  {
+    id: 'log-002',
+    project: '물류센터 섹터',
+    cell: '사업PM',
+    owner: '전기용',
+    title: '[공유] 물류 복합개발 PJT 투자조건 협의 업데이트',
+    body: '환경개선펀드와 매칭투자자 조건 협의 후 설정시기 확정이 필요합니다.',
+    stakeholder: '산단공 / 매칭투자자',
+    purpose: '공유',
+    status: '진행중',
+    priority: '중간',
+    date: '26.05.13',
+    locked: false,
+  },
+  {
+    id: 'log-003',
+    project: '물류센터 섹터',
+    cell: '임대차',
+    owner: '권순일',
+    title: 'Lease-up 대상 자산 우선순위 및 공실 원인 재확인',
+    body: 'Home과 Sector 탭의 공실/만기 이슈를 기준으로 영업 우선순위를 재정렬합니다.',
+    stakeholder: 'AM / Leasing',
+    purpose: '의사결정',
+    status: '신규',
+    priority: '중간',
+    date: '26.05.12',
+    locked: false,
+  },
+  {
+    id: 'log-004',
+    project: '물류센터 섹터',
+    cell: '데이터',
+    owner: '강순용',
+    title: '탭별 원본 숫자와 팝업 내용 parity QA 진행',
+    body: '대시보드 데이터 검증은 Dashboard 모듈 안에서 처리하고, 업무 로그는 현안 공유 중심으로 유지합니다.',
+    stakeholder: '데이터 QA',
+    purpose: '진행 이력',
+    status: '진행중',
+    priority: '낮음',
+    date: '26.05.10',
+    locked: false,
+  },
+  {
+    id: 'log-005',
+    project: '물류센터 섹터',
+    cell: '섹터PM',
+    owner: '이서정',
+    title: '주간 주요 이슈를 업무 로그 메인과 Weekly 탭에 동시 반영',
+    body: '자산별 세부 특징은 Dashboard 내부 탭에서 보고, 메인에서는 현재 업무 현황과 주요 이슈만 공유합니다.',
+    stakeholder: '섹터 담당자',
+    purpose: '공유',
+    status: '보류',
+    priority: '중간',
+    date: '26.05.09',
+    locked: false,
+  },
+];
+
+const MAIN_PURPOSES = ['공유', '리스크 판단', '의사결정', '진행 이력'];
+const MAIN_STATUSES = ['신규', '검토중', '진행중', '보류'];
+const MAIN_PRIORITIES = ['높음', '중간', '낮음'];
+const MAIN_SORT_OPTIONS = [
+  { id: 'priority', label: '중요도순' },
+  { id: 'due', label: '마감순' },
+  { id: 'status', label: '상태순' },
+];
+
+const DASHBOARD_STORYLINES = [
+  { id: 'weekly', step: '01', title: '이번 주 업무 현황', body: '의사결정 필요 이슈와 Next Action을 먼저 확인합니다.' },
+  { id: 'home', step: '02', title: '포트폴리오 전체 조망', body: '운영 자산, 임차인, 만기, 공실을 한 화면에서 좁힙니다.' },
+  { id: 'asset', step: '03', title: '자산별 상세 판단', body: '선택 자산의 임차, 면적, 지도, 만기 구조를 확인합니다.' },
+  { id: 'company', step: '04', title: '회사별 노출 점검', body: '임차 회사의 자산 노출과 계약 리스크를 따라갑니다.' },
+  { id: 'sector', step: '05', title: '섹터 비교와 우선순위', body: '권역, Top 자산, Top 임차인, 만기 집중도를 비교합니다.' },
+  { id: 'quality', step: '06', title: '데이터 확인', body: '원본 보존, 빈값, QA 이슈는 업무 화면이 아닌 검증 탭에서 봅니다.' },
+];
+
+const MAIN_STATUS_STYLES = {
+  신규: 'bg-[#202C3D] text-[#9AD7FF] border-[#34537A]',
+  검토중: 'bg-[#2B2613] text-[#FFD166] border-[#7A6425]',
+  진행중: 'bg-[#173522] text-[#B5E48C] border-[#2E6B45]',
+  보류: 'bg-[#331F1F] text-[#FF9F9F] border-[#6F3434]',
+};
+
+const MAIN_PRIORITY_STYLES = {
+  높음: 'text-[#FF453A]',
+  중간: 'text-[#2997FF]',
+  낮음: 'text-[#8E8E93]',
+};
+
+function mainPriorityWeight(priority) {
+  return { 높음: 0, 중간: 1, 낮음: 2 }[priority] ?? 9;
+}
+
+function mainStatusWeight(status) {
+  return { 검토중: 0, 진행중: 1, 신규: 2, 보류: 3 }[status] ?? 9;
+}
+
+function formatMainToday() {
+  const date = new Date();
+  const day = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 (${day})`;
+}
+
+function shortLogDate() {
+  const date = new Date();
+  return `${String(date.getFullYear()).slice(-2)}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function trimMainText(value, limit = 84) {
+  const text = cleanDisplay(value, '-');
+  return text.length > limit ? `${text.slice(0, limit)}...` : text;
+}
+
+function inferMainTaskMeta(row, index) {
+  const text = `${row.risk || ''} ${row.issue || ''} ${row.status || ''}`;
+  const priority = /EOD|경매|Refinancing|미연장|유치권|Lease-up|공실|소송/.test(text)
+    ? '높음'
+    : index < 3 ? '중간' : '낮음';
+  const status = row.plan ? '진행중' : row.issue ? '검토중' : '보류';
+  const dueDate = ['2026-05-31', '2026-06-15', '2026-06-30', '2026-07-15', '2026-07-31', '2026-08-15'][index] || '2026-06-30';
+  const stakeholder = index === 0 ? '산단공 / 투자자' : index === 1 ? '대주단' : index === 2 ? '법무 / 대주단' : index === 3 ? '시공사 / 임차사' : '섹터 담당자';
+  return { priority, status, dueDate, stakeholder };
+}
+
+function buildMainWeeklyTasks(report) {
+  const rows = [...(report.newProjects || []), ...(report.managementProjects || [])];
+  return rows.slice(0, 6).map((row, index) => {
+    const meta = inferMainTaskMeta(row, index);
+    return {
+      id: row.id || `main-task-${index + 1}`,
+      taskName: cleanDisplay(row.projectName || row.assetName, `Weekly Task ${index + 1}`),
+      nextAction: trimMainText(row.plan || row.issue || row.status || '후속 액션 확인 필요'),
+      issue: trimMainText(row.issue || row.status || '주요 이슈 없음', 108),
+      stakeholder: meta.stakeholder,
+      dueDate: meta.dueDate,
+      status: meta.status,
+      priority: meta.priority,
+    };
+  });
+}
+
+function sortMainTasks(tasks, sortMode) {
+  const next = [...tasks];
+  if (sortMode === 'due') return next.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  if (sortMode === 'status') return next.sort((a, b) => mainStatusWeight(a.status) - mainStatusWeight(b.status));
+  return next.sort((a, b) => mainPriorityWeight(a.priority) - mainPriorityWeight(b.priority));
+}
+
+function MainWorklogRow({ item }) {
+  return (
+    <tr className="border-b border-[#333333] last:border-b-0 hover:bg-white/[0.035] transition-colors">
+      <td className="py-3 pl-4 pr-3 align-top">
+        <span className="inline-flex h-8 min-w-[84px] items-center justify-center rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-[#D1D1D6]">
+          {item.project}
+        </span>
+      </td>
+      <td className="py-3 px-3 text-[13px] text-[#A1A1AA] align-top whitespace-nowrap">{item.cell}</td>
+      <td className="py-3 px-3 align-top">
+        <div className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#E8F2FF] text-[12px] font-bold text-[#1F1F1E]">
+            {item.owner.slice(0, 1)}
+          </span>
+          <span className="text-[13px] font-semibold text-white whitespace-nowrap">{item.owner}</span>
+        </div>
+      </td>
+      <td className="py-3 px-3 align-top">
+        <div className="text-[14px] text-white font-medium leading-snug break-keep">
+          {item.locked && <span className="mr-2 text-[#FF453A]">잠금</span>}{item.title}
+        </div>
+        <div className="mt-1 text-[12px] text-[#86868B] leading-relaxed break-keep">{item.body}</div>
+      </td>
+      <td className="py-3 px-3 align-top text-[13px] text-[#A1A1AA] whitespace-nowrap">{item.stakeholder}</td>
+      <td className="py-3 px-3 align-top text-[13px] text-[#D1D1D6] whitespace-nowrap">{item.purpose}</td>
+      <td className="py-3 px-3 align-top whitespace-nowrap">
+        <StatusPill className={MAIN_STATUS_STYLES[item.status] || 'bg-[#262626] text-[#E5E5E5] border-[#3A3A3C]'}>{item.status}</StatusPill>
+      </td>
+      <td className={`py-3 px-3 align-top text-[13px] font-semibold whitespace-nowrap ${MAIN_PRIORITY_STYLES[item.priority] || 'text-[#D1D1D6]'}`}>{item.priority}</td>
+      <td className="py-3 pr-4 pl-3 align-top text-[13px] text-[#86868B] whitespace-nowrap">{item.date}</td>
+    </tr>
+  );
+}
+
+function DashboardStoryRail({ activeId }) {
+  return (
+    <section className="mb-6 rounded-[20px] border border-[#333333] bg-[#252524] p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-semibold tracking-[0.03em] text-[#86868B]">DASHBOARD STORYLINE</div>
+          <h3 className="mt-1 text-[17px] font-semibold text-white">업무 흐름 기준 탭 배치</h3>
+        </div>
+        <div className="text-[12px] text-[#86868B]">Weekly에서 시작해 자산, 회사, 섹터, 데이터 검증으로 좁혀갑니다.</div>
+      </div>
+      <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-6">
+        {DASHBOARD_STORYLINES.map((item) => {
+          const active = item.id === activeId;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => navigateTo(pathFor(`dashboard/${item.id}`))}
+              className={`min-h-[118px] rounded-[14px] border p-4 text-left transition-colors ${active ? 'border-[#8ECBE6] bg-[#1F2B31]' : 'border-[#333333] bg-[#1F1F1E] hover:bg-[#2A2A29]'}`}
+            >
+              <div className="text-[12px] font-bold text-[#86868B]">{item.step}</div>
+              <div className={`mt-2 text-[14px] font-semibold leading-5 break-keep ${active ? 'text-white' : 'text-[#D1D1D6]'}`}>{item.title}</div>
+              <p className="mt-2 text-[12px] leading-5 text-[#86868B] break-keep">{item.body}</p>
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+export default function WorkspaceLogistics({ currentPath = '' }) {
+  const { memberInfo } = useAuth();
+  const [query, setQuery] = useState('');
+  const [scopeFilter, setScopeFilter] = useState('전체');
+  const [purposeFilter, setPurposeFilter] = useState('전체');
+  const [statusFilter, setStatusFilter] = useState('전체');
+  const [taskSort, setTaskSort] = useState('priority');
+  const [showAllLogs, setShowAllLogs] = useState(false);
+  const [showAllTasks, setShowAllTasks] = useState(false);
+  const [worklogs, setWorklogs] = useState(() => MAIN_WORKLOGS);
+  const [draftLog, setDraftLog] = useState({
+    project: '물류센터 섹터',
+    purpose: '공유',
+    status: '검토중',
+    priority: '중간',
+    stakeholder: '',
+    title: '',
+    body: '',
+  });
+
+  const isDashboard = currentPath.startsWith(pathFor('dashboard'));
+  const activeModule = currentPath.split('/').pop() || 'weekly';
+  const weeklyTasks = useMemo(() => buildMainWeeklyTasks(weeklyReportData), []);
+  const sortedWeeklyTasks = useMemo(() => sortMainTasks(weeklyTasks, taskSort), [weeklyTasks, taskSort]);
+  const visibleTasks = showAllTasks ? sortedWeeklyTasks : sortedWeeklyTasks.slice(0, 5);
+
+  const visibleLogs = useMemo(() => {
+    const text = query.trim().toLowerCase();
+    return worklogs.filter((item) => {
+      const matchesScope = scopeFilter === '전체' || item.cell.includes(scopeFilter) || item.project.includes(scopeFilter);
+      const matchesPurpose = purposeFilter === '전체' || item.purpose === purposeFilter;
+      const matchesStatus = statusFilter === '전체' || item.status === statusFilter;
+      if (!matchesScope || !matchesPurpose || !matchesStatus) return false;
+      if (!text) return true;
+      return [item.project, item.cell, item.owner, item.title, item.body, item.stakeholder, item.purpose, item.status, item.priority]
+        .join(' ')
+        .toLowerCase()
+        .includes(text);
+    });
+  }, [query, scopeFilter, purposeFilter, statusFilter, worklogs]);
+
+  if (isDashboard) {
+    return <DashboardShell activeModule={MODULES.some((item) => item.id === activeModule) ? activeModule : 'weekly'} />;
+  }
+
+  const displayedLogs = showAllLogs ? visibleLogs : visibleLogs.slice(0, 5);
+  const weeklySummary = [
+    { label: '관리 자산', value: formatNumber(weeklyReportData.summary?.assetCount), tone: 'text-[#B5E48C]' },
+    { label: '위험 자산', value: formatNumber(weeklyReportData.summary?.riskAssetCount), tone: 'text-[#FF9F9F]' },
+    { label: 'Lease-up 이슈', value: formatNumber(weeklyReportData.summary?.leaseUpIssueCount), tone: 'text-[#FFD166]' },
+    { label: '주요 Task', value: formatNumber(weeklyTasks.length), tone: 'text-[#9AD7FF]' },
+  ];
+
+  function handleAddLog() {
+    const title = draftLog.title.trim();
+    const body = draftLog.body.trim();
+    if (!title || !body) return;
+    setWorklogs((items) => [{
+      id: `log-${Date.now()}`,
+      project: draftLog.project,
+      cell: '사업PM',
+      owner: memberInfo?.staff_name || '사용자',
+      title,
+      body,
+      stakeholder: draftLog.stakeholder.trim() || '내부 공유',
+      purpose: draftLog.purpose,
+      status: draftLog.status,
+      priority: draftLog.priority,
+      date: shortLogDate(),
+      locked: draftLog.priority === '높음' && draftLog.purpose === '리스크 판단',
+    }, ...items]);
+    setDraftLog((prev) => ({ ...prev, title: '', body: '', stakeholder: '' }));
+  }
+
+  return (
+    <div className="w-full max-w-[1480px] mx-auto px-8 pt-6 pb-14">
+      <header className="mb-5 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div>
+          <div className="text-[13px] font-semibold text-[#86868B] tracking-[0.03em]">LOGISTICS SECTOR WORKSPACE</div>
+          <h1 className="mt-2 text-[26px] font-semibold tracking-tight text-white">물류센터 섹터 협업게시판</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative">
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              className="h-10 w-[260px] rounded-[8px] border border-[#333333] bg-[#1F1F1E] pl-9 pr-3 text-[14px] text-white placeholder:text-[#6E6E73] outline-none focus:border-[#2997ff]"
+              placeholder="검색어 입력..."
+            />
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#86868B]">⌕</span>
+          </div>
+          <button type="button" onClick={() => setShowAllLogs((value) => !value)} className="h-10 rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-4 text-[13px] font-semibold text-[#D1D1D6] hover:text-white">
+            {showAllLogs ? '접기' : '전체보기'}
+          </button>
+        </div>
+      </header>
+
+      <section className="mb-4 rounded-[26px] border border-[#8ECBE6]/80 bg-[#252524] p-5 shadow-[0_0_0_1px_rgba(255,255,255,0.02)_inset]">
+        <div className="flex flex-wrap items-center gap-4 border-b border-[#333333] pb-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#E8F2FF] text-[13px] font-bold text-[#1F1F1E]">
+            {(memberInfo?.staff_name || '물류').slice(0, 1)}
+          </div>
+          <select value={draftLog.project} onChange={(event) => setDraftLog({ ...draftLog, project: event.target.value })} className="h-10 rounded-[18px] border border-[#333333] bg-[#1F1F1E] px-4 text-[13px] font-bold text-white outline-none">
+            <option>물류센터 섹터</option>
+            <option>IOTA 공통</option>
+          </select>
+          <select value={draftLog.purpose} onChange={(event) => setDraftLog({ ...draftLog, purpose: event.target.value })} className="h-9 rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 text-[13px] font-semibold text-[#D1D1D6] outline-none">
+            {MAIN_PURPOSES.map((purpose) => <option key={purpose}>{purpose}</option>)}
+          </select>
+          <select value={draftLog.status} onChange={(event) => setDraftLog({ ...draftLog, status: event.target.value })} className="h-9 rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 text-[13px] font-semibold text-[#D1D1D6] outline-none">
+            {MAIN_STATUSES.map((status) => <option key={status}>{status}</option>)}
+          </select>
+          <select value={draftLog.priority} onChange={(event) => setDraftLog({ ...draftLog, priority: event.target.value })} className="h-9 rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 text-[13px] font-semibold text-[#2997FF] outline-none">
+            {MAIN_PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}
+          </select>
+          <div className="ml-auto text-[14px] font-semibold text-[#D1D1D6]">{formatMainToday()}</div>
+        </div>
+        <input
+          value={draftLog.title}
+          onChange={(event) => setDraftLog({ ...draftLog, title: event.target.value })}
+          className="mt-4 h-12 w-full border-b border-[#333333] bg-transparent text-[16px] font-semibold text-white outline-none placeholder:text-[#86868B]"
+          placeholder="제목을 입력하세요"
+        />
+        <textarea
+          value={draftLog.body}
+          onChange={(event) => setDraftLog({ ...draftLog, body: event.target.value })}
+          className="mt-3 min-h-[118px] w-full resize-none bg-transparent text-[15px] leading-7 text-[#D1D1D6] outline-none placeholder:text-[#8E8E93]"
+          placeholder="진행 이력, 협업 요청, 리스크 판단 필요사항, 의사결정 필요항목을 입력하세요. (@를 입력하여 담당자를 멘션할 수 있습니다)"
+        />
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          <span className="text-[13px] text-[#86868B]">이해관계자</span>
+          <input
+            value={draftLog.stakeholder}
+            onChange={(event) => setDraftLog({ ...draftLog, stakeholder: event.target.value })}
+            className="h-10 w-[210px] rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 text-[13px] text-white outline-none placeholder:text-[#6E6E73]"
+            placeholder="회사명 검색/입력"
+          />
+          <div className="ml-auto flex gap-2">
+            <button type="button" className="h-10 rounded-[10px] border border-[#FF453A] px-4 text-[13px] font-semibold text-[#FF453A]">열람권한</button>
+            <button type="button" onClick={handleAddLog} className="h-10 rounded-[10px] border border-[#3A3A3C] bg-[#30302F] px-6 text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">작성하기</button>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-5 overflow-hidden rounded-[24px] border border-[#333333] bg-[#252524]">
+        <div className="flex flex-wrap items-center gap-2 border-b border-[#333333] px-4 py-3">
+          {['전체', '개인', '팀', '섹터'].map((scope) => (
+            <button
+              key={scope}
+              type="button"
+              onClick={() => setScopeFilter(scope)}
+              className={`h-8 rounded-[8px] px-3 text-[12px] font-semibold transition-colors ${scopeFilter === scope ? 'bg-[#3A3A3C] text-white' : 'bg-[#1F1F1E] text-[#86868B] hover:text-white'}`}
+            >
+              {scope}
+            </button>
+          ))}
+          <div className="mx-1 h-5 w-px bg-[#3A3A3C]" />
+          {['전체', ...MAIN_PURPOSES].map((purpose) => (
+            <button
+              key={purpose}
+              type="button"
+              onClick={() => setPurposeFilter(purpose)}
+              className={`h-8 rounded-[8px] px-3 text-[12px] font-semibold transition-colors ${purposeFilter === purpose ? 'bg-[#3A3A3C] text-white' : 'bg-[#1F1F1E] text-[#86868B] hover:text-white'}`}
+            >
+              {purpose}
+            </button>
+          ))}
+          <div className="mx-1 h-5 w-px bg-[#3A3A3C]" />
+          {['전체', ...MAIN_STATUSES].map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => setStatusFilter(status)}
+              className={`h-8 rounded-[8px] px-3 text-[12px] font-semibold transition-colors ${statusFilter === status ? 'bg-[#3A3A3C] text-white' : 'bg-[#1F1F1E] text-[#86868B] hover:text-white'}`}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+        <div className="overflow-auto">
+          <table className="w-full min-w-[1120px] text-left border-collapse">
+            <thead className="bg-[#252524] text-[#86868B] text-[12px]">
+              <tr>
+                <th className="py-3 pl-4 pr-3 font-semibold">프로젝트</th>
+                <th className="py-3 px-3 font-semibold">기능셀</th>
+                <th className="py-3 px-3 font-semibold">등록자</th>
+                <th className="py-3 px-3 font-semibold">내용</th>
+                <th className="py-3 px-3 font-semibold">이해관계자</th>
+                <th className="py-3 px-3 font-semibold">목적</th>
+                <th className="py-3 px-3 font-semibold">진행상태</th>
+                <th className="py-3 px-3 font-semibold">중요도</th>
+                <th className="py-3 pr-4 pl-3 font-semibold">등록일</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayedLogs.map((item) => <MainWorklogRow key={item.id} item={item} />)}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mb-5 grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-4">
+        <aside className="rounded-[24px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="WEEKLY STATUS" title="이번 주 공유 현황" />
+          <div className="grid grid-cols-2 gap-3">
+            {weeklySummary.map((item) => (
+              <div key={item.label} className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-3">
+                <div className="text-[12px] text-[#86868B] font-semibold">{item.label}</div>
+                <div className={`mt-1 text-[24px] font-semibold tracking-tight ${item.tone}`}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
+            <div className="text-[12px] font-bold text-[#86868B]">주요 이슈</div>
+            <p className="mt-2 text-[14px] leading-6 text-[#D1D1D6] break-keep">
+              Refi, Lease-up, EOD/경매, 유치권 등 이번 주 의사결정이 필요한 이슈를 업무 로그와 Weekly 탭에서 같이 추적합니다.
+            </p>
+            <button type="button" onClick={() => navigateTo(pathFor('dashboard/weekly'))} className="mt-4 h-9 w-full rounded-[8px] bg-[#30302F] text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">
+              Weekly 탭 보기
+            </button>
+          </div>
+        </aside>
+
+        <div className="rounded-[24px] border border-[#333333] bg-[#252524] p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-[18px] font-bold text-white">물류센터 주요 TASK 관리</h2>
+              <span className="rounded-[8px] bg-[#333333] px-3 py-1 text-[12px] font-semibold text-[#D1D1D6]">26년 5월 3주</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex rounded-[10px] border border-[#333333] bg-[#1F1F1E] p-1">
+                {MAIN_SORT_OPTIONS.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setTaskSort(option.id)}
+                    className={`h-8 rounded-[8px] px-3 text-[12px] font-semibold transition-colors ${taskSort === option.id ? 'bg-[#3A3A3C] text-white' : 'text-[#86868B] hover:text-white'}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => setShowAllTasks((value) => !value)} className="h-9 rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-4 text-[13px] font-semibold text-[#D1D1D6] hover:text-white">
+                {showAllTasks ? '접기' : '전체보기'}
+              </button>
+              <button type="button" onClick={() => navigateTo(pathFor('dashboard/home'))} className="h-9 rounded-[8px] border border-[#2C66A2] bg-[#17314E] px-4 text-[13px] font-semibold text-[#9AD7FF] hover:bg-[#1E3C5F]">
+                Dashboard 보기
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            {visibleTasks.map((task, index) => (
+              <div key={task.id} className="group rounded-[22px] border border-[#3A3A3C] bg-[#272726] px-6 py-5 transition-colors hover:bg-[#30302F]">
+                <div className="grid grid-cols-1 gap-5 lg:grid-cols-[390px_1fr_190px] lg:items-start">
+                  <div className="lg:border-r lg:border-[#444444]/60 lg:pr-7">
+                    <div className="text-[13px] font-bold text-[#86868B]">Task {index + 1}</div>
+                    <h3 className="mt-1 text-[21px] font-bold leading-tight tracking-tight text-[#E2AA29] break-keep">{task.taskName}</h3>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <StatusPill className={MAIN_STATUS_STYLES[task.status] || 'bg-[#262626] text-[#E5E5E5] border-[#3A3A3C]'}>{task.status}</StatusPill>
+                      <span className={`inline-flex h-7 items-center text-[13px] font-bold ${MAIN_PRIORITY_STYLES[task.priority]}`}>{task.priority}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                      <span className="text-[13px] font-bold text-[#86868B]">Next Action</span>
+                      <span className="rounded-full border border-[#3A3A3C] bg-[#2C2C2E] px-2.5 py-1 text-[11px] font-medium text-[#A1A1AA]">마감일 목표 {task.dueDate}</span>
+                    </div>
+                    <p className="text-[17px] font-medium leading-7 text-[#BBB9AF] break-keep">{task.nextAction}</p>
+                    <p className="mt-2 text-[13px] leading-6 text-[#86868B] break-keep">{task.issue}</p>
+                  </div>
+                  <div className="flex items-center justify-start gap-3 lg:justify-end">
+                    <span className="text-[13px] font-medium text-[#86868B]">이해관계자</span>
+                    <span className="rounded-[12px] border border-[#333333] bg-[#1A1A1A] px-4 py-2 text-[14px] font-bold text-white whitespace-nowrap">{task.stakeholder}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {[
+          { title: '개인 업무', filter: '개인', rows: worklogs.filter((item) => item.owner === (memberInfo?.staff_name || '사용자')).slice(0, 3) },
+          { title: '팀 업무', filter: '팀', rows: worklogs.filter((item) => item.cell !== '섹터PM').slice(0, 3) },
+          { title: '섹터 업무', filter: '섹터', rows: worklogs.filter((item) => item.project.includes('물류센터')).slice(0, 3) },
+        ].map((block) => (
+          <div key={block.title} className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <SectionHeader eyebrow={block.filter.toUpperCase()} title={block.title} />
+              <button type="button" onClick={() => setScopeFilter(block.filter)} className="h-8 rounded-[8px] bg-[#30302F] px-3 text-[12px] font-semibold text-[#D1D1D6] hover:text-white">보기</button>
+            </div>
+            <div className="space-y-3">
+              {(block.rows.length ? block.rows : worklogs.slice(0, 2)).map((item) => (
+                <div key={`${block.title}-${item.id}`} className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-[14px] font-semibold leading-5 text-white break-keep">{item.title}</div>
+                    <StatusPill className={MAIN_STATUS_STYLES[item.status] || 'bg-[#262626] text-[#E5E5E5] border-[#3A3A3C]'}>{item.status}</StatusPill>
+                  </div>
+                  <div className="mt-2 text-[12px] text-[#86868B]">{item.owner} · {item.purpose} · {item.date}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
+    </div>
+  );
+}
+
 function TrendChart({ rows, valueKey, secondaryKey, valueType = 'currency' }) {
   const points = (rows || []).filter((row) => row?.[valueKey] != null).slice(-18);
   if (!points.length) return <div className="text-[13px] text-[#86868B]">표시할 차트 데이터가 없습니다.</div>;
@@ -1820,6 +2361,8 @@ function DashboardShell({ activeModule }) {
         })}
       </div>
 
+      <DashboardStoryRail activeId={selected.id} />
+
       {selected.id === 'weekly' ? <WeeklyDashboard /> : selected.id === 'home' ? <HomeDashboard /> : selected.id === 'asset' ? <AssetDashboard /> : selected.id === 'company' ? <CompanyDashboard /> : selected.id === 'sector' ? <SectorDashboard /> : (
       <section className="border border-[#333333] rounded-[20px] bg-[#252524] overflow-hidden">
         <div className="px-6 py-5 border-b border-[#333333] flex items-center justify-between gap-4">
@@ -1861,7 +2404,7 @@ function DashboardShell({ activeModule }) {
   );
 }
 
-export default function WorkspaceLogistics({ currentPath = '' }) {
+function LegacyWorkspaceLogistics({ currentPath = '' }) {
   const { memberInfo } = useAuth();
   const [query, setQuery] = useState('');
   const [scopeFilter, setScopeFilter] = useState('전체');

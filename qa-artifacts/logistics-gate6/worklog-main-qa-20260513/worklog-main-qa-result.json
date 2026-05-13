@@ -1,0 +1,23 @@
+{
+  "url": "http://127.0.0.1:8101/platform/iotaseoul/workspace/logistics",
+  "checks": {
+    "hasMainBoard": true,
+    "hasComposer": true,
+    "hasWorklogTable": true,
+    "hasWeeklyStatus": true,
+    "hasTaskCards": true,
+    "excludesDataQaFromMain": true,
+    "dashboardRouteWorks": true,
+    "dashboardStorylineWorks": true,
+    "weeklyRouteWorks": true
+  },
+  "composerLocatorCheck": {
+    "titleInput": 1,
+    "bodyInput": 1,
+    "stakeholderInput": 1,
+    "writeButton": 1,
+    "permissionButton": 1
+  },
+  "pageErrors": [],
+  "allPass": true
+}
