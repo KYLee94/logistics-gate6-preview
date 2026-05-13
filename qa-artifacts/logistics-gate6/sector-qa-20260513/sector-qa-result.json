@@ -1,0 +1,23 @@
+{
+  "urlSector": "http://127.0.0.1:8097/platform/iotaseoul/workspace/logistics/dashboard/sector",
+  "checks": {
+    "sectorActive": true,
+    "kpis": true,
+    "regionPanel": true,
+    "trendPanel": true,
+    "assetRanking": true,
+    "tenantRanking": true,
+    "rail": true,
+    "noAdminData": true
+  },
+  "popupChecks": {
+    "expiry": true,
+    "region": true,
+    "trend": true,
+    "asset": true,
+    "tenant": true
+  },
+  "debug": {
+    "pageErrors": []
+  }
+}
