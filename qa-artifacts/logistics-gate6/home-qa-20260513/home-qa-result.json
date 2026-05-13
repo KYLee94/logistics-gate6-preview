@@ -1,0 +1,31 @@
+{
+  "url": "http://127.0.0.1:8082/platform/iotaseoul/workspace/logistics/dashboard/home",
+  "outDir": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\home-qa-20260513",
+  "checks": {
+    "activeHome": true,
+    "fiveKpis": true,
+    "portfolioLocation": true,
+    "snapshot": true,
+    "rentTrend": true,
+    "vacancy": true,
+    "expiry": true,
+    "tenantTables": true,
+    "noAdminData": true
+  },
+  "popupChecks": {
+    "assetsHeader": true,
+    "snapshotVacancyHeader": true,
+    "mapHasAssetList": true,
+    "rentTrendHeader": true,
+    "expiryHeader": true,
+    "tenantHeader": true
+  },
+  "popupSamples": {
+    "assets": "IOTA Seoul\n홈\n전체 업무 현황\nVehicle 통합\nIota Project REITs\n워크스페이스\n사업 PM\n파이낸싱-LFC\n개발솔루션-DSC\n기업마케팅-EMC\n상품·디지털-SSC\n펀드운용-KAM\nIPR-WG\n물류센터 섹터\n이해관계자\nIGIS 내부인력\nLP / 대주 / SI\n잠재 임차사 (TBD)\n운영 파트너 (TBD)\nIOTA CFT 거번넌스\n통합 수행체계\n의사결정 및 평가 체계\n90 Day Roadmap\nRACI\n회의체 운영 방침\n펀드 운용 R&R\n프로젝트리츠 워킹그룹\n대외 소통 정책\nTop 10 리스크 대응 방향\nQA\nQA Reader 매니저\nreader.qa@igis.local\nINTERNAL MODULE\n임대차 Dashboard\n원본 기준\nWeekly\nHome\nAsset\nCompany\nSector\nAnalysis Tools\nData Playground\nData Quality\nDETAIL\n운영 자산 목록\n닫기\n자산명\t주소\t연면적\t공실률\n경산 쿠팡물류센터\t경상북도 경산시",
+    "snapshotVacancy": "IOTA Seoul\n홈\n전체 업무 현황\nVehicle 통합\nIota Project REITs\n워크스페이스\n사업 PM\n파이낸싱-LFC\n개발솔루션-DSC\n기업마케팅-EMC\n상품·디지털-SSC\n펀드운용-KAM\nIPR-WG\n물류센터 섹터\n이해관계자\nIGIS 내부인력\nLP / 대주 / SI\n잠재 임차사 (TBD)\n운영 파트너 (TBD)\nIOTA CFT 거번넌스\n통합 수행체계\n의사결정 및 평가 체계\n90 Day Roadmap\nRACI\n회의체 운영 방침\n펀드 운용 R&R\n프로젝트리츠 워킹그룹\n대외 소통 정책\nTop 10 리스크 대응 방향\nQA\nQA Reader 매니저\nreader.qa@igis.local\nINTERNAL MODULE\n임대차 Dashboard\n원본 기준\nWeekly\nHome\nAsset\nCompany\nSector\nAnalysis Tools\nData Playground\nData Quality\nDETAIL\n현재 공실률 근거\n닫기\n항목\t내용\n연면적\t1,630,958㎡\n임대면적\t1,340,",
+    "map": "IOTA Seoul\n홈\n전체 업무 현황\nVehicle 통합\nIota Project REITs\n워크스페이스\n사업 PM\n파이낸싱-LFC\n개발솔루션-DSC\n기업마케팅-EMC\n상품·디지털-SSC\n펀드운용-KAM\nIPR-WG\n물류센터 섹터\n이해관계자\nIGIS 내부인력\nLP / 대주 / SI\n잠재 임차사 (TBD)\n운영 파트너 (TBD)\nIOTA CFT 거번넌스\n통합 수행체계\n의사결정 및 평가 체계\n90 Day Roadmap\nRACI\n회의체 운영 방침\n펀드 운용 R&R\n프로젝트리츠 워킹그룹\n대외 소통 정책\nTop 10 리스크 대응 방향\nQA\nQA Reader 매니저\nreader.qa@igis.local\nINTERNAL MODULE\n임대차 Dashboard\n원본 기준\nWeekly\nHome\nAsset\nCompany\nSector\nAnalysis Tools\nData Playground\nData Quality\nDETAIL\n포트폴리오 위치\n닫기\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n",
+    "rentTrend": "IOTA Seoul\n홈\n전체 업무 현황\nVehicle 통합\nIota Project REITs\n워크스페이스\n사업 PM\n파이낸싱-LFC\n개발솔루션-DSC\n기업마케팅-EMC\n상품·디지털-SSC\n펀드운용-KAM\nIPR-WG\n물류센터 섹터\n이해관계자\nIGIS 내부인력\nLP / 대주 / SI\n잠재 임차사 (TBD)\n운영 파트너 (TBD)\nIOTA CFT 거번넌스\n통합 수행체계\n의사결정 및 평가 체계\n90 Day Roadmap\nRACI\n회의체 운영 방침\n펀드 운용 R&R\n프로젝트리츠 워킹그룹\n대외 소통 정책\nTop 10 리스크 대응 방향\nQA\nQA Reader 매니저\nreader.qa@igis.local\nINTERNAL MODULE\n임대차 Dashboard\n원본 기준\nWeekly\nHome\nAsset\nCompany\nSector\nAnalysis Tools\nData Playground\nData Quality\nDETAIL\n임대료 추이 원본 표\n닫기\n월\t월 임대료(RF/FO 반영)\t월 관리비\t월 임관리비",
+    "expiry": "IOTA Seoul\n홈\n전체 업무 현황\nVehicle 통합\nIota Project REITs\n워크스페이스\n사업 PM\n파이낸싱-LFC\n개발솔루션-DSC\n기업마케팅-EMC\n상품·디지털-SSC\n펀드운용-KAM\nIPR-WG\n물류센터 섹터\n이해관계자\nIGIS 내부인력\nLP / 대주 / SI\n잠재 임차사 (TBD)\n운영 파트너 (TBD)\nIOTA CFT 거번넌스\n통합 수행체계\n의사결정 및 평가 체계\n90 Day Roadmap\nRACI\n회의체 운영 방침\n펀드 운용 R&R\n프로젝트리츠 워킹그룹\n대외 소통 정책\nTop 10 리스크 대응 방향\nQA\nQA Reader 매니저\nreader.qa@igis.local\nINTERNAL MODULE\n임대차 Dashboard\n원본 기준\nWeekly\nHome\nAsset\nCompany\nSector\nAnalysis Tools\nData Playground\nData Quality\nDETAIL\n만기 집중도 월별 상세\n닫기\n만기월\t임차인\t자산\t임대면적\t월 임대료\t월 관리비\t월",
+    "tenant": "IOTA Seoul\n홈\n전체 업무 현황\nVehicle 통합\nIota Project REITs\n워크스페이스\n사업 PM\n파이낸싱-LFC\n개발솔루션-DSC\n기업마케팅-EMC\n상품·디지털-SSC\n펀드운용-KAM\nIPR-WG\n물류센터 섹터\n이해관계자\nIGIS 내부인력\nLP / 대주 / SI\n잠재 임차사 (TBD)\n운영 파트너 (TBD)\nIOTA CFT 거번넌스\n통합 수행체계\n의사결정 및 평가 체계\n90 Day Roadmap\nRACI\n회의체 운영 방침\n펀드 운용 R&R\n프로젝트리츠 워킹그룹\n대외 소통 정책\nTop 10 리스크 대응 방향\nQA\nQA Reader 매니저\nreader.qa@igis.local\nINTERNAL MODULE\n임대차 Dashboard\n원본 기준\nWeekly\nHome\nAsset\nCompany\nSector\nAnalysis Tools\nData Playground\nData Quality\nDETAIL\n임차인 상세\n닫기\n항목\t내용\n임차인명\t쿠팡(주)\n자산 수\t4\n임대면적\t436,90"
+  }
+}

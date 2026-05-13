@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
 import weeklyReportData from './logisticsWeeklyReportData.json';
+import homeData from './logisticsHomeData.json';
 
 const MODULES = [
   { id: 'weekly', label: 'Weekly', source: '주간 업무' },
@@ -101,10 +102,43 @@ function formatNumber(value) {
   return new Intl.NumberFormat('ko-KR').format(numeric);
 }
 
+function firstDefined(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '');
+}
+
+function sumRows(rows, picker) {
+  return (rows || []).reduce((sum, row) => sum + Number(picker(row) || 0), 0);
+}
+
 function formatPercent(value) {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric)) return '-';
   return `${(numeric * 100).toFixed(1)}%`;
+}
+
+function formatArea(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return '-';
+  return `${formatNumber(Math.round(numeric))}㎡`;
+}
+
+function formatCurrency(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return '-';
+  if (Math.abs(numeric) >= 100000000) return `${formatNumber(Math.round(numeric / 100000000))}억`;
+  if (Math.abs(numeric) >= 10000) return `${formatNumber(Math.round(numeric / 10000))}만`;
+  return formatNumber(Math.round(numeric));
+}
+
+function formatDate(value) {
+  return String(value || '-').slice(0, 10);
+}
+
+function formatMetric(value, type) {
+  if (type === 'area') return formatArea(value);
+  if (type === 'currency') return formatCurrency(value);
+  if (type === 'percent') return formatPercent(value);
+  return formatNumber(value);
 }
 
 function normalizeWeeklyAssetRows(rows) {
@@ -411,6 +445,276 @@ function WeeklyDashboard() {
   );
 }
 
+function TrendChart({ rows, valueKey, secondaryKey, valueType = 'currency' }) {
+  const points = (rows || []).filter((row) => row?.[valueKey] != null).slice(-18);
+  if (!points.length) return <div className="text-[13px] text-[#86868B]">표시할 차트 데이터가 없습니다.</div>;
+  const width = 760;
+  const height = 220;
+  const padding = 28;
+  const maxValue = Math.max(...points.map((row) => Number(row[valueKey] || 0)), 1);
+  const secondaryMax = Math.max(...points.map((row) => Number(row[secondaryKey] || 0)), 1);
+  const coords = points.map((row, index) => {
+    const x = padding + (index * (width - padding * 2)) / Math.max(points.length - 1, 1);
+    const y = height - padding - (Number(row[valueKey] || 0) / maxValue) * (height - padding * 2);
+    const y2 = height - padding - (Number(row[secondaryKey] || 0) / secondaryMax) * (height - padding * 2);
+    return { x, y, y2, row };
+  });
+  return (
+    <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
+      <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-[220px]" role="img" aria-label="Home trend chart">
+        <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#3A3A3C" />
+        <polyline points={coords.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke="#9AD7FF" strokeWidth="3" />
+        <polyline points={coords.map((point) => `${point.x},${point.y2}`).join(' ')} fill="none" stroke="#B5E48C" strokeWidth="2" strokeDasharray="5 5" />
+        {coords.map((point) => (
+          <circle key={`${point.row.month}-${point.x}`} cx={point.x} cy={point.y} r="3.5" fill="#9AD7FF" />
+        ))}
+      </svg>
+      <div className="flex items-center justify-between text-[12px] text-[#86868B] mt-2">
+        <span>{points[0]?.month || points[0]?.label}</span>
+        <span>{valueType === 'currency' ? '금액 추이' : '면적 추이'} / 자산·임차인 수</span>
+        <span>{points[points.length - 1]?.month || points[points.length - 1]?.label}</span>
+      </div>
+    </div>
+  );
+}
+
+function PortfolioMapPlot({ points }) {
+  const validPoints = (points || []).filter((point) => point.latitude != null && point.longitude != null);
+  if (!validPoints.length) return <div className="text-[13px] text-[#86868B]">좌표가 등록된 자산이 없습니다.</div>;
+  const minLat = Math.min(...validPoints.map((point) => Number(point.latitude)));
+  const maxLat = Math.max(...validPoints.map((point) => Number(point.latitude)));
+  const minLng = Math.min(...validPoints.map((point) => Number(point.longitude)));
+  const maxLng = Math.max(...validPoints.map((point) => Number(point.longitude)));
+  const xFor = (point) => 7 + ((Number(point.longitude) - minLng) / Math.max(maxLng - minLng, 0.0001)) * 86;
+  const yFor = (point) => 7 + ((maxLat - Number(point.latitude)) / Math.max(maxLat - minLat, 0.0001)) * 86;
+  return (
+    <div className="relative min-h-[420px] rounded-[14px] border border-[#333333] bg-[#1F1F1E] overflow-hidden">
+      <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(#3A3A3C 1px, transparent 1px), linear-gradient(90deg, #3A3A3C 1px, transparent 1px)', backgroundSize: '44px 44px' }} />
+      {validPoints.map((point, index) => (
+        <div
+          key={point.assetId || point.assetName}
+          className="absolute -translate-x-1/2 -translate-y-1/2 group"
+          style={{ left: `${xFor(point)}%`, top: `${yFor(point)}%` }}
+        >
+          <div className="h-8 w-8 rounded-full bg-[#9AD7FF] text-[#111] text-[12px] font-bold flex items-center justify-center shadow-lg shadow-black/30">{index + 1}</div>
+          <div className="absolute left-8 top-1/2 -translate-y-1/2 hidden group-hover:block w-[220px] rounded-[8px] border border-[#3A3A3C] bg-[#252524] p-3 text-[12px] text-[#C7C7CC] z-10">
+            <strong className="block text-white mb-1">{point.assetName}</strong>
+            {point.address || '-'}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function normalizeHomeData(home) {
+  const kpiMap = Object.fromEntries((home.kpis || []).map((item) => [item.key, item]));
+  const occupancy = home.occupancy || {};
+  const topContracts = (home.topContracts || []).map((row) => ({
+    ...row,
+    tenantMasterName: firstDefined(row.tenantMasterName, row.tenantName, row.companyName, '-'),
+    leasedAreaSqm: firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm, row.totalLeasedAreaSqm),
+    monthlyRentTotal: firstDefined(row.monthlyRentTotal, row.currentMonthlyRentTotal),
+    monthlyMfTotal: firstDefined(row.monthlyMfTotal, row.currentMonthlyMfTotal),
+    monthlyCombinedTotal: firstDefined(row.monthlyTotal, row.monthlyCombinedTotal, row.monthlyCostTotal),
+    currentEndDate: firstDefined(row.currentEndDate, row.latestExpiry, row.endDate),
+    assetNames: Array.isArray(row.assetNames) ? row.assetNames : [],
+  }));
+  const topTenants = (home.topTenants || []).map((row) => ({
+    ...row,
+    tenantMasterName: firstDefined(row.tenantMasterName, row.tenantName, row.companyName, '-'),
+    monthlyCombinedTotal: firstDefined(row.monthlyCostTotal, row.monthlyTotal, row.monthlyCombinedTotal),
+  }));
+  const vacancyRows = home.vacancySummary || [];
+  const mapPoints = home.mapPoints || [];
+  const monthlyExpiryRows = home.contractSummary?.monthlyExpirySeries || home.contractSummary?.monthlyVacancy || [];
+  const upcomingExpiryRows = home.contractSummary?.upcoming || [];
+  return {
+    kpiMap,
+    occupancy,
+    topContracts,
+    topTenants,
+    vacancyRows,
+    mapPoints,
+    monthlyExpiryRows,
+    upcomingExpiryRows,
+    operatingAssetCount: firstDefined(kpiMap.operating_asset_count?.value, kpiMap.asset_count?.value, mapPoints.length),
+    leasedArea: firstDefined(kpiMap.leased_area_total?.value, occupancy.leasedAreaSqm),
+    vacancyArea: firstDefined(kpiMap.vacancy_area_total?.value, occupancy.vacancyAreaSqm),
+    vacancyRate: firstDefined(kpiMap.vacancy_rate?.value, occupancy.vacancyRate),
+    monthlyCost: firstDefined(kpiMap.monthly_total_cost?.value, sumRows(topContracts, (row) => row.monthlyCombinedTotal)),
+  };
+}
+
+function HomeDashboard() {
+  const home = homeData;
+  const data = useMemo(() => normalizeHomeData(home), [home]);
+  const [modal, setModal] = useState(null);
+  const [tenantSort, setTenantSort] = useState('cost');
+
+  const rentTrendRows = (home.rentTrend || []).map((row) => ({
+    ...row,
+    monthlyCostTotalAdjusted: firstDefined(row.monthlyCostTotalAdjusted, row.monthlyTotal, row.monthlyRentTotal),
+    activeAssetCount: firstDefined(row.activeAssetCount, 0),
+  }));
+  const sortedTenants = data.topTenants.slice().sort((a, b) => (
+    tenantSort === 'area'
+      ? Number(b.leasedAreaSqm || 0) - Number(a.leasedAreaSqm || 0)
+      : Number(b.monthlyCombinedTotal || 0) - Number(a.monthlyCombinedTotal || 0)
+  ));
+  const mapAssetRows = data.mapPoints.map((point) => ({
+    ...point,
+    ...(data.vacancyRows.find((row) => row.assetId === point.assetId) || {}),
+  }));
+  const coordinateRows = data.mapPoints.map((row, index) => [
+    formatNumber(index + 1),
+    row.assetName,
+    row.address || '-',
+    row.latitude != null && row.longitude != null ? `${row.latitude}, ${row.longitude}` : '-',
+  ]);
+  const expiryDetailRows = (data.monthlyExpiryRows || []).flatMap((monthRow) => (
+    (monthRow.items || []).map((item) => [
+      monthRow.month || monthRow.label || '-',
+      item.tenantMasterName || '-',
+      item.assetName || '-',
+      formatArea(item.leasedAreaSqm),
+      formatCurrency(item.monthlyRentTotal),
+      formatCurrency(item.monthlyMfTotal),
+      formatCurrency(item.monthlyCostTotal),
+      item.rentPerPy != null ? formatNumber(item.rentPerPy) : '-',
+      item.mfPerPy != null ? formatNumber(item.mfPerPy) : '-',
+      item.eNoc != null ? formatNumber(item.eNoc) : '-',
+      item.detailAreaLabel || item.floorLabel || '-',
+    ])
+  ));
+
+  const openTableModal = (title, headers, rows) => setModal({ title, headers, rows });
+  const openTenantModal = (tenant, title) => openTableModal(title, ['항목', '내용'], [
+    ['임차인명', tenant.tenantMasterName],
+    ['자산 수', formatNumber(tenant.assetCount || tenant.assetNames?.length || 0)],
+    ['임대면적', formatArea(tenant.leasedAreaSqm)],
+    ['월 임대료', formatCurrency(tenant.monthlyRentTotal)],
+    ['월 관리비', formatCurrency(tenant.monthlyMfTotal)],
+    ['월 임관리비', formatCurrency(tenant.monthlyCombinedTotal)],
+    ['최근 만기일', formatDate(tenant.latestExpiry || tenant.currentEndDate)],
+    ['사업자번호', tenant.businessRegistrationNo || tenant.company?.businessRegistrationNo || '-'],
+  ]);
+
+  const kpiCards = [
+    ['운영 자산 수', formatMetric(data.operatingAssetCount, 'number'), () => openTableModal('운영 자산 목록', ['자산명', '주소', '연면적', '공실률'], mapAssetRows.map((row) => [row.assetName, row.address || '-', formatArea(row.grossFloorAreaSqm), formatPercent(row.vacancyRate)]))],
+    ['총 임대면적', formatMetric(data.leasedArea, 'area'), () => openTableModal('총 임대면적 근거', ['자산명', '연면적', '공실면적', '공실률'], data.vacancyRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.vacancyAreaSqm), formatPercent(row.vacancyRate)]))],
+    ['총 공실면적', formatMetric(data.vacancyArea, 'area'), () => openTableModal('총 공실면적 근거', ['자산명', '공실면적', '공실률'], data.vacancyRows.map((row) => [row.assetName, formatArea(row.vacancyAreaSqm), formatPercent(row.vacancyRate)]))],
+    ['공실률', formatMetric(data.vacancyRate, 'percent'), () => openTableModal('공실률 계산 근거', ['항목', '내용'], [['연면적', formatArea(data.occupancy.grossFloorAreaSqm)], ['임대면적', formatArea(data.occupancy.leasedAreaSqm)], ['공실면적', formatArea(data.occupancy.vacancyAreaSqm)], ['공실률', formatPercent(data.vacancyRate)]])],
+    ['월 임관리비 총액', formatMetric(data.monthlyCost, 'currency'), () => openTableModal('월 임관리비 총액 근거', ['임차인명', '월 임대료', '월 관리비', '월 임관리비'], data.topContracts.map((row) => [row.tenantMasterName, formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyCombinedTotal)]))],
+  ];
+  const snapshotCards = [
+    ['운영 자산 수', `${formatNumber(data.operatingAssetCount)}개`, () => openTableModal('운영 자산 수 근거', ['자산명', '주소', '연면적', '공실면적', '공실률'], mapAssetRows.map((row) => [row.assetName, row.address || '-', formatArea(row.grossFloorAreaSqm), formatArea(row.vacancyAreaSqm), formatPercent(row.vacancyRate)]))],
+    ['현재 공실률', formatPercent(data.vacancyRate), () => openTableModal('현재 공실률 근거', ['항목', '내용'], [['연면적', formatArea(data.occupancy.grossFloorAreaSqm)], ['임대면적', formatArea(data.occupancy.leasedAreaSqm)], ['공실면적', formatArea(data.occupancy.vacancyAreaSqm)], ['공실률', formatPercent(data.vacancyRate)]])],
+    ['표시 임차인 수', `${formatNumber(home.contractSummary?.tenantCount || data.topTenants.length)}개`, () => openTableModal('표시 임차인 수 근거', ['임차인명', '자산 수', '임대면적', '월 임관리비'], data.topContracts.map((row) => [row.tenantMasterName, formatNumber(row.assetNames?.length || row.assetCount || 0), formatArea(row.leasedAreaSqm), formatCurrency(row.monthlyCombinedTotal)]))],
+    ['좌표 보유 자산', `${formatNumber(data.mapPoints.length)}개`, () => openTableModal('좌표 보유 자산 근거', ['No.', '자산명', '주소', '좌표'], coordinateRows)],
+  ];
+
+  return (
+    <div className="space-y-6">
+      <LogisticsModal modal={modal} onClose={() => setModal(null)} />
+      <section className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        {kpiCards.map(([label, value, action]) => (
+          <button key={label} type="button" onClick={action} className="text-left rounded-[14px] border border-[#333333] bg-[#252524] px-4 py-4 hover:bg-[#2A2A29]">
+            <div className="text-[12px] text-[#86868B] font-semibold">{label}</div>
+            <div className="text-[22px] text-white font-semibold mt-2">{value}</div>
+          </button>
+        ))}
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-[1.15fr_0.85fr] gap-5">
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader
+            eyebrow="LOCATION"
+            title="포트폴리오 위치"
+            right={(
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setModal({ title: '포트폴리오 위치', content: <div className="space-y-4"><PortfolioMapPlot points={data.mapPoints} /><DataTable headers={['No.', '자산명', '주소', '좌표']} rows={coordinateRows} compact /></div> })} className="h-9 px-3 rounded-[8px] bg-white text-[#1F1F1E] text-[13px] font-semibold hover:bg-[#E5E5E5]">지도 크게 보기</button>
+                <button type="button" onClick={() => openTableModal('좌표 보유 자산 목록', ['No.', '자산명', '주소', '좌표'], coordinateRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">좌표 표</button>
+              </div>
+            )}
+          />
+          <div className="mb-4">
+            <PortfolioMapPlot points={data.mapPoints} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {data.mapPoints.map((point, index) => (
+              <button key={point.assetId} type="button" onClick={() => openTableModal(`자산 위치 · ${point.assetName}`, ['항목', '내용'], [['자산명', point.assetName], ['주소', point.address || '-'], ['좌표', point.latitude != null && point.longitude != null ? `${point.latitude}, ${point.longitude}` : '-'], ['이슈 수', formatNumber(point.issueCount)]])} className="text-left rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-3 hover:bg-[#2A2A29]">
+                <div className="text-[12px] text-[#86868B]">{String(index + 1).padStart(2, '0')}</div>
+                <div className="text-[14px] text-white font-semibold mt-1">{point.assetName}</div>
+                <div className="text-[12px] text-[#86868B] mt-1 line-clamp-1">{point.address || '-'}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="SNAPSHOT" title="포트폴리오 스냅샷" />
+          <div className="grid grid-cols-2 gap-3">
+            {snapshotCards.map(([label, value, action]) => (
+              <button key={label} type="button" onClick={action} className="text-left rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4 hover:bg-[#2A2A29]">
+                <div className="text-[12px] text-[#86868B] font-semibold">{label}</div>
+                <div className="text-[24px] text-white font-semibold mt-2">{value}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader
+          eyebrow="TREND"
+          title="임대료 추이"
+          right={<button type="button" onClick={() => openTableModal('임대료 추이 원본 표', ['월', '월 임대료(RF/FO 반영)', '월 관리비', '월 임관리비(RF/FO 반영)', '원 월임대료', '원 월관리비', '원 월임관리비', '자산 수', '총 연면적', '신규 편입 자산'], rentTrendRows.map((row) => [row.month, formatCurrency(row.monthlyRentTotalAdjusted), formatCurrency(row.monthlyMfTotalAdjusted), formatCurrency(row.monthlyCostTotalAdjusted), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyTotal), formatNumber(row.activeAssetCount), formatArea(row.grossFloorAreaSqm), (row.newlyAddedAssets || []).map((asset) => asset.assetName).join(', ') || '-']))} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>}
+        />
+        <TrendChart rows={rentTrendRows} valueKey="monthlyCostTotalAdjusted" secondaryKey="activeAssetCount" />
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="VACANCY" title="공실 요약" />
+          <DataTable headers={['자산명', '연면적', '공실면적', '공실률']} rows={data.vacancyRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.vacancyAreaSqm), formatPercent(row.vacancyRate)])} compact />
+        </div>
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader
+            eyebrow="EXPIRY"
+            title="만기 집중도"
+            right={<button type="button" onClick={() => openTableModal('만기 집중도 월별 상세', ['만기월', '임차인', '자산', '임대면적', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', 'E.NOC', '공간'], expiryDetailRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">월별 상세 보기</button>}
+          />
+          <TrendChart rows={data.monthlyExpiryRows} valueKey="expiringAreaSqm" secondaryKey="uniqueTenantCount" valueType="area" />
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader
+            eyebrow="TENANTS"
+            title="상위 임차인"
+            right={(
+              <div className="flex rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] p-1">
+                {[
+                  ['cost', '임관리비 합계'],
+                  ['area', '임대면적'],
+                ].map(([value, label]) => (
+                  <button key={value} type="button" onClick={() => setTenantSort(value)} className={`h-8 px-3 rounded-[6px] text-[13px] font-semibold ${tenantSort === value ? 'bg-white text-[#1F1F1E]' : 'text-[#A1A1AA] hover:text-white'}`}>{label}</button>
+                ))}
+              </div>
+            )}
+          />
+          <DataTable headers={['임차인명', '임대면적(㎡)', '월 임대료', '월 관리비', '월 임관리비']} rows={sortedTenants.map((row) => [row.tenantMasterName, formatArea(row.leasedAreaSqm), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyCombinedTotal)])} onRowClick={(index) => openTenantModal(sortedTenants[index], '임차인 상세')} compact />
+        </div>
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="CONTRACTS" title="주요 임차인 계약 요약" />
+          <DataTable headers={['임차인명', '자산 수', '자산 목록', '임대면적(㎡)', '월 임관리비', '최근 만기일']} rows={data.topContracts.map((row) => [row.tenantMasterName, formatNumber(row.assetNames?.length || 0), row.assetNames.join(', '), formatArea(row.leasedAreaSqm), formatCurrency(row.monthlyCombinedTotal), formatDate(row.currentEndDate)])} onRowClick={(index) => openTenantModal(data.topContracts[index], '임차인 계약 상세')} compact />
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function DashboardShell({ activeModule }) {
   const selected = MODULES.find((item) => item.id === activeModule) || MODULES[0];
 
@@ -438,7 +742,7 @@ function DashboardShell({ activeModule }) {
         })}
       </div>
 
-      {selected.id === 'weekly' ? <WeeklyDashboard /> : (
+      {selected.id === 'weekly' ? <WeeklyDashboard /> : selected.id === 'home' ? <HomeDashboard /> : (
       <section className="border border-[#333333] rounded-[20px] bg-[#252524] overflow-hidden">
         <div className="px-6 py-5 border-b border-[#333333] flex items-center justify-between gap-4">
           <div>
