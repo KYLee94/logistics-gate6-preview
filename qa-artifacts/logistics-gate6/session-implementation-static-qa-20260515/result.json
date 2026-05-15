@@ -1,0 +1,59 @@
+{
+  "generated_at": "2026-05-15T01:24:42.692Z",
+  "source": "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\WorkspaceLogistics.jsx",
+  "allPass": true,
+  "checks": [
+    {
+      "id": "home_monthly_cost_uses_asset_snapshot_basis",
+      "pass": true
+    },
+    {
+      "id": "home_kpi_cards_show_202604_basis",
+      "pass": true
+    },
+    {
+      "id": "tenant_contract_full_modal_removes_review_and_source_columns",
+      "pass": true
+    },
+    {
+      "id": "tenant_contract_full_modal_is_large_and_sticky",
+      "pass": true
+    },
+    {
+      "id": "company_dart_rows_remove_user_hidden_fields",
+      "pass": true
+    },
+    {
+      "id": "company_map_dart_ratio_and_exposure_full_width",
+      "pass": true
+    },
+    {
+      "id": "data_playground_has_pivot_table_controls",
+      "pass": true
+    },
+    {
+      "id": "data_playground_supports_pivot_totals_and_drilldown",
+      "pass": true
+    },
+    {
+      "id": "currency_chart_short_values_keep_one_decimal_billion",
+      "pass": true
+    },
+    {
+      "id": "workspace_main_removes_work_signal_cards_without_dashboard_status_cards",
+      "pass": true
+    },
+    {
+      "id": "tenant_contract_full_modal_supports_asset_and_tenant_filters",
+      "pass": true
+    },
+    {
+      "id": "data_quality_excel_roundtrip_download_upload",
+      "pass": true
+    },
+    {
+      "id": "data_quality_excel_keeps_supabase_relation_keys",
+      "pass": true
+    }
+  ]
+}
