@@ -1,0 +1,13 @@
+{
+  "generatedAt": "2026-05-15T03:37:47.920Z",
+  "checks": {
+    "doughnutUsesExactArcPaths": true,
+    "expiryAxisReadableAndNicePy": true,
+    "assetAreaCompositionRemovesLeaseVacancyAndRecomputes": true,
+    "companyMapNarrowDartWide": true,
+    "analysisToolsMetricSelectable": true,
+    "dataQualityExcelLikeEditGrid": true,
+    "searchPreviewRemovesAssetMapAndAddsDetail": true
+  },
+  "allPass": true
+}

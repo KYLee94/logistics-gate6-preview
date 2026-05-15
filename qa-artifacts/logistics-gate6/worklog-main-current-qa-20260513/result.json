@@ -1,0 +1,167 @@
+{
+  "url": "http://127.0.0.1:8120/platform/iotaseoul/workspace/logistics",
+  "screenshots": {
+    "main": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\worklog-main-current-qa-20260513\\main.png",
+    "team-scope": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\worklog-main-current-qa-20260513\\team-scope.png",
+    "sector-scope": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\worklog-main-current-qa-20260513\\sector-scope.png",
+    "search-popup": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\worklog-main-current-qa-20260513\\search-popup.png",
+    "upload-modal": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\worklog-main-current-qa-20260513\\upload-modal.png"
+  },
+  "checks": {
+    "hasMainTitle": true,
+    "hasMainSubtitle": true,
+    "hasReportUploadLabel": true,
+    "noDeprecatedScopeShareComponent": true,
+    "noTodaySignalCards": true,
+    "boardAssetSelectUsesReadableAssets": true,
+    "hasTaskScopeSwitch": true,
+    "scopeSwitchChangesContent": true,
+    "taskActionConfirmPopups": true,
+    "editModeHidesRegisterCancel": true,
+    "workRowsShowAssetRelation": true,
+    "searchPopupDashboardPreview": true,
+    "assetButtonsEven": true,
+    "uploadCursorPointer": true,
+    "uploadModalHasPeriodSelectors": true,
+    "uploadModalIsMinimal": true,
+    "noMainDataQaNoise": true
+  },
+  "evidence": {
+    "periodSelectCount": 3,
+    "hasWeekRange": true
+  },
+  "pageErrors": [],
+  "assetButtonMetrics": [
+    {
+      "label": "경산 쿠팡물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "동산물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "두동 LG전자 통합물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "부국물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "부산송정물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "스카이박스1, 스카이박스2",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "아레나스안성",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "아레나스양지물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "안성 성은지구 물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "안성 홈플러스 중부허브 물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "양산 유산동 물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "에이블로지스물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "여주 본두리 물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "이천 마장면 물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "인천석남물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "평택아디다스물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    },
+    {
+      "label": "화성 석포리 물류센터",
+      "width": 111,
+      "height": 48,
+      "cursor": "pointer"
+    }
+  ],
+  "boardAssetSelectInfo": {
+    "width": 184,
+    "options": [
+      "담당 자산",
+      "경산 쿠팡물류센터",
+      "동산물류센터",
+      "두동 LG전자 통합물류센터",
+      "부국물류센터",
+      "부산송정물류센터",
+      "스카이박스1, 스카이박스2",
+      "아레나스안성",
+      "아레나스양지물류센터",
+      "안성 성은지구 물류센터",
+      "안성 홈플러스 중부허브 물류센터",
+      "양산 유산동 물류센터",
+      "에이블로지스물류센터",
+      "여주 본두리 물류센터",
+      "이천 마장면 물류센터",
+      "인천석남물류센터",
+      "평택아디다스물류센터",
+      "화성 석포리 물류센터"
+    ]
+  },
+  "taskConfirmEvidence": {
+    "삭제": "TASK CONFIRM\nTask 처리 확인\n닫기\n\n선택한 Task를 삭제하시겠습니까?\n\n물류 복합개발 PJT\n\n아니오\n예",
+    "완료": "TASK CONFIRM\nTask 처리 확인\n닫기\n\n선택한 Task를 완료된 상태로 변경하시겠습니까?\n\n물류 복합개발 PJT\n\n아니오\n예",
+    "수정": "TASK CONFIRM\nTask 처리 확인\n닫기\n\n선택한 Task를 수정하시겠습니까?\n\n물류 복합개발 PJT\n\n아니오\n예"
+  },
+  "allPass": true
+}

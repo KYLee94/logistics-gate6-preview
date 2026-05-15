@@ -1,0 +1,69 @@
+{
+  "generated_at": "2026-05-14T01:00:23.764281+00:00",
+  "workbook": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\★ 260414_물류센터 임대차계약 DB_취합본.xlsx",
+  "mutation_performed": false,
+  "sheet_count_checked": 5,
+  "all_pass": true,
+  "rows": [
+    {
+      "sheet_name": "DB_일반",
+      "xlsx_cell_count": 6216,
+      "supabase_cell_count": 6216,
+      "xlsx_non_empty_count": 4909,
+      "supabase_non_empty_count": 4909,
+      "xlsx_formula_count": 763,
+      "supabase_formula_count": 763,
+      "max_row": 74,
+      "max_col": 84,
+      "status": "pass"
+    },
+    {
+      "sheet_name": "DB_히스토리 누적",
+      "xlsx_cell_count": 3382,
+      "supabase_cell_count": 3382,
+      "xlsx_non_empty_count": 2885,
+      "supabase_non_empty_count": 2885,
+      "xlsx_formula_count": 172,
+      "supabase_formula_count": 172,
+      "max_row": 178,
+      "max_col": 19,
+      "status": "pass"
+    },
+    {
+      "sheet_name": "Log",
+      "xlsx_cell_count": 518,
+      "supabase_cell_count": 518,
+      "xlsx_non_empty_count": 321,
+      "supabase_non_empty_count": 321,
+      "xlsx_formula_count": 0,
+      "supabase_formula_count": 0,
+      "max_row": 37,
+      "max_col": 14,
+      "status": "pass"
+    },
+    {
+      "sheet_name": "Meta_데이터 항목 설명",
+      "xlsx_cell_count": 3476,
+      "supabase_cell_count": 3476,
+      "xlsx_non_empty_count": 385,
+      "supabase_non_empty_count": 385,
+      "xlsx_formula_count": 6,
+      "supabase_formula_count": 6,
+      "max_row": 79,
+      "max_col": 44,
+      "status": "pass"
+    },
+    {
+      "sheet_name": "자산_담당자 연결",
+      "xlsx_cell_count": 160,
+      "supabase_cell_count": 160,
+      "xlsx_non_empty_count": 127,
+      "supabase_non_empty_count": 127,
+      "xlsx_formula_count": 0,
+      "supabase_formula_count": 0,
+      "max_row": 20,
+      "max_col": 8,
+      "status": "pass"
+    }
+  ]
+}

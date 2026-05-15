@@ -4,7 +4,9 @@ import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import LogWriteBox from '../LogWriteBox';
 
-export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) {
+const MotionDiv = motion.div;
+
+export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, assetOptions = [] }) {
     const { memberInfo } = useAuth();
     
     // Logs State
@@ -24,6 +26,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
     // Filter states
     const [filterStakeholder, setFilterStakeholder] = useState('');
     const [filterCell, setFilterCell] = useState(() => {
+        if (workspaceCode === 'WS_LOGISTICS') return '';
         if (workspaceLabel === '사업 PM') return '사업PM';
         return workspaceLabel || '';
     });
@@ -33,8 +36,6 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
     
     // Edit states
     const [editingLogId, setEditingLogId] = useState(null);
-    const [editingContent, setEditingContent] = useState('');
-    const [isSavingEdit, setIsSavingEdit] = useState(false);
 
     // Comment states
     const [commentingLogId, setCommentingLogId] = useState(null);
@@ -107,28 +108,6 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
             alert('삭제 중 오류가 발생했습니다.');
         } finally {
             setIsDeleting(false);
-        }
-    };
-
-    const handleSaveEdit = async (logId) => {
-        if (!editingContent.trim()) return;
-        setIsSavingEdit(true);
-        try {
-            const { error } = await supabase
-                .from('iota_seoul_logs')
-                .update({ raw_text: editingContent, updated_at: new Date().toISOString() })
-                .eq('log_id', logId);
-            
-            if (error) throw error;
-            
-            setLogs(prev => prev.map(l => l.log_id === logId ? { ...l, raw_text: editingContent, updated_at: new Date().toISOString() } : l));
-            setEditingLogId(null);
-            setEditingContent('');
-        } catch (err) {
-            console.error('Error updating log:', err);
-            alert('수정 중 오류가 발생했습니다.');
-        } finally {
-            setIsSavingEdit(false);
         }
     };
 
@@ -300,7 +279,19 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
         const cell = getLogCell(log);
         
         if (filterStakeholder && log.iota_seoul_log_stakeholders?.[0]?.role_category !== filterStakeholder) return false;
-        if (filterCell && cell !== filterCell) return false;
+        if (filterCell && workspaceCode !== 'WS_LOGISTICS' && cell !== filterCell) return false;
+        if (filterCell && workspaceCode === 'WS_LOGISTICS') {
+            const assetText = [
+                log.metadata?.project_name,
+                log.metadata?.asset_name,
+                log.metadata?.related_asset_name,
+                log.metadata?.workspace_label,
+                log.metadata?.source_project_text,
+                log.raw_text,
+                log.summary,
+            ].join(' ');
+            if (!assetText.includes(filterCell)) return false;
+        }
         if (filterPurpose && (log.metadata?.triage_type || '공유') !== filterPurpose) return false;
         if (filterStatus && (log.metadata?.issue_status || '진행중') !== filterStatus) return false;
         if (filterPriority && (log.metadata?.priority || '중간') !== filterPriority) return false;
@@ -356,16 +347,31 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                 fetchMasterStakeholders={fetchMasterStakeholders}
                 workspaceCode={workspaceCode}
                 workspaceLabel={workspaceLabel}
+                projectOptions={assetOptions.map((asset) => ({ id: asset.assetId || asset.assetCode || asset.assetName, label: asset.assetName, metadata: asset }))}
             />
             <div className="w-full border border-[#3c3c3c] rounded-[24px] flex flex-col bg-[#252525]">
                 {/* Header Row */}
                 <div className="w-full px-[20px] py-[12px] flex items-center border-b border-[#3c3c3c] bg-transparent rounded-t-[24px]">
                     {/* Left Section */}
                     <div className="flex flex-1 min-w-0">
-                        <div className="w-[86px] mr-[16px] text-center">
-                            <span className="text-[13px] font-bold text-[#86868B]">프로젝트</span>
+                        <div className="w-[190px] mr-[12px] text-center">
+                            {workspaceCode === 'WS_LOGISTICS' ? (
+                                <select
+                                    value={filterCell}
+                                    onChange={e => { setFilterCell(e.target.value); setCurrentPage(1); }}
+                                    className={`bg-white/5 border border-transparent text-[12px] font-bold cursor-pointer appearance-none focus:outline-none w-[184px] hover:text-white hover:bg-white/10 rounded-[8px] px-[8px] py-[4px] transition-colors ${filterCell ? 'text-[#fbf167]' : 'text-[#A1A1AA]'}`}
+                                    style={{ textAlignLast: 'center' }}
+                                >
+                                    <option value="" className="bg-[#222] text-[#E5E5E5]">담당 자산</option>
+                                    {assetOptions.map((asset) => (
+                                        <option key={asset.assetId || asset.assetCode || asset.assetName} value={asset.assetName} className="bg-[#222] text-[#E5E5E5]">{asset.assetName}</option>
+                                    ))}
+                                </select>
+                            ) : (
+                                <span className="text-[13px] font-bold text-[#86868B]">프로젝트</span>
+                            )}
                         </div>
-                        <div className="flex flex-1 min-w-0 translate-x-[-20px]">
+                            <div className="flex flex-1 min-w-0">
                             <div className="w-[80px] shrink-0 translate-x-[4px] flex justify-center">
                                 <div className="text-[13px] font-bold text-[#86868B] px-[2px] py-[4px] text-center w-[60px]">
                                     기능셀
@@ -449,7 +455,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                             <div className="flex items-center flex-1 min-w-0">
                                 {/* Project Button */}
                                 {(() => {
-                                    let projName = '427 PFV';
+                                    let projName = workspaceCode === 'WS_LOGISTICS' ? '담당 자산' : '427 PFV';
                                     if (log.metadata?.project_name) {
                                         let name = log.metadata.project_name;
                                         if (name === 'IOTA 427') name = '427 PFV';
@@ -461,13 +467,19 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                                         else if (text.includes('421')) projName = '421 Fund';
                                     }
                                     
+                                    if (workspaceCode === 'WS_LOGISTICS') {
+                                        const sourceText = [log.metadata?.project_name, log.metadata?.asset_name, log.metadata?.source_project_text, log.raw_text, log.summary].join(' ');
+                                        const matchedAsset = assetOptions.find((asset) => sourceText.includes(asset.assetName));
+                                        projName = matchedAsset?.assetName || projName;
+                                    }
+                                    
                                     let textColorClass = 'text-[#E5E5E5] border-[#444]'; // 427 PFV (Lightest)
                                     if (projName === '816 PFV') textColorClass = 'text-[#A1A1AA] border-[#333]'; // 816 PFV (Medium)
                                     else if (projName === '421 Fund') textColorClass = 'text-[#737373] border-[#222]'; // 421 Fund (Darkest)
                                     else if (projName === 'IOTA 공통') textColorClass = 'text-[#A1A1AA] border-[#333]';
                                     
                                     return (
-                                        <div className={`py-[6px] border rounded-[8px] text-[12px] font-bold ${textColorClass} shrink-0 mr-[16px] w-[86px] text-center bg-transparent`}>
+                                        <div className={`py-[6px] border rounded-[8px] text-[12px] font-bold ${textColorClass} shrink-0 mr-[12px] ${workspaceCode === 'WS_LOGISTICS' ? 'w-[190px] truncate px-3' : 'w-[86px]'} text-center bg-transparent`} title={projName}>
                                             {projName}
                                         </div>
                                     );
@@ -560,7 +572,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                         {/* Expanded Box */}
                         <AnimatePresence>
                             {expandedLogs[log.log_id] && (
-                                <motion.div 
+                                <MotionDiv 
                                     className="w-full flex overflow-hidden"
                                     initial={{ height: 0, opacity: 0, marginTop: 0 }}
                                     animate={{ height: 'auto', opacity: 1, marginTop: 14 }}
@@ -712,7 +724,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel }) 
                                         </div>
                                     </div>
                                 </div>
-                                </motion.div>
+                                </MotionDiv>
                             )}
                         </AnimatePresence>
                     </div>

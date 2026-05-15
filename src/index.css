@@ -57,6 +57,19 @@
         color: #000;
     }
 
+    button:not(:disabled),
+    [role="button"],
+    a[href],
+    summary,
+    select,
+    input[type="file"]::file-selector-button {
+        cursor: pointer;
+    }
+
+    button:disabled {
+        cursor: not-allowed;
+    }
+
     #root {
         width: 100%;
         display: flex;

@@ -1,0 +1,39 @@
+{
+  "generatedAt": "2026-05-14T01:19:55.985Z",
+  "mutationPerformed": false,
+  "projectRef": "qvegpozwrcmspdvjokiz",
+  "configSource": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\docs\\assets\\app.js",
+  "supabaseReadback": {
+    "llDataQualityFindingsCount": 0,
+    "llTenantsCount": 0,
+    "homeSnapshotRows": 2,
+    "companySnapshotRows": 61,
+    "companySnapshotUniqueIds": 31,
+    "companySnapshotUniqueNames": 31
+  },
+  "companyParity": {
+    "localCompanyOptions": 31,
+    "snapshotCompanyUniqueIds": 31,
+    "missingInLocal": [],
+    "missingInSnapshot": []
+  },
+  "homeMonthlyCostParity": {
+    "localKpiMonthlyTotalCost": 11134228842,
+    "readbackHomeKpiMonthlyTotalCost": 11134228842,
+    "assetOptionMonthlyCostSum": 11134228842,
+    "companyOptionMonthlyCostSum": 11134228842,
+    "homeTopTenantsMonthlyCostSum": 9527010261,
+    "homeTopContractsMonthlyCostSum": 9527010261,
+    "latestTrendMonth": "2026-06",
+    "latestTrendRawMonthlyTotal": 10806432845,
+    "latestTrendAdjustedMonthlyCost": 10265767928,
+    "latestTrendAdjustedRent": 9760329589,
+    "latestTrendAdjustedMf": 505438339
+  },
+  "qaStatus": "pass_with_notes",
+  "notes": [
+    "ll_data_quality_findings and ll_tenants are currently zero rows by public readback; dashboard parity must use ll_payload_snapshots and local static snapshot JSON until DB/RLS source changes.",
+    "Home topTenants/topContracts are partial ranking/detail arrays and must not be used as total monthly cost evidence.",
+    "Home rentTrend latest adjusted total remains a different source basis from portfolio KPI; chart labels and popup must disclose basis unless source payload is regenerated."
+  ]
+}

@@ -1,0 +1,388 @@
+{
+  "generatedAt": "2026-05-15T05:00:11.506Z",
+  "assetCount": 17,
+  "checks": {
+    "weeklyFreeWeekSelector": true,
+    "doughnutHoverTooltip": true,
+    "normalizedUseLegend": true,
+    "tenantContractFullTable": true,
+    "assetENocWon": true,
+    "assetExpiryZoneTooltip": true
+  },
+  "flaggedAssets": [
+    {
+      "file": "asset_a112109001.json",
+      "assetId": "asset_a112109001",
+      "assetName": "부산송정물류센터",
+      "fundName": "",
+      "weightedENoc": null,
+      "overviewENoc": 0,
+      "category": {
+        "상온창고": 19654.71,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 984.45
+      },
+      "categoryTotal": 20639.16,
+      "flags": [
+        "missing_or_zero_enoc"
+      ]
+    },
+    {
+      "file": "asset_a112127001.json",
+      "assetId": "asset_a112127001",
+      "assetName": "아레나스양지물류센터",
+      "fundName": "",
+      "weightedENoc": 43824,
+      "overviewENoc": 6706,
+      "category": {
+        "상온창고": 211226.29000000004,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 9826.020000000002
+      },
+      "categoryTotal": 221052.31000000003,
+      "flags": [
+        "user_named_check"
+      ]
+    },
+    {
+      "file": "asset_a112505001.json",
+      "assetId": "asset_a112505001",
+      "assetName": "아레나스안성",
+      "fundName": "",
+      "weightedENoc": null,
+      "overviewENoc": 0,
+      "category": {
+        "상온창고": 0,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 124498.93
+      },
+      "categoryTotal": 124498.93,
+      "flags": [
+        "missing_or_zero_enoc"
+      ]
+    },
+    {
+      "file": "asset_a112527002.json",
+      "assetId": "asset_a112527002",
+      "assetName": "부국물류센터",
+      "fundName": "",
+      "weightedENoc": null,
+      "overviewENoc": 0,
+      "category": {
+        "상온창고": 17650.170000000002,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 1056
+      },
+      "categoryTotal": 18706.170000000002,
+      "flags": [
+        "missing_or_zero_enoc"
+      ]
+    },
+    {
+      "file": "asset_a120085001.json",
+      "assetId": "asset_a120085001",
+      "assetName": "경산 쿠팡물류센터",
+      "fundName": "",
+      "weightedENoc": 589563,
+      "overviewENoc": 589562.8,
+      "category": {
+        "상온창고": 69654.56,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 3687.02
+      },
+      "categoryTotal": 73341.58,
+      "flags": [
+        "outlier_high_enoc"
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "file": "asset_a112109001.json",
+      "assetId": "asset_a112109001",
+      "assetName": "부산송정물류센터",
+      "fundName": "",
+      "weightedENoc": null,
+      "overviewENoc": 0,
+      "category": {
+        "상온창고": 19654.71,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 984.45
+      },
+      "categoryTotal": 20639.16,
+      "flags": [
+        "missing_or_zero_enoc"
+      ]
+    },
+    {
+      "file": "asset_a112127001.json",
+      "assetId": "asset_a112127001",
+      "assetName": "아레나스양지물류센터",
+      "fundName": "",
+      "weightedENoc": 43824,
+      "overviewENoc": 6706,
+      "category": {
+        "상온창고": 211226.29000000004,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 9826.020000000002
+      },
+      "categoryTotal": 221052.31000000003,
+      "flags": [
+        "user_named_check"
+      ]
+    },
+    {
+      "file": "asset_a112299001.json",
+      "assetId": "asset_a112299001",
+      "assetName": "스카이박스1, 스카이박스2",
+      "fundName": "",
+      "weightedENoc": 69040,
+      "overviewENoc": 69040.1,
+      "category": {
+        "상온창고": 33707.32000000001,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 1809.9799999999998
+      },
+      "categoryTotal": 35517.30000000001,
+      "flags": []
+    },
+    {
+      "file": "asset_a112500002.json",
+      "assetId": "asset_a112500002",
+      "assetName": "평택아디다스물류센터",
+      "fundName": "",
+      "weightedENoc": 28607,
+      "overviewENoc": 28607.48,
+      "category": {
+        "상온창고": 49491.52,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 2630.64
+      },
+      "categoryTotal": 52122.159999999996,
+      "flags": []
+    },
+    {
+      "file": "asset_a112500003.json",
+      "assetId": "asset_a112500003",
+      "assetName": "안성 홈플러스 중부허브 물류센터",
+      "fundName": "",
+      "weightedENoc": 63365,
+      "overviewENoc": 63365.46,
+      "category": {
+        "상온창고": 28173.74,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 3861.46
+      },
+      "categoryTotal": 32035.2,
+      "flags": []
+    },
+    {
+      "file": "asset_a112505001.json",
+      "assetId": "asset_a112505001",
+      "assetName": "아레나스안성",
+      "fundName": "",
+      "weightedENoc": null,
+      "overviewENoc": 0,
+      "category": {
+        "상온창고": 0,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 124498.93
+      },
+      "categoryTotal": 124498.93,
+      "flags": [
+        "missing_or_zero_enoc"
+      ]
+    },
+    {
+      "file": "asset_a112527001.json",
+      "assetId": "asset_a112527001",
+      "assetName": "동산물류센터",
+      "fundName": "",
+      "weightedENoc": 30241,
+      "overviewENoc": 30240.58,
+      "category": {
+        "상온창고": 52130.45999999999,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 1331.87
+      },
+      "categoryTotal": 53462.329999999994,
+      "flags": []
+    },
+    {
+      "file": "asset_a112527002.json",
+      "assetId": "asset_a112527002",
+      "assetName": "부국물류센터",
+      "fundName": "",
+      "weightedENoc": null,
+      "overviewENoc": 0,
+      "category": {
+        "상온창고": 17650.170000000002,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 1056
+      },
+      "categoryTotal": 18706.170000000002,
+      "flags": [
+        "missing_or_zero_enoc"
+      ]
+    },
+    {
+      "file": "asset_a112527003.json",
+      "assetId": "asset_a112527003",
+      "assetName": "에이블로지스물류센터",
+      "fundName": "",
+      "weightedENoc": 25701,
+      "overviewENoc": 27039.41,
+      "category": {
+        "상온창고": 29014.770000000004,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 965.25
+      },
+      "categoryTotal": 29980.020000000004,
+      "flags": []
+    },
+    {
+      "file": "asset_a112573001.json",
+      "assetId": "asset_a112573001",
+      "assetName": "이천 마장면 물류센터",
+      "fundName": "",
+      "weightedENoc": 28184,
+      "overviewENoc": 27884.74,
+      "category": {
+        "상온창고": 27617.910000000003,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 1167.8899999999999
+      },
+      "categoryTotal": 28785.800000000003,
+      "flags": []
+    },
+    {
+      "file": "asset_a112606001.json",
+      "assetId": "asset_a112606001",
+      "assetName": "여주 본두리 물류센터",
+      "fundName": "",
+      "weightedENoc": 34392,
+      "overviewENoc": 32389.54,
+      "category": {
+        "상온창고": 88000.48,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 2099.79
+      },
+      "categoryTotal": 90100.26999999999,
+      "flags": []
+    },
+    {
+      "file": "asset_a112642001.json",
+      "assetId": "asset_a112642001",
+      "assetName": "화성 석포리 물류센터",
+      "fundName": "",
+      "weightedENoc": 39312,
+      "overviewENoc": 39312.35,
+      "category": {
+        "상온창고": 98601.28,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 496.42
+      },
+      "categoryTotal": 99097.7,
+      "flags": []
+    },
+    {
+      "file": "asset_a112721001.json",
+      "assetId": "asset_a112721001",
+      "assetName": "인천석남물류센터",
+      "fundName": "",
+      "weightedENoc": 31633,
+      "overviewENoc": 31632.69,
+      "category": {
+        "상온창고": 203347.43999999997,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 11654.240000000002
+      },
+      "categoryTotal": 215001.67999999996,
+      "flags": []
+    },
+    {
+      "file": "asset_a112755001.json",
+      "assetId": "asset_a112755001",
+      "assetName": "두동 LG전자 통합물류센터",
+      "fundName": "",
+      "weightedENoc": 35317,
+      "overviewENoc": 35317.14,
+      "category": {
+        "상온창고": 52711.56,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 1808.4
+      },
+      "categoryTotal": 54519.96,
+      "flags": []
+    },
+    {
+      "file": "asset_a120085001.json",
+      "assetId": "asset_a120085001",
+      "assetName": "경산 쿠팡물류센터",
+      "fundName": "",
+      "weightedENoc": 589563,
+      "overviewENoc": 589562.8,
+      "category": {
+        "상온창고": 69654.56,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 3687.02
+      },
+      "categoryTotal": 73341.58,
+      "flags": [
+        "outlier_high_enoc"
+      ]
+    },
+    {
+      "file": "asset_ap00014001.json",
+      "assetId": "asset_ap00014001",
+      "assetName": "안성 성은지구 물류센터",
+      "fundName": "",
+      "weightedENoc": 33305,
+      "overviewENoc": 24627.67,
+      "category": {
+        "상온창고": 62285.95,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 336.78000000000003
+      },
+      "categoryTotal": 62622.729999999996,
+      "flags": []
+    },
+    {
+      "file": "asset_s00002001.json",
+      "assetId": "asset_s00002001",
+      "assetName": "양산 유산동 물류센터",
+      "fundName": "",
+      "weightedENoc": 25871,
+      "overviewENoc": 24901.1,
+      "category": {
+        "상온창고": 24899.16,
+        "복합": 0,
+        "저온창고": 0,
+        "사무실": 599.77
+      },
+      "categoryTotal": 25498.93,
+      "flags": []
+    }
+  ]
+}

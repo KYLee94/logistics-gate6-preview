@@ -16,12 +16,12 @@ import WorkspaceArchive from './components/system/workspace/WorkspaceArchive';
 export default function App() {
   // BASE_URL: '/' in dev, '/IGIS-Fund-Production-DP/' in GitHub Pages production
   const BASE = import.meta.env.BASE_URL;
+  const LOGISTICS_WORKSPACE_PATH = 'platform/iotaseoul/workspace/logistics';
   const getPage = () => {
       const base = BASE.endsWith('/') ? BASE.slice(0, -1) : BASE;
       let path = window.location.pathname.replace(base, '').replace(/^\//, '');
       if (path.endsWith('/')) path = path.slice(0, -1);
-      // 'home' 대신 'platform/iotaseoul/workflow'를 기본 경로로 설정하여 커스텀 도메인 접속 시 바로 플랫폼으로 이동
-      return path || 'platform/iotaseoul/workflow';
+      return path || LOGISTICS_WORKSPACE_PATH;
   };
   const toUrl = (page) => page === 'home' ? BASE : `${BASE}${page}`;
 
@@ -73,13 +73,18 @@ export default function App() {
 
   // Protect platform routes
   React.useEffect(() => {
-      if (recoveryMode && currentPage !== 'auth-setup') {
+      if (currentPage === 'auth-setup') {
+          navigateTo(LOGISTICS_WORKSPACE_PATH);
+          return;
+      }
+
+      if (recoveryMode && currentPage !== LOGISTICS_WORKSPACE_PATH) {
           navigateTo('auth-setup');
           return;
       }
 
       if (!loading && !user && currentPage.startsWith('platform/iotaseoul') && !recoveryMode) {
-          navigateTo('auth-setup');
+          navigateTo(LOGISTICS_WORKSPACE_PATH);
       }
   }, [user, loading, currentPage, recoveryMode]);
 
@@ -140,7 +145,7 @@ export default function App() {
         {currentPage === 'action-plan' && <Notes />}
         
         {/* Navigation Handlers overriding the inline SystemPlan internal stage logic */}
-        {currentPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo('platform/iotaseoul/workflow')} />}
+        {currentPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo(LOGISTICS_WORKSPACE_PATH)} />}
         {currentPage === 'system-plan' && <SystemLogin onLogin={() => navigateTo('system-bridge')} />}
         {['system-bridge', 'system-chat', 'system-detail'].includes(currentPage) && (
             <SystemPlan 

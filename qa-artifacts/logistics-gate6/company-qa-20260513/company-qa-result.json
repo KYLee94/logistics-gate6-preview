@@ -1,4 +1,4 @@
-{
+﻿{
   "urlCompany": "http://127.0.0.1:8084/platform/iotaseoul/workspace/logistics/dashboard/company",
   "checks": {
     "companyActive": true,
@@ -30,7 +30,7 @@
     },
     "failedRequests": [
       {
-        "url": "http://oapi.map.naver.com/v3/auth?ncpKeyId=xmxdr3l9ij&url=http%3A%2F%2F127.0.0.1%3A8084%2Fplatform%2Fiotaseoul%2Fworkspace%2Flogistics%2Fdashboard%2Fcompany&time=1778647524275&callback=__naver_maps_callback__0",
+        "url": "http://oapi.map.naver.com/v3/auth?ncpKeyId=[redacted-naver-client-id]&url=http%3A%2F%2F127.0.0.1%3A8084%2Fplatform%2Fiotaseoul%2Fworkspace%2Flogistics%2Fdashboard%2Fcompany&time=1778647524275&callback=__naver_maps_callback__0",
         "failure": "net::ERR_ABORTED"
       },
       {

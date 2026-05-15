@@ -1,0 +1,83 @@
+{
+  "generatedAt": "2026-05-15T07:49:20.076Z",
+  "sourcePath": "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\WorkspaceLogistics.jsx",
+  "allPass": true,
+  "checks": [
+    {
+      "id": "main_profile_uses_photo_avatar_with_initial_fallback",
+      "pass": true
+    },
+    {
+      "id": "main_search_title_spacing_adjusted",
+      "pass": true
+    },
+    {
+      "id": "managed_asset_cards_left_align_and_word_wrap",
+      "pass": true
+    },
+    {
+      "id": "playground_has_per_py_metrics",
+      "pass": true
+    },
+    {
+      "id": "playground_pivot_table_above_chart",
+      "pass": true
+    },
+    {
+      "id": "analysis_filters_blank_dash_company_option",
+      "pass": true
+    },
+    {
+      "id": "analysis_metric_selector_moved_to_visible_control_row",
+      "pass": true
+    },
+    {
+      "id": "company_exposure_chart_value_shows_share_ratio",
+      "pass": true
+    },
+    {
+      "id": "original_data_edit_removed_from_main_bottom",
+      "pass": true
+    },
+    {
+      "id": "original_data_edit_available_from_dashboard_top_modal",
+      "pass": true
+    },
+    {
+      "id": "quality_excel_uses_user_readable_source_sheet_columns",
+      "pass": true
+    },
+    {
+      "id": "quality_excel_upload_goes_to_approval_alert_queue",
+      "pass": true
+    },
+    {
+      "id": "quality_excel_permission_scope_is_fail_closed",
+      "pass": true
+    },
+    {
+      "id": "quality_excel_roundtrip_requires_source_trace_and_modify_only",
+      "pass": true
+    },
+    {
+      "id": "quality_excel_target_row_key_is_table_aware",
+      "pass": true
+    },
+    {
+      "id": "logistics_task_ui_matches_latest_reference_structure",
+      "pass": true
+    },
+    {
+      "id": "home_use_category_keeps_composite_label",
+      "pass": true
+    },
+    {
+      "id": "tenant_contract_per_py_columns_and_wide_detail",
+      "pass": true
+    },
+    {
+      "id": "home_rent_trend_hover_and_table_show_newly_added_assets",
+      "pass": true
+    }
+  ]
+}

@@ -1,9 +1,25 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
 const AuthContext = createContext();
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const LOGISTICS_DEMO_USER = {
+    id: 'logistics-demo-user',
+    email: '10524@igisam.com',
+};
+const LOGISTICS_DEMO_MEMBER = {
+    id: 'logistics-demo-member',
+    auth_id: 'logistics-demo-user',
+    email: '10524@igisam.com',
+    staff_name: '이시정',
+    name: '이시정',
+    organization: '기획추진센터',
+    department: '기획추진센터',
+    team_name: '기획추진센터',
+    role_code: 'master',
+};
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
@@ -27,9 +43,9 @@ export function AuthProvider({ children }) {
             }
             keysToRemove.forEach(k => localStorage.removeItem(k));
             localStorage.removeItem('iota_last_activity');
-            setUser(null);
-            setMemberInfo(null);
-            window.location.href = import.meta.env.BASE_URL + 'auth-setup';
+            setUser(LOGISTICS_DEMO_USER);
+            setMemberInfo(LOGISTICS_DEMO_MEMBER);
+            window.location.href = import.meta.env.BASE_URL + 'platform/iotaseoul/workspace/logistics';
         }
     };
 
@@ -79,8 +95,8 @@ export function AuthProvider({ children }) {
                     setUser(session.user);
                     await fetchMemberInfo(session.user.email);
                 } else {
-                    setUser(null);
-                    setMemberInfo(null);
+                    setUser(LOGISTICS_DEMO_USER);
+                    setMemberInfo(LOGISTICS_DEMO_MEMBER);
                 }
             } catch (err) {
                 console.error("Auth initialization error:", err);
@@ -98,8 +114,8 @@ export function AuthProvider({ children }) {
                         setUser(session.user);
                         await fetchMemberInfo(session.user.email);
                     } else {
-                        setUser(null);
-                        setMemberInfo(null);
+                        setUser(LOGISTICS_DEMO_USER);
+                        setMemberInfo(LOGISTICS_DEMO_MEMBER);
                     }
                     setLoading(false);
                 });
@@ -124,9 +140,12 @@ export function AuthProvider({ children }) {
                 
             if (data && !error) {
                 setMemberInfo(data);
+            } else {
+                setMemberInfo(LOGISTICS_DEMO_MEMBER);
             }
         } catch (err) {
             console.error("Failed to fetch member info", err);
+            setMemberInfo(LOGISTICS_DEMO_MEMBER);
         }
     };
 

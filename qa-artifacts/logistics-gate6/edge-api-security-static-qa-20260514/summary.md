@@ -1,22 +1,38 @@
 # Edge/API security static QA - 2026-05-14
 
-- pass: 12
+- pass: 27
 - fail: 0
-- allPass: false
+- inventory: 1
+- allPass: true
 - logisticsGatePass: true
 
 | check | status | detail | evidence |
 |---|---|---|---|
 | frontend_no_direct_mutation | pass | 물류 모듈과 인증 진입부 브라우저 소스에서 Supabase insert/update/delete/upsert 직접 호출이 없어야 합니다. | {"clientMutations":[],"scopedFiles":["src/components/system/AuthSetup.jsx","src/components/system/workspace/WorkspaceLogistics.jsx"]} |
-| iota_legacy_direct_mutation_inventory | blocked | 기존 IOTA core 모듈에는 직접 mutation이 남아 있으나, 이번 물류 gate 범위 밖의 별도 보안 부채로 분리합니다. | {"count":100,"sample":[{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_log_stakeholders'","method":"delete"},{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_logs'","method":"delete"},{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_logs'","method":"update"},{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_logs'","method":"update"},{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_logs'","method":"update"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_stakeholder_master'","method":"insert"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_logs'","method":"update"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_log_links'","method":"delete"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_log_stakeholders'","method":"delete"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_logs'","method":"insert"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_log_links'","method":"insert"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_stakeholder_master'","method":"insert"}]} |
+| logistics_frontend_no_direct_supabase_from | pass | 물류 프론트는 조회도 ll-dashboard-api Edge Function 또는 정적 payload 경유로 처리하고 supabase.from 직접 호출을 남기지 않습니다. | {"logisticsDirectSupabaseFrom":[]} |
+| iota_legacy_direct_mutation_inventory | inventory | 기존 IOTA core 모듈의 직접 mutation은 이번 물류 Gate 범위 밖의 보안 부채 인벤토리로만 기록합니다. | {"count":100,"sample":[{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_log_stakeholders'","method":"delete"},{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_logs'","method":"delete"},{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_logs'","method":"update"},{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_logs'","method":"update"},{"file":"src/components/system/DecisionLog.jsx","tableExpression":"'iota_seoul_logs'","method":"update"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_stakeholder_master'","method":"insert"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_logs'","method":"update"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_log_links'","method":"delete"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_log_stakeholders'","method":"delete"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_logs'","method":"insert"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_seoul_log_links'","method":"insert"},{"file":"src/components/system/LogWriteBox.jsx","tableExpression":"'iota_stakeholder_master'","method":"insert"}]} |
 | frontend_no_hardcoded_iota_access_code | pass | 최초 접속 코드가 브라우저 소스에 고정 문자열로 남아 있으면 안 됩니다. | {"literalAccessCodeHits":[]} |
 | frontend_no_server_secret_env_names | pass | 서버 전용 secret env 이름이 브라우저 소스에 없어야 합니다. | {"clientSecretEnvHits":[]} |
 | ll_dashboard_api_jwt_and_permission | pass | ll-dashboard-api는 JWT 검증, 서버 권한 조회, ll_* allowlist를 가져야 합니다. | {} |
 | ll_dashboard_api_edit_write_readback_audit | pass | Data Quality approve는 승인 후 readback, stale 차단, write, post-write readback, audit, rollback을 포함해야 합니다. | {} |
+| ll_dashboard_api_data_quality_server_read_and_approval_queue | pass | Data Quality findings/list/readback/approve/reject 흐름은 Edge Function에서 처리해야 합니다. | {} |
+| ll_dashboard_api_data_quality_center_only | pass | Data Quality는 프론트 탭 숨김이 아니라 Edge Function에서도 기획추진센터/허용 사용자만 접근 가능해야 합니다. | {} |
+| ll_dashboard_api_source_preservation_tables_not_auto_write_targets | pass | 원본 보존 테이블은 자동 write 대상에서 제외하고, 대상 row/field 권한을 서버에서 재확인해야 합니다. | {} |
+| ll_dashboard_api_submit_validates_target_before_queue | pass | Data Quality submit은 승인 대기열에 넣기 전부터 대상 테이블/컬럼/행 권한을 서버에서 검증해야 합니다. | {} |
+| ll_dashboard_api_asset_scope_fail_closed | pass | 자산 식별자가 없는 자동 write는 관리자 외에는 fail-closed로 막고, 클라이언트가 보낸 asset 값이 아니라 대상 row readback 기준으로 권한을 다시 확인해야 합니다. | {} |
+| ll_dashboard_api_tenant_company_scope_join | pass | 임차인/회사 row처럼 자산 컬럼이 없는 대상은 lease/tenant join으로 읽기·수정 가능한 자산 scope를 확인해야 합니다. | {} |
+| ll_dashboard_api_submit_readback_snapshot | pass | Data Quality submit 시점에도 현재 DB값 readback snapshot을 요청 payload에 남겨 감사성과 stale 추적성을 높여야 합니다. | {} |
+| ll_dashboard_api_audit_redaction | pass | API audit/write_result에는 service role, provider key, token 같은 민감값이 저장되지 않도록 redaction을 적용해야 합니다. | {} |
+| ll_dashboard_api_reject_status_guard | pass | Data Quality reject는 submitted 상태만 처리하고 자기 반려 및 상태 경합을 차단해야 합니다. | {} |
+| ll_dashboard_api_worklog_existing_row_permission | pass | Worklog update/delete는 클라이언트 payload가 아니라 기존 저장 row의 자산/작성자 기준으로 권한을 확인하고 권한성 payload를 서버 기준으로 덮어써야 합니다. | {} |
 | ll_dashboard_api_external_api_controls | pass | OpenDART/건축물대장/Naver API는 server-only secret, timeout, rate limit, redacted response를 가져야 합니다. | {} |
 | ll_weekly_ingest_monday_sunday_and_rollback | pass | Weekly ingest는 월요일~일요일 주차를 서버에서 재계산하고 실패 시 기존 report/assets/projects를 복원해야 합니다. | {} |
+| ll_weekly_ingest_server_org_and_file_safety | pass | Weekly ingest는 클라이언트 조직 fallback 없이 서버 권한 조직만 쓰고 파일 signature/timeout을 검증해야 합니다. | {} |
+| ll_weekly_ingest_rate_limit | pass | Weekly upload는 서버에서 사용자별 rate limit을 적용해 중복/과다 업로드를 막아야 합니다. | {} |
+| ll_external_api_cache_migration_ll_only | pass | 외부 API cache 테이블은 public.ll_* 범위 안에서 생성되고 RLS가 켜져야 합니다. | {} |
 | iota_auth_sync_jwt_email_scope | pass | IOTA 회원정보 동기화 초안은 JWT와 이메일/auth_id 범위를 검증해야 합니다. | {} |
 | iota_auth_sync_no_non_ll_write | pass | 물류 Gate 초안에서는 iota-auth-member-sync가 non-ll_* 테이블에 직접 write하면 안 됩니다. | {} |
 | iota_auth_sync_origin_fail_closed | pass | iota-auth-member-sync는 허용되지 않은 Origin 요청을 서버에서 fail-closed로 차단해야 합니다. | {} |
 | edge_permissions_no_app_metadata_fallback | pass | 권한 판단은 ll_user_permissions 기준이어야 하며 app_metadata fallback으로 임시 승격하면 안 됩니다. | {} |
+| edge_uses_supabase_default_secret_fallback | pass | Supabase가 SUPABASE_ 접두어 사용자 secret을 막아도 Edge 기본 secret bundle을 통해 service/publishable key를 읽어야 합니다. | {} |
 | ll_migrations_only_public_ll_targets | pass | 물류 migration preview는 public.ll_* 대상만 가져야 합니다. | {"nonLlMigrationTargets":[]} |

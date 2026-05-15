@@ -1,0 +1,110 @@
+{
+  "url": "http://127.0.0.1:4177/platform/iotaseoul/workspace/logistics/dashboard/company",
+  "screenshots": {
+    "before": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\company-selector-change-qa-20260513\\company-before.png",
+    "after": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\company-selector-change-qa-20260513\\company-after.png"
+  },
+  "checks": {
+    "selectorHasMultipleCompanies": true,
+    "selectedCompanyChanged": true,
+    "visibleContentChanged": true,
+    "selectedCompanyPersistsOnReentry": true,
+    "companyTopOneLineBlocksRemoved": true,
+    "companyMapRestored": true,
+    "companyDartRestored": true,
+    "companyDartHiddenFieldsRemoved": true,
+    "companyLeasedAssetsStillVisible": true,
+    "noPageErrors": true
+  },
+  "pageErrors": [],
+  "networkBlocked": [
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+  ],
+  "before": {
+    "selected": {
+      "value": "tenant_brn_1078198143",
+      "label": "(주)LG생활건강",
+      "optionCount": 31
+    },
+    "visibleHeadings": [
+      "임대차 Dashboard",
+      "(주)LG생활건강",
+      "임차 자산 현황",
+      "자산명",
+      "층/세부구역",
+      "임대면적(평)",
+      "월 임대료",
+      "월 관리비",
+      "월 임관리비",
+      "현재 계약만기일",
+      "계약기간",
+      "회사별 임차 자산 지도",
+      "DART 상세 정보",
+      "항목",
+      "값",
+      "자산별 노출도"
+    ]
+  },
+  "after": {
+    "selected": {
+      "value": "tenant_brn_1198691245",
+      "label": "(주)버킷플레이스",
+      "optionCount": 31
+    },
+    "visibleHeadings": [
+      "임대차 Dashboard",
+      "(주)버킷플레이스",
+      "임차 자산 현황",
+      "자산명",
+      "층/세부구역",
+      "임대면적(평)",
+      "월 임대료",
+      "월 관리비",
+      "월 임관리비",
+      "현재 계약만기일",
+      "계약기간",
+      "회사별 임차 자산 지도",
+      "DART 상세 정보",
+      "항목",
+      "값",
+      "자산별 노출도"
+    ]
+  },
+  "afterReload": {
+    "selected": {
+      "value": "tenant_brn_1198691245",
+      "label": "(주)버킷플레이스",
+      "optionCount": 31
+    },
+    "visibleHeadings": [
+      "임대차 Dashboard",
+      "(주)버킷플레이스",
+      "임차 자산 현황",
+      "자산명",
+      "층/세부구역",
+      "임대면적(평)",
+      "월 임대료",
+      "월 관리비",
+      "월 임관리비",
+      "현재 계약만기일",
+      "계약기간",
+      "회사별 임차 자산 지도",
+      "DART 상세 정보",
+      "항목",
+      "값",
+      "자산별 노출도"
+    ],
+    "storedTenantId": "tenant_brn_1198691245"
+  },
+  "allPass": true
+}

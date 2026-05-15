@@ -1,4 +1,4 @@
-const { chromium } = require('playwright');
+﻿const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
@@ -22,7 +22,7 @@ async function main() {
         <style>
           html, body, #map { width: 100%; height: 100%; margin: 0; }
         </style>
-        <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=xmxdr3l9ij"></script>
+        <script src="https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=[redacted-naver-client-id]"></script>
       </head>
       <body>
         <div id="map"></div>

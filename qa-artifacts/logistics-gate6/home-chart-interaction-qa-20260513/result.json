@@ -1,0 +1,57 @@
+{
+  "generated_at": "2026-05-15T06:02:48.575Z",
+  "baseUrl": "http://127.0.0.1:4182",
+  "route": "http://127.0.0.1:4182/platform/iotaseoul/workspace/logistics/dashboard/home",
+  "checks": {
+    "homeLoaded": true,
+    "doughnutSegmentsExist": true,
+    "doughnutSegmentsHaveLabels": true,
+    "doughnutTooltipOneSegmentOnly": true,
+    "doughnutTooltipFollowsCursor": true,
+    "doughnutTooltipRightOfCursor": true,
+    "doughnutSegmentClickModal": true,
+    "trendHoverTargetsExist": true,
+    "trendTooltipVisible": true,
+    "trendTooltipRightOfCursor": true,
+    "chartAxisTextVisible": true,
+    "chartAxisTextNotClipped": true,
+    "noPageErrors": true,
+    "noConsoleErrors": true
+  },
+  "evidence": {
+    "doughnutSegmentCount": 11,
+    "firstDoughnutLabel": "상온창고",
+    "secondDoughnutLabel": "저온창고",
+    "firstDoughnutTooltip": "상온창고\n값\n307,504.4평\n비중\n83.4%\n근거 행\n15건",
+    "secondDoughnutTooltip": "저온창고\n값\n47,890.2평\n비중\n13.0%\n근거 행\n8건",
+    "firstTooltipBox": {
+      "x": 473,
+      "y": 1188,
+      "width": 230,
+      "height": 98
+    },
+    "secondTooltipBox": {
+      "x": 430,
+      "y": 1158,
+      "width": 230,
+      "height": 98
+    },
+    "trendHoverRectCount": 81,
+    "trendTooltip": "2019-03\n월 임대료(RF/FO 반영)\n5.8억\n월 관리비\n1,281만\n월 임관리비(RF/FO 반영)\n6.0억\n자산 수\n2개",
+    "trendTooltipBox": {
+      "x": 482,
+      "y": 684,
+      "width": 270,
+      "height": 132
+    },
+    "visibleAxisTextCount": 41,
+    "brokenAxisTexts": []
+  },
+  "screenshots": {
+    "home-full": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\home-chart-interaction-qa-20260513\\home-full.png",
+    "doughnut-segment-click-modal": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\home-chart-interaction-qa-20260513\\doughnut-segment-click-modal.png"
+  },
+  "pageErrors": [],
+  "consoleErrors": [],
+  "allPass": true
+}

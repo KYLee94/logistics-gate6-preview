@@ -16,7 +16,7 @@ export default function AuthSetup({ onLogin }) {
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
-    const PILOT_ACCESS_CODE = 'IOTA2026';
+    const pilotAccessCode = import.meta.env.VITE_IOTA_PILOT_ACCESS_CODE || '';
     const [mounted, setMounted] = useState(false);
     const [dissolved, setDissolved] = useState(false);
     const [hasError, setHasError] = useState(false);
@@ -78,7 +78,7 @@ export default function AuthSetup({ onLogin }) {
             setStaffName(data.staff_name);
             setIsFirstTime(!data.auth_id); // If auth_id is null, it's their first time setting a password
             setStep(2);
-        } catch (err) {
+        } catch {
             triggerError('서버 연결에 실패했습니다.');
         } finally {
             setIsCheckingEmail(false);
@@ -94,7 +94,7 @@ export default function AuthSetup({ onLogin }) {
             return;
         }
         if (isFirstTime) {
-            if (accessCode.trim().toUpperCase() !== PILOT_ACCESS_CODE) {
+            if (!pilotAccessCode || accessCode.trim().toUpperCase() !== pilotAccessCode.trim().toUpperCase()) {
                 triggerError('최초 접속 코드가 올바르지 않습니다.');
                 return;
             }
@@ -154,7 +154,7 @@ export default function AuthSetup({ onLogin }) {
             // Success, show confirmation popup
             setShowChangeSuccessModal(true);
 
-        } catch (err) {
+        } catch {
             triggerError('패스워드 변경 중 오류가 발생했습니다.');
         }
     };
@@ -175,7 +175,7 @@ export default function AuthSetup({ onLogin }) {
             
             alert('이메일로 비밀번호 재설정 링크가 발송되었습니다. 이메일을 확인해주세요.');
             setStep(1);
-        } catch (err) {
+        } catch {
             triggerError('이메일 발송 중 오류가 발생했습니다.');
         }
     };
@@ -207,7 +207,7 @@ export default function AuthSetup({ onLogin }) {
             setRecoveryMode(false);
             setShowChangeSuccessModal(true);
 
-        } catch (err) {
+        } catch {
             triggerError('패스워드 변경 중 오류가 발생했습니다.');
         }
     };
@@ -245,10 +245,13 @@ export default function AuthSetup({ onLogin }) {
 
                 // Update auth_id in our members table
                 if (data.user) {
-                    await supabase
-                        .from('iota_seoul_pilot_members')
-                        .update({ auth_id: data.user.id, last_login_at: new Date().toISOString() })
-                        .eq('email', email.trim().toLowerCase());
+                    await supabase.functions.invoke('iota-auth-member-sync', {
+                        body: {
+                            action: 'first_login',
+                            email: email.trim().toLowerCase(),
+                            auth_id: data.user.id,
+                        },
+                    });
                 }
             } else {
                 // Sign in existing user
@@ -263,10 +266,12 @@ export default function AuthSetup({ onLogin }) {
                 }
 
                 if (data.user) {
-                    await supabase
-                        .from('iota_seoul_pilot_members')
-                        .update({ last_login_at: new Date().toISOString() })
-                        .eq('email', email.trim().toLowerCase());
+                    await supabase.functions.invoke('iota-auth-member-sync', {
+                        body: {
+                            action: 'login',
+                            email: email.trim().toLowerCase(),
+                        },
+                    });
                 }
             }
 
@@ -275,7 +280,7 @@ export default function AuthSetup({ onLogin }) {
                 if(onLogin) onLogin();
             }, 700);
 
-        } catch (err) {
+        } catch {
             triggerError('인증 처리 중 오류가 발생했습니다.');
         }
     };

@@ -64,9 +64,6 @@ const DATA_STATUS = [
   { label: '외부 API 연결', value: '준비', detail: '서버 연결 후 노출' },
 ];
 
-const NAVER_MAPS_CLIENT_ID = import.meta.env.VITE_NAVER_MAPS_CLIENT_ID || '';
-const LOGISTICS_SUPABASE_URL = import.meta.env.VITE_LOGI_SUPABASE_URL || '';
-const LOGISTICS_SUPABASE_ANON_KEY = import.meta.env.VITE_LOGI_SUPABASE_ANON_KEY || '';
 const PRIMARY_BLUE_BUTTON_CLASS = 'border-[#3b82f6]/30 bg-[#3b82f6]/20 text-[#60a5fa] hover:bg-[#3b82f6]/30';
 const DARK_BUTTON_CLASS = 'border-[#333333] bg-[#222] text-[#D1D1D6] hover:border-[#555] hover:text-white';
 const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
@@ -110,6 +107,43 @@ const WEEKLY_ASSET_DB_CONTEXT = {
 function pathFor(suffix = '') {
   const base = 'platform/iotaseoul/workspace/logistics';
   return suffix ? `${base}/${suffix}` : base;
+}
+
+function memberAvatarSource(memberInfo, fallbackName) {
+  const explicit = firstDefined(
+    memberInfo?.avatar_url,
+    memberInfo?.avatarUrl,
+    memberInfo?.photo_url,
+    memberInfo?.photoUrl,
+    memberInfo?.picture,
+    memberInfo?.profile_image_url,
+    memberInfo?.profileImageUrl,
+    memberInfo?.image_url,
+  );
+  if (explicit) return explicit;
+  const name = String(fallbackName || memberInfo?.staff_name || memberInfo?.name || '').replace(/\s/gu, '');
+  return name ? `${import.meta.env.BASE_URL}${name}.webp` : `${import.meta.env.BASE_URL}default_avatar.svg`;
+}
+
+function MemberAvatar({ memberInfo, name, sizeClass = 'h-12 w-12', textClass = 'text-[15px]' }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const label = String(name || memberInfo?.staff_name || memberInfo?.name || '물류').trim();
+  const src = memberAvatarSource(memberInfo, label);
+  return (
+    <div className={`relative flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E8F2FF] ${textClass} font-bold text-[#1F1F1E]`}>
+      {!imageFailed ? (
+        <img
+          src={src}
+          alt={label}
+          className="h-full w-full object-cover"
+          onError={() => setImageFailed(true)}
+        />
+      ) : (
+        <span>{label.slice(0, 1)}</span>
+      )}
+      <div className="pointer-events-none absolute inset-0 rounded-full border border-white/10" />
+    </div>
+  );
 }
 
 function navigateTo(path) {
@@ -182,6 +216,13 @@ function cleanDisplay(value, fallback = '-') {
   return text || fallback;
 }
 
+function safeFileNameText(value) {
+  return cleanDisplay(value, '파일')
+    .replace(/[\\/:*?"<>|]/gu, '_')
+    .replace(/\s+/gu, '_')
+    .slice(0, 80);
+}
+
 function formatNumber(value) {
   if (value === undefined || value === null || value === '') return '-';
   const numeric = Number(value);
@@ -211,6 +252,7 @@ function formatPercent(value) {
   if (value === undefined || value === null || value === '') return '-';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '-';
+  if (numeric > 0 && numeric < 0.001) return '<0.1%';
   return `${(numeric * 100).toFixed(1)}%`;
 }
 
@@ -218,15 +260,22 @@ function formatArea(value) {
   if (value === undefined || value === null || value === '') return '-';
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return '-';
-  if (numeric <= 0) return '0평';
-  return `${formatNumber(Math.max(1, Math.round(numeric * 0.3025)))}평`;
+  if (numeric <= 0) return '0.0평';
+  return `${formatDecimalNumber(numeric * 0.3025, 1)}평`;
+}
+
+function calculatePerPy(totalValue, areaSqm) {
+  const total = Number(totalValue || 0);
+  const areaPy = Number(areaSqm || 0) * 0.3025;
+  if (!Number.isFinite(total) || !Number.isFinite(areaPy) || areaPy <= 0) return null;
+  return total / areaPy;
 }
 
 function formatPyFromSqm(value) {
   if (value === undefined || value === null || value === '') return '-';
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return '-';
-  return `${formatNumber(Math.max(1, Math.round(numeric * 0.3025)))}평`;
+  return `${formatDecimalNumber(Math.max(0.1, numeric * 0.3025), 1)}평`;
 }
 
 function parsePercentText(value) {
@@ -258,10 +307,28 @@ function normalizeUseCategoryLabel(label) {
   const value = String(label || '').trim();
   const upper = value.toUpperCase();
   if (!value) return '복합';
+  if (/복합|MIXED|COMPLEX|상저온|상온\s*[/+·]\s*저온|저온\s*[/+·]\s*상온/u.test(value)) return '복합';
   if (upper === 'Y' || /저온|냉동|냉장|COLD/u.test(value)) return '저온창고';
   if (upper === 'N' || /상온|창고|WAREHOUSE|AMBIENT/u.test(value)) return '상온창고';
   if (/사무|OFFICE/u.test(value)) return '사무실';
   return '복합';
+}
+
+function inferUseCategoryFromLeaseRow(row = {}) {
+  const explicitTemp = String(firstDefined(row.coldStorageType, row.temperatureType, row.cold_storage_type, '') || '').trim();
+  if (explicitTemp) return normalizeUseCategoryLabel(explicitTemp);
+  const usageText = [
+    row.useCategory,
+    row.goodsType,
+    row.spaceLabel,
+    row.floorLabel,
+    row.detailAreaLabel,
+    row.tenantUse,
+  ].filter(Boolean).join(' ');
+  if (!usageText) return '';
+  if (/복합|MIXED|COMPLEX|상저온|상온\s*[/+·]\s*저온|저온\s*[/+·]\s*상온/u.test(usageText)) return '복합';
+  if (/사무|OFFICE/u.test(usageText)) return '사무실';
+  return '';
 }
 
 function normalizeUseCategoryRows(rows) {
@@ -289,6 +356,23 @@ function buildUseCategoryRows(payload, option = {}, weeklyRow = {}) {
   const normalized = payload ? normalizeAssetPayload(payload) : null;
   const overview = normalized?.overview || payload?.overview || {};
   const breakdown = normalized?.areaBreakdown || payload?.areaBreakdown || {};
+  const leaseRowSummary = (normalized?.normalizedRows || []).reduce((acc, row) => {
+    const label = inferUseCategoryFromLeaseRow(row);
+    const area = Number(firstDefined(row.warehouseAreaSqm, row.exclusiveAreaSqm, row.leasedAreaSqm, row.areaSqm, 0) || 0);
+    if (!label || !Number.isFinite(area) || area <= 0) return acc;
+    if (label === '저온창고') acc.cold += area;
+    if (label === '상온창고') acc.ambient += area;
+    if (label === '복합') acc.composite += area;
+    if (label === '사무실') acc.office += area;
+    acc.counts[label] += 1;
+    return acc;
+  }, {
+    cold: 0,
+    ambient: 0,
+    composite: 0,
+    office: 0,
+    counts: { 상온창고: 0, 복합: 0, 저온창고: 0, 사무실: 0 },
+  });
   const grossArea = Number(firstDefined(breakdown.grossFloorAreaSqm, overview.grossFloorAreaSqm, option.grossFloorAreaSqm, 0) || 0);
   const officeArea = Number(firstDefined(breakdown.officeAreaSqm, overview.officeAreaSqm, option.officeAreaSqm, 0) || 0);
   let coldArea = Number(firstDefined(overview.coldStorageAreaSqm, breakdown.coldStorageAreaSqm, option.coldStorageAreaSqm, 0) || 0);
@@ -302,15 +386,21 @@ function buildUseCategoryRows(payload, option = {}, weeklyRow = {}) {
     coldArea = storageBase * coldRatioValue;
     if (ambientDirect == null) ambientArea = Math.max(storageBase - coldArea, 0);
   }
+  if (coldArea <= 0 && leaseRowSummary.cold > 0) coldArea = leaseRowSummary.cold;
+  if (ambientDirect == null && ambientArea <= 0 && leaseRowSummary.ambient > 0) ambientArea = leaseRowSummary.ambient;
   const explicitCompositeArea = Number(firstDefined(overview.compositeAreaSqm, breakdown.compositeAreaSqm, option.compositeAreaSqm, 0) || 0);
-  const hasExplicitStorage = coldArea > 0 || ambientArea > 0 || officeArea > 0 || explicitCompositeArea > 0;
-  const compositeArea = explicitCompositeArea;
+  let compositeArea = explicitCompositeArea > 0 ? explicitCompositeArea : leaseRowSummary.composite;
+  if (ambientDirect == null && compositeArea > 0 && warehouseArea > 0) {
+    ambientArea = Math.max(warehouseArea - coldArea - compositeArea, 0);
+  }
+  const effectiveOfficeArea = officeArea || leaseRowSummary.office;
+  const hasExplicitStorage = coldArea > 0 || ambientArea > 0 || effectiveOfficeArea > 0 || compositeArea > 0;
   const fallbackLabel = /저온|Y/i.test(coldRatioText) ? '저온창고' : /상온|N/i.test(coldRatioText) ? '상온창고' : '복합';
   const rows = [
-    { label: '상온창고', value: ambientArea, recordCount: ambientArea > 0 ? 1 : 0 },
-    { label: '복합', value: compositeArea, recordCount: compositeArea > 0 ? 1 : 0 },
-    { label: '저온창고', value: coldArea, recordCount: coldArea > 0 ? 1 : 0 },
-    { label: '사무실', value: officeArea, recordCount: officeArea > 0 ? 1 : 0 },
+    { label: '상온창고', value: ambientArea, recordCount: leaseRowSummary.counts.상온창고 || (ambientArea > 0 ? 1 : 0) },
+    { label: '복합', value: compositeArea, recordCount: leaseRowSummary.counts.복합 || (compositeArea > 0 ? 1 : 0) },
+    { label: '저온창고', value: coldArea, recordCount: leaseRowSummary.counts.저온창고 || (coldArea > 0 ? 1 : 0) },
+    { label: '사무실', value: effectiveOfficeArea, recordCount: leaseRowSummary.counts.사무실 || (effectiveOfficeArea > 0 ? 1 : 0) },
   ];
   if (!hasExplicitStorage && grossArea > 0) {
     return USE_CATEGORY_LABELS.map((label) => ({
@@ -324,8 +414,14 @@ function buildUseCategoryRows(payload, option = {}, weeklyRow = {}) {
 
 function calculateWeightedENoc(rows, fallbackValue) {
   const weighted = (rows || []).reduce((acc, row) => {
-    const eNoc = Number(firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy));
     const area = Number(firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm, row.totalLeasedAreaSqm, row.areaSqm));
+    const eNoc = Number(firstDefined(
+      row.eNoc,
+      row.averageENoc,
+      row.currentENoc,
+      row.currentENocPerPy,
+      calculatePerPy(firstDefined(row.monthlyCombinedTotal, row.monthlyCostTotal, row.currentMonthlyCostTotal), area),
+    ));
     if (!Number.isFinite(eNoc) || !Number.isFinite(area) || eNoc <= 0 || area <= 0) return acc;
     return {
       weightedSum: acc.weightedSum + eNoc * area,
@@ -428,6 +524,15 @@ function formatBusinessRegistrationNo(value, tenantId = '') {
   return value || (digits || '-');
 }
 
+function formatNewlyAddedAssets(row = {}, emptyLabel = '-') {
+  const assets = Array.isArray(row.newlyAddedAssets) ? row.newlyAddedAssets : [];
+  const names = assets
+    .map((asset) => cleanDisplay(asset?.assetName || asset?.name, ''))
+    .filter(Boolean);
+  if (!names.length) return emptyLabel;
+  return names.join(', ');
+}
+
 function formatMetric(value, type) {
   if (type === 'area') return formatArea(value);
   if (type === 'currency') return formatCurrency(value);
@@ -506,6 +611,20 @@ function dateToYmd(date) {
   return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
 }
 
+function addCalendarDays(date, days) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function startOfMondayWeekDate(date) {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = next.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  next.setDate(next.getDate() + diff);
+  return next;
+}
+
 function buildWeeklyYearOptions() {
   const currentYear = new Date().getFullYear();
   const generated = Array.from({ length: 11 }, (_, index) => String(currentYear - 5 + index));
@@ -519,17 +638,17 @@ function buildWeeklyMonthOptions() {
 function buildWeeklyWeekOptions(year, month) {
   const yearNumber = Number(year);
   const monthNumber = Number(month);
+  if (!Number.isFinite(yearNumber) || !Number.isFinite(monthNumber)) return [];
   const firstDate = new Date(yearNumber, monthNumber - 1, 1);
   const lastDate = new Date(yearNumber, monthNumber, 0);
-  const mondayOffset = (firstDate.getDay() + 6) % 7;
-  const firstMonday = new Date(firstDate);
-  firstMonday.setDate(firstDate.getDate() - mondayOffset);
+  const monthIndex = monthNumber - 1;
   const options = [];
-  for (let cursor = new Date(firstMonday), index = 0; cursor <= lastDate; cursor.setDate(cursor.getDate() + 7), index += 1) {
-    const week = String(index + 1);
+  for (let cursor = startOfMondayWeekDate(firstDate); cursor <= addCalendarDays(lastDate, 6); cursor = addCalendarDays(cursor, 7)) {
     const startDate = new Date(cursor);
-    const endDate = new Date(cursor);
-    endDate.setDate(startDate.getDate() + 6);
+    const endDate = addCalendarDays(startDate, 6);
+    const ownershipDate = addCalendarDays(startDate, 3);
+    if (ownershipDate.getFullYear() !== yearNumber || ownershipDate.getMonth() !== monthIndex) continue;
+    const week = String(options.length + 1);
     options.push({
       key: `weekly-${year}-${pad2(month)}-${week}`,
       year: String(year),
@@ -639,28 +758,38 @@ function tableHeaderText(header) {
 function getTableColumnMeta(header, index, total) {
   const label = tableHeaderText(header);
   const compact = /^(No\.?|ID|코드|구분|상태|여부|단계|우선순위|중요도)$/u.test(label);
+  const countLike = /^(자산 수|구역 수|행 수|건수)$/u.test(label);
   const dateLike = /날짜|일자|시점|만기|마감|기간|보고일|개시일|종료일/u.test(label);
   const numeric = /수$|건$|개$|율|비율|면적|평|금액|임대료|관리비|임관리비|NOC|원가|차이|합계|잔여|개월|비중/u.test(label);
   const nameLike = /자산명|임차인명|기업명|회사|프로젝트|Task|업무명|펀드명/u.test(label);
+  const spaceLike = /층|구역|공간|호실|자산 목록/u.test(label);
   const longText = /내용|이슈|계획|액션|비고|주소|목록|원문|상세|source|Main Issue/u.test(label);
   let width = '140px';
   if (total <= 2) width = index === 0 ? '28%' : '72%';
+  else if (label === '임차인명') width = '178px';
+  else if (label === '자산 목록') width = '340px';
+  else if (countLike) width = '72px';
   else if (compact) width = '76px';
   else if (dateLike) width = '112px';
-  else if (numeric) width = '104px';
+  else if (numeric) width = '98px';
   else if (nameLike) width = index === 0 ? '240px' : '190px';
+  else if (spaceLike) width = '118px';
   else if (longText) width = '240px';
-  return { compact, dateLike, numeric, nameLike, longText, width };
+  return { label, compact, countLike, dateLike, numeric, nameLike, spaceLike, longText, width };
 }
 
 function normalizeTableColumnWidths(metas) {
-  if (metas.length > 10) return metas;
+  if (metas.length >= 8) return metas;
   const weights = metas.map((meta, index) => {
     if (metas.length <= 2) return index === 0 ? 0.2 : 0.8;
+    if (meta.label === '자산 목록') return 2.2;
+    if (meta.label === '임차인명') return 1.05;
+    if (meta.countLike) return 0.45;
     if (meta.compact) return 0.62;
     if (meta.dateLike) return 0.82;
-    if (meta.numeric) return 0.76;
-    if (meta.nameLike) return index === 0 ? (metas.length <= 4 ? 1.48 : 2.0) : 1.25;
+    if (meta.numeric) return 0.68;
+    if (meta.nameLike) return index === 0 ? (metas.length <= 4 ? 1.25 : 1.65) : 1.2;
+    if (meta.spaceLike) return 1.3;
     if (meta.longText) return 1.45;
     return 0.78;
   });
@@ -676,7 +805,7 @@ function renderTableCell(cell, meta) {
   const primitive = typeof cell === 'string' || typeof cell === 'number';
   if (!primitive) return cell;
   const text = String(cell);
-  if (meta.numeric || meta.compact || meta.dateLike || meta.nameLike) {
+  if (meta.numeric || meta.compact || meta.dateLike || meta.nameLike || meta.spaceLike) {
     return <span className="block truncate" title={text}>{text}</span>;
   }
   if (meta.longText || text.length > 34) {
@@ -687,9 +816,12 @@ function renderTableCell(cell, meta) {
 
 function DataTable({ headers, rows, onRowClick, compact = false }) {
   const metas = normalizeTableColumnWidths(headers.map((header, index) => getTableColumnMeta(header, index, headers.length)));
+  const minTableWidth = headers.length >= 8
+    ? `${Math.max(980, headers.length * 122)}px`
+    : undefined;
   return (
-    <div className="overflow-x-auto rounded-[10px] border border-[#333333]">
-      <table className="w-full min-w-full table-fixed border-collapse text-left">
+    <div className="custom-scrollbar overflow-x-auto rounded-[10px] border border-[#333333]">
+      <table className="w-full min-w-full table-fixed border-collapse text-left" style={minTableWidth ? { minWidth: minTableWidth } : undefined}>
         <colgroup>
           {metas.map((meta, index) => <col key={`${tableHeaderText(headers[index])}-${index}`} style={{ width: meta.width }} />)}
         </colgroup>
@@ -708,7 +840,7 @@ function DataTable({ headers, rows, onRowClick, compact = false }) {
               className={`border-b border-[#333333] last:border-b-0 ${onRowClick ? 'cursor-pointer hover:bg-white/[0.04]' : ''}`}
             >
               {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className={`${compact ? 'py-1.5' : 'py-2.5'} px-3 first:pl-4 last:pr-4 align-top text-[13px] leading-5 text-[#E5E5E5] ${metas[cellIndex]?.numeric ? 'text-right tabular-nums' : 'text-left'} ${metas[cellIndex]?.compact || metas[cellIndex]?.dateLike || metas[cellIndex]?.nameLike ? 'whitespace-nowrap' : ''}`}>
+                <td key={cellIndex} className={`${compact ? 'py-1.5' : 'py-2.5'} px-3 first:pl-4 last:pr-4 align-top text-[13px] leading-5 text-[#E5E5E5] ${metas[cellIndex]?.numeric ? 'text-right tabular-nums' : 'text-left'} ${metas[cellIndex]?.compact || metas[cellIndex]?.dateLike || metas[cellIndex]?.nameLike || metas[cellIndex]?.spaceLike ? 'whitespace-nowrap' : ''}`}>
                   {renderTableCell(cell, metas[cellIndex] || {})}
                 </td>
               ))}
@@ -774,7 +906,7 @@ function LogisticsModal({ modal, onClose }) {
           </div>
           <button type="button" onClick={onClose} className="h-9 px-3 rounded-[8px] bg-[#1F1F1E] text-[#C7C7CC] text-[13px] font-semibold hover:bg-[#30302F]">닫기</button>
         </div>
-        <div className={`p-6 overflow-auto ${bodyHeightClass}`}>
+        <div className={`custom-scrollbar p-6 overflow-auto ${bodyHeightClass}`}>
           {modal.rows ? (
             <DataTable headers={modal.headers} rows={modal.rows} compact />
           ) : modal.content}
@@ -793,7 +925,7 @@ function TenantContractFullView({ rows }) {
     (assetFilter === 'all' || row.assetName === assetFilter)
     && (tenantFilter === 'all' || row.tenantMasterName === tenantFilter)
   )), [assetFilter, rows, tenantFilter]);
-  const headers = ['임차인명', '자산명', '펀드명', '주소/권역', '층/구역', '계약개시', '계약만기', '잔여개월', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 임대료', '평당 관리비', 'E. NOC', '보증금', '용도', '저온/상온', '사업자번호', '계약기간'];
+  const headers = ['임차인명', '자산명', '펀드명', '주소/권역', '층/구역', '계약개시', '계약만기', '잔여개월', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', '평당 월 임관리비', 'E. NOC', '보증금', '용도', '저온/상온', '계약기간'];
   const bodyRows = visibleRows.map((row) => {
     const expiry = firstDefined(row.currentEndDate, row.latestExpiry, row.earliestExpiry);
     return [
@@ -811,11 +943,11 @@ function TenantContractFullView({ rows }) {
       formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal)),
       formatWon(firstDefined(row.currentRentPerPy, row.rentPerPy)),
       formatWon(firstDefined(row.currentMfPerPy, row.mfPerPy)),
+      formatWon(calculatePerPy(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal), row.leasedAreaSqm)),
       formatWon(row.eNoc),
       formatCurrency(firstDefined(row.deposit, row.currentDeposit, row.securityDeposit)),
       cleanDisplay(firstDefined(row.goodsType, row.useType, row.tenantUse), '-'),
       cleanDisplay(firstDefined(row.coldStorageType, row.temperatureType), '-'),
-      formatBusinessRegistrationNo(firstDefined(row.businessRegistrationNo, row.company?.businessRegistrationNo), row.tenantId),
       [formatDate(row.currentStartDate), formatDate(expiry)].filter((value) => value && value !== '-').join(' ~ ') || '-',
     ];
   });
@@ -836,12 +968,12 @@ function TenantContractFullView({ rows }) {
           </select>
         </div>
       </div>
-      <div className="max-h-[70vh] overflow-auto rounded-[10px] border border-[#333333]">
-        <table className="min-w-[2680px] border-collapse text-left text-[12px]">
+      <div className="custom-scrollbar max-h-[70vh] overflow-auto rounded-[10px] border border-[#333333]">
+        <table className="min-w-[2850px] border-collapse text-left text-[12px]">
           <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#86868B]">
             <tr>
               {headers.map((header, index) => (
-                <th key={header} className={`border-b border-[#333333] px-3 py-2 font-semibold ${index === 0 ? 'sticky left-0 z-30 w-[210px] bg-[#1F1F1E]' : index === 1 ? 'sticky left-[210px] z-30 w-[240px] bg-[#1F1F1E]' : index === 2 ? 'min-w-[260px]' : index === 3 ? 'min-w-[220px]' : 'whitespace-nowrap'}`}>
+                <th key={header} className={`border-b border-[#333333] px-3 py-2 font-semibold ${index === 0 ? 'sticky left-0 z-30 w-[180px] bg-[#1F1F1E]' : index === 1 ? 'sticky left-[180px] z-30 w-[280px] bg-[#1F1F1E]' : index === 2 ? 'min-w-[240px]' : index === 3 ? 'min-w-[220px]' : 'whitespace-nowrap'}`}>
                   {header}
                 </th>
               ))}
@@ -851,8 +983,8 @@ function TenantContractFullView({ rows }) {
             {bodyRows.map((row, rowIndex) => (
               <tr key={`${row[0]}-${row[1]}-${row[3]}-${rowIndex}`} className="border-b border-[#333333] last:border-b-0 hover:bg-white/[0.04]">
                 {row.map((cell, cellIndex) => (
-                  <td key={`${rowIndex}-${cellIndex}`} className={`px-3 py-2 align-top text-[#E5E5E5] ${cellIndex >= 8 && cellIndex <= 15 ? 'text-right tabular-nums' : 'text-left'} ${cellIndex === 0 ? 'sticky left-0 z-10 max-w-[210px] bg-[#252524] font-semibold' : cellIndex === 1 ? 'sticky left-[210px] z-10 max-w-[240px] bg-[#252524] font-semibold' : 'whitespace-nowrap'}`}>
-                    <span className={cellIndex <= 4 || cellIndex >= 16 ? 'block max-w-[280px] truncate' : 'block whitespace-nowrap'} title={typeof cell === 'string' ? cell : undefined}>{cell}</span>
+                  <td key={`${rowIndex}-${cellIndex}`} className={`px-3 py-2 align-top text-[#E5E5E5] ${cellIndex >= 8 && cellIndex <= 16 ? 'text-right tabular-nums' : 'text-left'} ${cellIndex === 0 ? 'sticky left-0 z-10 max-w-[180px] bg-[#252524] font-semibold' : cellIndex === 1 ? 'sticky left-[180px] z-10 max-w-[280px] bg-[#252524] font-semibold' : 'whitespace-nowrap'}`}>
+                    <span className={cellIndex <= 4 || cellIndex >= 17 ? 'block max-w-[300px] truncate' : 'block whitespace-nowrap'} title={typeof cell === 'string' ? cell : undefined}>{cell}</span>
                   </td>
                 ))}
               </tr>
@@ -971,59 +1103,57 @@ function WeeklyDashboard() {
             </button>
           </div>
         </div>
-        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <label className="block">
-            <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">연도</span>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <label className="flex h-[100px] flex-col justify-between rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-3">
+            <span className="block text-[12px] font-semibold text-[#86868B]">연도</span>
             <select
               value={selectedWeeklyEntry?.year || ''}
               onChange={(event) => {
                 const next = findWeeklySelection(event.target.value, selectedWeeklyEntry?.month, selectedWeeklyEntry?.week);
                 changeWeeklyEntry(next.key);
               }}
-              className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white outline-none"
+              className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[15px] font-semibold text-white outline-none"
             >
               {availableYears.map((year) => <option key={year} value={year}>{year}년</option>)}
             </select>
           </label>
-          <label className="block">
-            <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">월</span>
+          <label className="flex h-[100px] flex-col justify-between rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-3">
+            <span className="block text-[12px] font-semibold text-[#86868B]">월</span>
             <select
               value={selectedWeeklyEntry?.month || ''}
               onChange={(event) => {
                 const next = findWeeklySelection(selectedWeeklyEntry?.year, event.target.value, selectedWeeklyEntry?.week);
                 changeWeeklyEntry(next.key);
               }}
-              className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white outline-none"
+              className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[15px] font-semibold text-white outline-none"
             >
               {availableMonths.map((month) => <option key={month} value={month}>{Number(month)}월</option>)}
             </select>
           </label>
-          <label className="block">
-            <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">주차</span>
+          <label className="flex h-[100px] flex-col justify-between rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-3">
+            <span className="block text-[12px] font-semibold text-[#86868B]">주차</span>
             <select
               value={selectedWeeklyEntry?.week || ''}
               onChange={(event) => {
                 const next = findWeeklySelection(selectedWeeklyEntry?.year, selectedWeeklyEntry?.month, event.target.value);
                 changeWeeklyEntry(next.key);
               }}
-              className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white outline-none"
+              className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[15px] font-semibold text-white outline-none"
             >
-              {availableWeeks.map((week) => <option key={week.key} value={week.week}>{week.label}</option>)}
+              {availableWeeks.map((week) => <option key={week.key} value={week.week}>{week.week}주차 · {week.weekRange}</option>)}
             </select>
           </label>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4">
+          <div className="flex h-[100px] flex-col justify-between rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-3">
             <div className="text-[12px] text-[#86868B] font-semibold">보고일</div>
-            <div className="text-[24px] text-white font-semibold mt-2">{report.reportDate}</div>
+            <div className="truncate text-[18px] font-semibold text-white tabular-nums" title={report.reportDate}>{report.reportDate}</div>
           </div>
-          <button type="button" onClick={openAssetsModal} className="text-left rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4 hover:bg-[#2A2A29]">
+          <button type="button" onClick={openAssetsModal} className="flex h-[100px] flex-col justify-between rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-left hover:bg-[#2A2A29]">
             <div className="text-[12px] text-[#86868B] font-semibold">총 자산 수</div>
-            <div className="text-[24px] text-[#B5E48C] font-semibold mt-2">{formatNumber(assetRows.length)}개</div>
+            <div className="text-[18px] font-semibold text-white tabular-nums">{formatNumber(assetRows.length)}개</div>
           </button>
-          <button type="button" onClick={openAreaModal} className="text-left rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4 hover:bg-[#2A2A29]">
+          <button type="button" onClick={openAreaModal} className="flex h-[100px] flex-col justify-between rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-left hover:bg-[#2A2A29]">
             <div className="text-[12px] text-[#86868B] font-semibold">총 연면적</div>
-            <div className="text-[24px] text-[#9AD7FF] font-semibold mt-2">{formatNumber(totalArea)}평</div>
+            <div className="text-[18px] font-semibold text-white tabular-nums">{formatNumber(totalArea)}평</div>
           </button>
         </div>
       </section>
@@ -1081,79 +1211,6 @@ function WeeklyDashboard() {
 
 void LegacyWorkspaceLogistics;
 
-const MAIN_WORKLOGS = [
-  {
-    id: 'log-001',
-    project: '물류센터 워크 플랫폼',
-    cell: '사업PM',
-    owner: '이서정',
-    title: '[리스크 판단] 이천 회억리 Refi 및 임대차 진행 상황 점검',
-    body: '대주단 미팅 일정과 지상 1층 임대차 마케팅 후속 액션을 이번 주 우선 확인합니다.',
-    stakeholder: '대주단 / 잠재임차사',
-    purpose: '리스크 판단',
-    status: '검토중',
-    priority: '높음',
-    date: '26.05.13',
-    locked: true,
-  },
-  {
-    id: 'log-002',
-    project: '물류센터 워크 플랫폼',
-    cell: '사업PM',
-    owner: '전기용',
-    title: '[공유] 물류 복합개발 PJT 투자조건 협의 업데이트',
-    body: '환경개선펀드와 매칭투자자 조건 협의 후 설정시기 확정이 필요합니다.',
-    stakeholder: '산단공 / 매칭투자자',
-    purpose: '공유',
-    status: '진행중',
-    priority: '중간',
-    date: '26.05.13',
-    locked: false,
-  },
-  {
-    id: 'log-003',
-    project: '물류센터 워크 플랫폼',
-    cell: '임대차',
-    owner: '권순일',
-    title: 'Lease-up 대상 자산 우선순위 및 공실 원인 재확인',
-    body: 'Home과 Sector 탭의 공실/만기 이슈를 기준으로 영업 우선순위를 재정렬합니다.',
-    stakeholder: 'AM / Leasing',
-    purpose: '의사결정',
-    status: '신규',
-    priority: '중간',
-    date: '26.05.12',
-    locked: false,
-  },
-  {
-    id: 'log-004',
-    project: '물류센터 워크 플랫폼',
-    cell: '데이터',
-    owner: '강순용',
-    title: '탭별 원본 숫자와 팝업 내용 parity QA 진행',
-    body: '대시보드 데이터 검증은 Dashboard 모듈 안에서 처리하고, 업무 로그는 현안 공유 중심으로 유지합니다.',
-    stakeholder: '데이터 QA',
-    purpose: '진행 이력',
-    status: '진행중',
-    priority: '낮음',
-    date: '26.05.10',
-    locked: false,
-  },
-  {
-    id: 'log-005',
-    project: '물류센터 워크 플랫폼',
-    cell: '섹터PM',
-    owner: '이서정',
-    title: '주간 주요 이슈를 업무 로그 메인과 Weekly 탭에 동시 반영',
-    body: '자산별 세부 특징은 Dashboard 내부 탭에서 보고, 메인에서는 현재 업무 현황과 주요 이슈만 공유합니다.',
-    stakeholder: '섹터 담당자',
-    purpose: '공유',
-    status: '보류',
-    priority: '중간',
-    date: '26.05.09',
-    locked: false,
-  },
-];
-
 const MAIN_PRIORITIES = ['높음', '중간', '낮음'];
 const PLAYGROUND_MODES = [
   { id: 'sandbox', label: 'Sandbox', title: '샌드박스 결과' },
@@ -1179,9 +1236,13 @@ const PLAYGROUND_METRICS = [
   { key: 'currentMonthlyRentTotal', label: '월 임대료', type: 'currency' },
   { key: 'currentMonthlyMfTotal', label: '월 관리비', type: 'currency' },
   { key: 'monthlyCostTotal', label: '월 임관리비', type: 'currency' },
+  { key: 'currentRentPerPy', label: '평당 월임대료', type: 'won', aggregate: 'average' },
+  { key: 'currentMfPerPy', label: '평당 월관리비', type: 'won', aggregate: 'average' },
   { key: 'eNoc', label: 'E.NOC', type: 'won', aggregate: 'average' },
   { key: 'count', label: '건수', type: 'count' },
 ];
+
+const ANALYSIS_METRIC_KEYS = ['leasedAreaSqm', 'monthlyCostTotal', 'currentMonthlyRentTotal', 'currentMonthlyMfTotal', 'currentRentPerPy', 'currentMfPerPy', 'eNoc', 'count'];
 
 const PLAYGROUND_AGGREGATIONS = [
   { key: 'sum', label: '합계' },
@@ -1262,7 +1323,7 @@ function assetMatchesPermission(assetName, permission) {
 
 function assetIdMatchesPermission(assetId, assetName, permission) {
   const readableAssets = permission?.managedAssets || [];
-  if (!readableAssets.length) return true;
+  if (!readableAssets.length) return false;
   const id = String(assetId || '').toLowerCase();
   return readableAssets.some((asset) => (
     (id && String(asset.assetId || '').toLowerCase() === id)
@@ -1273,6 +1334,16 @@ function assetIdMatchesPermission(assetId, assetName, permission) {
 
 function filterAssetsByPermission(rows, permission, nameKey = 'assetName', idKey = 'assetId') {
   return (rows || []).filter((row) => assetIdMatchesPermission(row?.[idKey], row?.[nameKey] || row?.label, permission));
+}
+
+function logisticsRoleRank(role) {
+  const order = ['Reader', 'Editor', 'Manager', 'Admin', 'System Admin'];
+  const index = order.indexOf(String(role || 'Reader'));
+  return index < 0 ? 0 : index;
+}
+
+function hasLogisticsRole(permission, minimum) {
+  return logisticsRoleRank(permission?.role || permission?.logisticsRole) >= logisticsRoleRank(minimum);
 }
 
 function canViewDataQuality(memberInfo, permission) {
@@ -1401,60 +1472,6 @@ function normalizeServerWorklogTask(row, permission) {
   };
 }
 
-function MainScopeOverview({ permission }) {
-  const [activeScope, setActiveScope] = useState('personal');
-  const personalLogs = MAIN_WORKLOGS.filter((item) => item.owner === permission.name).slice(0, 3);
-  const teamLogs = MAIN_WORKLOGS.filter((item) => item.project || item.cell).slice(0, 3);
-  const sectorLogs = MAIN_WORKLOGS.filter((item) => item.project || item.purpose).slice(0, 3);
-  const groups = [
-    { id: 'personal', title: '개인 업무', rows: personalLogs.length ? personalLogs : MAIN_WORKLOGS.slice(0, 2), note: `${permission.name}님 담당 자산 중심` },
-    { id: 'team', title: '팀 업무', rows: teamLogs, note: `${permission.organization} 공유 업무` },
-    { id: 'sector', title: '섹터 업무', rows: sectorLogs, note: '물류센터 전체 공통 이슈' },
-  ];
-  const activeGroup = groups.find((group) => group.id === activeScope) || groups[0];
-
-  return (
-    <section className="mb-[28px] rounded-[22px] border border-[#333333] bg-[#252524] p-4">
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div>
-          <div className="text-[11px] font-semibold tracking-[0.03em] text-[#86868B]">WORK SCOPE</div>
-          <h2 className="mt-1 text-[18px] font-bold text-white">개인·팀·섹터 업무 공유</h2>
-          <p className="mt-1 text-[12px] leading-5 text-[#86868B]">업무 범위를 전환해서 담당 자산과 공유 이슈를 분리해 봅니다.</p>
-        </div>
-        <div className="flex rounded-[10px] border border-[#333333] bg-[#1F1F1E] p-1">
-          {groups.map((group) => (
-            <button
-              key={group.id}
-              type="button"
-              onClick={() => setActiveScope(group.id)}
-              className={`h-8 rounded-[8px] px-3 text-[12px] font-semibold transition-colors ${activeScope === group.id ? 'bg-white text-[#1F1F1E]' : 'text-[#A1A1AA] hover:text-white'}`}
-            >
-              {group.title}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="text-[12px] font-semibold text-[#86868B]">{activeGroup.note}</div>
-        <StatusPill className="border-[#3A3A3C] bg-[#1F1F1E] text-[#A1A1AA]">{formatNumber(activeGroup.rows.length)}건</StatusPill>
-      </div>
-      <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
-        {activeGroup.rows.map((item) => (
-          <button key={`${activeGroup.id}-${item.id}`} type="button" onClick={() => navigateTo(pathFor('dashboard/weekly'))} className="min-h-[126px] w-full rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4 text-left transition-colors hover:bg-[#2A2A29]">
-            <div className="line-clamp-2 text-[14px] font-semibold leading-5 text-white">{item.title}</div>
-            <div className="mt-2 line-clamp-2 text-[12px] leading-5 text-[#A1A1AA]">{item.body}</div>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-[#86868B]">
-              <span className="rounded-full border border-[#333333] px-2 py-1">관련 자산 {item.asset || item.project}</span>
-              <span className="rounded-full border border-[#333333] px-2 py-1">{item.purpose}</span>
-              <span className="rounded-full border border-[#333333] px-2 py-1">{item.status}</span>
-            </div>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function normalizeIdentity(value) {
   return String(value || '').trim().replace(/\t/g, '').toLowerCase();
 }
@@ -1508,12 +1525,12 @@ function MainOverlay({ title, eyebrow, onClose, children }) {
       <div className="w-full max-w-[960px] max-h-[86vh] overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl">
         <div className="flex items-center justify-between gap-4 border-b border-[#333333] px-6 py-5">
           <div>
-            <div className="text-[12px] font-semibold text-[#86868B]">{eyebrow}</div>
-            <h3 className="mt-1 text-[22px] font-semibold tracking-tight text-white">{title}</h3>
+            {eyebrow ? <div className="text-[12px] font-semibold text-[#86868B]">{eyebrow}</div> : null}
+            <h3 className={`${eyebrow ? 'mt-1' : ''} text-[22px] font-semibold tracking-tight text-white`}>{title}</h3>
           </div>
           <button type="button" onClick={onClose} className="h-9 rounded-[8px] bg-[#1F1F1E] px-3 text-[13px] font-semibold text-[#C7C7CC] hover:bg-[#30302F]">닫기</button>
         </div>
-        <div className="max-h-[calc(86vh-86px)] overflow-auto p-6">
+        <div className="custom-scrollbar max-h-[calc(86vh-86px)] overflow-auto p-6">
           {children}
         </div>
       </div>
@@ -1574,7 +1591,7 @@ function PermissionDetailContent({ permission }) {
       </div>
       <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E]">
         <div className="border-b border-[#333333] px-4 py-3 text-[13px] font-bold text-white">담당 자산 및 펀드</div>
-        <div className="max-h-[320px] overflow-auto p-3">
+        <div className="custom-scrollbar max-h-[320px] overflow-auto p-3">
           <DataTable
             headers={['자산코드', '자산명', '펀드코드', '펀드명', '실무 담당자']}
             rows={managedAssetRows}
@@ -1737,6 +1754,7 @@ function WeeklyWordUploadPanel({ initialSelection }) {
   const availableYears = buildWeeklyYearOptions();
   const availableMonths = buildWeeklyMonthOptions();
   const availableWeeks = buildWeeklyWeekOptions(selectedWeek?.year, selectedWeek?.month);
+  const selectedWeekRangeLabel = selectedWeek?.weekRange || '';
 
   function selectWeekBy(partial) {
     const next = findWeeklySelection(
@@ -1779,17 +1797,11 @@ function WeeklyWordUploadPanel({ initialSelection }) {
   }
 
   return (
-    <section className="mb-4 rounded-[22px] border border-[#333333] bg-[#252524] p-5">
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_420px_220px] xl:items-end">
+    <section className="mb-4 rounded-[18px] border border-[#333333] bg-[#252524] p-5">
+      <h2 className="text-[20px] font-semibold text-white">주간업무보고자료 업로드</h2>
+      <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(420px,1fr)_minmax(260px,360px)_auto] xl:items-end">
         <div>
-          <div className="text-[11px] font-semibold tracking-[0.03em] text-[#86868B]">WEEKLY WORD INGEST</div>
-          <h2 className="mt-1 text-[18px] font-semibold text-white">주간업무보고자료 업로드</h2>
-          <p className="mt-2 text-[13px] leading-6 text-[#A1A1AA] break-keep">
-            {permission.organization} 조직 기준으로 Word 파일을 올리면 서버에서 표와 본문을 읽어 선택 주차의 Weekly 데이터와 Supabase ll_* 저장 대상으로 변환합니다.
-          </p>
-        </div>
-        <div>
-          <label className="mb-2 block text-[12px] font-semibold text-[#86868B]">반영 기간</label>
+          <label className="mb-2 block text-[14px] font-semibold text-white">반영 기간</label>
           <div className="grid grid-cols-3 gap-2">
             <select value={selectedWeek?.year || ''} onChange={(event) => selectWeekBy({ year: event.target.value })} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white outline-none">
               {availableYears.map((year) => <option key={year} value={year}>{year}년</option>)}
@@ -1801,35 +1813,28 @@ function WeeklyWordUploadPanel({ initialSelection }) {
               {availableWeeks.map((item) => <option key={item.key} value={item.week}>{item.week}주차</option>)}
             </select>
           </div>
-          <div className="mt-2 text-[12px] text-[#A1A1AA]">{selectedWeek?.weekRange || selectedWeek?.label}</div>
+          <div className="mt-2 flex min-h-9 items-center rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 text-[13px] font-semibold text-[#D1D1D6]" aria-label="선택한 주차 날짜 범위">
+            {selectedWeekRangeLabel || '기간을 선택하세요'}
+          </div>
         </div>
         <div>
-          <label className="mb-2 block text-[12px] font-semibold text-[#86868B]">Word 파일</label>
+          <label className="mb-2 block text-[14px] font-semibold text-white">파일 선택</label>
           <input
             type="file"
             accept=".doc,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
             onChange={(event) => setFile(event.target.files?.[0] || null)}
-            className="block w-full text-[12px] text-[#A1A1AA] file:mr-3 file:h-10 file:rounded-[8px] file:border-0 file:bg-[#30302F] file:px-3 file:text-[12px] file:font-semibold file:text-white hover:file:bg-[#3A3A3A]"
+            className="block w-full text-[14px] text-white file:mr-3 file:h-10 file:rounded-[8px] file:border-0 file:bg-[#30302F] file:px-3 file:text-[13px] file:font-semibold file:text-white hover:file:bg-[#3A3A3A]"
           />
-        </div>
-      </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="text-[12px] text-[#86868B]">
-          기준 파일: {selectedWeek?.sourceName || '주간업무보고자료 Word'} · DB 반영은 브라우저가 아니라 서버 함수에서만 처리합니다.
         </div>
         <button
           type="button"
           onClick={handleSubmit}
-          className="h-10 rounded-[10px] border border-[#2C66A2] bg-[#17314E] px-5 text-[13px] font-semibold text-[#9AD7FF] hover:bg-[#1E3C5F]"
+          disabled={uploadState.status === 'loading'}
+          className="h-10 min-w-[104px] whitespace-nowrap rounded-[10px] border border-[#2C66A2] bg-[#17314E] px-4 text-[13px] font-semibold text-[#9AD7FF] hover:bg-[#1E3C5F]"
         >
-          주간업무보고자료 읽기 및 반영
+          데이터 반영
         </button>
       </div>
-      {uploadState.message && (
-        <div className={`mt-3 rounded-[10px] border px-4 py-3 text-[13px] leading-6 ${uploadState.status === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : uploadState.status === 'loading' ? 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
-          {uploadState.message}
-        </div>
-      )}
     </section>
   );
 }
@@ -1878,6 +1883,8 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [mainModal, setMainModal] = useState(null);
   const [mainSearchQuery, setMainSearchQuery] = useState('');
+  const [mainAiAnswer, setMainAiAnswer] = useState(null);
+  const [mainAiLoading, setMainAiLoading] = useState(false);
   const [selectedSearchResult, setSelectedSearchResult] = useState(null);
   const [taskRecords, setTaskRecords] = useState([]);
   const [taskEditTarget, setTaskEditTarget] = useState(null);
@@ -2050,6 +2057,32 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     setTaskRecords((tasks) => tasks.filter((item) => item.id !== task.id));
     await submitTaskOperation('delete', task, { status: 'deleted' });
   };
+  const submitMainAiQuestion = async () => {
+    const question = mainSearchQuery.trim();
+    if (question.length < 2) return;
+    setMainAiLoading(true);
+    setMainAiAnswer(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: { action: 'ai/search-chat', payload: { question } },
+      });
+      if (error) throw error;
+      setMainAiAnswer({
+        type: data?.ok ? 'success' : 'warning',
+        answer: data?.answer || data?.message || '권한 범위 안에서 답변할 수 있는 근거를 찾지 못했습니다.',
+        evidence: Array.isArray(data?.evidence) ? data.evidence : [],
+        scope: data?.scope || null,
+      });
+    } catch (error) {
+      setMainAiAnswer({
+        type: 'warning',
+        answer: `AI 답변을 불러오지 못했습니다. Edge Function 배포와 GOOGLE_AI_KEY 설정을 확인해야 합니다. (${error.message || 'unknown error'})`,
+        evidence: [],
+      });
+    } finally {
+      setMainAiLoading(false);
+    }
+  };
   const moveTask = async (index, direction) => {
     const visibleList = showAllTasks ? sortedWeeklyTasks : sortedWeeklyTasks.slice(0, 5);
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
@@ -2096,9 +2129,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-[18px]">
         <div className="grid grid-cols-1 gap-4">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#E8F2FF] text-[15px] font-bold text-[#1F1F1E]">
-              {(permission.name || '물류').slice(0, 1)}
-            </div>
+            <MemberAvatar memberInfo={memberInfo} name={permission.name} />
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[16px] font-bold text-white">{permission.name}</span>
@@ -2113,50 +2144,72 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             </div>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#333333] pt-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9">
-          {topAssets.map((asset) => (
-            <button key={asset.assetCode || asset.assetName} type="button" onClick={() => navigateToAsset(asset.assetName)} className="flex min-h-[48px] w-full items-center justify-center rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-2.5 py-2 text-center text-[12px] leading-4 text-[#D1D1D6] transition-colors hover:bg-[#2A2A29]">
-              <span className="block max-w-full truncate break-keep font-bold text-white" title={asset.assetName}>{asset.assetName}</span>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="mb-[28px] rounded-[18px] border border-[#333333] bg-[#252524] p-4">
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_360px] lg:items-center">
-          <div>
-            <div className="text-[11px] font-semibold tracking-[0.03em] text-[#86868B]">SEARCH</div>
-            <h2 className="mt-1 text-[18px] font-bold text-white">통합 검색</h2>
-          </div>
-          <div className="relative">
+        <div className="mt-4 border-t border-[#333333] pt-4">
+          <div className="mx-auto grid w-full max-w-[1040px] grid-cols-1 items-center gap-4 md:grid-cols-[128px_minmax(0,1fr)_96px]">
+            <h2 className="text-[18px] font-bold text-white md:text-left">통합 검색</h2>
             <input
               value={mainSearchQuery}
               onChange={(event) => setMainSearchQuery(event.target.value)}
-              placeholder="자산명 또는 임차인명 검색"
-              className="h-11 w-full rounded-[10px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 text-[14px] text-white outline-none placeholder:text-[#6E6E73] focus:border-[#8E8E93]"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault();
+                  submitMainAiQuestion();
+                }
+              }}
+              placeholder="자산·임차인·계약·이슈를 검색하거나 질문하세요"
+              className="h-12 w-full rounded-[999px] border border-[#3A3A3C] bg-[#1F1F1E] px-5 text-[15px] font-semibold text-white shadow-inner outline-none placeholder:text-[#6E6E73] focus:border-[#8E8E93]"
             />
+            <button
+              type="button"
+              onClick={submitMainAiQuestion}
+              disabled={mainAiLoading || mainSearchQuery.trim().length < 2}
+              className={`h-12 rounded-[999px] border px-4 text-[13px] font-bold transition-colors ${mainAiLoading || mainSearchQuery.trim().length < 2 ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : PRIMARY_BLUE_BUTTON_CLASS}`}
+            >
+              {mainAiLoading ? '답변 중' : 'AI 답변'}
+            </button>
           </div>
-        </div>
-        {mainSearchQuery.trim().length >= 2 ? (
-          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-            {searchResults.length ? searchResults.map((result) => (
-              <button
-                key={`${result.type}-${result.id}`}
-                type="button"
-                onClick={() => setSelectedSearchResult(result)}
-                className="cursor-pointer rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-left hover:bg-[#2A2A29]"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <span className="truncate text-[14px] font-semibold text-white">{result.label}</span>
-                  <span className="shrink-0 rounded-full border border-[#3A3A3C] px-2 py-0.5 text-[11px] font-semibold text-[#A1A1AA]">{result.type === 'asset' ? '자산' : '임차인'}</span>
+          {mainAiAnswer ? (
+            <div className={`mx-auto mt-3 max-w-[1040px] rounded-[16px] border p-4 ${mainAiAnswer.type === 'success' ? 'border-[#2E6B45] bg-[#173522]/70' : 'border-[#7A6425] bg-[#2B2613]/80'}`}>
+              <div className="whitespace-pre-line text-[14px] font-semibold leading-6 text-white">{mainAiAnswer.answer}</div>
+              {mainAiAnswer.evidence?.length ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {mainAiAnswer.evidence.slice(0, 4).map((item, index) => (
+                    <span key={`${item.table}-${index}`} className="rounded-full border border-white/10 bg-black/20 px-2.5 py-1 text-[11px] font-semibold text-[#C7C7CC]">
+                      {item.table} · {item.asset || item.tenant || '근거'}
+                    </span>
+                  ))}
                 </div>
-                <div className="mt-1 truncate text-[12px] text-[#86868B]">{result.subtitle}</div>
-              </button>
-            )) : (
-              <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4 text-[13px] text-[#86868B] md:col-span-2">검색 결과가 없습니다.</div>
-            )}
-          </div>
-        ) : null}
+              ) : null}
+            </div>
+          ) : null}
+          {mainSearchQuery.trim().length >= 2 ? (
+            <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+              {searchResults.length ? searchResults.map((result) => (
+                <button
+                  key={`${result.type}-${result.id}`}
+                  type="button"
+                  onClick={() => setSelectedSearchResult(result)}
+                  className="cursor-pointer rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-left hover:bg-[#2A2A29]"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate text-[14px] font-semibold text-white">{result.label}</span>
+                    <span className="shrink-0 rounded-full border border-[#3A3A3C] px-2 py-0.5 text-[11px] font-semibold text-[#A1A1AA]">{result.type === 'asset' ? '자산' : '임차인'}</span>
+                  </div>
+                  <div className="mt-1 truncate text-[12px] text-[#86868B]">{result.subtitle}</div>
+                </button>
+              )) : (
+                <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4 text-[13px] text-[#86868B] md:col-span-2">검색 결과가 없습니다.</div>
+              )}
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[#333333] pt-4 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9">
+          {topAssets.map((asset) => (
+            <button key={asset.assetCode || asset.assetName} type="button" onClick={() => navigateToAsset(asset.assetName)} className="flex min-h-[48px] w-full items-center justify-start rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-2.5 py-2 text-left text-[12px] leading-[15px] text-[#D1D1D6] transition-colors hover:bg-[#2A2A29]">
+              <span className="block max-h-[32px] max-w-full overflow-hidden whitespace-normal break-keep text-left font-bold text-white [overflow-wrap:anywhere]" title={asset.assetName}>{asset.assetName}</span>
+            </button>
+          ))}
+        </div>
       </section>
 
       <WorkspaceActivityLog workspaceCode="WS_LOGISTICS" workspaceLabel="물류센터 워크 플랫폼" assetOptions={topAssets} />
@@ -2168,6 +2221,12 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
               <span className="mt-[2px]">물류센터 주요 TASK 관리</span>
               <span className="ml-[10px] rounded-[6px] bg-[#333] px-[8px] py-[3px] text-[14px] font-bold text-[#b3b0a6]">{getLogisticsWeekInfo().weekLabel}</span>
             </h2>
+            <a href={`${import.meta.env.BASE_URL}platform/iotaseoul/workspace/archive?workspace=logistics`} target="_blank" rel="opener" className="ml-[10px] mt-[2px] flex cursor-pointer items-center gap-[4px] rounded-[6px] border border-[#3c3c3c] bg-transparent py-[3px] pl-[10px] pr-[8px] text-[13px] font-normal tracking-[-0.02em] text-[#A1A1AA] transition-all hover:bg-[#333] hover:text-white">
+              지난 Task 관리
+              <svg className="h-[14px] w-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex overflow-hidden rounded-[8px] border border-[#3c3c3c] bg-[#272726] p-[2px]">
@@ -2194,7 +2253,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         </div>
         <div className="-mx-[7px] mb-[34px] rounded-[30px] border border-[#333] p-[6px]">
           <div className="flex w-full flex-col gap-[16px]">
-            {isAddingTask && taskDraft ? (
+            {isAddingTask && !taskEditTarget && taskDraft ? (
               <div className="flex w-full flex-col gap-4 rounded-[24px] border border-[#3c3c3c] bg-[#272726] p-6">
                 <div className="flex gap-4">
                   <input
@@ -2219,12 +2278,11 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                   className="w-full rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[15px] text-white outline-none focus:border-[#888]"
                   placeholder="다음 액션 준비사항 입력"
                 />
-                <input
-                  type="text"
+                <textarea
                   value={taskDraft.notes || taskDraft.issue || ''}
                   onChange={(event) => setTaskDraft((draft) => ({ ...draft, notes: event.target.value, issue: event.target.value }))}
-                  className="w-full rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[14px] text-[#A1A1AA] outline-none focus:border-[#888]"
-                  placeholder="비고 / 링크 입력 (선택사항)"
+                  className="min-h-[92px] w-full resize-y rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[14px] text-[#A1A1AA] outline-none focus:border-[#888]"
+                  placeholder="상세 내용 입력"
                 />
                 <div className="flex flex-wrap items-center gap-4">
                   <select
@@ -2307,12 +2365,12 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                           </div>
                           <div className="flex flex-1 flex-col gap-[2px] pr-4">
                             <div className="mb-1 flex -translate-y-[2px] items-center gap-2">
-                              <span className="text-[13px] font-bold text-[#86868B]">Next Action</span>
+                              <span className="text-[13px] font-bold text-[#86868B]">다음액션</span>
                               {task.dueDate ? <span className="rounded-full border border-[#3a3a3c] bg-[#2c2c2e] px-[8px] py-[2px] text-[11px] font-medium tracking-tight text-[#A1A1AA]">마감일 목표 {task.dueDate}</span> : null}
                             </div>
-                            <p className="-translate-y-[6px] break-keep text-[18px] font-medium leading-relaxed text-[#bbb9af]">
-                              {splitTaskBullets(task.nextAction)[0] || task.issue || '작성된 내용이 없습니다.'}
-                            </p>
+                            <div className="-translate-y-[6px] break-keep text-[18px] font-medium leading-relaxed text-[#bbb9af]">
+                              {renderBulletListCell(task.nextAction || task.issue || '작성된 내용이 없습니다.')}
+                            </div>
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-3">
@@ -2347,10 +2405,71 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                         {(task.notes || task.issue) ? (
                           <div className="mt-4 flex items-start gap-4 border-t border-[#3c3c3c]/50 pt-4">
                             <span className="mt-[2px] shrink-0 text-[13px] font-bold text-[#86868B]">비고/링크</span>
-                            <span className="break-all text-[14px] font-medium text-white">{task.notes || task.issue}</span>
+                            <span className="break-all text-[14px] font-medium text-white">{renderBulletListCell(task.notes || task.issue)}</span>
                           </div>
                         ) : null}
                       </div>
+                      {isAddingTask && taskEditTarget?.id === task.id && taskDraft ? (
+                        <div onClick={(event) => event.stopPropagation()} className="mt-4 flex w-full flex-col gap-4 rounded-[18px] border border-[#3c3c3c] bg-[#1F1F1E] p-5">
+                          <div className="flex gap-4">
+                            <input
+                              type="text"
+                              value={taskDraft.taskName}
+                              onChange={(event) => setTaskDraft((draft) => ({ ...draft, taskName: event.target.value }))}
+                              className="flex-[2] rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[16px] font-bold text-white outline-none focus:border-[#888]"
+                              placeholder="Task 입력"
+                            />
+                            <input
+                              type="text"
+                              value={taskDraft.companyName}
+                              onChange={(event) => setTaskDraft((draft) => ({ ...draft, companyName: event.target.value }))}
+                              className="flex-1 rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[16px] text-white outline-none focus:border-[#888]"
+                              placeholder="이해관계자 검색"
+                            />
+                          </div>
+                          <input
+                            type="text"
+                            value={taskDraft.nextAction}
+                            onChange={(event) => setTaskDraft((draft) => ({ ...draft, nextAction: event.target.value }))}
+                            className="w-full rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[15px] text-white outline-none focus:border-[#888]"
+                            placeholder="다음액션 준비사항 입력"
+                          />
+                          <textarea
+                            value={taskDraft.notes || taskDraft.issue || ''}
+                            onChange={(event) => setTaskDraft((draft) => ({ ...draft, notes: event.target.value, issue: event.target.value }))}
+                            className="min-h-[92px] w-full resize-y rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[14px] text-[#A1A1AA] outline-none focus:border-[#888]"
+                            placeholder="상세 내용 입력"
+                          />
+                          <div className="flex flex-wrap items-center gap-4">
+                            <select
+                              value={taskDraft.assetName}
+                              onChange={(event) => setTaskDraft((draft) => ({ ...draft, assetName: event.target.value }))}
+                              className="cursor-pointer rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]"
+                            >
+                              {topAssets.map((asset) => <option key={asset.assetCode || asset.assetName} value={asset.assetName}>{asset.assetName}</option>)}
+                            </select>
+                            <select value={taskDraft.scope} onChange={(event) => setTaskDraft((draft) => ({ ...draft, scope: event.target.value }))} className="rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]">
+                              <option value="personal">개인 업무</option>
+                              <option value="team">팀 업무</option>
+                              <option value="sector">섹터 업무</option>
+                            </select>
+                            <select value={taskDraft.status} onChange={(event) => setTaskDraft((draft) => ({ ...draft, status: event.target.value }))} className="rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]">
+                              {['신규', '검토중', '진행중', '보류', '완료'].map((status) => <option key={status}>{status}</option>)}
+                            </select>
+                            <select value={taskDraft.priority} onChange={(event) => setTaskDraft((draft) => ({ ...draft, priority: event.target.value }))} className="rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]">
+                              {MAIN_PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}
+                            </select>
+                            <div className="flex items-center gap-2">
+                              <span className="shrink-0 text-[13px] font-bold text-[#86868B]">목표 마감일</span>
+                              <input type="date" value={taskDraft.dueDate} onClick={(event) => event.target.showPicker && event.target.showPicker()} onChange={(event) => setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))} className="cursor-pointer rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-[#A1A1AA] outline-none [color-scheme:dark] focus:border-[#888]" />
+                            </div>
+                            <div className="ml-auto flex gap-2">
+                              <button type="button" onClick={() => { setIsAddingTask(false); setTaskEditTarget(null); setTaskDraft(null); }} className="rounded-[10px] border border-[#444] bg-[#3c3c3c]/50 px-5 py-2 text-[14px] font-bold text-[#86868B] transition-colors hover:bg-[#3c3c3c] hover:text-white">취소</button>
+                              <button type="button" onClick={saveTaskEdit} className="rounded-[10px] border border-[#059669]/30 bg-[#059669]/20 px-5 py-2 text-[14px] font-bold text-[#34d399] transition-colors hover:bg-[#059669]/40">수정 완료</button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </MotionDiv>
                   ))}
                 </AnimatePresence>
@@ -2367,13 +2486,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           ) : null}
         </div>
       </section>
+
       {mainModal === 'permission' && (
         <MainOverlay title="담당자별 자산·펀드 권한" eyebrow="PERMISSION SCOPE" onClose={() => setMainModal(null)}>
           <PermissionDetailContent permission={permission} />
         </MainOverlay>
       )}
       {mainModal === 'upload' && (
-        <MainOverlay title="주간업무보고자료 업로드" eyebrow="WEEKLY WORD INGEST" onClose={() => setMainModal(null)}>
+        <MainOverlay title="주간업무보고자료 업로드" onClose={() => setMainModal(null)}>
           <WeeklyWordUploadPanel />
         </MainOverlay>
       )}
@@ -2424,7 +2544,7 @@ function shortChartValue(value, valueType = 'number') {
     if (Math.abs(numeric) >= 10000) return `${formatNumber(Math.round(numeric / 10000))}만`;
     return formatNumber(Math.round(numeric));
   }
-  if (valueType === 'area') return formatArea(numeric);
+  if (valueType === 'area') return `${formatNumber(Math.round(numeric * 0.3025))}평`;
   if (valueType === 'percent') return `${(numeric * 100).toFixed(1)}%`;
   if (valueType === 'count') return `${formatNumber(Math.round(numeric))}개`;
   if (valueType === 'months') return `${formatNumber(Math.round(numeric))}개월`;
@@ -2435,30 +2555,48 @@ function chartLabel(row, labelKey = 'label') {
   return cleanDisplay(row?.[labelKey] || row?.month || row?.assetName || row?.tenantMasterName || row?.label, '-');
 }
 
-function getTooltipPoint(event, container) {
+function axisLabelText(value, maxLength = 10) {
+  const text = cleanDisplay(value, '-');
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(1, maxLength - 1))}…`;
+}
+
+function getTooltipPoint(event, container, tooltipWidth = 270, tooltipHeight = 170) {
+  const fallbackRect = container?.getBoundingClientRect?.();
+  const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 1440;
+  const viewportHeight = typeof window !== 'undefined' ? window.innerHeight : 900;
+  const rawX = (event.clientX || fallbackRect?.left || 24) + 18;
+  const rawY = (event.clientY || fallbackRect?.top || 24) + 10;
+  const maxX = Math.max(12, viewportWidth - tooltipWidth - 12);
+  const maxY = Math.max(12, viewportHeight - tooltipHeight - 12);
   return {
-    x: Math.max(8, event.clientX || container?.getBoundingClientRect?.().left || 24),
-    y: Math.max(8, event.clientY || container?.getBoundingClientRect?.().top || 24),
+    x: Math.min(Math.max(12, rawX), maxX),
+    y: Math.min(Math.max(12, rawY), maxY),
   };
 }
 
-function niceAxisMax(value) {
+function niceAxisStep(value) {
   const numeric = Number(value || 0);
   if (!Number.isFinite(numeric) || numeric <= 0) return 1;
   const magnitude = 10 ** Math.floor(Math.log10(numeric));
   const normalized = numeric / magnitude;
-  const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  const step = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
   return step * magnitude;
 }
 
-function niceAxisMaxForType(value, valueType = 'number') {
+function buildAxisSpec(value, valueType = 'number', tickCount = 5) {
   const numeric = Number(value || 0);
-  if (!Number.isFinite(numeric) || numeric <= 0) return 1;
-  if (valueType === 'area') {
-    const maxPy = niceAxisMax(numeric * 0.3025);
-    return maxPy / 0.3025;
-  }
-  return niceAxisMax(numeric);
+  const safeValue = Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+  const displayValue = valueType === 'area' ? safeValue * 0.3025 : safeValue;
+  const step = niceAxisStep(displayValue / Math.max(tickCount - 1, 1));
+  const displayMax = Math.max(step, Math.ceil(displayValue / step) * step);
+  const axisMax = valueType === 'area' ? displayMax / 0.3025 : displayMax;
+  const ticks = Array.from({ length: tickCount }, (_, index) => {
+    const displayTick = Math.max(0, displayMax - step * index);
+    return valueType === 'area' ? displayTick / 0.3025 : displayTick;
+  });
+  if (ticks.at(-1) !== 0) ticks[ticks.length - 1] = 0;
+  return { max: axisMax, ticks };
 }
 
 function polarToCartesian(centerX, centerY, radius, angleDegrees) {
@@ -2476,7 +2614,23 @@ function describeArcPath(centerX, centerY, radius, startAngle, endAngle) {
   return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArcFlag} 1 ${end.x} ${end.y}`;
 }
 
-function RichTrendChart({ rows, valueKey, secondaryKey, valueType = 'currency', labelKey = 'month', valueLabel, secondaryLabel, series, leftValueType, rightValueType, onClick }) {
+function RichTrendChart({
+  rows,
+  valueKey,
+  secondaryKey,
+  valueType = 'currency',
+  labelKey = 'month',
+  valueLabel,
+  secondaryLabel,
+  series,
+  leftValueType,
+  rightValueType,
+  rightAxisColor = '#B5E48C',
+  chartHeight = 410,
+  chartHeightClass = 'h-[390px]',
+  onClick,
+  extraTooltipRows,
+}) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const chartRef = useRef(null);
   const activeSeries = (series || []).length
@@ -2491,17 +2645,19 @@ function RichTrendChart({ rows, valueKey, secondaryKey, valueType = 'currency', 
   const secondaryValueType = rightValueType || rightSeries[0]?.valueType || 'number';
   const points = (rows || []).filter((row) => activeSeries.some((item) => row?.[item.key] != null));
   if (!points.length) return <div className="text-[13px] text-[#86868B]">표시할 차트 데이터가 없습니다.</div>;
-  const width = 1060;
-  const height = 350;
-  const paddingLeft = 92;
-  const paddingRight = rightSeries.length ? 58 : 40;
-  const paddingTop = 34;
-  const paddingBottom = 72;
+  const width = 1280;
+  const height = chartHeight;
+  const paddingLeft = 124;
+  const paddingRight = rightSeries.length ? 88 : 54;
+  const paddingTop = 62;
+  const paddingBottom = 100;
   const plotWidth = width - paddingLeft - paddingRight;
   const plotHeight = height - paddingTop - paddingBottom;
-  const maxValue = niceAxisMaxForType(Math.max(...points.flatMap((row) => leftSeries.map((item) => Number(row[item.key] || 0))), 1), primaryValueType);
-  const secondaryMax = niceAxisMaxForType(Math.max(...points.flatMap((row) => rightSeries.map((item) => Number(row[item.key] || 0))), 1), secondaryValueType);
-  const yTicks = [1, 0.75, 0.5, 0.25, 0];
+  const leftAxis = buildAxisSpec(Math.max(...points.flatMap((row) => leftSeries.map((item) => Number(row[item.key] || 0))), 1), primaryValueType);
+  const rightAxis = buildAxisSpec(Math.max(...points.flatMap((row) => rightSeries.map((item) => Number(row[item.key] || 0))), 1), secondaryValueType, leftAxis.ticks.length);
+  const maxValue = leftAxis.max;
+  const secondaryMax = rightAxis.max;
+  const yTicks = leftAxis.ticks;
   const palette = ['#9AD7FF', '#B5E48C', '#FFD166', '#C7A6FF', '#FF9F8A', '#7DD3FC'];
   const xForIndex = (index) => paddingLeft + (index * plotWidth) / Math.max(points.length - 1, 1);
   const yForValue = (value, axis) => {
@@ -2510,10 +2666,13 @@ function RichTrendChart({ rows, valueKey, secondaryKey, valueType = 'currency', 
   };
   const primaryName = leftSeries.map((item) => item.label || chartMetricLabel(item.key, item.valueType)).join(' / ');
   const secondaryName = rightSeries.map((item) => item.label || chartMetricLabel(item.key, item.valueType)).join(' / ');
+  const xLabelStep = Math.max(1, Math.ceil(points.length / 7));
+  const shouldRotateXLabels = points.length > 7 || points.some((row) => chartLabel(row, labelKey).length > 7);
   const seriesCoords = activeSeries.map((item, seriesIndex) => ({
     ...item,
     label: item.label || chartMetricLabel(item.key, item.valueType),
     color: item.color || palette[seriesIndex % palette.length],
+    chartType: item.chartType || item.type || 'line',
     points: points.map((row, index) => ({
       x: xForIndex(index),
       y: yForValue(row[item.key], item.axis),
@@ -2521,6 +2680,10 @@ function RichTrendChart({ rows, valueKey, secondaryKey, valueType = 'currency', 
       value: row[item.key],
     })),
   }));
+  const barSeries = seriesCoords.filter((item) => item.chartType === 'bar');
+  const lineSeries = seriesCoords.filter((item) => item.chartType !== 'bar');
+  const barSlotWidth = plotWidth / Math.max(points.length, 1);
+  const barWidth = Math.max(10, Math.min(30, barSlotWidth * 0.46));
   const Container = onClick ? 'button' : 'div';
   return (
     <Container ref={chartRef} type={onClick ? 'button' : undefined} onClick={onClick} onMouseLeave={() => setHoveredPoint(null)} className="relative w-full overflow-visible rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4 text-left hover:bg-[#242423]">
@@ -2534,22 +2697,46 @@ function RichTrendChart({ rows, valueKey, secondaryKey, valueType = 'currency', 
           ))}
         </div>
       </div>
-      <svg viewBox={`0 0 ${width} ${height}`} className="h-[320px] w-full overflow-visible" role="img" aria-label={`${primaryName} 추이 차트`}>
-        {yTicks.map((tick) => {
-          const y = paddingTop + (1 - tick) * plotHeight;
+      <svg viewBox={`0 0 ${width} ${height}`} className={`${chartHeightClass} w-full overflow-visible`} role="img" aria-label={`${primaryName} 추이 차트`}>
+        <text x={paddingLeft} y="24" fill="#D1D1D6" fontSize="13" fontWeight="700">왼쪽 Y축: {primaryValueType === 'area' ? '면적(평)' : primaryName}</text>
+        {rightSeries.length > 0 && <text x={width - paddingRight} y="24" textAnchor="end" fill={rightAxisColor} fontSize="13" fontWeight="700">오른쪽 Y축: {secondaryName}</text>}
+        {yTicks.map((tickValue, tickIndex) => {
+          const y = yForValue(tickValue, 'left');
+          const rightTickValue = rightAxis.ticks[tickIndex] ?? 0;
           return (
-            <g key={tick}>
+            <g key={`${tickValue}-${tickIndex}`}>
               <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#3C3C40" strokeDasharray="3 5" />
-              <text x={paddingLeft - 12} y={y + 4} textAnchor="end" fill="#F5F5F7" fontSize="13" fontWeight="600">{shortChartValue(maxValue * tick, primaryValueType)}</text>
-              {rightSeries.length > 0 && <text x={width - paddingRight + 12} y={y + 4} fill="#B5E48C" fontSize="13" fontWeight="600">{shortChartValue(secondaryMax * tick, secondaryValueType)}</text>}
+              <text x={paddingLeft - 14} y={y + 5} textAnchor="end" fill="#FFFFFF" fontSize="15" fontWeight="800">{shortChartValue(tickValue, primaryValueType)}</text>
+              {rightSeries.length > 0 && <text x={width - paddingRight + 14} y={y + 5} fill={rightAxisColor} fontSize="15" fontWeight="800">{shortChartValue(rightTickValue, secondaryValueType)}</text>}
             </g>
           );
         })}
         <line x1={paddingLeft} y1={paddingTop} x2={paddingLeft} y2={paddingTop + plotHeight} stroke="#77777D" strokeWidth="1.4" />
-        <line x1={width - paddingRight} y1={paddingTop} x2={width - paddingRight} y2={paddingTop + plotHeight} stroke="#4A4A4D" strokeWidth="1.2" />
+        <line x1={width - paddingRight} y1={paddingTop} x2={width - paddingRight} y2={paddingTop + plotHeight} stroke={rightSeries.length > 0 ? rightAxisColor : '#4A4A4D'} strokeWidth="1.2" />
         <line x1={paddingLeft} y1={paddingTop + plotHeight} x2={width - paddingRight} y2={paddingTop + plotHeight} stroke="#77777D" strokeWidth="1.4" />
-        <text x={16} y={paddingTop + 8} fill="#F5F5F7" fontSize="12" fontWeight="700">{primaryValueType === 'area' ? '면적(평)' : primaryName}</text>
-        {seriesCoords.map((item) => (
+        {barSeries.map((item, barIndex) => (
+          <g key={`${item.key}-bars`}>
+            {item.points.map((point, index) => {
+              const baseline = yForValue(0, item.axis);
+              const barX = point.x - (barWidth / 2) + ((barIndex - (barSeries.length - 1) / 2) * (barWidth + 4));
+              const barY = Math.min(point.y, baseline);
+              const barHeight = Math.max(2, Math.abs(baseline - point.y));
+              return (
+                <rect
+                  key={`${item.key}-bar-${chartLabel(point.row, labelKey)}-${index}`}
+                  x={barX}
+                  y={barY}
+                  width={barWidth}
+                  height={barHeight}
+                  rx="5"
+                  fill={item.color}
+                  opacity="0.78"
+                />
+              );
+            })}
+          </g>
+        ))}
+        {lineSeries.map((item) => (
           <polyline
             key={`${item.key}-line`}
             points={item.points.map((point) => `${point.x},${point.y}`).join(' ')}
@@ -2561,17 +2748,32 @@ function RichTrendChart({ rows, valueKey, secondaryKey, valueType = 'currency', 
         ))}
         {points.map((row, index) => {
           const label = chartLabel(row, labelKey);
-          const showLabel = points.length <= 10 || index % Math.ceil(points.length / 8) === 0 || index === points.length - 1;
-          const detailRows = seriesCoords.map((item) => ({
+          const showLabel = index % xLabelStep === 0 || index === points.length - 1;
+          const displayLabel = axisLabelText(label, shouldRotateXLabels ? 9 : 11);
+          const metricRows = seriesCoords.map((item) => ({
             label: item.label,
             value: formatMetric(row[item.key], item.valueType || primaryValueType),
             color: item.color,
           }));
+          const extraRows = typeof extraTooltipRows === 'function' ? extraTooltipRows(row) : [];
+          const detailRows = [...metricRows, ...(Array.isArray(extraRows) ? extraRows : [])];
           return (
             <g key={`${label}-${index}`} className="group">
               <line x1={xForIndex(index)} y1={paddingTop + plotHeight} x2={xForIndex(index)} y2={paddingTop + plotHeight + 5} stroke="#4A4A4D" />
-              {showLabel && <text x={xForIndex(index)} y={height - 34} textAnchor="middle" fill="#A1A1AA" fontSize="11">{label}</text>}
-              {seriesCoords.map((item) => (
+              {showLabel && (
+                <text
+                  x={xForIndex(index)}
+                  y={height - 48}
+                  textAnchor={shouldRotateXLabels ? 'end' : 'middle'}
+                  transform={shouldRotateXLabels ? `rotate(-32 ${xForIndex(index)} ${height - 48})` : undefined}
+                  fill="#C7C7CC"
+                  fontSize="13"
+                  fontWeight="700"
+                >
+                  {displayLabel}
+                </text>
+              )}
+              {lineSeries.map((item) => (
                 <circle key={`${item.key}-${label}`} cx={xForIndex(index)} cy={yForValue(row[item.key], item.axis)} r={item.axis === 'right' ? 4 : 4.7} fill={item.color} stroke="#111" strokeWidth="1.2" />
               ))}
               <rect
@@ -2581,8 +2783,8 @@ function RichTrendChart({ rows, valueKey, secondaryKey, valueType = 'currency', 
                 y={paddingTop}
                 width="20"
                 height={plotHeight + 16}
-                onMouseEnter={(event) => setHoveredPoint({ label, detailRows, ...getTooltipPoint(event, chartRef.current) })}
-                onMouseMove={(event) => setHoveredPoint({ label, detailRows, ...getTooltipPoint(event, chartRef.current) })}
+                onMouseEnter={(event) => setHoveredPoint({ label, detailRows, ...getTooltipPoint(event, chartRef.current, 360, 190) })}
+                onMouseMove={(event) => setHoveredPoint({ label, detailRows, ...getTooltipPoint(event, chartRef.current, 360, 190) })}
                 onFocus={() => setHoveredPoint({ label, detailRows, x: 220, y: 64 })}
                 onBlur={() => setHoveredPoint(null)}
                 tabIndex={0}
@@ -2590,16 +2792,16 @@ function RichTrendChart({ rows, valueKey, secondaryKey, valueType = 'currency', 
             </g>
           );
         })}
-        <text x={paddingLeft} y={height - 10} fill="#86868B" fontSize="11">마우스를 점 위에 올리면 해당 월의 세부 값이 표시됩니다.</text>
+        <text x={paddingLeft} y={height - 14} fill="#86868B" fontSize="11">마우스를 점 위에 올리면 해당 월의 세부 값이 표시됩니다.</text>
       </svg>
       {hoveredPoint && (
-        <div data-testid="chart-tooltip" className="pointer-events-none fixed z-50 w-[270px] rounded-[10px] border border-[#4A4A4D] bg-[#101010]/95 px-3 py-2.5 text-[12px] text-white shadow-2xl" style={{ left: hoveredPoint.x + 16, top: hoveredPoint.y + 10 }}>
+        <div data-testid="chart-tooltip" className="pointer-events-none fixed z-50 w-[360px] rounded-[10px] border border-[#4A4A4D] bg-[#101010]/95 px-3 py-2.5 text-[12px] text-white shadow-2xl" style={{ left: hoveredPoint.x, top: hoveredPoint.y }}>
           <div className="mb-2 font-semibold">{hoveredPoint.label}</div>
           <div className="space-y-1">
             {hoveredPoint.detailRows.map((item) => (
               <div key={item.label} className="flex items-center justify-between gap-3 text-[#D1D1D6]">
-                <span className="min-w-0 truncate"><span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>
-                <span className="shrink-0 font-semibold text-white">{item.value}</span>
+                <span className="min-w-0 truncate">{item.color ? <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} /> : null}{item.label}</span>
+                <span className="shrink-0 max-w-[245px] whitespace-normal break-keep text-right font-semibold text-white" title={typeof item.value === 'string' ? item.value : undefined}>{item.value}</span>
               </div>
             ))}
           </div>
@@ -2679,9 +2881,28 @@ function loadLeafletSdk() {
   return window.__logisticsLeafletPromise;
 }
 
-function loadNaverMapsSdk() {
+async function getNaverMapsClientId() {
+  if (typeof window === 'undefined') return '';
+  if (window.__logisticsNaverMapsClientId) return window.__logisticsNaverMapsClientId;
+  if (window.__logisticsNaverMapsClientIdPromise) return window.__logisticsNaverMapsClientIdPromise;
+  window.__logisticsNaverMapsClientIdPromise = supabase.functions.invoke('ll-dashboard-api', {
+    body: { action: 'naver/maps-config', payload: {} },
+  })
+    .then(({ data, error }) => {
+      if (error || !data?.ok || !data?.ncp_key_id) throw new Error(error?.message || data?.message || 'Naver Maps client id unavailable');
+      window.__logisticsNaverMapsClientId = data.ncp_key_id;
+      return data.ncp_key_id;
+    })
+    .catch((error) => {
+      window.__logisticsNaverMapsClientIdPromise = null;
+      throw error;
+    });
+  return window.__logisticsNaverMapsClientIdPromise;
+}
+
+function loadNaverMapsSdk(clientId) {
   if (typeof window === 'undefined') return Promise.reject(new Error('browser unavailable'));
-  if (!NAVER_MAPS_CLIENT_ID) return Promise.reject(new Error('NAVER_MAPS_CLIENT_ID missing'));
+  if (!clientId) return Promise.reject(new Error('Naver Maps client id missing'));
   if (window.naver?.maps?.Map) return Promise.resolve(window.naver);
   if (window.__logisticsNaverMapPromise) return window.__logisticsNaverMapPromise;
   window.__logisticsNaverMapPromise = new Promise((resolve, reject) => {
@@ -2692,8 +2913,9 @@ function loadNaverMapsSdk() {
       else reject(new Error('Naver Maps SDK unavailable'));
     };
     const script = document.createElement('script');
+    script.id = 'logistics-naver-map-sdk';
     script.async = true;
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(NAVER_MAPS_CLIENT_ID)}`;
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`;
     script.onload = resolveWhenReady;
     script.onerror = () => {
       window.clearTimeout(timeoutId);
@@ -2786,7 +3008,8 @@ function PortfolioMapPlot({ points }) {
         setStatus(`스케매틱 지도 대체 · ${validPoints.length}개 자산`);
       });
 
-    loadNaverMapsSdk()
+    getNaverMapsClientId()
+      .then((clientId) => loadNaverMapsSdk(clientId))
       .then((naver) => {
         if (disposed || !containerRef.current) return;
         setMode('naver');
@@ -2975,10 +3198,10 @@ function HomeDashboard() {
       const payload = findAssetPayload(row.assetId, row.assetName);
       const normalized = payload ? normalizeAssetPayload(payload) : null;
       const overview = normalized?.overview || payload?.overview || {};
-      const breakdown = normalized?.areaBreakdown || payload?.areaBreakdown || {};
       const weeklyRow = weeklyAssetRowsForFallback.find((item) => assetMatchesPermission(row.assetName, { managedAssets: [item] }));
-      const coldArea = firstDefined(overview.coldStorageAreaSqm, breakdown.coldStorageAreaSqm, option.coldStorageAreaSqm);
-      const ambientArea = firstDefined(overview.ambientStorageAreaSqm, breakdown.ambientStorageAreaSqm, option.ambientStorageAreaSqm);
+      const useRows = buildUseCategoryRows(payload, option, weeklyRow);
+      const coldArea = Number(useRows.find((item) => item.label === '저온창고')?.value || 0);
+      const ambientArea = Number(useRows.find((item) => item.label === '상온창고')?.value || 0);
       const weightedENoc = calculateWeightedENoc(normalized?.normalizedRows || [], firstDefined(overview.averageENoc, option.averageENoc));
       const coldRatio = Number(coldArea || 0) + Number(ambientArea || 0) > 0
         ? formatPercent(Number(coldArea || 0) / (Number(coldArea || 0) + Number(ambientArea || 0)))
@@ -3014,13 +3237,15 @@ function HomeDashboard() {
     <span key={`${row.key}-tenant`} title={row.tenantMasterName} className="whitespace-nowrap">{row.tenantMasterName}</span>,
     formatNumber(row.assetNames.length),
     formatNumber(row.rowCount),
-    <span key={`${row.key}-assets`} className="block whitespace-pre-line text-left" title={row.assetNames.join(', ')}>{row.assetNames.join('\n')}</span>,
+    <span key={`${row.key}-assets`} className="block whitespace-pre-line break-keep text-left leading-5" title={row.assetNames.join(', ')}>{row.assetNames.join('\n')}</span>,
     formatArea(row.leasedAreaSqm),
-    formatCurrency(row.monthlyCostTotal),
+    formatCurrency(row.monthlyRentTotal),
     formatCurrency(row.monthlyMfTotal),
     formatCurrency(row.monthlyCostTotal),
+    formatWon(row.rentPerPy),
+    formatWon(row.mfPerPy),
+    formatWon(row.costPerPy),
     formatDate(row.latestExpiry),
-    formatBusinessRegistrationNo(row.businessRegistrationNo, row.key),
   ]);
   const monthlyCostEvidenceRows = tenantContractGroups
     .filter((row) => Number(row.monthlyCostTotal || 0) > 0)
@@ -3050,23 +3275,26 @@ function HomeDashboard() {
           headers={['항목', '내용']}
           rows={[
             ['임차인명', tenant.tenantMasterName],
-            ['사업자등록번호', formatBusinessRegistrationNo(tenant.businessRegistrationNo, tenant.key)],
             ['임차 자산 수', `${formatNumber(tenant.assetNames.length)}개`],
             ['계약 구역 수', `${formatNumber(tenant.rowCount)}건`],
             ['총 임대면적', formatArea(tenant.leasedAreaSqm)],
             ['월 임대료', formatCurrency(tenant.monthlyRentTotal)],
             ['월 관리비', formatCurrency(tenant.monthlyMfTotal)],
             ['월 임관리비', formatCurrency(tenant.monthlyCostTotal)],
+            ['평당 월 임대료', formatWon(tenant.rentPerPy)],
+            ['평당 월 관리비', formatWon(tenant.mfPerPy)],
+            ['평당 월 임관리비', formatWon(tenant.costPerPy)],
             ['최근 만기일', formatDate(tenant.latestExpiry)],
           ]}
           compact
         />
         <DataTable
-          headers={['자산명', '펀드명', '층/구역', '임대면적(평)', '계약개시', '계약만기', '월 임대료', '월 관리비', '월 임관리비', '평당 임대료', '평당 관리비', 'E.NOC', '검토상태']}
+          headers={['자산명', '펀드명', '층/구역', '저온/상온', '임대면적(평)', '계약개시', '계약만기', '월 임대료', '월 관리비', '월 임관리비', '평당 임대료', '평당 관리비', '평당 임관리비', 'E.NOC']}
           rows={tenant.rows.map((row) => [
             row.assetName || '-',
             row.fundName || '-',
             row.spaceLabel || row.floorLabel || row.detailAreaLabel || '-',
+            cleanDisplay(firstDefined(row.coldStorageType, row.temperatureType), '-'),
             formatArea(row.leasedAreaSqm),
             formatDate(row.currentStartDate),
             formatDate(row.currentEndDate),
@@ -3075,8 +3303,8 @@ function HomeDashboard() {
             formatCurrency(row.monthlyCostTotal),
             formatWon(firstDefined(row.currentRentPerPy, row.rentPerPy)),
             formatWon(firstDefined(row.currentMfPerPy, row.mfPerPy)),
+            formatWon(calculatePerPy(row.monthlyCostTotal, row.leasedAreaSqm)),
             formatWon(row.eNoc),
-            row.calculatedReviewStatus || '-',
           ])}
           compact
         />
@@ -3129,7 +3357,7 @@ function HomeDashboard() {
     8,
     costCompositionMode === 'asset' ? '기타 자산' : '기타/미분류 임차인',
   );
-  const monthlyCostCompositionTotal = canonicalMonthlyCost || sumRows(monthlyCostSourceRows, (row) => row.value);
+  const monthlyCostCompositionTotal = sumRows(monthlyCostSourceRows, (row) => row.value) || canonicalMonthlyCost;
   const monthlyCostCompositionTitle = costCompositionMode === 'asset' ? '자산별 월 임관리비 비중' : '임차인별 월 임관리비 비중';
   const sectorTopAssetsSource = sectorAssetSort === 'area' ? sectorData.rankings?.assetsByArea : sectorData.rankings?.assetsByRent;
   const sectorTopTenantsSource = sectorTenantSort === 'area' ? sectorData.rankings?.tenantsByArea : sectorData.rankings?.tenantsByRent;
@@ -3143,6 +3371,29 @@ function HomeDashboard() {
       ? Number(b.leasedAreaSqm || 0) - Number(a.leasedAreaSqm || 0)
       : Number(firstDefined(b.monthlyCostTotal, b.monthlyRentTotal, 0)) - Number(firstDefined(a.monthlyCostTotal, a.monthlyRentTotal, 0))
   )).slice(0, 10);
+  const topTenantNameByAsset = useMemo(() => {
+    const assetTenantMap = new Map();
+    (generalRows || []).forEach((row) => {
+      const assetName = row.assetName || row.asset || '';
+      const tenantName = firstDefined(row.tenantMasterName, row.tenantName, row.companyName, '');
+      if (!assetName || !tenantName) return;
+      if (!assetTenantMap.has(assetName)) assetTenantMap.set(assetName, new Map());
+      const tenantMap = assetTenantMap.get(assetName);
+      const current = tenantMap.get(tenantName) || { tenantName, monthlyCostTotal: 0, leasedAreaSqm: 0 };
+      const rent = Number(firstDefined(row.currentMonthlyRentTotal, row.monthlyRentTotal, 0) || 0);
+      const mf = Number(firstDefined(row.currentMonthlyMfTotal, row.monthlyMfTotal, 0) || 0);
+      current.monthlyCostTotal += Number(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, rent + mf, 0) || 0);
+      current.leasedAreaSqm += Number(firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm, 0) || 0);
+      tenantMap.set(tenantName, current);
+    });
+    return Object.fromEntries([...assetTenantMap.entries()].map(([assetName, tenantMap]) => {
+      const topTenant = [...tenantMap.values()].sort((a, b) => (
+        Number(b.monthlyCostTotal || 0) - Number(a.monthlyCostTotal || 0)
+        || Number(b.leasedAreaSqm || 0) - Number(a.leasedAreaSqm || 0)
+      ))[0];
+      return [assetName, topTenant?.tenantName || '-'];
+    }));
+  }, [generalRows]);
   const regionRows = Object.values(generalRows.reduce((acc, row) => {
     const region = deriveLogisticsRegionFromAddress(row.standardizedAddress || row.address || row.region, row.region || '미분류');
     if (!acc[region]) acc[region] = { label: region, assetCountSet: new Set(), grossFloorAreaSqm: 0, leasedAreaSqm: 0, monthlyCostTotal: 0 };
@@ -3159,7 +3410,7 @@ function HomeDashboard() {
       ? Number(b.grossFloorAreaSqm || 0) - Number(a.grossFloorAreaSqm || 0)
       : Number(b.monthlyCostTotal || 0) - Number(a.monthlyCostTotal || 0)
   ));
-  const sectorAssetRows = sectorTopAssets.map((row) => [row.assetName, formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyRentTotal)), formatArea(row.leasedAreaSqm), formatPercent(row.vacancyRate)]);
+  const sectorAssetRows = sectorTopAssets.map((row) => [row.assetName, formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyRentTotal)), formatArea(row.leasedAreaSqm), topTenantNameByAsset[row.assetName] || '-']);
   const sectorTenantRows = sectorTopTenants.map((row) => [row.tenantMasterName, formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(firstDefined(row.monthlyCostTotal, Number(row.monthlyRentTotal || 0) + Number(row.monthlyMfTotal || 0))), formatArea(row.leasedAreaSqm)]);
   const regionExposureRows = regionRows.map((row) => [row.label, formatNumber(row.assetCount), formatArea(row.grossFloorAreaSqm), formatCurrency(row.monthlyCostTotal)]);
   const regionChartRows = regionRows.map((row) => ({
@@ -3193,7 +3444,7 @@ function HomeDashboard() {
         />
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.82fr_1.18fr]">
           <PortfolioMapPlot points={readableMapPoints} />
-          <div className="min-h-0 xl:max-h-[520px] xl:overflow-auto">
+          <div className="custom-scrollbar min-h-0 xl:max-h-[520px] xl:overflow-auto">
             <PortfolioAssetTable rows={portfolioRows} />
           </div>
         </div>
@@ -3242,19 +3493,24 @@ function HomeDashboard() {
         <SectionHeader
           eyebrow="TREND"
           title="계약 이력 기준 임대료 추이"
-          right={<button type="button" onClick={() => openTableModal('임대료 추이 원본 표', ['월', '월 임대료(RF/FO 반영)', '월 관리비', '월 임관리비(RF/FO 반영)', '원 월임대료', '원 월관리비', '원 월임관리비', '자산 수', '총 연면적(평)', '신규 편입 자산'], rentTrendRows.map((row) => [row.month, formatCurrency(row.monthlyRentTotalAdjusted), formatCurrency(row.monthlyMfTotalAdjusted), formatCurrency(row.monthlyCostTotalAdjusted), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyTotal), formatNumber(row.activeAssetCount), formatArea(row.grossFloorAreaSqm), (row.newlyAddedAssets || []).map((asset) => asset.assetName).join(', ') || '-']))} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>}
+          right={<button type="button" onClick={() => openTableModal('임대료 추이 원본 표', ['월', '월 임대료(RF/FO 반영)', '월 관리비', '월 임관리비(RF/FO 반영)', '원 월임대료', '원 월관리비', '원 월임관리비', '자산 수', '총 연면적(평)', '신규 편입 자산'], rentTrendRows.map((row) => [row.month, formatCurrency(row.monthlyRentTotalAdjusted), formatCurrency(row.monthlyMfTotalAdjusted), formatCurrency(row.monthlyCostTotalAdjusted), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyTotal), formatNumber(row.activeAssetCount), formatArea(row.grossFloorAreaSqm), formatNewlyAddedAssets(row)]))} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>}
         />
         <RichTrendChart
           rows={rentTrendRows}
           labelKey="month"
           leftValueType="currency"
           rightValueType="count"
-          onClick={() => openTableModal('임대료 추이 원본 표', ['월', '월 임대료(RF/FO 반영)', '월 관리비', '월 임관리비(RF/FO 반영)', '월 임대료', '월 관리비', '월 임관리비', '자산 수', '총 연면적(평)', '신규 편입 자산'], rentTrendRows.map((row) => [row.month, formatCurrency(row.monthlyRentTotalAdjusted), formatCurrency(row.monthlyMfTotalAdjusted), formatCurrency(row.monthlyCostTotalAdjusted), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyTotal), formatNumber(row.activeAssetCount), formatArea(row.grossFloorAreaSqm), (row.newlyAddedAssets || []).map((asset) => asset.assetName).join(', ') || '-']))}
+          rightAxisColor="#C7A6FF"
+          onClick={() => openTableModal('임대료 추이 원본 표', ['월', '월 임대료(RF/FO 반영)', '월 관리비', '월 임관리비(RF/FO 반영)', '월 임대료', '월 관리비', '월 임관리비', '자산 수', '총 연면적(평)', '신규 편입 자산'], rentTrendRows.map((row) => [row.month, formatCurrency(row.monthlyRentTotalAdjusted), formatCurrency(row.monthlyMfTotalAdjusted), formatCurrency(row.monthlyCostTotalAdjusted), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyTotal), formatNumber(row.activeAssetCount), formatArea(row.grossFloorAreaSqm), formatNewlyAddedAssets(row)]))}
+          extraTooltipRows={(row) => [{
+            label: '신규 편입 자산',
+            value: formatNewlyAddedAssets(row),
+          }]}
           series={[
             { key: 'monthlyRentTotalAdjusted', label: '월 임대료(RF/FO 반영)', valueType: 'currency' },
             { key: 'monthlyMfTotalAdjusted', label: '월 관리비', valueType: 'currency' },
             { key: 'monthlyCostTotalAdjusted', label: '월 임관리비(RF/FO 반영)', valueType: 'currency' },
-            { key: 'activeAssetCount', label: '자산 수', valueType: 'count', axis: 'right' },
+            { key: 'activeAssetCount', label: '자산 수', valueType: 'count', axis: 'right', color: '#C7A6FF' },
           ]}
         />
         {trendToKpiGap ? (
@@ -3276,10 +3532,10 @@ function HomeDashboard() {
                   <button key={value} type="button" onClick={() => setSectorAssetSort(value)} className={`h-8 rounded-[6px] px-3 text-[12px] font-semibold ${sectorAssetSort === value ? 'bg-white text-[#1F1F1E]' : 'text-[#A1A1AA] hover:text-white'}`}>{label}</button>
                 ))}
               </div>
-              <button type="button" onClick={() => openTableModal('Top 자산', ['자산명', '월 임관리비', '임대면적(평)', '공실률'], sectorAssetRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세</button>
+              <button type="button" onClick={() => openTableModal('Top 자산', ['자산명', '월 임관리비', '임대면적(평)', '핵심 임차인'], sectorAssetRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세</button>
             </div>
           )} />
-          <DataTable headers={['자산명', '월 임관리비', '임대면적(평)', '공실률']} rows={sectorAssetRows} compact />
+          <DataTable headers={['자산명', '월 임관리비', '임대면적(평)', '핵심 임차인']} rows={sectorAssetRows} compact />
         </div>
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="SECTOR TOP" title="Top 임차인" right={(
@@ -3315,10 +3571,13 @@ function HomeDashboard() {
             labelKey="month"
             leftValueType="area"
             rightValueType="count"
+            rightAxisColor="#FFD166"
+            chartHeight={520}
+            chartHeightClass="h-[500px]"
             onClick={() => openTableModal('만기 집중도 월별 상세', ['만기월', '임차인', '자산', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', 'E.NOC', '공간'], expiryDetailRows)}
             series={[
-              { key: 'expiringAreaSqm', label: '만기 임대면적', valueType: 'area' },
-              { key: 'uniqueTenantCount', label: '만기 임차인 수', valueType: 'count', axis: 'right' },
+              { key: 'expiringAreaSqm', label: '만기 임대면적', valueType: 'area', chartType: 'bar', color: '#9AD7FF' },
+              { key: 'uniqueTenantCount', label: '만기 임차인 수', valueType: 'count', axis: 'right', color: '#FFD166' },
             ]}
           />
         </div>
@@ -3354,7 +3613,7 @@ function HomeDashboard() {
           right={<button type="button" onClick={() => setModal({ title: '임차인 계약 전체', size: 'fullscreen', content: <TenantContractFullView rows={generalRows} /> })} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">전체 표 보기</button>}
         />
         <DataTable
-          headers={['임차인명', '자산 수', '구역 수', '자산 목록', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '최근 만기일', '사업자번호']}
+          headers={['임차인명', '자산 수', '구역 수', '자산 목록', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', '평당 월 임관리비', '최근 만기일']}
           rows={tenantContractRows}
           onRowClick={(index) => openTenantContractDetail(tenantContractGroups[index])}
           compact
@@ -3410,7 +3669,8 @@ function RichBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick,
   const chartRef = useRef(null);
   const [hoveredBar, setHoveredBar] = useState(null);
   const chartRows = (rows || []).filter((row) => Number(row?.[valueKey] || 0) > 0).slice(0, 10);
-  const maxValue = Math.max(...chartRows.map((row) => Number(row[valueKey] || 0)), 1);
+  const axis = buildAxisSpec(Math.max(...chartRows.map((row) => Number(row[valueKey] || 0)), 1), valueType);
+  const maxValue = axis.max;
   const metricName = valueLabel || chartMetricLabel(valueKey, valueType);
   if (!chartRows.length) return <div className="text-[13px] text-[#86868B]">차트로 표시할 값이 없습니다.</div>;
   return (
@@ -3428,20 +3688,20 @@ function RichBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick,
               key={`${label}-${valueKey}`}
               type="button"
               onClick={onClick}
-              onMouseEnter={(event) => setHoveredBar({ row, label, value, ...getTooltipPoint(event, chartRef.current) })}
-              onMouseMove={(event) => setHoveredBar({ row, label, value, ...getTooltipPoint(event, chartRef.current) })}
+              onMouseEnter={(event) => setHoveredBar({ row, label, value, ...getTooltipPoint(event, chartRef.current, 240, 150) })}
+              onMouseMove={(event) => setHoveredBar({ row, label, value, ...getTooltipPoint(event, chartRef.current, 240, 150) })}
               onFocus={() => setHoveredBar({ row, label, value, x: 220, y: 72 })}
               onBlur={() => setHoveredBar(null)}
               aria-label={`${label} ${metricName} ${formatMetric(value, valueType)}`}
               className="group relative w-full cursor-pointer rounded-[10px] px-2 py-1.5 text-left hover:bg-[#282827]"
             >
               <span className="sr-only">{metricName}</span>
-              <div className="grid grid-cols-[168px_1fr_108px] items-center gap-3 text-[12px]">
+              <div className="grid grid-cols-[168px_1fr_152px] items-center gap-3 text-[12px]">
                 <span className="truncate font-semibold text-[#E5E5E5]">{label}</span>
                 <div className="relative h-5 rounded-full bg-[#151515]">
                   <div className="h-full rounded-full bg-[#9AD7FF] transition-colors group-hover:bg-[#B5E48C]" style={{ width: `${Math.max(3, (value / maxValue) * 100)}%` }} />
                 </div>
-                <span className="text-right font-semibold text-[#D1D1D6]">{formatMetric(value, valueType)}</span>
+                <span className="text-right font-semibold text-[#D1D1D6]">{row.displayValue || formatMetric(value, valueType)}</span>
               </div>
             </button>
           );
@@ -3455,9 +3715,9 @@ function RichBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick,
         ))}
       </div>
       {hoveredBar ? (
-        <div data-testid="chart-tooltip" className="pointer-events-none fixed z-50 w-[240px] rounded-[8px] border border-[#3A3A3C] bg-[#101010]/95 px-3 py-2 text-[12px] text-white shadow-xl" style={{ left: hoveredBar.x + 16, top: hoveredBar.y + 8 }}>
+        <div data-testid="chart-tooltip" className="pointer-events-none fixed z-50 w-[240px] rounded-[8px] border border-[#3A3A3C] bg-[#101010]/95 px-3 py-2 text-[12px] text-white shadow-xl" style={{ left: hoveredBar.x, top: hoveredBar.y }}>
           <div className="font-semibold">{hoveredBar.label}</div>
-          <div className="mt-1 text-[#A1A1AA]">{metricName}: {formatMetric(hoveredBar.value, valueType)}</div>
+          <div className="mt-1 text-[#A1A1AA]">{metricName}: {hoveredBar.row.displayValue || formatMetric(hoveredBar.value, valueType)}</div>
           <div className="text-[#86868B]">전체 최대값 대비 {((hoveredBar.value / maxValue) * 100).toFixed(1)}%</div>
           {Array.isArray(hoveredBar.row.tooltipLines) ? (
             <div className="mt-2 space-y-1 border-t border-[#3A3A3C] pt-2">
@@ -3478,9 +3738,10 @@ function RichBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick,
 function DoughnutBreakdownChart({ rows, valueType = 'number', title, onClick, onSegmentClick }) {
   const [hoveredSegment, setHoveredSegment] = useState(null);
   const chartRef = useRef(null);
-  const legendRows = (rows || []).slice(0, 8);
-  const sourceRows = legendRows.filter((row) => Number(row.value || 0) > 0);
+  const svgRef = useRef(null);
+  const sourceRows = (rows || []).filter((row) => Number(row.value || 0) > 0).slice(0, 8);
   const chartRows = sourceRows.slice(0, 8);
+  const legendRows = chartRows;
   const total = sourceRows.reduce((sum, row) => sum + Number(row.value || 0), 0);
   const colors = ['#9AD7FF', '#B5E48C', '#FFD166', '#C7A6FF', '#FF9F8A', '#7DD3FC', '#F0ABFC', '#A7F3D0'];
   const colorForLabel = Object.fromEntries(legendRows.map((row, index) => [row.label, USE_CATEGORY_COLORS[row.label] || colors[index % colors.length]]));
@@ -3496,12 +3757,57 @@ function DoughnutBreakdownChart({ rows, valueType = 'number', title, onClick, on
       row,
       value,
       percent,
+      startPercent: previous,
+      endPercent: previous + percent,
       startAngle,
       endAngle,
       color: colorForLabel[row.label] || colors[index % colors.length],
+      isFullCircle: percent >= 99.9,
     };
   });
   if (!chartRows.length) return <div className="text-[13px] text-[#86868B]">구성 차트 데이터가 없습니다.</div>;
+  const segmentFromPointer = (event) => {
+    const rect = svgRef.current?.getBoundingClientRect?.();
+    if (!rect) return null;
+    const x = ((event.clientX - rect.left) / rect.width) * 42;
+    const y = ((event.clientY - rect.top) / rect.height) * 42;
+    const dx = x - 21;
+    const dy = y - 21;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    if (distance < 11.9 || distance > 20) return null;
+    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    const percentAtPointer = (((angle + 90 + 360) % 360) / 360) * 100;
+    return segments.find((segment) => (
+      segment.isFullCircle
+      || (percentAtPointer >= segment.startPercent && percentAtPointer <= segment.endPercent)
+    )) || null;
+  };
+  const segmentFromEventTarget = (event) => {
+    const label = event.target?.closest?.('[data-segment-label]')?.getAttribute?.('data-segment-label');
+    if (!label) return null;
+    return segments.find((segment) => segment.row.label === label) || null;
+  };
+  const showSegmentTooltip = (event, explicitSegment) => {
+    const segment = explicitSegment || segmentFromPointer(event) || segmentFromEventTarget(event);
+    if (!segment) {
+      setHoveredSegment(null);
+      return;
+    }
+    setHoveredSegment({
+      row: segment.row,
+      value: segment.value,
+      percent: segment.percent,
+      color: segment.color,
+      ...getTooltipPoint(event, chartRef.current, 230, 150),
+    });
+  };
+  const handleSegmentClick = (event, explicitSegment) => {
+    event.stopPropagation();
+    const segment = explicitSegment || segmentFromPointer(event) || segmentFromEventTarget(event);
+    if (!segment) return;
+    if (onSegmentClick) onSegmentClick(segment.row);
+    else onClick?.();
+  };
 
   return (
     <div ref={chartRef} onMouseLeave={() => setHoveredSegment(null)} className="relative w-full rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4 text-left">
@@ -3509,40 +3815,38 @@ function DoughnutBreakdownChart({ rows, valueType = 'number', title, onClick, on
         <div>
           <div className="text-[12px] font-semibold text-[#86868B]">{title}</div>
           <div className="mt-1 text-[18px] font-semibold text-white">{formatMetric(total, valueType)}</div>
-          <div className="mt-1 text-[11px] text-[#86868B]">범례: 색상 · 항목명 · 비중 · 값</div>
         </div>
         <button type="button" onClick={onClick} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[12px] font-semibold text-[#D1D1D6] hover:bg-[#30302F]">전체 표</button>
       </div>
       <div className="grid grid-cols-1 items-center gap-3 md:grid-cols-[220px_1fr]">
         <div className="relative mx-auto h-[208px] w-[208px]">
-          <svg viewBox="0 0 42 42" className="h-full w-full">
+          <svg
+            ref={svgRef}
+            viewBox="0 0 42 42"
+            className="h-full w-full cursor-pointer"
+            onMouseMove={(event) => showSegmentTooltip(event)}
+            onMouseLeave={() => setHoveredSegment(null)}
+            onClick={(event) => handleSegmentClick(event)}
+          >
             <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#151515" strokeWidth="8" />
-            {segments.map(({ row, value, percent, startAngle, endAngle, color }) => {
+            {segments.map((segment) => {
+              const { row, value, percent, startAngle, endAngle, color } = segment;
               const commonProps = {
-                className: 'cursor-pointer',
-                tabIndex: 0,
+                className: 'cursor-pointer transition-opacity hover:opacity-90',
                 fill: 'transparent',
                 stroke: color,
                 strokeWidth: 8,
                 strokeLinecap: 'butt',
-                style: { pointerEvents: 'stroke' },
-                onMouseEnter: (event) => setHoveredSegment({ row, value, percent, color, ...getTooltipPoint(event, chartRef.current) }),
-                onMouseMove: (event) => setHoveredSegment({ row, value, percent, color, ...getTooltipPoint(event, chartRef.current) }),
-                onMouseLeave: () => setHoveredSegment(null),
-                onFocus: () => setHoveredSegment({ row, value, percent, color, x: 166, y: 84 }),
-                onBlur: () => setHoveredSegment(null),
-                onClick: (event) => {
-                  event.stopPropagation();
-                  if (onSegmentClick) onSegmentClick(row);
-                  else onClick?.();
-                },
+                style: { pointerEvents: 'none' },
+                onClick: (event) => handleSegmentClick(event, segment),
               };
               const title = <title>{`${row.label} · ${formatMetric(value, valueType)} · ${formatPercent(percent / 100)}`}</title>;
-              if (percent >= 99.9) {
+              if (segment.isFullCircle) {
                 return (
                   <circle
                     key={row.label}
                     {...commonProps}
+                    data-segment-label={row.label}
                     cx="21"
                     cy="21"
                     r="15.915"
@@ -3555,6 +3859,7 @@ function DoughnutBreakdownChart({ rows, valueType = 'number', title, onClick, on
                 <path
                   key={row.label}
                   {...commonProps}
+                  data-segment-label={row.label}
                   d={describeArcPath(21, 21, 15.915, startAngle, endAngle)}
                 >
                   {title}
@@ -3576,10 +3881,6 @@ function DoughnutBreakdownChart({ rows, valueType = 'number', title, onClick, on
                 key={row.label}
                 type="button"
                 onClick={() => (onSegmentClick ? onSegmentClick(row) : onClick?.())}
-                onMouseEnter={(event) => setHoveredSegment({ row, value, percent: percent * 100, color: colorForLabel[row.label] || colors[index % colors.length], ...getTooltipPoint(event, chartRef.current) })}
-                onMouseMove={(event) => setHoveredSegment({ row, value, percent: percent * 100, color: colorForLabel[row.label] || colors[index % colors.length], ...getTooltipPoint(event, chartRef.current) })}
-                onFocus={() => setHoveredSegment({ row, value, percent: percent * 100, color: colorForLabel[row.label] || colors[index % colors.length], x: 260, y: 80 + index * 28 })}
-                onBlur={() => setHoveredSegment(null)}
                 className="group relative w-full rounded-[8px] px-2 py-1 text-left hover:bg-[#2A2A29]"
               >
                 <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -3598,7 +3899,7 @@ function DoughnutBreakdownChart({ rows, valueType = 'number', title, onClick, on
         </div>
       </div>
       {hoveredSegment ? (
-        <div data-testid="chart-tooltip" className="pointer-events-none fixed z-50 w-[230px] rounded-[10px] border border-[#4A4A4D] bg-[#101010]/95 px-3 py-2.5 text-[12px] text-white shadow-2xl" style={{ left: hoveredSegment.x + 16, top: hoveredSegment.y + 8 }}>
+        <div data-testid="chart-tooltip" className="pointer-events-none fixed z-50 w-[230px] rounded-[10px] border border-[#4A4A4D] bg-[#101010]/95 px-3 py-2.5 text-[12px] text-white shadow-2xl" style={{ left: hoveredSegment.x, top: hoveredSegment.y }}>
           <div className="font-semibold">
             <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: hoveredSegment.color }} />
             {hoveredSegment.row.label}
@@ -3777,6 +4078,7 @@ function normalizeAssetPayload(payload) {
     const monthlyRentTotal = firstDefined(row.currentMonthlyRentTotal, rent.monthlyRentTotal, row.monthlyRentTotal, row.currentRentTotal);
     const monthlyMfTotal = firstDefined(row.currentMonthlyMfTotal, rent.monthlyMfTotal, row.monthlyMfTotal, row.currentMfTotal);
     const monthlyCombinedTotal = firstDefined(row.currentMonthlyCostTotal, rent.monthlyTotal, row.monthlyCostTotal, Number(monthlyRentTotal || 0) + Number(monthlyMfTotal || 0));
+    const derivedENoc = firstDefined(row.eNoc, row.averageENoc, calculatePerPy(monthlyCombinedTotal, leasedAreaSqm));
     return {
       ...row,
       tenantMasterName: firstDefined(row.tenantMasterName, row.tenantName, row.companyName, row.tenantLabel, '-'),
@@ -3789,7 +4091,7 @@ function normalizeAssetPayload(payload) {
       currentStartDate: firstDefined(row.currentStartDate, row.startDate, row.latestStartDate),
       currentEndDate: firstDefined(row.currentEndDate, expiry.currentEndDate, row.endDate, row.latestExpiry),
       spaceLabel: [row.floorLabel, row.detailAreaLabel].filter(Boolean).join(' / ') || '-',
-      eNoc: firstDefined(row.eNoc, row.averageENoc),
+      eNoc: derivedENoc,
     };
   });
   return {
@@ -3922,6 +4224,7 @@ function buildLogisticsGeneralRows() {
       const currentMonthlyRentTotal = firstDefined(row.currentMonthlyRentTotal, row.monthlyRentTotal);
       const currentMonthlyMfTotal = firstDefined(row.currentMonthlyMfTotal, row.monthlyMfTotal);
       const monthlyCostTotal = firstDefined(row.currentMonthlyCostTotal, row.monthlyCombinedTotal, Number(currentMonthlyRentTotal || 0) + Number(currentMonthlyMfTotal || 0));
+      const leasedAreaSqm = firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm);
       const address = firstDefined(asset.standardizedAddress, overview.standardizedAddress, asset.lookupAddress);
       return {
         ...row,
@@ -3936,11 +4239,13 @@ function buildLogisticsGeneralRows() {
         coldStorageType: normalizeColdStorageLabel(row.coldStorageType),
         calculatedReviewStatus: reviewStatusLabel(row.calculatedReviewStatus || row.reviewStatus),
         grossFloorAreaSqm: firstDefined(row.grossFloorAreaSqm, asset.grossFloorAreaSqm, overview.grossFloorAreaSqm, overview.areaBreakdown?.grossFloorAreaSqm),
-        leasedAreaSqm: firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm),
+        leasedAreaSqm,
         currentMonthlyRentTotal,
         currentMonthlyMfTotal,
         monthlyCostTotal,
         eNoc: firstDefined(row.eNoc, row.averageENoc),
+        currentRentPerPy: firstDefined(row.currentRentPerPy, row.rentPerPy, calculatePerPy(currentMonthlyRentTotal, leasedAreaSqm)),
+        currentMfPerPy: firstDefined(row.currentMfPerPy, row.mfPerPy, calculatePerPy(currentMonthlyMfTotal, leasedAreaSqm)),
         currentEndDate: firstDefined(row.currentEndDate, row.latestExpiry),
       };
     }).filter(Boolean);
@@ -3992,6 +4297,9 @@ function buildTenantContractGroups(rows) {
   return [...groups.values()].map((group) => ({
     ...group,
     assetNames: [...group.assetNames].sort((a, b) => a.localeCompare(b, 'ko-KR')),
+    rentPerPy: calculatePerPy(group.monthlyRentTotal, group.leasedAreaSqm),
+    mfPerPy: calculatePerPy(group.monthlyMfTotal, group.leasedAreaSqm),
+    costPerPy: calculatePerPy(group.monthlyCostTotal, group.leasedAreaSqm),
     rows: group.rows.sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR')),
   })).sort((a, b) => Number(b.monthlyCostTotal || 0) - Number(a.monthlyCostTotal || 0));
 }
@@ -4147,7 +4455,7 @@ function SectorDashboard() {
             ['월 관리비', formatCurrency(row.monthlyMfTotal)],
             ['월 임관리비', formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyTotalCost))],
             ['최근 만기일', formatDate(row.latestExpiry)],
-            ['DART corp code', row.company?.dartCorpCode || '-'],
+            ['DART 연결 여부', row.company?.dartCorpCode ? '연결됨' : '미연결'],
           ]}
           compact
         />
@@ -4342,6 +4650,16 @@ function CompanyDashboard() {
     ...row,
     value: effectiveExposureMode === 'area' ? row.leasedAreaSqm : firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal),
   })).sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
+  const exposureTotal = exposureRows.reduce((sum, row) => sum + Number(row.value || 0), 0);
+  const exposureChartRows = exposureRows.map((row) => ({
+    ...row,
+    displayValue: `${formatMetric(row.value, effectiveExposureMode === 'area' ? 'area' : 'currency')} (${formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0)})`,
+    tooltipLines: [
+      ['전체 대비', formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0)],
+      ['임대면적', formatArea(row.leasedAreaSqm)],
+      ['월 임관리비', formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal))],
+    ],
+  }));
   const leasedAssetHeaders = ['자산명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '현재 계약만기일', '계약기간'];
   const leasedAssetRows = leasedAssets.map((row) => [
     row.assetName,
@@ -4508,7 +4826,7 @@ function CompanyDashboard() {
           ) : null}
           {financials.emptyStateMessage ? (
             <div className="mt-4 rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] p-3 text-[13px] text-[#C7C7CC]">
-              {financials.emptyStateMessage}
+              DART 상세 정보는 서버 조회 또는 검증된 원본 적재값 기준으로 표시합니다.
             </div>
           ) : null}
         </div>
@@ -4526,7 +4844,7 @@ function CompanyDashboard() {
             </div>
           )}
         />
-        <RichBarChart rows={exposureRows} labelKey="label" valueKey="value" valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} valueLabel={effectiveExposureMode === 'area' ? '자산별 임대면적(평)' : '자산별 월 임관리비'} onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비'], exposureTableRows)} />
+        <RichBarChart rows={exposureChartRows} labelKey="label" valueKey="value" valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} valueLabel={effectiveExposureMode === 'area' ? '자산별 임대면적(평)' : '자산별 월 임관리비'} onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비'], exposureTableRows)} />
         {!hasCostExposure && exposureMode === 'cost' ? <div className="mt-2 text-[12px] text-[#86868B]">월 임관리비 값이 비어 있어 임대면적 기준으로 표시했습니다.</div> : null}
       </section>
     </div>
@@ -4537,16 +4855,29 @@ function AnalysisToolsDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const readableAssetOptions = useMemo(() => filterAssetsByPermission(assetOptionsData, permission), [permission]);
-  const defaultAssetIds = readableAssetOptions.slice(0, 3).map((item) => item.assetId);
-  const defaultCompanyIds = companyOptionsData.slice(0, 3).map((item) => item.tenantId);
+  const sourceRows = useMemo(() => filterAssetsByPermission(buildLogisticsGeneralRows(), permission), [permission]);
+  const readableCompanyOptions = useMemo(() => {
+    const grouped = new Map();
+    sourceRows.forEach((row) => {
+      const tenantId = firstDefined(row.tenantId, row.tenantMasterName);
+      const tenantMasterName = cleanDisplay(row.tenantMasterName, '');
+      if (!tenantId || !tenantMasterName || tenantMasterName === '-' || grouped.has(tenantId)) return;
+      grouped.set(tenantId, {
+        tenantId,
+        tenantMasterName,
+      });
+    });
+    return [...grouped.values()].sort((a, b) => String(a.tenantMasterName || '').localeCompare(String(b.tenantMasterName || ''), 'ko-KR'));
+  }, [sourceRows]);
+  const defaultAssetIds = useMemo(() => readableAssetOptions.slice(0, 3).map((item) => item.assetId), [readableAssetOptions]);
+  const defaultCompanyIds = useMemo(() => readableCompanyOptions.slice(0, 3).map((item) => item.tenantId), [readableCompanyOptions]);
   const [selectedAssetIds, setSelectedAssetIds] = useState(defaultAssetIds);
   const [selectedCompanyIds, setSelectedCompanyIds] = useState(defaultCompanyIds);
   const [benchmarkMetric, setBenchmarkMetric] = useState('monthlyCostTotal');
   const [modal, setModal] = useState(null);
-  const sourceRows = useMemo(() => filterAssetsByPermission(buildLogisticsGeneralRows(), permission), [permission]);
   const selectedAssetSet = new Set(selectedAssetIds);
   const selectedCompanySet = new Set(selectedCompanyIds);
-  const rows = selectedAssetIds.map((assetId) => normalizeAssetPayload(ASSET_PAYLOADS[assetId] || {}))
+  const allAnalysisRows = readableAssetOptions.map((assetOption) => normalizeAssetPayload(ASSET_PAYLOADS[assetOption.assetId] || {}))
     .filter((item) => item.overview?.assetName)
     .map((item) => ({
       assetId: item.overview.assetId,
@@ -4557,9 +4888,12 @@ function AnalysisToolsDashboard() {
       vacancyRate: item.overview.vacancyRate,
       leasedAreaSqm: item.overview.leasedAreaSqm,
       grossFloorAreaSqm: item.overview.grossFloorAreaSqm,
+      currentRentPerPy: firstDefined(item.overview.currentRentPerPy, item.overview.rentPerPy, calculatePerPy(item.overview.monthlyRentTotal, item.overview.leasedAreaSqm)),
+      currentMfPerPy: firstDefined(item.overview.currentMfPerPy, item.overview.mfPerPy, calculatePerPy(item.overview.monthlyMfTotal, item.overview.leasedAreaSqm)),
       averageENoc: item.overview.averageENoc,
       eNoc: item.overview.averageENoc,
     }));
+  const rows = allAnalysisRows.filter((row) => selectedAssetSet.has(row.assetId));
   const benchmarkMetricDef = metricDefinition(benchmarkMetric);
   const selectedContracts = sourceRows
     .filter((row) => selectedAssetSet.has(row.assetId) || selectedCompanySet.has(row.tenantId))
@@ -4569,14 +4903,25 @@ function AnalysisToolsDashboard() {
     .slice(0, 12);
   const rentValues = rows.map((row) => Number(row.monthlyCostTotal || row.monthlyRentTotal || 0)).filter((value) => value > 0);
   const rentSpread = rentValues.length ? Math.max(...rentValues) - Math.min(...rentValues) : 0;
+  const metricRankRows = allAnalysisRows
+    .map((row) => ({ ...row, metricValue: Number(metricValueFromRow(row, benchmarkMetric) || 0) }))
+    .filter((row) => row.metricValue > 0)
+    .sort((a, b) => b.metricValue - a.metricValue);
+  const portfolioMetricValues = metricRankRows.map((row) => row.metricValue);
+  const portfolioAverage = portfolioMetricValues.length ? portfolioMetricValues.reduce((sum, value) => sum + value, 0) / portfolioMetricValues.length : 0;
+  const selectedMetricValues = rows.map((row) => Number(metricValueFromRow(row, benchmarkMetric) || 0)).filter((value) => value > 0);
+  const selectedAverage = selectedMetricValues.length ? selectedMetricValues.reduce((sum, value) => sum + value, 0) / selectedMetricValues.length : 0;
+  const metricRankByAssetId = new Map(metricRankRows.map((row, index) => [row.assetId, index + 1]));
   const tableRows = rows.map((row) => [
     row.assetName,
     row.region,
     formatArea(row.grossFloorAreaSqm),
     formatArea(row.leasedAreaSqm),
     formatPercent(row.vacancyRate),
-    formatCurrency(row.monthlyRentTotal),
-    formatCurrency(row.averageENoc),
+    formatMetric(metricValueFromRow(row, benchmarkMetric), benchmarkMetricDef.type),
+    portfolioAverage ? formatMetric(Number(metricValueFromRow(row, benchmarkMetric) || 0) - portfolioAverage, benchmarkMetricDef.type) : '-',
+    metricRankByAssetId.get(row.assetId) ? `${formatNumber(metricRankByAssetId.get(row.assetId))}/${formatNumber(metricRankRows.length)}` : '-',
+    formatWon(row.averageENoc),
   ]);
   const contractRows = selectedContracts.slice(0, 80).map((row) => [
     row.assetName,
@@ -4592,6 +4937,41 @@ function AnalysisToolsDashboard() {
   const toggleValue = (value, values, setter) => {
     setter(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
   };
+  const openAnalysisAssetDetail = (assetRow) => {
+    const assetContracts = selectedContracts.filter((row) => row.assetId === assetRow.assetId || row.assetName === assetRow.assetName);
+    setModal({
+      title: `분석 원장 · ${assetRow.assetName}`,
+      size: 'wide',
+      content: (
+        <div className="space-y-4">
+          <DataTable
+            headers={['항목', '값']}
+            rows={[
+              ['자산명', assetRow.assetName],
+              ['권역', assetRow.region],
+              ['비교 지표', benchmarkMetricDef.label],
+              ['선택 자산 값', formatMetric(metricValueFromRow(assetRow, benchmarkMetric), benchmarkMetricDef.type)],
+              ['포트폴리오 평균', formatMetric(portfolioAverage, benchmarkMetricDef.type)],
+              ['평균 대비', portfolioAverage ? formatMetric(Number(metricValueFromRow(assetRow, benchmarkMetric) || 0) - portfolioAverage, benchmarkMetricDef.type) : '-'],
+              ['순위', metricRankByAssetId.get(assetRow.assetId) ? `${formatNumber(metricRankByAssetId.get(assetRow.assetId))}/${formatNumber(metricRankRows.length)}` : '-'],
+            ]}
+            compact
+          />
+          <DataTable headers={['자산', '임차인', '구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '만기', '검토 상태']} rows={assetContracts.map((row) => [
+            row.assetName,
+            row.tenantMasterName,
+            row.spaceLabel,
+            formatArea(row.leasedAreaSqm),
+            formatCurrency(row.currentMonthlyRentTotal),
+            formatCurrency(row.currentMonthlyMfTotal),
+            formatCurrency(row.monthlyCostTotal),
+            row.currentEndDate || '-',
+            row.calculatedReviewStatus,
+          ])} compact />
+        </div>
+      ),
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -4600,19 +4980,19 @@ function AnalysisToolsDashboard() {
         <SectionHeader
           eyebrow="ANALYSIS TOOLS"
           title="선택 자산·기업 비교"
-          right={(
-            <div className="flex flex-wrap items-center gap-2">
-              <select value={benchmarkMetric} onChange={(event) => setBenchmarkMetric(event.target.value)} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] text-white">
-                {PLAYGROUND_METRICS.filter((item) => ['leasedAreaSqm', 'monthlyCostTotal', 'currentMonthlyRentTotal', 'currentMonthlyMfTotal', 'eNoc', 'count'].includes(item.key)).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-              </select>
-              <button type="button" onClick={() => setModal({ title: '비교 벤치마크 원본 표', headers: ['자산명', '권역', '연면적(평)', '임대면적(평)', '공실률', '월 임관리비', '평균 E.NOC'], rows: tableRows })} className="h-9 cursor-pointer rounded-[8px] bg-[#30302F] px-3 text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">원본 표 보기</button>
-            </div>
-          )}
+          right={<button type="button" onClick={() => setModal({ title: '비교 벤치마크 원본 표', headers: ['자산명', '권역', '연면적(평)', '임대면적(평)', '공실률', '월 임관리비', '평균 E.NOC'], rows: tableRows })} className="h-9 cursor-pointer rounded-[8px] bg-[#30302F] px-3 text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">원본 표 보기</button>}
         />
+        <label className="mb-4 grid grid-cols-1 items-center gap-3 rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3 md:grid-cols-[120px_minmax(0,360px)_1fr]">
+          <span className="text-[12px] font-bold text-[#86868B]">비교 지표</span>
+          <select value={benchmarkMetric} onChange={(event) => setBenchmarkMetric(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[13px] font-semibold text-white">
+            {PLAYGROUND_METRICS.filter((item) => ANALYSIS_METRIC_KEYS.includes(item.key)).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+          </select>
+          <span className="text-[12px] leading-5 text-[#86868B]">선택 자산 벤치마크와 계약 원장을 같은 지표 기준으로 다시 계산합니다.</span>
+        </label>
         <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr_320px]">
           <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3">
             <div className="mb-2 text-[12px] font-semibold text-[#86868B]">자산 선택</div>
-            <div className="grid max-h-[190px] grid-cols-1 gap-2 overflow-auto md:grid-cols-2">
+            <div className="custom-scrollbar grid max-h-[190px] grid-cols-1 gap-2 overflow-auto md:grid-cols-2">
               {readableAssetOptions.map((item) => (
                 <button key={item.assetId} type="button" onClick={() => toggleValue(item.assetId, selectedAssetIds, setSelectedAssetIds)} className={`cursor-pointer rounded-[8px] border px-3 py-2 text-left text-[12px] font-semibold ${selectedAssetIds.includes(item.assetId) ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#252524] text-[#A1A1AA] hover:text-white'}`}>
                   {item.assetName}
@@ -4622,8 +5002,8 @@ function AnalysisToolsDashboard() {
           </div>
           <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3">
             <div className="mb-2 text-[12px] font-semibold text-[#86868B]">기업 선택</div>
-            <div className="grid max-h-[190px] grid-cols-1 gap-2 overflow-auto md:grid-cols-2">
-              {companyOptionsData.map((item) => (
+            <div className="custom-scrollbar grid max-h-[190px] grid-cols-1 gap-2 overflow-auto md:grid-cols-2">
+              {readableCompanyOptions.map((item) => (
                 <button key={item.tenantId} type="button" onClick={() => toggleValue(item.tenantId, selectedCompanyIds, setSelectedCompanyIds)} className={`cursor-pointer rounded-[8px] border px-3 py-2 text-left text-[12px] font-semibold ${selectedCompanyIds.includes(item.tenantId) ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#252524] text-[#A1A1AA] hover:text-white'}`}>
                   {item.tenantMasterName}
                 </button>
@@ -4635,6 +5015,8 @@ function AnalysisToolsDashboard() {
               ['선택 자산', `${formatNumber(selectedAssetIds.length)}개`],
               ['선택 기업', `${formatNumber(selectedCompanyIds.length)}개`],
               ['계약 원장', `${formatNumber(selectedContracts.length)}건`],
+              ['선택 평균', formatMetric(selectedAverage, benchmarkMetricDef.type)],
+              ['전체 평균', formatMetric(portfolioAverage, benchmarkMetricDef.type)],
               ['임관리비 spread', formatCurrency(rentSpread)],
             ].map(([label, value]) => (
               <button key={label} type="button" onClick={() => setModal({ title: '계약 원장', headers: ['자산', '임차인', '구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '만기', '검토 상태'], rows: contractRows })} className="cursor-pointer rounded-[12px] border border-[#333333] bg-[#252524] p-3 text-left hover:bg-[#2A2A29]">
@@ -4648,7 +5030,7 @@ function AnalysisToolsDashboard() {
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="MATRIX" title="벤치마크 매트릭스" />
-        <DataTable headers={['자산명', '권역', '연면적(평)', '임대면적(평)', '공실률', '월 임관리비', '평균 E.NOC']} rows={tableRows} compact />
+        <DataTable headers={['자산명', '권역', '연면적(평)', '임대면적(평)', '공실률', benchmarkMetricDef.label, '전체 평균 대비', '순위', '평균 E.NOC']} rows={tableRows} onRowClick={(index) => openAnalysisAssetDetail(rows[index])} compact />
       </section>
       <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1fr_360px]">
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
@@ -4674,21 +5056,23 @@ function AnalysisToolsDashboard() {
 function DataPlaygroundDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
-  const [mode, setMode] = useState('current');
+  const [mode, setMode] = useState('sandbox');
+  const [sourceBasis, setSourceBasis] = useState('current');
   const [dimension, setDimension] = useState('assetName');
   const [columnDimension, setColumnDimension] = useState('none');
   const [filterDimension, setFilterDimension] = useState('');
   const [filterValue, setFilterValue] = useState('');
   const [metric, setMetric] = useState('monthlyCostTotal');
+  const [secondaryMetric, setSecondaryMetric] = useState('leasedAreaSqm');
   const [aggregation, setAggregation] = useState('sum');
   const [topN, setTopN] = useState(15);
   const [excludeBlank, setExcludeBlank] = useState(true);
   const [modal, setModal] = useState(null);
   const sourceRows = useMemo(() => filterAssetsByPermission(buildLogisticsGeneralRows(), permission), [permission]);
   const metricDef = metricDefinition(metric);
-  const activeMode = mode === 'history'
-    ? { title: 'DB_히스토리 누적 피벗' }
-    : { title: 'DB_일반 현재값 피벗' };
+  const secondaryMetricDef = metricDefinition(secondaryMetric);
+  const activeMode = PLAYGROUND_MODES.find((item) => item.id === mode) || PLAYGROUND_MODES[0];
+  const basisLabel = sourceBasis === 'history' ? 'DB_히스토리 누적 기준' : 'DB_일반 현재값 기준';
   const filterOptions = useMemo(() => {
     if (!filterDimension) return [];
     const grouped = sourceRows.reduce((acc, row) => {
@@ -4711,6 +5095,16 @@ function DataPlaygroundDashboard() {
     topN,
     excludeBlank,
   }), [aggregation, columnDimension, dimension, excludeBlank, filterDimension, filterValue, metric, sourceRows, topN]);
+  const secondaryPivot = useMemo(() => buildPivotRows(sourceRows, {
+    rowDimension: dimension,
+    columnDimension,
+    metric: secondaryMetric,
+    aggregation,
+    filterDimension,
+    filterValue,
+    topN,
+    excludeBlank,
+  }), [aggregation, columnDimension, dimension, excludeBlank, filterDimension, filterValue, secondaryMetric, sourceRows, topN]);
   const rowDimensionLabel = PLAYGROUND_DIMENSIONS.find((item) => item.key === dimension)?.label || '행';
   const columnDimensionLabel = columnDimension === 'none' ? '합계' : PLAYGROUND_DIMENSIONS.find((item) => item.key === columnDimension)?.label || '열';
   const aggregationLabel = PLAYGROUND_AGGREGATIONS.find((item) => item.key === aggregation)?.label || '합계';
@@ -4734,11 +5128,36 @@ function DataPlaygroundDashboard() {
   const applySavedView = (view) => {
     setDimension(view.dimension);
     setMetric(view.metric);
+    setSecondaryMetric(view.secondaryMetric || 'leasedAreaSqm');
     setTopN(view.topN);
-    setColumnDimension('none');
-    setFilterDimension('');
-    setFilterValue('');
+    setColumnDimension(view.columnDimension || 'none');
+    setFilterDimension(view.filterDimension || '');
+    setFilterValue(view.filterValue || '');
   };
+  const summaryRows = pivot.rows.map((row) => {
+    const secondary = secondaryPivot.rows.find((item) => item.key === row.key);
+    return [
+      row.label,
+      formatMetric(row.total, metricDef.type),
+      formatMetric(secondary?.total || 0, secondaryMetricDef.type),
+      `${formatNumber(row.recordCount)}건`,
+    ];
+  });
+  const explorerRows = pivot.filteredRows.slice(0, 80).map((row) => [
+    row.assetName,
+    row.tenantMasterName,
+    row.fundName,
+    row.region,
+    row.goodsType,
+    row.coldStorageType,
+    formatArea(row.grossFloorAreaSqm),
+    formatArea(row.leasedAreaSqm),
+    formatCurrency(row.currentMonthlyRentTotal),
+    formatCurrency(row.currentMonthlyMfTotal),
+    formatCurrency(row.monthlyCostTotal),
+    formatWon(firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy)),
+    row.currentEndDate || '-',
+  ]);
 
   return (
     <div className="space-y-6">
@@ -4750,20 +5169,21 @@ function DataPlaygroundDashboard() {
           right={<button type="button" onClick={() => setModal({ title: 'Data Playground 피벗 결과', size: 'wide', headers: tableHeaders, rows: tableRows })} className="h-9 cursor-pointer rounded-[8px] bg-[#30302F] px-3 text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">피벗 결과 크게 보기</button>}
         />
         <div className="mb-5 flex flex-wrap items-center gap-2">
-          {[
-            ['current', 'DB_일반 현재값'],
-            ['history', 'DB_히스토리 누적'],
-          ].map(([value, label]) => (
-            <button key={value} type="button" onClick={() => setMode(value)} className={`h-9 cursor-pointer rounded-[8px] border px-3 text-[12px] font-semibold ${mode === value ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#A1A1AA] hover:text-white'}`}>
-              {label}
+          {PLAYGROUND_MODES.map((item) => (
+            <button key={item.id} type="button" onClick={() => setMode(item.id)} className={`h-9 cursor-pointer rounded-[8px] border px-3 text-[12px] font-semibold ${mode === item.id ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#A1A1AA] hover:text-white'}`}>
+              {item.label}
             </button>
           ))}
+          <select value={sourceBasis} onChange={(event) => setSourceBasis(event.target.value)} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white">
+            <option value="current">DB_일반 현재값</option>
+            <option value="history">DB_히스토리 누적</option>
+          </select>
           <label className="ml-auto flex h-9 items-center gap-2 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-[#D1D1D6]">
             <input type="checkbox" checked={excludeBlank} onChange={(event) => setExcludeBlank(event.target.checked)} />
             빈값 제외
           </label>
         </div>
-        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-6">
+        <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-7">
           <label className="block">
             <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">행 필드</span>
             <select value={dimension} onChange={(event) => setDimension(event.target.value)} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white">
@@ -4781,6 +5201,12 @@ function DataPlaygroundDashboard() {
             <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">값 필드</span>
             <select value={metric} onChange={(event) => setMetric(event.target.value)} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white">
               {PLAYGROUND_METRICS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">보조 값</span>
+            <select value={secondaryMetric} onChange={(event) => setSecondaryMetric(event.target.value)} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white">
+              {PLAYGROUND_METRICS.filter((item) => item.key !== metric).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
             </select>
           </label>
           <label className="block">
@@ -4827,25 +5253,26 @@ function DataPlaygroundDashboard() {
             </div>
           </div>
         )}
-        <div className="mb-3 text-[12px] leading-5 text-[#86868B]">{activeMode.title} · 행: {rowDimensionLabel} · 열: {columnDimensionLabel} · 값: {aggregationLabel} {metricDef.label} · 권한 자산 기준 {formatNumber(pivot.filteredRows.length)}행</div>
-        <RichBarChart rows={pivot.rows.map((row) => ({
-          ...row,
-          label: row.label,
-          value: row.total,
-          tooltipLines: [
-            ['원본 행', `${formatNumber(row.recordCount)}건`],
-            ['집계', `${aggregationLabel} ${metricDef.label}`],
-          ],
-        }))} labelKey="label" valueKey="value" valueType={metricDef.type} valueLabel={`${aggregationLabel} ${metricDef.label}`} onClick={() => setModal({ title: 'Data Playground 차트 상세', size: 'wide', headers: tableHeaders, rows: tableRows })} />
+        <div className="text-[12px] leading-5 text-[#86868B]">{activeMode.title} · {basisLabel} · 행: {rowDimensionLabel} · 열: {columnDimensionLabel} · 값: {aggregationLabel} {metricDef.label} · 보조 값: {secondaryMetricDef.label} · 권한 자산 기준 {formatNumber(pivot.filteredRows.length)}행</div>
+      </section>
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader eyebrow="PIVOT VALUES" title="다중 값 요약" />
+        <DataTable headers={[rowDimensionLabel, `${aggregationLabel} ${metricDef.label}`, `${aggregationLabel} ${secondaryMetricDef.label}`, '원본 행']} rows={summaryRows} compact />
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="PIVOT RESULT" title="피벗 결과 테이블" />
-        <div className="overflow-auto rounded-[10px] border border-[#333333]">
-          <table className="min-w-[980px] border-collapse text-left text-[12px]">
+        <div className="custom-scrollbar overflow-auto rounded-[10px] border border-[#333333]">
+          <table className="table-fixed border-collapse text-left text-[12px]" style={{ minWidth: `${Math.max(760, 180 + pivot.columns.length * 120 + 210)}px` }}>
+            <colgroup>
+              <col style={{ width: 180 }} />
+              {pivot.columns.map((column) => <col key={`col-${column}`} style={{ width: 120 }} />)}
+              <col style={{ width: 110 }} />
+              <col style={{ width: 100 }} />
+            </colgroup>
             <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#86868B]">
               <tr>
                 {tableHeaders.map((header, index) => (
-                  <th key={header} className={`border-b border-[#333333] px-3 py-2 font-semibold ${index === 0 ? 'sticky left-0 z-30 min-w-[220px] bg-[#1F1F1E]' : 'whitespace-nowrap text-right'}`}>{header}</th>
+                  <th key={header} className={`border-b border-[#333333] px-3 py-2 font-semibold ${index === 0 ? 'sticky left-0 z-30 w-[180px] bg-[#1F1F1E]' : 'whitespace-nowrap text-right'}`}>{header}</th>
                 ))}
               </tr>
             </thead>
@@ -4860,7 +5287,7 @@ function DataPlaygroundDashboard() {
                 return (
                   <tr key={row.key} onClick={() => setModal({ title: `${row.label} 원본 drilldown`, size: 'wide', headers: ['자산', '임차인', '펀드', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '만기'], rows: detailRows(row) })} className="cursor-pointer border-b border-[#333333] last:border-b-0 hover:bg-white/[0.04]">
                     {cells.map((cell, index) => (
-                      <td key={`${row.key}-${index}`} className={`px-3 py-2 align-top text-[#E5E5E5] ${index === 0 ? 'sticky left-0 z-10 max-w-[220px] bg-[#252524] font-semibold text-left' : 'whitespace-nowrap text-right tabular-nums'}`}>
+                      <td key={`${row.key}-${index}`} className={`px-3 py-2 align-top text-[#E5E5E5] ${index === 0 ? 'sticky left-0 z-10 w-[180px] max-w-[180px] bg-[#252524] font-semibold text-left' : 'whitespace-nowrap text-right tabular-nums'}`}>
                         <span className={index === 0 ? 'block truncate' : ''} title={typeof cell === 'string' ? cell : undefined}>{cell}</span>
                       </td>
                     ))}
@@ -4869,7 +5296,7 @@ function DataPlaygroundDashboard() {
               })}
               {pivot.rows.length ? (
                 <tr className="bg-[#1F1F1E] font-semibold text-white">
-                  <td className="sticky left-0 z-10 bg-[#1F1F1E] px-3 py-2">총계</td>
+                  <td className="sticky left-0 z-10 w-[180px] max-w-[180px] bg-[#1F1F1E] px-3 py-2">총계</td>
                   {pivot.columns.map((column) => (
                     <td key={`total-${column}`} className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{formatMetric(aggregateMetricValues(pivot.filteredRows.filter((row) => (columnDimension === 'none' ? true : cleanDisplay(row[columnDimension], '미분류') === column)), metric, aggregation), metricDef.type)}</td>
                   ))}
@@ -4882,6 +5309,47 @@ function DataPlaygroundDashboard() {
           {!pivot.rows.length ? <div className="p-5 text-[13px] text-[#86868B]">선택한 피벗 조건에 해당하는 데이터가 없습니다.</div> : null}
         </div>
       </section>
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader eyebrow="PIVOT CHART" title="피벗 결과 차트" />
+        <RichBarChart rows={pivot.rows.map((row) => ({
+          ...row,
+          label: row.label,
+          value: row.total,
+          tooltipLines: [
+            ['원본 행', `${formatNumber(row.recordCount)}건`],
+            ['집계', `${aggregationLabel} ${metricDef.label}`],
+          ],
+        }))} labelKey="label" valueKey="value" valueType={metricDef.type} valueLabel={`${aggregationLabel} ${metricDef.label}`} onClick={() => setModal({ title: 'Data Playground 차트 상세', size: 'wide', headers: tableHeaders, rows: tableRows })} />
+      </section>
+      {mode === 'explorer' ? (
+        <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="EXPLORER" title="원본 레코드 미리보기" />
+          <DataTable
+            headers={['자산', '임차인', '펀드', '권역', '물류 유형', '저온 유형', '연면적(평)', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E.NOC', '만기']}
+            rows={explorerRows}
+            compact
+          />
+        </section>
+      ) : null}
+      {mode === 'workspace' ? (
+        <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader eyebrow="BI WORKSPACE" title="피벗 설정 감사" />
+          <DataTable
+            headers={['항목', '현재 설정']}
+            rows={[
+              ['데이터 기준', basisLabel],
+              ['행 필드', rowDimensionLabel],
+              ['열 필드', columnDimensionLabel],
+              ['값 필드', `${aggregationLabel} ${metricDef.label}`],
+              ['보조 값', `${aggregationLabel} ${secondaryMetricDef.label}`],
+              ['필터', filterDimension ? `${PLAYGROUND_DIMENSIONS.find((item) => item.key === filterDimension)?.label || filterDimension} = ${filterValue || '전체'}` : '전체'],
+              ['표시 행', `Top ${formatNumber(topN)}`],
+              ['권한 반영 행', `${formatNumber(pivot.filteredRows.length)}행`],
+            ]}
+            compact
+          />
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -4891,6 +5359,39 @@ function buildDataQualityFindings() {
   assetOptionsData.forEach((asset) => {
     if (asset.monthlyCostTotal == null) findings.push({ severity: 'warning', sheetName: 'DB_히스토리 누적', targetType: 'asset', target: asset.assetName, field: 'monthlyCostTotal', reason: 'mapping_missing', action: '월 임관리비 매핑 확인' });
     if (asset.vacancyRate == null) findings.push({ severity: 'warning', sheetName: 'DB_자산', targetType: 'asset', target: asset.assetName, field: 'vacancyRate', reason: 'mapping_missing', action: '공실률 계산 근거 확인' });
+  });
+  Object.values(ASSET_PAYLOADS).forEach((payload) => {
+    const normalized = normalizeAssetPayload(payload);
+    const overview = normalized.overview || {};
+    const rows = normalized.normalizedRows || [];
+    const assetName = overview.assetName || payload.meta?.selection?.assetName || '-';
+    const hasLeasedRows = rows.some((row) => Number(row.leasedAreaSqm || 0) > 0);
+    const weightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
+    const useRows = buildUseCategoryRows(payload);
+    const storageArea = Number(useRows.find((row) => row.label === '저온창고')?.value || 0)
+      + Number(useRows.find((row) => row.label === '상온창고')?.value || 0);
+    if (hasLeasedRows && !weightedENoc) {
+      findings.push({
+        severity: 'critical',
+        sheetName: 'DB_히스토리누적',
+        targetType: 'asset',
+        target: assetName,
+        field: 'averageENoc',
+        reason: rows.some((row) => row.currentMoneyStatus === 'history_unmatched') ? 'history_unmatched' : 'money_missing',
+        action: '임차 행은 있으나 최신 임대료/관리비 history가 연결되지 않아 E.NOC를 계산할 수 없습니다. DB_히스토리누적 연결키를 확인하세요.',
+      });
+    }
+    if (hasLeasedRows && storageArea <= 0) {
+      findings.push({
+        severity: 'warning',
+        sheetName: 'DB_일반',
+        targetType: 'asset',
+        target: assetName,
+        field: 'coldRatio',
+        reason: 'storage_area_missing',
+        action: '저온/상온 구분은 있으나 면적 기준이 없어 저온창고 비율 산식 적용이 필요합니다.',
+      });
+    }
   });
   companyOptionsData.forEach((company) => {
     if (!company.exposureAvailable) findings.push({ severity: 'info', sheetName: 'DB_일반', targetType: 'company', target: company.tenantMasterName, field: 'exposureAvailable', reason: 'relation_unmatched', action: '임차 자산 연결 확인' });
@@ -4914,6 +5415,35 @@ function normalizeRemoteQualityFinding(row, index) {
     reason: row.reason_code || row.failure_reason || row.issue_type || row.reason || row.status || 'unknown',
     action: row.suggested_fix || row.action || row.message || row.detail || '원본 값과 정규화 결과 대조 필요',
     sourceTable: 'public.ll_data_quality_findings',
+    raw: row,
+  };
+}
+
+function normalizeRemoteEditRequest(row, index) {
+  const payload = parseJsonObject(row.request_payload);
+  const cells = Array.isArray(payload.cell_edits) ? payload.cell_edits : parseJsonArray(row.requested_value);
+  const displayRequestedValue = cells.length ? `${formatNumber(cells.length)}개 셀 수정` : cleanDisplay(row.requested_value || (cells[0]?.afterValue ?? cells[0]?.after_value ?? ''));
+  return {
+    id: row.id || `edit-${index}`,
+    status: row.status || 'submitted',
+    targetType: row.target_type || payload.finding?.targetType || '-',
+    targetName: row.target_name || payload.finding?.target || '-',
+    fieldName: row.field_name || payload.finding?.field || (cells[0]?.fieldName || cells[0]?.field_name || '-'),
+    reason: row.reason_code || payload.finding?.reason || '-',
+    requestedBy: row.requested_by || '-',
+    requestedAt: row.created_at || row.updated_at || '',
+    beforeValue: row.before_value || (cells[0]?.beforeValue ?? cells[0]?.before_value ?? ''),
+    requestedValue: row.requested_value || (cells[0]?.afterValue ?? cells[0]?.after_value ?? ''),
+    displayRequestedValue,
+    cellCount: cells.length || 1,
+    requestPayload: payload,
+    uploadSource: payload.source || '',
+    uploadFileName: payload.fileName || '',
+    uploaderName: payload.uploaderName || row.requested_by_name || row.requested_by || '-',
+    uploadAssetScope: payload.assetScope || row.target_name || '-',
+    uploadAt: payload.uploadAt || row.created_at || row.updated_at || '',
+    acceptedRows: payload.acceptedRows || cells.length || 0,
+    blockedRows: payload.blockedRows || 0,
     raw: row,
   };
 }
@@ -4953,18 +5483,28 @@ function buildDataQualityEditGridRows(finding) {
     beforeValue: String(beforeValue ?? ''),
     afterValue: '',
     reason: finding.reason || raw.reason_code || '',
+    assetId: String(firstDefined(raw.asset_id, raw.target_asset_id, resolveAssetIdByName(finding.target), '')),
+    assetName: String(firstDefined(raw.asset_name, raw.target_asset_name, finding.target, '')),
   }];
 }
 
 const QUALITY_EXCEL_COLUMNS = [
   '행위',
+  '원본시트',
+  '원본행',
+  '원본열',
+  '계약/행 식별',
   '자산명',
+  '자산코드',
   '펀드명',
   '임차인명',
+  '사업자등록번호',
   '층/구역',
   '데이터영역',
+  '원본항목명',
   '한글필드명',
   '현재값',
+  '표시값',
   '수정값',
   '변경사유',
   '권한상태',
@@ -4981,21 +5521,100 @@ const QUALITY_EXCEL_COLUMNS = [
   'data_quality_rule',
 ];
 
-const QUALITY_VISIBLE_COLUMNS = new Set(['행위', '자산명', '펀드명', '임차인명', '층/구역', '데이터영역', '한글필드명', '현재값', '수정값', '변경사유', '권한상태']);
+const QUALITY_VISIBLE_COLUMNS = new Set(['행위', '원본시트', '원본행', '원본열', '계약/행 식별', '자산명', '자산코드', '펀드명', '임차인명', '사업자등록번호', '층/구역', '데이터영역', '원본항목명', '한글필드명', '현재값', '표시값', '수정값', '변경사유', '권한상태']);
 
 const QUALITY_EXPORT_FIELDS = [
-  { fieldName: 'tenantMasterName', label: '임차인명', domain: 'DB_일반', table: 'public.ll_leasing_contracts' },
-  { fieldName: 'spaceLabel', label: '층/구역', domain: 'DB_일반', table: 'public.ll_leasing_contracts' },
-  { fieldName: 'leasedAreaSqm', label: '임대면적(㎡)', domain: 'DB_일반', table: 'public.ll_leasing_contracts' },
-  { fieldName: 'currentStartDate', label: '현재 계약개시일', domain: 'DB_히스토리', table: 'public.ll_rent_history' },
-  { fieldName: 'currentEndDate', label: '현재 계약만기일', domain: 'DB_히스토리', table: 'public.ll_rent_history' },
-  { fieldName: 'monthlyRentTotal', label: '월 임대료', domain: 'DB_히스토리', table: 'public.ll_rent_history' },
-  { fieldName: 'monthlyMfTotal', label: '월 관리비', domain: 'DB_히스토리', table: 'public.ll_rent_history' },
-  { fieldName: 'monthlyCombinedTotal', label: '월 임관리비', domain: 'DB_히스토리', table: 'public.ll_rent_history' },
-  { fieldName: 'currentRentPerPy', label: '평당 임대료', domain: 'DB_히스토리', table: 'public.ll_rent_history' },
-  { fieldName: 'currentMfPerPy', label: '평당 관리비', domain: 'DB_히스토리', table: 'public.ll_rent_history' },
-  { fieldName: 'businessRegistrationNo', label: '사업자등록번호', domain: 'DB_일반', table: 'public.ll_tenants' },
+  { fieldName: 'fundCode', label: '펀드코드', sourceHeader: '펀드코드', sourceColumnLetter: 'B', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'fundName', label: '펀드명', sourceHeader: '펀드명', sourceColumnLetter: 'C', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'assetName', label: '자산명', sourceHeader: '자산명', sourceColumnLetter: 'D', domain: 'DB_일반', table: 'public.ll_assets', valueType: 'text' },
+  { fieldName: 'assetCode', label: '자산코드', sourceHeader: '자산코드', sourceColumnLetter: 'E', domain: 'DB_일반', table: 'public.ll_assets', valueType: 'text' },
+  { fieldName: 'sector', label: '섹터', sourceHeader: '섹터', sourceColumnLetter: 'F', domain: 'DB_일반', table: 'public.ll_assets', valueType: 'text' },
+  { fieldName: 'tenantMasterName', label: '임차인명', sourceHeader: '임차인명', sourceColumnLetter: 'G', domain: 'DB_일반', table: 'public.ll_tenants', valueType: 'text' },
+  { fieldName: 'businessRegistrationNo', label: '임차인 사업자번호', sourceHeader: '임차인 사업자번호', sourceColumnLetter: 'H', domain: 'DB_일반', table: 'public.ll_tenants', valueType: 'text' },
+  { fieldName: 'coldStorageType', label: '저온창고 여부', sourceHeader: '저온창고 여부', sourceColumnLetter: 'I', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'preLeaseYn', label: '선임차 여부', sourceHeader: '선임차 여부', sourceColumnLetter: 'J', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'thirdPartyLogisticsYn', label: '3PL 여부', sourceHeader: '3PL 여부', sourceColumnLetter: 'K', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'goodsType', label: '취급 상품 유형', sourceHeader: '취급 상품 유형', sourceColumnLetter: 'L', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'floorLabel', label: '임차 층', sourceHeader: '임차 층', sourceColumnLetter: 'M', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'detailAreaLabel', label: '임차 세부 구역', sourceHeader: '임차 세부 구역', sourceColumnLetter: 'N', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'singleTenantYn', label: '단일 임차인 여부', sourceHeader: '단일 임차인 여부', sourceColumnLetter: 'O', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'grossFloorAreaSqm', label: '전체 연면적', sourceHeader: '전체 연면적', sourceColumnLetter: 'P', domain: 'DB_일반', table: 'public.ll_assets', valueType: 'area' },
+  { fieldName: 'leasedAreaSqm', label: '임대면적', sourceHeader: '임대면적', sourceColumnLetter: 'Q', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'exclusiveAreaSqm', label: '전용면적', sourceHeader: '전용면적', sourceColumnLetter: 'R', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'exclusiveRate', label: '전용률', sourceHeader: '전용률', sourceColumnLetter: 'S', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'percent' },
+  { fieldName: 'warehouseAreaSqm', label: '세부면적(창고)', sourceHeader: '세부면적(창고)', sourceColumnLetter: 'AA', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'dockAreaSqm', label: '세부면적(하역장)', sourceHeader: '세부면적(하역장)', sourceColumnLetter: 'AB', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'officeAreaSqm', label: '세부면적(사무실)', sourceHeader: '세부면적(사무실)', sourceColumnLetter: 'AC', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'otherExclusiveAreaSqm', label: '세부면적(기타 전용면적)', sourceHeader: '세부면적(기타 전용면적)', sourceColumnLetter: 'AD', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'corridorAreaSqm', label: '세부면적(통로)', sourceHeader: '세부면적(통로)', sourceColumnLetter: 'AE', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'rampAreaSqm', label: '세부면적(램프)', sourceHeader: '세부면적(램프)', sourceColumnLetter: 'AF', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'mechanicalAreaSqm', label: '세부면적(기계전기실)', sourceHeader: '세부면적(기계전기실)', sourceColumnLetter: 'AG', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'parkingAreaSqm', label: '세부면적(주차장)', sourceHeader: '세부면적(주차장)', sourceColumnLetter: 'AH', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'coreAreaSqm', label: '세부면적(층별 코어)', sourceHeader: '세부면적(층별 코어)', sourceColumnLetter: 'AI', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'otherCommonAreaSqm', label: '세부면적(기타 공용면적)', sourceHeader: '세부면적(기타 공용면적)', sourceColumnLetter: 'AJ', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'area' },
+  { fieldName: 'officeUseYn', label: '사무실 사용 여부', sourceHeader: '사무실 사용 여부', sourceColumnLetter: 'AK', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'subleaseYn', label: '전차 여부', sourceHeader: '전차 여부', sourceColumnLetter: 'AL', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'firstContractDate', label: '최초 계약일', sourceHeader: '최초 계약일', sourceColumnLetter: 'AR', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'date' },
+  { fieldName: 'firstStartDate', label: '최초 계약개시일', sourceHeader: '최초 계약개시일', sourceColumnLetter: 'AS', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'date' },
+  { fieldName: 'firstEndDate', label: '최초 계약만기일', sourceHeader: '최초 계약만기일', sourceColumnLetter: 'AT', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'date' },
+  { fieldName: 'firstOperationStartDate', label: '최초 운영개시일', sourceHeader: '최초 운영개시일', sourceColumnLetter: 'AU', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'date' },
+  { fieldName: 'latestContractDate', label: '최근 계약일', sourceHeader: '최근 계약일', sourceColumnLetter: 'AV', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'date' },
+  { fieldName: 'currentStartDate', label: '현재 계약개시일', sourceHeader: '현재 계약개시일', sourceColumnLetter: 'AW', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'date' },
+  { fieldName: 'currentEndDate', label: '현재 계약만기일', sourceHeader: '현재 계약만기일', sourceColumnLetter: 'AX', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'date' },
+  { fieldName: 'currentContractPeriod', label: '현재 계약기간', sourceHeader: '현재 계약기간', sourceColumnLetter: 'AY', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'extensionCount', label: '연장횟수', sourceHeader: '연장횟수', sourceColumnLetter: 'AZ', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'number' },
+  { fieldName: 'deposit', label: '임대보증금', sourceHeader: '임대보증금', sourceColumnLetter: 'BA', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'currency' },
+  { fieldName: 'rf', label: 'RF', sourceHeader: 'RF', sourceColumnLetter: 'BB', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'fo', label: 'FO', sourceHeader: 'FO', sourceColumnLetter: 'BC', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'ti', label: 'TI', sourceHeader: 'TI', sourceColumnLetter: 'BD', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'currency' },
+  { fieldName: 'rentEscalationRate', label: '임대료 인상률', sourceHeader: '임대료 인상률', sourceColumnLetter: 'BE', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'percent' },
+  { fieldName: 'mfEscalationRate', label: '관리비 인상률', sourceHeader: '관리비 인상률', sourceColumnLetter: 'BF', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'escalationCycleMonths', label: '인상주기', sourceHeader: '인상주기', sourceColumnLetter: 'BG', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'number' },
+  { fieldName: 'nextEscalationDate', label: '차기 인상일', sourceHeader: '차기 인상일', sourceColumnLetter: 'BH', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'date' },
+  { fieldName: 'tenantCostBurden', label: '임차인 부담 비용', sourceHeader: '임차인 부담 비용', sourceColumnLetter: 'BI', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'earlyTerminationRightYn', label: '중도해지권', sourceHeader: '중도해지권', sourceColumnLetter: 'BJ', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'renewalOptionYn', label: '갱신 옵션', sourceHeader: '갱신 옵션', sourceColumnLetter: 'BK', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'propertyInsuranceLimit', label: '재산종합보험 한도', sourceHeader: '재산종합보험 한도', sourceColumnLetter: 'BL', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'currency' },
+  { fieldName: 'liabilityInsuranceLimit', label: '영업배상책임보험 한도', sourceHeader: '영업배상책임보험 한도', sourceColumnLetter: 'BM', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'currency' },
+  { fieldName: 'businessInterruptionInsuranceLimit', label: '기업휴지보험 한도', sourceHeader: '기업휴지보험 한도', sourceColumnLetter: 'BN', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'currency' },
+  { fieldName: 'inventoryInsuranceLimit', label: '재고자산보험 한도', sourceHeader: '재고자산보험 한도', sourceColumnLetter: 'BO', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'currency' },
+  { fieldName: 'waiverRecourseYn', label: '구상권 포기 여부', sourceHeader: '구상권 포기 여부', sourceColumnLetter: 'BP', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'waiverSubrogationYn', label: '대위권 포기 여부', sourceHeader: '대위권 포기 여부', sourceColumnLetter: 'BQ', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'floorLoad', label: '바닥 하중', sourceHeader: '바닥 하중', sourceColumnLetter: 'BR', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'flatnessStandard', label: '평활도 기준', sourceHeader: '평활도 기준', sourceColumnLetter: 'BS', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'abrasionClass', label: '마모도 등급', sourceHeader: '마모도 등급', sourceColumnLetter: 'BT', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'dockDoorCount', label: '(동시) 도크 접안 수', sourceHeader: '(동시) 도크 접안 수', sourceColumnLetter: 'BU', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'number' },
+  { fieldName: 'clearHeight', label: '층고', sourceHeader: '층고', sourceColumnLetter: 'BV', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'number' },
+  { fieldName: 'powerCapacity', label: '요구 전력량', sourceHeader: '요구 전력량', sourceColumnLetter: 'BW', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'number' },
+  { fieldName: 'rampType', label: '램프 타입', sourceHeader: '램프 타입', sourceColumnLetter: 'BX', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'rampWidth', label: '램프 너비', sourceHeader: '램프 너비', sourceColumnLetter: 'BY', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'number' },
+  { fieldName: 'vehicleAisleWidth', label: '차량 통로 너비', sourceHeader: '차량 통로 너비', sourceColumnLetter: 'BZ', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'number' },
+  { fieldName: 'lighting', label: '조명', sourceHeader: '조명', sourceColumnLetter: 'CA', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'exteriorMaterial', label: '외벽자재', sourceHeader: '외벽자재', sourceColumnLetter: 'CB', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'contractStatus', label: '계약 상태', sourceHeader: '계약 상태', sourceColumnLetter: 'CC', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'rentArrearsYn', label: '임대료 연체·미납여부', sourceHeader: '임대료 연체·미납여부', sourceColumnLetter: 'CD', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'insuranceSpecialTerms', label: '보험 관련 특수 계약 조건', sourceHeader: '보험 관련 특수 계약 조건', sourceColumnLetter: 'CE', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'otherSpecialTerms', label: '기타 각종 특수 계약 조건', sourceHeader: '기타 각종 특수 계약 조건', sourceColumnLetter: 'CF', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
+  { fieldName: 'fundCode', label: '히스토리 펀드코드', sourceHeader: '펀드코드', sourceColumnLetter: 'B', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'fundName', label: '히스토리 펀드명', sourceHeader: '펀드명', sourceColumnLetter: 'C', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'assetName', label: '히스토리 자산명', sourceHeader: '자산명', sourceColumnLetter: 'D', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'assetCode', label: '히스토리 자산코드', sourceHeader: '자산코드', sourceColumnLetter: 'E', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'tenantMasterName', label: '히스토리 임차인명', sourceHeader: '임차인명', sourceColumnLetter: 'G', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'businessRegistrationNo', label: '히스토리 임차인 사업자번호', sourceHeader: '임차인 사업자번호', sourceColumnLetter: 'H', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'coldStorageType', label: '히스토리 저온창고 여부', sourceHeader: '저온창고 여부', sourceColumnLetter: 'I', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'floorLabel', label: '히스토리 임차 층', sourceHeader: '임차 층', sourceColumnLetter: 'J', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'detailAreaLabel', label: '히스토리 임차 세부 구역', sourceHeader: '임차 세부 구역', sourceColumnLetter: 'K', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'leasedAreaSqm', label: '히스토리 임대면적', sourceHeader: '임대면적', sourceColumnLetter: 'L', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'area' },
+  { fieldName: 'exclusiveAreaSqm', label: '히스토리 전용면적', sourceHeader: '전용면적', sourceColumnLetter: 'M', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'area' },
+  { fieldName: 'basisDate', label: '기준일자', sourceHeader: '기준일자', sourceColumnLetter: 'N', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'date' },
+  { fieldName: 'rentChangeReason', label: '임대료 변동 원인', sourceHeader: '임대료 변동 원인', sourceColumnLetter: 'O', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'text' },
+  { fieldName: 'monthlyRentTotal', label: '월임대료 총액', sourceHeader: '월임대료 총액', sourceColumnLetter: 'P', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'currency' },
+  { fieldName: 'monthlyMfTotal', label: '월관리비 총액', sourceHeader: '월관리비 총액', sourceColumnLetter: 'Q', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'currency' },
+  { fieldName: 'currentRentPerPy', label: '평당 월임대료', sourceHeader: '평당 월임대료', sourceColumnLetter: 'R', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'won' },
+  { fieldName: 'currentMfPerPy', label: '평당 월관리비', sourceHeader: '평당 월관리비', sourceColumnLetter: 'S', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'won' },
 ];
+const QUALITY_ALLOWED_ACTIONS = new Set(['수정']);
+const QUALITY_REQUIRED_UPLOAD_COLUMNS = ['행위', '현재값', '수정값', 'target_table', 'target_row_id', 'primary_key_field', 'field_name', 'source_row_id', 'source_cell_id', 'before_value', 'asset_id'];
 
 function excelCellText(value) {
   if (value === undefined || value === null) return '';
@@ -5007,31 +5626,61 @@ function qualityRowId(row, index) {
   return String(firstDefined(row.id, row.leaseId, row.source_row_id, row.sourceRowId, row.rowId, `${row.assetId || row.assetName || 'asset'}-${index}`));
 }
 
+function qualityTargetRowId(row, field, fallbackRowId) {
+  if (field.table === 'public.ll_assets') return String(firstDefined(row.assetId, row.asset_id, row.assetCode, row.assetName, fallbackRowId));
+  if (field.table === 'public.ll_tenants') return String(firstDefined(row.tenantId, row.tenant_id, row.tenantRowId, fallbackRowId));
+  if (field.table === 'public.ll_rent_history') return String(firstDefined(row.rentHistoryId, row.rent_history_id, row.historyId, row.history_row_id, row.leaseId, fallbackRowId));
+  if (field.table === 'public.ll_leasing_contracts') return String(firstDefined(row.leaseId, row.contractId, row.leaseRowId, fallbackRowId));
+  return String(fallbackRowId);
+}
+
+function qualityDisplayValue(field, value) {
+  if (field.valueType === 'area') return formatArea(value);
+  if (field.valueType === 'currency') return formatCurrency(value);
+  if (field.valueType === 'won') return formatWon(value);
+  if (field.valueType === 'date') return formatDate(value);
+  if (field.valueType === 'percent') return formatPercent(value);
+  if (field.valueType === 'number') return value === undefined || value === null || value === '' ? '-' : formatNumber(value);
+  return excelCellText(value);
+}
+
 function buildQualityExcelRows(assetId, permission, findings) {
   const sourceRows = filterAssetsByPermission(buildLogisticsGeneralRows(), permission)
     .filter((row) => assetId === 'all' || row.assetId === assetId || resolveAssetIdByName(row.assetName) === assetId);
   const dataRows = sourceRows.flatMap((row, index) => {
     const rowId = qualityRowId(row, index);
     return QUALITY_EXPORT_FIELDS.map((field) => {
-      const value = row[field.fieldName];
+      const value = row[field.sourceValueField || field.fieldName];
+      const targetRowId = qualityTargetRowId(row, field, rowId);
+      const sourceRowId = excelCellText(firstDefined(row.sourceRowId, row.source_row_id, targetRowId));
+      const sourceCellId = excelCellText(firstDefined(row.sourceCellId, row.source_cell_id, `${sourceRowId}:${field.fieldName}`));
+      const rowLabel = [row.assetName, row.tenantMasterName, row.spaceLabel || row.floorLabel || row.detailAreaLabel].filter(Boolean).join(' / ');
       return {
         행위: '수정',
+        원본시트: field.domain,
+        원본행: sourceRowId,
+        원본열: field.sourceColumnLetter || '',
+        '계약/행 식별': rowLabel || rowId,
         자산명: row.assetName || '',
+        자산코드: row.assetCode || row.assetId || '',
         펀드명: row.fundName || '',
         임차인명: row.tenantMasterName || '',
+        사업자등록번호: row.businessRegistrationNo || '',
         '층/구역': row.spaceLabel || row.floorLabel || '',
         데이터영역: field.domain,
+        원본항목명: field.sourceHeader || field.label,
         한글필드명: field.label,
         현재값: excelCellText(value),
+        표시값: qualityDisplayValue(field, value),
         수정값: '',
         변경사유: '',
         권한상태: assetIdMatchesPermission(row.assetId, row.assetName, permission) && permission.permissions?.managedAsset?.update ? '수정 가능' : '수정 권한 없음',
         target_table: field.table,
-        target_row_id: rowId,
+        target_row_id: targetRowId,
         primary_key_field: 'id',
         field_name: field.fieldName,
-        source_row_id: excelCellText(firstDefined(row.sourceRowId, row.source_row_id, rowId)),
-        source_cell_id: excelCellText(firstDefined(row.sourceCellId, row.source_cell_id, '')),
+        source_row_id: sourceRowId,
+        source_cell_id: sourceCellId,
         before_value: excelCellText(value),
         asset_id: row.assetId || resolveAssetIdByName(row.assetName),
         tenant_id: row.tenantId || '',
@@ -5042,13 +5691,21 @@ function buildQualityExcelRows(assetId, permission, findings) {
   });
   const findingRows = findings.flatMap((finding) => buildDataQualityEditGridRows(finding).map((row) => ({
     행위: '수정',
+    원본시트: row.sheetName,
+    원본행: row.targetRowId,
+    원본열: '',
+    '계약/행 식별': finding.target || row.targetRowId,
     자산명: finding.targetType === 'asset' ? finding.target : '',
+    자산코드: resolveAssetIdByName(finding.target),
     펀드명: '',
     임차인명: finding.targetType === 'company' ? finding.target : '',
+    사업자등록번호: '',
     '층/구역': '',
     데이터영역: row.sheetName,
+    원본항목명: finding.field,
     한글필드명: finding.field,
     현재값: row.beforeValue,
+    표시값: row.beforeValue,
     수정값: '',
     변경사유: finding.action || finding.reason || '',
     권한상태: permission.permissions?.managedAsset?.update ? '수정 가능' : '수정 권한 없음',
@@ -5057,7 +5714,7 @@ function buildQualityExcelRows(assetId, permission, findings) {
     primary_key_field: 'id',
     field_name: row.fieldName,
     source_row_id: row.targetRowId,
-    source_cell_id: row.sourceCellId,
+    source_cell_id: row.sourceCellId || `${row.targetRowId}:${row.fieldName}`,
     before_value: row.beforeValue,
     asset_id: resolveAssetIdByName(finding.target),
     tenant_id: '',
@@ -5069,41 +5726,93 @@ function buildQualityExcelRows(assetId, permission, findings) {
 
 function writeQualityWorkbook(rows, fileName) {
   const worksheet = XLSX.utils.json_to_sheet(rows, { header: QUALITY_EXCEL_COLUMNS });
+  const widthByColumn = {
+    행위: 8,
+    원본시트: 16,
+    원본행: 18,
+    원본열: 8,
+    '계약/행 식별': 38,
+    자산명: 24,
+    자산코드: 14,
+    펀드명: 20,
+    임차인명: 24,
+    사업자등록번호: 16,
+    '층/구역': 18,
+    데이터영역: 18,
+    원본항목명: 24,
+    한글필드명: 24,
+    현재값: 20,
+    표시값: 20,
+    수정값: 24,
+    변경사유: 30,
+    권한상태: 14,
+  };
   worksheet['!cols'] = QUALITY_EXCEL_COLUMNS.map((column) => ({
-    wch: QUALITY_VISIBLE_COLUMNS.has(column) ? Math.max(10, column.length + 8) : 18,
+    wch: QUALITY_VISIBLE_COLUMNS.has(column) ? (widthByColumn[column] || Math.max(12, column.length + 8)) : 18,
     hidden: !QUALITY_VISIBLE_COLUMNS.has(column),
   }));
   worksheet['!freeze'] = { xSplit: 0, ySplit: 1 };
+  if (worksheet['!ref']) worksheet['!autofilter'] = { ref: worksheet['!ref'] };
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Data Quality 수정');
-  workbook.Workbook = { Sheets: [{ name: 'Data Quality 수정' }] };
+  XLSX.utils.book_append_sheet(workbook, worksheet, '원본 데이터 수정');
+  workbook.Workbook = { Sheets: [{ name: '원본 데이터 수정' }] };
   XLSX.writeFile(workbook, fileName, { compression: true });
 }
 
 async function readQualityWorkbook(file) {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: false });
+  if (workbook.SheetNames.length !== 1) throw new Error('수정 Excel 파일은 반드시 한 시트만 포함해야 합니다.');
   const firstSheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[firstSheetName];
   if (!worksheet) throw new Error('첫 번째 시트를 읽을 수 없습니다.');
-  return XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
+  const headerRows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: '', raw: false });
+  const headers = (headerRows[0] || []).map((item) => String(item || '').trim());
+  const missingColumns = QUALITY_REQUIRED_UPLOAD_COLUMNS.filter((column) => !headers.includes(column));
+  if (missingColumns.length) throw new Error(`필수 관계키 컬럼이 누락됐습니다: ${missingColumns.join(', ')}`);
+  const rows = XLSX.utils.sheet_to_json(worksheet, { defval: '', raw: false });
+  if (rows.length > 5000) throw new Error('한 번에 업로드할 수 있는 수정 행은 5,000행 이하입니다.');
+  return rows;
 }
 
 function normalizeQualityWorkbookRows(rows, permission) {
   return rows.map((row, index) => {
     const assetId = String(row.asset_id || resolveAssetIdByName(row.자산명));
-    const action = String(row.행위 || '수정').trim();
+    const requestedAction = String(row.행위 || '수정').trim() || '수정';
+    const action = requestedAction;
+    const targetTable = String(row.target_table || '');
+    const targetRowId = String(row.target_row_id || '');
+    const fieldName = String(row.field_name || '');
+    const sourceRowId = String(row.source_row_id || '');
+    const sourceCellId = String(row.source_cell_id || '');
+    const beforeValue = excelCellText(row.before_value || row.현재값);
+    const afterValue = excelCellText(row.수정값);
+    const validationError = !QUALITY_ALLOWED_ACTIONS.has(action)
+      ? '현재 Excel 왕복 수정 파일은 수정 행위만 지원합니다. 추가/삭제는 Data Quality 전용 승인 화면에서 별도 처리합니다.'
+      : !targetTable.startsWith('public.ll_')
+        ? 'target_table은 public.ll_* 형식이어야 합니다.'
+      : !targetRowId
+        ? 'target_row_id가 비어 있습니다.'
+        : !fieldName
+          ? 'field_name이 비어 있습니다.'
+          : !sourceRowId
+            ? 'source_row_id가 비어 있습니다.'
+            : !sourceCellId
+              ? 'source_cell_id가 비어 있습니다.'
+              : action === '수정' && afterValue === beforeValue
+                ? '수정값이 현재값과 같습니다.'
+                : '';
     return {
       id: `excel-${index}`,
       sheetName: row.데이터영역 || 'Data Quality Excel',
-      targetTable: String(row.target_table || ''),
-      targetRowId: String(row.target_row_id || ''),
+      targetTable,
+      targetRowId,
       primaryKeyField: String(row.primary_key_field || 'id'),
-      sourceCellId: String(row.source_cell_id || ''),
-      sourceRowId: String(row.source_row_id || ''),
-      fieldName: String(row.field_name || ''),
-      beforeValue: excelCellText(row.before_value || row.현재값),
-      afterValue: excelCellText(row.수정값),
+      sourceCellId,
+      sourceRowId,
+      fieldName,
+      beforeValue,
+      afterValue,
       reason: String(row.변경사유 || 'Excel 왕복 수정'),
       action,
       assetId,
@@ -5111,38 +5820,199 @@ function normalizeQualityWorkbookRows(rows, permission) {
       tenantId: String(row.tenant_id || ''),
       leaseId: String(row.lease_id || ''),
       canEdit: assetIdMatchesPermission(assetId, row.자산명, permission) && Boolean(permission.permissions?.managedAsset?.update),
+      validationError,
       original: row,
     };
   }).filter((row) => {
     if (!row.afterValue && row.action === '수정') return false;
-    if (row.action === '수정' && row.afterValue === row.beforeValue) return false;
-    return row.targetTable.startsWith('public.ll_') && row.fieldName;
+    return true;
   });
 }
 
-async function fetchRemoteQualityFindings(signal) {
-  if (!LOGISTICS_SUPABASE_URL || !LOGISTICS_SUPABASE_ANON_KEY) {
-    return { status: 'not_configured', rows: [], message: 'VITE_LOGI_SUPABASE_URL/VITE_LOGI_SUPABASE_ANON_KEY 미설정' };
+function parseJsonObject(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    const parsed = JSON.parse(String(value));
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
   }
+}
 
-  const url = `${LOGISTICS_SUPABASE_URL.replace(/\/$/u, '')}/rest/v1/ll_data_quality_findings?select=*&limit=100`;
-  const response = await fetch(url, {
-    signal,
-    cache: 'no-store',
-    headers: {
-      apikey: LOGISTICS_SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${LOGISTICS_SUPABASE_ANON_KEY}`,
-      Accept: 'application/json',
-    },
-  });
-  if (!response.ok) {
-    return { status: 'blocked', rows: [], message: `Supabase readback ${response.status}` };
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(String(value));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
   }
-  const rows = await response.json();
+}
+
+function OriginalDataEditPanel({ permission }) {
+  const [qualityAssetId, setQualityAssetId] = useState('all');
+  const [excelStatus, setExcelStatus] = useState(null);
+  const excelUploadRef = useRef(null);
+  const qualityFindings = useMemo(() => buildDataQualityFindings(), []);
+  const qualityAssetOptions = useMemo(() => (
+    filterAssetsByPermission(assetOptionsData, permission)
+      .filter((asset) => permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete || assetIdMatchesPermission(asset.assetId, asset.assetName, permission))
+      .sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR'))
+  ), [permission]);
+  const canUseQualityExcel = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete);
+
+  const downloadQualityWorkbook = () => {
+    const rows = buildQualityExcelRows(qualityAssetId, permission, qualityFindings);
+    if (!rows.length) {
+      setExcelStatus({ type: 'error', message: '선택한 자산 범위에서 다운로드할 수정 대상 데이터가 없습니다.' });
+      return;
+    }
+    const assetName = qualityAssetId === 'all'
+      ? '담당자산전체'
+      : (qualityAssetOptions.find((asset) => asset.assetId === qualityAssetId)?.assetName || qualityAssetId);
+    writeQualityWorkbook(rows, `물류_원본데이터수정_${safeFileNameText(assetName)}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    setExcelStatus({ type: 'success', message: `${assetName} 기준 ${formatNumber(rows.length)}개 항목 수정 파일을 다운로드했습니다.` });
+  };
+
+  const importQualityWorkbook = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!/\.xlsx?$/iu.test(file.name)) {
+      setExcelStatus({ type: 'error', message: 'xlsx 또는 xls 파일만 업로드할 수 있습니다.' });
+      if (excelUploadRef.current) excelUploadRef.current.value = '';
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setExcelStatus({ type: 'error', message: 'Excel 수정 파일은 10MB 이하만 업로드할 수 있습니다.' });
+      if (excelUploadRef.current) excelUploadRef.current.value = '';
+      return;
+    }
+    setExcelStatus({ type: 'pending', message: '수정 Excel 파일을 읽고 권한 범위를 확인하는 중입니다.' });
+    try {
+      const rows = await readQualityWorkbook(file);
+      const normalizedRows = normalizeQualityWorkbookRows(rows, permission);
+      const invalidRows = normalizedRows.filter((row) => row.validationError && row.validationError !== '수정값이 현재값과 같습니다.');
+      if (invalidRows.length) {
+        setExcelStatus({ type: 'error', message: `필수 관계키 또는 수정 필드가 깨진 행 ${formatNumber(invalidRows.length)}건이 있어 업로드를 차단했습니다. 첫 오류: ${invalidRows[0].validationError}` });
+        return;
+      }
+      const outOfSelectedScopeRows = normalizedRows.filter((row) => qualityAssetId !== 'all' && row.assetId && row.assetId !== qualityAssetId);
+      if (outOfSelectedScopeRows.length) {
+        setExcelStatus({ type: 'error', message: `선택한 자산 범위 밖의 수정 행 ${formatNumber(outOfSelectedScopeRows.length)}건이 포함되어 업로드를 차단했습니다.` });
+        return;
+      }
+      const blockedRows = normalizedRows.filter((row) => !row.canEdit);
+      const editableRows = normalizedRows.filter((row) => row.canEdit);
+      if (!editableRows.length) {
+        setExcelStatus({ type: 'error', message: blockedRows.length ? '수정 권한이 없는 자산만 포함되어 업로드가 차단됐습니다.' : '수정값이 입력된 행을 찾지 못했습니다.' });
+        return;
+      }
+      const cellEdits = editableRows.map((row) => ({
+        target_table: row.targetTable,
+        target_row_id: row.targetRowId,
+        target_cell_id: row.sourceCellId,
+        source_row_id: row.sourceRowId,
+        field_name: row.fieldName,
+        primary_key_field: row.primaryKeyField || 'id',
+        action: row.action || '수정',
+        before_value: row.beforeValue,
+        after_value: row.afterValue,
+        asset_id: row.assetId || null,
+        asset_name: row.assetName || null,
+        tenant_id: row.tenantId || null,
+        lease_id: row.leaseId || null,
+        reason: row.reason,
+      }));
+      const assetName = qualityAssetId === 'all'
+        ? '내 수정 가능 자산 전체'
+        : (qualityAssetOptions.find((asset) => asset.assetId === qualityAssetId)?.assetName || qualityAssetId);
+      const uploadAt = new Date().toISOString();
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: {
+          action: 'edits/submit',
+          payload: {
+            source_table: 'public.ll_data_quality_findings',
+            finding_id: null,
+            target_type: 'excel_batch',
+            target_name: `${assetName} · 원본 데이터 수정`,
+            field_name: 'excel_batch',
+            reason_code: 'excel_roundtrip_upload',
+            requested_value: JSON.stringify(cellEdits),
+            request_payload: {
+              source: 'quality_excel_roundtrip',
+              fileName: file.name,
+              uploaderName: permission.name,
+              uploaderEmail: permission.email,
+              organization: permission.organization,
+              uploadAt,
+              assetScope: assetName,
+              totalRows: rows.length,
+              acceptedRows: editableRows.length,
+              blockedRows: blockedRows.length,
+              selectedQualityAssetId: qualityAssetId,
+              permission_source: logisticsPermissionData.sourceFile,
+              cell_edits: cellEdits,
+            },
+          },
+        },
+      });
+      if (error) throw error;
+      setExcelStatus({ type: blockedRows.length ? 'warning' : 'success', message: data?.message || `${permission.name}님의 ${assetName} 수정 요청 ${formatNumber(editableRows.length)}행을 Data Quality 승인 대기열에 접수했습니다.${blockedRows.length ? ` 권한 밖 ${formatNumber(blockedRows.length)}행은 제외했습니다.` : ''}` });
+    } catch (error) {
+      setExcelStatus({ type: 'error', message: `Excel 수정 요청 접수 실패: ${error.message || 'unknown error'}` });
+    } finally {
+      if (excelUploadRef.current) excelUploadRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(260px,420px)_1fr_auto] xl:items-end">
+        <label className="block">
+          <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">수정 대상 자산</span>
+          <select
+            value={qualityAssetId}
+            onChange={(event) => setQualityAssetId(event.target.value)}
+            className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white"
+          >
+            <option value="all">내 수정 가능 자산 전체</option>
+            {qualityAssetOptions.map((asset) => <option key={asset.assetId} value={asset.assetId}>{asset.assetName}</option>)}
+          </select>
+        </label>
+        <div className="min-h-10" />
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" disabled={!canUseQualityExcel} onClick={downloadQualityWorkbook} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#30302F] px-4 text-[13px] font-bold text-white hover:bg-[#3A3A3A] disabled:cursor-not-allowed disabled:opacity-40">
+            Excel 다운로드
+          </button>
+          <input ref={excelUploadRef} type="file" accept=".xlsx,.xls" onChange={importQualityWorkbook} className="hidden" />
+          <button type="button" disabled={!canUseQualityExcel} onClick={() => excelUploadRef.current?.click()} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#30302F] px-4 text-[13px] font-bold text-white hover:bg-[#3A3A3A] disabled:cursor-not-allowed disabled:opacity-40">
+            수정 Excel 업로드
+          </button>
+        </div>
+      </div>
+      {excelStatus ? (
+        <div className={`rounded-[10px] border px-4 py-3 text-[12px] leading-5 ${excelStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : excelStatus.type === 'warning' || excelStatus.type === 'pending' ? 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]' : 'border-[#6F3434] bg-[#331F1F] text-[#FF9F9F]'}`}>
+          {excelStatus.message}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+async function fetchRemoteQualityFindings(signal) {
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+    body: { action: 'quality/findings', payload: { limit: 300 } },
+  });
+  if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+  if (error) throw error;
+  const rows = Array.isArray(data?.data) ? data.data : [];
   return {
     status: 'loaded',
-    rows: Array.isArray(rows) ? rows.map(normalizeRemoteQualityFinding) : [],
-    message: `public.ll_data_quality_findings ${Array.isArray(rows) ? rows.length : 0}건`,
+    rows: rows.map(normalizeRemoteQualityFinding),
+    message: `Edge readback public.ll_data_quality_findings ${rows.length}건`,
   };
 }
 
@@ -5150,6 +6020,7 @@ function DataQualityDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const canEdit = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create);
+  const canApproveEdits = canViewDataQuality(memberInfo, permission) && hasLogisticsRole(permission, 'Manager');
   const [severity, setSeverity] = useState('all');
   const [sheetFilter, setSheetFilter] = useState('all');
   const [fieldFilter, setFieldFilter] = useState('all');
@@ -5158,9 +6029,8 @@ function DataQualityDashboard() {
   const [editGridRows, setEditGridRows] = useState([]);
   const [editSubmitStatus, setEditSubmitStatus] = useState(null);
   const [remoteQuality, setRemoteQuality] = useState({ status: 'loading', rows: [], message: 'Supabase readback 확인 중' });
-  const [selectedQualityAssetId, setSelectedQualityAssetId] = useState('all');
-  const [excelRoundTripStatus, setExcelRoundTripStatus] = useState(null);
-  const excelUploadRef = useRef(null);
+  const [editQueue, setEditQueue] = useState({ status: 'loading', rows: [], message: '승인 대기 목록 확인 중' });
+  const [editQueueStatus, setEditQueueStatus] = useState(null);
   const localFindings = useMemo(() => buildDataQualityFindings(), []);
   useEffect(() => {
     const controller = new AbortController();
@@ -5172,6 +6042,22 @@ function DataQualityDashboard() {
         }
       });
     return () => controller.abort();
+  }, []);
+  const refreshEditQueue = async () => {
+    setEditQueue((current) => ({ ...current, status: 'loading', message: '승인 대기 목록 확인 중' }));
+    try {
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: { action: 'edits/list', payload: { status: 'submitted', limit: 100 } },
+      });
+      if (error) throw error;
+      const rows = Array.isArray(data?.data) ? data.data.map(normalizeRemoteEditRequest) : [];
+      setEditQueue({ status: 'loaded', rows, message: `승인 대기 ${rows.length}건` });
+    } catch (error) {
+      setEditQueue({ status: 'blocked', rows: [], message: `Edge Function 승인 목록 확인 필요: ${error.message || 'unknown error'}` });
+    }
+  };
+  useEffect(() => {
+    refreshEditQueue();
   }, []);
   useEffect(() => {
     setEditGridRows(buildDataQualityEditGridRows(editTarget));
@@ -5188,11 +6074,6 @@ function DataQualityDashboard() {
   const severityCounts = ['critical', 'warning', 'info'].map((key) => [key, findings.filter((item) => item.severity === key).length]);
   const sheetGroups = [...new Set(findings.map((item) => item.sheetName))].filter(Boolean);
   const fieldGroups = [...new Set(findings.map((item) => item.field))].filter(Boolean);
-  const qualityAssetOptions = useMemo(() => (
-    filterAssetsByPermission(assetOptionsData, permission)
-      .filter((asset) => permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete || assetIdMatchesPermission(asset.assetId, asset.assetName, permission))
-      .sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR'))
-  ), [permission]);
   const tableRows = visibleFindings.map((item) => [
     item.severity,
     item.sheetName,
@@ -5203,6 +6084,9 @@ function DataQualityDashboard() {
     item.action,
     <button key={`${item.target}-${item.field}`} type="button" onClick={() => { setEditTarget(item); setEditSubmitStatus(null); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">{canEdit ? '수정 요청' : '권한 확인'}</button>,
   ]);
+  const excelUploadRequests = editQueue.rows
+    .filter((request) => request.uploadSource === 'quality_excel_roundtrip' || request.reason === 'excel_roundtrip_upload')
+    .slice(0, 5);
   const changedEditRows = editGridRows.filter((row) => {
     const afterValue = String(row.afterValue || '').trim();
     return afterValue !== '' && afterValue !== String(row.beforeValue || '');
@@ -5251,6 +6135,8 @@ function DataQualityDashboard() {
               action: row.action || '수정',
               before_value: row.beforeValue,
               after_value: row.afterValue,
+              asset_id: row.assetId || null,
+              asset_name: row.assetName || null,
               reason: row.reason,
             }))),
             request_payload: {
@@ -5263,63 +6149,93 @@ function DataQualityDashboard() {
       });
       if (error) throw error;
       setEditSubmitStatus({ type: 'success', message: data?.message || '수정 요청이 서버로 접수됐습니다.' });
+      refreshEditQueue();
     } catch (error) {
       setEditSubmitStatus({ type: 'error', message: `Edge Function 연결 필요: ${error.message || 'unknown error'}` });
     }
   };
-  const downloadQualityWorkbook = () => {
-    const rows = buildQualityExcelRows(selectedQualityAssetId, permission, findings);
-    if (!rows.length) {
-      setExcelRoundTripStatus({ type: 'error', message: '선택한 자산 범위에서 다운로드할 수정 대상 데이터가 없습니다.' });
-      return;
-    }
-    const assetName = selectedQualityAssetId === 'all'
-      ? '담당자산전체'
-      : (qualityAssetOptions.find((asset) => asset.assetId === selectedQualityAssetId)?.assetName || selectedQualityAssetId);
-    writeQualityWorkbook(rows, `물류_DataQuality_${assetName}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    setExcelRoundTripStatus({ type: 'success', message: `${assetName} 기준 ${formatNumber(rows.length)}개 셀 수정 템플릿을 다운로드했습니다.` });
-  };
-  const importQualityWorkbook = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setExcelRoundTripStatus({ type: 'pending', message: 'Excel 수정 파일을 읽는 중입니다.' });
+  const readbackEditRequest = async (request) => {
+    if (!canApproveEdits) return;
+    setEditQueueStatus({ type: 'pending', message: '승인 전 현재 DB 값 readback 확인 중입니다.' });
     try {
-      const rows = await readQualityWorkbook(file);
-      const normalizedRows = normalizeQualityWorkbookRows(rows, permission);
-      const blockedRows = normalizedRows.filter((row) => !row.canEdit);
-      const editableRows = normalizedRows.filter((row) => row.canEdit);
-      if (!editableRows.length) {
-        setExcelRoundTripStatus({ type: 'error', message: blockedRows.length ? '수정 권한이 없는 자산만 포함되어 업로드가 차단됐습니다.' : '수정값이 입력된 행을 찾지 못했습니다.' });
-        return;
-      }
-      setEditTarget({
-        id: `excel-upload-${Date.now()}`,
-        sourceTable: 'public.ll_data_quality_findings',
-        targetType: 'excel_batch',
-        target: `Excel 업로드 ${file.name}`,
-        field: 'excel_batch',
-        reason: 'excel_roundtrip_upload',
-        raw: {
-          fileName: file.name,
-          totalRows: rows.length,
-          acceptedRows: editableRows.length,
-          blockedRows: blockedRows.length,
-          selectedQualityAssetId,
-        },
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: { action: 'edits/readback', payload: { id: request.id } },
       });
-      setEditGridRows(editableRows);
-      setEditSubmitStatus(null);
-      setExcelRoundTripStatus({ type: blockedRows.length ? 'warning' : 'success', message: `수정 가능 ${formatNumber(editableRows.length)}행을 불러왔습니다.${blockedRows.length ? ` 권한 밖 ${formatNumber(blockedRows.length)}행은 제외했습니다.` : ''} 확인 후 수정 요청 저장을 누르세요.` });
+      if (error) throw error;
+      const readbacks = data?.data?.readbacks || [];
+      const staleCount = readbacks.filter((row) => row.stale).length;
+      setModal({
+        title: `승인 전 readback · ${request.targetName}`,
+        headers: ['table', 'row', 'field', '요청 당시 값', '현재 DB 값', '요청 값', '상태'],
+        rows: readbacks.map((row) => [
+          row.target_table,
+          row.target_row_id,
+          row.field_name,
+          cleanDisplay(row.before_value),
+          cleanDisplay(row.current_value),
+          cleanDisplay(row.requested_value),
+          row.stale ? 'stale 차단 대상' : '승인 가능',
+        ]),
+      });
+      setEditQueueStatus({ type: staleCount ? 'warning' : 'success', message: staleCount ? `현재 DB 값이 바뀐 셀 ${staleCount}건이 있어 승인 시 차단됩니다.` : '현재 DB 값이 요청 당시 before 값과 일치합니다.' });
     } catch (error) {
-      setExcelRoundTripStatus({ type: 'error', message: `Excel 파일을 읽지 못했습니다. 원본 템플릿 형식을 유지해 주세요. (${error.message || 'unknown error'})` });
-    } finally {
-      if (excelUploadRef.current) excelUploadRef.current.value = '';
+      setEditQueueStatus({ type: 'error', message: `readback 실패: ${error.message || 'unknown error'}` });
     }
   };
-
+  const approveEditRequest = async (request) => {
+    if (!canApproveEdits) return;
+    setEditQueueStatus({ type: 'pending', message: '승인, write, readback, audit 기록 중입니다.' });
+    try {
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: { action: 'edits/approve', payload: { id: request.id } },
+      });
+      if (error) throw error;
+      setEditQueueStatus({ type: 'success', message: data?.message || '승인 및 DB 반영이 완료되었습니다.' });
+      refreshEditQueue();
+    } catch (error) {
+      setEditQueueStatus({ type: 'error', message: `승인 실패: ${error.message || 'unknown error'}` });
+      refreshEditQueue();
+    }
+  };
+  const rejectEditRequest = async (request) => {
+    if (!canApproveEdits) return;
+    setEditQueueStatus({ type: 'pending', message: '반려 처리 중입니다.' });
+    try {
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: { action: 'edits/reject', payload: { id: request.id, rejection_note: 'Data Quality 화면 반려' } },
+      });
+      if (error) throw error;
+      setEditQueueStatus({ type: 'success', message: data?.message || '수정 요청이 반려되었습니다.' });
+      refreshEditQueue();
+    } catch (error) {
+      setEditQueueStatus({ type: 'error', message: `반려 실패: ${error.message || 'unknown error'}` });
+    }
+  };
   return (
     <div className="space-y-6">
       <LogisticsModal modal={modal} onClose={() => setModal(null)} />
+      {excelUploadRequests.length ? (
+        <section className="rounded-[20px] border border-[#7A6425] bg-[#2B2613] p-5">
+          <SectionHeader
+            eyebrow="UPLOAD ALERT"
+            title="원본 데이터 수정 업로드 알림"
+            right={<StatusPill className="border-[#7A6425] bg-[#1F1A10] text-[#FFD166]">관리자 확인 후 최종 반영</StatusPill>}
+          />
+          <DataTable
+            headers={['업로드한 사람', '자산 범위', '업로드 시각', '수정 행', '제외 행', '파일', '상태']}
+            rows={excelUploadRequests.map((request) => [
+              request.uploaderName || request.requestedBy,
+              request.uploadAssetScope,
+              formatDate(request.uploadAt),
+              `${formatNumber(request.acceptedRows)}행`,
+              `${formatNumber(request.blockedRows)}행`,
+              trimMainText(request.uploadFileName || '-', 32),
+              request.status,
+            ])}
+            compact
+          />
+        </section>
+      ) : null}
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader
           eyebrow="DATA QUALITY"
@@ -5350,41 +6266,37 @@ function DataQualityDashboard() {
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader
-          eyebrow="EXCEL ROUNDTRIP"
-          title="Excel 한 시트 수정 파일"
-          right={<StatusPill className="border-[#7A4A16] bg-[#2B2115] text-[#FDBA74]">Supabase 관계키 포함</StatusPill>}
-        />
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-end">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">수정 대상 자산</span>
-              <select
-                value={selectedQualityAssetId}
-                onChange={(event) => setSelectedQualityAssetId(event.target.value)}
-                className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white"
-              >
-                <option value="all">내 수정 가능 자산 전체</option>
-                {qualityAssetOptions.map((asset) => <option key={asset.assetId} value={asset.assetId}>{asset.assetName}</option>)}
-              </select>
-            </label>
-            <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[12px] leading-5 text-[#A1A1AA]">
-              다운로드 파일은 한 시트입니다. 앞쪽 한글 컬럼은 사용자가 보는 값이고, 숨김 컬럼에는 Supabase target table, row id, field, source row/cell, before 값이 들어가 업로드 때 관계를 다시 맞춥니다.
+          eyebrow="APPROVAL QUEUE"
+          title="수정 요청 승인 대기"
+          right={(
+            <div className="flex flex-wrap justify-end gap-2">
+              <StatusPill className={editQueue.status === 'loaded' ? 'bg-[#173522] text-[#B5E48C] border-[#2E6B45]' : 'bg-[#2B2613] text-[#FFD166] border-[#7A6425]'}>{editQueue.message}</StatusPill>
+              <button type="button" onClick={refreshEditQueue} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">새로고침</button>
             </div>
+          )}
+        />
+        {editQueueStatus ? (
+          <div className={`mb-3 rounded-[10px] border px-4 py-3 text-[12px] leading-5 ${editQueueStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : editQueueStatus.type === 'error' ? 'border-[#6F3434] bg-[#331F1F] text-[#FF9F9F]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
+            {editQueueStatus.message}
           </div>
-          <div className="flex flex-wrap justify-end gap-2">
-            <button type="button" disabled={!canEdit} onClick={downloadQualityWorkbook} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#30302F] px-4 text-[13px] font-bold text-white hover:bg-[#3A3A3A] disabled:cursor-not-allowed disabled:opacity-40">
-              Excel 다운로드
-            </button>
-            <input ref={excelUploadRef} type="file" accept=".xlsx,.xls" onChange={importQualityWorkbook} className="hidden" />
-            <button type="button" disabled={!canEdit} onClick={() => excelUploadRef.current?.click()} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-40">
-              수정 Excel 업로드
-            </button>
-          </div>
-        </div>
-        {excelRoundTripStatus ? (
-          <div className={`mt-3 rounded-[10px] border px-4 py-3 text-[12px] leading-5 ${excelRoundTripStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : excelRoundTripStatus.type === 'warning' || excelRoundTripStatus.type === 'pending' ? 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]' : 'border-[#6F3434] bg-[#331F1F] text-[#FF9F9F]'}`}>
-            {excelRoundTripStatus.message}
-          </div>
+        ) : null}
+        <DataTable
+          headers={['상태', '대상', '필드', '요청값', '요청자', '요청일', 'readback', '승인', '반려']}
+          rows={editQueue.rows.map((request) => [
+            request.status,
+            `${request.targetType} · ${request.targetName}`,
+            request.fieldName,
+            trimMainText(cleanDisplay(request.displayRequestedValue || request.requestedValue), 52),
+            request.requestedBy,
+            formatDate(request.requestedAt),
+            <button key={`${request.id}-readback`} type="button" disabled={!canApproveEdits} onClick={() => readbackEditRequest(request)} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F] disabled:cursor-not-allowed disabled:opacity-40">확인</button>,
+            <button key={`${request.id}-approve`} type="button" disabled={!canApproveEdits} onClick={() => approveEditRequest(request)} className="h-8 rounded-[8px] border border-[#3b82f6]/30 bg-[#3b82f6]/20 px-3 text-[12px] font-semibold text-[#60a5fa] hover:bg-[#3b82f6]/30 disabled:cursor-not-allowed disabled:opacity-40">승인</button>,
+            <button key={`${request.id}-reject`} type="button" disabled={!canApproveEdits} onClick={() => rejectEditRequest(request)} className="h-8 rounded-[8px] border border-[#6F3434] bg-[#331F1F] px-3 text-[12px] font-semibold text-[#FF9F9F] hover:bg-[#432424] disabled:cursor-not-allowed disabled:opacity-40">반려</button>,
+          ])}
+          compact
+        />
+        {!editQueue.rows.length ? (
+          <div className="mt-3 rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-5 text-[13px] text-[#86868B]">현재 승인 대기 중인 수정 요청이 없습니다.</div>
         ) : null}
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
@@ -5428,7 +6340,7 @@ function DataQualityDashboard() {
                 </div>
                 <button type="button" disabled={!canEdit} onClick={addEditGridRow} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F] disabled:cursor-not-allowed disabled:opacity-40">행 추가</button>
               </div>
-              <div className="overflow-auto">
+              <div className="custom-scrollbar overflow-auto">
                 <table className="min-w-[1480px] w-full table-fixed border-collapse text-left text-[12px]">
                   <colgroup>
                     <col className="w-[90px]" />
@@ -5576,6 +6488,7 @@ function AssetDashboard() {
               ['월 임대료', formatCurrency(firstDefined(source.monthlyRentTotal, tenant.monthlyRentTotal))],
               ['월 관리비', formatCurrency(firstDefined(source.monthlyMfTotal, tenant.monthlyMfTotal))],
               ['월 임관리비', formatCurrency(firstDefined(source.monthlyCombinedTotal, source.monthlyCostTotal, tenant.monthlyCombinedTotal, tenant.monthlyCostTotal))],
+              ['E. NOC', formatWon(firstDefined(source.eNoc, source.averageENoc, tenant.eNoc, tenant.averageENoc))],
               ['평당 임대료', formatWon(firstDefined(source.currentRentPerPy, tenant.rentPerPy))],
               ['평당 관리비', formatWon(firstDefined(source.currentMfPerPy, tenant.mfPerPy))],
               ['현재 계약개시일', formatDate(source.currentStartDate)],
@@ -5593,6 +6506,7 @@ function AssetDashboard() {
                 formatCurrency(row.monthlyRentTotal),
                 formatCurrency(row.monthlyMfTotal),
                 formatCurrency(row.monthlyCombinedTotal),
+                formatWon(firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy)),
                 formatWon(row.currentRentPerPy),
                 formatWon(row.currentMfPerPy),
                 formatDate(row.currentStartDate),
@@ -5653,7 +6567,20 @@ function AssetDashboard() {
   ) || 0);
   const recomputedGrossAreaSqm = exclusiveAreaSqm + commonAreaSqm;
   const sourceGrossAreaSqm = Number(firstDefined(breakdown.grossFloorAreaSqm, overview.grossFloorAreaSqm) || 0);
-  const areaBasisSqm = recomputedGrossAreaSqm > 0 ? recomputedGrossAreaSqm : sourceGrossAreaSqm;
+  const leasedAreaForBasisSqm = Number(firstDefined(
+    overview.leasedAreaSqm,
+    kpiByKey.leased_area_total?.value,
+    sumRows(rows, (row) => firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm)),
+    0,
+  ) || 0);
+  const vacancyAreaForBasisSqm = Number(firstDefined(
+    overview.vacancyAreaSqm,
+    breakdown.vacancyAreaSqm,
+    kpiByKey.vacancy_area_total?.value,
+    0,
+  ) || 0);
+  const occupancyGrossAreaSqm = leasedAreaForBasisSqm + vacancyAreaForBasisSqm;
+  const areaBasisSqm = Math.max(sourceGrossAreaSqm, recomputedGrossAreaSqm, occupancyGrossAreaSqm);
   const areaRatio = (value) => (areaBasisSqm > 0 ? formatPercent(Number(value || 0) / areaBasisSqm) : '-');
   const areaRows = [
     [<span key="gross" className="font-bold text-white">전체 연면적</span>, formatArea(areaBasisSqm), '100.0%'],
@@ -5670,7 +6597,7 @@ function AssetDashboard() {
     [<span key="ramp" className="pl-4">램프</span>, formatArea(breakdown.rampAreaSqm), areaRatio(breakdown.rampAreaSqm)],
     [<span key="parking" className="pl-4">주차장</span>, formatArea(breakdown.parkingAreaSqm), areaRatio(breakdown.parkingAreaSqm)],
   ];
-  const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
+  const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
   const rosterRows = rows.map((row) => [
     row.tenantMasterName,
     row.spaceLabel,
@@ -5678,6 +6605,7 @@ function AssetDashboard() {
     formatCurrency(row.monthlyRentTotal),
     formatCurrency(row.monthlyMfTotal),
     formatCurrency(row.monthlyCombinedTotal),
+    formatWon(firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy)),
     formatWon(row.currentRentPerPy),
     formatWon(row.currentMfPerPy),
     formatDate(row.currentStartDate),
@@ -5699,6 +6627,7 @@ function AssetDashboard() {
       tooltipLines: [
         ['구역(층)', zone],
         ['계약만기일', expiryDate],
+        ['잔여개월', `${formatNumber(row.monthsToExpiry)}개월`],
         ['월 임관리비', formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal))],
       ],
     };
@@ -5796,18 +6725,30 @@ function AssetDashboard() {
 function DashboardShell({ activeModule }) {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
+  const [modal, setModal] = useState(null);
   const visibleModules = useMemo(() => (
     MODULES.filter((item) => item.id !== 'quality' || canViewDataQuality(memberInfo, permission))
   ), [memberInfo, permission]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
+  const canUseOriginalDataEdit = canViewDataQuality(memberInfo, permission);
 
   return (
     <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
+      <LogisticsModal modal={modal} onClose={() => setModal(null)} />
       <SectionHeader
         eyebrow="INTERNAL MODULE"
         title="임대차 Dashboard"
         right={(
           <div className="flex flex-wrap items-center justify-end gap-2">
+            {canUseOriginalDataEdit ? (
+              <button
+                type="button"
+                onClick={() => setModal({ title: '원본 데이터 수정', size: 'wide', content: <OriginalDataEditPanel permission={permission} /> })}
+                className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}
+              >
+                원본 데이터 수정
+              </button>
+            ) : null}
             <button type="button" onClick={() => navigateTo(pathFor())} className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS}`}>
               물류센터 워크 플랫폼
             </button>
@@ -5832,43 +6773,7 @@ function DashboardShell({ activeModule }) {
         })}
       </div>
 
-      {selected.id === 'weekly' ? <WeeklyDashboard /> : selected.id === 'home' ? <HomeDashboard /> : selected.id === 'asset' ? <AssetDashboard /> : selected.id === 'company' ? <CompanyDashboard /> : selected.id === 'tools' ? <AnalysisToolsDashboard /> : selected.id === 'playground' ? <DataPlaygroundDashboard /> : selected.id === 'quality' ? <DataQualityDashboard /> : (
-      <section className="border border-[#333333] rounded-[20px] bg-[#252524] overflow-hidden">
-        <div className="px-6 py-5 border-b border-[#333333] flex items-center justify-between gap-4">
-          <div>
-            <div className="text-[12px] text-[#86868B] font-semibold">SOURCE TAB</div>
-            <h3 className="text-[24px] text-white font-semibold tracking-tight mt-1">{selected.source}</h3>
-          </div>
-          <StatusPill className="bg-[#1F1F1E] text-[#FFD166] border-[#4C4329]">검증 대기</StatusPill>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]">
-          <div className="p-6 border-b lg:border-b-0 lg:border-r border-[#333333]">
-            <div className="text-[14px] text-[#C7C7CC] leading-7">
-              기준 탭의 숫자, 표, 차트, 지도, 상세 화면을 순서대로 배치합니다.
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
-              {['KPI', 'Table', 'Chart/Map', 'Popup'].map((item) => (
-                <div key={item} className="rounded-[12px] bg-[#1F1F1E] border border-[#333333] px-4 py-4">
-                  <div className="text-[12px] text-[#86868B] font-semibold">{item}</div>
-                  <div className="text-[18px] text-white font-semibold mt-2">대기</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="p-6">
-            <div className="text-[13px] text-[#86868B] font-semibold mb-3">PARITY ORDER</div>
-            <ol className="space-y-3">
-              {visibleModules.map((module, index) => (
-                <li key={module.id} className="flex items-center justify-between gap-4 text-[13px]">
-                  <span className="text-[#E5E5E5]">{index + 1}. {module.source}</span>
-                  <span className="text-[#86868B]">{module.id === selected.id ? '선택' : '대기'}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      </section>
-      )}
+      {selected.id === 'weekly' ? <WeeklyDashboard /> : selected.id === 'home' ? <HomeDashboard /> : selected.id === 'asset' ? <AssetDashboard /> : selected.id === 'company' ? <CompanyDashboard /> : selected.id === 'tools' ? <AnalysisToolsDashboard /> : selected.id === 'playground' ? <DataPlaygroundDashboard /> : selected.id === 'quality' ? <DataQualityDashboard /> : null}
     </div>
   );
 }
@@ -5877,33 +6782,27 @@ function LegacyWorkspaceLogistics({ currentPath = '' }) {
   const { memberInfo } = useAuth();
   const [query, setQuery] = useState('');
   const [scopeFilter, setScopeFilter] = useState('전체');
-  const [dataCounts, setDataCounts] = useState(null);
+  const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
 
   const isDashboard = currentPath.startsWith(pathFor('dashboard'));
   const activeModule = currentPath.split('/').pop() || 'weekly';
-
-  useEffect(() => {
-    let mounted = true;
-    async function fetchCounts() {
-      try {
-        const tables = ['ll_assets', 'll_tenants', 'll_leases', 'll_issues'];
-        const results = await Promise.all(
-          tables.map((table) => supabase.from(table).select('*', { count: 'exact', head: true }))
-        );
-        if (!mounted) return;
-        setDataCounts({
-          assets: results[0].count,
-          tenants: results[1].count,
-          leases: results[2].count,
-          issues: results[3].count,
-        });
-      } catch {
-        if (mounted) setDataCounts(null);
+  const dataCounts = useMemo(() => {
+    const readableAssets = filterAssetsByPermission(assetOptionsData, permission);
+    const readableAssetNames = new Set(readableAssets.map((asset) => cleanDisplay(asset.assetName, '')));
+    const tenantNames = new Set();
+    Object.values(COMPANY_PAYLOADS).forEach((payload) => {
+      const leasedAssets = payload?.leasedAssets || payload?.leases || [];
+      if (leasedAssets.some((row) => readableAssetNames.has(cleanDisplay(row.assetName, '')))) {
+        tenantNames.add(cleanDisplay(payload?.profile?.tenantMasterName || payload?.profile?.tenantName, ''));
       }
-    }
-    fetchCounts();
-    return () => { mounted = false; };
-  }, []);
+    });
+    return {
+      assets: readableAssets.length,
+      tenants: tenantNames.size || companyOptionsData.length,
+      leases: Object.values(ASSET_PAYLOADS).reduce((sum, payload) => sum + (payload?.leaseSpaces || payload?.contracts || []).length, 0),
+      issues: (weeklyReportData.assetRows || []).filter((row) => readableAssetNames.has(cleanDisplay(row.assetName, '')) && row.mainIssue).length,
+    };
+  }, [permission]);
 
   const visibleLogs = useMemo(() => {
     const text = query.trim().toLowerCase();

@@ -1,0 +1,54 @@
+{
+  "generatedAt": "2026-05-15T06:31:48.998Z",
+  "checks": [
+    {
+      "id": "playground_modes_restored",
+      "status": "pass",
+      "detail": "Data Playground must restore Sandbox / Explorer / BI Workspace modes."
+    },
+    {
+      "id": "playground_excel_pivot_controls",
+      "status": "pass",
+      "detail": "Data Playground must behave like an Excel pivot with row, column, value, secondary value, and BI audit controls."
+    },
+    {
+      "id": "playground_dimensions_restored",
+      "status": "pass",
+      "detail": "Data Playground must expose original 7 dimensions."
+    },
+    {
+      "id": "playground_metrics_restored",
+      "status": "pass",
+      "detail": "Data Playground must expose original 6 metrics."
+    },
+    {
+      "id": "playground_row_detail_modal",
+      "status": "pass",
+      "detail": "Data Playground chart/table interactions must open detail tables."
+    },
+    {
+      "id": "analysis_multi_select_restored",
+      "status": "pass",
+      "detail": "Analysis Tools must support multi asset/company selection and a selected contract ledger."
+    },
+    {
+      "id": "analysis_review_highlights_restored",
+      "status": "pass",
+      "detail": "Analysis Tools must expose review highlights."
+    },
+    {
+      "id": "quality_sheet_field_filters",
+      "status": "pass",
+      "detail": "Data Quality must support sheet/field filtering."
+    },
+    {
+      "id": "quality_critical_severity",
+      "status": "pass",
+      "detail": "Data Quality must distinguish critical source/API findings."
+    }
+  ],
+  "statusCounts": {
+    "pass": 9
+  },
+  "allPass": true
+}

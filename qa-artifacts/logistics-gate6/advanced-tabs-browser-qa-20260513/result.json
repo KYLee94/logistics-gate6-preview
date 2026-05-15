@@ -1,0 +1,25 @@
+{
+  "routeBase": "http://127.0.0.1:8081/platform/iotaseoul/workspace/logistics",
+  "screenshots": {
+    "tools": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\advanced-tabs-browser-qa-20260513\\analysis-tools.png",
+    "playground": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\advanced-tabs-browser-qa-20260513\\data-playground.png",
+    "quality": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\advanced-tabs-browser-qa-20260513\\data-quality.png"
+  },
+  "checks": {
+    "toolsHasMultiAssetCompanySelection": true,
+    "toolsHasClickableAssetButtons": true,
+    "playgroundHasModes": true,
+    "playgroundHasFullControls": true,
+    "playgroundHasOriginalDimensions": true,
+    "playgroundHasExcelPivotSummary": true,
+    "playgroundHasChart": true,
+    "playgroundModalOpens": true,
+    "qualityHasCriticalSheetField": true,
+    "qualityHasEditRequest": true,
+    "noPageErrors": true,
+    "noConsoleErrors": true
+  },
+  "pageErrors": [],
+  "consoleErrors": [],
+  "allPass": true
+}

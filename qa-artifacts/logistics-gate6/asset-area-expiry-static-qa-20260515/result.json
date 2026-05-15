@@ -1,0 +1,78 @@
+{
+  "generatedAt": "2026-05-15T05:25:30.916Z",
+  "sourcePath": "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\WorkspaceLogistics.jsx",
+  "assetCount": 17,
+  "checks": [
+    {
+      "id": "asset_area_basis_uses_source_recomputed_occupancy_max",
+      "pass": true,
+      "detail": "UI total area basis must not be smaller than source gross, recomputed exclusive+common, or leased+vacancy basis."
+    },
+    {
+      "id": "asset_area_rows_exclude_leased_and_vacancy",
+      "pass": true,
+      "detail": "Area composition rows should not include leased area or vacancy area rows."
+    },
+    {
+      "id": "asset_area_ratio_uses_total_area_basis",
+      "pass": true,
+      "detail": "All area ratios must use the same total area basis."
+    },
+    {
+      "id": "asset_area_basis_not_smaller_than_exclusive_or_leased",
+      "pass": true,
+      "detail": "0 assets would still show total area smaller than exclusive or leased area."
+    },
+    {
+      "id": "asset_expiry_tooltip_has_zone_date_and_remaining_months",
+      "pass": true,
+      "detail": "Expiry chart tooltip must show zone/floor, expiry date, and remaining months."
+    },
+    {
+      "id": "asset_header_shows_fund_name",
+      "pass": true,
+      "detail": "Fund name must be shown beside the asset name in smaller text."
+    },
+    {
+      "id": "asset_e_noc_uses_won_format",
+      "pass": true,
+      "detail": "E.NOC must use won format in KPI/detail audit display."
+    },
+    {
+      "id": "asset_core_tenant_component_removed",
+      "pass": true,
+      "detail": "The separate key tenant component should remain removed."
+    },
+    {
+      "id": "asset_roster_headers_include_e_noc_before_rent_per_py",
+      "pass": true,
+      "detail": "Tenant roster must show E. NOC immediately before rent per py."
+    },
+    {
+      "id": "asset_roster_rows_include_e_noc_before_rent_per_py",
+      "pass": true,
+      "detail": "Tenant roster row values must include E. NOC before rent per py."
+    },
+    {
+      "id": "asset_roster_space_column_width_is_compact",
+      "pass": true,
+      "detail": "Floor/detail-zone column width must stay compact enough for Asset tenant roster."
+    }
+  ],
+  "pass": true,
+  "sourceGrossSmallerThanExclusive": [
+    {
+      "file": "asset_a112500002.json",
+      "assetName": "평택아디다스물류센터",
+      "exclusiveAreaSqm": 53212.24,
+      "commonAreaSqm": 686.0799999999999,
+      "recomputedGrossAreaSqm": 53898.32,
+      "sourceGrossAreaSqm": 39368.8,
+      "leasedAreaForBasisSqm": 53212.22,
+      "vacancyAreaForBasisSqm": 0,
+      "occupancyGrossAreaSqm": 53212.22,
+      "areaBasisSqm": 53898.32
+    }
+  ],
+  "impossibleAfterUiBasis": []
+}

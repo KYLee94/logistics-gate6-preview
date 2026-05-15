@@ -4,6 +4,7 @@ import { Buffer } from 'node:buffer';
 
 type Role = 'Reader' | 'Editor' | 'Manager' | 'Admin' | 'System Admin';
 type SupabaseClient = ReturnType<typeof createClient>;
+type RateBucket = { resetAt: number; count: number };
 
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_weekly_reports',
@@ -13,6 +14,7 @@ const WRITE_TABLE_ALLOWLIST = new Set([
 ]);
 
 const MAX_WEEKLY_DOC_BYTES = 20 * 1024 * 1024;
+const rateBuckets = new Map<string, RateBucket>();
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
@@ -34,6 +36,38 @@ function getAllowedOrigins() {
 
 function isAllowedOrigin(origin: string) {
   return !origin || getAllowedOrigins().includes(origin);
+}
+
+function readEdgeSecret(name: string) {
+  const direct = Deno.env.get(name);
+  if (direct) return direct;
+  if (name === 'SUPABASE_SERVICE_ROLE_KEY') {
+    const serviceRoleFallback = Deno.env.get('LL_SERVICE_ROLE_KEY')
+      || Deno.env.get('SERVICE_ROLE_KEY')
+      || Deno.env.get('supabase_service_role_key');
+    if (serviceRoleFallback) return serviceRoleFallback;
+  }
+  const secretKeys = Deno.env.get('SUPABASE_SECRET_KEYS');
+  if (name === 'SUPABASE_SERVICE_ROLE_KEY' && secretKeys) {
+    try {
+      const parsed = JSON.parse(secretKeys) as Record<string, string>;
+      const firstKey = Object.keys(parsed)[0];
+      return parsed.default || parsed.service_role || (firstKey ? parsed[firstKey] : '');
+    } catch {
+      return '';
+    }
+  }
+  const publishableKeys = Deno.env.get('SUPABASE_PUBLISHABLE_KEYS');
+  if (name === 'SUPABASE_ANON_KEY' && publishableKeys) {
+    try {
+      const parsed = JSON.parse(publishableKeys) as Record<string, string>;
+      const firstKey = Object.keys(parsed)[0];
+      return parsed.default || parsed.anon || (firstKey ? parsed[firstKey] : '');
+    } catch {
+      return '';
+    }
+  }
+  return '';
 }
 
 function jsonResponse(body: unknown, status = 200, origin = '') {
@@ -82,11 +116,13 @@ function buildMonthlyWeekRanges(year: number, month: number) {
   const lastDay = new Date(Date.UTC(year, month, 0));
   const ranges: Array<{ week: number; start: string; end: string; key: string; label: string }> = [];
   let start = startOfMondayWeek(firstDay);
-  let week = 1;
-  while (start <= lastDay) {
+  while (start <= new Date(Date.UTC(year, month, 6))) {
     const end = new Date(start);
     end.setUTCDate(start.getUTCDate() + 6);
-    if (end >= firstDay) {
+    const ownershipDate = new Date(start);
+    ownershipDate.setUTCDate(start.getUTCDate() + 3);
+    if (ownershipDate.getUTCFullYear() === year && ownershipDate.getUTCMonth() === month - 1) {
+      const week = ranges.length + 1;
       const startText = toIsoDate(start);
       const endText = toIsoDate(end);
       ranges.push({
@@ -96,7 +132,6 @@ function buildMonthlyWeekRanges(year: number, month: number) {
         key: `${year}-${String(month).padStart(2, '0')}-w${week}`,
         label: `${startText} ~ ${endText}`,
       });
-      week += 1;
     }
     start = new Date(start);
     start.setUTCDate(start.getUTCDate() + 7);
@@ -107,6 +142,37 @@ function buildMonthlyWeekRanges(year: number, month: number) {
 function roleCanIngest(role: string | undefined, dbFlag: boolean | undefined) {
   const normalized = String(role || '') as Role;
   return Boolean(dbFlag) || normalized === 'Manager' || normalized === 'Admin' || normalized === 'System Admin';
+}
+
+function checkRateLimit(userId: string, action: string, limit = 10, windowMs = 10 * 60 * 1000) {
+  const key = `${userId}:${action}`;
+  const now = Date.now();
+  const bucket = rateBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    rateBuckets.set(key, { resetAt: now + windowMs, count: 1 });
+    return true;
+  }
+  bucket.count += 1;
+  return bucket.count <= limit;
+}
+
+function hasWordFileSignature(buffer: ArrayBuffer) {
+  const bytes = new Uint8Array(buffer.slice(0, 8));
+  const isDocxZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
+  const isLegacyDoc = bytes[0] === 0xd0 && bytes[1] === 0xcf && bytes[2] === 0x11 && bytes[3] === 0xe0;
+  return isDocxZip || isLegacyDoc;
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeout: number | undefined;
+  const timeoutPromise = new Promise<T>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }
 
 async function restoreWeeklySnapshot(
@@ -174,8 +240,8 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return fail(405, 'Method not allowed', origin);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const anonKey = readEdgeSecret('SUPABASE_ANON_KEY');
+  const serviceRoleKey = readEdgeSecret('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !anonKey || !serviceRoleKey) return fail(500, 'Server is not configured', origin);
 
   const authHeader = request.headers.get('authorization') || '';
@@ -199,6 +265,7 @@ Deno.serve(async (request) => {
 
   const role = permission?.logistics_role;
   if (!roleCanIngest(role, permission?.can_ingest_weekly)) return fail(403, 'Insufficient logistics permission', origin);
+  if (!checkRateLimit(userData.user.id, 'weekly/ingest', 8, 10 * 60 * 1000)) return fail(429, 'Rate limit exceeded', origin);
 
   if (![...WRITE_TABLE_ALLOWLIST].every((table) => table.startsWith('public.ll_'))) {
     return fail(500, 'Write allowlist is invalid', origin);
@@ -210,6 +277,7 @@ Deno.serve(async (request) => {
   const fileName = file.name || '';
   const lowerName = fileName.toLowerCase();
   if (!lowerName.endsWith('.docx') && !lowerName.endsWith('.doc')) return fail(400, 'Only Word .docx/.doc files are allowed', origin);
+  if (file.type && !/word|msword|officedocument|octet-stream/i.test(file.type)) return fail(400, 'Word file MIME type is invalid', origin);
   if (file.size <= 0 || file.size > MAX_WEEKLY_DOC_BYTES) return fail(400, 'Word file size is invalid', origin);
 
   const year = Number(safeText(formData.get('year')));
@@ -218,7 +286,8 @@ Deno.serve(async (request) => {
   const range = buildMonthlyWeekRanges(year, month).find((item) => item.week === week);
   const weekKey = range?.key || '';
   const weekRange = range?.label || '';
-  const organization = permission?.organization || safeText(formData.get('organization')) || 'organization_unknown';
+  const organization = String(permission?.organization || '').trim();
+  if (!organization) return fail(403, 'Weekly ingest requires server-side organization permission', origin);
   const clientWeekKey = safeText(formData.get('week_key'));
   const clientWeekRange = safeText(formData.get('week_range'));
   if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(week) || !range) {
@@ -229,6 +298,7 @@ Deno.serve(async (request) => {
   }
 
   const buffer = await file.arrayBuffer();
+  if (!hasWordFileSignature(buffer)) return fail(400, 'Word file signature is invalid', origin);
   const sourceSha = await sha256Hex(buffer);
   const { data: duplicate } = await serviceClient
     .from('ll_weekly_reports')
@@ -239,7 +309,16 @@ Deno.serve(async (request) => {
     .maybeSingle();
   if (duplicate) return fail(409, 'Duplicate weekly document for this organization and week', origin);
 
-  const parsed = await mammoth.extractRawText({ buffer: Buffer.from(buffer) });
+  let parsed;
+  try {
+    parsed = await withTimeout(
+      mammoth.extractRawText({ buffer: Buffer.from(buffer) }),
+      15_000,
+      'Word parsing timeout',
+    );
+  } catch {
+    return fail(422, 'Word parsing failed before any write', origin);
+  }
   const weekly = parseWeeklyText(parsed.value || '');
   if (!weekly.lines.length) return fail(422, 'Word parsing produced no readable text', origin);
 

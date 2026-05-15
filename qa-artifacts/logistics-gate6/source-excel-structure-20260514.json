@@ -1,0 +1,68 @@
+[
+  {
+    "file_name": "260513_담당자별 권한 부여_수식 제거.xlsx",
+    "sheet_name": "Sheet1",
+    "max_row": 56,
+    "max_column": 13,
+    "used_range_cells": 728,
+    "non_empty_cells": 536,
+    "formula_cells": 0,
+    "header_row_guess": 3,
+    "header_count": 12
+  },
+  {
+    "file_name": "★ 260414_물류센터 임대차계약 DB_취합본.xlsx",
+    "sheet_name": "Meta_데이터 항목 설명",
+    "max_row": 79,
+    "max_column": 44,
+    "used_range_cells": 3476,
+    "non_empty_cells": 385,
+    "formula_cells": 6,
+    "header_row_guess": 2,
+    "header_count": 7
+  },
+  {
+    "file_name": "★ 260414_물류센터 임대차계약 DB_취합본.xlsx",
+    "sheet_name": "DB_일반",
+    "max_row": 74,
+    "max_column": 84,
+    "used_range_cells": 6216,
+    "non_empty_cells": 4909,
+    "formula_cells": 763,
+    "header_row_guess": 8,
+    "header_count": 4
+  },
+  {
+    "file_name": "★ 260414_물류센터 임대차계약 DB_취합본.xlsx",
+    "sheet_name": "DB_히스토리 누적",
+    "max_row": 178,
+    "max_column": 19,
+    "used_range_cells": 3382,
+    "non_empty_cells": 2885,
+    "formula_cells": 172,
+    "header_row_guess": 10,
+    "header_count": 18
+  },
+  {
+    "file_name": "★ 260414_물류센터 임대차계약 DB_취합본.xlsx",
+    "sheet_name": "Log",
+    "max_row": 37,
+    "max_column": 14,
+    "used_range_cells": 518,
+    "non_empty_cells": 321,
+    "formula_cells": 0,
+    "header_row_guess": 2,
+    "header_count": 2
+  },
+  {
+    "file_name": "★ 260414_물류센터 임대차계약 DB_취합본.xlsx",
+    "sheet_name": "자산_담당자 연결",
+    "max_row": 20,
+    "max_column": 8,
+    "used_range_cells": 160,
+    "non_empty_cells": 127,
+    "formula_cells": 0,
+    "header_row_guess": 3,
+    "header_count": 7
+  }
+]

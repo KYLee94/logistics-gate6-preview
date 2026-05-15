@@ -1,0 +1,77 @@
+{
+  "generatedAt": "2026-05-15T07:44:30.429Z",
+  "uiPath": "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\WorkspaceLogistics.jsx",
+  "edgePath": "C:\\tmp\\IGIS-Fund-Production-DP\\supabase\\functions\\ll-weekly-doc-ingest\\index.ts",
+  "april": [
+    {
+      "week": 1,
+      "start": "2026-03-30",
+      "end": "2026-04-05"
+    },
+    {
+      "week": 2,
+      "start": "2026-04-06",
+      "end": "2026-04-12"
+    },
+    {
+      "week": 3,
+      "start": "2026-04-13",
+      "end": "2026-04-19"
+    },
+    {
+      "week": 4,
+      "start": "2026-04-20",
+      "end": "2026-04-26"
+    },
+    {
+      "week": 5,
+      "start": "2026-04-27",
+      "end": "2026-05-03"
+    }
+  ],
+  "may": [
+    {
+      "week": 1,
+      "start": "2026-05-04",
+      "end": "2026-05-10"
+    },
+    {
+      "week": 2,
+      "start": "2026-05-11",
+      "end": "2026-05-17"
+    },
+    {
+      "week": 3,
+      "start": "2026-05-18",
+      "end": "2026-05-24"
+    },
+    {
+      "week": 4,
+      "start": "2026-05-25",
+      "end": "2026-05-31"
+    }
+  ],
+  "allPass": true,
+  "checks": [
+    {
+      "id": "frontend_week_algorithm_uses_thursday_ownership",
+      "pass": true
+    },
+    {
+      "id": "edge_week_algorithm_uses_same_thursday_ownership",
+      "pass": true
+    },
+    {
+      "id": "april_2026_week5_is_apr27_to_may03",
+      "pass": true
+    },
+    {
+      "id": "may_2026_week1_is_may04_to_may10",
+      "pass": true
+    },
+    {
+      "id": "april_week5_and_may_week1_do_not_overlap",
+      "pass": true
+    }
+  ]
+}

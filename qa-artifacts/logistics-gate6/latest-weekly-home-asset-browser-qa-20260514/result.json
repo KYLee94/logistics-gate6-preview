@@ -1,0 +1,61 @@
+{
+  "baseUrl": "http://127.0.0.1:4180",
+  "screenshots": {
+    "weeklyUpload": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\latest-weekly-home-asset-browser-qa-20260514\\weekly-upload-free-selector.png",
+    "weekly": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\latest-weekly-home-asset-browser-qa-20260514\\weekly-project-bullets.png",
+    "home": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\latest-weekly-home-asset-browser-qa-20260514\\home-doughnut-tenant-contract.png",
+    "asset": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\latest-weekly-home-asset-browser-qa-20260514\\asset-enoc-expiry.png",
+    "company": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\latest-weekly-home-asset-browser-qa-20260514\\company-opendart-map.png"
+  },
+  "checks": {
+    "weeklyUploadFreeYearMonthWeek": true,
+    "weeklyProjectsRenderBullets": true,
+    "dashboardReturnButtonRenamed": true,
+    "homeUseLegendOnlyAllowedLabels": true,
+    "homeTenantContractFullWidth": true,
+    "homeMapProviderTextRemoved": true,
+    "homeNoZeroPercentOnePy": true,
+    "homeDoughnutHoverShowsDetails": true,
+    "chartTooltipRenderedNearCursor": true,
+    "chartTooltipFollowsCursor": true,
+    "tenantContractModalHasSelectorsAndManyColumns": true,
+    "tenantContractModalStickyColumns": true,
+    "assetENocWonUnit": true,
+    "assetFundNameBesideTitle": true,
+    "assetExpiryHasZoneLabel": true,
+    "assetBuildingRegisterServerButton": true,
+    "companyOpenDartServerButton": true,
+    "companyTopOneLineBlocksRemoved": true,
+    "dataQualityHiddenForNonAllowedCenterUser": true,
+    "mainTitleAndSubtitleUpdated": true,
+    "taskEditConfirmModal": true,
+    "taskDeleteConfirmModal": true,
+    "taskCompleteConfirmModal": true,
+    "noPageErrors": true,
+    "noConsoleErrors": true
+  },
+  "pageErrors": [],
+  "consoleErrors": [],
+  "tooltipBox": {
+    "segmentBox": {
+      "x": 577,
+      "y": 1148,
+      "width": 232.5,
+      "height": 24.5
+    },
+    "hoverBox": {
+      "x": 709,
+      "y": 558,
+      "width": 230,
+      "height": 98
+    },
+    "movedHoverBox": {
+      "x": 733,
+      "y": 558,
+      "width": 230,
+      "height": 98
+    }
+  },
+  "assetTextSample": "석포리 물류센터\n자산 위치 보기\n건축물대장 조회\n임대율\n77.8%\n총 임대면적\n82,346평\n공실면적\n23,445평\n월 임관리비 총액\n5.5억\nE.NOC\n43,824원\n현재 임차인 수\n2\nTENANTS\n임차인 현황\n원본 표 보기\n임차인명\t층/세부구역\t임대면적(평)\t월 임대료\t월 관리비\t월 임관리비\t평당 임대료\t평당 관리비\t현재 계약개시일\t현재 계약만기일\n\n씨제이대한통운(주)\n\t\n1\n\t\n6,578평\n\t\n-\n\t\n-\n\t\n0\n\t\n-\n\t\n-\n\t\n2019-03-01\n\t\n2034-02-28\n\n\n씨제이대한통운(주)\n\t\n2\n\t\n6,578평\n\t\n-\n",
+  "allPass": true
+}

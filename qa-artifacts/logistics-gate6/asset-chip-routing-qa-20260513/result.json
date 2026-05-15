@@ -1,0 +1,22 @@
+{
+  "url": "http://127.0.0.1:8121/platform/iotaseoul/workspace/logistics",
+  "screenshots": {
+    "assetAfterChipClick": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\asset-chip-routing-qa-20260513\\asset-after-chip-click.png"
+  },
+  "checks": {
+    "chipCursorPointer": true,
+    "navigatedToAssetDashboard": true,
+    "selectedAssetStored": true,
+    "selectedAssetVisible": true,
+    "selectedAssetSelectMatches": true
+  },
+  "selectedStorage": "asset_a112500002",
+  "selectValues": [
+    {
+      "value": "asset_a112500002",
+      "text": "평택아디다스물류센터"
+    }
+  ],
+  "pageErrors": [],
+  "allPass": true
+}

@@ -55,6 +55,39 @@ on public.ll_data_change_audit_logs(edit_request_id);
 create index if not exists idx_ll_data_change_audit_logs_target
 on public.ll_data_change_audit_logs(target_table, target_row_id, field_name);
 
+create table if not exists public.ll_external_api_cache (
+  id uuid primary key default gen_random_uuid(),
+  provider text not null,
+  cache_key text not null,
+  request_payload jsonb not null default '{}'::jsonb,
+  response_payload jsonb not null default '{}'::jsonb,
+  provider_status integer,
+  fetched_at timestamptz not null default now(),
+  expires_at timestamptz not null,
+  created_by uuid references auth.users(id),
+  updated_at timestamptz not null default now(),
+  unique(provider, cache_key)
+);
+
+alter table public.ll_external_api_cache enable row level security;
+
+drop policy if exists "ll_external_api_cache_read_manager" on public.ll_external_api_cache;
+create policy "ll_external_api_cache_read_manager"
+on public.ll_external_api_cache
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.ll_user_permissions p
+    where p.user_id = auth.uid()
+      and p.logistics_role in ('Manager', 'Admin', 'System Admin')
+  )
+);
+
+create index if not exists idx_ll_external_api_cache_expiry
+on public.ll_external_api_cache(provider, cache_key, expires_at);
+
 -- Browser clients still receive no INSERT/UPDATE/DELETE policies.
 -- ll-dashboard-api writes using service role only after JWT, public.ll_user_permissions,
--- stale-value readback, post-write readback, rollback, and audit checks.
+-- stale-value readback, post-write readback, rollback, audit checks, and external API cache redaction.

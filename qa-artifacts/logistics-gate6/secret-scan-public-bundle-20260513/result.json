@@ -1,0 +1,11 @@
+{
+  "scannedRoots": [
+    "src",
+    "dist",
+    "public"
+  ],
+  "scannedFiles": 157,
+  "findings": [],
+  "blockingFindings": [],
+  "allPass": true
+}

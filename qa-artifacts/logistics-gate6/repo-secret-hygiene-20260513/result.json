@@ -1,0 +1,22 @@
+{
+  "trackedEnvFiles": [
+    ".env.example"
+  ],
+  "trackedRuntimeEnvFiles": [],
+  "envKeys": [
+    "VITE_SUPABASE_URL",
+    "VITE_SUPABASE_ANON_KEY"
+  ],
+  "riskyEnvKeys": [],
+  "secretPatternFindings": [],
+  "gitignoreHasEnv": true,
+  "envExampleExists": true,
+  "checks": {
+    "noTrackedRuntimeEnvFiles": true,
+    "noRiskyEnvKeys": true,
+    "noSecretPatternFindings": true,
+    "gitignoreHasEnv": true,
+    "envExampleExists": true
+  },
+  "allPass": true
+}

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-15T01:24:42.692Z",
+  "generated_at": "2026-05-15T06:29:51.839Z",
   "source": "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\WorkspaceLogistics.jsx",
   "allPass": true,
   "checks": [
@@ -36,6 +36,14 @@
       "pass": true
     },
     {
+      "id": "analysis_tools_filters_company_options_by_readable_assets",
+      "pass": true
+    },
+    {
+      "id": "analysis_tools_has_benchmark_average_rank_and_drilldown",
+      "pass": true
+    },
+    {
       "id": "currency_chart_short_values_keep_one_decimal_billion",
       "pass": true
     },
@@ -53,6 +61,78 @@
     },
     {
       "id": "data_quality_excel_keeps_supabase_relation_keys",
+      "pass": true
+    },
+    {
+      "id": "data_quality_uses_edge_findings_queue_readback_approval",
+      "pass": true
+    },
+    {
+      "id": "chart_tooltips_follow_cursor_right_and_clamp_to_viewport",
+      "pass": true
+    },
+    {
+      "id": "doughnut_hover_uses_segment_event_single_value",
+      "pass": true
+    },
+    {
+      "id": "home_monthly_cost_composition_percent_uses_visible_source_total",
+      "pass": true
+    },
+    {
+      "id": "chart_axes_use_nice_tick_specs_for_trend_and_bar",
+      "pass": true
+    },
+    {
+      "id": "tables_with_many_columns_have_fixed_min_widths",
+      "pass": true
+    },
+    {
+      "id": "logistics_scroll_uses_main_reference_custom_scrollbar",
+      "pass": true
+    },
+    {
+      "id": "area_format_does_not_force_small_positive_values_to_one_py",
+      "pass": true
+    },
+    {
+      "id": "data_quality_excel_upload_has_file_safety_guards",
+      "pass": true
+    },
+    {
+      "id": "weekly_upload_popup_is_minimal_and_not_noisy",
+      "pass": true
+    },
+    {
+      "id": "weekly_upload_popup_shows_selected_monday_sunday_range",
+      "pass": true
+    },
+    {
+      "id": "main_task_slash_text_renders_as_bullet_list",
+      "pass": true
+    },
+    {
+      "id": "weekly_top_controls_are_six_equal_horizontal_blocks",
+      "pass": true
+    },
+    {
+      "id": "main_search_is_inline_between_profile_and_asset_grid",
+      "pass": true
+    },
+    {
+      "id": "main_original_data_edit_panel_is_bottom_roundtrip_panel",
+      "pass": true
+    },
+    {
+      "id": "home_top_assets_show_core_tenant_instead_of_vacancy_rate",
+      "pass": true
+    },
+    {
+      "id": "tenant_contract_summary_removes_business_number_and_widens_asset_list",
+      "pass": true
+    },
+    {
+      "id": "rich_trend_chart_axis_layout_has_extra_top_bottom_space",
       "pass": true
     }
   ]

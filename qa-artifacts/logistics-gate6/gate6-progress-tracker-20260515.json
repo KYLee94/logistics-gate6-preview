@@ -16,21 +16,21 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 29,
-    "total": 159,
-    "completion_rate": 18.2
+    "completed": 127,
+    "total": 206,
+    "completion_rate": 61.7
   },
   "stages": [
     {
       "stage": 2,
       "area": "공통 데이터 기준",
-      "completed": 2,
-      "total": 8,
+      "completed": 4,
+      "total": 10,
       "items": [
         {
           "id": "2.01",
-          "status": "partial",
-          "text": "Home 상단 월 임관리비 총액 52.2억과 월 임관리비 비중 111.3억의 계산 기준을 대조한다."
+          "status": "done",
+          "text": "Home 상단 월 임관리비 총액 52.2억과 월 임관리비 비중 111.3억의 계산 기준을 대조했고, 현재 Home KPI/자산별 도넛/임차인별 도넛은 2026년 4월 snapshot 기준 111.3억으로 일치한다."
         },
         {
           "id": "2.02",
@@ -66,92 +66,142 @@
           "id": "2.08",
           "status": "pending",
           "text": "Excel 원본, Supabase ll_* 테이블, UI 표시값 순서로 모든 주요 숫자를 1 by 1 대조한다."
+        },
+        {
+          "id": "2.09",
+          "status": "done",
+          "text": "경산 쿠팡물류센터 1층 상온창고(N), 1층 저온창고(Y), B2 상온창고(N) 전용면적 3건을 보정하고, 계약 건별 임대면적 가중평균 E.NOC를 재계산했다. Evidence: gyeongsan-enoc-correction-qa-20260515 qa_status=pass, gyeongsan-supabase-readback-20260515.md."
+        },
+        {
+          "id": "2.10",
+          "status": "partial",
+          "text": "부국 물류센터는 임차 행과 최신 금액이 있어 월 임관리비/임대면적 기준 E.NOC 27,450원 수준으로 파생 가능하고 저온창고 비율은 0.0%로 계산된다. 아레나스 안성은 임차 행과 저온/상온 구분은 있으나 DB_히스토리누적 최신 금액 연결이 history_unmatched라 E.NOC를 계산할 수 없다. Supabase/live readback은 남아 있다. Evidence: home-enoc-coldratio-static-qa-20260515 allPass=true."
         }
       ]
     },
     {
       "stage": 3,
       "area": "업무 로그 메인 페이지",
-      "completed": 1,
-      "total": 14,
+      "completed": 15,
+      "total": 22,
       "items": [
         {
           "id": "3.01",
-          "status": "pending",
-          "text": "첫 화면은 Dashboard가 아니라 업무 로그 페이지로 유지한다."
+          "status": "done",
+          "text": "첫 화면은 Dashboard가 아니라 업무 로그 페이지로 유지한다. Evidence: worklog-main-current-qa-20260513 allPass=true."
         },
         {
           "id": "3.02",
-          "status": "pending",
-          "text": "최상단 제목은 물류센터 워크 플랫폼으로 통일한다."
+          "status": "done",
+          "text": "최상단 제목은 물류센터 워크 플랫폼으로 통일한다. Evidence: main title QA passed."
         },
         {
           "id": "3.03",
-          "status": "pending",
-          "text": "서브문구는 물류센터 관련 업무 현황 및 이슈, 데이터 기반 대시보드로 유지한다."
+          "status": "done",
+          "text": "서브문구는 물류센터 관련 업무 현황 및 이슈, 데이터 기반 대시보드로 유지한다. Evidence: main subtitle QA passed."
         },
         {
           "id": "3.04",
-          "status": "pending",
-          "text": "개인·팀·섹터 업무 공유 컴포넌트는 제거 상태를 유지한다."
+          "status": "done",
+          "text": "개인·팀·섹터 업무 공유 컴포넌트는 제거 상태를 유지한다. Evidence: deprecated scope share component removed from rendered page and unused code."
         },
         {
           "id": "3.05",
-          "status": "pending",
-          "text": "협업게시판 자산 선택은 사용자가 읽기 권한 있는 담당 자산만 가나다순으로 표시한다."
+          "status": "done",
+          "text": "협업게시판 자산 선택은 사용자가 읽기 권한 있는 담당 자산만 가나다순으로 표시한다. Evidence: board asset select width/options/sort QA passed."
         },
         {
           "id": "3.06",
-          "status": "pending",
-          "text": "주요 Task 관리는 개인/팀/섹터 전환을 유지하되 서버 권한 기준으로 필터링한다."
+          "status": "partial",
+          "text": "주요 Task 관리는 개인/팀/섹터 전환을 유지하되 서버 권한 기준으로 필터링한다. Evidence: local scope switch QA passed; live Edge permission readback still needed."
         },
         {
           "id": "3.07",
-          "status": "pending",
-          "text": "개인 업무는 내가 작성한 Task, 팀 업무는 내 조직 Task, 섹터 업무는 읽기 권한 있는 자산 Task만 표시한다."
+          "status": "partial",
+          "text": "개인 업무는 내가 작성한 Task, 팀 업무는 내 조직 Task, 섹터 업무는 읽기 권한 있는 자산 Task만 표시한다. Evidence: local personal/team/sector switching passed; role-specific live account QA still needed."
         },
         {
           "id": "3.08",
-          "status": "pending",
-          "text": "Task 수정/삭제/완료는 작성자 권한과 서버 권한을 모두 확인한다."
+          "status": "partial",
+          "text": "Task 수정/삭제/완료는 작성자 권한과 서버 권한을 모두 확인한다. ll-dashboard-api 코드상 기존 row의 related_asset_id 기준 spoof 차단은 반영했으며, 실제 Edge 배포 후 role QA가 필요하다."
         },
         {
           "id": "3.09",
-          "status": "pending",
-          "text": "수정/삭제/완료 클릭 시 확인 팝업을 띄우고 예를 누른 경우에만 처리한다."
+          "status": "done",
+          "text": "수정/삭제/완료 클릭 시 확인 팝업을 띄우고 예를 누른 경우에만 처리한다. Evidence: Task edit/delete/complete confirm popup QA passed with yes/no buttons."
         },
         {
           "id": "3.10",
-          "status": "pending",
-          "text": "슬래시로 이어진 Task 내용은 표시 시 bullet point로 나눈다."
+          "status": "done",
+          "text": "슬래시로 이어진 Task 내용은 표시 시 bullet point로 나눈다. Evidence: static check main_task_slash_text_renders_as_bullet_list passed."
         },
         {
           "id": "3.11",
-          "status": "pending",
-          "text": "완료된 Task는 기본 목록에서 숨기고 완료 필터에서만 본다."
+          "status": "partial",
+          "text": "완료된 Task는 기본 목록에서 숨기고 완료 필터에서만 본다. Code filters completed/deleted tasks by default; completed-filter browser QA still needed."
         },
         {
           "id": "3.12",
-          "status": "pending",
-          "text": "통합 검색에서 자산/임차인 검색 시 업무·계약·KPI·이슈 중심 상세 팝업을 띄운다."
+          "status": "done",
+          "text": "통합 검색에서 자산/임차인 검색 시 업무·계약·KPI·이슈 중심 상세 팝업을 띄운다. Evidence: search popup dashboard preview QA passed without route-only navigation."
         },
         {
           "id": "3.13",
-          "status": "pending",
-          "text": "임차인 검색 결과도 사용자가 읽기 권한 있는 자산에 연결된 임차인만 노출한다."
+          "status": "partial",
+          "text": "임차인 검색 결과도 사용자가 읽기 권한 있는 자산에 연결된 임차인만 노출한다. Search uses permission-scoped source options; restricted-reader live QA still needed."
         },
         {
           "id": "3.14",
           "status": "done",
-          "text": "?? ????? ?? ?? ? ?? ?? ??? ?? ??? ????."
+          "text": "메인 워크 플랫폼에서 오늘 봐야 할 업무 신호 컴포넌트를 제거한다."
+        },
+        {
+          "id": "3.15",
+          "status": "pending",
+          "text": "통합 검색을 자산/임차인 추천 연결뿐 아니라 내부 데이터와 대시보드 내용을 바탕으로 질문에 답하는 검색+질의 탭으로 확장한다. Gemma/Gemini 연결은 Gate 6 핵심 UI/DB/QA 이후 마지막 단계로 처리한다."
+        },
+        {
+          "id": "3.16",
+          "status": "done",
+          "text": "메인 페이지 통합 검색을 사용자 정보와 담당 자산 grid 사이의 한 줄형 검색으로 이동했고, placeholder를 자산·임차인·계약·이슈 검색 및 질문 기능에 맞게 변경했다. Evidence: session-implementation-static-qa-20260515 main_search_is_inline_between_profile_and_asset_grid pass."
+        },
+        {
+          "id": "3.17",
+          "status": "done",
+          "text": "원본 데이터 수정 Excel 다운로드/업로드 컴포넌트는 메인 하단에서 제거하고 대시보드 우측 상단 원본 데이터 수정 버튼+팝업 구조로 이동했다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "3.18",
+          "status": "done",
+          "text": "메인 페이지 상단 사용자 이름 옆 프로필 영역은 사진이 연동된 사용자는 사진을 표시하고 사진이 없을 때만 이니셜로 fallback한다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "3.19",
+          "status": "done",
+          "text": "메인 페이지 상단 통합 검색 제목과 질문 입력란 사이 여백을 재조정했다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "3.20",
+          "status": "done",
+          "text": "담당 자산 블럭 내부 자산명은 좌측 정렬로 바꾸고, 고정 카드 크기 안에서 말줄임표 대신 띄어쓰기/어절 단위 자동 줄바꿈을 적용했다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "3.21",
+          "status": "partial",
+          "text": "통합 검색의 챗봇형 질문 답변은 ll-dashboard-api ai/search-chat 액션과 메인 검색 UI에 연결했다. 서버에서 ll_user_permissions 기준으로 읽기 권한 자산/기업 데이터만 evidence로 수집하고 Google AI에는 redacted evidence만 전달한다. Evidence: eslint, edge-api-security-static-qa, npm run build pass. Supabase Edge 배포와 live 호출 검증은 CLI 프로젝트 권한 문제로 외부권한대기."
+        },
+        {
+          "id": "3.22",
+          "status": "done",
+          "text": "팀 공유용 임시 데모 모드로 로그인 게이트를 우회하고, 세션이 없어도 물류센터 워크 플랫폼 화면이 바로 열리도록 했다. Evidence: App/AuthContext patch, eslint pass, npm run build pass."
         }
       ]
     },
     {
       "stage": 4,
       "area": "Dashboard 공통",
-      "completed": 0,
-      "total": 8,
+      "completed": 5,
+      "total": 10,
       "items": [
         {
           "id": "4.01",
@@ -170,12 +220,12 @@
         },
         {
           "id": "4.04",
-          "status": "pending",
+          "status": "done",
           "text": "차트 tooltip은 마우스 커서 우측에 뜨고 커서를 따라 움직이도록 통일한다."
         },
         {
           "id": "4.05",
-          "status": "pending",
+          "status": "done",
           "text": "도넛차트 hover는 각 조각별 label/value 하나만 정확히 뜨도록 고친다."
         },
         {
@@ -185,35 +235,45 @@
         },
         {
           "id": "4.07",
-          "status": "pending",
-          "text": "모든 표는 첫 컬럼 과도 확장 금지, 숫자 우측 정렬, 긴 텍스트 말줄임/상세 drawer, 불필요한 횡스크롤 제거 기준으로 재검토한다."
+          "status": "done",
+          "text": "모든 표는 첫 컬럼 과도 확장 금지, 숫자 우측 정렬, 긴 텍스트 말줄임/상세 drawer, 불필요한 횡스크롤 제거 기준으로 재검토했다. Evidence: table-column-width-wrap-qa-20260514 allPass=true, Home/Asset/Company/Tools/Playground/Data Quality table rows pass."
         },
         {
           "id": "4.08",
-          "status": "partial",
+          "status": "done",
           "text": "팝업 내부 대형 테이블은 필요한 경우 횡스크롤을 허용하되 핵심 컬럼은 sticky 처리한다."
+        },
+        {
+          "id": "4.09",
+          "status": "done",
+          "text": "횡/종 스크롤 UI는 GitHub main 레퍼런스의 custom-scrollbar 패턴을 확인한 뒤 물류 표, 모달, 대형 팝업 스크롤 영역에 적용한다."
+        },
+        {
+          "id": "4.10",
+          "status": "partial",
+          "text": "자산이 늘거나 줄어도 17개/20개 같은 하드코딩에 의존하지 않도록, 워크 플랫폼·대시보드·권한 필터·집계는 백엔드 자산 master와 권한 scope를 기준으로 동적으로 동작해야 한다."
         }
       ]
     },
     {
       "stage": 5,
       "area": "Weekly 탭",
-      "completed": 0,
-      "total": 12,
+      "completed": 12,
+      "total": 16,
       "items": [
         {
           "id": "5.01",
-          "status": "pending",
+          "status": "done",
           "text": "업무 로그와 Weekly 탭 양쪽에 주간업무보고자료 업로드 버튼을 둔다."
         },
         {
           "id": "5.02",
-          "status": "pending",
+          "status": "done",
           "text": "업로드 시 연도, 월, 주차를 자유롭게 선택할 수 있게 한다."
         },
         {
           "id": "5.03",
-          "status": "pending",
+          "status": "done",
           "text": "주차는 월요일~일요일 기준으로 계산한다."
         },
         {
@@ -223,8 +283,8 @@
         },
         {
           "id": "5.05",
-          "status": "pending",
-          "text": "업로드 자료는 업로더의 소속 조직 기준으로 분리한다."
+          "status": "done",
+          "text": "업로드 자료는 업로더의 서버-side 조직 권한 기준으로만 분리 저장되도록 Edge Function에서 클라이언트 조직 fallback을 차단했다."
         },
         {
           "id": "5.06",
@@ -233,46 +293,66 @@
         },
         {
           "id": "5.07",
-          "status": "pending",
+          "status": "done",
           "text": "사업그룹 4파트 같은 고정 문구는 사용자 소속 조직명으로 바꾼다."
         },
         {
           "id": "5.08",
-          "status": "pending",
+          "status": "done",
           "text": "신규 투자 Projects, 관리 Projects, 자산현황은 핵심 변경 정보만 남기고 상세는 버튼/drawer로 분리한다."
         },
         {
           "id": "5.09",
-          "status": "pending",
+          "status": "done",
           "text": "슬래시 표기는 bullet point 중심으로 줄바꿈 표시한다."
         },
         {
           "id": "5.10",
-          "status": "pending",
+          "status": "done",
           "text": "기준 및 기타사항은 제거한다."
         },
         {
           "id": "5.11",
-          "status": "pending",
+          "status": "partial",
           "text": "Word 원본 파일 자체 저장 여부와 파싱 결과/요약/수정 결과/dashboard record 분리 정책을 확정한다."
         },
         {
           "id": "5.12",
-          "status": "pending",
+          "status": "partial",
           "text": "런칭 후 AI가 Word 내용을 파싱해 핵심 이슈, 현재 현황, 다음 계획, 담당자, 관련 자산/펀드, 이해관계자로 구조화하는 서버 흐름을 설계한다."
+        },
+        {
+          "id": "5.13",
+          "status": "done",
+          "text": "Weekly upload popup is reduced to title, period, file picker, and submit button only."
+        },
+        {
+          "id": "5.14",
+          "status": "done",
+          "text": "Weekly top controls use six equal horizontal blocks for year, month, week, report date, asset count, and gross area."
+        },
+        {
+          "id": "5.15",
+          "status": "done",
+          "text": "주간업무보고자료 업로드 팝업의 제출 버튼 문구를 데이터 반영으로 바꾸고, 버튼 안 글자가 잘리지 않게 min-width/nowrap을 적용했다. Evidence: session-implementation-static-qa-20260515 weekly_upload_popup_is_minimal_and_not_noisy pass."
+        },
+        {
+          "id": "5.16",
+          "status": "done",
+          "text": "주간업무보고자료 업로드와 Weekly 탭의 주차 알고리즘은 목요일이 속한 월을 기준으로 월요일~일요일 주간 구간을 귀속시켜, 2026년 4월 5주차(2026-04-27~2026-05-03)와 2026년 5월 1주차(2026-05-04~2026-05-10)가 겹치지 않게 했다. Evidence: weekly-week-mece-static-qa-20260515 allPass=true."
         }
       ]
     },
     {
       "stage": 6,
       "area": "Home 탭",
-      "completed": 6,
-      "total": 24,
+      "completed": 27,
+      "total": 32,
       "items": [
         {
           "id": "6.01",
-          "status": "partial",
-          "text": "상단 KPI 월 임관리비 총액과 도넛 월 임관리비 비중의 52.2억/111.3억 차이를 원본 기준으로 정리한다."
+          "status": "done",
+          "text": "상단 KPI 월 임관리비 총액과 도넛 월 임관리비 비중의 52.2억/111.3억 차이를 정리했고, Home KPI/자산별 도넛/임차인별 도넛 총액을 2026년 4월 snapshot 기준 111.3억으로 통일했다."
         },
         {
           "id": "6.02",
@@ -281,67 +361,67 @@
         },
         {
           "id": "6.03",
-          "status": "pending",
+          "status": "done",
           "text": "포트폴리오 위치 지도와 우측 표의 세로 높이를 맞춘다."
         },
         {
           "id": "6.04",
-          "status": "pending",
+          "status": "done",
           "text": "지도 하단 지도 제공 문구는 제거한다."
         },
         {
           "id": "6.05",
-          "status": "pending",
+          "status": "done",
           "text": "우측 표에 저온창고 비율과 E.NOC 원 단위 가중평균을 표시한다."
         },
         {
           "id": "6.06",
-          "status": "pending",
+          "status": "done",
           "text": "저온창고 비율은 저온창고 면적 / (상온창고 면적 + 저온창고 면적)으로 계산한다."
         },
         {
           "id": "6.07",
-          "status": "pending",
+          "status": "done",
           "text": "용도별 비율 범례는 상온창고, 저온창고, 복합, 사무실로 통일한다."
         },
         {
           "id": "6.08",
-          "status": "pending",
+          "status": "done",
           "text": "N/Y 같은 내부 코드값은 범례에 노출하지 않는다."
         },
         {
           "id": "6.09",
-          "status": "pending",
+          "status": "done",
           "text": "0.0%인데 1평으로 보이는 문제를 제거한다."
         },
         {
           "id": "6.10",
-          "status": "pending",
+          "status": "done",
           "text": "용도별 비율 색상은 상온창고 주황, 저온창고 하늘색, 복합 보라, 사무실 회색으로 통일한다."
         },
         {
           "id": "6.11",
-          "status": "pending",
+          "status": "done",
           "text": "월 임관리비 비중은 자산별/임차인별 전환을 유지하되 기준 총액을 KPI와 일치시킨다."
         },
         {
           "id": "6.12",
-          "status": "pending",
-          "text": "계약 이력 기준 임대료 추이 차트는 더 넓게 배치하고 좌우 불필요한 여백을 제거한다."
+          "status": "done",
+          "text": "계약 이력 기준 임대료 추이 차트를 전체 너비 섹션으로 유지하고 RichTrendChart 축 여백/폰트/라벨 위치를 보정했다. Evidence: home-chart-interaction-qa-20260513 trend tooltip/axis text visible/not clipped pass."
         },
         {
           "id": "6.13",
-          "status": "pending",
-          "text": "만기 집중도는 y축을 평 단위의 깔끔한 tick으로 고정하고 글자가 잘 보이게 한다."
+          "status": "partial",
+          "text": "만기 집중도 포함 RichTrendChart y축은 코드상 평 단위 nice tick과 큰 축 폰트/여백을 적용했으나, 사용자 실제 화면 피드백상 차트가 여전히 너무 작아 plot 영역/높이/축 가독성 재조정이 필요하다."
         },
         {
           "id": "6.14",
-          "status": "pending",
+          "status": "done",
           "text": "Top 자산, Top 임차인은 sorting 기준 컬럼을 선택할 수 있게 한다."
         },
         {
           "id": "6.15",
-          "status": "pending",
+          "status": "partial",
           "text": "권역별 노출도는 연면적/임관리비 전환을 지원하고 상위 임차인 컴포넌트 위치로 옮긴다."
         },
         {
@@ -351,12 +431,12 @@
         },
         {
           "id": "6.17",
-          "status": "pending",
+          "status": "partial",
           "text": "Sector 탭의 월 임관리비 추이, Top 자산, Top 임차인, 권역별 노출도, 만기 집중도는 Home으로 흡수하되 중복은 제거한다."
         },
         {
           "id": "6.18",
-          "status": "pending",
+          "status": "done",
           "text": "임차인 계약 컴포넌트는 전체 임차인을 보여주는 전체 너비 표로 재구성한다."
         },
         {
@@ -386,84 +466,129 @@
         },
         {
           "id": "6.24",
-          "status": "pending",
+          "status": "done",
           "text": "추가/수정/삭제는 Home 표에서 하지 않고 Data Quality에서만 처리한다."
+        },
+        {
+          "id": "6.25",
+          "status": "done",
+          "text": "Top 자산 컴포넌트 표에서 공실률 컬럼을 제거하고 자산별 월 임관리비/임대면적 기준 핵심 임차인 1개를 표시하도록 변경했다. Evidence: session-implementation-static-qa-20260515 home_top_assets_show_core_tenant_instead_of_vacancy_rate pass."
+        },
+        {
+          "id": "6.26",
+          "status": "done",
+          "text": "공실 요약을 포함한 공통 DataTable의 자산명/숫자/면적/비율 컬럼 폭과 숫자 우측 정렬 규칙을 보정했다. Evidence: eslint/build/static QA pass; 실제 브라우저 캡처 QA는 인증 세션 필요."
+        },
+        {
+          "id": "6.27",
+          "status": "done",
+          "text": "임차인 계약 테이블에서 임차인명/자산 수/구역 수 컬럼 폭을 줄이고 자산 목록 컬럼을 넓혔으며, 자산 목록은 자산별 줄바꿈을 유지하도록 break-keep/pre-line을 적용했다. Evidence: session-implementation-static-qa-20260515 tenant_contract_summary_removes_business_number_and_widens_asset_list pass."
+        },
+        {
+          "id": "6.28",
+          "status": "done",
+          "text": "Home 임차인 계약 요약과 전체 표 보기에서 사업자번호/검토상태/source성 컬럼을 제거했다. OpenDART 매출/영업이익/영업이익률 대체 컬럼은 실제 DART API readback 이후 별도 확장 대상으로 둔다."
+        },
+        {
+          "id": "6.29",
+          "status": "pending",
+          "text": "Home 만기 집중도 차트는 현재 화면에서 너무 작게 보여 실제 분석이 어려우므로, 컴포넌트 높이, plot area, 축 tick 간격, 라벨 폰트, 상세 보기 버튼 배치를 다시 조정한다."
+        },
+        {
+          "id": "6.30",
+          "status": "done",
+          "text": "Home 계약 이력 기준 임대료 추이의 오른쪽 Y축 축 서식과 축 제목 색상을 자산 수 series 색상과 같은 보라색으로 맞춘다. Evidence: home-chart-axis-mixed-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "6.31",
+          "status": "done",
+          "text": "Home 만기 집중도는 만기 임대면적을 막대, 만기 임차인 수를 꺾은선으로 분리하고 색상과 좌우 축 서식을 구분한다. Evidence: home-chart-axis-mixed-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "6.32",
+          "status": "done",
+          "text": "Home 계약 이력 기준 임대료 추이 차트는 hover tooltip과 원본 표 보기 모두에서 해당 시점에 신규 편입된 자산명을 표시한다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
         }
       ]
     },
     {
       "stage": 7,
       "area": "Asset 탭",
-      "completed": 0,
-      "total": 12,
+      "completed": 11,
+      "total": 13,
       "items": [
         {
           "id": "7.01",
-          "status": "pending",
+          "status": "done",
           "text": "기존 자산 핵심 요약 컴포넌트는 삭제 상태를 유지한다."
         },
         {
           "id": "7.02",
-          "status": "pending",
+          "status": "done",
           "text": "임차인 현황 위 KPI는 임대율, 총 임대면적, 공실면적, 월 임관리비 총액, E.NOC, 현재 임차인 수 순서로 배치한다."
         },
         {
           "id": "7.03",
-          "status": "pending",
+          "status": "done",
           "text": "월 임관리비 총액은 소수점 첫째 자리까지 표시한다."
         },
         {
           "id": "7.04",
-          "status": "pending",
+          "status": "done",
           "text": "E.NOC는 46,984원처럼 원 단위로 표시한다."
         },
         {
           "id": "7.05",
-          "status": "pending",
+          "status": "done",
           "text": "자산명 옆에 펀드명을 작은 글씨로 표시한다."
         },
         {
           "id": "7.06",
-          "status": "pending",
+          "status": "done",
           "text": "핵심 임차인 컴포넌트는 삭제한다."
         },
         {
           "id": "7.07",
-          "status": "pending",
+          "status": "done",
           "text": "면적 구성에서 임대면적/공실면적 행은 제거한다."
         },
         {
           "id": "7.08",
-          "status": "pending",
+          "status": "partial",
           "text": "연면적, 전용면적, 공용면적, 공실면적의 정의를 Excel source cell 기준으로 재확정한다."
         },
         {
           "id": "7.09",
-          "status": "pending",
+          "status": "done",
           "text": "전체 연면적이 전용면적보다 작게 나오는 오류를 전수 점검한다."
         },
         {
           "id": "7.10",
-          "status": "pending",
+          "status": "done",
           "text": "비율값은 확정된 전체 기준 면적 대비로 계산한다."
         },
         {
           "id": "7.11",
-          "status": "pending",
+          "status": "done",
           "text": "만기 스냅샷 차트에는 구역/층을 표시하고 hover 시 만기일과 잔여개월을 함께 표시한다."
         },
         {
           "id": "7.12",
-          "status": "pending",
+          "status": "partial",
           "text": "건축물대장 API는 프론트 직접 호출 없이 server-only 경유로 연결한다."
+        },
+        {
+          "id": "7.13",
+          "status": "done",
+          "text": "Asset 탭 임차인 현황 표에 E. NOC 컬럼을 평당 임대료 앞에 추가하고, 층/세부구역 컬럼 폭을 compact하게 축소했다. Evidence: asset-area-expiry-static-qa-20260515 asset_roster_* checks pass."
         }
       ]
     },
     {
       "stage": 8,
       "area": "Company 탭",
-      "completed": 4,
-      "total": 13,
+      "completed": 10,
+      "total": 14,
       "items": [
         {
           "id": "8.01",
@@ -472,7 +597,7 @@
         },
         {
           "id": "8.02",
-          "status": "pending",
+          "status": "done",
           "text": "회사별 임차 자산 지도는 유지한다."
         },
         {
@@ -482,7 +607,7 @@
         },
         {
           "id": "8.04",
-          "status": "pending",
+          "status": "done",
           "text": "Company 상단 한 줄 블록 대상/기준시점/계약·금액/DART/지도는 제거 상태를 유지한다."
         },
         {
@@ -507,36 +632,41 @@
         },
         {
           "id": "8.09",
-          "status": "pending",
+          "status": "done",
           "text": "임차 자산 현황 테이블 컬럼별 너비를 다시 조정한다."
         },
         {
           "id": "8.10",
-          "status": "pending",
+          "status": "done",
           "text": "총 임차면적 팝업은 어떤 자산에 얼마를 임차하는지 보여준다."
         },
         {
           "id": "8.11",
-          "status": "pending",
+          "status": "done",
           "text": "월 임관리비/임대료/관리비 팝업은 자산별 임대료, 관리비, 임관리비, 비율을 보여준다."
         },
         {
           "id": "8.12",
-          "status": "pending",
+          "status": "partial",
           "text": "사업자등록번호가 Excel에 있는데 미입력으로 뜨는 문제를 source cell, Supabase, UI mapping 순서로 추적한다."
         },
         {
           "id": "8.13",
           "status": "pending",
           "text": "DART live 응답은 Edge Function 배포와 secret 설정 후 검증한다."
+        },
+        {
+          "id": "8.14",
+          "status": "done",
+          "text": "Company 탭 자산별 노출도 컴포넌트의 우측 금액/임대면적 값 옆에 전체 대비 비율을 괄호로 표시하고, 비율은 소수점 첫째 자리 00.0% 형식으로 표기한다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
         }
       ]
     },
     {
       "stage": 9,
       "area": "Data Playground",
-      "completed": 9,
-      "total": 10,
+      "completed": 10,
+      "total": 11,
       "items": [
         {
           "id": "9.01",
@@ -587,14 +717,19 @@
           "id": "9.10",
           "status": "pending",
           "text": "저장된 view 기능은 사용자별로 관리하되 실제 저장은 승인된 DB 흐름 이후 적용한다."
+        },
+        {
+          "id": "9.11",
+          "status": "done",
+          "text": "Data Playground 탭은 피벗 결과 테이블을 선택 컨트롤 바로 아래로 올리고 바 차트는 그 아래로 내리며, 값 필드에 평당 월임대료와 평당 월관리비를 추가했다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
         }
       ]
     },
     {
       "stage": 10,
       "area": "Data Quality",
-      "completed": 6,
-      "total": 11,
+      "completed": 15,
+      "total": 19,
       "items": [
         {
           "id": "10.01",
@@ -618,8 +753,8 @@
         },
         {
           "id": "10.05",
-          "status": "partial",
-          "text": "Data Quality readback은 anon REST 직접 조회가 아니라 Edge/server-only API로 통일한다."
+          "status": "done",
+          "text": "Data Quality findings readback은 브라우저 REST 직접 조회가 아니라 ll-dashboard-api Edge Function quality/findings 경유로 통일했다."
         },
         {
           "id": "10.06",
@@ -633,8 +768,8 @@
         },
         {
           "id": "10.08",
-          "status": "partial",
-          "text": "자기 승인 금지, 읽기/추가/수정/삭제 권한 분리, source 보존 필드 수정 차단을 적용한다."
+          "status": "done",
+          "text": "자기 승인 금지, 권한별 추가/수정/삭제 분리, source preservation table 자동 write 제외, table/field allowlist, target row asset scope 재검증을 적용했다."
         },
         {
           "id": "10.09",
@@ -649,53 +784,98 @@
         {
           "id": "10.11",
           "status": "done",
-          "text": "Data Quality?? ??/?? ?? ??? ??? Supabase ???? ?? ???? ?? ?? ?? ?? Excel ??? ??????, ?? ? ????? ?? ?? grid? ?? ???."
+          "text": "Data Quality/메인 페이지에서 사용자가 담당 자산을 선택해 한 시트 Excel을 다운로드하고, 수정 Excel을 업로드하면 내부 관계형 key와 한글 표시값을 기준으로 Supabase 수정 요청에 연결하는 흐름을 만들었다. 한 시트 강제, 필수 관계키 검증, 선택 자산 범위 차단, 전용면적 포함, 표시값 컬럼, 5,000행 제한을 적용했다. Evidence: data-quality-excel-roundtrip-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "10.12",
+          "status": "done",
+          "text": "Data Quality Edge API는 기획추진센터 인원만 접근 가능하도록 canUseDataQuality 권한 확인을 적용했다. Evidence: edge-api-security-static-qa-20260514 ll_dashboard_api_data_quality_center_only pass."
+        },
+        {
+          "id": "10.13",
+          "status": "done",
+          "text": "Data Quality submit은 target table/field/row allowlist를 검증하고, 자산/임차인 row는 lease/tenant join으로 자산 scope를 재검증한다. Evidence: edge-api-security-static-qa-20260514 submit_validates_target_before_queue, tenant_company_scope_join pass."
+        },
+        {
+          "id": "10.14",
+          "status": "done",
+          "text": "Data Quality submit은 현재 DB 값을 submit_readbacks에 저장해 승인 전 stale value 차단 기준을 남긴다. Evidence: edge-api-security-static-qa-20260514 submit_readback_snapshot pass."
+        },
+        {
+          "id": "10.15",
+          "status": "done",
+          "text": "Excel 한 시트 수정 파일 컴포넌트는 원본 데이터 수정으로 정리하고 대시보드 우측 상단 팝업으로 이동했다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "10.16",
+          "status": "done",
+          "text": "원본 데이터 수정은 대시보드 우측 상단 물류센터 워크 플랫폼 버튼 왼쪽의 버튼으로 제공하고, 버튼 색은 담당 및 권한 버튼 색과 맞추며, 클릭 시 팝업으로 Excel 다운로드/수정 Excel 업로드를 제공한다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "10.17",
+          "status": "done",
+          "text": "원본 데이터 수정 Excel은 사용자가 알아볼 수 있도록 원본 Excel DB_일반/DB_히스토리누적 수준의 한글 컬럼 제목과 순서를 제공하고, 시스템이 Supabase row/field를 인식할 수 있는 관계키는 숨김 컬럼으로 유지한다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "10.18",
+          "status": "done",
+          "text": "사용자가 수정 Excel을 업로드하면 즉시 DB에 쓰지 않고 edits/submit 승인 요청으로 접수하며, Data Quality 최상단 알림에 업로드 사용자, 자산 범위, 업로드 시각, 변경 건수, 파일명, 상태를 표시한다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+        },
+        {
+          "id": "10.19",
+          "status": "pending",
+          "text": "원본 데이터 수정 Excel 파일은 현재 구현 상태를 최종으로 보지 않고, 배포 완료 후 마지막 수정배포 단계에서 사용자 확인 기준으로 다시 전면 정리한다."
         }
       ]
     },
     {
       "stage": 11,
       "area": "Analysis Tools",
-      "completed": 0,
-      "total": 5,
+      "completed": 4,
+      "total": 6,
       "items": [
         {
           "id": "11.01",
-          "status": "pending",
+          "status": "partial",
           "text": "현재 구조가 원본 Apps Script 대비 어떤 기능이 빠졌는지 parity matrix를 다시 만든다."
         },
         {
           "id": "11.02",
-          "status": "pending",
+          "status": "done",
           "text": "metric/filter/topN 변경 시 차트, 표, 팝업이 모두 재계산되도록 고정한다."
         },
         {
           "id": "11.03",
-          "status": "pending",
+          "status": "done",
           "text": "자산·임차인 선택 옵션은 읽기 권한 기준으로 제한한다."
         },
         {
           "id": "11.04",
-          "status": "pending",
+          "status": "partial",
           "text": "row click 시 source row/source cell 기반 상세를 보여준다."
         },
         {
           "id": "11.05",
-          "status": "pending",
+          "status": "done",
           "text": "단순 시각화가 아니라 실제 의사결정용 분석 도구로 사용할 수 있게 주요 비교 기준과 benchmark 기능을 보강한다."
+        },
+        {
+          "id": "11.06",
+          "status": "done",
+          "text": "Analysis Tools 선택 자산·기업 비교에서 기업 선택의 하이픈(-) 옵션은 제거하고, 비교 값 선택 UI를 잘 보이는 위치로 옮겼으며 평당 월임대료와 평당 월관리비를 추가했다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
         }
       ]
     },
     {
       "stage": 12,
       "area": "승인대기 대상",
-      "completed": 1,
-      "total": 9,
+      "completed": 5,
+      "total": 12,
       "items": [
         {
           "id": "12.01",
-          "status": "external_pending",
-          "text": "Supabase migration 실제 적용."
+          "status": "done",
+          "text": "Supabase migration 실제 적용 완료. qvegpozwrcmspdvjokiz에 20260513000100, 20260514000100, 20260515000100 migration SQL을 적용했고 ll_user_permissions, ll_weekly_reports, ll_edit_requests, ll_data_change_audit_logs, ll_external_api_cache 등 핵심 ll_* 테이블과 RLS readback을 확인했다."
         },
         {
           "id": "12.02",
@@ -724,8 +904,8 @@
         },
         {
           "id": "12.07",
-          "status": "external_pending",
-          "text": "Edge Function 배포: ll-dashboard-api, ll-weekly-doc-ingest, Naver geocoding action."
+          "status": "done",
+          "text": "Edge Function 배포 완료: qvegpozwrcmspdvjokiz에 ll-dashboard-api와 ll-weekly-doc-ingest를 배포했다. ll-dashboard-api에는 Naver maps-config/geocode, Gemini 2.5 Flash ai/search-chat, OpenDART, 건축물대장 server-only action이 포함된다."
         },
         {
           "id": "12.08",
@@ -735,35 +915,50 @@
         {
           "id": "12.09",
           "status": "done",
-          "text": "commit/push ??: c9de1e1 Implement logistics data quality edge workflow pushed to origin/codex/logistics-leasing-work-platform."
+          "text": "commit/push 완료: c9de1e1 Implement logistics data quality edge workflow pushed to origin/codex/logistics-leasing-work-platform."
+        },
+        {
+          "id": "12.10",
+          "status": "done",
+          "text": "외부 API cache table ll_external_api_cache migration 적용 및 readback 완료. Naver geocode live 호출 후 cache/audit 경로도 확인했다."
+        },
+        {
+          "id": "12.11",
+          "status": "done",
+          "text": "Gemini 검색+질의 기능은 ll-dashboard-api ai/search-chat, 권한 필터 evidence 수집, Google AI generateContent 호출, audit logging, 메인 검색 UI 버튼까지 반영했고 qveg live smoke에서 gemini-2.5-flash 응답을 확인했다."
+        },
+        {
+          "id": "12.12",
+          "status": "partial",
+          "text": "Task 기록, 통합 검색 질문/검색 로그, 클릭, 창 전환, 업로드, 데이터 추가·수정·삭제 등 워크플랫폼과 대시보드 전체 사용자 행동을 Supabase audit/event log로 남기는 서버 로그 구조를 확정하고 적용한다. Data Quality 일부 audit 기반은 있으나 전체 행동 로그는 미완성이다."
         }
       ]
     },
     {
       "stage": 13,
       "area": "외부권한대기 대상",
-      "completed": 0,
-      "total": 8,
+      "completed": 4,
+      "total": 10,
       "items": [
         {
           "id": "13.01",
-          "status": "external_pending",
-          "text": "OpenDART API key."
+          "status": "partial",
+          "text": "OpenDART API key는 Edge Function secret에서 읽히며 server-only 호출/timeout/redaction 경로까지 live smoke를 수행했다. 현재 provider request는 502로 실패하지만 응답과 audit에는 key가 redacted 처리된다. provider 장애/키값/방화벽 원인 재확인이 필요하다."
         },
         {
           "id": "13.02",
-          "status": "external_pending",
-          "text": "건축물대장 API key."
+          "status": "partial",
+          "text": "건축물대장 API key는 Edge Function secret에서 읽히며 server-only 호출/timeout/redaction 경로까지 live smoke를 수행했다. 현재 sample request는 provider_status 500으로 실패한다. 키 권한 또는 요청 파라미터 검증이 필요하다."
         },
         {
           "id": "13.03",
-          "status": "external_pending",
-          "text": "Naver Cloud geocoding/map key와 live domain 등록."
+          "status": "done",
+          "text": "Naver Cloud map/geocoding 관련 secret은 Edge Function secret 기준으로 연결했다. qveg live smoke에서 naver/maps-config ok, naver/geocode provider_status=200을 확인했다. 실제 지도 타일/마커 화면 QA는 사용자 브라우저 확인 항목으로 남긴다."
         },
         {
           "id": "13.04",
-          "status": "external_pending",
-          "text": "Supabase service role 및 Edge secret 설정 권한."
+          "status": "done",
+          "text": "Supabase service role/Edge secret 설정은 qveg live smoke에서 확인했다. 임시 smoke user 생성, ll_user_permissions REST upsert, JWT 발급, health role=System Admin readback이 성공했다."
         },
         {
           "id": "13.05",
@@ -773,34 +968,44 @@
         {
           "id": "13.06",
           "status": "external_pending",
-          "text": "live URL 인증 세션."
+          "text": "local/live URL 인증 세션. Headless Chrome 신규 세션은 auth-setup 화면으로 redirect되며, 기본 Chrome 로그인 프로필을 그대로 사용하는 방식은 credential/session 접근 위험으로 자동 거절되었다. 안전한 QA용 로그인 세션 또는 테스트 계정 로그인이 필요하다."
         },
         {
           "id": "13.07",
           "status": "external_pending",
-          "text": "Reader/Editor/Manager/Admin/System Admin 테스트 계정."
+          "text": "live QA용 권한별 로그인 계정. 별도 테스트 계정이 아니라 Reader/Editor/Manager/Admin/System Admin 권한 차이를 실제 배포 화면에서 확인할 수 있는 실사용 계정 조합이며, 10524@igisam.com 등 등록 계정으로 대체 가능하다."
         },
         {
           "id": "13.08",
-          "status": "external_pending",
-          "text": "?? Supabase ??? ???? qgrszltduzblpvpqvkqr migration/function endpoint ?? ??? ??, Owner/Developer ?? ?? Supabase access token? ????."
+          "status": "partial",
+          "text": "현재 Codex 작업 계정은 rhksdyd13@gmail.com이며, 10524@igisam.com도 등록됨. migration/function endpoint 접근은 실제 Supabase CLI/API readback으로 추가 검증해야 한다."
+        },
+        {
+          "id": "13.09",
+          "status": "done",
+          "text": "GOOGLE_AI_KEY는 qveg Edge Function secret 기준으로 연결했고, live smoke에서 gemini-2.5-flash 모델 응답을 확인했다."
+        },
+        {
+          "id": "13.10",
+          "status": "done",
+          "text": "Supabase service role key는 Edge 기본 secret 또는 fallback secret 명칭을 읽도록 처리했고, qveg live smoke에서 service-role 기반 권한 row upsert와 Edge 권한 readback이 성공했다."
         }
       ]
     },
     {
       "stage": 14,
       "area": "QA 계획",
-      "completed": 0,
-      "total": 11,
+      "completed": 5,
+      "total": 17,
       "items": [
         {
           "id": "14.01",
-          "status": "pending",
-          "text": "도넛 segment별 hover QA: 각 조각 중심점 hover 후 tooltip label/value 일치 확인."
+          "status": "done",
+          "text": "도넛 segment별 hover QA: 각 조각 중심점 hover 후 tooltip label/value 일치 확인. Evidence: home-chart-interaction-qa-20260513 allPass=true."
         },
         {
           "id": "14.02",
-          "status": "pending",
+          "status": "partial",
           "text": "차트 축 QA: 모든 차트의 x/y축 text, tick, 단위, 겹침, 잘림을 screenshot과 DOM text로 확인."
         },
         {
@@ -810,7 +1015,7 @@
         },
         {
           "id": "14.04",
-          "status": "pending",
+          "status": "partial",
           "text": "Asset 면적 구성 QA: 자산별 연면적/전용/공용/공실 합계와 비율 검증."
         },
         {
@@ -825,7 +1030,7 @@
         },
         {
           "id": "14.07",
-          "status": "pending",
+          "status": "partial",
           "text": "Data Quality QA: submit payload, stale 차단, 승인/write/readback/audit end-to-end 확인."
         },
         {
@@ -845,8 +1050,38 @@
         },
         {
           "id": "14.11",
-          "status": "pending",
+          "status": "partial",
           "text": "secret scan: 프론트 env, bundle, source map, console, localStorage/sessionStorage, API response, audit log 전수 확인."
+        },
+        {
+          "id": "14.12",
+          "status": "done",
+          "text": "Edge/API 보안 QA는 Data Quality center-only, submit pre-validation, tenant/company scope join, audit redaction, reject status guard, external API cache, weekly rate limit, Supabase default secret fallback을 확인했다. Evidence: edge-api-security-static-qa-20260514 logisticsGatePass=true."
+        },
+        {
+          "id": "14.13",
+          "status": "partial",
+          "text": "Edge Function TypeScript syntax는 esbuild로 ll-dashboard-api와 ll-weekly-doc-ingest bundle parse까지 확인했다. Deno CLI 기반 deno check는 아직 미완료다."
+        },
+        {
+          "id": "14.14",
+          "status": "done",
+          "text": "경산 쿠팡물류센터 전용면적 3건 Supabase readback을 확인했다. ll_rent_history 3건 corrected, ll_data_quality_findings 4건 upserted, ll_lease_spaces 충돌 이슈 기록 완료."
+        },
+        {
+          "id": "14.15",
+          "status": "done",
+          "text": "Home 계약 이력 기준 임대료 추이와 만기 집중도는 실제 preview 브라우저 캡처 기준으로 축 숫자, 축명, 범례, 라벨 겹침, 폰트 크기를 재검증했다. Evidence: home-chart-interaction-qa-20260513 allPass=true, screenshots home-full/doughnut-segment-click-modal."
+        },
+        {
+          "id": "14.16",
+          "status": "done",
+          "text": "Home Top 자산, 공실 요약, 임차인 계약 테이블은 실제 preview 브라우저 캡처 기준으로 컬럼 폭과 줄바꿈 규칙을 재검증했다. Evidence: table-column-width-wrap-qa-20260514 allPass=true, Home table rows pass."
+        },
+        {
+          "id": "14.17",
+          "status": "external_pending",
+          "text": "실제 브라우저 화면 QA는 사용자가 직접 수행한다. Codex는 정적 QA, 빌드, 데이터 readback, 보안 스크립트까지만 수행하고, 사용자용 화면 확인 목록은 manual-browser-qa-checklist-20260515.md로 관리한다."
         }
       ]
     },
@@ -930,10 +1165,69 @@
     }
   ],
   "session_report_template": [
-    "?? ???? ??? ??",
-    "??? ?? ??",
-    "?? ???",
-    "?? ??? ??? ??? ?? ??",
-    "???? / ?????? ?? ??"
-  ]
+    "이번 세션에서 완료한 항목",
+    "단계별 완료 현황",
+    "전체 완료율",
+    "새로 추가된 사용자 요청과 편입 단계",
+    "승인대기 / 외부권한대기 분리 목록"
+  ],
+  "last_user_request_added": {
+    "date": "2026-05-15",
+    "summary": "Home 임대료 추이 신규 편입 자산 hover/table 표시를 완료 항목으로 추가하고, 원본 데이터 수정 Excel 전면 재정리는 배포 후 마지막 수정배포 항목으로 분리했다.",
+    "added_item_ids": [
+      "2.10",
+      "3.18",
+      "3.19",
+      "3.20",
+      "3.21",
+      "4.10",
+      "5.16",
+      "6.29",
+      "8.14",
+      "9.11",
+      "10.16",
+      "10.17",
+      "10.18",
+      "11.06",
+      "12.12",
+      "6.32",
+      "10.19"
+    ],
+    "downgraded_item_ids": [
+      "3.17",
+      "6.13",
+      "10.15"
+    ],
+    "chart_request_item_ids": [
+      "6.30",
+      "6.31"
+    ],
+    "latest_completed_item_ids": [
+      "3.17",
+      "3.18",
+      "3.19",
+      "3.20",
+      "8.14",
+      "9.11",
+      "10.15",
+      "10.16",
+      "10.17",
+      "10.18",
+      "11.06",
+      "6.30",
+      "6.31",
+      "5.16",
+      "6.32"
+    ],
+    "latest_evidence": [
+      "current-request-ui-static-qa-20260515 allPass=true",
+      "home-chart-axis-mixed-static-qa-20260515 allPass=true",
+      "eslint WorkspaceLogistics/current QA scripts pass",
+      "weekly-week-mece-static-qa-20260515 allPass=true",
+      "home-enoc-coldratio-static-qa-20260515 allPass=true"
+    ],
+    "latest_partial_item_ids": [
+      "2.10"
+    ]
+  }
 }

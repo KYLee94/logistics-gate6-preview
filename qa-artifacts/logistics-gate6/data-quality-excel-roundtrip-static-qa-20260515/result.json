@@ -1,0 +1,54 @@
+{
+  "generatedAt": "2026-05-15T07:43:28.035Z",
+  "checks": [
+    {
+      "id": "one_sheet_upload_required",
+      "status": "pass",
+      "detail": "Excel roundtrip upload must reject workbooks that are not exactly one sheet."
+    },
+    {
+      "id": "relation_key_columns_required",
+      "status": "pass",
+      "detail": "Upload must require hidden relation-key columns so Supabase mapping is preserved."
+    },
+    {
+      "id": "exclusive_area_exported",
+      "status": "pass",
+      "detail": "Excel export must include exclusive area so 경산 전용면적-type corrections can be handled."
+    },
+    {
+      "id": "source_excel_headers_visible",
+      "status": "pass",
+      "detail": "Excel export must expose source sheet/header and a human-readable row identifier."
+    },
+    {
+      "id": "db_general_and_history_fields_exported",
+      "status": "pass",
+      "detail": "Excel export must cover both original DB_일반 and DB_히스토리 누적 style fields."
+    },
+    {
+      "id": "display_value_for_user",
+      "status": "pass",
+      "detail": "Excel export must include a Korean/user-readable display value beside raw DB value."
+    },
+    {
+      "id": "upload_blocks_broken_relation_keys",
+      "status": "pass",
+      "detail": "Upload must block rows with broken target table, row id, or field name instead of silently dropping them."
+    },
+    {
+      "id": "upload_blocks_selected_asset_scope_escape",
+      "status": "pass",
+      "detail": "Upload must block rows outside the selected asset scope."
+    },
+    {
+      "id": "upload_row_limit",
+      "status": "pass",
+      "detail": "Upload must enforce a row limit to avoid accidental massive submissions."
+    }
+  ],
+  "statusCounts": {
+    "pass": 9
+  },
+  "allPass": true
+}

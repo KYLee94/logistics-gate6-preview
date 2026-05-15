@@ -1,4 +1,4 @@
-{
+﻿{
   "urlHome": "http://127.0.0.1:8083/platform/iotaseoul/workspace/logistics/dashboard/home",
   "urlAsset": "http://127.0.0.1:8083/platform/iotaseoul/workspace/logistics/dashboard/asset",
   "mapMode": "naver",
@@ -23,7 +23,7 @@
       "hasNaver": true,
       "hasLeaflet": false,
       "scripts": [
-        "https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=xmxdr3l9ij"
+        "https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=[redacted-naver-client-id]"
       ],
       "canvas": {
         "rect": {

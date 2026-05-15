@@ -1,0 +1,3377 @@
+{
+  "schemaVersion": "logistics_permission_v1",
+  "sourceFile": "260513_담당자별 권한 부여_수식 제거.xlsx",
+  "sourceSheet": "Sheet1",
+  "sourceRanges": {
+    "users": "B3:M36",
+    "assetMaster": "B39:F56"
+  },
+  "generatedAt": "2026-05-13",
+  "userCount": 33,
+  "assetCount": 17,
+  "organizations": [
+    {
+      "name": "관리&운영",
+      "memberEmails": [
+        "jmjung@igisam.com"
+      ],
+      "memberCount": 1
+    },
+    {
+      "name": "기획추진센터",
+      "memberEmails": [
+        "sjlee@igisam.com",
+        "jk.jeon@igisam.com",
+        "kylee@igisam.com"
+      ],
+      "memberCount": 3
+    },
+    {
+      "name": "로지스틱스매니지먼트",
+      "memberEmails": [
+        "oce@igisam.com",
+        "jhlee@igisam.com",
+        "davidlee@igisam.com"
+      ],
+      "memberCount": 3
+    },
+    {
+      "name": "리얼에셋부문",
+      "memberEmails": [
+        "ethan.lee@igisam.com"
+      ],
+      "memberCount": 1
+    },
+    {
+      "name": "사업그룹",
+      "memberEmails": [
+        "hyungsuk.woo@igisam.com"
+      ],
+      "memberCount": 1
+    },
+    {
+      "name": "사업그룹3파트",
+      "memberEmails": [
+        "shyung.choi@igisam.com"
+      ],
+      "memberCount": 1
+    },
+    {
+      "name": "사업그룹4파트",
+      "memberEmails": [
+        "seunghoon.lee@igisam.com",
+        "hyunho.lee@igisam.com",
+        "kim17826@igisam.com",
+        "minsukim@igisam.com",
+        "shkang@igisam.com",
+        "mihyunu@igisam.com",
+        "gulee@igisam.com",
+        "jslee@igisam.com",
+        "whan@igisam.com"
+      ],
+      "memberCount": 9
+    },
+    {
+      "name": "자산관리1파트",
+      "memberEmails": [
+        "jihkim@igisam.com"
+      ],
+      "memberCount": 1
+    },
+    {
+      "name": "자산관리3파트",
+      "memberEmails": [
+        "dy.kwon@igisam.com",
+        "jwlim@igisam.com",
+        "dmpark@igisam.com",
+        "sw.jeoung@igisam.com"
+      ],
+      "memberCount": 4
+    },
+    {
+      "name": "투자&펀딩",
+      "memberEmails": [
+        "gwansik.yoon@igisam.com"
+      ],
+      "memberCount": 1
+    },
+    {
+      "name": "투자1그룹4파트",
+      "memberEmails": [
+        "jy3142@igisam.com",
+        "minz@igisam.com",
+        "cskim@igisam.com",
+        "cwcho@igisam.com",
+        "choijt@igisam.com",
+        "hayoung.lee@igisam.com",
+        "sh.han@igisam.com",
+        "double0507@igisam.com"
+      ],
+      "memberCount": 8
+    }
+  ],
+  "assetMaster": [
+    {
+      "assetCode": "A112109001",
+      "assetId": "asset_a112109001",
+      "assetName": "부산송정물류센터",
+      "fundCode": "112109",
+      "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+      "assetManagerName": "유미현"
+    },
+    {
+      "assetCode": "A112127001",
+      "assetId": "asset_a112127001",
+      "assetName": "아레나스양지물류센터",
+      "fundCode": "112127",
+      "fundName": "이지스일반사모부동산모투자신탁116호",
+      "assetManagerName": "박동민"
+    },
+    {
+      "assetCode": "A112299001",
+      "assetId": "asset_a112299001",
+      "assetName": "스카이박스1, 스카이박스2",
+      "fundCode": "112299",
+      "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+      "assetManagerName": "박동민"
+    },
+    {
+      "assetCode": "A112500002",
+      "assetId": "asset_a112500002",
+      "assetName": "평택아디다스물류센터",
+      "fundCode": "112604",
+      "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+      "assetManagerName": "오채은"
+    },
+    {
+      "assetCode": "A112500003",
+      "assetId": "asset_a112500003",
+      "assetName": "안성 홈플러스 중부허브 물류센터",
+      "fundCode": "112703",
+      "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+      "assetManagerName": "오채은"
+    },
+    {
+      "assetCode": "A112505001",
+      "assetId": "asset_a112505001",
+      "assetName": "아레나스안성",
+      "fundCode": "112505",
+      "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+      "assetManagerName": "최성현"
+    },
+    {
+      "assetCode": "A112527001",
+      "assetId": "asset_a112527001",
+      "assetName": "동산물류센터",
+      "fundCode": "112527",
+      "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+      "assetManagerName": "이정훈B"
+    },
+    {
+      "assetCode": "A112527002",
+      "assetId": "asset_a112527002",
+      "assetName": "부국물류센터",
+      "fundCode": "112527",
+      "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+      "assetManagerName": "이정훈B"
+    },
+    {
+      "assetCode": "A112527003",
+      "assetId": "asset_a112527003",
+      "assetName": "에이블로지스물류센터",
+      "fundCode": "112527",
+      "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+      "assetManagerName": "이정훈B"
+    },
+    {
+      "assetCode": "A112573001",
+      "assetId": "asset_a112573001",
+      "assetName": "이천 마장면 물류센터",
+      "fundCode": "112573",
+      "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+      "assetManagerName": "이준수"
+    },
+    {
+      "assetCode": "A112606001",
+      "assetId": "asset_a112606001",
+      "assetName": "여주 본두리 물류센터",
+      "fundCode": "112606",
+      "fundName": "이지스제440호부동산일반사모투자회사",
+      "assetManagerName": "이정훈B"
+    },
+    {
+      "assetCode": "A112642001",
+      "assetId": "asset_a112642001",
+      "assetName": "화성 석포리 물류센터",
+      "fundCode": "112642",
+      "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+      "assetManagerName": "유미현"
+    },
+    {
+      "assetCode": "A112721001",
+      "assetId": "asset_a112721001",
+      "assetName": "인천석남물류센터",
+      "fundCode": "112751",
+      "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+      "assetManagerName": "오채은"
+    },
+    {
+      "assetCode": "A112755001",
+      "assetId": "asset_a112755001",
+      "assetName": "두동 LG전자 통합물류센터",
+      "fundCode": "112755",
+      "fundName": "이지스제505호부동산일반사모투자회사",
+      "assetManagerName": "이정훈B"
+    },
+    {
+      "assetCode": "A120085001",
+      "assetId": "asset_a120085001",
+      "assetName": "경산 쿠팡물류센터",
+      "fundCode": "120085",
+      "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+      "assetManagerName": "강성호"
+    },
+    {
+      "assetCode": "AP00014001",
+      "assetId": "asset_ap00014001",
+      "assetName": "안성 성은지구 물류센터",
+      "fundCode": "P00014",
+      "fundName": "안성성은물류피에프브이 주식회사",
+      "assetManagerName": "이주영"
+    },
+    {
+      "assetCode": "S00002001",
+      "assetId": "asset_s00002001",
+      "assetName": "양산 유산동 물류센터",
+      "fundCode": "S00002",
+      "fundName": "주식회사 석암물류(SPC)",
+      "assetManagerName": "최정택"
+    }
+  ],
+  "users": [
+    {
+      "name": "이철승",
+      "email": "ethan.lee@igisam.com",
+      "organization": "리얼에셋부문",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001",
+        "A120085001",
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112642001",
+        "A112109001",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003",
+        "AP00014001",
+        "A112573001",
+        "A112505001",
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        },
+        {
+          "assetCode": "A112505001",
+          "assetId": "asset_a112505001",
+          "assetName": "아레나스안성",
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "assetManagerName": "최성현"
+        },
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        },
+        {
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        },
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        },
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": false
+        },
+        "otherAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "이시정",
+      "email": "sjlee@igisam.com",
+      "organization": "기획추진센터",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001",
+        "A120085001",
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112642001",
+        "A112109001",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003",
+        "AP00014001",
+        "A112573001",
+        "A112505001",
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        },
+        {
+          "assetCode": "A112505001",
+          "assetId": "asset_a112505001",
+          "assetName": "아레나스안성",
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "assetManagerName": "최성현"
+        },
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        },
+        {
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        },
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        },
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        }
+      }
+    },
+    {
+      "name": "전기영",
+      "email": "jk.jeon@igisam.com",
+      "organization": "기획추진센터",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001",
+        "A120085001",
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112642001",
+        "A112109001",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003",
+        "AP00014001",
+        "A112573001",
+        "A112505001",
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        },
+        {
+          "assetCode": "A112505001",
+          "assetId": "asset_a112505001",
+          "assetName": "아레나스안성",
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "assetManagerName": "최성현"
+        },
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        },
+        {
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        },
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        },
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        }
+      }
+    },
+    {
+      "name": "이관용",
+      "email": "kylee@igisam.com",
+      "organization": "기획추진센터",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001",
+        "A120085001",
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112642001",
+        "A112109001",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003",
+        "AP00014001",
+        "A112573001",
+        "A112505001",
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        },
+        {
+          "assetCode": "A112505001",
+          "assetId": "asset_a112505001",
+          "assetName": "아레나스안성",
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "assetManagerName": "최성현"
+        },
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        },
+        {
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        },
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        },
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        }
+      }
+    },
+    {
+      "name": "윤관식",
+      "email": "gwansik.yoon@igisam.com",
+      "organization": "투자&펀딩",
+      "managedAssetCodes": [
+        "AP00014001",
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        },
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        },
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": false
+        },
+        "otherAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "정조민",
+      "email": "jmjung@igisam.com",
+      "organization": "관리&운영",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001",
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        },
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": false
+        },
+        "otherAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "우형석",
+      "email": "hyungsuk.woo@igisam.com",
+      "organization": "사업그룹",
+      "managedAssetCodes": [
+        "A120085001",
+        "A112642001",
+        "A112109001",
+        "A112573001",
+        "A112505001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        },
+        {
+          "assetCode": "A112505001",
+          "assetId": "asset_a112505001",
+          "assetName": "아레나스안성",
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "assetManagerName": "최성현"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": false
+        },
+        "otherAsset": {
+          "read": true,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "이승훈",
+      "email": "seunghoon.lee@igisam.com",
+      "organization": "사업그룹4파트",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001",
+        "A120085001",
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112642001",
+        "A112109001",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003",
+        "AP00014001",
+        "A112573001",
+        "A112505001",
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        },
+        {
+          "assetCode": "A112505001",
+          "assetId": "asset_a112505001",
+          "assetName": "아레나스안성",
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "assetManagerName": "최성현"
+        },
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        },
+        {
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        },
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        },
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        }
+      }
+    },
+    {
+      "name": "이현호",
+      "email": "hyunho.lee@igisam.com",
+      "organization": "사업그룹4파트",
+      "managedAssetCodes": [
+        "A120085001",
+        "A112642001",
+        "A112109001",
+        "A112573001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": true,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "김연수",
+      "email": "kim17826@igisam.com",
+      "organization": "사업그룹4파트",
+      "managedAssetCodes": [
+        "A120085001",
+        "A112642001",
+        "A112109001",
+        "A112573001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "김민수",
+      "email": "minsukim@igisam.com",
+      "organization": "사업그룹4파트",
+      "managedAssetCodes": [
+        "A120085001",
+        "A112642001",
+        "A112109001",
+        "A112573001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "강성호",
+      "email": "shkang@igisam.com",
+      "organization": "사업그룹4파트",
+      "managedAssetCodes": [
+        "A120085001",
+        "A112642001",
+        "A112109001",
+        "A112573001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "유미현",
+      "email": "mihyunu@igisam.com",
+      "organization": "사업그룹4파트",
+      "managedAssetCodes": [
+        "A120085001",
+        "A112642001",
+        "A112109001",
+        "A112573001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "이구",
+      "email": "gulee@igisam.com",
+      "organization": "사업그룹4파트",
+      "managedAssetCodes": [
+        "A120085001",
+        "A112642001",
+        "A112109001",
+        "A112573001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "이준수",
+      "email": "jslee@igisam.com",
+      "organization": "사업그룹4파트",
+      "managedAssetCodes": [
+        "A120085001",
+        "A112642001",
+        "A112109001",
+        "A112573001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "한원석",
+      "email": "whan@igisam.com",
+      "organization": "사업그룹4파트",
+      "managedAssetCodes": [
+        "A120085001",
+        "A112642001",
+        "A112109001",
+        "A112573001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A120085001",
+          "assetId": "asset_a120085001",
+          "assetName": "경산 쿠팡물류센터",
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "assetManagerName": "강성호"
+        },
+        {
+          "assetCode": "A112642001",
+          "assetId": "asset_a112642001",
+          "assetName": "화성 석포리 물류센터",
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112109001",
+          "assetId": "asset_a112109001",
+          "assetName": "부산송정물류센터",
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사",
+          "assetManagerName": "유미현"
+        },
+        {
+          "assetCode": "A112573001",
+          "assetId": "asset_a112573001",
+          "assetName": "이천 마장면 물류센터",
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)",
+          "assetManagerName": "이준수"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112109",
+          "fundName": "이지스제114호전문투자형사모부동산투자유한회사"
+        },
+        {
+          "fundCode": "112573",
+          "fundName": "이지스일반사모부동산투자신탁제426호(운용)"
+        },
+        {
+          "fundCode": "112642",
+          "fundName": "이지스일반사모부동산투자신탁제451호(운용)"
+        },
+        {
+          "fundCode": "120085",
+          "fundName": "이지스경산로지스제1호일반사모부동산투자회사(운용)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "김지현",
+      "email": "jihkim@igisam.com",
+      "organization": "자산관리1파트",
+      "managedAssetCodes": [
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": true,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "오채은",
+      "email": "oce@igisam.com",
+      "organization": "로지스틱스매니지먼트",
+      "managedAssetCodes": [
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "이정훈B",
+      "email": "jhlee@igisam.com",
+      "organization": "로지스틱스매니지먼트",
+      "managedAssetCodes": [
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "이진우",
+      "email": "davidlee@igisam.com",
+      "organization": "로지스틱스매니지먼트",
+      "managedAssetCodes": [
+        "A112500002",
+        "A112721001",
+        "A112500003",
+        "A112606001",
+        "A112755001",
+        "A112527001",
+        "A112527002",
+        "A112527003"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112500002",
+          "assetId": "asset_a112500002",
+          "assetName": "평택아디다스물류센터",
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112721001",
+          "assetId": "asset_a112721001",
+          "assetName": "인천석남물류센터",
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112500003",
+          "assetId": "asset_a112500003",
+          "assetName": "안성 홈플러스 중부허브 물류센터",
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "assetManagerName": "오채은"
+        },
+        {
+          "assetCode": "A112606001",
+          "assetId": "asset_a112606001",
+          "assetName": "여주 본두리 물류센터",
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112755001",
+          "assetId": "asset_a112755001",
+          "assetName": "두동 LG전자 통합물류센터",
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527001",
+          "assetId": "asset_a112527001",
+          "assetName": "동산물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527002",
+          "assetId": "asset_a112527002",
+          "assetName": "부국물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        },
+        {
+          "assetCode": "A112527003",
+          "assetId": "asset_a112527003",
+          "assetName": "에이블로지스물류센터",
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호",
+          "assetManagerName": "이정훈B"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112527",
+          "fundName": "이지스전문투자형사모부동산투자신탁제404호"
+        },
+        {
+          "fundCode": "112604",
+          "fundName": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호"
+        },
+        {
+          "fundCode": "112606",
+          "fundName": "이지스제440호부동산일반사모투자회사"
+        },
+        {
+          "fundCode": "112703",
+          "fundName": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112751",
+          "fundName": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사"
+        },
+        {
+          "fundCode": "112755",
+          "fundName": "이지스제505호부동산일반사모투자회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "권도엽",
+      "email": "dy.kwon@igisam.com",
+      "organization": "자산관리3파트",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": true,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "임주우",
+      "email": "jwlim@igisam.com",
+      "organization": "자산관리3파트",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "박동민",
+      "email": "dmpark@igisam.com",
+      "organization": "자산관리3파트",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "정승우",
+      "email": "sw.jeoung@igisam.com",
+      "organization": "자산관리3파트",
+      "managedAssetCodes": [
+        "A112127001",
+        "A112299001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112127001",
+          "assetId": "asset_a112127001",
+          "assetName": "아레나스양지물류센터",
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호",
+          "assetManagerName": "박동민"
+        },
+        {
+          "assetCode": "A112299001",
+          "assetId": "asset_a112299001",
+          "assetName": "스카이박스1, 스카이박스2",
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "assetManagerName": "박동민"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112127",
+          "fundName": "이지스일반사모부동산모투자신탁116호"
+        },
+        {
+          "fundCode": "112299",
+          "fundName": "이지스아레나스전문투자형사모부동산투자신탁4호"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "최성현",
+      "email": "shyung.choi@igisam.com",
+      "organization": "사업그룹3파트",
+      "managedAssetCodes": [
+        "A112505001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "A112505001",
+          "assetId": "asset_a112505001",
+          "assetName": "아레나스안성",
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "assetManagerName": "최성현"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "112505",
+          "fundName": "이지스아레나스케이엘아이피1의2사모부동산모투자회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "이주영",
+      "email": "jy3142@igisam.com",
+      "organization": "투자1그룹4파트",
+      "managedAssetCodes": [
+        "AP00014001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "유민종",
+      "email": "minz@igisam.com",
+      "organization": "투자1그룹4파트",
+      "managedAssetCodes": [
+        "AP00014001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "김찬솔",
+      "email": "cskim@igisam.com",
+      "organization": "투자1그룹4파트",
+      "managedAssetCodes": [
+        "AP00014001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "조청원",
+      "email": "cwcho@igisam.com",
+      "organization": "투자1그룹4파트",
+      "managedAssetCodes": [
+        "AP00014001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "AP00014001",
+          "assetId": "asset_ap00014001",
+          "assetName": "안성 성은지구 물류센터",
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사",
+          "assetManagerName": "이주영"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "P00014",
+          "fundName": "안성성은물류피에프브이 주식회사"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "최정택",
+      "email": "choijt@igisam.com",
+      "organization": "투자1그룹4파트",
+      "managedAssetCodes": [
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "이하영",
+      "email": "hayoung.lee@igisam.com",
+      "organization": "투자1그룹4파트",
+      "managedAssetCodes": [
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "한상후",
+      "email": "sh.han@igisam.com",
+      "organization": "투자1그룹4파트",
+      "managedAssetCodes": [
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    },
+    {
+      "name": "윤재진",
+      "email": "double0507@igisam.com",
+      "organization": "투자1그룹4파트",
+      "managedAssetCodes": [
+        "S00002001"
+      ],
+      "managedAssets": [
+        {
+          "assetCode": "S00002001",
+          "assetId": "asset_s00002001",
+          "assetName": "양산 유산동 물류센터",
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)",
+          "assetManagerName": "최정택"
+        }
+      ],
+      "managedFunds": [
+        {
+          "fundCode": "S00002",
+          "fundName": "주식회사 석암물류(SPC)"
+        }
+      ],
+      "permissions": {
+        "managedAsset": {
+          "read": true,
+          "create": true,
+          "update": true,
+          "delete": true
+        },
+        "otherAsset": {
+          "read": false,
+          "create": false,
+          "update": false,
+          "delete": false
+        }
+      }
+    }
+  ]
+}

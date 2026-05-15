@@ -1,0 +1,32 @@
+{
+  "url": "http://127.0.0.1:8105/platform/iotaseoul/workspace/logistics",
+  "screenshots": {
+    "main-layout": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\worklog-main-permission-layout-qa-20260513\\main-layout.png",
+    "permission-modal": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\worklog-main-permission-layout-qa-20260513\\permission-modal.png",
+    "weekly-upload-modal": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\worklog-main-permission-layout-qa-20260513\\weekly-upload-modal.png"
+  },
+  "checks": {
+    "hasCalmMainHeader": true,
+    "hasPermissionSummary": true,
+    "hasTaskFirstFlow": true,
+    "hasSharedWorklog": true,
+    "noDeprecatedScopeShareComponent": true,
+    "uploadNotInlineOnMain": true,
+    "permissionModalWorks": true,
+    "uploadModalWorks": true,
+    "cursorPointer": true,
+    "noMainDataQaNoise": true
+  },
+  "evidence": {
+    "fileInputCount": 1,
+    "periodSelectCount": 3,
+    "hasWeekRange": true
+  },
+  "pageErrors": [],
+  "cursorChecks": {
+    "permission": "pointer",
+    "upload": "pointer",
+    "dashboard": "pointer"
+  },
+  "allPass": true
+}

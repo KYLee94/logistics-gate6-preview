@@ -2585,7 +2585,7 @@
       "currentMonthlyRentTotal": 11833043
     },
     {
-      "eNoc": 316771.75,
+      "eNoc": 33350.18,
       "asset": {
         "ji": "0",
         "bun": "903",
@@ -2702,7 +2702,7 @@
       "historyLinked": true,
       "leasedAreaSqm": 869.95,
       "rawTenantName": "쿠팡(주)",
-      "sourceRowHash": "A120085001|1208800767|1||20240801|20300501|869.95|8970.67",
+      "sourceRowHash": "A120085001|1208800767|1||20240801|20300501|869.95|852.09",
       "currentEndDate": "2030-05-01",
       "currentMfPerPy": 3090,
       "extensionCount": 0,
@@ -2714,7 +2714,7 @@
       "currentMoneyAsOf": "2024-08-01",
       "currentRentPerPy": 36050,
       "currentStartDate": "2024-08-01",
-      "exclusiveAreaSqm": 8970.67,
+      "exclusiveAreaSqm": 852.09,
       "tenantMasterName": "쿠팡(주)",
       "warehouseAreaSqm": 7578.33,
       "contractStatusRaw": "Y",
@@ -2741,7 +2741,7 @@
           "coldStorageType": "N",
           "detailAreaLabel": "",
           "matchConfidence": "ambiguous_lease_space_id",
-          "exclusiveAreaSqm": 8971,
+          "exclusiveAreaSqm": 852.09,
           "monthlyRentTotal": 9486914,
           "tenantMasterName": "쿠팡(주)",
           "linkedLeaseSpaceId": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|1|na"
@@ -2759,7 +2759,7 @@
       "currentMonthlyRentTotal": 9486914
     },
     {
-      "eNoc": 4831802.71,
+      "eNoc": 53808.55,
       "asset": {
         "ji": "0",
         "bun": "903",
@@ -2876,7 +2876,7 @@
       "historyLinked": true,
       "leasedAreaSqm": 8603.64,
       "rawTenantName": "쿠팡(주)",
-      "sourceRowHash": "A120085001|1208800767|1||20240801|20300501|8603.64|8970.67",
+      "sourceRowHash": "A120085001|1208800767|1||20240801|20300501|8603.64|8055.63",
       "currentEndDate": "2030-05-01",
       "currentMfPerPy": 4120,
       "extensionCount": 0,
@@ -2888,7 +2888,7 @@
       "currentMoneyAsOf": "2024-08-01",
       "currentRentPerPy": 61800,
       "currentStartDate": "2024-08-01",
-      "exclusiveAreaSqm": 8970.67,
+      "exclusiveAreaSqm": 8055.63,
       "tenantMasterName": "쿠팡(주)",
       "warehouseAreaSqm": 7578.33,
       "contractStatusRaw": "Y",
@@ -2915,7 +2915,7 @@
           "coldStorageType": "Y",
           "detailAreaLabel": "",
           "matchConfidence": "ambiguous_lease_space_id",
-          "exclusiveAreaSqm": 8971,
+          "exclusiveAreaSqm": 8055.63,
           "monthlyRentTotal": 160840756,
           "tenantMasterName": "쿠팡(주)",
           "linkedLeaseSpaceId": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|1|na"
@@ -3105,7 +3105,7 @@
       "currentMonthlyRentTotal": 25133698
     },
     {
-      "eNoc": 493250.33,
+      "eNoc": 34887.67,
       "asset": {
         "ji": "0",
         "bun": "903",
@@ -3222,7 +3222,7 @@
       "historyLinked": true,
       "leasedAreaSqm": 1543.14,
       "rawTenantName": "쿠팡(주)",
-      "sourceRowHash": "A120085001|1208800767|B2||20240801|20300501|1543.14|10219.43",
+      "sourceRowHash": "A120085001|1208800767|B2||20240801|20300501|1543.14|1444.85",
       "currentEndDate": "2030-05-01",
       "currentMfPerPy": 3090,
       "extensionCount": 0,
@@ -3235,7 +3235,7 @@
       "currentMoneyAsOf": "2024-08-01",
       "currentRentPerPy": 36050,
       "currentStartDate": "2024-08-01",
-      "exclusiveAreaSqm": 10219.43,
+      "exclusiveAreaSqm": 1444.85,
       "tenantMasterName": "쿠팡(주)",
       "warehouseAreaSqm": 8971.98,
       "contractStatusRaw": "Y",
@@ -3262,7 +3262,7 @@
           "coldStorageType": "N",
           "detailAreaLabel": "",
           "matchConfidence": "ambiguous_lease_space_id",
-          "exclusiveAreaSqm": 10219,
+          "exclusiveAreaSqm": 1444.85,
           "monthlyRentTotal": 16828136,
           "tenantMasterName": "쿠팡(주)",
           "linkedLeaseSpaceId": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|b2|na"

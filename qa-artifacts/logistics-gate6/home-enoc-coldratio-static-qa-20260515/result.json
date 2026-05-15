@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-05-15T07:43:28.466Z",
+  "sourcePath": "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\WorkspaceLogistics.jsx",
+  "allPass": true,
+  "checks": [
+    {
+      "id": "enoc_fallback_uses_monthly_cost_per_py_when_explicit_enoc_missing",
+      "pass": true
+    },
+    {
+      "id": "portfolio_cold_ratio_uses_normalized_use_category_rows",
+      "pass": true
+    },
+    {
+      "id": "buguk_enoc_can_be_derived_from_history_money",
+      "pass": true,
+      "value": {
+        "assetName": "부국물류센터",
+        "weightedENoc": 27449.968922394313,
+        "coldRatio": 0,
+        "rows": 3
+      }
+    },
+    {
+      "id": "buguk_cold_ratio_is_zero_not_blank",
+      "pass": true,
+      "value": {
+        "assetName": "부국물류센터",
+        "weightedENoc": 27449.968922394313,
+        "coldRatio": 0,
+        "rows": 3
+      }
+    },
+    {
+      "id": "arenas_anseong_reason_is_history_unmatched_not_no_tenant",
+      "pass": true,
+      "value": {
+        "assetName": "아레나스안성",
+        "weightedENoc": null,
+        "coldRatio": 0.24865398706553252,
+        "rows": 5
+      }
+    },
+    {
+      "id": "data_quality_finding_records_enoc_and_cold_ratio_causes",
+      "pass": true
+    }
+  ]
+}

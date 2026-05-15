@@ -1,0 +1,99 @@
+{
+  "generated_at": "2026-05-15T05:28:47.764Z",
+  "qa_status": "pass",
+  "files_checked": [
+    "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\logisticsAssetData\\asset_a120085001.json",
+    "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\logisticsCompanyData\\tenant_brn_1208800767.json",
+    "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\WorkspaceLogistics.jsx",
+    "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\★ 260414_물류센터 임대차계약 DB_취합본.xlsx"
+  ],
+  "target": {
+    "assetName": "경산 쿠팡물류센터",
+    "floorLabel": "B2",
+    "coldStorageType": "N",
+    "leasedAreaSqm": 1543.14,
+    "sourceExcelCells": {
+      "oneAmbient": "DB_일반!R38",
+      "oneCold": "DB_일반!R39",
+      "b2Ambient": "DB_일반!R41"
+    },
+    "sourceExcelBeforeValues": {
+      "oneAmbient": 8970.67,
+      "oneCold": 8970.67,
+      "b2Ambient": 10219.43
+    },
+    "correctedRows": [
+      {
+        "floorLabel": "1",
+        "coldStorageType": "N",
+        "leasedAreaSqm": 869.95,
+        "correctedExclusiveAreaSqm": 852.09,
+        "correctedENoc": 33350.18
+      },
+      {
+        "floorLabel": "1",
+        "coldStorageType": "Y",
+        "leasedAreaSqm": 8603.64,
+        "correctedExclusiveAreaSqm": 8055.63,
+        "correctedENoc": 53808.55
+      },
+      {
+        "floorLabel": "B2",
+        "coldStorageType": "N",
+        "leasedAreaSqm": 1543.14,
+        "correctedExclusiveAreaSqm": 1444.85,
+        "correctedENoc": 34887.67
+      }
+    ],
+    "weightedAssetENoc": 47097.67
+  },
+  "checks": [
+    {
+      "id": "workspace_weighted_enoc_uses_contract_leased_area",
+      "pass": true
+    },
+    {
+      "id": "target_asset_b2_ambient_exclusive_area_corrected",
+      "pass": true
+    },
+    {
+      "id": "target_asset_three_exclusive_area_rows_corrected",
+      "pass": true
+    },
+    {
+      "id": "target_asset_b2_ambient_audit_matches_corrected_row",
+      "pass": true
+    },
+    {
+      "id": "target_asset_three_audit_rows_match_corrected_rows",
+      "pass": true
+    },
+    {
+      "id": "target_company_duplicate_row_matches_asset_snapshot",
+      "pass": true
+    },
+    {
+      "id": "target_company_three_duplicate_rows_match_asset_snapshot",
+      "pass": true
+    },
+    {
+      "id": "source_excel_readback_records_user_reported_before_values",
+      "pass": true
+    },
+    {
+      "id": "asset_overview_average_matches_row_weighted_recalculation",
+      "pass": true
+    }
+  ],
+  "remainingHighRows": [
+    {
+      "floorLabel": "B1",
+      "coldStorageType": "사무실",
+      "leasedAreaSqm": 2304.76,
+      "exclusiveAreaSqm": 347.9,
+      "eNoc": 216399.49,
+      "sourceRowHash": "A120085001|1208800767|B1||20240801|20300501|2304.76|347.9"
+    }
+  ],
+  "note": "remainingHighRows는 이번 1층 N/Y 및 B2 N 보정 이후에도 자산 평균을 높게 만드는 추가 전수점검 후보입니다. 이번 QA의 pass/fail은 사용자가 지정한 전용면적 3건 보정과 가중평균 연결 검증 기준입니다."
+}

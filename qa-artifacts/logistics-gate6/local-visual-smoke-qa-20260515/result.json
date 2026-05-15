@@ -1,0 +1,171 @@
+{
+  "generated_at": "2026-05-15T03:40:51.345Z",
+  "baseUrl": "http://127.0.0.1:5173",
+  "allPass": true,
+  "results": [
+    {
+      "id": "workspace-main",
+      "url": "http://127.0.0.1:5173/platform/iotaseoul/workspace/logistics",
+      "screenshot": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\local-visual-smoke-qa-20260515\\workspace-main.png",
+      "missingText": [],
+      "consoleMessages": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        }
+      ],
+      "blockingConsoleMessages": [],
+      "doughnutTooltip": null,
+      "externalPending": false,
+      "status": "passed",
+      "pass": true
+    },
+    {
+      "id": "home",
+      "url": "http://127.0.0.1:5173/platform/iotaseoul/workspace/logistics/dashboard/home",
+      "screenshot": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\local-visual-smoke-qa-20260515\\home.png",
+      "missingText": [],
+      "consoleMessages": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        }
+      ],
+      "blockingConsoleMessages": [],
+      "doughnutTooltip": "상온창고\n값\n311,490.7평\n비중\n83.2%\n근거 행\n15건",
+      "externalPending": false,
+      "status": "passed",
+      "pass": true
+    },
+    {
+      "id": "company",
+      "url": "http://127.0.0.1:5173/platform/iotaseoul/workspace/logistics/dashboard/company",
+      "screenshot": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\local-visual-smoke-qa-20260515\\company.png",
+      "missingText": [],
+      "consoleMessages": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        }
+      ],
+      "blockingConsoleMessages": [],
+      "doughnutTooltip": null,
+      "externalPending": false,
+      "status": "passed",
+      "pass": true
+    },
+    {
+      "id": "quality",
+      "url": "http://127.0.0.1:5173/platform/iotaseoul/workspace/logistics/dashboard/quality",
+      "screenshot": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\local-visual-smoke-qa-20260515\\quality.png",
+      "missingText": [],
+      "consoleMessages": [
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        },
+        {
+          "type": "error",
+          "text": "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+        }
+      ],
+      "blockingConsoleMessages": [],
+      "doughnutTooltip": null,
+      "externalPending": false,
+      "status": "passed",
+      "pass": true
+    }
+  ]
+}

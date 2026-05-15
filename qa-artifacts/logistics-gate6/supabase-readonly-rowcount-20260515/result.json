@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-05-15T06:34:25.240Z",
+  "projectRef": "qgrszltduzblpvpqvkqr",
+  "rows": [
+    {
+      "table": "ll_assets",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_tenants",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_leases",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_rent_history",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_source_cells",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_sheet_rows",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_payload_snapshots",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_user_permissions",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_edit_requests",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_data_change_audit_logs",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    },
+    {
+      "table": "ll_external_api_cache",
+      "count": null,
+      "status": "error",
+      "message": "TypeError: fetch failed"
+    }
+  ]
+}

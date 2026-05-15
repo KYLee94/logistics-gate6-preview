@@ -2,9 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
-export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs, fetchMasterStakeholders, workspaceCode, workspaceLabel, defaultExpanded = false, editMode = false, initialData = null, onCancel = null, onSuccess = null }) {
+const MotionDiv = motion.div;
+
+export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs, fetchMasterStakeholders, workspaceCode, workspaceLabel, projectOptions = null, defaultExpanded = false, editMode = false, initialData = null, onCancel = null, onSuccess = null }) {
+    const normalizedProjectOptions = (projectOptions && projectOptions.length ? projectOptions : [
+        { id: 'IOTA_COMMON', label: 'IOTA 공통' },
+        { id: 'P00030', label: '427 PFV' },
+    ]);
     // Form States
-    const [projectId, setProjectId] = useState('IOTA_COMMON');
+    const [projectId, setProjectId] = useState(normalizedProjectOptions[0]?.id || 'IOTA_COMMON');
     const [triageType, setTriageType] = useState('공유');
     const [issueStatus, setIssueStatus] = useState('검토중');
     const [priority, setPriority] = useState('중간');
@@ -238,6 +244,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
             const writerId = isEditing ? initialData.writer_staff_id : (memberInfo?.email || 'unknown');
             const writerName = isEditing ? initialData.writer_name : (memberInfo?.staff_name || '익명');
 
+            const selectedProject = normalizedProjectOptions.find(option => option.id === projectId);
             const logData = {
                 work_date: workDate,
                 raw_text: content,
@@ -247,7 +254,9 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                     ...(isEditing ? initialData.metadata : {}),
                     workspace_code: workspaceCode,
                     workspace_label: workspaceLabel,
-                    project_name: projectId === 'IOTA_COMMON' ? 'IOTA 공통' : projectId === 'P00030' ? '427 PFV' : projectId === 'P00037' ? '816 PFV' : '421 Fund',
+                    project_name: selectedProject?.label || (projectId === 'IOTA_COMMON' ? 'IOTA 공통' : projectId === 'P00030' ? '427 PFV' : projectId === 'P00037' ? '816 PFV' : '421 Fund'),
+                    asset_name: selectedProject?.metadata?.assetName || null,
+                    asset_code: selectedProject?.metadata?.assetCode || null,
                     triage_type: triageType,
                     issue_status: issueStatus,
                     priority: priority,
@@ -439,11 +448,10 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                             </>
                         ) : (
                             <>
-                                <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="bg-transparent border border-[#333] rounded-[16px] px-[16px] py-[8px] ml-[-2px] text-white font-semibold text-[14px] outline-none cursor-pointer appearance-none pr-[32px] relative" style={{ backgroundImage: iconChevronGray, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}>
-                            <option value="IOTA_COMMON">IOTA 공통</option>
-                            <option value="P00030">427 PFV</option>
-                            <option value="P00037">816 PFV</option>
-                            <option value="112614">421 Fund</option>
+                                <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="bg-transparent border border-[#333] rounded-[16px] px-[16px] py-[8px] ml-[-2px] text-white font-semibold text-[14px] outline-none cursor-pointer appearance-none pr-[32px] relative max-w-[340px]" style={{ backgroundImage: iconChevronGray, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}>
+                            {normalizedProjectOptions.map(option => (
+                                <option key={option.id} value={option.id}>{option.label}</option>
+                            ))}
                         </select>
 
                         <div className="w-px h-[14px] bg-[#333] mx-[2px]"></div>
@@ -546,7 +554,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                 
                 <AnimatePresence>
                     {(isExpanded || editMode) && (
-                        <motion.div
+                        <MotionDiv
                             initial={false}
                             animate={{ height: 'auto', opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
@@ -566,11 +574,10 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                     
                     {editMode && (
                         <div className="w-full flex items-center gap-[12px] mb-[20px] overflow-x-auto pb-[4px]">
-                            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="bg-[#222] border border-[#444] rounded-[8px] px-[12px] py-[6px] text-white font-medium text-[13px] outline-none cursor-pointer appearance-none pr-[28px] relative" style={{ backgroundImage: iconChevronGray, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
-                                <option value="IOTA_COMMON">IOTA 공통</option>
-                                <option value="P00030">427 PFV</option>
-                                <option value="P00037">816 PFV</option>
-                                <option value="112614">421 Fund</option>
+                            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="bg-[#222] border border-[#444] rounded-[8px] px-[12px] py-[6px] text-white font-medium text-[13px] outline-none cursor-pointer appearance-none pr-[28px] relative max-w-[340px]" style={{ backgroundImage: iconChevronGray, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
+                                {normalizedProjectOptions.map(option => (
+                                    <option key={option.id} value={option.id}>{option.label}</option>
+                                ))}
                             </select>
 
                             <select value={triageType} onChange={(e) => setTriageType(e.target.value)} className="bg-[#222] border border-[#444] rounded-[8px] px-[12px] py-[6px] text-[#E5E5E5] text-[13px] outline-none cursor-pointer appearance-none pr-[28px]" style={{ backgroundImage: iconChevronDark, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
@@ -808,7 +815,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                     )}
                 </div>
             
-                        </motion.div>
+                        </MotionDiv>
                     )}
                 </AnimatePresence>
             </div>

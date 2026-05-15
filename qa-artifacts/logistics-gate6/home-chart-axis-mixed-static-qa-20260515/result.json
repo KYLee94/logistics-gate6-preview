@@ -1,0 +1,27 @@
+{
+  "generatedAt": "2026-05-15T07:49:20.226Z",
+  "sourcePath": "C:\\tmp\\IGIS-Fund-Production-DP\\src\\components\\system\\workspace\\WorkspaceLogistics.jsx",
+  "allPass": true,
+  "checks": [
+    {
+      "id": "rich_trend_chart_supports_right_axis_color",
+      "pass": true
+    },
+    {
+      "id": "contract_rent_trend_right_axis_is_asset_count_purple",
+      "pass": true
+    },
+    {
+      "id": "rich_trend_chart_supports_bar_series",
+      "pass": true
+    },
+    {
+      "id": "maturity_concentration_uses_bar_and_line",
+      "pass": true
+    },
+    {
+      "id": "maturity_concentration_has_larger_plot_area",
+      "pass": true
+    }
+  ]
+}

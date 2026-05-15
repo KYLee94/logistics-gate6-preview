@@ -1,0 +1,27 @@
+{
+  "url": "http://127.0.0.1:4178/platform/iotaseoul/workspace/logistics/dashboard/home",
+  "checks": {
+    "homeRentTrendLegendMatchesAppsScript": true,
+    "homeRentTrendAxesHaveUnits": true,
+    "homeRentTrendNoGenericLegend": true,
+    "noPageErrors": true
+  },
+  "screenshots": {
+    "home": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\chart-unit-parity-qa-20260513\\home-chart-parity.png"
+  },
+  "pageErrors": [],
+  "networkBlocked": [
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED",
+    "Failed to load resource: net::ERR_NETWORK_ACCESS_DENIED"
+  ],
+  "allPass": true
+}
