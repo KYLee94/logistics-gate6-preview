@@ -8,6 +8,7 @@ const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const LOGISTICS_DEMO_USER = {
     id: 'logistics-demo-user',
     email: '10524@igisam.com',
+    is_demo: true,
 };
 const LOGISTICS_DEMO_MEMBER = {
     id: 'logistics-demo-member',

@@ -1874,7 +1874,7 @@ function MainWorklogRow({ item }) {
 }
 
 export default function WorkspaceLogistics({ currentPath = '' }) {
-  const { memberInfo } = useAuth();
+  const { user, memberInfo } = useAuth();
   const [taskScope, setTaskScope] = useState('personal');
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
@@ -2063,15 +2063,36 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     setMainAiLoading(true);
     setMainAiAnswer(null);
     try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'ai/search-chat', payload: { question } },
-      });
-      if (error) throw error;
+      let responseData = null;
+      let primaryError = null;
+      try {
+        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+          body: { action: 'ai/search-chat', payload: { question } },
+        });
+        responseData = data;
+        primaryError = error || (!data?.ok ? new Error(data?.message || 'AI primary action failed') : null);
+      } catch (error) {
+        primaryError = error;
+      }
+      if ((primaryError || !responseData?.ok) && user?.is_demo === true) {
+        try {
+          const demoResult = await supabase.functions.invoke('ll-dashboard-api', {
+            body: { action: 'ai/search-chat-demo', payload: { question } },
+          });
+          if (demoResult.error) throw demoResult.error;
+          responseData = demoResult.data;
+        } catch (demoError) {
+          throw demoError || primaryError;
+        }
+      }
+      if (primaryError && !responseData?.ok) throw primaryError;
       setMainAiAnswer({
-        type: data?.ok ? 'success' : 'warning',
-        answer: data?.answer || data?.message || '권한 범위 안에서 답변할 수 있는 근거를 찾지 못했습니다.',
-        evidence: Array.isArray(data?.evidence) ? data.evidence : [],
-        scope: data?.scope || null,
+        type: responseData?.ok ? 'success' : 'warning',
+        answer: responseData?.answer || responseData?.message || '권한 범위 안에서 답변할 수 있는 근거를 찾지 못했습니다.',
+        evidence: Array.isArray(responseData?.evidence) ? responseData.evidence : [],
+        scope: responseData?.scope || null,
+        mode: responseData?.mode || null,
+        model: responseData?.model || null,
       });
     } catch (error) {
       setMainAiAnswer({

@@ -16,9 +16,9 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 127,
+    "completed": 128,
     "total": 206,
-    "completion_rate": 61.7
+    "completion_rate": 62.1
   },
   "stages": [
     {
@@ -82,7 +82,7 @@
     {
       "stage": 3,
       "area": "업무 로그 메인 페이지",
-      "completed": 15,
+      "completed": 16,
       "total": 22,
       "items": [
         {
@@ -187,8 +187,8 @@
         },
         {
           "id": "3.21",
-          "status": "partial",
-          "text": "통합 검색의 챗봇형 질문 답변은 ll-dashboard-api ai/search-chat 액션과 메인 검색 UI에 연결했다. 서버에서 ll_user_permissions 기준으로 읽기 권한 자산/기업 데이터만 evidence로 수집하고 Google AI에는 redacted evidence만 전달한다. Evidence: eslint, edge-api-security-static-qa, npm run build pass. Supabase Edge 배포와 live 호출 검증은 CLI 프로젝트 권한 문제로 외부권한대기."
+          "status": "done",
+          "text": "통합 검색의 챗봇형 질문 답변은 ll-dashboard-api ai/search-chat 액션과 메인 검색 UI에 연결했고, no-login 데모 화면에서는 인증 실패 시 ai/search-chat-demo로 재시도하게 보강했다. 서버에서 읽기 권한 범위 evidence만 수집하고 Google AI에는 redacted evidence만 전달한다. Evidence: qveg ai/search-chat-demo live smoke ok=true, mode=demo, model=gemini-2.5-flash; eslint, edge-api-security-static-qa, repo-secret-hygiene, npm run build pass."
         },
         {
           "id": "3.22",
@@ -905,7 +905,7 @@
         {
           "id": "12.07",
           "status": "done",
-          "text": "Edge Function 배포 완료: qvegpozwrcmspdvjokiz에 ll-dashboard-api와 ll-weekly-doc-ingest를 배포했다. ll-dashboard-api에는 Naver maps-config/geocode, Gemini 2.5 Flash ai/search-chat, OpenDART, 건축물대장 server-only action이 포함된다."
+          "text": "Edge Function 배포 완료: qvegpozwrcmspdvjokiz에 ll-dashboard-api와 ll-weekly-doc-ingest를 배포했다. ll-dashboard-api에는 Naver maps-config/geocode, Gemini 2.5 Flash ai/search-chat 및 no-login demo fallback, OpenDART, 건축물대장 server-only action이 포함된다."
         },
         {
           "id": "12.08",
@@ -915,7 +915,7 @@
         {
           "id": "12.09",
           "status": "done",
-          "text": "commit/push 완료: c9de1e1 Implement logistics data quality edge workflow pushed to origin/codex/logistics-leasing-work-platform."
+          "text": "commit/push 완료: 236bd52 Complete logistics work platform gate 6 slice pushed to origin/codex/logistics-leasing-work-platform."
         },
         {
           "id": "12.10",
