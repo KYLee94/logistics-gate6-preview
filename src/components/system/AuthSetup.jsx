@@ -13,6 +13,12 @@ const LOGISTICS_ALLOWED_EMAILS = new Set([
     ...Object.keys(LOGISTICS_EMAIL_ALIASES),
 ]);
 const logisticsUserByEmail = (email) => LOGISTICS_PERMISSION_USERS.find((user) => String(user.email || '').trim().toLowerCase() === canonicalLogisticsEmail(email));
+const buildAuthRedirectUrl = (path = 'auth-setup') => {
+    const base = import.meta.env.BASE_URL || '/';
+    const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+    const normalizedPath = String(path || '').replace(/^\/+/, '');
+    return new URL(`${normalizedBase}${normalizedPath}`, window.location.origin).toString();
+};
 
 export default function AuthSetup({ onLogin }) {
     const { recoveryMode, setRecoveryMode } = useAuth();
@@ -26,7 +32,7 @@ export default function AuthSetup({ onLogin }) {
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
-    const pilotAccessCode = import.meta.env.VITE_IOTA_PILOT_ACCESS_CODE || 'IOTA2026';
+    const pilotAccessCode = import.meta.env.VITE_IOTA_PILOT_ACCESS_CODE || 'logstics1!';
     const [mounted, setMounted] = useState(false);
     const [dissolved, setDissolved] = useState(false);
     const [hasError, setHasError] = useState(false);
@@ -182,7 +188,7 @@ export default function AuthSetup({ onLogin }) {
         
         try {
             const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-                redirectTo: window.location.origin + import.meta.env.BASE_URL + 'auth-setup',
+                redirectTo: buildAuthRedirectUrl('auth-setup'),
             });
             
             if (error) {
@@ -238,7 +244,10 @@ export default function AuthSetup({ onLogin }) {
                 // Sign up new user
                 let { data, error } = await supabase.auth.signUp({
                     email: email.trim().toLowerCase(),
-                    password: password
+                    password: password,
+                    options: {
+                        emailRedirectTo: buildAuthRedirectUrl('platform/iotaseoul/workspace/logistics'),
+                    },
                 });
                 
                 if (error) {
