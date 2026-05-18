@@ -1885,6 +1885,8 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const [mainSearchQuery, setMainSearchQuery] = useState('');
   const [mainAiAnswer, setMainAiAnswer] = useState(null);
   const [mainAiLoading, setMainAiLoading] = useState(false);
+  const [mainAiDiagnostics, setMainAiDiagnostics] = useState(null);
+  const [mainAiDiagnosticsLoading, setMainAiDiagnosticsLoading] = useState(false);
   const [selectedSearchResult, setSelectedSearchResult] = useState(null);
   const [taskRecords, setTaskRecords] = useState([]);
   const [taskEditTarget, setTaskEditTarget] = useState(null);
@@ -2057,6 +2059,49 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     setTaskRecords((tasks) => tasks.filter((item) => item.id !== task.id));
     await submitTaskOperation('delete', task, { status: 'deleted' });
   };
+  const describeAiFunctionError = (error, data = null) => {
+    const status = data?.provider_status || data?.status || error?.context?.status || error?.status || null;
+    const providerError = data?.detail?.provider_error || data?.provider_error || data?.message || '';
+    const rawMessage = `${error?.message || ''} ${providerError || ''}`.trim();
+    if (/Failed to send a request to the Edge Function/i.test(rawMessage)) {
+      return `Edge Function 호출 실패입니다. 배포 URL origin 허용 또는 네트워크/CORS 설정을 먼저 확인해야 합니다. (${rawMessage})`;
+    }
+    if (status === 401) return 'Edge Function 인증이 거절되었습니다. 로그인 토큰 또는 anon key 설정을 확인해야 합니다.';
+    if (status === 403) return 'Edge Function 권한 또는 origin 허용이 거절되었습니다. live preview URL 허용 설정을 확인해야 합니다.';
+    if (status === 429) return 'Gemini 또는 Edge Function 호출 한도에 걸렸습니다. 잠시 뒤 다시 시도해야 합니다.';
+    if (/Google AI key is not configured/i.test(rawMessage)) {
+      return 'Edge Function secret에 GOOGLE_AI_KEY 또는 GEMINI_API_KEY가 설정되지 않았습니다.';
+    }
+    if (status >= 500 || /provider request failed/i.test(rawMessage)) {
+      return `Gemini provider 호출 실패입니다. GOOGLE_AI_KEY, 모델명, Google 응답 상태를 확인해야 합니다. (${rawMessage || status || 'unknown error'})`;
+    }
+    return `AI 답변을 불러오지 못했습니다. (${rawMessage || 'unknown error'})`;
+  };
+
+  const runMainAiDiagnostics = async () => {
+    setMainAiDiagnosticsLoading(true);
+    setMainAiDiagnostics(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: { action: 'ai/gemini-diagnostics', payload: { source: 'workspace-main' } },
+      });
+      if (error) throw error;
+      setMainAiDiagnostics({
+        type: data?.gemini_ok ? 'success' : 'warning',
+        message: data?.gemini_ok ? 'Gemini 연결이 확인되었습니다.' : (data?.message || data?.provider_message || data?.provider_error || 'Gemini 연결 진단에 실패했습니다.'),
+        data,
+      });
+    } catch (error) {
+      setMainAiDiagnostics({
+        type: 'warning',
+        message: describeAiFunctionError(error),
+        data: null,
+      });
+    } finally {
+      setMainAiDiagnosticsLoading(false);
+    }
+  };
+
   const submitMainAiQuestion = async () => {
     const question = mainSearchQuery.trim();
     if (question.length < 2) return;
@@ -2070,7 +2115,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           body: { action: 'ai/search-chat', payload: { question } },
         });
         responseData = data;
-        primaryError = error || (!data?.ok ? new Error(data?.message || 'AI primary action failed') : null);
+        if (error || !data?.ok) {
+          primaryError = error instanceof Error ? error : new Error(data?.message || error?.message || 'AI primary action failed');
+          primaryError.data = data;
+        }
       } catch (error) {
         primaryError = error;
       }
@@ -2097,7 +2145,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     } catch (error) {
       setMainAiAnswer({
         type: 'warning',
-        answer: `AI 답변을 불러오지 못했습니다. Edge Function 배포와 GOOGLE_AI_KEY 설정을 확인해야 합니다. (${error.message || 'unknown error'})`,
+        answer: describeAiFunctionError(error, error?.data),
         evidence: [],
       });
     } finally {
@@ -2166,7 +2214,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           </div>
         </div>
         <div className="mt-4 border-t border-[#333333] pt-4">
-          <div className="mx-auto grid w-full max-w-[1040px] grid-cols-1 items-center gap-4 md:grid-cols-[128px_minmax(0,1fr)_96px]">
+          <div className="mx-auto grid w-full max-w-[1040px] grid-cols-1 items-center gap-4 md:grid-cols-[128px_minmax(0,1fr)_96px_96px]">
             <h2 className="text-[18px] font-bold text-white md:text-left">통합 검색</h2>
             <input
               value={mainSearchQuery}
@@ -2188,6 +2236,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             >
               {mainAiLoading ? '답변 중' : 'AI 답변'}
             </button>
+            <button
+              type="button"
+              onClick={runMainAiDiagnostics}
+              disabled={mainAiDiagnosticsLoading}
+              className={`h-12 rounded-[999px] border px-4 text-[13px] font-bold transition-colors ${mainAiDiagnosticsLoading ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : DARK_BUTTON_CLASS}`}
+            >
+              {mainAiDiagnosticsLoading ? '진단 중' : '연결 진단'}
+            </button>
           </div>
           {mainAiAnswer ? (
             <div className={`mx-auto mt-3 max-w-[1040px] rounded-[16px] border p-4 ${mainAiAnswer.type === 'success' ? 'border-[#2E6B45] bg-[#173522]/70' : 'border-[#7A6425] bg-[#2B2613]/80'}`}>
@@ -2199,6 +2255,23 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                       {item.table} · {item.asset || item.tenant || '근거'}
                     </span>
                   ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {mainAiDiagnostics ? (
+            <div className={`mx-auto mt-3 max-w-[1040px] rounded-[16px] border p-4 ${mainAiDiagnostics.type === 'success' ? 'border-[#2E6B45] bg-[#173522]/70' : 'border-[#7A6425] bg-[#2B2613]/80'}`}>
+              <div className="text-[14px] font-semibold leading-6 text-white">{mainAiDiagnostics.message}</div>
+              {mainAiDiagnostics.data ? (
+                <div className="mt-3 grid grid-cols-2 gap-2 text-[12px] text-[#C7C7CC] md:grid-cols-5">
+                  <span>Edge {mainAiDiagnostics.data.edge_reached ? 'OK' : 'FAIL'}</span>
+                  <span>Gemini {mainAiDiagnostics.data.gemini_ok ? 'OK' : 'FAIL'}</span>
+                  <span>{mainAiDiagnostics.data.model || 'model unknown'}</span>
+                  <span>Status {mainAiDiagnostics.data.provider_status ?? '-'}</span>
+                  <span>Origin {mainAiDiagnostics.data.origin_allowed ? 'OK' : 'FAIL'}</span>
+                  {mainAiDiagnostics.data.answer_preview ? (
+                    <span className="col-span-2 md:col-span-5">Preview: {mainAiDiagnostics.data.answer_preview}</span>
+                  ) : null}
                 </div>
               ) : null}
             </div>

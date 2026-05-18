@@ -22,6 +22,14 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'https://kylee94.github.io',
 ];
 
+const DEFAULT_AI_DEMO_ALLOWED_ORIGINS = [
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:4173',
+  'http://127.0.0.1:4173',
+  'https://kylee94.github.io',
+];
+
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_edit_requests',
   'public.ll_worklogs',
@@ -148,29 +156,34 @@ const SENSITIVE_KEY_PATTERN = /(authorization|password|secret|service[_-]?role|t
 const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
 
 function allowedOrigins() {
-  return (Deno.env.get('LL_ALLOWED_ORIGINS') || DEFAULT_ALLOWED_ORIGINS.join(','))
-    .split(',')
+  return [
+    ...DEFAULT_ALLOWED_ORIGINS,
+    ...(Deno.env.get('LL_ALLOWED_ORIGINS') || '').split(','),
+  ]
     .map((item) => item.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
+}
+
+function aiDemoAllowedOrigins() {
+  return [
+    ...DEFAULT_AI_DEMO_ALLOWED_ORIGINS,
+    ...(Deno.env.get('LL_AI_DEMO_ALLOWED_ORIGINS') || '').split(','),
+  ]
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .filter((item, index, list) => list.indexOf(item) === index);
 }
 
 function isAllowedOrigin(origin: string) {
   return !origin || allowedOrigins().includes(origin);
 }
 
-function aiDemoAllowedOrigins() {
-  return (Deno.env.get('LL_AI_DEMO_ALLOWED_ORIGINS') || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function isAiDemoAllowed(origin: string) {
   if (!origin) return false;
-  const configuredOrigins = Deno.env.get('LL_AI_DEMO_ALLOWED_ORIGINS');
   const enabledFlag = Deno.env.get('LL_AI_DEMO_ENABLED');
   if (!aiDemoAllowedOrigins().includes(origin)) return false;
-  return enabledFlag === 'true' || (!configuredOrigins && enabledFlag !== 'false');
+  return enabledFlag !== 'false';
 }
 
 function readEdgeSecret(name: string) {
@@ -1090,11 +1103,14 @@ function externalApiCacheResponse(ctx: Context, providerStatus: number, data: un
 }
 
 function providerMessageFromBody(body: Record<string, unknown> | null | undefined) {
+  const errorBody = body?.error as Record<string, unknown> | undefined;
   const response = body?.response as Record<string, unknown> | undefined;
   const header = response?.header as Record<string, unknown> | undefined;
   const serviceResponse = body?.OpenAPI_ServiceResponse as Record<string, unknown> | undefined;
   const messageHeader = serviceResponse?.cmmMsgHeader as Record<string, unknown> | undefined;
   return normalizeText(firstDefined(
+    errorBody?.message,
+    errorBody?.status,
     body?.message,
     body?.msg,
     body?.status,
@@ -1455,12 +1471,86 @@ function resolveFreeTierGoogleAiModel() {
   return 'gemini-2.5-flash';
 }
 
+function googleAiApiKey() {
+  return (Deno.env.get('GOOGLE_AI_KEY') || Deno.env.get('GEMINI_API_KEY') || '').trim();
+}
+
+function googleAiGenerateContentUrl(model: string) {
+  return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+}
+
+async function generateGeminiContent(model: string, apiKey: string, prompt: string, maxOutputTokens: number, timeoutMs: number) {
+  return fetchJsonWithTimeout(googleAiGenerateContentUrl(model), {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-goog-api-key': apiKey,
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.2,
+        topP: 0.8,
+        maxOutputTokens,
+      },
+    }),
+  }, timeoutMs, 1);
+}
+
+async function callGeminiDiagnostics(origin: string) {
+  const model = resolveFreeTierGoogleAiModel();
+  const apiKey = googleAiApiKey();
+  const keyHash = apiKey ? (await sha256Text(apiKey)).slice(0, 12) : '';
+  const base = {
+    ok: false,
+    edge_reached: true,
+    origin: origin || null,
+    origin_allowed: isAllowedOrigin(origin),
+    demo_origin_allowed: origin ? isAiDemoAllowed(origin) : false,
+    model,
+    key_configured: Boolean(apiKey),
+    key_length: apiKey.length,
+    key_hash: keyHash || null,
+  };
+  if (!apiKey) {
+    return jsonResponse({
+      ...base,
+      gemini_ok: false,
+      provider_status: null,
+      message: 'GOOGLE_AI_KEY or GEMINI_API_KEY is not configured in Edge Function secrets.',
+    }, 200, origin);
+  }
+
+  try {
+    const prompt = '한국어로 정확히 "Gemini diagnostics OK"라고만 답하세요.';
+    const { response, body } = await generateGeminiContent(model, apiKey, prompt, 64, 15_000);
+    const responseBody = body as Record<string, unknown>;
+    const answer = extractGoogleAiText(responseBody);
+    const providerMessage = providerMessageFromBody(responseBody);
+    return jsonResponse({
+      ...base,
+      ok: response.ok,
+      gemini_ok: response.ok,
+      provider_status: response.status,
+      provider_message: providerMessage || undefined,
+      answer_preview: answer ? answer.slice(0, 160) : undefined,
+    }, 200, origin);
+  } catch (error) {
+    return jsonResponse({
+      ...base,
+      gemini_ok: false,
+      provider_status: 502,
+      provider_error: safeProviderError(error),
+    }, 200, origin);
+  }
+}
+
 async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'ai/search-chat', 8, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const question = String(payload.question || payload.query || '').trim();
   if (question.length < 2) return fail(400, 'question is required', ctx.origin);
-  const apiKey = (Deno.env.get('GOOGLE_AI_KEY') || Deno.env.get('GEMINI_API_KEY') || '').trim();
+  const apiKey = googleAiApiKey();
   if (!apiKey) return fail(503, 'Google AI key is not configured', ctx.origin);
   const model = resolveFreeTierGoogleAiModel();
   const context = await collectAiSearchContext(ctx, question);
@@ -1473,20 +1563,8 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
     `Permission scope: ${JSON.stringify(context.scope)}`,
     `Evidence rows: ${JSON.stringify(context.evidence)}`,
   ].join('\n\n');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   try {
-    const { response, body } = await fetchJsonWithTimeout(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          topP: 0.8,
-          maxOutputTokens: 900,
-        },
-      }),
-    }, 18_000, 1);
+    const { response, body } = await generateGeminiContent(model, apiKey, prompt, 900, 18_000);
     const answer = extractGoogleAiText(body as Record<string, unknown>);
     await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', response.status, {
       question,
@@ -1565,7 +1643,7 @@ async function callGoogleAiSearchChatDemo(origin: string, payload: Record<string
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = readEdgeSecret('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceRoleKey) return fail(500, 'Server is not configured', origin);
-  const apiKey = (Deno.env.get('GOOGLE_AI_KEY') || Deno.env.get('GEMINI_API_KEY') || '').trim();
+  const apiKey = googleAiApiKey();
   if (!apiKey) return fail(503, 'Google AI key is not configured', origin);
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -1580,20 +1658,8 @@ async function callGoogleAiSearchChatDemo(origin: string, payload: Record<string
     `Permission scope: ${JSON.stringify(context.scope)}`,
     `Evidence rows: ${JSON.stringify(context.evidence)}`,
   ].join('\n\n');
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
   try {
-    const { response, body } = await fetchJsonWithTimeout(url, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.2,
-          topP: 0.8,
-          maxOutputTokens: 700,
-        },
-      }),
-    }, 20_000, 1);
+    const { response, body } = await generateGeminiContent(model, apiKey, prompt, 700, 20_000);
     const answer = extractGoogleAiText(body);
     const status = response.ok ? 200 : 502;
     await audit(serviceClient, null, 'ai/search-chat-demo', status, {
@@ -1638,6 +1704,7 @@ Deno.serve(async (request) => {
   const payload = (body.payload || {}) as Record<string, unknown>;
 
   if (action === 'naver/maps-config') return callNaverMapsConfig(origin);
+  if (action === 'ai/gemini-diagnostics') return callGeminiDiagnostics(origin);
   if (action === 'ai/search-chat-demo') return callGoogleAiSearchChatDemo(origin, payload);
 
   let ctx: Context;

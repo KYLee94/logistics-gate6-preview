@@ -16,9 +16,9 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 128,
-    "total": 206,
-    "completion_rate": 62.1
+    "completed": 134,
+    "total": 212,
+    "completion_rate": 63.2
   },
   "stages": [
     {
@@ -82,8 +82,8 @@
     {
       "stage": 3,
       "area": "업무 로그 메인 페이지",
-      "completed": 16,
-      "total": 22,
+      "completed": 18,
+      "total": 24,
       "items": [
         {
           "id": "3.01",
@@ -194,6 +194,16 @@
           "id": "3.22",
           "status": "done",
           "text": "팀 공유용 임시 데모 모드로 로그인 게이트를 우회하고, 세션이 없어도 물류센터 워크 플랫폼 화면이 바로 열리도록 했다. Evidence: App/AuthContext patch, eslint pass, npm run build pass."
+        },
+        {
+          "id": "3.25",
+          "status": "done",
+          "text": "AI ?? ?? ??? Edge Function ?? ??, CORS/origin ??, Google key ???, provider ??, rate limit ??? ??? ????. Evidence: gemini-diagnostics-smoke-20260518, eslint pass, preview JS contains separated failure message."
+        },
+        {
+          "id": "3.26",
+          "status": "done",
+          "text": "?? ?? ?? ??? Gemini ?? ?? ??? Edge/Gemini/model/provider status ?? ?? UI? ????. Evidence: gemini-diagnostics-smoke-20260518, preview JS contains ai/gemini-diagnostics and ?? ??."
         }
       ]
     },
@@ -869,8 +879,8 @@
     {
       "stage": 12,
       "area": "승인대기 대상",
-      "completed": 5,
-      "total": 12,
+      "completed": 6,
+      "total": 13,
       "items": [
         {
           "id": "12.01",
@@ -931,14 +941,19 @@
           "id": "12.12",
           "status": "partial",
           "text": "Task 기록, 통합 검색 질문/검색 로그, 클릭, 창 전환, 업로드, 데이터 추가·수정·삭제 등 워크플랫폼과 대시보드 전체 사용자 행동을 Supabase audit/event log로 남기는 서버 로그 구조를 확정하고 적용한다. Data Quality 일부 audit 기반은 있으나 전체 행동 로그는 미완성이다."
+        },
+        {
+          "id": "12.15",
+          "status": "done",
+          "text": "ll-dashboard-api Gemini ???? URL query key ???? x-goog-api-key header ???? ???? ai/gemini-diagnostics action? qveg Edge Function? ????. Evidence: qveg deploy success, gemini-diagnostics-smoke-20260518 provider_status=200."
         }
       ]
     },
     {
       "stage": 13,
       "area": "외부권한대기 대상",
-      "completed": 4,
-      "total": 10,
+      "completed": 5,
+      "total": 11,
       "items": [
         {
           "id": "13.01",
@@ -989,14 +1004,19 @@
           "id": "13.10",
           "status": "done",
           "text": "Supabase service role key는 Edge 기본 secret 또는 fallback secret 명칭을 읽도록 처리했고, qveg live smoke에서 service-role 기반 권한 row upsert와 Edge 권한 readback이 성공했다."
+        },
+        {
+          "id": "13.12",
+          "status": "done",
+          "text": "qveg Edge Function secret? GOOGLE_AI_KEY ?? ??? secret ?? ???? ?? diagnostics readback?? ????. LL_AI_DEMO_ALLOWED_ORIGINS? secret?? ?? ???? ??? ?? ???? ?? live preview origin? ????. Evidence: key_configured=true, key_length=39, key_hash prefix only, demo_origin_allowed=true."
         }
       ]
     },
     {
       "stage": 14,
       "area": "QA 계획",
-      "completed": 5,
-      "total": 17,
+      "completed": 7,
+      "total": 19,
       "items": [
         {
           "id": "14.01",
@@ -1082,6 +1102,16 @@
           "id": "14.17",
           "status": "external_pending",
           "text": "실제 브라우저 화면 QA는 사용자가 직접 수행한다. Codex는 정적 QA, 빌드, 데이터 readback, 보안 스크립트까지만 수행하고, 사용자용 화면 확인 목록은 manual-browser-qa-checklist-20260515.md로 관리한다."
+        },
+        {
+          "id": "14.18",
+          "status": "done",
+          "text": "GitHub Pages preview bundle readback? ??? latest HTML? assets/index-C0-xFOHk.js? ???? JS? ai/gemini-diagnostics, ?? ??, ??? ?? ???? ???? ????. Evidence: gemini-diagnostics-smoke-20260518."
+        },
+        {
+          "id": "14.19",
+          "status": "done",
+          "text": "Gemini diagnostics direct/live-origin/frontend bundle 3?? smoke? ????. qveg direct live-origin diagnostics? ok=true, gemini_ok=true, model=gemini-2.5-flash, provider_status=200?? demo search? ok=true? ????. Evidence: gemini-diagnostics-smoke-20260518."
         }
       ]
     },
