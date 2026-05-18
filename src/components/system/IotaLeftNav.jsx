@@ -118,6 +118,49 @@ const workspaceItems = [
     }
 ];
 
+const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용']);
+const logisticsNavIconClass = 'w-4.5 h-4.5 mr-[10px]';
+const logisticsNavItems = [
+    {
+        label: '워크 플랫폼',
+        path: 'platform/iotaseoul/workspace/logistics',
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7h18M5 7v10a2 2 0 002 2h10a2 2 0 002-2V7M8 11h8M8 15h5M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>,
+    },
+    {
+        label: 'Dashboard Home',
+        path: 'platform/iotaseoul/workspace/logistics/dashboard/home',
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 12l9-9 9 9M5 10v10h14V10M9 20v-6h6v6" /></svg>,
+    },
+    {
+        label: 'Asset',
+        path: 'platform/iotaseoul/workspace/logistics/dashboard/asset',
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 21V7l8-4 8 4v14M8 21v-5h8v5M8 10h.01M12 10h.01M16 10h.01" /></svg>,
+    },
+    {
+        label: 'Company',
+        path: 'platform/iotaseoul/workspace/logistics/dashboard/company',
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 21h18M5 21V5a2 2 0 012-2h5v18M12 8h5a2 2 0 012 2v11M8 7h.01M8 11h.01M8 15h.01M16 12h.01M16 16h.01" /></svg>,
+    },
+    {
+        label: 'Analysis Tools',
+        path: 'platform/iotaseoul/workspace/logistics/dashboard/tools',
+        adminOnly: true,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4" /></svg>,
+    },
+    {
+        label: 'Data Playground',
+        path: 'platform/iotaseoul/workspace/logistics/dashboard/playground',
+        adminOnly: true,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7c0 1.657 3.582 3 8 3s8-1.343 8-3M4 7c0-1.657 3.582-3 8-3s8 1.343 8 3M4 7v10c0 1.657 3.582 3 8 3s8-1.343 8-3V7M4 12c0 1.657 3.582 3 8 3s8-1.343 8-3" /></svg>,
+    },
+    {
+        label: 'Data Quality',
+        path: 'platform/iotaseoul/workspace/logistics/dashboard/quality',
+        adminOnly: true,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-2.8 8.2-7 9-4.2-.8-7-4.5-7-9V7l7-4z" /></svg>,
+    },
+];
+
 export default function IotaLeftNav({ currentPath = '' }) {
     
     
@@ -184,6 +227,71 @@ export default function IotaLeftNav({ currentPath = '' }) {
             setIsVehicleOpen(true);
         }
     }, [currentPath]);
+
+    const isLogisticsPath = currentPath.startsWith('platform/iotaseoul/workspace/logistics');
+    const isLogisticsAdmin = LOGISTICS_ADMIN_NAMES.has(memberInfo?.staff_name || memberInfo?.name);
+
+    if (isLogisticsPath) {
+        const visibleLogisticsItems = logisticsNavItems.filter((item) => !item.adminOnly || isLogisticsAdmin);
+        return (
+            <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width,background-color,border-color] duration-300`}>
+                <div className={`w-full flex items-center ${isCollapsed ? 'justify-center px-[10px]' : 'justify-between px-[15px]'} pt-[14px] pb-4`}>
+                    {!isCollapsed ? <span className="font-bold text-[20px] tracking-tight font-inter ml-[5px] text-white">Logistics</span> : null}
+                    <button type="button" onClick={() => setIsCollapsed((value) => !value)} title={isCollapsed ? '사이드바 펼치기' : '사이드바 접기'} className="text-[#86868B] hover:text-white pb-1 transition-colors cursor-pointer mt-[4px]">
+                        <svg className={`w-[22px] h-[18px] transition-transform ${isCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
+                            <rect x="2" y="4" width="20" height="16" rx="3" ry="3" />
+                            <line x1="8" y1="4" x2="8" y2="20" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div className={`flex-1 overflow-y-auto pb-5 hide-scrollbar flex flex-col ${isCollapsed ? 'px-[9px]' : 'px-[11px]'}`}>
+                    {!isCollapsed ? (
+                        <div className="mb-3 px-[7px] text-[11px] font-semibold uppercase tracking-[0.14em] text-[#86868B]">
+                            Logistics Platform
+                        </div>
+                    ) : null}
+                    <div className="flex flex-col gap-0">
+                        {visibleLogisticsItems.map((item) => {
+                            const isActive = currentPath === item.path || currentPath.startsWith(`${item.path}/`);
+                            return (
+                                <div key={item.path} title={isCollapsed ? item.label : undefined} onClick={() => handleNavigation(item.path)} className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
+                                    <div className={`flex items-center ${isCollapsed ? 'justify-center' : ''}`}>
+                                        <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>{item.icon}</span>
+                                        {!isCollapsed ? <span className="text-[14px] text-white font-light">{item.label}</span> : null}
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                <div className="relative border-t border-[#2C2C2E] p-3">
+                    <button type="button" onClick={() => setShowProfileMenu((value) => !value)} className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} rounded-xl px-2 py-2 hover:bg-[#151515]`}>
+                        <div className="w-8 h-8 rounded-full bg-[#3c3c3c] overflow-hidden shrink-0">
+                            <img src={`${import.meta.env.BASE_URL}${(memberInfo?.staff_name || '').replace(/\s/g, '')}.webp`} alt={memberInfo?.staff_name || '사용자'} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
+                        </div>
+                        {!isCollapsed ? (
+                            <div className="ml-3 min-w-0 text-left">
+                                <div className="truncate text-[13px] font-semibold text-white">{memberInfo?.staff_name || '로그인 사용자'}</div>
+                                <div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div>
+                            </div>
+                        ) : null}
+                    </button>
+                    {showProfileMenu ? (
+                        <>
+                            <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+                            <div className="absolute bottom-full left-3 right-3 z-50 mb-2 rounded-[16px] border border-[#3A3A3C] bg-[#2C2C2E] py-2 shadow-lg">
+                                <button onClick={async () => { setShowProfileMenu(false); await signOut(); }} className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-[14px] font-medium text-[#FF453A] transition-colors hover:bg-red-500/10">
+                                    로그아웃
+                                </button>
+                            </div>
+                        </>
+                    ) : null}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width,background-color,border-color] duration-300`}>

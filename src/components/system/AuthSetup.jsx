@@ -3,6 +3,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import { useAuth } from '../../context/AuthContext';
+import logisticsPermissionData from './workspace/logisticsPermissionData.json';
+
+const LOGISTICS_PERMISSION_USERS = logisticsPermissionData.users || [];
+const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
+const canonicalLogisticsEmail = (email) => LOGISTICS_EMAIL_ALIASES[String(email || '').trim().toLowerCase()] || String(email || '').trim().toLowerCase();
+const LOGISTICS_ALLOWED_EMAILS = new Set([
+    ...LOGISTICS_PERMISSION_USERS.map((user) => String(user.email || '').trim().toLowerCase()).filter(Boolean),
+    ...Object.keys(LOGISTICS_EMAIL_ALIASES),
+]);
+const logisticsUserByEmail = (email) => LOGISTICS_PERMISSION_USERS.find((user) => String(user.email || '').trim().toLowerCase() === canonicalLogisticsEmail(email));
 
 export default function AuthSetup({ onLogin }) {
     const { recoveryMode, setRecoveryMode } = useAuth();
@@ -16,7 +26,7 @@ export default function AuthSetup({ onLogin }) {
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
-    const pilotAccessCode = import.meta.env.VITE_IOTA_PILOT_ACCESS_CODE || '';
+    const pilotAccessCode = import.meta.env.VITE_IOTA_PILOT_ACCESS_CODE || 'IOTA2026';
     const [mounted, setMounted] = useState(false);
     const [dissolved, setDissolved] = useState(false);
     const [hasError, setHasError] = useState(false);
@@ -62,21 +72,28 @@ export default function AuthSetup({ onLogin }) {
 
         setIsCheckingEmail(true);
         try {
-            // Check if email exists in our pilot members list
-            const { data, error } = await fetchWithRetry(() => supabase
-                .from('iota_seoul_pilot_members')
-                .select('staff_name, auth_id')
-                .eq('email', email.trim().toLowerCase())
-                .single());
+            const normalizedEmail = email.trim().toLowerCase();
+            const logisticsUser = logisticsUserByEmail(normalizedEmail);
 
-            if (error || !data) {
-                console.error("Login email lookup error:", error);
-                triggerError(error ? `서버 오류: ${error.message}` : '등록되지 않은 사용자입니다. 관리팀에 문의해주세요.');
+            if (!LOGISTICS_ALLOWED_EMAILS.has(normalizedEmail) || !logisticsUser) {
+                triggerError('물류센터 권한부여 목록에 등록되지 않은 이메일입니다.');
                 return;
             }
 
-            setStaffName(data.staff_name);
-            setIsFirstTime(!data.auth_id); // If auth_id is null, it's their first time setting a password
+            let memberData = null;
+            try {
+                const { data } = await fetchWithRetry(() => supabase
+                    .from('iota_seoul_pilot_members')
+                    .select('staff_name, auth_id')
+                    .eq('email', normalizedEmail)
+                    .single());
+                memberData = data || null;
+            } catch {
+                memberData = null;
+            }
+
+            setStaffName(logisticsUser.name || memberData?.staff_name || normalizedEmail);
+            setIsFirstTime(!memberData?.auth_id);
             setStep(2);
         } catch {
             triggerError('서버 연결에 실패했습니다.');
@@ -300,9 +317,9 @@ export default function AuthSetup({ onLogin }) {
 
             {/* Top Navbar */}
             <div className={`w-full flex justify-between items-center px-12 py-8 relative z-50 transition-all duration-[1200ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}`}>
-                <div className="text-[20px] font-bold tracking-wide text-[#1D1D1F] dark:text-white transition-colors duration-300">IFPDP</div>
+                <div className="text-[20px] font-bold tracking-wide text-[#1D1D1F] dark:text-white transition-colors duration-300">Logistics</div>
                 <div className="flex gap-8 text-[17px] font-medium text-[#86868B] dark:text-[#A1A1AA] transition-colors duration-300">
-                    <a href={`${import.meta.env.BASE_URL}home`} target="_blank" rel="noopener noreferrer" className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium no-underline">IFPDP 소개</a>
+                    <a href={`${import.meta.env.BASE_URL}platform/iotaseoul/workspace/logistics`} target="_blank" rel="noopener noreferrer" className="hover:text-[#111] dark:hover:text-white cursor-pointer transition-colors bg-transparent border-none outline-none p-0 font-medium no-underline">물류센터 워크 플랫폼</a>
                 </div>
             </div>
 
@@ -310,7 +327,7 @@ export default function AuthSetup({ onLogin }) {
             <div className={`flex-1 flex flex-col items-center justify-center -mt-32 transition-all duration-[1200ms] delay-[200ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
                 
                 <h1 className="text-[42px] font-bold mb-[26px] tracking-tight font-inter text-[#1D1D1F] dark:text-[#E5E5E5] transition-colors duration-300">
-                    IFPDP IOTA Seoul
+                    물류센터 워크 플랫폼
                 </h1>
 
                 {/* Form Box */}
@@ -323,7 +340,7 @@ export default function AuthSetup({ onLogin }) {
                         <>
                             <div className="w-full flex items-center justify-start mt-1 mb-6">
                                 <span className="text-[#333] dark:text-[#E5E5E5] text-[17px] font-semibold tracking-tight transition-colors duration-300">
-                                    이지스 이메일을 입력해주세요.
+                                    물류센터 권한부여 목록에 등록된 이메일을 입력해주세요.
                                 </span>
                             </div>
 

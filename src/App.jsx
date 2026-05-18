@@ -73,18 +73,21 @@ export default function App() {
 
   // Protect platform routes
   React.useEffect(() => {
-      if (currentPage === 'auth-setup') {
-          navigateTo(LOGISTICS_WORKSPACE_PATH);
-          return;
-      }
-
-      if (recoveryMode && currentPage !== LOGISTICS_WORKSPACE_PATH) {
+      if (recoveryMode && currentPage !== 'auth-setup') {
           navigateTo('auth-setup');
           return;
       }
 
       if (!loading && !user && currentPage.startsWith('platform/iotaseoul') && !recoveryMode) {
-          navigateTo(LOGISTICS_WORKSPACE_PATH);
+          window.sessionStorage.setItem('logisticsPostLoginPath', currentPage);
+          navigateTo('auth-setup');
+          return;
+      }
+
+      if (!loading && user && currentPage === 'auth-setup' && !recoveryMode) {
+          const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_WORKSPACE_PATH;
+          window.sessionStorage.removeItem('logisticsPostLoginPath');
+          navigateTo(nextPath);
       }
   }, [user, loading, currentPage, recoveryMode]);
 
@@ -145,7 +148,7 @@ export default function App() {
         {currentPage === 'action-plan' && <Notes />}
         
         {/* Navigation Handlers overriding the inline SystemPlan internal stage logic */}
-        {currentPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo(LOGISTICS_WORKSPACE_PATH)} />}
+        {currentPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo(window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_WORKSPACE_PATH)} />}
         {currentPage === 'system-plan' && <SystemLogin onLogin={() => navigateTo('system-bridge')} />}
         {['system-bridge', 'system-chat', 'system-detail'].includes(currentPage) && (
             <SystemPlan 

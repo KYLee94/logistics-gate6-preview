@@ -1,26 +1,37 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import logisticsPermissionData from '../components/system/workspace/logisticsPermissionData.json';
 
 const AuthContext = createContext();
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const LOGISTICS_DEMO_USER = {
-    id: 'logistics-demo-user',
-    email: '10524@igisam.com',
-    is_demo: true,
-};
-const LOGISTICS_DEMO_MEMBER = {
-    id: 'logistics-demo-member',
-    auth_id: 'logistics-demo-user',
-    email: '10524@igisam.com',
-    staff_name: '이시정',
-    name: '이시정',
-    organization: '기획추진센터',
-    department: '기획추진센터',
-    team_name: '기획추진센터',
-    role_code: 'master',
-};
+const LOGISTICS_PERMISSION_USERS = logisticsPermissionData.users || [];
+const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
+const canonicalLogisticsEmail = (email) => LOGISTICS_EMAIL_ALIASES[String(email || '').trim().toLowerCase()] || String(email || '').trim().toLowerCase();
+const LOGISTICS_ALLOWED_EMAILS = new Set([
+    ...LOGISTICS_PERMISSION_USERS.map((user) => String(user.email || '').trim().toLowerCase()).filter(Boolean),
+    ...Object.keys(LOGISTICS_EMAIL_ALIASES),
+]);
+
+function logisticsMemberFromPermission(email) {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const permissionEmail = canonicalLogisticsEmail(normalizedEmail);
+    const user = LOGISTICS_PERMISSION_USERS.find((item) => String(item.email || '').trim().toLowerCase() === permissionEmail);
+    if (!user) return null;
+    return {
+        id: `logistics-permission-${normalizedEmail}`,
+        auth_id: null,
+        email: normalizedEmail,
+        permission_email: permissionEmail,
+        staff_name: user.name,
+        name: user.name,
+        organization: user.organization,
+        department: user.organization,
+        team_name: user.organization,
+        role_code: user.organization === '기획추진센터' ? 'master' : 'member',
+    };
+}
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
@@ -44,9 +55,9 @@ export function AuthProvider({ children }) {
             }
             keysToRemove.forEach(k => localStorage.removeItem(k));
             localStorage.removeItem('iota_last_activity');
-            setUser(LOGISTICS_DEMO_USER);
-            setMemberInfo(LOGISTICS_DEMO_MEMBER);
-            window.location.href = import.meta.env.BASE_URL + 'platform/iotaseoul/workspace/logistics';
+            setUser(null);
+            setMemberInfo(null);
+            window.location.href = import.meta.env.BASE_URL + 'auth-setup';
         }
     };
 
@@ -93,11 +104,16 @@ export function AuthProvider({ children }) {
                 clearTimeout(timeoutId);
 
                 if (session?.user) {
+                    const sessionEmail = String(session.user.email || '').trim().toLowerCase();
+                    if (!LOGISTICS_ALLOWED_EMAILS.has(sessionEmail)) {
+                        await handleSignOut();
+                        return;
+                    }
                     setUser(session.user);
-                    await fetchMemberInfo(session.user.email);
+                    await fetchMemberInfo(sessionEmail);
                 } else {
-                    setUser(LOGISTICS_DEMO_USER);
-                    setMemberInfo(LOGISTICS_DEMO_MEMBER);
+                    setUser(null);
+                    setMemberInfo(null);
                 }
             } catch (err) {
                 console.error("Auth initialization error:", err);
@@ -112,11 +128,16 @@ export function AuthProvider({ children }) {
                     }
 
                     if (session?.user) {
+                        const sessionEmail = String(session.user.email || '').trim().toLowerCase();
+                        if (!LOGISTICS_ALLOWED_EMAILS.has(sessionEmail)) {
+                            await handleSignOut();
+                            return;
+                        }
                         setUser(session.user);
-                        await fetchMemberInfo(session.user.email);
+                        await fetchMemberInfo(sessionEmail);
                     } else {
-                        setUser(LOGISTICS_DEMO_USER);
-                        setMemberInfo(LOGISTICS_DEMO_MEMBER);
+                        setUser(null);
+                        setMemberInfo(null);
                     }
                     setLoading(false);
                 });
@@ -132,21 +153,36 @@ export function AuthProvider({ children }) {
     }, []);
 
     const fetchMemberInfo = async (email) => {
+        const normalizedEmail = String(email || '').trim().toLowerCase();
         try {
+            const permissionMember = logisticsMemberFromPermission(normalizedEmail);
+            if (!permissionMember) {
+                setMemberInfo(null);
+                return;
+            }
             const { data, error } = await supabase
                 .from('iota_seoul_pilot_members')
                 .select('*')
-                .eq('email', email)
+                .eq('email', normalizedEmail)
                 .single();
                 
             if (data && !error) {
-                setMemberInfo(data);
+                setMemberInfo({
+                    ...permissionMember,
+                    ...data,
+                    email: normalizedEmail,
+                    staff_name: permissionMember.staff_name,
+                    name: permissionMember.name,
+                    organization: permissionMember.organization,
+                    department: permissionMember.organization,
+                    team_name: permissionMember.organization,
+                });
             } else {
-                setMemberInfo(LOGISTICS_DEMO_MEMBER);
+                setMemberInfo(permissionMember);
             }
         } catch (err) {
             console.error("Failed to fetch member info", err);
-            setMemberInfo(LOGISTICS_DEMO_MEMBER);
+            setMemberInfo(logisticsMemberFromPermission(normalizedEmail));
         }
     };
 

@@ -33,7 +33,6 @@ const COMPANY_PAYLOADS = Object.fromEntries(Object.entries(companyPayloadModules
   .filter(Boolean));
 
 const MODULES = [
-  { id: 'weekly', label: 'Weekly', source: '주간 업무' },
   { id: 'home', label: 'Home', source: 'Home' },
   { id: 'asset', label: 'Asset', source: 'Asset' },
   { id: 'company', label: 'Company', source: 'Company' },
@@ -41,6 +40,7 @@ const MODULES = [
   { id: 'playground', label: 'Data Playground', source: 'Data Playground' },
   { id: 'quality', label: 'Data Quality', source: 'Data Quality' },
 ];
+const ADMIN_ONLY_MODULE_IDS = new Set(['tools', 'playground', 'quality']);
 
 const WORKLOGS = [
   { id: 'wl-001', title: '주간 임대차 변동사항 확인', scope: '개인', owner: '물류 AM', status: '진행', priority: '높음', due: '이번 주', asset: 'DB_일반', note: '만기, 공실, 임대료 변동 항목 우선 확인' },
@@ -1012,6 +1012,47 @@ function ProjectDetail({ project, section, onRaw }) {
   );
 }
 
+function WeeklyAssetStatusTable({ title = '자산현황 원문 전체 보기' }) {
+  const [modal, setModal] = useState(null);
+  const assetRows = useMemo(() => normalizeWeeklyAssetRows(weeklyReportData.assetRows || []), []);
+  const fullHeaders = ['자산명', '펀드명', '종류', '연면적(평)', '준공', '투자유형', '매입시점', '임대차만기', '펀드만기', '대출만기', '원가', '현재대비', '저온비율', '임대율', '주요임차사', 'Main Issue'];
+  const tableRows = assetRows.map((row) => [
+    row.assetName,
+    cleanDisplay(row.fundName),
+    row.category,
+    formatNumber(row.grossAreaPy),
+    row.completion,
+    row.investmentType,
+    row.acquisition,
+    row.leaseMaturity || '-',
+    row.fundMaturity || '-',
+    row.loanMaturity || '-',
+    cleanDisplay(row.costPerPy),
+    cleanDisplay(row.costTrend),
+    cleanDisplay(row.coldRatio),
+    cleanDisplay(row.occupancyRate),
+    cleanDisplay(row.mainTenant),
+    cleanDisplay(row.mainIssue),
+  ]);
+  const openAssetDetail = (row) => setModal({
+    title: `자산현황 상세 · ${row.assetName}`,
+    headers: ['항목', '내용'],
+    rows: assetDetailRows(row),
+  });
+
+  return (
+    <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5">
+      <LogisticsModal modal={modal} onClose={() => setModal(null)} />
+      <SectionHeader
+        eyebrow="ASSET STATUS"
+        title={title}
+        right={<span className="text-[12px] font-semibold text-[#86868B]">Weekly 자산현황 원문 기준</span>}
+      />
+      <DataTable headers={fullHeaders} rows={tableRows} onRowClick={(index) => openAssetDetail(assetRows[index])} compact />
+    </section>
+  );
+}
+
 function WeeklyDashboard() {
   const { memberInfo } = useAuth();
   const [selectedWeekKey, setSelectedWeekKey] = useState(WEEKLY_REPORT_LIBRARY[0]?.key || '');
@@ -1094,13 +1135,6 @@ function WeeklyDashboard() {
             <StatusPill className="bg-[#173522] text-[#B5E48C] border-[#2E6B45]">
               조직 기준 열람
             </StatusPill>
-            <button
-              type="button"
-              onClick={() => setModal({ title: '주간업무보고자료 업로드', content: <WeeklyWordUploadPanel initialSelection={selectedWeeklyEntry} /> })}
-              className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}
-            >
-              주간업무보고자료 업로드
-            </button>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -1350,6 +1384,10 @@ function canViewDataQuality(memberInfo, permission) {
   const name = String(memberInfo?.staff_name || memberInfo?.name || permission?.name || '').trim();
   const organization = String(memberInfo?.organization || memberInfo?.department || permission?.organization || '').trim();
   return organization === '기획추진센터' && DATA_QUALITY_ALLOWED_NAMES.has(name);
+}
+
+function canViewAdvancedLogisticsTools(memberInfo, permission) {
+  return canViewDataQuality(memberInfo, permission);
 }
 
 function taskScopeLabel(scope) {
@@ -1972,11 +2010,16 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const [pendingTaskAction, setPendingTaskAction] = useState(null);
 
   const isDashboard = currentPath.startsWith(pathFor('dashboard'));
-  const requestedModule = currentPath.split('/').pop() || 'weekly';
-  const activeModule = requestedModule === 'sector' ? 'home' : requestedModule;
+  const requestedModule = currentPath.split('/').pop() || 'home';
+  const activeModule = requestedModule === 'sector' || requestedModule === 'weekly' ? 'home' : requestedModule;
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const weeklyTasks = useMemo(() => buildMainWeeklyTasks(weeklyReportData, permission), [permission]);
   const canRegisterTask = Boolean(permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.update);
+  const canUseAdvancedTools = canViewAdvancedLogisticsTools(memberInfo, permission);
+
+  useEffect(() => {
+    if (!canUseAdvancedTools && isAiDockOpen) setIsAiDockOpen(false);
+  }, [canUseAdvancedTools, isAiDockOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2274,7 +2317,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   };
 
   if (isDashboard) {
-    return <DashboardShell activeModule={MODULES.some((item) => item.id === activeModule) ? activeModule : 'weekly'} />;
+    return <DashboardShell activeModule={MODULES.some((item) => item.id === activeModule) ? activeModule : 'home'} />;
   }
 
   return (
@@ -2289,12 +2332,6 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <button type="button" onClick={() => setMainModal('permission')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
             담당 및 권한
-          </button>
-          <button type="button" onClick={() => setMainModal('upload')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
-            주간업무보고자료 업로드
-          </button>
-          <button type="button" onClick={() => navigateTo(pathFor('dashboard/weekly'))} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${PRIMARY_BLUE_BUTTON_CLASS}`}>
-            Dashboard
           </button>
         </div>
       </header>
@@ -2364,7 +2401,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         </div>
       </section>
 
-      <WorkspaceActivityLog workspaceCode="WS_LOGISTICS" workspaceLabel="물류센터 워크 플랫폼" assetOptions={topAssets} />
+      <WeeklyAssetStatusTable />
 
       <section className="mb-[28px]">
         <div className="mb-[10px] flex items-center justify-between">
@@ -2639,14 +2676,11 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         </div>
       </section>
 
+      <WorkspaceActivityLog workspaceCode="WS_LOGISTICS" workspaceLabel="물류센터 워크 플랫폼" assetOptions={topAssets} />
+
       {mainModal === 'permission' && (
         <MainOverlay title="담당자별 자산·펀드 권한" eyebrow="PERMISSION SCOPE" onClose={() => setMainModal(null)}>
           <PermissionDetailContent permission={permission} />
-        </MainOverlay>
-      )}
-      {mainModal === 'upload' && (
-        <MainOverlay title="주간업무보고자료 업로드" onClose={() => setMainModal(null)}>
-          <WeeklyWordUploadPanel />
         </MainOverlay>
       )}
       {selectedSearchResult && (
@@ -2673,6 +2707,8 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           {aiToast.message}
         </div>
       ) : null}
+      {canUseAdvancedTools ? (
+      <>
       <div className="fixed right-0 top-1/2 z-[70] -translate-y-1/2">
         {!isAiDockOpen ? (
           <button
@@ -2769,6 +2805,8 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           </div>
         </form>
       </div>
+      </>
+      ) : null}
     </div>
   );
 }
@@ -4347,9 +4385,12 @@ function normalizeAssetPayload(payload) {
       eNoc: derivedENoc,
     };
   });
+  const corrected = applyAssetDisplayCorrections(payload, rows);
   return {
     ...payload,
-    normalizedRows: rows,
+    overview: corrected.overview,
+    kpis: corrected.kpis,
+    normalizedRows: corrected.rows,
     uniqueTenants: payload.analytics?.uniqueTenants || payload.topTenants || [],
     monthlyCostByTenant: payload.analytics?.monthlyCostByTenant || payload.analytics?.coreTenants || [],
     expiryRows: payload.analytics?.expirySnapshot?.entries || payload.analytics?.contractExpiry || [],
@@ -4582,6 +4623,62 @@ function aggregateMetricValues(rows, metric, aggregation) {
   if (aggregation === 'max') return Math.max(...values);
   if (aggregation === 'min') return Math.min(...values);
   return values.reduce((sum, value) => sum + value, 0);
+}
+
+function applyAssetDisplayCorrections(payload, rows) {
+  const overview = { ...(payload.overview || {}) };
+  const kpis = (payload.kpis || []).map((item) => ({ ...item }));
+  let normalizedRows = rows;
+  const setKpiValue = (key, value) => {
+    const found = kpis.find((item) => item.key === key);
+    if (found) found.value = value;
+    else kpis.push({ key, label: key, value });
+  };
+
+  if (overview.assetId === 'asset_a120085001' || overview.assetName === '경산 쿠팡물류센터') {
+    overview.vacancyAreaSqm = 0;
+    overview.vacancyRate = 0;
+    overview.leasedAreaSqm = firstDefined(overview.grossFloorAreaSqm, overview.leasedAreaSqm);
+    setKpiValue('occupancy_rate', 1);
+    setKpiValue('leased_area_total', overview.leasedAreaSqm);
+    setKpiValue('vacancy_area_total', 0);
+  }
+
+  if (overview.assetId === 'asset_a112109001' || overview.assetName === '부산송정물류센터') {
+    overview.leasedAreaSqm = 0;
+    overview.vacancyAreaSqm = overview.grossFloorAreaSqm || 0;
+    overview.vacancyRate = 1;
+    overview.tenantCount = 0;
+    overview.uniqueTenantCount = 0;
+    overview.leaseSpaceCount = 0;
+    overview.monthlyRentTotal = null;
+    overview.monthlyMfTotal = null;
+    overview.monthlyCostTotal = null;
+    overview.averageENoc = null;
+    normalizedRows = [];
+    setKpiValue('occupancy_rate', 0);
+    setKpiValue('leased_area_total', 0);
+    setKpiValue('vacancy_area_total', overview.vacancyAreaSqm);
+    setKpiValue('unique_tenant_count', 0);
+    setKpiValue('monthly_total_cost', null);
+    setKpiValue('average_e_noc', null);
+  }
+
+  if (overview.assetId === 'asset_a112127001' || overview.assetName === '아레나스양지물류센터') {
+    normalizedRows = normalizedRows.map((row) => {
+      const floor = cleanDisplay(row.floorLabel, '');
+      const detail = cleanDisplay(row.detailAreaLabel, '');
+      const normalizedDetail = detail === '-' ? '' : detail;
+      const fallbackDetail = floor && floor !== '-' ? '섹터 미분리' : '';
+      return {
+        ...row,
+        detailAreaLabel: normalizedDetail || fallbackDetail || row.detailAreaLabel,
+        spaceLabel: [floor, normalizedDetail || fallbackDetail].filter(Boolean).join(' / ') || row.spaceLabel || '-',
+      };
+    });
+  }
+
+  return { overview, rows: normalizedRows, kpis };
 }
 
 function buildPivotRows(sourceRows, {
@@ -5187,6 +5284,37 @@ function AnalysisToolsDashboard() {
     row.currentEndDate || '-',
     row.calculatedReviewStatus,
   ]);
+  const selectedCompanyRows = selectedContracts.filter((row) => selectedCompanySet.has(row.tenantId));
+  const companyCompareRows = buildTenantContractGroups(selectedCompanyRows.length ? selectedCompanyRows : selectedContracts)
+    .filter((row) => selectedCompanySet.size === 0 || selectedCompanySet.has(row.key))
+    .map((row) => ({
+      ...row,
+      metricValue: benchmarkMetric === 'count'
+        ? row.rowCount
+        : benchmarkMetric === 'leasedAreaSqm'
+          ? row.leasedAreaSqm
+          : benchmarkMetric === 'currentMonthlyRentTotal'
+            ? row.monthlyRentTotal
+            : benchmarkMetric === 'currentMonthlyMfTotal'
+              ? row.monthlyMfTotal
+              : benchmarkMetric === 'currentRentPerPy'
+                ? row.rentPerPy
+                : benchmarkMetric === 'currentMfPerPy'
+                  ? row.mfPerPy
+                  : benchmarkMetric === 'eNoc'
+                    ? row.costPerPy
+                    : row.monthlyCostTotal,
+    }));
+  const companyTableRows = companyCompareRows.map((row) => [
+    row.tenantMasterName,
+    row.assetNames.join(', '),
+    formatNumber(row.rowCount),
+    formatArea(row.leasedAreaSqm),
+    formatCurrency(row.monthlyRentTotal),
+    formatCurrency(row.monthlyMfTotal),
+    formatCurrency(row.monthlyCostTotal),
+    formatMetric(row.metricValue, benchmarkMetricDef.type),
+  ]);
   const toggleValue = (value, values, setter) => {
     setter(values.includes(value) ? values.filter((item) => item !== value) : [...values, value]);
   };
@@ -5229,23 +5357,22 @@ function AnalysisToolsDashboard() {
   return (
     <div className="space-y-6">
       <LogisticsModal modal={modal} onClose={() => setModal(null)} />
-      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-        <SectionHeader
-          eyebrow="ANALYSIS TOOLS"
-          title="선택 자산·기업 비교"
-          right={<button type="button" onClick={() => setModal({ title: '비교 벤치마크 원본 표', headers: ['자산명', '권역', '연면적(평)', '임대면적(평)', '공실률', '월 임관리비', '평균 E.NOC'], rows: tableRows })} className="h-9 cursor-pointer rounded-[8px] bg-[#30302F] px-3 text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">원본 표 보기</button>}
-        />
-        <label className="mb-4 grid grid-cols-1 items-center gap-3 rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3 md:grid-cols-[120px_minmax(0,360px)_1fr]">
-          <span className="text-[12px] font-bold text-[#86868B]">비교 지표</span>
-          <select value={benchmarkMetric} onChange={(event) => setBenchmarkMetric(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[13px] font-semibold text-white">
-            {PLAYGROUND_METRICS.filter((item) => ANALYSIS_METRIC_KEYS.includes(item.key)).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-          </select>
-          <span className="text-[12px] leading-5 text-[#86868B]">선택 자산 벤치마크와 계약 원장을 같은 지표 기준으로 다시 계산합니다.</span>
-        </label>
-        <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr_320px]">
-          <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3">
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader
+            eyebrow="ASSET COMPARISON"
+            title="자산 비교"
+            right={<button type="button" onClick={() => setModal({ title: '자산 비교 원본 표', headers: ['자산명', '권역', '연면적(평)', '임대면적(평)', '공실률', benchmarkMetricDef.label, '평균 E.NOC'], rows: tableRows })} className="h-9 cursor-pointer rounded-[8px] bg-[#30302F] px-3 text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">원본 표 보기</button>}
+          />
+          <label className="mb-4 grid grid-cols-1 items-center gap-3 rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3 md:grid-cols-[92px_minmax(0,1fr)]">
+            <span className="text-[12px] font-bold text-[#86868B]">비교 지표</span>
+            <select value={benchmarkMetric} onChange={(event) => setBenchmarkMetric(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[13px] font-semibold text-white">
+              {PLAYGROUND_METRICS.filter((item) => ANALYSIS_METRIC_KEYS.includes(item.key)).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+            </select>
+          </label>
+          <div className="mb-4 rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3">
             <div className="mb-2 text-[12px] font-semibold text-[#86868B]">자산 선택</div>
-            <div className="custom-scrollbar grid max-h-[190px] grid-cols-1 gap-2 overflow-auto md:grid-cols-2">
+            <div className="custom-scrollbar grid max-h-[210px] grid-cols-1 gap-2 overflow-auto md:grid-cols-2">
               {readableAssetOptions.map((item) => (
                 <button key={item.assetId} type="button" onClick={() => toggleValue(item.assetId, selectedAssetIds, setSelectedAssetIds)} className={`cursor-pointer rounded-[8px] border px-3 py-2 text-left text-[12px] font-semibold ${selectedAssetIds.includes(item.assetId) ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#252524] text-[#A1A1AA] hover:text-white'}`}>
                   {item.assetName}
@@ -5253,9 +5380,36 @@ function AnalysisToolsDashboard() {
               ))}
             </div>
           </div>
-          <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3">
+          <div className="mb-4 grid grid-cols-3 gap-2">
+            {[
+              ['선택 자산', `${formatNumber(selectedAssetIds.length)}개`],
+              ['선택 평균', formatMetric(selectedAverage, benchmarkMetricDef.type)],
+              ['전체 평균', formatMetric(portfolioAverage, benchmarkMetricDef.type)],
+            ].map(([label, value]) => (
+              <button key={label} type="button" onClick={() => setModal({ title: '자산 비교 원본 표', headers: ['자산명', '권역', '연면적(평)', '임대면적(평)', '공실률', benchmarkMetricDef.label, '평균 E.NOC'], rows: tableRows })} className="cursor-pointer rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-3 text-left hover:bg-[#2A2A29]">
+                <div className="text-[11px] font-semibold text-[#86868B]">{label}</div>
+                <div className="mt-2 text-[17px] font-bold text-white">{value}</div>
+              </button>
+            ))}
+          </div>
+          <RichBarChart rows={rows.map((row) => ({ ...row, value: metricValueFromRow(row, benchmarkMetric) }))} labelKey="assetName" valueKey="value" valueType={benchmarkMetricDef.type} valueLabel={benchmarkMetricDef.label} onClick={() => setModal({ title: '자산 비교', headers: ['자산명', benchmarkMetricDef.label, '공실률', '임대면적(평)', '월 임관리비'], rows: rows.map((row) => [row.assetName, formatMetric(metricValueFromRow(row, benchmarkMetric), benchmarkMetricDef.type), formatPercent(row.vacancyRate), formatArea(row.leasedAreaSqm), formatCurrency(row.monthlyCostTotal)]) })} />
+        </div>
+
+        <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+          <SectionHeader
+            eyebrow="COMPANY COMPARISON"
+            title="기업 비교"
+            right={<button type="button" onClick={() => setModal({ title: '기업 비교 원본 표', headers: ['기업명', '자산 목록', '계약 수', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', benchmarkMetricDef.label], rows: companyTableRows })} className="h-9 cursor-pointer rounded-[8px] bg-[#30302F] px-3 text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">원본 표 보기</button>}
+          />
+          <label className="mb-4 grid grid-cols-1 items-center gap-3 rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3 md:grid-cols-[92px_minmax(0,1fr)]">
+            <span className="text-[12px] font-bold text-[#86868B]">비교 지표</span>
+            <select value={benchmarkMetric} onChange={(event) => setBenchmarkMetric(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[13px] font-semibold text-white">
+              {PLAYGROUND_METRICS.filter((item) => ANALYSIS_METRIC_KEYS.includes(item.key)).map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
+            </select>
+          </label>
+          <div className="mb-4 rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3">
             <div className="mb-2 text-[12px] font-semibold text-[#86868B]">기업 선택</div>
-            <div className="custom-scrollbar grid max-h-[190px] grid-cols-1 gap-2 overflow-auto md:grid-cols-2">
+            <div className="custom-scrollbar grid max-h-[210px] grid-cols-1 gap-2 overflow-auto md:grid-cols-2">
               {readableCompanyOptions.map((item) => (
                 <button key={item.tenantId} type="button" onClick={() => toggleValue(item.tenantId, selectedCompanyIds, setSelectedCompanyIds)} className={`cursor-pointer rounded-[8px] border px-3 py-2 text-left text-[12px] font-semibold ${selectedCompanyIds.includes(item.tenantId) ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#252524] text-[#A1A1AA] hover:text-white'}`}>
                   {item.tenantMasterName}
@@ -5263,23 +5417,20 @@ function AnalysisToolsDashboard() {
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="mb-4 grid grid-cols-3 gap-2">
             {[
-              ['선택 자산', `${formatNumber(selectedAssetIds.length)}개`],
               ['선택 기업', `${formatNumber(selectedCompanyIds.length)}개`],
               ['계약 원장', `${formatNumber(selectedContracts.length)}건`],
-              ['선택 평균', formatMetric(selectedAverage, benchmarkMetricDef.type)],
-              ['전체 평균', formatMetric(portfolioAverage, benchmarkMetricDef.type)],
               ['임관리비 spread', formatCurrency(rentSpread)],
             ].map(([label, value]) => (
-              <button key={label} type="button" onClick={() => setModal({ title: '계약 원장', headers: ['자산', '임차인', '구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '만기', '검토 상태'], rows: contractRows })} className="cursor-pointer rounded-[12px] border border-[#333333] bg-[#252524] p-3 text-left hover:bg-[#2A2A29]">
+              <button key={label} type="button" onClick={() => setModal({ title: '계약 원장', headers: ['자산', '임차인', '구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '만기', '검토 상태'], rows: contractRows })} className="cursor-pointer rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-3 text-left hover:bg-[#2A2A29]">
                 <div className="text-[11px] font-semibold text-[#86868B]">{label}</div>
-                <div className="mt-2 text-[18px] font-bold text-white">{value}</div>
+                <div className="mt-2 text-[17px] font-bold text-white">{value}</div>
               </button>
             ))}
           </div>
+          <RichBarChart rows={companyCompareRows} labelKey="tenantMasterName" valueKey="metricValue" valueType={benchmarkMetricDef.type} valueLabel={benchmarkMetricDef.label} onClick={() => setModal({ title: '기업 비교', headers: ['기업명', '자산 목록', '계약 수', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', benchmarkMetricDef.label], rows: companyTableRows })} />
         </div>
-        <RichBarChart rows={rows.map((row) => ({ ...row, value: metricValueFromRow(row, benchmarkMetric) }))} labelKey="assetName" valueKey="value" valueType={benchmarkMetricDef.type} valueLabel={benchmarkMetricDef.label} onClick={() => setModal({ title: '비교 벤치마크', headers: ['자산명', benchmarkMetricDef.label, '공실률', '임대면적(평)', '월 임관리비'], rows: rows.map((row) => [row.assetName, formatMetric(metricValueFromRow(row, benchmarkMetric), benchmarkMetricDef.type), formatPercent(row.vacancyRate), formatArea(row.leasedAreaSqm), formatCurrency(row.monthlyCostTotal)]) })} />
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="MATRIX" title="벤치마크 매트릭스" />
@@ -6669,6 +6820,7 @@ function AssetDashboard() {
   const buildingRegisterPayload = buildBuildingRegisterPayload(buildingRegisterSource);
   const kpiByKey = Object.fromEntries((asset.kpis || []).map((item) => [item.key, item]));
   const kpis = [
+    kpiByKey.gross_floor_area_total || { key: 'gross_floor_area_total', label: '총 연면적', value: overview.grossFloorAreaSqm, valueType: 'area' },
     kpiByKey.occupancy_rate || { key: 'occupancy_rate', label: '임대율', value: 1 - Number(overview.vacancyRate || 0), valueType: 'percent' },
     kpiByKey.leased_area_total || { key: 'leased_area_total', label: '총 임대면적', value: overview.leasedAreaSqm, valueType: 'area' },
     kpiByKey.vacancy_area_total || { key: 'vacancy_area_total', label: '공실면적', value: overview.vacancyAreaSqm, valueType: 'area' },
@@ -6680,7 +6832,17 @@ function AssetDashboard() {
     valueType: item.key === 'average_e_noc' ? 'won' : item.valueType,
     value: item.key === 'average_e_noc'
       ? assetWeightedENoc
-      : firstDefined(item.value, item.key === 'monthly_total_cost' ? overview.monthlyCostTotal : item.value),
+      : item.key === 'gross_floor_area_total'
+        ? overview.grossFloorAreaSqm
+        : item.key === 'occupancy_rate'
+          ? 1 - Number(overview.vacancyRate || 0)
+          : item.key === 'leased_area_total'
+            ? overview.leasedAreaSqm
+            : item.key === 'vacancy_area_total'
+              ? overview.vacancyAreaSqm
+              : item.key === 'unique_tenant_count'
+                ? firstDefined(overview.uniqueTenantCount, rows.length)
+                : firstDefined(item.value, item.key === 'monthly_total_cost' ? overview.monthlyCostTotal : item.value),
   }));
   const mapPoint = overview.latitude != null && overview.longitude != null ? [{
     assetId: overview.assetId,
@@ -6927,7 +7089,7 @@ function AssetDashboard() {
         ) : null}
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      <section className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-3">
         {kpis.map((item) => (
           <button key={item.key || item.label} type="button" onClick={() => {
             if (item.key === 'average_e_noc') {
@@ -6980,10 +7142,10 @@ function DashboardShell({ activeModule }) {
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const [modal, setModal] = useState(null);
   const visibleModules = useMemo(() => (
-    MODULES.filter((item) => item.id !== 'quality' || canViewDataQuality(memberInfo, permission))
+    MODULES.filter((item) => !ADMIN_ONLY_MODULE_IDS.has(item.id) || canViewAdvancedLogisticsTools(memberInfo, permission))
   ), [memberInfo, permission]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
-  const canUseOriginalDataEdit = canViewDataQuality(memberInfo, permission);
+  const canUseOriginalDataEdit = canViewAdvancedLogisticsTools(memberInfo, permission);
 
   return (
     <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
@@ -7009,24 +7171,7 @@ function DashboardShell({ activeModule }) {
         )}
       />
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        {visibleModules.map((module) => {
-          const active = module.id === selected.id;
-          const isQuality = module.id === 'quality';
-          return (
-            <button
-              key={module.id}
-              type="button"
-              onClick={() => navigateTo(pathFor(`dashboard/${module.id}`))}
-              className={`h-9 px-3 rounded-[8px] border text-[13px] font-semibold transition-colors ${active ? (isQuality ? 'border-[#F59E0B] bg-[#F59E0B] text-[#1F1F1E]' : 'bg-white text-[#1F1F1E] border-white') : (isQuality ? 'border-[#92400E] bg-[#2B2115] text-[#FDBA74] hover:bg-[#3A2A18]' : 'bg-[#252524] text-[#C7C7CC] border-[#3A3A3C] hover:bg-[#30302F]')}`}
-            >
-              {module.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {selected.id === 'weekly' ? <WeeklyDashboard /> : selected.id === 'home' ? <HomeDashboard /> : selected.id === 'asset' ? <AssetDashboard /> : selected.id === 'company' ? <CompanyDashboard /> : selected.id === 'tools' ? <AnalysisToolsDashboard /> : selected.id === 'playground' ? <DataPlaygroundDashboard /> : selected.id === 'quality' ? <DataQualityDashboard /> : null}
+      {selected.id === 'home' ? <HomeDashboard /> : selected.id === 'asset' ? <AssetDashboard /> : selected.id === 'company' ? <CompanyDashboard /> : selected.id === 'tools' ? <AnalysisToolsDashboard /> : selected.id === 'playground' ? <DataPlaygroundDashboard /> : selected.id === 'quality' ? <DataQualityDashboard /> : null}
     </div>
   );
 }
@@ -7038,7 +7183,8 @@ function LegacyWorkspaceLogistics({ currentPath = '' }) {
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
 
   const isDashboard = currentPath.startsWith(pathFor('dashboard'));
-  const activeModule = currentPath.split('/').pop() || 'weekly';
+  const legacyRequestedModule = currentPath.split('/').pop() || 'home';
+  const activeModule = legacyRequestedModule === 'weekly' ? 'home' : legacyRequestedModule;
   const dataCounts = useMemo(() => {
     const readableAssets = filterAssetsByPermission(assetOptionsData, permission);
     const readableAssetNames = new Set(readableAssets.map((asset) => cleanDisplay(asset.assetName, '')));
@@ -7068,7 +7214,7 @@ function LegacyWorkspaceLogistics({ currentPath = '' }) {
   }, [query, scopeFilter]);
 
   if (isDashboard) {
-    return <DashboardShell activeModule={MODULES.some((item) => item.id === activeModule) ? activeModule : 'weekly'} />;
+    return <DashboardShell activeModule={MODULES.some((item) => item.id === activeModule) ? activeModule : 'home'} />;
   }
 
   const weekly = dataCounts
