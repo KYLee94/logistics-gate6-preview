@@ -244,6 +244,30 @@ function firstDefined(...values) {
   return values.find((value) => value !== undefined && value !== null && value !== '');
 }
 
+function normalizeKpiList(kpis) {
+  if (Array.isArray(kpis)) return kpis.filter(Boolean);
+  if (!kpis || typeof kpis !== 'object') return [];
+  return Object.entries(kpis)
+    .map(([key, value]) => {
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        return {
+          key: value.key || key,
+          ...value,
+        };
+      }
+      return {
+        key,
+        label: key,
+        value,
+      };
+    })
+    .filter(Boolean);
+}
+
+function kpiLookupFrom(kpis) {
+  return Object.fromEntries(normalizeKpiList(kpis).map((item) => [item.key, item]));
+}
+
 function sumRows(rows, picker) {
   return (rows || []).reduce((sum, row) => sum + Number(picker(row) || 0), 0);
 }
@@ -3447,7 +3471,7 @@ function PortfolioMapPlot({ points }) {
 }
 
 function normalizeHomeData(home) {
-  const kpiMap = Object.fromEntries((home.kpis || []).map((item) => [item.key, item]));
+  const kpiMap = kpiLookupFrom(home.kpis);
   const occupancy = home.occupancy || {};
   const topContracts = (home.topContracts || []).map((row) => ({
     ...row,
@@ -4510,6 +4534,7 @@ function normalizeCompanyPayload(payload) {
       monthlyCostTotal: firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal),
     })),
     normalizedMapPoints: mapPoints,
+    kpis: normalizeKpiList(payload.kpis),
   };
 }
 
@@ -4683,7 +4708,7 @@ function aggregateMetricValues(rows, metric, aggregation) {
 
 function applyAssetDisplayCorrections(payload, rows) {
   const overview = { ...(payload.overview || {}) };
-  const kpis = (payload.kpis || []).map((item) => ({ ...item }));
+  const kpis = normalizeKpiList(payload.kpis).map((item) => ({ ...item }));
   let normalizedRows = rows;
   const setKpiValue = (key, value) => {
     const found = kpis.find((item) => item.key === key);
@@ -5041,7 +5066,7 @@ function CompanyDashboard() {
     monthlyMfTotal: sumRows(leasedAssets, (row) => row.monthlyMfTotal),
     monthlyCostTotal: sumRows(leasedAssets, (row) => row.monthlyCostTotal),
   };
-  const kpiLookup = Object.fromEntries((company.kpis || []).map((item) => [item.key, item]));
+  const kpiLookup = kpiLookupFrom(company.kpis);
   const kpis = [
     { key: 'asset_count', label: '임차 자산 수', value: visibleProfile.assetCount, valueType: 'number' },
     { key: 'leased_area', label: '총 임차면적', value: visibleProfile.leasedAreaSqm, valueType: 'area' },
@@ -6874,7 +6899,7 @@ function AssetDashboard() {
   const assetWeightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
   const buildingRegisterSource = rows.find((row) => row.asset?.sigunguCd || row.sigunguCd) || overview;
   const buildingRegisterPayload = buildBuildingRegisterPayload(buildingRegisterSource);
-  const kpiByKey = Object.fromEntries((asset.kpis || []).map((item) => [item.key, item]));
+  const kpiByKey = kpiLookupFrom(asset.kpis);
   const kpis = [
     kpiByKey.gross_floor_area_total || { key: 'gross_floor_area_total', label: '총 연면적', value: overview.grossFloorAreaSqm, valueType: 'area' },
     kpiByKey.occupancy_rate || { key: 'occupancy_rate', label: '임대율', value: 1 - Number(overview.vacancyRate || 0), valueType: 'percent' },
