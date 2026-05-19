@@ -4532,7 +4532,7 @@ function RichStackedPeriodChart({ rows, series, labelKey = 'month', onClick }) {
 }
 
 function StackingPlan({ floors, onTenantClick }) {
-  const rows = (floors || []).slice().sort((a, b) => Number(String(b.floorLabel).replace(/[^0-9.-]/g, '')) - Number(String(a.floorLabel).replace(/[^0-9.-]/g, '')));
+  const rows = (floors || []).slice().sort((a, b) => floorSortValue(b.floorLabel) - floorSortValue(a.floorLabel));
   if (!rows.length) return <div className="text-[13px] text-[#86868B]">층별 배치 정보가 없습니다.</div>;
   return (
     <div className="space-y-2">
@@ -4547,10 +4547,10 @@ function StackingPlan({ floors, onTenantClick }) {
                 onClick={() => onTenantClick?.(tenant)}
                 className="text-left border-r border-[#252524] last:border-r-0 bg-[#263A45] px-3 py-2 text-[12px] text-white overflow-hidden hover:bg-[#315268] focus:outline-none focus:ring-2 focus:ring-[#9AD7FF]"
                 style={{ width: `${Math.max(8, Number(tenant.share || 0.08) * 100)}%` }}
-                title={`${tenant.tenantMasterName || '-'} · ${formatArea(tenant.leasedAreaSqm)}`}
+                title={`${tenant.tenantMasterName || '-'}${tenant.detailAreaLabel ? ` · ${tenant.detailAreaLabel}` : ''} · ${formatArea(tenant.leasedAreaSqm)}`}
               >
                 <div className="truncate font-semibold">{tenant.tenantMasterName || '-'}</div>
-                <div className="truncate text-[#B8DFFF]">{formatArea(tenant.leasedAreaSqm)}</div>
+                <div className="truncate text-[#B8DFFF]">{[tenant.detailAreaLabel, formatArea(tenant.leasedAreaSqm)].filter(Boolean).join(' · ')}</div>
               </button>
             ))}
           </div>
@@ -4558,6 +4558,80 @@ function StackingPlan({ floors, onTenantClick }) {
       ))}
     </div>
   );
+}
+
+function floorSortValue(label) {
+  const value = String(label || '').trim().toUpperCase();
+  const basement = value.match(/^B\s*(\d+)/u);
+  if (basement) return -Number(basement[1]);
+  const numeric = value.match(/-?\d+(?:\.\d+)?/u);
+  return numeric ? Number(numeric[0]) : -999;
+}
+
+function buildStackingFloorsFromRows(rows = [], fallbackFloors = []) {
+  const grouped = new Map();
+  (rows || []).forEach((row) => {
+    const floorLabel = cleanDisplay(row.floorLabel || String(row.spaceLabel || '').split(/\s+/u)[0], '');
+    if (!floorLabel) return;
+    const leasedAreaSqm = Number(row.leasedAreaSqm || 0);
+    const key = floorLabel.toUpperCase();
+    if (!grouped.has(key)) grouped.set(key, { floorLabel, totalLeasedAreaSqm: 0, tenants: [] });
+    const group = grouped.get(key);
+    group.totalLeasedAreaSqm += Number.isFinite(leasedAreaSqm) ? leasedAreaSqm : 0;
+    group.tenants.push({
+      ...row,
+      tenantMasterName: firstDefined(row.tenantMasterName, row.tenantName, row.companyName, '-'),
+      detailAreaLabel: cleanDisplay(row.detailAreaLabel, ''),
+      leasedAreaSqm,
+      monthlyCostTotal: firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, row.currentMonthlyCostTotal),
+    });
+  });
+  if (grouped.size) {
+    return [...grouped.values()].map((floor) => ({
+      ...floor,
+      tenants: floor.tenants.map((tenant) => ({
+        ...tenant,
+        share: floor.totalLeasedAreaSqm > 0 ? Number(tenant.leasedAreaSqm || 0) / floor.totalLeasedAreaSqm : 1 / floor.tenants.length,
+      })),
+    }));
+  }
+  return (fallbackFloors || []).map((floor) => {
+    const floorArea = Number(floor.leasedAreaSqm || 0);
+    const tenants = (floor.tenants || []).map((tenant, index, tenantRows) => (
+      typeof tenant === 'string'
+        ? {
+            tenantMasterName: tenant,
+            leasedAreaSqm: floorArea,
+            monthlyCostTotal: floor.monthlyCostTotal,
+            share: tenantRows.length ? 1 / tenantRows.length : 1,
+          }
+        : {
+            ...tenant,
+            tenantMasterName: firstDefined(tenant.tenantMasterName, tenant.tenantName, tenant.companyName, '-'),
+            leasedAreaSqm: firstDefined(tenant.leasedAreaSqm, floorArea),
+            monthlyCostTotal: firstDefined(tenant.monthlyCostTotal, floor.monthlyCostTotal),
+            share: firstDefined(tenant.share, tenantRows.length ? 1 / tenantRows.length : 1),
+          }
+    ));
+    return { ...floor, tenants };
+  });
+}
+
+function buildExpiryRowsFromRows(rows = []) {
+  return (rows || [])
+    .map((row) => {
+      const expiryDate = firstDefined(row.currentEndDate, row.latestExpiry, row.earliestExpiry, row.endDate);
+      const months = monthsUntil(expiryDate);
+      if (months == null) return null;
+      return {
+        ...row,
+        currentEndDate: expiryDate,
+        monthsToExpiry: firstDefined(row.monthsToExpiry, months),
+        monthlyCostTotal: firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, row.currentMonthlyCostTotal),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => Number(a.monthsToExpiry || 0) - Number(b.monthsToExpiry || 0));
 }
 
 function normalizeAssetPayload(payload) {
@@ -4587,6 +4661,16 @@ function normalizeAssetPayload(payload) {
     };
   });
   const corrected = applyAssetDisplayCorrections(payload, rows);
+  const explicitExpiryRows = payload.analytics?.expirySnapshot?.entries?.length
+    ? payload.analytics.expirySnapshot.entries
+    : payload.analytics?.contractExpiry?.length
+      ? payload.analytics.contractExpiry
+      : [];
+  const derivedExpiryRows = buildExpiryRowsFromRows(corrected.rows.length ? corrected.rows : explicitExpiryRows);
+  const explicitExpiryComplete = explicitExpiryRows.some((row) => (
+    row.monthsToExpiry != null
+    && firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, row.currentMonthlyCostTotal) != null
+  ));
   return {
     ...payload,
     overview: corrected.overview,
@@ -4594,7 +4678,7 @@ function normalizeAssetPayload(payload) {
     normalizedRows: corrected.rows,
     uniqueTenants: payload.analytics?.uniqueTenants || payload.topTenants || [],
     monthlyCostByTenant: payload.analytics?.monthlyCostByTenant || payload.analytics?.coreTenants || [],
-    expiryRows: payload.analytics?.expirySnapshot?.entries || payload.analytics?.contractExpiry || [],
+    expiryRows: explicitExpiryComplete ? explicitExpiryRows : derivedExpiryRows,
   };
 }
 
@@ -7016,7 +7100,8 @@ function AssetDashboard() {
   const asset = useMemo(() => normalizeAssetPayload(rawPayload || {}), [rawPayload]);
   const overview = asset.overview || {};
   const breakdown = asset.areaBreakdown || {};
-  const rows = asset.normalizedRows || [];
+  const rows = useMemo(() => asset.normalizedRows || [], [asset.normalizedRows]);
+  const stackingFloors = useMemo(() => buildStackingFloorsFromRows(rows, overview.floors || asset.stackingPlan), [rows, overview.floors, asset.stackingPlan]);
   const assetWeightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
   const buildingRegisterSource = rows.find((row) => row.asset?.sigunguCd || row.sigunguCd) || overview;
   const buildingRegisterPayload = buildBuildingRegisterPayload(buildingRegisterSource);
@@ -7323,7 +7408,7 @@ function AssetDashboard() {
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="STACKING" title="층별 배치" />
-          <StackingPlan floors={overview.floors || asset.stackingPlan} onTenantClick={(tenant) => openTenantDetail(tenant, '임차인 상세')} />
+          <StackingPlan floors={stackingFloors} onTenantClick={(tenant) => openTenantDetail(tenant, '임차인 상세')} />
         </div>
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="AREA" title="면적 구성" />

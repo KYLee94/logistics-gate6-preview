@@ -16,9 +16,9 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 149,
-    "total": 232,
-    "completion_rate": 64.2
+    "completed": 152,
+    "total": 235,
+    "completion_rate": 64.7
   },
   "stages": [
     {
@@ -584,8 +584,8 @@
     {
       "stage": 7,
       "area": "Asset 탭",
-      "completed": 11,
-      "total": 14,
+      "completed": 12,
+      "total": 15,
       "items": [
         {
           "id": "7.01",
@@ -656,6 +656,11 @@
           "id": "7.14",
           "status": "partial",
           "text": "Asset ? KPI ?? ?? RA??_????4??_??????(?)_260427_?? ?? Projects? ????/???? 2? ?? ?? ????. Supabase ll_weekly_*?? ???? 20?? ?? Projects 5?? ???? readback???, UI? ?? ?? JSON fallback ???? Supabase live fetch ??? ?? ??."
+        },
+        {
+          "id": "7.15",
+          "status": "done",
+          "text": "아레나스양지물류센터 Asset 탭 층별 배치가 normalizedRows 21개 계약 row와 12개 층 라벨(1~10, B1, B2)을 기준으로 다시 구성되도록 수정했습니다. 문자열 tenant fallback도 보강했습니다. Evidence: current-request-data-task-static-qa-20260519 pass."
         }
       ]
     },
@@ -944,8 +949,8 @@
     {
       "stage": 12,
       "area": "승인대기 대상",
-      "completed": 9,
-      "total": 16,
+      "completed": 10,
+      "total": 17,
       "items": [
         {
           "id": "12.01",
@@ -1026,6 +1031,11 @@
           "id": "12.18",
           "status": "done",
           "text": "ll-dashboard-api work-platform/tasks/list? include_archived/include_deleted ??? ???? qvegpozwrcmspdvjokiz Edge Function? ????. Evidence: functions list readback ll-dashboard-api ACTIVE version 29 updated_at 2026-05-19 05:48:00 UTC."
+        },
+        {
+          "id": "12.19",
+          "status": "done",
+          "text": "kylee94/logistics-gate6-preview GitHub Pages gh-pages 배포 스크립트의 preview build/deploy 옵션을 수정하고 최신 번들을 배포했습니다. Evidence: live index status=200, asset=/logistics-gate6-preview/assets/index-ZZ58eKbF.js."
         }
       ]
     },
@@ -1095,8 +1105,8 @@
     {
       "stage": 14,
       "area": "QA 계획",
-      "completed": 10,
-      "total": 23,
+      "completed": 11,
+      "total": 24,
       "items": [
         {
           "id": "14.01",
@@ -1212,6 +1222,11 @@
           "id": "14.23",
           "status": "done",
           "text": "현재 요청 범위 static QA를 통과했다. 지난 Task 관리 logistics archive, Edge archived flag, 아레나스양지 월 임관리비 보정, Home 보유 연면적 series, Asset 관리 Projects 패널을 확인했다. Evidence: current-request-data-task-static-qa-20260519 qa_status=pass."
+        },
+        {
+          "id": "14.24",
+          "status": "done",
+          "text": "아레나스양지물류센터 층별 배치/만기 스냅샷 회귀 QA를 추가하고 통과했습니다. Evidence: arenaYangjiNormalizedRows=21, arenaYangjiRowsWithExpiry=21, arenaYangjiFloorCount=12, deployed asset index-ZZ58eKbF.js."
         }
       ]
     },
