@@ -13,7 +13,24 @@ const LOGISTICS_ALLOWED_EMAILS = new Set([
     ...Object.keys(LOGISTICS_EMAIL_ALIASES),
 ]);
 const LOGISTICS_LOCAL_AUTH_KEY = 'logistics_preview_auth';
+const LOGISTICS_ENROLLED_EMAILS_KEY = 'logistics_enrolled_emails';
 const logisticsUserByEmail = (email) => LOGISTICS_PERMISSION_USERS.find((user) => String(user.email || '').trim().toLowerCase() === canonicalLogisticsEmail(email));
+const readEnrolledLogisticsEmails = () => {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(LOGISTICS_ENROLLED_EMAILS_KEY) || '[]');
+        return new Set(Array.isArray(parsed) ? parsed.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean) : []);
+    } catch {
+        return new Set();
+    }
+};
+const hasCompletedFirstAccess = (email) => readEnrolledLogisticsEmails().has(String(email || '').trim().toLowerCase());
+const markFirstAccessComplete = (email) => {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!normalizedEmail) return;
+    const emails = readEnrolledLogisticsEmails();
+    emails.add(normalizedEmail);
+    localStorage.setItem(LOGISTICS_ENROLLED_EMAILS_KEY, JSON.stringify([...emails]));
+};
 const buildAuthRedirectUrl = (path = 'auth-setup') => {
     const base = import.meta.env.BASE_URL || '/';
     const normalizedBase = base.endsWith('/') ? base : `${base}/`;
@@ -24,13 +41,14 @@ const activateLocalLogisticsSession = (email, userId) => {
     const normalizedEmail = String(email || '').trim().toLowerCase();
     const logisticsUser = logisticsUserByEmail(normalizedEmail);
     if (!logisticsUser) return false;
-    localStorage.setItem(LOGISTICS_LOCAL_AUTH_KEY, JSON.stringify({
+    sessionStorage.setItem(LOGISTICS_LOCAL_AUTH_KEY, JSON.stringify({
         email: normalizedEmail,
         user_id: userId || `local-logistics-${normalizedEmail}`,
         staff_name: logisticsUser.name,
         organization: logisticsUser.organization,
         created_at: new Date().toISOString(),
     }));
+    localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
     window.dispatchEvent(new CustomEvent('logistics-local-auth-changed'));
     return true;
 };
@@ -114,7 +132,7 @@ export default function AuthSetup({ onLogin }) {
             }
 
             setStaffName(logisticsUser.name || memberData?.staff_name || normalizedEmail);
-            setIsFirstTime(!memberData?.auth_id);
+            setIsFirstTime(!memberData?.auth_id && !hasCompletedFirstAccess(normalizedEmail));
             setStep(2);
         } catch {
             triggerError('서버 연결에 실패했습니다.');
@@ -303,8 +321,10 @@ export default function AuthSetup({ onLogin }) {
                             },
                         });
                     }
+                    markFirstAccessComplete(normalizedEmail);
                     activateLocalLogisticsSession(normalizedEmail, data.user.id);
                 } else {
+                    markFirstAccessComplete(normalizedEmail);
                     activateLocalLogisticsSession(normalizedEmail);
                 }
             } else {
@@ -320,6 +340,7 @@ export default function AuthSetup({ onLogin }) {
                 }
 
                 if (data.user) {
+                    markFirstAccessComplete(normalizedEmail);
                     await supabase.functions.invoke('iota-auth-member-sync', {
                         body: {
                             action: 'login',

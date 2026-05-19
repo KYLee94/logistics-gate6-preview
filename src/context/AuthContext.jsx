@@ -36,17 +36,18 @@ function logisticsMemberFromPermission(email) {
 
 function readLocalLogisticsSession() {
     try {
-        const raw = localStorage.getItem(LOGISTICS_LOCAL_AUTH_KEY);
+        localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
+        const raw = sessionStorage.getItem(LOGISTICS_LOCAL_AUTH_KEY);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
         const email = String(parsed?.email || '').trim().toLowerCase();
         if (!email || !LOGISTICS_ALLOWED_EMAILS.has(email)) {
-            localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
+            sessionStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
             return null;
         }
         const member = logisticsMemberFromPermission(email);
         if (!member) {
-            localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
+            sessionStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
             return null;
         }
         return {
@@ -63,6 +64,7 @@ function readLocalLogisticsSession() {
         };
     } catch {
         localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
+        sessionStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
         return null;
     }
 }
@@ -89,7 +91,9 @@ export function AuthProvider({ children }) {
             }
             keysToRemove.forEach(k => localStorage.removeItem(k));
             localStorage.removeItem('iota_last_activity');
+            sessionStorage.removeItem('iota_last_activity');
             localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
+            sessionStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
             setUser(null);
             setMemberInfo(null);
             window.location.href = import.meta.env.BASE_URL + 'auth-setup';
@@ -99,12 +103,12 @@ export function AuthProvider({ children }) {
     // Activity tracking for session timeout
     useEffect(() => {
         // Update activity immediately
-        localStorage.setItem('iota_last_activity', Date.now().toString());
+        sessionStorage.setItem('iota_last_activity', Date.now().toString());
 
         // Continuously update activity every 1 minute as long as the app is open.
         // This ensures the user is NEVER logged out while the browser tab is open.
         const activityIntervalId = setInterval(() => {
-            localStorage.setItem('iota_last_activity', Date.now().toString());
+            sessionStorage.setItem('iota_last_activity', Date.now().toString());
         }, 60000);
 
         return () => {
@@ -121,11 +125,11 @@ export function AuthProvider({ children }) {
             let timeoutId;
             try {
                 // Check timeout before attempting to load session
-                const lastActivityStr = localStorage.getItem('iota_last_activity');
+                const lastActivityStr = sessionStorage.getItem('iota_last_activity');
                 if (lastActivityStr) {
                     const lastActivity = parseInt(lastActivityStr, 10);
                     if (Date.now() - lastActivity > TIMEOUT_MS) {
-                        localStorage.removeItem('iota_last_activity');
+                        sessionStorage.removeItem('iota_last_activity');
                         await handleSignOut();
                         return; // Stop initialization
                     }

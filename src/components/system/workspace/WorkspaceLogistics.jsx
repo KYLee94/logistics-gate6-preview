@@ -852,6 +852,32 @@ function DataTable({ headers, rows, onRowClick, compact = false }) {
   );
 }
 
+function normalizeSortableValue(value) {
+  if (value == null || value === '' || value === '-') return { type: 'empty', value: '' };
+  const text = String(value).trim();
+  const numberCandidate = text.replace(/[,%원억평㎡\s]/g, '');
+  if (numberCandidate !== '' && !Number.isNaN(Number(numberCandidate))) {
+    return { type: 'number', value: Number(numberCandidate) };
+  }
+  const dateCandidate = Date.parse(text.replace(/\./g, '-'));
+  if (!Number.isNaN(dateCandidate) && /\d{4}/.test(text)) {
+    return { type: 'number', value: dateCandidate };
+  }
+  return { type: 'text', value: text.toLocaleLowerCase('ko-KR') };
+}
+
+function compareSortableCells(left, right, direction) {
+  const leftValue = normalizeSortableValue(left);
+  const rightValue = normalizeSortableValue(right);
+  if (leftValue.type === 'empty' && rightValue.type !== 'empty') return 1;
+  if (leftValue.type !== 'empty' && rightValue.type === 'empty') return -1;
+  if (leftValue.type === 'number' && rightValue.type === 'number') {
+    return direction === 'asc' ? leftValue.value - rightValue.value : rightValue.value - leftValue.value;
+  }
+  const result = String(leftValue.value).localeCompare(String(rightValue.value), 'ko-KR', { numeric: true, sensitivity: 'base' });
+  return direction === 'asc' ? result : -result;
+}
+
 function PortfolioAssetTable({ rows }) {
   return (
     <div className="overflow-hidden rounded-[10px] border border-[#333333]">
@@ -1014,31 +1040,42 @@ function ProjectDetail({ project, section, onRaw }) {
 
 function WeeklyAssetStatusTable({ title = '자산현황 원문 전체 보기' }) {
   const [modal, setModal] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
   const assetRows = useMemo(() => normalizeWeeklyAssetRows(weeklyReportData.assetRows || []), []);
   const fullHeaders = ['자산명', '펀드명', '종류', '연면적(평)', '준공', '투자유형', '매입시점', '임대차만기', '펀드만기', '대출만기', '원가', '현재대비', '저온비율', '임대율', '주요임차사', 'Main Issue'];
-  const tableRows = assetRows.map((row) => [
-    row.assetName,
-    cleanDisplay(row.fundName),
-    row.category,
-    formatNumber(row.grossAreaPy),
-    row.completion,
-    row.investmentType,
-    row.acquisition,
-    row.leaseMaturity || '-',
-    row.fundMaturity || '-',
-    row.loanMaturity || '-',
-    cleanDisplay(row.costPerPy),
-    cleanDisplay(row.costTrend),
-    cleanDisplay(row.coldRatio),
-    cleanDisplay(row.occupancyRate),
-    cleanDisplay(row.mainTenant),
-    cleanDisplay(row.mainIssue),
-  ]);
+  const sortableRows = useMemo(() => assetRows.map((row) => ({
+    source: row,
+    cells: [
+      row.assetName,
+      cleanDisplay(row.fundName),
+      row.category,
+      formatNumber(row.grossAreaPy),
+      row.completion,
+      row.investmentType,
+      row.acquisition,
+      row.leaseMaturity || '-',
+      row.fundMaturity || '-',
+      row.loanMaturity || '-',
+      cleanDisplay(row.costPerPy),
+      cleanDisplay(row.costTrend),
+      cleanDisplay(row.coldRatio),
+      cleanDisplay(row.occupancyRate),
+      cleanDisplay(row.mainTenant),
+      cleanDisplay(row.mainIssue),
+    ],
+  })).sort((left, right) => compareSortableCells(left.cells[sortConfig.index], right.cells[sortConfig.index], sortConfig.direction)), [assetRows, sortConfig]);
+  const toggleSort = (index) => {
+    setSortConfig((current) => ({
+      index,
+      direction: current.index === index && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
   const openAssetDetail = (row) => setModal({
     title: `자산현황 상세 · ${row.assetName}`,
     headers: ['항목', '내용'],
     rows: assetDetailRows(row),
   });
+  const columnWidths = ['190px', '230px', '110px', '110px', '90px', '110px', '110px', '120px', '120px', '120px', '100px', '100px', '100px', '100px', '170px', '360px'];
 
   return (
     <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5">
@@ -1048,7 +1085,53 @@ function WeeklyAssetStatusTable({ title = '자산현황 원문 전체 보기' })
         title={title}
         right={<span className="text-[12px] font-semibold text-[#86868B]">Weekly 자산현황 원문 기준</span>}
       />
-      <DataTable headers={fullHeaders} rows={tableRows} onRowClick={(index) => openAssetDetail(assetRows[index])} compact />
+      <div className="custom-scrollbar max-h-[540px] overflow-auto rounded-[10px] border border-[#333333]">
+        <table className="min-w-[2240px] table-fixed border-collapse text-left">
+          <colgroup>
+            {columnWidths.map((width, index) => <col key={`${fullHeaders[index]}-${width}`} style={{ width }} />)}
+          </colgroup>
+          <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[12px] text-[#86868B]">
+            <tr>
+              {fullHeaders.map((header, index) => (
+                <th key={header} className={`px-3 py-2 font-semibold ${index === 0 ? 'sticky left-0 z-30 bg-[#1F1F1E] pl-4 text-left' : index >= 3 && index <= 13 ? 'text-right' : 'text-left'}`}>
+                  <button
+                    type="button"
+                    onClick={() => toggleSort(index)}
+                    className={`flex w-full cursor-pointer items-center gap-1 text-[12px] font-semibold transition-colors hover:text-white ${index >= 3 && index <= 13 ? 'justify-end' : 'justify-start'}`}
+                    title={`${header} 기준 정렬`}
+                  >
+                    <span className="truncate">{header}</span>
+                    <span className={`text-[10px] ${sortConfig.index === index ? 'text-white' : 'text-[#5f5f64]'}`}>
+                      {sortConfig.index === index ? (sortConfig.direction === 'asc' ? '▲' : '▼') : '↕'}
+                    </span>
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sortableRows.map(({ source, cells }, rowIndex) => (
+              <tr
+                key={`${source.assetName}-${rowIndex}`}
+                onClick={() => openAssetDetail(source)}
+                className="cursor-pointer border-b border-[#333333] last:border-b-0 hover:bg-white/[0.04]"
+              >
+                {cells.map((cell, cellIndex) => (
+                  <td
+                    key={`${source.assetName}-${cellIndex}`}
+                    className={`px-3 py-2 align-top text-[13px] leading-5 text-[#E5E5E5] ${cellIndex === 0 ? 'sticky left-0 z-10 bg-[#252524] pl-4 font-semibold shadow-[8px_0_12px_rgba(0,0,0,0.22)]' : ''} ${cellIndex >= 3 && cellIndex <= 13 ? 'text-right tabular-nums' : 'text-left'} ${cellIndex === 15 ? '' : 'whitespace-nowrap'}`}
+                  >
+                    <span className={cellIndex === 15 ? 'block whitespace-normal break-keep' : 'block truncate'} title={typeof cell === 'string' ? cell : undefined}>
+                      {cell}
+                    </span>
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!sortableRows.length ? <div className="p-5 text-[13px] text-[#86868B]">표시할 자산현황이 없습니다.</div> : null}
+      </div>
     </section>
   );
 }
