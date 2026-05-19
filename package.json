@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:preview": "npm run build -- --base=/logistics-gate6-preview/",
     "lint": "eslint .",
     "preview": "vite preview",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "predeploy": "npm run build:preview && node -e \"require('fs').rmSync('dist/CNAME',{force:true})\"",
+    "deploy": "gh-pages -d dist -b gh-pages -r https://github.com/KYLee94/logistics-gate6-preview.git"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

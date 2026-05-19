@@ -6,7 +6,9 @@ import logisticsPermissionData from './workspace/logisticsPermissionData.json';
 const MotionDiv = motion.div;
 const LOGISTICS_VISIBILITY_GROUP_OPTIONS = ['사업그룹4파트', '로지스틱스매니지먼트', '자산관리3파트', '투자1그룹4파트'];
 const LOGISTICS_STAKEHOLDER_CATEGORY_OPTIONS = ['SI', '잠재 임차인', '운영 파트너', 'IGIS 내부인력'];
-const DARK_SELECT_CLASS = 'absolute inset-0 w-full h-full opacity-0 cursor-pointer appearance-none bg-[#1A1A1A] text-white [color-scheme:dark]';
+const TRIAGE_TYPE_OPTIONS = ['공유', '협업', '리스크 판단', '의사결정'];
+const ISSUE_STATUS_OPTIONS = ['신규', '검토중', '진행중', '보류', '완료'];
+const PRIORITY_OPTIONS = ['높음', '중간', '낮음'];
 
 function buildLogisticsStakeholders() {
     return (logisticsPermissionData.users || [])
@@ -17,6 +19,94 @@ function buildLogisticsStakeholders() {
             email: user.email,
         }))
         .filter((item) => item.contact_name);
+}
+
+function normalizeDropdownOptions(options) {
+    return (options || []).map((option) => (
+        typeof option === 'string'
+            ? { value: option, label: option }
+            : { value: option.value ?? option.id, label: option.label ?? option.value ?? option.id }
+    ));
+}
+
+function DarkDropdown({
+    label = null,
+    value,
+    options,
+    onChange,
+    placeholder = '선택',
+    className = '',
+    buttonClassName = '',
+    valueClassName = '',
+    menuClassName = '',
+}) {
+    const [open, setOpen] = useState(false);
+    const normalizedOptions = useMemo(() => normalizeDropdownOptions(options), [options]);
+    const selectedOption = normalizedOptions.find((option) => option.value === value);
+    const displayLabel = selectedOption?.label || placeholder;
+
+    return (
+        <div className={`relative flex items-center gap-[8px] group ${className}`}>
+            {label && (
+                <span className="text-[#86868B] text-[14px] font-medium shrink-0 group-hover:text-white transition-colors">
+                    {label}
+                </span>
+            )}
+            <button
+                type="button"
+                onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setOpen((current) => !current);
+                }}
+                className={`inline-flex items-center justify-between gap-[8px] rounded-[10px] border border-[#333] bg-transparent px-[10px] py-[6px] text-left outline-none cursor-pointer hover:border-[#4a4a4a] focus:border-[#2997ff] transition-colors ${buttonClassName}`}
+            >
+                <span className={`truncate text-[#E5E5E5] text-[14px] ${valueClassName}`}>{displayLabel}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <path d="M6 9l6 6 6-6" />
+                </svg>
+            </button>
+            <AnimatePresence>
+                {open && (
+                    <>
+                        <button
+                            type="button"
+                            aria-label="드롭다운 닫기"
+                            className="fixed inset-0 z-[80] cursor-default bg-transparent"
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                setOpen(false);
+                            }}
+                        />
+                        <MotionDiv
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.12 }}
+                            className={`absolute left-0 top-[calc(100%+8px)] z-[90] min-w-[160px] overflow-hidden rounded-[10px] border border-[#3A3A3C] bg-[#1A1A1A] shadow-2xl ${menuClassName}`}
+                        >
+                            {normalizedOptions.map((option) => (
+                                <button
+                                    key={`${option.value}-${option.label}`}
+                                    type="button"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        onChange(option.value);
+                                        setOpen(false);
+                                    }}
+                                    className={`block w-full px-[12px] py-[9px] text-left text-[13px] transition-colors cursor-pointer ${option.value === value ? 'bg-[#2A3444] text-white font-bold' : 'text-[#E5E5E5] hover:bg-[#2A2A2A]'}`}
+                                >
+                                    {option.label}
+                                </button>
+                            ))}
+                        </MotionDiv>
+                    </>
+                )}
+            </AnimatePresence>
+        </div>
+    );
 }
 
 export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs, fetchMasterStakeholders, workspaceCode, workspaceLabel, projectOptions = null, defaultExpanded = false, editMode = false, initialData = null, onCancel = null, onSuccess = null }) {
@@ -70,9 +160,6 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
     const stakeholderCategoryOptions = isLogisticsMode
         ? LOGISTICS_STAKEHOLDER_CATEGORY_OPTIONS
         : ['SI', '잠재 임차인', '운영 파트너', 'IGIS 내부인력'];
-    const iconChevronGray = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='none' stroke='%23A1A1AA' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`;
-    const iconChevronDark = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`;
-
     const uniqueCompanies = [...new Set(effectiveMasterStakeholders.map(s => s.company_name).filter(Boolean))];
     const filteredCompanies = uniqueCompanies.filter(c => c.toLowerCase().includes(companyQuery.toLowerCase()));
     
@@ -445,6 +532,12 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
         if (e && e.preventDefault) e.preventDefault();
         if (!title.trim() || !content.trim()) return;
 
+        if (isLogisticsMode) {
+            setShowNewStakeholderModal(false);
+            await processSubmit();
+            return;
+        }
+
         if (!isLogisticsMode && !companyQuery && contactQuery) {
             setShowCompanyWarningModal(true);
             return;
@@ -527,71 +620,56 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                             </>
                         ) : (
                             <>
-                                <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="bg-transparent border border-[#333] rounded-[16px] px-[16px] py-[8px] ml-[-2px] text-white font-semibold text-[14px] outline-none cursor-pointer appearance-none pr-[32px] relative max-w-[340px]" style={{ backgroundImage: iconChevronGray, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center' }}>
-                            {normalizedProjectOptions.map(option => (
-                                <option key={option.id} value={option.id}>{option.label}</option>
-                            ))}
-                        </select>
+                                <DarkDropdown
+                                    value={projectId}
+                                    options={normalizedProjectOptions.map((option) => ({ value: option.id, label: option.label }))}
+                                    onChange={setProjectId}
+                                    buttonClassName="ml-[-2px] max-w-[340px] rounded-[16px] px-[16px] py-[8px] text-white font-semibold text-[14px]"
+                                    menuClassName="min-w-[240px]"
+                                />
 
                         <div className="w-px h-[14px] bg-[#333] mx-[2px]"></div>
 
-                    <label className="relative flex items-center gap-[8px] cursor-pointer group">
-                        <span className="text-[#86868B] text-[14px] font-medium shrink-0 group-hover:text-white transition-colors">활용목적</span>
-                        <div className="inline-flex items-center text-[#E5E5E5] text-[14px] pr-[16px] group-hover:text-white transition-colors" style={{ backgroundImage: iconChevronDark, backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}>
-                            {triageType}
-                        </div>
-                        <select value={triageType} onChange={(e) => setTriageType(e.target.value)} className={DARK_SELECT_CLASS}>
-                            <option value="공유">공유</option>
-                            <option value="협업">협업</option>
-                            <option value="리스크 판단">리스크 판단</option>
-                            <option value="의사결정">의사결정</option>
-                        </select>
-                    </label>
+                    <DarkDropdown
+                        label="활용목적"
+                        value={triageType}
+                        options={TRIAGE_TYPE_OPTIONS}
+                        onChange={setTriageType}
+                        buttonClassName="border-0 px-0 py-0 pr-[2px]"
+                    />
 
                     <div className="w-px h-[14px] bg-[#333] mx-[2px]"></div>
 
-                    <label className="relative flex items-center gap-[8px] cursor-pointer group">
-                        <span className="text-[#86868B] text-[14px] font-medium shrink-0 group-hover:text-white transition-colors">진행상태</span>
-                        <div className="inline-flex items-center text-[#E5E5E5] text-[14px] pr-[16px] group-hover:text-white transition-colors" style={{ backgroundImage: iconChevronDark, backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}>
-                            {issueStatus}
-                        </div>
-                        <select value={issueStatus} onChange={(e) => setIssueStatus(e.target.value)} className={DARK_SELECT_CLASS}>
-                            <option value="신규">신규</option>
-                            <option value="검토중">검토중</option>
-                            <option value="진행중">진행중</option>
-                            <option value="보류">보류</option>
-                            <option value="완료">완료</option>
-                        </select>
-                    </label>
+                    <DarkDropdown
+                        label="진행상태"
+                        value={issueStatus}
+                        options={ISSUE_STATUS_OPTIONS}
+                        onChange={setIssueStatus}
+                        buttonClassName="border-0 px-0 py-0 pr-[2px]"
+                    />
 
                     <div className="w-px h-[14px] bg-[#333] mx-[2px]"></div>
 
-                    <label className="relative flex items-center gap-[8px] cursor-pointer group">
-                        <span className="text-[#86868B] text-[14px] font-medium shrink-0 group-hover:text-white transition-colors">중요도</span>
-                        <div className={`inline-flex items-center text-[14px] font-bold pr-[16px] ${priority === '높음' ? 'text-[#FF453A]' : priority === '중간' ? 'text-[#3b82f6]' : 'text-[#34d399]'} group-hover:opacity-80 transition-colors`} style={{ backgroundImage: iconChevronDark, backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}>
-                            {priority}
-                        </div>
-                        <select value={priority} onChange={(e) => setPriority(e.target.value)} className={DARK_SELECT_CLASS}>
-                            <option value="높음">높음</option>
-                            <option value="중간">중간</option>
-                            <option value="낮음">낮음</option>
-                        </select>
-                    </label>
+                    <DarkDropdown
+                        label="중요도"
+                        value={priority}
+                        options={PRIORITY_OPTIONS}
+                        onChange={setPriority}
+                        buttonClassName="border-0 px-0 py-0 pr-[2px]"
+                        valueClassName={`font-bold ${priority === '높음' ? 'text-[#FF453A]' : priority === '중간' ? 'text-[#3b82f6]' : 'text-[#34d399]'}`}
+                    />
 
                     <div className="w-px h-[14px] bg-[#333] mx-[2px]"></div>
 
-                    <label className="relative flex items-center gap-[8px] cursor-pointer group">
-                        <span className="text-[#86868B] text-[14px] font-medium shrink-0 group-hover:text-white transition-colors">이해관계자 분류</span>
-                        <div className="inline-flex items-center text-[#E5E5E5] text-[14px] pr-[16px] group-hover:text-white transition-colors" style={{ backgroundImage: iconChevronDark, backgroundRepeat: 'no-repeat', backgroundPosition: 'right center' }}>
-                            {stakeholderCat || '선택 안 함'}
-                        </div>
-                        <select value={stakeholderCat} onChange={(e) => setStakeholderCat(e.target.value)} className={DARK_SELECT_CLASS}>
-                            <option value="">선택 안 함</option>
-                            {stakeholderCategoryOptions.map((option) => (
-                                <option key={option} value={option}>{option}</option>
-                            ))}
-                        </select>
-                    </label>
+                    <DarkDropdown
+                        label="이해관계자 분류"
+                        value={stakeholderCat}
+                        options={[{ value: '', label: '선택 안 함' }, ...stakeholderCategoryOptions]}
+                        onChange={setStakeholderCat}
+                        placeholder="선택 안 함"
+                        buttonClassName="border-0 px-0 py-0 pr-[2px]"
+                        menuClassName="min-w-[190px]"
+                    />
 
                     <div className="flex-1"></div>
 
@@ -652,39 +730,44 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                     
                     {editMode && (
                         <div className="w-full flex items-center gap-[12px] mb-[20px] overflow-x-auto pb-[4px]">
-                            <select value={projectId} onChange={(e) => setProjectId(e.target.value)} className="bg-[#222] border border-[#444] rounded-[8px] px-[12px] py-[6px] text-white font-medium text-[13px] outline-none cursor-pointer appearance-none pr-[28px] relative max-w-[340px]" style={{ backgroundImage: iconChevronGray, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
-                                {normalizedProjectOptions.map(option => (
-                                    <option key={option.id} value={option.id}>{option.label}</option>
-                                ))}
-                            </select>
+                            <DarkDropdown
+                                value={projectId}
+                                options={normalizedProjectOptions.map((option) => ({ value: option.id, label: option.label }))}
+                                onChange={setProjectId}
+                                buttonClassName="max-w-[340px] bg-[#222] border-[#444] px-[12px] py-[6px] text-white font-medium text-[13px]"
+                                menuClassName="min-w-[240px]"
+                            />
 
-                            <select value={triageType} onChange={(e) => setTriageType(e.target.value)} className="bg-[#222] border border-[#444] rounded-[8px] px-[12px] py-[6px] text-[#E5E5E5] text-[13px] outline-none cursor-pointer appearance-none pr-[28px] [color-scheme:dark]" style={{ backgroundImage: iconChevronDark, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
-                                <option value="공유">공유</option>
-                                <option value="협업">협업</option>
-                                <option value="리스크 판단">리스크 판단</option>
-                                <option value="의사결정">의사결정</option>
-                            </select>
+                            <DarkDropdown
+                                value={triageType}
+                                options={TRIAGE_TYPE_OPTIONS}
+                                onChange={setTriageType}
+                                buttonClassName="bg-[#222] border-[#444] px-[12px] py-[6px] text-[13px]"
+                            />
 
-                            <select value={issueStatus} onChange={(e) => setIssueStatus(e.target.value)} className="bg-[#222] border border-[#444] rounded-[8px] px-[12px] py-[6px] text-[#E5E5E5] text-[13px] outline-none cursor-pointer appearance-none pr-[28px] [color-scheme:dark]" style={{ backgroundImage: iconChevronDark, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
-                                <option value="신규">신규</option>
-                                <option value="검토중">검토중</option>
-                                <option value="진행중">진행중</option>
-                                <option value="보류">보류</option>
-                                <option value="완료">완료</option>
-                            </select>
+                            <DarkDropdown
+                                value={issueStatus}
+                                options={ISSUE_STATUS_OPTIONS}
+                                onChange={setIssueStatus}
+                                buttonClassName="bg-[#222] border-[#444] px-[12px] py-[6px] text-[13px]"
+                            />
 
-                            <select value={priority} onChange={(e) => setPriority(e.target.value)} className="bg-[#222] border border-[#444] rounded-[8px] px-[12px] py-[6px] text-[#E5E5E5] text-[13px] outline-none cursor-pointer appearance-none pr-[28px] [color-scheme:dark]" style={{ backgroundImage: iconChevronDark, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
-                                <option value="높음">높음</option>
-                                <option value="중간">중간</option>
-                                <option value="낮음">낮음</option>
-                            </select>
+                            <DarkDropdown
+                                value={priority}
+                                options={PRIORITY_OPTIONS}
+                                onChange={setPriority}
+                                buttonClassName="bg-[#222] border-[#444] px-[12px] py-[6px] text-[13px]"
+                                valueClassName={`font-bold ${priority === '높음' ? 'text-[#FF453A]' : priority === '중간' ? 'text-[#3b82f6]' : 'text-[#34d399]'}`}
+                            />
                             
-                            <select value={stakeholderCat} onChange={(e) => setStakeholderCat(e.target.value)} className="bg-[#222] border border-[#444] rounded-[8px] px-[12px] py-[6px] text-[#E5E5E5] text-[13px] outline-none cursor-pointer appearance-none pr-[28px] [color-scheme:dark]" style={{ backgroundImage: iconChevronDark, backgroundRepeat: 'no-repeat', backgroundPosition: 'right 8px center' }}>
-                                <option value="">이해관계자 분류 안 함</option>
-                                {stakeholderCategoryOptions.map((option) => (
-                                    <option key={option} value={option}>{option}</option>
-                                ))}
-                            </select>
+                            <DarkDropdown
+                                value={stakeholderCat}
+                                options={[{ value: '', label: '이해관계자 분류 안 함' }, ...stakeholderCategoryOptions]}
+                                onChange={setStakeholderCat}
+                                placeholder="이해관계자 분류 안 함"
+                                buttonClassName="bg-[#222] border-[#444] px-[12px] py-[6px] text-[13px]"
+                                menuClassName="min-w-[190px]"
+                            />
 
                             <label className="relative inline-flex items-center gap-[6px] cursor-pointer bg-[#222] border border-[#444] rounded-[8px] px-[12px] py-[6px]">
                                 <span className="text-[#E5E5E5] text-[13px]">{formatDisplayDate(workDate)}</span>
@@ -771,7 +854,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                                             return;
                                         }
                                         const existing = effectiveMasterStakeholders.find(s => s.company_name === companyQuery && (contactQuery ? s.contact_name === contactQuery : true));
-                                        if (!existing && companyQuery) setShowNewStakeholderModal(true);
+                                        if (!isLogisticsMode && !existing && companyQuery) setShowNewStakeholderModal(true);
                                     }
                                 }}
                                 placeholder="회사명 검색/입력"
@@ -813,7 +896,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                                             return;
                                         }
                                         const existing = effectiveMasterStakeholders.find(s => (companyQuery ? s.company_name === companyQuery : true) && s.contact_name === contactQuery);
-                                        if (!existing && contactQuery) setShowNewStakeholderModal(true);
+                                        if (!isLogisticsMode && !existing && contactQuery) setShowNewStakeholderModal(true);
                                     }
                                 }}
                                 placeholder="담당자명 검색/입력"
@@ -1038,7 +1121,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                 </div>
             )}
 
-            {showNewStakeholderModal && (
+            {showNewStakeholderModal && !isLogisticsMode && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60">
                     <div className="bg-[#222] border border-[#333] rounded-[16px] w-[320px] p-[24px] shadow-2xl flex flex-col items-center">
                         <div className="w-[48px] h-[48px] rounded-full bg-white/10 flex items-center justify-center mb-[16px]">
