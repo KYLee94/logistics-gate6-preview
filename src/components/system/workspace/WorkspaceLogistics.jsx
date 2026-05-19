@@ -1485,28 +1485,32 @@ function normalizeLogisticsTaskStatus(status) {
 
 function normalizeServerWorklogTask(row, permission) {
   const payload = row?.payload || {};
-  const option = findAssetOption(row?.related_asset_id, payload.assetName || payload.relatedAsset);
+  const option = findAssetOption(row?.related_asset_id, payload.assetName || payload.relatedAsset || row?.related_asset_name);
+  const taskName = row.task_name || payload.taskName || row.title;
+  const nextAction = row.next_action || payload.nextAction || row.body;
+  const companyName = row.company_name || payload.companyName || payload.stakeholder || '';
+  const assetName = row.related_asset_name || payload.assetName || payload.relatedAsset || option?.assetName;
   return {
     id: row.id,
-    taskName: cleanDisplay(payload.taskName || row.title, 'Task'),
-    nextAction: cleanDisplay(payload.nextAction || row.body, ''),
-    issue: cleanDisplay(payload.issue, ''),
-    notes: cleanDisplay(payload.notes, ''),
-    assetName: cleanDisplay(payload.assetName || payload.relatedAsset || option?.assetName, '-'),
-    relatedAsset: cleanDisplay(payload.relatedAsset || payload.assetName || option?.assetName, '-'),
+    taskName: cleanDisplay(taskName, 'Task'),
+    nextAction: cleanDisplay(nextAction, ''),
+    issue: cleanDisplay(row.issue || payload.issue, ''),
+    notes: cleanDisplay(row.notes || payload.notes, ''),
+    assetName: cleanDisplay(assetName, '-'),
+    relatedAsset: cleanDisplay(assetName, '-'),
     fundName: payload.fundName || option?.fundName || '',
     scope: row.scope || payload.scope || 'personal',
-    createdByName: payload.createdByName || permission.name,
-    createdByEmail: payload.createdByEmail || permission.email,
-    organization: payload.organization || permission.organization,
-    stakeholder: payload.stakeholder || payload.companyName || '내부업무',
-    companyName: payload.companyName || payload.stakeholder || '',
-    dueDate: payload.dueDate || '',
+    createdByName: row.created_by_name || payload.createdByName || permission.name,
+    createdByEmail: row.created_by_email || payload.createdByEmail || permission.email,
+    organization: row.organization || payload.organization || permission.organization,
+    stakeholder: companyName || '????',
+    companyName,
+    dueDate: row.due_date || payload.dueDate || '',
     status: normalizeLogisticsTaskStatus(row.status || payload.status),
-    priority: payload.priority || row.priority || '중간',
-    completed: row.status === 'completed' || payload.completed,
+    priority: payload.priority || row.priority || '??',
+    completed: row.status === 'completed' || Boolean(row.completed_at) || payload.completed,
     createdAt: row.created_at || payload.createdAt || '',
-    source: 'll_worklogs',
+    source: row.task_name ? 'll_work_platform_tasks' : 'll_worklogs',
   };
 }
 
@@ -2027,7 +2031,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       setIsLoadingTasks(true);
       try {
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'worklogs/list', payload: { workspace: 'logistics' } },
+          body: { action: 'work-platform/tasks/list', payload: { workspace: 'logistics' } },
         });
         if (error) throw error;
         const rows = Array.isArray(data?.data) ? data.data.map((row) => normalizeServerWorklogTask(row, permission)) : [];
@@ -2095,7 +2099,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const submitTaskOperation = async (operation, task, payload = {}) => {
     setTaskServerStatus({ type: 'pending', message: '서버 반영 요청 중입니다.' });
     try {
-      const action = operation === 'create' ? 'worklogs' : `worklogs/${operation}`;
+      const action = operation === 'create' ? 'work-platform/tasks' : `work-platform/tasks/${operation}`;
       const assetName = payload.assetName || task.assetName;
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
         body: {
@@ -2103,11 +2107,16 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           payload: {
             id: task.id,
             scope: payload.scope || task.scope,
-            title: payload.taskName || task.taskName,
-            body: payload.nextAction || task.nextAction,
+            task_name: payload.taskName || task.taskName,
+            company_name: payload.companyName || task.companyName || '',
+            next_action: payload.nextAction || task.nextAction,
+            issue: payload.issue || task.issue || '',
+            notes: payload.notes || task.notes || '',
+            due_date: payload.dueDate || task.dueDate || null,
             priority: payload.priority || task.priority,
             status: payload.status || task.status,
             related_asset_id: resolveAssetIdByName(assetName),
+            related_asset_name: assetName,
             payload: { ...task, ...payload, assetName, relatedAsset: assetName, source: 'main_task_manager' },
           },
         },

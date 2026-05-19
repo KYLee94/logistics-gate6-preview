@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 const MotionDiv = motion.div;
 
 export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs, fetchMasterStakeholders, workspaceCode, workspaceLabel, projectOptions = null, defaultExpanded = false, editMode = false, initialData = null, onCancel = null, onSuccess = null }) {
+    const isLogisticsMode = workspaceCode === 'WS_LOGISTICS';
     const normalizedProjectOptions = (projectOptions && projectOptions.length ? projectOptions : [
         { id: 'IOTA_COMMON', label: 'IOTA 공통' },
         { id: 'P00030', label: '427 PFV' },
@@ -72,7 +73,15 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
             
             if (initialData.metadata) {
                 const meta = initialData.metadata;
-                if (meta.project_name === 'IOTA 공통') setProjectId('IOTA_COMMON');
+                if (isLogisticsMode) {
+                    const matchedProject = normalizedProjectOptions.find(option => (
+                        option.id === meta.asset_id
+                        || option.id === meta.related_asset_id
+                        || option.label === meta.project_name
+                        || option.label === meta.asset_name
+                    ));
+                    if (matchedProject) setProjectId(matchedProject.id);
+                } else if (meta.project_name === 'IOTA ??') setProjectId('IOTA_COMMON');
                 else if (meta.project_name === '427 PFV') setProjectId('P00030');
                 else if (meta.project_name === '816 PFV') setProjectId('P00037');
                 else if (meta.project_name === '421 Fund') setProjectId('112614');
@@ -267,6 +276,49 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                 }
             };
 
+            if (isLogisticsMode) {
+                const action = isEditing ? 'work-platform/board-posts/update' : 'work-platform/board-posts';
+                const { error } = await supabase.functions.invoke('ll-dashboard-api', {
+                    body: {
+                        action,
+                        payload: {
+                            log_id: logId,
+                            work_date: workDate,
+                            title,
+                            content,
+                            related_asset_id: selectedProject?.id,
+                            related_asset_name: selectedProject?.label,
+                            triage_type: triageType,
+                            issue_status: issueStatus,
+                            priority,
+                            stakeholder_category: stakeholderCat,
+                            stakeholder_name: [companyQuery, contactQuery].filter(Boolean).join(' - '),
+                            visibility_groups: visibilityGroups,
+                            visibility_individuals: visibilityIndividuals.map(i => i.contact_name),
+                            metadata: logData.metadata,
+                        },
+                    },
+                });
+                if (error) throw error;
+
+                if (!editMode) {
+                    setTitle('');
+                    setContent('');
+                    setCompanyQuery('');
+                    setContactQuery('');
+                    setVisibilityGroups([]);
+                    setVisibilityIndividuals([]);
+                }
+                if (fetchLogs) fetchLogs();
+                setShowSuccessModal(true);
+                setTimeout(() => {
+                    setShowSuccessModal(false);
+                    if (editMode && onSuccess) onSuccess();
+                    else if (!editMode) setIsExpanded(false);
+                }, 1000);
+                return;
+            }
+
             // 1. Update or Insert into iota_seoul_logs
             if (isEditing) {
                 const { error: logError } = await supabase.from('iota_seoul_logs').update(logData).eq('log_id', logId);
@@ -355,7 +407,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
     const handlePreSubmit = (e) => {
         if (e && e.preventDefault) e.preventDefault();
         if (!title.trim() || !content.trim()) return;
-        if (visibilityGroups.length === 0 && visibilityIndividuals.length === 0) {
+        if (!isLogisticsMode && visibilityGroups.length === 0 && visibilityIndividuals.length === 0) {
             setShowPublicWarningModal(true);
         } else {
             handleSubmit(e);
@@ -366,12 +418,12 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
         if (e && e.preventDefault) e.preventDefault();
         if (!title.trim() || !content.trim()) return;
 
-        if (!companyQuery && contactQuery) {
+        if (!isLogisticsMode && !companyQuery && contactQuery) {
             setShowCompanyWarningModal(true);
             return;
         }
 
-        if (companyQuery || contactQuery) {
+        if (!isLogisticsMode && (companyQuery || contactQuery)) {
             const existing = masterStakeholders.find(s => 
                 (companyQuery ? s.company_name === companyQuery : true) && 
                 (contactQuery ? s.contact_name === contactQuery : true)

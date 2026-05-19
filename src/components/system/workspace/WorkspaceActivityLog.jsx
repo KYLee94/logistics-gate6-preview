@@ -8,6 +8,7 @@ const MotionDiv = motion.div;
 
 export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, assetOptions = [] }) {
     const { memberInfo } = useAuth();
+    const isLogisticsMode = workspaceCode === 'WS_LOGISTICS';
     
     // Logs State
     const [isLoading, setIsLoading] = useState(true);
@@ -42,6 +43,34 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
     const [commentContent, setCommentContent] = useState('');
     const [isSavingComment, setIsSavingComment] = useState(false);
 
+    const toLogisticsBoardLog = (row) => ({
+        log_id: row.log_id,
+        work_date: row.work_date,
+        raw_text: row.content,
+        summary: row.title,
+        writer_staff_id: row.created_by_email,
+        writer_name: row.created_by_name,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        metadata: {
+            ...(row.metadata || {}),
+            project_name: row.related_asset_name,
+            asset_name: row.related_asset_name,
+            asset_id: row.related_asset_id,
+            triage_type: row.triage_type,
+            issue_status: row.issue_status,
+            priority: row.priority,
+            comments: Array.isArray(row.comments) ? row.comments : [],
+            permissions: {
+                groups: row.visibility_groups || [],
+                individuals: row.visibility_individuals || [],
+            },
+        },
+        iota_seoul_log_stakeholders: row.stakeholder_name
+            ? [{ sh_name: row.stakeholder_name, role_category: row.stakeholder_category }]
+            : [],
+    });
+
     const renderLogTextWithMentions = (text) => {
         if (!text) return null;
         if (!masterStakeholders || masterStakeholders.length === 0) return text;
@@ -73,6 +102,14 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
     const fetchLogs = async () => {
         setIsLoading(true);
         try {
+            if (isLogisticsMode) {
+                const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+                    body: { action: 'work-platform/board-posts/list', payload: { workspace: 'logistics' } },
+                });
+                if (error) throw error;
+                setLogs(Array.isArray(data?.data) ? data.data.map(toLogisticsBoardLog) : []);
+                return;
+            }
             const { data, error } = await supabase
                 .from('iota_seoul_logs')
                 .select('*, iota_seoul_log_stakeholders(sh_name, role_category)')
@@ -90,12 +127,21 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
 
     useEffect(() => {
         fetchLogs();
-        fetchMasterStakeholders();
+        if (!isLogisticsMode) fetchMasterStakeholders();
     }, []);
 
     const handleDelete = async (logId) => {
         setIsDeleting(true);
         try {
+            if (isLogisticsMode) {
+                const { error } = await supabase.functions.invoke('ll-dashboard-api', {
+                    body: { action: 'work-platform/board-posts/delete', payload: { log_id: logId } },
+                });
+                if (error) throw error;
+                setLogs(prev => prev.filter(l => l.log_id !== logId));
+                setLogToDelete(null);
+                return;
+            }
             await supabase.from('iota_seoul_log_links').delete().eq('log_id', logId);
             await supabase.from('iota_seoul_log_stakeholders').delete().eq('log_id', logId);
             const { error } = await supabase.from('iota_seoul_logs').delete().eq('log_id', logId);
@@ -115,6 +161,17 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         if (!commentContent.trim()) return;
         setIsSavingComment(true);
         try {
+            if (isLogisticsMode) {
+                const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+                    body: { action: 'work-platform/board-posts/comment', payload: { log_id: logId, text: commentContent } },
+                });
+                if (error) throw error;
+                const next = data?.data ? toLogisticsBoardLog(data.data) : null;
+                setLogs(prev => prev.map(l => l.log_id === logId && next ? next : l));
+                setCommentingLogId(null);
+                setCommentContent('');
+                return;
+            }
             const log = logs.find(l => l.log_id === logId);
             const metadata = log.metadata || {};
             const comments = metadata.comments || [];
@@ -150,6 +207,15 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
     const handleDeleteComment = async (logId, commentId) => {
         setIsDeleting(true);
         try {
+            if (isLogisticsMode) {
+                const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+                    body: { action: 'work-platform/board-posts/comment-delete', payload: { log_id: logId, comment_id: commentId } },
+                });
+                if (error) throw error;
+                const next = data?.data ? toLogisticsBoardLog(data.data) : null;
+                setLogs(prev => prev.map(l => l.log_id === logId && next ? next : l));
+                return;
+            }
             const log = logs.find(l => l.log_id === logId);
             const metadata = log.metadata || {};
             const comments = (metadata.comments || []).filter(c => c.id !== commentId);
@@ -763,6 +829,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                             fetchMasterStakeholders={fetchMasterStakeholders}
                             workspaceCode={workspaceCode}
                             workspaceLabel={workspaceLabel}
+                            projectOptions={assetOptions.map((asset) => ({ id: asset.assetId || asset.assetCode || asset.assetName, label: asset.assetName, metadata: asset }))}
                             editMode={true}
                             initialData={logs.find(l => l.log_id === editingLogId)}
                             onCancel={() => setEditingLogId(null)}

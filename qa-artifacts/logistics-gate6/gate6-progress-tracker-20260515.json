@@ -16,16 +16,16 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 139,
-    "total": 217,
-    "completion_rate": 64.1
+    "completed": 145,
+    "total": 224,
+    "completion_rate": 64.7
   },
   "stages": [
     {
       "stage": 2,
       "area": "공통 데이터 기준",
-      "completed": 5,
-      "total": 11,
+      "completed": 7,
+      "total": 14,
       "items": [
         {
           "id": "2.01",
@@ -80,14 +80,29 @@
         {
           "id": "2.11",
           "status": "done",
-          "text": "사용자가 지적한 경산 쿠팡물류센터, 부산송정물류센터, 아레나스양지물류센터를 원본 Excel과 Supabase qveg read-only 쿼리로 대조했다. 경산은 rent_history 3건 보정 완료이나 lease_space_id 충돌이 남아 있고, 부산송정은 원본 tenant \"-\" placeholder, 아레나스양지는 원본 aggregate row와 Supabase lease rows는 일치하되 CJ rent_history linkage가 불완전하다. Evidence: source-supabase-target-reconciliation-20260518/supabase-excel-anomaly-readback.md."
+          "text": "사용자가 지적한 경산 쿠팡물류센터, 부산송정물류센터, 아레나스양지물류센터를 원본 Excel과 Supabase qveg read-only 쿼리로 대조했다. 경산은 rent_history 3건 보정 완료이나 lease_space_id 충돌이 남아 있고, 부산송정은 원본 tenant \"-\" placeholder, 아레나스양지는 원본 Excel에 DB_일반 8행과 DB_히스토리 누적 70행이 존재한다. 문제는 source row 부재가 아니라 DB_일반 aggregate 계약 행과 DB_히스토리 누적 층/구역 단위 이력 행의 정규화/연결 불완전이다. Evidence: source-supabase-target-reconciliation-20260518/supabase-excel-anomaly-readback.md, source-supabase-target-reconciliation-20260518/arena-yangji-history-linkage-readback.md."
+        },
+        {
+          "id": "2.12",
+          "status": "done",
+          "text": "DB_히스토리 누적은 아레나스양지 단건이 아니라 전체 자산 누적계약 이력 레이어로 보고, 162개 계약-history 행을 ll_rent_history와 DB_일반 lease_space 관계에 연결했다. Evidence: db-history-full-linkage-readback-20260519.md, 162/162 source/detail/contract linked."
+        },
+        {
+          "id": "2.13",
+          "status": "done",
+          "text": "DB_히스토리 누적 원본 164행 중 계약값이 없는 부산송정/아레나스안성 source-only 2행은 ll_sheet_rows/ll_source_cells에 보존하고, rent_history에는 넣지 않는 기준을 readback으로 확정했다. Evidence: sheet_rows=164, source_cells=3382, source-only rows r000143/r000162."
+        },
+        {
+          "id": "2.14",
+          "status": "partial",
+          "text": "DB_히스토리 source-only 2행은 Data Quality에서 원본 보완 대상으로 노출해야 한다. 현재 source 보존과 readback은 완료됐고 Data Quality UI 연결은 남아 있다."
         }
       ]
     },
     {
       "stage": 3,
       "area": "업무 로그 메인 페이지",
-      "completed": 20,
+      "completed": 21,
       "total": 26,
       "items": [
         {
@@ -127,8 +142,8 @@
         },
         {
           "id": "3.08",
-          "status": "partial",
-          "text": "Task 수정/삭제/완료는 작성자 권한과 서버 권한을 모두 확인한다. ll-dashboard-api 코드상 기존 row의 related_asset_id 기준 spoof 차단은 반영했으며, 실제 Edge 배포 후 role QA가 필요하다."
+          "status": "done",
+          "text": "Task 수정/삭제/완료는 작성자/관리자 및 서버 권한 기준으로 Edge Function에서 검증한다. qveg live smoke로 TASK create/update/complete/delete가 모두 통과했다. Evidence: work-platform-task-board-crud-smoke-20260519.md."
         },
         {
           "id": "3.09",
@@ -213,12 +228,12 @@
         {
           "id": "3.27",
           "status": "done",
-          "text": "좌측 사이드바에서 워크 플랫폼을 눌렀다가 Dashboard Home/Asset/Company 등 다른 탭으로 이동해도 워크 플랫폼 active 음영이 남지 않도록 root path는 exact match로 고쳤다. Evidence: IotaLeftNav.jsx static grep, npm run build pass."
+          "text": "물류센터 주요 TASK 관리 전용 ll_work_platform_tasks 테이블을 만들고 프론트 등록/수정/완료/삭제를 ll-dashboard-api 경유로 연결했다. Evidence: migration 20260519004937, Edge deploy, CRUD smoke pass."
         },
         {
           "id": "3.28",
           "status": "done",
-          "text": "좌측 사이드바 접힘 상태에서 물류 전용 메뉴와 기존 IOTA 메뉴/워크스페이스 메뉴 버튼 hover 시 커스텀 tooltip으로 버튼 이름이 뜨도록 추가했다. Evidence: IotaLeftNav.jsx static grep, npm run build pass."
+          "text": "물류센터 워크플랫폼 협업게시판 전용 ll_work_platform_board_posts 테이블을 만들고 글 등록/수정/댓글/삭제를 ll-dashboard-api 경유로 연결했다. Evidence: migration 20260519004937, Edge deploy, CRUD smoke pass."
         }
       ]
     },
@@ -899,8 +914,8 @@
     {
       "stage": 12,
       "area": "승인대기 대상",
-      "completed": 6,
-      "total": 13,
+      "completed": 8,
+      "total": 15,
       "items": [
         {
           "id": "12.01",
@@ -966,6 +981,16 @@
           "id": "12.15",
           "status": "done",
           "text": "ll-dashboard-api Gemini ???? URL query key ???? x-goog-api-key header ???? ???? ai/gemini-diagnostics action? qveg Edge Function? ????. Evidence: qveg deploy success, gemini-diagnostics-smoke-20260518 provider_status=200."
+        },
+        {
+          "id": "12.16",
+          "status": "done",
+          "text": "qvegpozwrcmspdvjokiz에 work platform TASK/board tables 및 DB_히스토리 전체 linkage SQL을 실제 적용했고 readback을 완료했다. db push는 원격 migration history 불일치로 중단되어 직접 SQL apply 방식으로 처리했다."
+        },
+        {
+          "id": "12.17",
+          "status": "done",
+          "text": "ll-dashboard-api를 qvegpozwrcmspdvjokiz에 재배포해 work-platform/tasks 및 work-platform/board-posts API를 live Edge에 반영했다."
         }
       ]
     },
@@ -1035,8 +1060,8 @@
     {
       "stage": 14,
       "area": "QA 계획",
-      "completed": 8,
-      "total": 20,
+      "completed": 9,
+      "total": 22,
       "items": [
         {
           "id": "14.01",
@@ -1137,6 +1162,16 @@
           "id": "14.20",
           "status": "done",
           "text": "이번 사이드바 active/tooltip 및 대시보드 우상단 버튼 제거 변경에 대해 정적 grep과 GitHub Pages base build를 통과했다. Evidence: npm run build -- --base=/logistics-gate6-preview/ pass."
+        },
+        {
+          "id": "14.21",
+          "status": "done",
+          "text": "TASK/협업게시판 Edge CRUD smoke: JWT sign-in, create/update/complete/delete/comment, DB soft-delete readback, unauthenticated 401 확인을 완료했다. Evidence: work-platform-task-board-crud-smoke-20260519.md."
+        },
+        {
+          "id": "14.22",
+          "status": "partial",
+          "text": "브라우저 실제 화면 QA는 사용자 확인 목록으로 남긴다. 코드/Edge/API smoke는 완료됐지만 사용자가 실제 배포 URL에서 버튼 흐름을 확인해야 최종 화면 QA pass로 본다."
         }
       ]
     },
@@ -1227,63 +1262,26 @@
     "승인대기 / 외부권한대기 분리 목록"
   ],
   "last_user_request_added": {
-    "date": "2026-05-15",
-    "summary": "Home 임대료 추이 신규 편입 자산 hover/table 표시를 완료 항목으로 추가하고, 원본 데이터 수정 Excel 전면 재정리는 배포 후 마지막 수정배포 항목으로 분리했다.",
+    "date": "2026-05-19",
+    "summary": "DB_히스토리 누적 전체 마이그레이션 범위 확인, TASK/협업게시판 ll_* 테이블 및 Edge CRUD 연결 검증",
     "added_item_ids": [
-      "2.10",
-      "3.18",
-      "3.19",
-      "3.20",
-      "3.21",
-      "4.10",
-      "5.16",
-      "6.29",
-      "8.14",
-      "9.11",
-      "10.16",
-      "10.17",
-      "10.18",
-      "11.06",
-      "12.12",
-      "6.32",
-      "10.19"
+      "2.13",
+      "2.14",
+      "3.27",
+      "3.28",
+      "12.16",
+      "12.17",
+      "14.21",
+      "14.22"
     ],
-    "downgraded_item_ids": [
-      "3.17",
-      "6.13",
-      "10.15"
-    ],
-    "chart_request_item_ids": [
-      "6.30",
-      "6.31"
-    ],
-    "latest_completed_item_ids": [
-      "3.17",
-      "3.18",
-      "3.19",
-      "3.20",
-      "8.14",
-      "9.11",
-      "10.15",
-      "10.16",
-      "10.17",
-      "10.18",
-      "11.06",
-      "6.30",
-      "6.31",
-      "5.16",
-      "6.32"
+    "corrected_item_ids": [
+      "2.12",
+      "3.08"
     ],
     "latest_evidence": [
-      "current-request-ui-static-qa-20260515 allPass=true",
-      "home-chart-axis-mixed-static-qa-20260515 allPass=true",
-      "eslint WorkspaceLogistics/current QA scripts pass",
-      "weekly-week-mece-static-qa-20260515 allPass=true",
-      "home-enoc-coldratio-static-qa-20260515 allPass=true"
-    ],
-    "latest_partial_item_ids": [
-      "2.10"
+      "db-history-full-linkage-readback-20260519.md",
+      "work-platform-task-board-crud-smoke-20260519.md"
     ]
   },
-  "lastUpdated": "2026-05-18T18:55:00+09:00"
+  "lastUpdated": "2026-05-19T10:45:00+09:00"
 }

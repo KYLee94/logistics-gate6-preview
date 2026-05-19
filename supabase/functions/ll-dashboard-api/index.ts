@@ -33,6 +33,8 @@ const DEFAULT_AI_DEMO_ALLOWED_ORIGINS = [
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_edit_requests',
   'public.ll_worklogs',
+  'public.ll_work_platform_tasks',
+  'public.ll_work_platform_board_posts',
   'public.ll_api_audit_logs',
   'public.ll_data_change_audit_logs',
   'public.ll_external_api_cache',
@@ -485,6 +487,45 @@ function filterWorklogRows(ctx: Context, rows: Record<string, unknown>[]) {
     }
     return canReadRelatedAsset(ctx, row.related_asset_id || payload.assetId || payload.assetName);
   });
+}
+
+function filterWorkPlatformTaskRows(ctx: Context, rows: Record<string, unknown>[]) {
+  const organization = String(ctx.permission?.organization || '');
+  return rows.filter((row) => {
+    const scope = String(row.scope || '').toLowerCase();
+    if (scope === 'personal') return row.created_by === ctx.user.id;
+    if (scope === 'team') {
+      return row.created_by === ctx.user.id || String(row.organization || '') === organization;
+    }
+    return canReadRelatedAsset(ctx, row.related_asset_id);
+  });
+}
+
+function filterWorkPlatformBoardRows(ctx: Context, rows: Record<string, unknown>[]) {
+  return rows.filter((row) => row.created_by === ctx.user.id || canReadRelatedAsset(ctx, row.related_asset_id));
+}
+
+function actorName(ctx: Context) {
+  return String(
+    ctx.permission?.staff_name
+      || ctx.permission?.name
+      || ctx.permission?.display_name
+      || ctx.permission?.email
+      || 'unknown',
+  );
+}
+
+function actorEmail(ctx: Context) {
+  return String(ctx.permission?.email || '').trim().toLowerCase();
+}
+
+function safeText(value: unknown, fallback = '') {
+  return String(firstDefined(value, fallback) || '').trim();
+}
+
+function safeDateText(value: unknown) {
+  const text = safeText(value);
+  return /^\d{4}-\d{2}-\d{2}$/u.test(text) ? text : null;
 }
 
 function normalizeEditCells(record: Record<string, unknown>) {
@@ -1040,6 +1081,405 @@ async function deleteWorklog(ctx: Context, payload: Record<string, unknown>) {
   if (error) return fail(500, 'Failed to delete worklog', ctx.origin);
   await audit(ctx.serviceClient, ctx.user.id, 'worklogs/delete', 200, { id });
   return jsonResponse({ ok: true, message: 'Worklog deleted', data }, 200, ctx.origin);
+}
+
+const WORK_PLATFORM_TASK_SELECT = [
+  'id',
+  'scope',
+  'task_name',
+  'company_name',
+  'related_asset_id',
+  'related_asset_name',
+  'related_tenant_id',
+  'next_action',
+  'issue',
+  'notes',
+  'due_date',
+  'priority',
+  'status',
+  'completed_at',
+  'created_by',
+  'created_by_email',
+  'created_by_name',
+  'organization',
+  'payload',
+  'created_at',
+  'updated_at',
+].join(', ');
+
+const WORK_PLATFORM_BOARD_SELECT = [
+  'id',
+  'log_id',
+  'workspace_code',
+  'workspace_label',
+  'work_date',
+  'title',
+  'content',
+  'related_asset_id',
+  'related_asset_name',
+  'triage_type',
+  'issue_status',
+  'priority',
+  'stakeholder_category',
+  'stakeholder_name',
+  'visibility_groups',
+  'visibility_individuals',
+  'comments',
+  'attachments',
+  'metadata',
+  'status',
+  'created_by',
+  'created_by_email',
+  'created_by_name',
+  'organization',
+  'created_at',
+  'updated_at',
+].join(', ');
+
+function workPlatformTaskMutationPayload(ctx: Context, payload: Record<string, unknown>, currentPayload: Record<string, unknown> = {}) {
+  return serverWorklogPayload(ctx, payload.payload, currentPayload, {
+    source: 'll_work_platform_tasks',
+    assetName: safeText(firstDefined(payload.related_asset_name, payload.assetName, payload.asset_name)),
+    companyName: safeText(payload.company_name),
+    taskName: safeText(payload.task_name),
+    updated_by: ctx.user.id,
+  });
+}
+
+async function listWorkPlatformTasks(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const limit = Math.min(Number(payload.limit || 200), 500);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_tasks')
+    .select(WORK_PLATFORM_TASK_SELECT)
+    .neq('status', 'deleted')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) return fail(500, 'Failed to list work platform tasks', ctx.origin);
+  return jsonResponse({ ok: true, data: filterWorkPlatformTaskRows(ctx, data || []) }, 200, ctx.origin);
+}
+
+async function saveWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const relatedAssetId = safeText(payload.related_asset_id);
+  if (!relatedAssetId) return fail(400, 'related_asset_id is required', ctx.origin);
+  if (!canMutateWorklog(ctx, 'create', relatedAssetId)) return fail(403, 'Insufficient create permission for this task scope', ctx.origin);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_tasks')
+    .insert(stripUndefined({
+      scope: safeText(payload.scope, 'personal'),
+      task_name: safeText(firstDefined(payload.task_name, payload.title), 'Task'),
+      company_name: safeText(payload.company_name) || null,
+      related_asset_id: relatedAssetId,
+      related_asset_name: safeText(payload.related_asset_name) || null,
+      related_tenant_id: safeText(payload.related_tenant_id) || null,
+      next_action: safeText(firstDefined(payload.next_action, payload.body)) || null,
+      issue: safeText(payload.issue) || null,
+      notes: safeText(payload.notes) || null,
+      due_date: safeDateText(payload.due_date),
+      priority: safeText(payload.priority, '중간'),
+      status: safeText(payload.status, 'new'),
+      created_by: ctx.user.id,
+      created_by_email: actorEmail(ctx),
+      created_by_name: actorName(ctx),
+      organization: safeText(ctx.permission?.organization) || null,
+      payload: workPlatformTaskMutationPayload(ctx, payload),
+    }))
+    .select(WORK_PLATFORM_TASK_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to save work platform task', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/tasks/create', 200, { id: data.id, related_asset_id: relatedAssetId });
+  return jsonResponse({ ok: true, message: 'Work platform task saved', data }, 200, ctx.origin);
+}
+
+async function readWorkPlatformTaskForWrite(ctx: Context, id: string) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_tasks')
+    .select(WORK_PLATFORM_TASK_SELECT)
+    .eq('id', id)
+    .single();
+  if (error || !data) return { data: null, response: fail(404, 'Work platform task not found', ctx.origin) };
+  if (data.created_by !== ctx.user.id && !hasRole(ctx.role, 'Manager')) {
+    return { data: null, response: fail(403, 'Only author or manager can modify this task', ctx.origin) };
+  }
+  return { data, response: null };
+}
+
+async function updateWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const id = safeText(payload.id);
+  if (!id) return fail(400, 'id is required', ctx.origin);
+  const current = await readWorkPlatformTaskForWrite(ctx, id);
+  if (current.response) return current.response;
+  const currentRow = current.data as Record<string, unknown>;
+  const currentAssetId = safeText(currentRow.related_asset_id);
+  const nextAssetId = safeText(firstDefined(payload.related_asset_id, currentAssetId));
+  if (!canMutateWorklog(ctx, 'update', currentAssetId)) return fail(403, 'Insufficient update permission for existing task scope', ctx.origin);
+  if (nextAssetId !== currentAssetId && !canMutateWorklog(ctx, 'update', nextAssetId)) {
+    return fail(403, 'Insufficient update permission for new task scope', ctx.origin);
+  }
+  const currentPayload = (currentRow.payload || {}) as Record<string, unknown>;
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_tasks')
+    .update(stripUndefined({
+      scope: payload.scope === undefined ? undefined : safeText(payload.scope),
+      task_name: payload.task_name === undefined && payload.title === undefined ? undefined : safeText(firstDefined(payload.task_name, payload.title), safeText(currentRow.task_name)),
+      company_name: payload.company_name === undefined ? undefined : safeText(payload.company_name) || null,
+      related_asset_id: nextAssetId || undefined,
+      related_asset_name: payload.related_asset_name === undefined ? undefined : safeText(payload.related_asset_name) || null,
+      related_tenant_id: payload.related_tenant_id === undefined ? undefined : safeText(payload.related_tenant_id) || null,
+      next_action: payload.next_action === undefined && payload.body === undefined ? undefined : safeText(firstDefined(payload.next_action, payload.body)) || null,
+      issue: payload.issue === undefined ? undefined : safeText(payload.issue) || null,
+      notes: payload.notes === undefined ? undefined : safeText(payload.notes) || null,
+      due_date: payload.due_date === undefined ? undefined : safeDateText(payload.due_date),
+      priority: payload.priority === undefined ? undefined : safeText(payload.priority),
+      status: payload.status === undefined ? undefined : safeText(payload.status),
+      completed_at: safeText(payload.status) === 'completed' ? new Date().toISOString() : undefined,
+      payload: workPlatformTaskMutationPayload(ctx, payload, currentPayload),
+      updated_at: new Date().toISOString(),
+    }))
+    .eq('id', id)
+    .select(WORK_PLATFORM_TASK_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to update work platform task', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/tasks/update', 200, { id, related_asset_id: nextAssetId });
+  return jsonResponse({ ok: true, message: 'Work platform task updated', data }, 200, ctx.origin);
+}
+
+async function completeWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
+  return updateWorkPlatformTask(ctx, { ...payload, status: 'completed', payload: { ...(payload.payload as Record<string, unknown> || {}), completed_at: new Date().toISOString() } });
+}
+
+async function deleteWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const id = safeText(payload.id);
+  if (!id) return fail(400, 'id is required', ctx.origin);
+  const current = await readWorkPlatformTaskForWrite(ctx, id);
+  if (current.response) return current.response;
+  const currentRow = current.data as Record<string, unknown>;
+  if (!canMutateWorklog(ctx, 'delete', currentRow.related_asset_id)) return fail(403, 'Insufficient delete permission for existing task scope', ctx.origin);
+  const currentPayload = (currentRow.payload || {}) as Record<string, unknown>;
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_tasks')
+    .update({
+      status: 'deleted',
+      deleted_at: new Date().toISOString(),
+      payload: serverWorklogPayload(ctx, payload.payload, currentPayload, { deleted_at: new Date().toISOString() }),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .select(WORK_PLATFORM_TASK_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to delete work platform task', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/tasks/delete', 200, { id });
+  return jsonResponse({ ok: true, message: 'Work platform task deleted', data }, 200, ctx.origin);
+}
+
+function boardMetadata(ctx: Context, payload: Record<string, unknown>, currentMetadata: Record<string, unknown> = {}) {
+  const metadata = payload.metadata && typeof payload.metadata === 'object' && !Array.isArray(payload.metadata)
+    ? payload.metadata as Record<string, unknown>
+    : {};
+  return stripUndefined({
+    ...currentMetadata,
+    ...metadata,
+    workspace_code: 'WS_LOGISTICS',
+    workspace_label: '물류센터 워크 플랫폼',
+    project_name: safeText(firstDefined(payload.related_asset_name, payload.asset_name)),
+    asset_name: safeText(firstDefined(payload.related_asset_name, payload.asset_name)),
+    asset_id: safeText(payload.related_asset_id),
+    triage_type: safeText(payload.triage_type),
+    issue_status: safeText(payload.issue_status),
+    priority: safeText(payload.priority),
+    permissions: {
+      groups: Array.isArray(payload.visibility_groups) ? payload.visibility_groups : [],
+      individuals: Array.isArray(payload.visibility_individuals) ? payload.visibility_individuals : [],
+    },
+    updated_by: ctx.user.id,
+  });
+}
+
+async function listWorkPlatformBoardPosts(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const limit = Math.min(Number(payload.limit || 200), 500);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_board_posts')
+    .select(WORK_PLATFORM_BOARD_SELECT)
+    .neq('status', 'deleted')
+    .order('work_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) return fail(500, 'Failed to list work platform board posts', ctx.origin);
+  return jsonResponse({ ok: true, data: filterWorkPlatformBoardRows(ctx, data || []) }, 200, ctx.origin);
+}
+
+async function saveWorkPlatformBoardPost(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const relatedAssetId = safeText(payload.related_asset_id);
+  if (!relatedAssetId) return fail(400, 'related_asset_id is required', ctx.origin);
+  if (!canMutateWorklog(ctx, 'create', relatedAssetId)) return fail(403, 'Insufficient create permission for this board post scope', ctx.origin);
+  const logId = safeText(payload.log_id, `ll_board_${crypto.randomUUID()}`);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_board_posts')
+    .insert(stripUndefined({
+      log_id: logId,
+      workspace_code: 'WS_LOGISTICS',
+      workspace_label: '물류센터 워크 플랫폼',
+      work_date: safeDateText(payload.work_date) || new Date().toISOString().slice(0, 10),
+      title: safeText(firstDefined(payload.title, payload.summary), '업무 공유'),
+      content: safeText(firstDefined(payload.content, payload.raw_text)),
+      related_asset_id: relatedAssetId,
+      related_asset_name: safeText(payload.related_asset_name) || null,
+      triage_type: safeText(payload.triage_type, '공유'),
+      issue_status: safeText(payload.issue_status, '진행중'),
+      priority: safeText(payload.priority, '중간'),
+      stakeholder_category: safeText(payload.stakeholder_category) || null,
+      stakeholder_name: safeText(payload.stakeholder_name) || null,
+      visibility_groups: Array.isArray(payload.visibility_groups) ? payload.visibility_groups : [],
+      visibility_individuals: Array.isArray(payload.visibility_individuals) ? payload.visibility_individuals : [],
+      comments: [],
+      attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
+      metadata: boardMetadata(ctx, payload),
+      created_by: ctx.user.id,
+      created_by_email: actorEmail(ctx),
+      created_by_name: actorName(ctx),
+      organization: safeText(ctx.permission?.organization) || null,
+    }))
+    .select(WORK_PLATFORM_BOARD_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to save work platform board post', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/board-posts/create', 200, { id: data.id, log_id: logId, related_asset_id: relatedAssetId });
+  return jsonResponse({ ok: true, message: 'Work platform board post saved', data }, 200, ctx.origin);
+}
+
+async function readWorkPlatformBoardForWrite(ctx: Context, idOrLogId: string) {
+  const idText = safeText(idOrLogId);
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(idText);
+  const query = ctx.serviceClient
+    .from('ll_work_platform_board_posts')
+    .select(WORK_PLATFORM_BOARD_SELECT);
+  const { data, error } = await (isUuid ? query.eq('id', idText) : query.eq('log_id', idText)).single();
+  if (error || !data) return { data: null, response: fail(404, 'Work platform board post not found', ctx.origin) };
+  if (data.created_by !== ctx.user.id && !hasRole(ctx.role, 'Manager')) {
+    return { data: null, response: fail(403, 'Only author or manager can modify this board post', ctx.origin) };
+  }
+  return { data, response: null };
+}
+
+async function updateWorkPlatformBoardPost(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const id = safeText(firstDefined(payload.id, payload.log_id));
+  if (!id) return fail(400, 'id or log_id is required', ctx.origin);
+  const current = await readWorkPlatformBoardForWrite(ctx, id);
+  if (current.response) return current.response;
+  const currentRow = current.data as Record<string, unknown>;
+  const currentAssetId = safeText(currentRow.related_asset_id);
+  const nextAssetId = safeText(firstDefined(payload.related_asset_id, currentAssetId));
+  if (!canMutateWorklog(ctx, 'update', currentAssetId)) return fail(403, 'Insufficient update permission for existing board post scope', ctx.origin);
+  if (nextAssetId !== currentAssetId && !canMutateWorklog(ctx, 'update', nextAssetId)) {
+    return fail(403, 'Insufficient update permission for new board post scope', ctx.origin);
+  }
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_board_posts')
+    .update(stripUndefined({
+      work_date: payload.work_date === undefined ? undefined : safeDateText(payload.work_date),
+      title: payload.title === undefined && payload.summary === undefined ? undefined : safeText(firstDefined(payload.title, payload.summary), safeText(currentRow.title)),
+      content: payload.content === undefined && payload.raw_text === undefined ? undefined : safeText(firstDefined(payload.content, payload.raw_text), safeText(currentRow.content)),
+      related_asset_id: nextAssetId || undefined,
+      related_asset_name: payload.related_asset_name === undefined ? undefined : safeText(payload.related_asset_name) || null,
+      triage_type: payload.triage_type === undefined ? undefined : safeText(payload.triage_type),
+      issue_status: payload.issue_status === undefined ? undefined : safeText(payload.issue_status),
+      priority: payload.priority === undefined ? undefined : safeText(payload.priority),
+      stakeholder_category: payload.stakeholder_category === undefined ? undefined : safeText(payload.stakeholder_category) || null,
+      stakeholder_name: payload.stakeholder_name === undefined ? undefined : safeText(payload.stakeholder_name) || null,
+      visibility_groups: payload.visibility_groups === undefined ? undefined : (Array.isArray(payload.visibility_groups) ? payload.visibility_groups : []),
+      visibility_individuals: payload.visibility_individuals === undefined ? undefined : (Array.isArray(payload.visibility_individuals) ? payload.visibility_individuals : []),
+      attachments: payload.attachments === undefined ? undefined : (Array.isArray(payload.attachments) ? payload.attachments : []),
+      metadata: boardMetadata(ctx, payload, currentRow.metadata as Record<string, unknown> || {}),
+      updated_at: new Date().toISOString(),
+    }))
+    .eq('id', currentRow.id)
+    .select(WORK_PLATFORM_BOARD_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to update work platform board post', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/board-posts/update', 200, { id: currentRow.id, related_asset_id: nextAssetId });
+  return jsonResponse({ ok: true, message: 'Work platform board post updated', data }, 200, ctx.origin);
+}
+
+async function deleteWorkPlatformBoardPost(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const id = safeText(firstDefined(payload.id, payload.log_id));
+  if (!id) return fail(400, 'id or log_id is required', ctx.origin);
+  const current = await readWorkPlatformBoardForWrite(ctx, id);
+  if (current.response) return current.response;
+  const currentRow = current.data as Record<string, unknown>;
+  if (!canMutateWorklog(ctx, 'delete', currentRow.related_asset_id)) return fail(403, 'Insufficient delete permission for existing board post scope', ctx.origin);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_board_posts')
+    .update({
+      status: 'deleted',
+      deleted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      metadata: stripUndefined({ ...(currentRow.metadata as Record<string, unknown> || {}), deleted_at: new Date().toISOString(), deleted_by: ctx.user.id }),
+    })
+    .eq('id', currentRow.id)
+    .select(WORK_PLATFORM_BOARD_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to delete work platform board post', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/board-posts/delete', 200, { id: currentRow.id });
+  return jsonResponse({ ok: true, message: 'Work platform board post deleted', data }, 200, ctx.origin);
+}
+
+async function commentWorkPlatformBoardPost(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const id = safeText(firstDefined(payload.id, payload.log_id));
+  const text = safeText(payload.text);
+  if (!id || !text) return fail(400, 'id/log_id and text are required', ctx.origin);
+  const current = await readWorkPlatformBoardForWrite(ctx, id);
+  if (current.response) return current.response;
+  const currentRow = current.data as Record<string, unknown>;
+  if (!canReadRelatedAsset(ctx, currentRow.related_asset_id)) return fail(403, 'Insufficient read permission for this board post', ctx.origin);
+  const comments = Array.isArray(currentRow.comments) ? currentRow.comments as Record<string, unknown>[] : [];
+  const nextComment = {
+    id: `comment_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
+    author: actorName(ctx),
+    author_email: actorEmail(ctx),
+    text,
+    created_at: new Date().toISOString(),
+  };
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_board_posts')
+    .update({ comments: [...comments, nextComment], updated_at: new Date().toISOString() })
+    .eq('id', currentRow.id)
+    .select(WORK_PLATFORM_BOARD_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to save work platform board comment', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/board-posts/comment', 200, { id: currentRow.id, comment_id: nextComment.id });
+  return jsonResponse({ ok: true, message: 'Work platform board comment saved', data }, 200, ctx.origin);
+}
+
+async function deleteWorkPlatformBoardComment(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const id = safeText(firstDefined(payload.id, payload.log_id));
+  const commentId = safeText(payload.comment_id);
+  if (!id || !commentId) return fail(400, 'id/log_id and comment_id are required', ctx.origin);
+  const current = await readWorkPlatformBoardForWrite(ctx, id);
+  if (current.response) return current.response;
+  const currentRow = current.data as Record<string, unknown>;
+  const comments = Array.isArray(currentRow.comments) ? currentRow.comments as Record<string, unknown>[] : [];
+  const target = comments.find((comment) => comment.id === commentId);
+  if (!target) return fail(404, 'Comment not found', ctx.origin);
+  if (target.author_email !== actorEmail(ctx) && !hasRole(ctx.role, 'Manager')) {
+    return fail(403, 'Only comment author or manager can delete this comment', ctx.origin);
+  }
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_board_posts')
+    .update({ comments: comments.filter((comment) => comment.id !== commentId), updated_at: new Date().toISOString() })
+    .eq('id', currentRow.id)
+    .select(WORK_PLATFORM_BOARD_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to delete work platform board comment', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/board-posts/comment-delete', 200, { id: currentRow.id, comment_id: commentId });
+  return jsonResponse({ ok: true, message: 'Work platform board comment deleted', data }, 200, ctx.origin);
 }
 
 async function fetchJsonWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 10_000, retries = 1) {
@@ -1638,13 +2078,15 @@ function compactEvidenceRows(rows: Record<string, unknown>[], table: string, max
 
 async function collectAiSearchContext(ctx: Context, question: string) {
   const terms = aiSearchTerms(question).slice(0, 8);
-  const [assetRows, leasingContractRows, leaseSpaceRows, rentRows, tenantRows, worklogRows, weeklyAssetRows, weeklyProjectRows, metricRows] = await Promise.all([
+  const [assetRows, leasingContractRows, leaseSpaceRows, rentRows, tenantRows, worklogRows, taskRows, boardRows, weeklyAssetRows, weeklyProjectRows, metricRows] = await Promise.all([
     safeSelectRows(ctx, 'll_assets', 250),
     safeSelectRows(ctx, 'll_leasing_contracts', 500),
     safeSelectRows(ctx, 'll_lease_spaces', 1000),
     safeSelectRows(ctx, 'll_rent_history', 500),
     safeSelectRows(ctx, 'll_tenants', 300),
     safeSelectRows(ctx, 'll_worklogs', 300),
+    safeSelectRows(ctx, 'll_work_platform_tasks', 300),
+    safeSelectRows(ctx, 'll_work_platform_board_posts', 300),
     safeSelectRows(ctx, 'll_weekly_assets', 300),
     safeSelectRows(ctx, 'll_weekly_projects', 300),
     safeSelectRows(ctx, 'll_dashboard_metric_snapshots', 1000),
@@ -1665,6 +2107,8 @@ async function collectAiSearchContext(ctx: Context, question: string) {
   const permittedMetricRows = metricRows.filter((row) => canReadDataRow(ctx, row));
   const permittedWeeklyAssets = weeklyAssetRows.filter((row) => canReadDataRow(ctx, row));
   const permittedWorklogs = filterWorklogRows(ctx, worklogRows);
+  const permittedTasks = filterWorkPlatformTaskRows(ctx, taskRows);
+  const permittedBoardPosts = filterWorkPlatformBoardRows(ctx, boardRows);
   const allowedTenantKeys = new Set([...permittedLeaseRows, ...permittedRentRows].flatMap((row) => [
     row.tenant_id,
     row.tenantId,
@@ -1688,6 +2132,8 @@ async function collectAiSearchContext(ctx: Context, question: string) {
     { table: 'll_rent_history', rows: permittedRentRows },
     { table: 'll_tenants', rows: permittedTenants },
     { table: 'll_worklogs', rows: permittedWorklogs },
+    { table: 'll_work_platform_tasks', rows: permittedTasks },
+    { table: 'll_work_platform_board_posts', rows: permittedBoardPosts },
     { table: 'll_weekly_assets', rows: permittedWeeklyAssets },
     { table: 'll_weekly_projects', rows: permittedWeeklyProjects },
     { table: 'll_dashboard_metric_snapshots', rows: permittedMetricRows },
@@ -2656,6 +3102,17 @@ Deno.serve(async (request) => {
   if (action === 'worklogs/update') return updateWorklog(ctx, payload);
   if (action === 'worklogs/complete') return completeWorklog(ctx, payload);
   if (action === 'worklogs/delete') return deleteWorklog(ctx, payload);
+  if (action === 'work-platform/tasks/list') return listWorkPlatformTasks(ctx, payload);
+  if (action === 'work-platform/tasks') return saveWorkPlatformTask(ctx, payload);
+  if (action === 'work-platform/tasks/update') return updateWorkPlatformTask(ctx, payload);
+  if (action === 'work-platform/tasks/complete') return completeWorkPlatformTask(ctx, payload);
+  if (action === 'work-platform/tasks/delete') return deleteWorkPlatformTask(ctx, payload);
+  if (action === 'work-platform/board-posts/list') return listWorkPlatformBoardPosts(ctx, payload);
+  if (action === 'work-platform/board-posts') return saveWorkPlatformBoardPost(ctx, payload);
+  if (action === 'work-platform/board-posts/update') return updateWorkPlatformBoardPost(ctx, payload);
+  if (action === 'work-platform/board-posts/delete') return deleteWorkPlatformBoardPost(ctx, payload);
+  if (action === 'work-platform/board-posts/comment') return commentWorkPlatformBoardPost(ctx, payload);
+  if (action === 'work-platform/board-posts/comment-delete') return deleteWorkPlatformBoardComment(ctx, payload);
   if (action === 'opendart/company') return callOpenDart(ctx, payload);
   if (action === 'building-register/summary') return callBuildingRegister(ctx, payload);
   if (action === 'naver/geocode') return callNaverGeocode(ctx, payload);
