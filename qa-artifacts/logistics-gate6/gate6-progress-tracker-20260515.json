@@ -204,7 +204,7 @@
         {
           "id": "3.18",
           "status": "done",
-          "text": "메인 페이지 상단 사용자 이름 옆 프로필 영역은 사진이 연동된 사용자는 사진을 표시하고 사진이 없을 때만 이니셜로 fallback한다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+          "text": "메인 페이지 상단 사용자 이름 옆 프로필 영역은 사진이 연동된 사용자는 사진을 표시하고, 사진 파일/URL이 없거나 로딩 실패 시 이니셜이 아니라 default_avatar.svg 기본 이미지로 fallback한다. Evidence: WorkspaceLogistics.jsx MemberAvatar fallback, eslint/build pass, gh-pages deployment."
         },
         {
           "id": "3.19",

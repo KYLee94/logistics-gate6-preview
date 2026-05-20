@@ -139,21 +139,19 @@ function memberAvatarSource(memberInfo, fallbackName) {
 }
 
 function MemberAvatar({ memberInfo, name, sizeClass = 'h-12 w-12', textClass = 'text-[15px]' }) {
-  const [imageFailed, setImageFailed] = useState(false);
+  const [failedAvatarSrc, setFailedAvatarSrc] = useState('');
   const label = String(name || memberInfo?.staff_name || memberInfo?.name || '물류').trim();
   const src = memberAvatarSource(memberInfo, label);
+  const defaultAvatarSrc = `${import.meta.env.BASE_URL}default_avatar.svg`;
+  const imageSrc = failedAvatarSrc === src ? defaultAvatarSrc : src;
   return (
     <div className={`relative flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#E8F2FF] ${textClass} font-bold text-[#1F1F1E]`}>
-      {!imageFailed ? (
-        <img
-          src={src}
-          alt={label}
-          className="h-full w-full object-cover"
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <span>{label.slice(0, 1)}</span>
-      )}
+      <img
+        src={imageSrc}
+        alt={label}
+        className="h-full w-full object-cover"
+        onError={() => setFailedAvatarSrc(src)}
+      />
       <div className="pointer-events-none absolute inset-0 rounded-full border border-white/10" />
     </div>
   );

@@ -4,7 +4,7 @@
 - Source of truth: `gate6-progress-tracker-20260515.json`
 - Overall: 177 / 288 (61.5%)
 - Active work branch: `codex/logistics-gate6-post-deploy-updates` on `preview` remote.
-- User-facing deployment branch `gh-pages` has been updated for Management Project Status Supabase readback.
+- User-facing deployment branch `gh-pages` is being updated for the Work Platform profile avatar fallback.
 
 | Stage | Area | Done/Total | Rate |
 |---:|---|---:|---:|
@@ -25,8 +25,8 @@
 
 ## Latest Deployment Update
 
+- 메인 워크 플랫폼 상단 프로필은 사진 파일/URL이 없거나 로딩 실패 시 이니셜 대신 `default_avatar.svg` 기본 이미지로 표시됩니다.
 - 관리 Project 현황은 이제 JSX seed가 아니라 Supabase `ll_weekly_assets` 최신 report 20행을 읽습니다.
 - 별도 권한 row 추가 없이, 로그인한 회사 이메일 사용자는 preview/local 경로에서도 `weekly-assets/latest-preview`로 같은 20행을 받습니다.
 - 내부 `Supabase readback` / `임시 seed` 경고 문구는 화면 번들에서 제거됐습니다.
 - Evidence: `weekly-assets/latest-preview` live smoke `ok=true`, rows `20`, report `00000000-0000-0000-0000-000000260427`; live bundle `assets/index-C_752woL.js` has preview action and `has_seed_warning=false`.
-
