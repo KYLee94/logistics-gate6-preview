@@ -1463,12 +1463,11 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
   const [modal, setModal] = useState(null);
   const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
-  const initialAssetRows = useMemo(() => normalizeWeeklyAssetRows(weeklyReportData.assetRows || []), []);
-  const [assetRowsDraft, setAssetRowsDraft] = useState(initialAssetRows);
+  const [assetRowsDraft, setAssetRowsDraft] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
-  const [assetRowsSource, setAssetRowsSource] = useState('seed');
-  const originalAssetNamesRef = useRef(initialAssetRows.map((row) => row.assetName).filter(Boolean));
+  const originalAssetNamesRef = useRef([]);
+  const loadedAssetRowsRef = useRef([]);
   const assetRows = assetRowsDraft;
   const canEditWeeklyAssets = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete || permission.role === 'Admin');
   const displayFieldDefs = [
@@ -1492,22 +1491,21 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
   const activeFieldDefs = displayFieldDefs;
   const fullHeaders = activeFieldDefs.map((field) => field.header);
   useEffect(() => {
-    setAssetRowsDraft(initialAssetRows);
-    originalAssetNamesRef.current = initialAssetRows.map((row) => row.assetName).filter(Boolean);
-  }, [initialAssetRows]);
-  useEffect(() => {
     let cancelled = false;
     supabase.functions.invoke('ll-dashboard-api', {
       body: { action: 'weekly-assets/latest', payload: {} },
     }).then(({ data }) => {
       if (cancelled || data?.ok === false) return;
       const rows = normalizeWeeklyAssetRows(data?.data?.rows || []);
-      if (!rows.length) return;
       setAssetRowsDraft(rows);
+      loadedAssetRowsRef.current = rows;
       originalAssetNamesRef.current = rows.map((row) => row.assetName).filter(Boolean);
-      setAssetRowsSource('supabase');
     }).catch(() => {
-      if (!cancelled) setAssetRowsSource('seed');
+      if (!cancelled) {
+        setAssetRowsDraft([]);
+        loadedAssetRowsRef.current = [];
+        originalAssetNamesRef.current = [];
+      }
     });
     return () => {
       cancelled = true;
@@ -1564,6 +1562,7 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '저장 실패');
       originalAssetNamesRef.current = rows.map((row) => row.assetName).filter(Boolean);
+      loadedAssetRowsRef.current = rows;
       setAssetRowsDraft(rows);
       setIsEditing(false);
       setSaveStatus({ type: 'success', message: `저장 완료: ${data?.data?.inserted ?? rows.length}건 반영` });
@@ -1641,7 +1640,7 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
                 <button
                   type="button"
                   onClick={() => {
-                    setAssetRowsDraft(initialAssetRows);
+                    setAssetRowsDraft(loadedAssetRowsRef.current);
                     setIsEditing(false);
                     setSaveStatus(null);
                   }}
@@ -1660,11 +1659,6 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
         </div>
       ) : null}
       <div className="custom-scrollbar max-h-[540px] overflow-auto rounded-[10px] border border-[#333333]">
-        {assetRowsSource === 'seed' ? (
-          <div className="border-b border-[#333333] bg-[#2B2613] px-4 py-2 text-[12px] font-semibold text-[#FFD166]">
-            Supabase 자산현황 readback을 불러오지 못해 임시 seed를 표시 중입니다.
-          </div>
-        ) : null}
         <table className={`${isEditing ? 'min-w-[2340px]' : 'min-w-[2240px]'} table-fixed border-collapse text-left`}>
           <colgroup>
             {visibleColumnWidths.map((width, index) => <col key={`${visibleHeaders[index]}-${width}`} style={{ width }} />)}
@@ -2786,7 +2780,6 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const [stakeholderMasterRows, setStakeholderMasterRows] = useState([]);
   const [taskEditTarget, setTaskEditTarget] = useState(null);
   const [taskDraft, setTaskDraft] = useState(null);
-  const [taskServerStatus, setTaskServerStatus] = useState(null);
   const [pendingTaskAction, setPendingTaskAction] = useState(null);
 
   const isDashboard = currentPath.startsWith(pathFor('dashboard'));
@@ -2822,12 +2815,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             return seedId && !archivedSeedIds.has(seedId) && !materializedSeedIds.has(seedId);
           });
           setTaskRecords([...activeRows, ...visibleSeedTasks]);
-          setTaskServerStatus(null);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
           setTaskRecords([]);
-          setTaskServerStatus({ type: 'warning', message: `TASK DB 목록을 불러오지 못했습니다. 새로 등록한 TASK만 Supabase에 저장되어 삭제/수정됩니다. (${error.message || 'unknown error'})` });
         }
       } finally {
         if (!cancelled) setIsLoadingTasks(false);
@@ -2902,7 +2893,6 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     }
   };
   const submitTaskOperation = async (operation, task, payload = {}) => {
-    setTaskServerStatus({ type: 'pending', message: '서버 반영 요청 중입니다.' });
     try {
       const action = operation === 'create'
         ? 'work-platform/tasks'
@@ -2932,10 +2922,8 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       });
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '서버 저장 실패');
-      setTaskServerStatus({ type: 'success', message: data?.message || '서버 반영 요청이 접수됐습니다.' });
       return { ok: true, data: data?.data || null };
     } catch (error) {
-      setTaskServerStatus({ type: 'warning', message: `서버 저장 실패: Supabase DB에 반영되지 않았습니다. (${error.message || 'unknown error'})` });
       return { ok: false, error };
     }
   };
@@ -2954,11 +2942,9 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     });
     setIsAddingTask(true);
     document.getElementById('task-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    setTaskServerStatus(null);
   };
   const startTaskAdd = () => {
     if (!canRegisterTask) {
-      setTaskServerStatus({ type: 'warning', message: '현재 권한으로는 Task 등록이 제한됩니다.' });
       return;
     }
     if (isAddingTask) {
@@ -3492,11 +3478,6 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
               </div>
             )}
           </div>
-          {taskServerStatus ? (
-            <div className={`mx-3 mt-4 rounded-[10px] border px-3 py-2 text-[12px] ${taskServerStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : taskServerStatus.type === 'warning' ? 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]' : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#A1A1AA]'}`}>
-              {taskServerStatus.message}
-            </div>
-          ) : null}
         </div>
       </section>
 
