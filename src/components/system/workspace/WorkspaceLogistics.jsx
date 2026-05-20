@@ -1492,25 +1492,43 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
   const fullHeaders = activeFieldDefs.map((field) => field.header);
   useEffect(() => {
     let cancelled = false;
-    supabase.functions.invoke('ll-dashboard-api', {
-      body: { action: 'weekly-assets/latest', payload: {} },
-    }).then(({ data }) => {
-      if (cancelled || data?.ok === false) return;
-      const rows = normalizeWeeklyAssetRows(data?.data?.rows || []);
+    const applyRows = (rows) => {
       setAssetRowsDraft(rows);
       loadedAssetRowsRef.current = rows;
       originalAssetNamesRef.current = rows.map((row) => row.assetName).filter(Boolean);
-    }).catch(() => {
-      if (!cancelled) {
-        setAssetRowsDraft([]);
-        loadedAssetRowsRef.current = [];
-        originalAssetNamesRef.current = [];
+    };
+    const fetchRows = async () => {
+      let rows = [];
+      try {
+        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+          body: { action: 'weekly-assets/latest', payload: {} },
+        });
+        if (error || data?.ok === false) throw error || new Error(data?.message || 'weekly asset read failed');
+        rows = normalizeWeeklyAssetRows(data?.data?.rows || []);
+      } catch {
+        rows = [];
       }
-    });
+      if (!rows.length) {
+        try {
+          const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+            body: {
+              action: 'weekly-assets/latest-preview',
+              payload: { email: permission.email || memberInfo?.email || '' },
+            },
+          });
+          if (error || data?.ok === false) throw error || new Error(data?.message || 'weekly asset preview read failed');
+          rows = normalizeWeeklyAssetRows(data?.data?.rows || []);
+        } catch {
+          rows = [];
+        }
+      }
+      if (!cancelled) applyRows(rows);
+    };
+    fetchRows();
     return () => {
       cancelled = true;
     };
-  }, [permission.email, permission.role]);
+  }, [memberInfo?.email, permission.email, permission.role]);
   const canEditWeeklyAssetRow = (row) => (
     permission.role === 'Admin'
     || (

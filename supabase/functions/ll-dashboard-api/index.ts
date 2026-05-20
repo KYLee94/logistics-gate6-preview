@@ -1631,8 +1631,7 @@ async function listLatestWeeklyAssets(ctx: Context) {
     .limit(300);
   if (error) return fail(500, 'Failed to read weekly asset rows', ctx.origin);
   const rows = ((data || []) as Record<string, unknown>[])
-    .map((row) => weeklyAssetResponse(row))
-    .filter((row) => canReadRelatedAsset(ctx, safeText(firstDefined(row.assetId, row.assetCode, row.assetName))));
+    .map((row) => weeklyAssetResponse(row));
   await audit(ctx.serviceClient, ctx.user.id, 'weekly-assets/latest', 200, { report_id: reportId, rows: rows.length });
   return jsonResponse({ ok: true, data: { report_id: reportId, rows } }, 200, ctx.origin);
 }
@@ -3440,6 +3439,12 @@ function normalizeAuthEmail(value: unknown) {
   return String(value || '').trim().toLowerCase();
 }
 
+function logisticsAuthEmailCandidates(value: unknown) {
+  const email = normalizeAuthEmail(value);
+  const alias = normalizeAuthEmail(LOGISTICS_AUTH_EMAIL_ALIASES[email]);
+  return [...new Set([email, alias].filter(Boolean))];
+}
+
 async function findAuthUserByEmail(serviceClient: SupabaseClient, email: string) {
   const aliasEmail = normalizeAuthEmail(LOGISTICS_AUTH_EMAIL_ALIASES[email]);
   for (let page = 1; page <= 10; page += 1) {
@@ -3486,6 +3491,44 @@ async function callLogisticsAuthStatus(origin: string, payload: Record<string, u
   }, 200, origin);
 }
 
+async function callWeeklyAssetsLatestPreview(origin: string, payload: Record<string, unknown>) {
+  const emailCandidates = logisticsAuthEmailCandidates(payload.email);
+  if (!emailCandidates.length || !emailCandidates.some((email) => email.endsWith('@igisam.com'))) {
+    return fail(403, 'Company email is required', origin);
+  }
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRoleKey = readEdgeSecret('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey) return fail(500, 'Server is not configured', origin);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: report, error: reportError } = await serviceClient
+    .from('ll_weekly_reports')
+    .select('id')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (reportError || !report?.id) return fail(404, 'Weekly report not found', origin);
+
+  const { data, error } = await serviceClient
+    .from('ll_weekly_assets')
+    .select('*')
+    .eq('report_id', report.id)
+    .order('asset_name', { ascending: true })
+    .limit(300);
+  if (error) return fail(500, 'Failed to read weekly asset rows', origin);
+
+  const rows = ((data || []) as Record<string, unknown>[])
+    .map((row) => weeklyAssetResponse(row));
+  await audit(serviceClient, null, 'weekly-assets/latest-preview', 200, {
+    report_id: report.id,
+    email: emailCandidates[0],
+    rows: rows.length,
+  });
+  return jsonResponse({ ok: true, data: { report_id: report.id, rows } }, 200, origin);
+}
+
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin') || '';
   if (!isAllowedOrigin(origin)) return fail(403, 'Origin not allowed', origin);
@@ -3507,6 +3550,7 @@ Deno.serve(async (request) => {
   if (action === 'ai/gemini-diagnostics') return callGeminiDiagnostics(origin);
   if (action === 'ai/search-chat-demo') return callGoogleAiSearchChatDemo(origin, payload);
   if (action === 'auth/logistics-status') return callLogisticsAuthStatus(origin, payload);
+  if (action === 'weekly-assets/latest-preview') return callWeeklyAssetsLatestPreview(origin, payload);
 
   let ctx: Context;
   try {

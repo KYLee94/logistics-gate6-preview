@@ -16,18 +16,18 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 175,
-    "total": 287,
-    "completion_rate": 61,
-    "updated_at": "2026-05-20T02:12:00.000Z",
+    "completed": 177,
+    "total": 288,
+    "completion_rate": 61.5,
+    "updated_at": "2026-05-20T02:36:00.000Z",
     "conflict_resolution": "Cleaned active checklist to latest requirements: Weekly tab/upload retired, AI moved to right chatbot dock, Data Playground renamed Pivot Table, PDF details moved out of final acceptance stage, legacy completed status normalized to done.",
-    "latest_priority_update": "Management Project Status table visible seed/readback fallback was removed; the table now renders Supabase weekly-assets/latest rows only, and gh-pages live bundle index-BCW-i40R.js was deployed."
+    "latest_priority_update": "Management Project Status now reads Supabase ll_weekly_assets for all logged-in users; no permission row seed is required, no JSX seed fallback is rendered, qveg Edge and gh-pages preview are deployed, and live Edge smoke returns 20 rows."
   },
   "stages": [
     {
       "stage": 2,
       "area": "공통 데이터 기준",
-      "completed": 8,
+      "completed": 9,
       "total": 18,
       "items": [
         {
@@ -120,8 +120,8 @@
         },
         {
           "id": "2.18",
-          "status": "partial",
-          "text": "Work Platform Management Project Status now has a code path to read latest ll_weekly_assets through ll-dashboard-api weekly-assets/latest before static seed fallback. Edge deploy and live readback are still pending."
+          "status": "done",
+          "text": "Work Platform 관리 Project 현황은 Supabase ll_weekly_reports/latest + ll_weekly_assets 기준으로 읽는다. 최신 report 00000000-0000-0000-0000-000000260427에서 20행 readback을 확인했고, JSX weeklyReportData.assetRows fallback은 제거했다."
         }
       ]
     },
@@ -478,7 +478,7 @@
         {
           "id": "5.20",
           "status": "done",
-          "text": "Management Project Status table no longer initializes or falls back to static weeklyReportData.assetRows. It renders Supabase weekly-assets/latest rows only; on read failure it stays empty instead of showing JSX seed data or an internal warning banner."
+          "text": "Management Project Status table no longer initializes or falls back to static weeklyReportData.assetRows. Authenticated users read all latest ll_weekly_assets rows through weekly-assets/latest; preview/local login reads the same Supabase rows through weekly-assets/latest-preview. Internal seed/readback warning banners are not rendered."
         }
       ]
     },
@@ -1301,7 +1301,7 @@
         {
           "id": "12.25",
           "status": "done",
-          "text": "ll-dashboard-api changes for weekly-assets/latest and work-platform/tasks/archive-seed were deployed to qveg live Edge Function. Readback: ll-dashboard-api ACTIVE version 33 updated_at 2026-05-20 01:58 UTC."
+          "text": "ll-dashboard-api changes for weekly-assets/latest, weekly-assets/latest-preview, and work-platform/tasks/archive-seed were deployed to qveg live Edge Function. Latest readback: weekly-assets/latest-preview returned ok=true, report 00000000-0000-0000-0000-000000260427, rows=20 from https://kylee94.github.io origin."
         }
       ]
     },
@@ -1373,8 +1373,8 @@
     {
       "stage": 14,
       "area": "QA 계획",
-      "completed": 17,
-      "total": 38,
+      "completed": 18,
+      "total": 39,
       "items": [
         {
           "id": "14.01",
@@ -1573,7 +1573,12 @@
         {
           "id": "14.39",
           "status": "done",
-          "text": "Management Project Status seed/readback warning removal passed targeted ESLint, preview build, gh-pages deployment, remote gh-pages readback, and cache-busted live JS check. Live asset index-BCW-i40R.js returned 200 and does not contain the removed internal warning strings."
+          "text": "Management Project Status seed/readback warning removal passed targeted ESLint, preview build, gh-pages deployment, remote gh-pages readback, and cache-busted live JS check. Live asset index-C_752woL.js includes weekly-assets/latest-preview and does not contain the removed internal warning strings."
+        },
+        {
+          "id": "14.40",
+          "status": "done",
+          "text": "Live Edge smoke for Management Project Status passed: POST ll-dashboard-api weekly-assets/latest-preview with Origin https://kylee94.github.io and anon Authorization returned ok=true, report_id 00000000-0000-0000-0000-000000260427, rows=20, first=경남양산석암, last=화성석포리."
         }
       ]
     },
@@ -1670,20 +1675,23 @@
   ],
   "last_user_request_added": {
     "date": "2026-05-20",
-    "summary": "Remove visible Supabase readback/seed fallback banners and stop Management Project Status from rendering static JSX seed rows.",
+    "summary": "Management Project Status must be visible to every logged-in user without adding permission rows; data must come from Supabase ll_weekly_assets, not JSX seed fallback.",
     "added_item_ids": [
+      "14.40"
+    ],
+    "updated_item_ids": [
+      "2.18",
       "5.20",
+      "12.25",
       "14.39"
     ],
     "latest_evidence": [
-      "npx eslint src/components/system/workspace/WorkspaceLogistics.jsx success",
-      "npm run build:preview success",
-      "npm run deploy Published",
-      "remote gh-pages index points to assets/index-BCW-i40R.js",
-      "cache-busted live JS assets/index-BCW-i40R.js returned 200 and HasSeedWarning=false"
+      "ll-dashboard-api weekly-assets/latest-preview live smoke returned rows=20 from qveg Edge Function.",
+      "gh-pages live bundle assets/index-C_752woL.js has weekly-assets/latest-preview and no seed/readback warning strings.",
+      "npx eslint WorkspaceLogistics.jsx, Edge esbuild parse, npm run build:preview all passed."
     ]
   },
-  "lastUpdated": "2026-05-20T02:12:00.000Z",
+  "lastUpdated": "2026-05-20T02:36:00.000Z",
   "retired_items": [
     {
       "retired_at": "2026-05-20T01:27:01.270Z",
