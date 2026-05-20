@@ -1272,6 +1272,40 @@ async function deleteWorkPlatformTask(ctx: Context, payload: Record<string, unkn
   return jsonResponse({ ok: true, message: 'Work platform task deleted', data }, 200, ctx.origin);
 }
 
+async function archiveSeedWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const relatedAssetId = safeText(payload.related_asset_id);
+  if (!relatedAssetId) return fail(400, 'related_asset_id is required', ctx.origin);
+  if (!canMutateWorklog(ctx, 'delete', relatedAssetId)) return fail(403, 'Insufficient delete permission for this seed task asset', ctx.origin);
+  const now = new Date().toISOString();
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_platform_tasks')
+    .insert(stripUndefined({
+      task_name: safeText(firstDefined(payload.task_name, payload.title), 'Task'),
+      company_name: safeText(payload.company_name) || null,
+      related_asset_id: relatedAssetId,
+      related_asset_name: safeText(payload.related_asset_name) || null,
+      related_tenant_id: safeText(payload.related_tenant_id) || null,
+      next_action: safeText(firstDefined(payload.next_action, payload.body)) || null,
+      issue: safeText(payload.issue) || null,
+      notes: safeText(payload.notes) || null,
+      due_date: safeDateText(payload.due_date),
+      priority: safeText(payload.priority, '중간'),
+      status: 'deleted',
+      deleted_at: now,
+      created_by: ctx.user.id,
+      created_by_email: actorEmail(ctx),
+      created_by_name: actorName(ctx),
+      organization: safeText(ctx.permission?.organization) || null,
+      payload: serverWorklogPayload(ctx, payload.payload, {}, { deleted_at: now, archived_seed_task: true }),
+    }))
+    .select(WORK_PLATFORM_TASK_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to archive seed work platform task', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/tasks/archive-seed', 200, { id: data.id, related_asset_id: relatedAssetId });
+  return jsonResponse({ ok: true, message: 'Seed task archived', data }, 200, ctx.origin);
+}
+
 function boardMetadata(ctx: Context, payload: Record<string, unknown>, currentMetadata: Record<string, unknown> = {}) {
   const metadata = payload.metadata && typeof payload.metadata === 'object' && !Array.isArray(payload.metadata)
     ? payload.metadata as Record<string, unknown>
@@ -1563,6 +1597,44 @@ async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown
     blocked: blockedNames,
   });
   return jsonResponse({ ok: true, message: 'Weekly asset rows saved', data: { inserted: rowsToInsert.length, deleted_scope: permittedNames.length, blocked: blockedNames } }, 200, ctx.origin);
+}
+
+function weeklyAssetResponse(row: Record<string, unknown>) {
+  const rowJson = row.row_json && typeof row.row_json === 'object' && !Array.isArray(row.row_json)
+    ? row.row_json as Record<string, unknown>
+    : {};
+  return stripUndefined({
+    id: row.id,
+    reportId: row.report_id,
+    assetId: firstDefined(row.asset_id, row.asset_code, rowJson.assetId, rowJson.asset_id),
+    assetCode: firstDefined(row.asset_code, rowJson.assetCode, rowJson.asset_code),
+    assetName: firstDefined(row.asset_name, rowJson.assetName, rowJson.asset_name),
+    fundCode: firstDefined(row.fund_code, rowJson.fundCode, rowJson.fund_code),
+    fundName: firstDefined(row.fund_name, rowJson.fundName, rowJson.fund_name),
+    status: firstDefined(row.status, rowJson.status),
+    issue: firstDefined(row.issue, rowJson.issue),
+    plan: firstDefined(row.plan, rowJson.plan),
+    ...rowJson,
+    sourceTable: 'public.ll_weekly_assets',
+  });
+}
+
+async function listLatestWeeklyAssets(ctx: Context) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const reportId = await latestWeeklyReportId(ctx);
+  if (!reportId) return fail(404, 'Weekly report not found', ctx.origin);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_weekly_assets')
+    .select('*')
+    .eq('report_id', reportId)
+    .order('asset_name', { ascending: true })
+    .limit(300);
+  if (error) return fail(500, 'Failed to read weekly asset rows', ctx.origin);
+  const rows = ((data || []) as Record<string, unknown>[])
+    .map((row) => weeklyAssetResponse(row))
+    .filter((row) => canReadRelatedAsset(ctx, safeText(firstDefined(row.assetId, row.assetCode, row.assetName))));
+  await audit(ctx.serviceClient, ctx.user.id, 'weekly-assets/latest', 200, { report_id: reportId, rows: rows.length });
+  return jsonResponse({ ok: true, data: { report_id: reportId, rows } }, 200, ctx.origin);
 }
 
 function normalizeProjectRows(rows: unknown) {
@@ -3461,6 +3533,7 @@ Deno.serve(async (request) => {
   if (action === 'work-platform/tasks/update') return updateWorkPlatformTask(ctx, payload);
   if (action === 'work-platform/tasks/complete') return completeWorkPlatformTask(ctx, payload);
   if (action === 'work-platform/tasks/delete') return deleteWorkPlatformTask(ctx, payload);
+  if (action === 'work-platform/tasks/archive-seed') return archiveSeedWorkPlatformTask(ctx, payload);
   if (action === 'work-platform/board-posts/list') return listWorkPlatformBoardPosts(ctx, payload);
   if (action === 'work-platform/board-posts') return saveWorkPlatformBoardPost(ctx, payload);
   if (action === 'work-platform/board-posts/update') return updateWorkPlatformBoardPost(ctx, payload);
@@ -3468,6 +3541,7 @@ Deno.serve(async (request) => {
   if (action === 'work-platform/board-posts/comment') return commentWorkPlatformBoardPost(ctx, payload);
   if (action === 'work-platform/board-posts/comment-delete') return deleteWorkPlatformBoardComment(ctx, payload);
   if (action === 'weekly-assets/replace-latest') return replaceWeeklyAssets(ctx, payload);
+  if (action === 'weekly-assets/latest') return listLatestWeeklyAssets(ctx);
   if (action === 'weekly-projects/get-asset-detail') return getWeeklyProjectAssetDetail(ctx, payload);
   if (action === 'weekly-projects/save-asset-detail') return saveWeeklyProjectAssetDetail(ctx, payload);
   if (action === 'opendart/company') return callOpenDart(ctx, payload);

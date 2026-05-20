@@ -16,19 +16,19 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 170,
-    "total": 281,
-    "completion_rate": 60.5,
-    "updated_at": "2026-05-20T01:33:15.189Z",
+    "completed": 171,
+    "total": 285,
+    "completion_rate": 60,
+    "updated_at": "2026-05-20T01:54:38.685Z",
     "conflict_resolution": "Cleaned active checklist to latest requirements: Weekly tab/upload retired, AI moved to right chatbot dock, Data Playground renamed Pivot Table, PDF details moved out of final acceptance stage, legacy completed status normalized to done.",
-    "latest_priority_update": "Post-deploy changes now use preview branch codex/logistics-gate6-post-deploy-updates; gh-pages remains current user-facing release."
+    "latest_priority_update": "Post-deploy branch implemented TASK seed deletion semantics and weekly-assets latest read path; Edge deploy is pending."
   },
   "stages": [
     {
       "stage": 2,
       "area": "공통 데이터 기준",
       "completed": 8,
-      "total": 17,
+      "total": 18,
       "items": [
         {
           "id": "2.01",
@@ -117,6 +117,11 @@
           "evidence": "scripts/logistics/generate-permission-data.cjs output users=34; logisticsPermissionData.json contains 김행단 with 10 managed assets.",
           "added_at": "2026-05-19T07:37:33.239Z",
           "updated_at": "2026-05-19T07:37:33.239Z"
+        },
+        {
+          "id": "2.18",
+          "status": "partial",
+          "text": "Work Platform Management Project Status now has a code path to read latest ll_weekly_assets through ll-dashboard-api weekly-assets/latest before static seed fallback. Edge deploy and live readback are still pending."
         }
       ]
     },
@@ -124,7 +129,7 @@
       "stage": 3,
       "area": "업무 로그 메인 페이지",
       "completed": 31,
-      "total": 40,
+      "total": 41,
       "items": [
         {
           "id": "3.01",
@@ -350,6 +355,11 @@
           "status": "done",
           "text": "Task and board creation persist through Edge Function into ll_work_platform_tasks and ll_work_platform_board_posts, then list API exposes rows only inside readable asset scope.",
           "evidence": "ll-dashboard-api work-platform/tasks and board-posts actions, migrations 20260519004937/20260519020750, work-platform-task-board-crud-smoke-20260519.md"
+        },
+        {
+          "id": "3.49",
+          "status": "partial",
+          "text": "Main TASK manager now keeps weekly seed tasks visible but deletable: seed delete writes an archived/deleted record to Supabase and active UI filters it out on refresh. Real DB tasks are also deleted only after server success. Edge deploy/live smoke remain pending."
         }
       ]
     },
@@ -1172,7 +1182,7 @@
       "stage": 12,
       "area": "승인대기 대상",
       "completed": 13,
-      "total": 22,
+      "total": 23,
       "items": [
         {
           "id": "12.01",
@@ -1287,6 +1297,11 @@
           "id": "12.24",
           "status": "done",
           "text": "Post-deploy additional changes are isolated on preview branch codex/logistics-gate6-post-deploy-updates in KYLee94/logistics-gate6-preview. Existing gh-pages deployment remains untouched until an explicit deploy step."
+        },
+        {
+          "id": "12.25",
+          "status": "approval_pending",
+          "text": "Deploy ll-dashboard-api changes for weekly-assets/latest and work-platform/tasks/archive-seed to qveg, then smoke seed delete and real task delete readback before any gh-pages release."
         }
       ]
     },
@@ -1358,8 +1373,8 @@
     {
       "stage": 14,
       "area": "QA 계획",
-      "completed": 14,
-      "total": 35,
+      "completed": 15,
+      "total": 36,
       "items": [
         {
           "id": "14.01",
@@ -1544,6 +1559,11 @@
           "status": "done",
           "text": "Home portfolio map enlarge button removal was included in the targeted ESLint and preview build verification.",
           "evidence": "npx eslint targeted => 0 errors; npm run build:preview => success assets/index-C0SRR4i5.js."
+        },
+        {
+          "id": "14.37",
+          "status": "done",
+          "text": "Post-deploy TASK seed-delete and weekly-assets/latest code passed targeted ESLint, preview build, and Edge esbuild parse with npm imports externalized."
         }
       ]
     },
@@ -1640,16 +1660,20 @@
   ],
   "last_user_request_added": {
     "date": "2026-05-20",
-    "summary": "Create a separate post-deploy branch for future changes and prioritize remaining checklist work.",
+    "summary": "Make weekly seed TASK rows and real DB TASK rows deletable while keeping archive page read/search only.",
     "added_item_ids": [
-      "12.24"
+      "2.18",
+      "3.49",
+      "12.25",
+      "14.37"
     ],
     "latest_evidence": [
-      "git switch -c codex/logistics-gate6-post-deploy-updates",
-      "git push -u preview codex/logistics-gate6-post-deploy-updates"
+      "npx eslint WorkspaceLogistics.jsx pass",
+      "npm run build:preview pass",
+      "esbuild ll-dashboard-api parse pass with npm import externalized"
     ]
   },
-  "lastUpdated": "2026-05-20T01:33:15.189Z",
+  "lastUpdated": "2026-05-20T01:54:38.685Z",
   "retired_items": [
     {
       "retired_at": "2026-05-20T01:27:01.270Z",

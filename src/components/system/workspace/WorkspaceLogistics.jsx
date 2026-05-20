@@ -1467,6 +1467,7 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
   const [assetRowsDraft, setAssetRowsDraft] = useState(initialAssetRows);
   const [isEditing, setIsEditing] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
+  const [assetRowsSource, setAssetRowsSource] = useState('seed');
   const originalAssetNamesRef = useRef(initialAssetRows.map((row) => row.assetName).filter(Boolean));
   const assetRows = assetRowsDraft;
   const canEditWeeklyAssets = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete || permission.role === 'Admin');
@@ -1494,6 +1495,24 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
     setAssetRowsDraft(initialAssetRows);
     originalAssetNamesRef.current = initialAssetRows.map((row) => row.assetName).filter(Boolean);
   }, [initialAssetRows]);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.functions.invoke('ll-dashboard-api', {
+      body: { action: 'weekly-assets/latest', payload: {} },
+    }).then(({ data }) => {
+      if (cancelled || data?.ok === false) return;
+      const rows = normalizeWeeklyAssetRows(data?.data?.rows || []);
+      if (!rows.length) return;
+      setAssetRowsDraft(rows);
+      originalAssetNamesRef.current = rows.map((row) => row.assetName).filter(Boolean);
+      setAssetRowsSource('supabase');
+    }).catch(() => {
+      if (!cancelled) setAssetRowsSource('seed');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [permission.email, permission.role]);
   const canEditWeeklyAssetRow = (row) => (
     permission.role === 'Admin'
     || (
@@ -1641,6 +1660,11 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
         </div>
       ) : null}
       <div className="custom-scrollbar max-h-[540px] overflow-auto rounded-[10px] border border-[#333333]">
+        {assetRowsSource === 'seed' ? (
+          <div className="border-b border-[#333333] bg-[#2B2613] px-4 py-2 text-[12px] font-semibold text-[#FFD166]">
+            Supabase 자산현황 readback을 불러오지 못해 임시 seed를 표시 중입니다.
+          </div>
+        ) : null}
         <table className={`${isEditing ? 'min-w-[2340px]' : 'min-w-[2240px]'} table-fixed border-collapse text-left`}>
           <colgroup>
             {visibleColumnWidths.map((width, index) => <col key={`${visibleHeaders[index]}-${width}`} style={{ width }} />)}
@@ -2065,6 +2089,7 @@ function buildMainWeeklyTasks(report, permission) {
     const managedAsset = (permission.managedAssets || []).find((asset) => assetMatchesPermission(assetName || asset.assetName, { managedAssets: [asset] }));
     return {
       id: row.id || `main-task-${index + 1}`,
+      seedId: row.id || `main-task-${index + 1}`,
       taskName: cleanDisplay(row.projectName || row.assetName, `Weekly Task ${index + 1}`),
       nextAction: trimMainText(row.plan || row.issue || row.status || '후속 액션 확인 필요'),
       issue: trimMainText(row.issue || row.status || '주요 이슈 없음', 108),
@@ -2148,8 +2173,10 @@ function normalizeServerWorklogTask(row, permission) {
   const nextAction = row.next_action || payload.nextAction || row.body;
   const companyName = row.company_name || payload.companyName || payload.stakeholder || '';
   const assetName = row.related_asset_name || payload.assetName || payload.relatedAsset || option?.assetName;
+  const seedId = payload.seedId || payload.seed_id || payload.seedTaskId || payload.sourceTaskId || '';
   return {
     id: row.id,
+    seedId,
     taskName: cleanDisplay(taskName, 'Task'),
     nextAction: cleanDisplay(nextAction, ''),
     issue: cleanDisplay(row.issue || payload.issue, ''),
@@ -2166,9 +2193,22 @@ function normalizeServerWorklogTask(row, permission) {
     status: normalizeLogisticsTaskStatus(row.status || payload.status),
     priority: payload.priority || row.priority || '??',
     completed: row.status === 'completed' || Boolean(row.completed_at) || payload.completed,
+    deleted: row.status === 'deleted' || Boolean(row.deleted_at) || payload.deleted,
     createdAt: row.created_at || payload.createdAt || '',
-    source: row.task_name ? 'll_work_platform_tasks' : 'll_worklogs',
+    source: payload.source || (row.task_name ? 'll_work_platform_tasks' : 'll_worklogs'),
   };
+}
+
+function taskSeedId(task) {
+  return String(task?.seedId || (/^main-task-/u.test(String(task?.id || '')) ? task.id : '') || '').trim();
+}
+
+function isSeedTask(task) {
+  return task?.source === 'weekly_report_seed' || Boolean(taskSeedId(task));
+}
+
+function isDeletedTask(task) {
+  return task?.deleted || ['deleted', '삭제'].includes(String(task?.status || '').toLowerCase());
 }
 
 function buildTaskStakeholderOptions(taskRows = [], stakeholderRows = []) {
@@ -2768,18 +2808,26 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       setIsLoadingTasks(true);
       try {
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'work-platform/tasks/list', payload: { workspace: 'logistics' } },
+          body: { action: 'work-platform/tasks/list', payload: { workspace: 'logistics', include_archived: true } },
         });
         if (error) throw error;
+        if (data?.ok === false) throw new Error(data.message || 'TASK 목록을 불러오지 못했습니다.');
         const rows = Array.isArray(data?.data) ? data.data.map((row) => normalizeServerWorklogTask(row, permission)) : [];
         if (!cancelled) {
-          setTaskRecords(rows.length ? rows : weeklyTasks);
+          const archivedSeedIds = new Set(rows.filter((task) => isDeletedTask(task) && taskSeedId(task)).map((task) => taskSeedId(task)));
+          const materializedSeedIds = new Set(rows.filter((task) => !isDeletedTask(task) && taskSeedId(task)).map((task) => taskSeedId(task)));
+          const activeRows = rows.filter((task) => !isDeletedTask(task));
+          const visibleSeedTasks = weeklyTasks.filter((task) => {
+            const seedId = taskSeedId(task);
+            return seedId && !archivedSeedIds.has(seedId) && !materializedSeedIds.has(seedId);
+          });
+          setTaskRecords([...activeRows, ...visibleSeedTasks]);
           setTaskServerStatus(null);
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setTaskRecords(weeklyTasks);
-          setTaskServerStatus(null);
+          setTaskRecords([]);
+          setTaskServerStatus({ type: 'warning', message: `TASK DB 목록을 불러오지 못했습니다. 새로 등록한 TASK만 Supabase에 저장되어 삭제/수정됩니다. (${error.message || 'unknown error'})` });
         }
       } finally {
         if (!cancelled) setIsLoadingTasks(false);
@@ -2856,13 +2904,18 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const submitTaskOperation = async (operation, task, payload = {}) => {
     setTaskServerStatus({ type: 'pending', message: '서버 반영 요청 중입니다.' });
     try {
-      const action = operation === 'create' ? 'work-platform/tasks' : `work-platform/tasks/${operation}`;
+      const action = operation === 'create'
+        ? 'work-platform/tasks'
+        : operation === 'seed-delete'
+          ? 'work-platform/tasks/archive-seed'
+          : `work-platform/tasks/${operation}`;
       const assetName = payload.assetName || task.assetName;
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
         body: {
           action,
           payload: {
             id: task.id,
+            seed_id: payload.seedId || taskSeedId(task) || undefined,
             task_name: payload.taskName || task.taskName,
             company_name: payload.companyName || task.companyName || '',
             next_action: payload.nextAction || task.nextAction,
@@ -2873,14 +2926,17 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             status: payload.status || task.status,
             related_asset_id: resolveAssetIdByName(assetName),
             related_asset_name: assetName,
-            payload: { ...task, ...payload, assetName, relatedAsset: assetName, source: 'main_task_manager' },
+            payload: { ...task, ...payload, seedId: payload.seedId || taskSeedId(task) || undefined, assetName, relatedAsset: assetName, source: payload.source || task.source || 'main_task_manager' },
           },
         },
       });
       if (error) throw error;
+      if (data?.ok === false) throw new Error(data.message || '서버 저장 실패');
       setTaskServerStatus({ type: 'success', message: data?.message || '서버 반영 요청이 접수됐습니다.' });
+      return { ok: true, data: data?.data || null };
     } catch (error) {
-      setTaskServerStatus({ type: 'warning', message: `로컬 UI에는 반영했습니다. 실제 DB 저장은 ll-dashboard-api 배포/권한 적용 후 가능합니다. (${error.message || 'unknown error'})` });
+      setTaskServerStatus({ type: 'warning', message: `서버 저장 실패: Supabase DB에 반영되지 않았습니다. (${error.message || 'unknown error'})` });
+      return { ok: false, error };
     }
   };
   const openTaskEdit = (task) => {
@@ -2920,13 +2976,27 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     const now = new Date().toISOString();
     if (taskEditTarget) {
       if (!canModifyTask(taskEditTarget)) return;
-      const nextTask = { ...taskEditTarget, ...taskDraft, stakeholder: taskDraft.companyName || '내부업무', relatedAsset: taskDraft.assetName, createdAt: taskEditTarget.createdAt || now };
-      setTaskRecords((tasks) => tasks.map((task) => (task.id === taskEditTarget.id ? nextTask : task)));
-      await submitTaskOperation('update', taskEditTarget, taskDraft);
+      const editingSeedTask = isSeedTask(taskEditTarget);
+      const result = await submitTaskOperation(
+        editingSeedTask ? 'create' : 'update',
+        taskEditTarget,
+        editingSeedTask
+          ? { ...taskDraft, seedId: taskSeedId(taskEditTarget), source: 'weekly_report_seed' }
+          : taskDraft,
+      );
+      if (!result.ok) return;
+      const nextTask = result.data
+        ? normalizeServerWorklogTask(result.data, permission)
+        : { ...taskEditTarget, ...taskDraft, stakeholder: taskDraft.companyName || '내부업무', relatedAsset: taskDraft.assetName, createdAt: taskEditTarget.createdAt || now };
+      setTaskRecords((tasks) => (
+        editingSeedTask
+          ? [nextTask, ...tasks.filter((task) => task.id !== taskEditTarget.id)]
+          : tasks.map((task) => (task.id === taskEditTarget.id ? nextTask : task))
+      ));
     } else {
       const localTask = {
         ...taskDraft,
-        id: `local-logistics-task-${Date.now()}`,
+        id: '',
         createdAt: now,
         createdByName: permission.name,
         createdByEmail: permission.email,
@@ -2936,8 +3006,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         completed: false,
         source: 'local_pending',
       };
-      setTaskRecords((tasks) => [localTask, ...tasks]);
-      await submitTaskOperation('create', localTask, taskDraft);
+      const result = await submitTaskOperation('create', localTask, taskDraft);
+      if (!result.ok) return;
+      const savedTask = result.data ? normalizeServerWorklogTask(result.data, permission) : { ...localTask, id: `local-logistics-task-${Date.now()}` };
+      setTaskRecords((tasks) => [savedTask, ...tasks]);
     }
     setTaskEditTarget(null);
     setTaskDraft(null);
@@ -2946,13 +3018,24 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const completeTask = async (task) => {
     if (!canModifyTask(task)) return;
     const nextTask = { ...task, completed: true, status: '완료' };
-    setTaskRecords((tasks) => tasks.map((item) => (item.id === task.id ? nextTask : item)));
-    await submitTaskOperation('complete', task, { status: 'completed', completed: true });
+    const result = await submitTaskOperation(
+      isSeedTask(task) ? 'create' : 'complete',
+      task,
+      { status: 'completed', completed: true, seedId: taskSeedId(task) || undefined, source: isSeedTask(task) ? 'weekly_report_seed' : task.source },
+    );
+    if (!result.ok) return;
+    const savedTask = result.data ? normalizeServerWorklogTask(result.data, permission) : nextTask;
+    setTaskRecords((tasks) => tasks.map((item) => (item.id === task.id ? savedTask : item)));
   };
   const deleteTask = async (task) => {
     if (!canModifyTask(task)) return;
+    const result = await submitTaskOperation(
+      isSeedTask(task) ? 'seed-delete' : 'delete',
+      task,
+      { status: 'deleted', deleted: true, seedId: taskSeedId(task) || undefined, source: isSeedTask(task) ? 'weekly_report_seed' : task.source },
+    );
+    if (!result.ok) return;
     setTaskRecords((tasks) => tasks.filter((item) => item.id !== task.id));
-    await submitTaskOperation('delete', task, { status: 'deleted' });
   };
   const describeAiFunctionError = (error, data = null) => {
     const status = data?.provider_status || data?.status || error?.context?.status || error?.status || null;
