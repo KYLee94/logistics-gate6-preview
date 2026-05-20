@@ -2,14 +2,15 @@
 
 - Updated: 2026-05-20
 - Source of truth: `gate6-progress-tracker-20260515.json`
-- Overall: 179 / 295 (60.7%)
+- Overall: 169 / 280 (60.4%)
+- Cleanup: active checklist now keeps latest requirements only. Retired legacy items remain in `retired_items` inside the JSON for audit history.
 
 | Stage | Area | Done/Total | Rate |
 |---:|---|---:|---:|
 | 2 | 공통 데이터 기준 | 8 / 17 | 47.1% |
-| 3 | 업무 로그 메인 페이지 | 31 / 41 | 75.6% |
+| 3 | 업무 로그 메인 페이지 | 31 / 40 | 77.5% |
 | 4 | Dashboard 공통 | 7 / 15 | 46.7% |
-| 5 | Weekly 탭 | 12 / 16 | 75.0% |
+| 5 | Weekly source data after tab removal | 2 / 4 | 50.0% |
 | 6 | Home 탭 | 32 / 41 | 78.0% |
 | 7 | Asset 탭 | 15 / 24 | 62.5% |
 | 8 | Company 탭 | 10 / 15 | 66.7% |
@@ -19,23 +20,23 @@
 | 12 | 승인대기 대상 | 12 / 21 | 57.1% |
 | 13 | 외부권한대기 대상 | 5 / 11 | 45.5% |
 | 14 | QA 계획 | 14 / 35 | 40.0% |
-| 15 | 최종 완료 기준 | 0 / 17 | 0.0% |
+| 15 | 최종 완료 기준 | 0 / 15 | 0.0% |
 
-## Latest Session Updates
+## Conflict Cleanup Applied
+
+- Exact duplicate checklist IDs: 0.
+- Legacy status alias normalized: `completed` -> `done`.
+- Weekly tab/upload requirements are retired from the active checklist because the latest requirement removes Weekly from navigation and upload from active UI.
+- Main integrated AI search requirement is retired/reworded because the latest requirement keeps keyword search in the main row and moves AI to the right chatbot dock.
+- `Data Playground` wording is replaced by `Pivot Table`.
+- PDF Report implementation details are tracked in Stage 4; Stage 15 keeps only final acceptance criteria.
+
+## Newly Active Latest Items
 
 | Stage | ID | Status | Item |
 |---:|---|---|---|
-| 3 | 3.45 | done | ?? TASK ??? ????? ??? ?? ???? ???? ?? ??? ?? ?? ???? ???. ?? ?? ?? ???/?? ??/?? TASK/Supabase iota_stakeholder_master readback? ?? MECE?? dedupe??. ?? ???? ?? ll_work_platform_tasks ?? ??? company_name?? ????, ?? ? TASK ???? ?? ??? ?????. |
-| 3 | 3.46 | done | ?????? ????? ???/???? ??? ?? ???? iota_stakeholder_master, ?? ??? ?? ??, ?? ?? ?? ? ???, ?? ????? ?? row? ?? MECE?? ????. ???/???? ?? ??? ?? ?? ?? ? ? ??? ?? ????? ??? ????. |
-| 3 | 3.47 | partial | ?? ????? ?? ????? ?? ??? ?? ??? ?? ???????. IOTA? iota_stakeholder_master? ?? ?? ? log_stakeholders? ????, ??? non-ll mutation? ??? ll_work_platform_board_posts.stakeholder_name ? ll_work_platform_tasks.company_name? ??? ?? ?? ?? ?? ?????. ?? ? ?????? ?? ??/??? ?? ? ????? ?? QA? ?? ??. |
-| 3 | 3.48 | done | ?? TASK ??? ????? ?? ??? ?? ll_work_platform_tasks, ll_work_platform_board_posts? Edge Function ??? ????, read permission? ?? ?? ?? ????? list API?? ????? ???? ???? ????. |
-| 6 | 6.42 | done | Home portfolio location component no longer shows the map enlarge button. The asset table button remains and the map itself remains unchanged. |
-| 14 | 14.35 | done | TASK/????? ????? ?? ?? ?? ??? ?? ?? ESLint? preview build? ????. React hook dependency warning 2?? ?? ?? ???? build? ????. |
-| 14 | 14.36 | done | Home portfolio map enlarge button removal was included in the targeted ESLint and preview build verification. |
-
-## Latest Verification
-
-- Reference readback: `git fetch origin main`, then inspected `WorkspacePm.jsx` and `LogWriteBox.jsx` stakeholder search/new-master flow.
-- ESLint target files: `npx eslint src/components/system/workspace/WorkspaceLogistics.jsx src/components/system/LogWriteBox.jsx src/components/system/workspace/WorkspaceActivityLog.jsx` => 0 errors, existing hook warnings only.
-- Preview build: `npm run build:preview` => success, bundle `assets/index-C0SRR4i5.js`.
-- DB persistence evidence: existing `work-platform-task-board-crud-smoke-20260519.md` confirms TASK/board create/update/delete/comment and readback pass via Edge Function.
+| 5 | 5.17 | done | Latest requirement kept: Weekly tab is not an active navigation item. Legacy weekly routes redirect to Dashboard Home. |
+| 5 | 5.18 | done | Latest requirement kept: weekly report upload buttons/popups are removed from active user flow. |
+| 5 | 5.19 | partial | Weekly source asset status is now exposed through Work Platform Management Project Status table, including full-table popup and edit flow. User browser QA remains. |
+| 5 | 5.20 | partial | Weekly source data remains a backend/source dataset for Management Project Status and Asset overview/investment panels. Remaining work is to remove static JSON fallback and rely on Supabase live fetch only. |
+| 15 | 15.15 | pending | PDF Report final acceptance: selected Dashboard components, Asset overview/investment/map, A4 portrait multi-page export, and permission-scoped output pass live/manual QA. |

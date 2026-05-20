@@ -16,12 +16,12 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 179,
-    "total": 295,
-    "completion_rate": 60.7,
-    "updated_at": "2026-05-20T01:12:27.048Z",
-    "conflict_resolution": "Removed superseded personal/team/sector task scope checklist items 3.06 and 3.07; latest request removes those buttons.",
-    "latest_priority_update": "Stakeholder search MECE merge for TASK/board plus Home portfolio map enlarge button removal."
+    "completed": 169,
+    "total": 280,
+    "completion_rate": 60.4,
+    "updated_at": "2026-05-20T01:27:01.270Z",
+    "conflict_resolution": "Cleaned active checklist to latest requirements: Weekly tab/upload retired, AI moved to right chatbot dock, Data Playground renamed Pivot Table, PDF details moved out of final acceptance stage, legacy completed status normalized to done.",
+    "latest_priority_update": "Checklist dedupe/conflict cleanup only; no product code change."
   },
   "stages": [
     {
@@ -33,7 +33,7 @@
         {
           "id": "2.01",
           "status": "done",
-          "text": "Home 상단 월 임관리비 총액과 월 임관리비 비중의 계산 기준을 재대조했다. 아레나스양지물류센터 자산 옵션 요약이 552,212,356원으로 stale 상태였고 Asset payload 기준 2,468,703,091원이 맞아 Home/검색/Analysis/Data Playground가 상세 Asset payload overview를 우선 보도록 보정했다. 현재 로컬 static snapshot 기준 총 월 임관리비는 13,050,719,577원(130.5억)이다."
+          "text": "Home 상단 월 임관리비 총액과 월 임관리비 비중의 계산 기준을 재대조했다. 아레나스양지물류센터 자산 옵션 요약이 552,212,356원으로 stale 상태였고 Asset payload 기준 2,468,703,091원이 맞아 Home/검색/Analysis/Pivot Table가 상세 Asset payload overview를 우선 보도록 보정했다. 현재 로컬 static snapshot 기준 총 월 임관리비는 13,050,719,577원(130.5억)이다."
         },
         {
           "id": "2.02",
@@ -124,7 +124,7 @@
       "stage": 3,
       "area": "업무 로그 메인 페이지",
       "completed": 31,
-      "total": 41,
+      "total": 40,
       "items": [
         {
           "id": "3.01",
@@ -187,11 +187,6 @@
           "text": "메인 워크 플랫폼에서 오늘 봐야 할 업무 신호 컴포넌트를 제거한다."
         },
         {
-          "id": "3.15",
-          "status": "pending",
-          "text": "통합 검색을 자산/임차인 추천 연결뿐 아니라 내부 데이터와 대시보드 내용을 바탕으로 질문에 답하는 검색+질의 탭으로 확장한다. Gemma/Gemini 연결은 Gate 6 핵심 UI/DB/QA 이후 마지막 단계로 처리한다."
-        },
-        {
           "id": "3.16",
           "status": "done",
           "text": "메인 페이지 통합 검색을 사용자 정보와 담당 자산 grid 사이의 한 줄형 검색으로 이동했고, placeholder를 자산·임차인·계약·이슈 검색 및 질문 기능에 맞게 변경했다. Evidence: session-implementation-static-qa-20260515 main_search_is_inline_between_profile_and_asset_grid pass."
@@ -219,7 +214,7 @@
         {
           "id": "3.21",
           "status": "done",
-          "text": "통합 검색의 챗봇형 질문 답변은 ll-dashboard-api ai/search-chat 액션과 메인 검색 UI에 연결했고, no-login 데모 화면에서는 인증 실패 시 ai/search-chat-demo로 재시도하게 보강했다. 서버에서 읽기 권한 범위 evidence만 수집하고 Google AI에는 redacted evidence만 전달한다. Evidence: qveg ai/search-chat-demo live smoke ok=true, mode=demo, model=gemini-2.5-flash; eslint, edge-api-security-static-qa, repo-secret-hygiene, npm run build pass."
+          "text": "AI backend is connected through ll-dashboard-api. Latest UI requirement separates keyword search from AI chat: keyword search remains in the main search row and AI runs in the right collapsible chatbot dock with permission-scoped/redacted evidence."
         },
         {
           "id": "3.22",
@@ -229,12 +224,12 @@
         {
           "id": "3.25",
           "status": "done",
-          "text": "AI ?? ?? ??? Edge Function ?? ??, CORS/origin ??, Google key ???, provider ??, rate limit ??? ??? ????. Evidence: gemini-diagnostics-smoke-20260518, eslint pass, preview JS contains separated failure message."
+          "text": "AI failure messages are separated by Edge reachability, CORS/origin, Google/Groq key, provider status, and rate-limit cases. Evidence: gemini diagnostics smoke and preview bundle readback."
         },
         {
           "id": "3.26",
           "status": "done",
-          "text": "?? ?? ?? ??? Gemini ?? ?? ??? Edge/Gemini/model/provider status ?? ?? UI? ????. Evidence: gemini-diagnostics-smoke-20260518, preview JS contains ai/gemini-diagnostics and ?? ??."
+          "text": "AI diagnostics UI exists in the chatbot flow and reports Edge/Gemini/model/provider status without exposing secrets."
         },
         {
           "id": "3.27",
@@ -249,33 +244,33 @@
         {
           "id": "3.29",
           "status": "done",
-          "text": "???? ?? TASK ??? ?? Task ?? ??? logistics workspace? ?? ?????. ll_work_platform_tasks? ??? archive snapshot?? ??, ??/?? ???? ? ? ??? Edge list include_archived ??? fallback? ????. Evidence: current-request-data-task-static-qa-20260519 pass, ll-dashboard-api version 29 deploy readback."
+          "text": "Past Task management is implemented for the logistics workspace using ll_work_platform_tasks archive/deleted snapshot, include_archived list support, and reference-style archive entry."
         },
         {
           "id": "3.30",
-          "status": "completed",
+          "status": "done",
           "text": "배포 URL은 /platform/iotaseoul/... 노출 없이 /work-platform, /home, /asset, /company, /analysis-tools, /data-playground, /data-quality 형태로 정리한다.",
           "evidence": "clean route aliases and GitHub Pages ?p fallback implemented; build passed; preview gh-pages readback JS=index-NHWyPtQ2.js",
           "updated_at": "2026-05-19T07:04:46.833Z"
         },
         {
           "id": "3.31",
-          "status": "completed",
+          "status": "done",
           "text": "브라우저 탭 title을 IGIS Logistics Work Platform으로 변경한다.",
           "evidence": "index/404 title changed; preview gh-pages readback returned IGIS Logistics Work Platform",
           "updated_at": "2026-05-19T07:04:46.835Z"
         },
         {
           "id": "3.32",
-          "status": "completed",
-          "text": "좌측 사이드바는 Work Platform 단일 탭과 Dashboard 접힘 그룹(Home, Asset, Company, Analysis Tools, Data Playground, Data Quality)으로 정리한다.",
+          "status": "done",
+          "text": "좌측 사이드바는 Work Platform 단일 탭과 Dashboard 접힘 그룹(Home, Asset, Company, Analysis Tools, Pivot Table, Data Quality)으로 정리한다.",
           "evidence": "left sidebar now uses Work Platform root and collapsible Dashboard group; targeted eslint 0 errors and build passed",
           "updated_at": "2026-05-19T07:04:46.835Z"
         },
         {
           "id": "3.33",
           "status": "partial",
-          "text": "Work Platform AI ?? ???? ??/?? ?????? ?? ?? ???? ????? ???.",
+          "text": "Work Platform AI chatbot should stay as a right collapsible vertical dock with chat-style messages, not as a permanent green result card in the main search area.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "AI dock transition classes aligned; browser animation QA remains.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -283,7 +278,7 @@
         {
           "id": "3.34",
           "status": "done",
-          "text": "????? ??? ??????? ????.",
+          "text": "Integrated search remains keyword-search oriented and should not be replaced by AI chat.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "WorkspaceActivityLog logistics title now renders 협업게시판.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -291,7 +286,7 @@
         {
           "id": "3.35",
           "status": "partial",
-          "text": "????? ?????? ?? ??? ??? ??/?? ???? ???, ?? ? ll_* ????? ???? ???.",
+          "text": "Work Platform audit/event logging for search, task, board, uploads, edits, clicks, and tab transitions remains partially implemented and needs ll_* coverage completion.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "LogWriteBox now separates company stakeholder search from people mention/visibility; ll_* stakeholder company table remains.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -299,7 +294,7 @@
         {
           "id": "3.36",
           "status": "done",
-          "text": "????? @ ??? ??? ?? ?? Excel ?? ?? ???? ??/???? ??.",
+          "text": "Mention suggestions with @ should use the full logistics permission-user list from the permission Excel source.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "@ mention and visibility person search use logisticsPermissionData users regenerated from permission Excel; 김행단 included.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -335,25 +330,25 @@
         {
           "id": "3.45",
           "status": "done",
-          "text": "?? TASK ??? ????? ??? ?? ???? ???? ?? ??? ?? ?? ???? ???. ?? ?? ?? ???/?? ??/?? TASK/Supabase iota_stakeholder_master readback? ?? MECE?? dedupe??. ?? ???? ?? ll_work_platform_tasks ?? ??? company_name?? ????, ?? ? TASK ???? ?? ??? ?????.",
+          "text": "Task stakeholder search now follows the reference keyword suggestion pattern. Candidate pool is merged/deduped from logistics tenants, weekly source names, existing tasks, and iota_stakeholder_master readback. New typed company names are stored in ll_work_platform_tasks.company_name and reappear as candidates later.",
           "evidence": "WorkspaceLogistics.jsx, eslint targeted pass, npm run build:preview pass"
         },
         {
           "id": "3.46",
           "status": "done",
-          "text": "?????? ????? ???/???? ??? ?? ???? iota_stakeholder_master, ?? ??? ?? ??, ?? ?? ?? ? ???, ?? ????? ?? row? ?? MECE?? ????. ???/???? ?? ??? ?? ?? ?? ? ? ??? ?? ????? ??? ????.",
+          "text": "Board stakeholder company/person candidates are merged and deduped from iota_stakeholder_master, logistics tenant companies, permission Excel people, and existing logistics board rows. Empty stakeholder selection no longer blocks save.",
           "evidence": "LogWriteBox.jsx, WorkspaceActivityLog.jsx, eslint targeted pass, npm run build:preview pass"
         },
         {
           "id": "3.47",
           "status": "partial",
-          "text": "?? ????? ?? ????? ?? ??? ?? ??? ?? ???????. IOTA? iota_stakeholder_master? ?? ?? ? log_stakeholders? ????, ??? non-ll mutation? ??? ll_work_platform_board_posts.stakeholder_name ? ll_work_platform_tasks.company_name? ??? ?? ?? ?? ?? ?????. ?? ? ?????? ?? ??/??? ?? ? ????? ?? QA? ?? ??.",
+          "text": "Reference new-stakeholder flow was analyzed. IOTA writes a master stakeholder then links log rows. Logistics avoids non-ll mutation and recollects new stakeholder values from ll_work_platform_board_posts.stakeholder_name and ll_work_platform_tasks.company_name. Browser QA for reappearing new values remains.",
           "evidence": "reference FETCH_HEAD WorkspacePm/LogWriteBox analysis, code path static QA"
         },
         {
           "id": "3.48",
           "status": "done",
-          "text": "?? TASK ??? ????? ?? ??? ?? ll_work_platform_tasks, ll_work_platform_board_posts? Edge Function ??? ????, read permission? ?? ?? ?? ????? list API?? ????? ???? ???? ????.",
+          "text": "Task and board creation persist through Edge Function into ll_work_platform_tasks and ll_work_platform_board_posts, then list API exposes rows only inside readable asset scope.",
           "evidence": "ll-dashboard-api work-platform/tasks and board-posts actions, migrations 20260519004937/20260519020750, work-platform-task-board-crud-smoke-20260519.md"
         }
       ]
@@ -421,7 +416,7 @@
         },
         {
           "id": "4.12",
-          "status": "completed",
+          "status": "done",
           "text": "각 탭 본문 최상단 제목은 좌측 사이드바 탭 제목과 동일하게 맞추고 INTERNAL MODULE 같은 서브 제목은 제거한다.",
           "evidence": "dashboard shell titles now match selected sidebar labels and internal-module eyebrow removed; targeted eslint 0 errors and build passed",
           "updated_at": "2026-05-19T07:04:46.835Z"
@@ -429,7 +424,7 @@
         {
           "id": "4.13",
           "status": "partial",
-          "text": "Dashboard ? ?? ???? ??? ??? PDF ??? ?? ?? ????.",
+          "text": "PDF Report tab should let users select Dashboard components, preview them, reorder by buttons or drag-and-drop, and export as white-background A4 portrait PDF.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Standalone PDF Report sidebar route and page implemented; print/browser QA remains.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -437,7 +432,7 @@
         {
           "id": "4.14",
           "status": "partial",
-          "text": "PDF ??? ?? ??? Dashboard ???? ??, ????, ?? ??, ? ??/?? ?? PDF ??? ????.",
+          "text": "PDF Report output must remain limited to assets/components inside the current user read-permission scope, including Asset overview/investment/map components.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "PDF Report supports asset selection, component selection, reorder and print/PDF styling; visual QA remains.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -451,89 +446,29 @@
     },
     {
       "stage": 5,
-      "area": "Weekly 탭",
-      "completed": 12,
-      "total": 16,
+      "area": "Weekly source data after tab removal",
+      "completed": 2,
+      "total": 4,
       "items": [
         {
-          "id": "5.01",
+          "id": "5.17",
           "status": "done",
-          "text": "업무 로그와 Weekly 탭 양쪽에 주간업무보고자료 업로드 버튼을 둔다."
+          "text": "Latest requirement kept: Weekly tab is not an active navigation item. Legacy weekly routes redirect to Dashboard Home."
         },
         {
-          "id": "5.02",
+          "id": "5.18",
           "status": "done",
-          "text": "업로드 시 연도, 월, 주차를 자유롭게 선택할 수 있게 한다."
+          "text": "Latest requirement kept: weekly report upload buttons/popups are removed from active user flow."
         },
         {
-          "id": "5.03",
-          "status": "done",
-          "text": "주차는 월요일~일요일 기준으로 계산한다."
-        },
-        {
-          "id": "5.04",
-          "status": "pending",
-          "text": "Word 파일의 주차와 시스템 주차가 일치하는지 검증한다."
-        },
-        {
-          "id": "5.05",
-          "status": "done",
-          "text": "업로드 자료는 업로더의 서버-side 조직 권한 기준으로만 분리 저장되도록 Edge Function에서 클라이언트 조직 fallback을 차단했다."
-        },
-        {
-          "id": "5.06",
-          "status": "pending",
-          "text": "타 조직 주간업무자료는 볼 수 없게 한다."
-        },
-        {
-          "id": "5.07",
-          "status": "done",
-          "text": "사업그룹 4파트 같은 고정 문구는 사용자 소속 조직명으로 바꾼다."
-        },
-        {
-          "id": "5.08",
-          "status": "done",
-          "text": "신규 투자 Projects, 관리 Projects, 자산현황은 핵심 변경 정보만 남기고 상세는 버튼/drawer로 분리한다."
-        },
-        {
-          "id": "5.09",
-          "status": "done",
-          "text": "슬래시 표기는 bullet point 중심으로 줄바꿈 표시한다."
-        },
-        {
-          "id": "5.10",
-          "status": "done",
-          "text": "기준 및 기타사항은 제거한다."
-        },
-        {
-          "id": "5.11",
+          "id": "5.19",
           "status": "partial",
-          "text": "Word 원본 파일 자체 저장 여부와 파싱 결과/요약/수정 결과/dashboard record 분리 정책을 확정한다."
+          "text": "Weekly source asset status is now exposed through Work Platform Management Project Status table, including full-table popup and edit flow. User browser QA remains."
         },
         {
-          "id": "5.12",
+          "id": "5.20",
           "status": "partial",
-          "text": "런칭 후 AI가 Word 내용을 파싱해 핵심 이슈, 현재 현황, 다음 계획, 담당자, 관련 자산/펀드, 이해관계자로 구조화하는 서버 흐름을 설계한다."
-        },
-        {
-          "id": "5.13",
-          "status": "done",
-          "text": "Weekly upload popup is reduced to title, period, file picker, and submit button only."
-        },
-        {
-          "id": "5.14",
-          "status": "done",
-          "text": "Weekly top controls use six equal horizontal blocks for year, month, week, report date, asset count, and gross area."
-        },
-        {
-          "id": "5.15",
-          "status": "done",
-          "text": "주간업무보고자료 업로드 팝업의 제출 버튼 문구를 데이터 반영으로 바꾸고, 버튼 안 글자가 잘리지 않게 min-width/nowrap을 적용했다. Evidence: session-implementation-static-qa-20260515 weekly_upload_popup_is_minimal_and_not_noisy pass."
-        },
-        {
-          "id": "5.16",
-          "status": "done",
-          "text": "주간업무보고자료 업로드와 Weekly 탭의 주차 알고리즘은 목요일이 속한 월을 기준으로 월요일~일요일 주간 구간을 귀속시켜, 2026년 4월 5주차(2026-04-27~2026-05-03)와 2026년 5월 1주차(2026-05-04~2026-05-10)가 겹치지 않게 했다. Evidence: weekly-week-mece-static-qa-20260515 allPass=true."
+          "text": "Weekly source data remains a backend/source dataset for Management Project Status and Asset overview/investment panels. Remaining work is to remove static JSON fallback and rely on Supabase live fetch only."
         }
       ]
     },
@@ -715,7 +650,7 @@
         },
         {
           "id": "6.35",
-          "status": "completed",
+          "status": "done",
           "text": "Home 계약 이력 기준 임대료 추이에 연면적과 자산 수를 동시에 표시하고 하단 안내문을 삭제한다.",
           "evidence": "Home rent trend keeps gross floor area and asset count together; mouse hint text removed; build passed",
           "updated_at": "2026-05-19T07:04:46.835Z"
@@ -728,7 +663,7 @@
         {
           "id": "6.37",
           "status": "done",
-          "text": "Home ??? ???? ?? ??? ???? ??? ?? ???.",
+          "text": "Home swaps maturity concentration and regional exposure positions so the intended component order is reflected.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Home region exposure and maturity concentration sections swapped in code.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -736,7 +671,7 @@
         {
           "id": "6.38",
           "status": "partial",
-          "text": "Home ?? ??? ?? plot ??, ? ??, tick, ??? ?? ?? ???? ????.",
+          "text": "Home maturity concentration still needs final plot-area, height, tick, and label readability verification after recent height reduction.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Home maturity chart height increased and layout moved full-width; browser axis readability QA remains.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -744,7 +679,7 @@
         {
           "id": "6.39",
           "status": "done",
-          "text": "Home ?? ?? ?? ?? ?? hover ??? ???/??? ?? ??? ????, ?? ?? ? ?? Asset ??? ????.",
+          "text": "Home/Company map hover cards show readable asset name/address and navigate to the selected Asset tab when clicked; browser hover-out QA remains in Stage 14.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Home map marker hover card uses white panel/black text and navigates to Asset tab on click.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -836,7 +771,7 @@
         {
           "id": "7.14",
           "status": "partial",
-          "text": "Asset ? KPI ?? ?? RA??_????4??_??????(?)_260427_?? ?? Projects? ????/???? 2? ?? ?? ????. Supabase ll_weekly_*?? ???? 20?? ?? Projects 5?? ???? readback???, UI? ?? ?? JSON fallback ???? Supabase live fetch ??? ?? ??."
+          "text": "Asset overview/investment panels use RA weekly management project source data. Supabase ll_weekly_* seed/readback exists, but some UI paths still have static JSON fallback to replace with live fetch."
         },
         {
           "id": "7.15",
@@ -845,7 +780,7 @@
         },
         {
           "id": "7.16",
-          "status": "completed",
+          "status": "done",
           "text": "Asset 자산개요/투자개요를 모든 자산 동일 형식, 기본 접힘, 테이블 구분/항목/내용 구조로 정리한다.",
           "evidence": "Asset overview/investment overview panel unified as default-collapsed 3-column tables; build passed",
           "updated_at": "2026-05-19T07:04:46.835Z"
@@ -858,7 +793,7 @@
         {
           "id": "7.18",
           "status": "done",
-          "text": "Asset ????/????? ???? ??? ?? ?? ?? ?? ???? ??? ???.",
+          "text": "Asset overview/investment header helper text beside edit button was removed.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Asset overview/investment tables keep fixed rows even when values are blank.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -866,7 +801,7 @@
         {
           "id": "7.19",
           "status": "done",
-          "text": "Asset ???? ???? ??/??/??/?? ?? ?? ?? ???? ?? ?? ?? ???.",
+          "text": "Asset overview/investment edit UI supports add/update/delete for rows within permitted assets through Edge/Supabase flow.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Asset investment table groups repeated categories with merged first cell and wider content column.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -874,7 +809,7 @@
         {
           "id": "7.20",
           "status": "partial",
-          "text": "Asset ????????, ??????????, ?? ??? ???? ?? ??? ?? ??? ??? ?? ??? ???? ????.",
+          "text": "Asset floor layout and expiry snapshot require targeted verification for Busan Songjeong, Arena Yangji, and Hwaseong Seokpori.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Asset tab now falls back from normalizedRows to raw rows and derives expiry rows from row end dates, so 부산송정/화성석포리/아레나스양지 stacking and expiry data have code-level recovery; browser QA remains.",
           "updated_at": "2026-05-19T07:44:10.844Z"
@@ -882,7 +817,7 @@
         {
           "id": "7.21",
           "status": "pending",
-          "text": "Asset ????? API? Edge Function secret ???? live ??/??/readback?? ????.",
+          "text": "Building registry API must be verified through Edge Function secrets with live request/readback/redaction evidence.",
           "added_at": "2026-05-19T07:15:39.429Z"
         },
         {
@@ -1044,12 +979,12 @@
         {
           "id": "9.11",
           "status": "done",
-          "text": "Data Playground 탭은 피벗 결과 테이블을 선택 컨트롤 바로 아래로 올리고 바 차트는 그 아래로 내리며, 값 필드에 평당 월임대료와 평당 월관리비를 추가했다. Evidence: current-request-ui-static-qa-20260515 allPass=true."
+          "text": "Pivot Table tab places the pivot result table directly below selectors and moves the bar chart below it; value fields include monthly rent per pyeong and monthly maintenance per pyeong."
         },
         {
           "id": "9.12",
           "status": "done",
-          "text": "Data Playground ??? Pivot Table? ????.",
+          "text": "Data Playground tab is renamed to Pivot Table.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Navigation and dashboard label use Pivot Table while route remains backward compatible.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -1057,7 +992,7 @@
         {
           "id": "9.13",
           "status": "done",
-          "text": "Pivot Table?? ?? ? ?? ???? ????.",
+          "text": "Pivot Table removes the duplicate multi-value summary table.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Pivot Table multi-value summary section removed; pivot table stays above chart.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -1213,7 +1148,7 @@
         {
           "id": "11.07",
           "status": "done",
-          "text": "Analysis Tools ???? ????? ??/?? ???? ???? ? ??? horizontal ??/???? ????.",
+          "text": "Analysis Tools benchmark matrix is split into asset and company views with horizontal collapsible behavior.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Analysis Tools benchmark matrix split into asset/company collapsible horizontal panels.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -1221,7 +1156,7 @@
         {
           "id": "11.08",
           "status": "done",
-          "text": "Analysis Tools ?? ?? ??? ?? ?? ?? ????? ????.",
+          "text": "Analysis Tools removes the selected contract ledger and review-needed components from the active UI.",
           "added_at": "2026-05-19T07:15:39.429Z",
           "evidence": "Analysis Tools selected contract ledger and review-needed sections removed.",
           "updated_at": "2026-05-19T07:37:33.239Z"
@@ -1292,7 +1227,7 @@
         {
           "id": "12.11",
           "status": "done",
-          "text": "Gemini 검색+질의 기능은 ll-dashboard-api ai/search-chat, 권한 필터 evidence 수집, Google AI generateContent 호출, audit logging, 메인 검색 UI 버튼까지 반영했고 qveg live smoke에서 gemini-2.5-flash 응답을 확인했다."
+          "text": "AI search/chat backend is implemented through ll-dashboard-api with permission-filtered evidence, Google/Groq provider support, audit logging, and live smoke evidence. Latest UI uses the right chatbot dock."
         },
         {
           "id": "12.12",
@@ -1302,7 +1237,7 @@
         {
           "id": "12.15",
           "status": "done",
-          "text": "ll-dashboard-api Gemini ???? URL query key ???? x-goog-api-key header ???? ???? ai/gemini-diagnostics action? qveg Edge Function? ????. Evidence: qveg deploy success, gemini-diagnostics-smoke-20260518 provider_status=200."
+          "text": "ll-dashboard-api Gemini call was changed from URL query key to x-goog-api-key header and ai/gemini-diagnostics was deployed to qveg Edge Function. Evidence: provider_status=200 smoke."
         },
         {
           "id": "12.16",
@@ -1317,7 +1252,7 @@
         {
           "id": "12.18",
           "status": "done",
-          "text": "ll-dashboard-api work-platform/tasks/list? include_archived/include_deleted ??? ???? qvegpozwrcmspdvjokiz Edge Function? ????. Evidence: functions list readback ll-dashboard-api ACTIVE version 29 updated_at 2026-05-19 05:48:00 UTC."
+          "text": "ll-dashboard-api work-platform/tasks/list supports include_archived/include_deleted and is deployed on qveg Edge Function."
         },
         {
           "id": "12.19",
@@ -1334,7 +1269,7 @@
         {
           "id": "12.21",
           "status": "pending",
-          "text": "OpenDART API? Edge Function secret ???? live ??/??/readback?? ????.",
+          "text": "OpenDART API still needs live provider request/readback verification from Edge Function secrets.",
           "added_at": "2026-05-19T07:15:39.429Z"
         },
         {
@@ -1411,7 +1346,7 @@
         {
           "id": "13.12",
           "status": "done",
-          "text": "qveg Edge Function secret? GOOGLE_AI_KEY ?? ??? secret ?? ???? ?? diagnostics readback?? ????. LL_AI_DEMO_ALLOWED_ORIGINS? secret?? ?? ???? ??? ?? ???? ?? live preview origin? ????. Evidence: key_configured=true, key_length=39, key_hash prefix only, demo_origin_allowed=true."
+          "text": "qveg Edge Function secret diagnostics confirms GOOGLE_AI_KEY configured without exposing the key. Live preview origin is allowed for demo diagnostics."
         }
       ]
     },
@@ -1449,7 +1384,7 @@
         {
           "id": "14.06",
           "status": "partial",
-          "text": "Data Playground QA: 피벗 행/열/값/필터 조합별 결과와 원본 drilldown 일치 확인."
+          "text": "Pivot Table QA: verify pivot row/column/value/filter combinations and drilldown source rows."
         },
         {
           "id": "14.07",
@@ -1459,7 +1394,7 @@
         {
           "id": "14.08",
           "status": "pending",
-          "text": "권한 QA: 읽기 권한 제한 사용자에서 Home/Asset/Company/Search/Data Playground 값 제한 확인."
+          "text": "권한 QA: 읽기 권한 제한 사용자에서 Home/Asset/Company/Search/Pivot Table 값 제한 확인."
         },
         {
           "id": "14.09",
@@ -1509,12 +1444,12 @@
         {
           "id": "14.18",
           "status": "done",
-          "text": "GitHub Pages preview bundle readback? ??? latest HTML? assets/index-C0-xFOHk.js? ???? JS? ai/gemini-diagnostics, ?? ??, ??? ?? ???? ???? ????. Evidence: gemini-diagnostics-smoke-20260518."
+          "text": "GitHub Pages preview bundle readback confirmed latest JS asset contains AI diagnostics and separated failure messages."
         },
         {
           "id": "14.19",
           "status": "done",
-          "text": "Gemini diagnostics direct/live-origin/frontend bundle 3?? smoke? ????. qveg direct live-origin diagnostics? ok=true, gemini_ok=true, model=gemini-2.5-flash, provider_status=200?? demo search? ok=true? ????. Evidence: gemini-diagnostics-smoke-20260518."
+          "text": "Gemini diagnostics direct/live-origin/frontend smoke passed earlier; later quota/model/provider fallback behavior still needs follow-up QA."
         },
         {
           "id": "14.20",
@@ -1544,7 +1479,7 @@
         {
           "id": "14.25",
           "status": "pending",
-          "text": "???? ?? QA: Home/Company ?? hover ??, Asset ??, PDF ??? ?, Pivot Table?, Analysis ???? ??? ???? ????.",
+          "text": "Current priority browser QA list: Home/Company map hover navigation, Asset floor/expiry views, PDF print output, Pivot Table, and Analysis benchmark behavior.",
           "added_at": "2026-05-19T07:15:39.429Z"
         },
         {
@@ -1596,7 +1531,7 @@
         {
           "id": "14.35",
           "status": "done",
-          "text": "TASK/????? ????? ?? ?? ?? ??? ?? ?? ESLint? preview build? ????. React hook dependency warning 2?? ?? ?? ???? build? ????.",
+          "text": "Task/board stakeholder search updates passed targeted ESLint and preview build. Existing React hook dependency warnings remain non-blocking.",
           "evidence": "npx eslint WorkspaceLogistics/LogWriteBox/WorkspaceActivityLog => 0 errors; npm run build:preview => success assets/index-CTr8nWbj.js"
         },
         {
@@ -1611,7 +1546,7 @@
       "stage": 15,
       "area": "최종 완료 기준",
       "completed": 0,
-      "total": 17,
+      "total": 15,
       "items": [
         {
           "id": "15.01",
@@ -1636,7 +1571,7 @@
         {
           "id": "15.05",
           "status": "pending",
-          "text": "업무 로그 첫 화면, Weekly, Home, Asset, Company, Analysis Tools, Data Playground, Data Quality 요구사항 반영."
+          "text": "Work Platform, Home, Asset, Company, Analysis Tools, Pivot Table, Data Quality, and PDF Report requirements reflected. Weekly tab is intentionally removed by latest request."
         },
         {
           "id": "15.06",
@@ -1684,22 +1619,9 @@
           "text": "승인 후 의미 있는 단위의 commit/push 완료."
         },
         {
-          "id": "15.24",
-          "status": "partial",
-          "text": "PDF Report에 Dashboard 주요 컴포넌트 선택지를 확장하고 선택 항목의 drag-and-drop 순서 변경, print 전용 CSS, 좌측 nav print 숨김, PDF 본문 1컬럼 인쇄 레이아웃을 추가했다. Evidence: WorkspaceLogistics.jsx componentOptions/reorderComponent/print CSS, IotaLeftNav.jsx print:hidden, npm run build pass. 실제 PDF 저장 미리보기 QA는 사용자 확인 필요."
-        },
-        {
-          "id": "15.25",
-          "status": "partial",
-          "text": "PDF Report 컴포넌트 선택/순서 목록을 선택 항목 우선 정렬로 바꾸고, 선택 순서 번호·위/아래 이동·drag-and-drop이 실제 PDF 미리보기와 저장 순서에 동일하게 반영되도록 수정했다. PDF 저장은 앱 전체 window.print 대신 미리보기 영역만 새 인쇄창으로 복제해 A4 세로 문서로 출력하도록 변경했다. 읽기 권한 자산 필터는 filterAssetsByPermission 기준으로 유지하고, Analysis/Pivot/Data Quality 컴포넌트는 권한자에게만 노출된다."
-        },
-        {
-          "id": "15.26",
-          "status": "partial",
-          "text": "PDF Report가 선택 컴포넌트를 A4 세로로 끝까지 출력하도록 인쇄 CSS를 보정하고, Asset 탭 기준 자산개요·투자개요 전체 행 및 PDF 저장용 자산 위치 지도를 포함하도록 구현했다. 브라우저 PDF 저장 결과의 페이지 분할 최종 확인은 남아 있다.",
-          "evidence": "WorkspaceLogistics.jsx PrintableAssetMap, activeComponentIds print scope, break-inside auto print CSS, buildAssetOverviewRows/buildAssetInvestmentRows reuse.",
-          "updated_at": "2026-05-19T08:53:56.027Z",
-          "added_at": "2026-05-19T08:53:56.027Z"
+          "id": "15.15",
+          "status": "pending",
+          "text": "PDF Report final acceptance: selected Dashboard components, Asset overview/investment/map, A4 portrait multi-page export, and permission-scoped output pass live/manual QA."
         }
       ]
     }
@@ -1712,18 +1634,183 @@
     "승인대기 / 외부권한대기 분리 목록"
   ],
   "last_user_request_added": {
-    "date": "2026-05-19",
-    "summary": "브라우저 변경 시 최초 접속 코드가 반복되는 문제를 Supabase Auth/권한 DB readback 기준으로 해결",
+    "date": "2026-05-20",
+    "summary": "Deduplicate and resolve contradictory checklist items, keeping latest user requirements active.",
     "added_item_ids": [
-      "3.44",
-      "12.23",
-      "14.34"
+      "5.17",
+      "5.18",
+      "5.19",
+      "5.20",
+      "15.15"
     ],
+    "retired_item_count": 20,
     "latest_evidence": [
-      "qveg ll-dashboard-api auth/logistics-status smoke registered=true",
-      "npm run build:preview pass",
-      "npx eslint AuthSetup/vite config pass"
+      "duplicate id scan: 0 exact duplicates",
+      "invalid status normalized: completed -> done",
+      "Weekly legacy items retired from active denominator"
     ]
   },
-  "lastUpdated": "2026-05-19T09:21:11.924Z"
+  "lastUpdated": "2026-05-20T01:27:01.270Z",
+  "retired_items": [
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.01",
+      "status": "done",
+      "text": "업무 로그와 Weekly 탭 양쪽에 주간업무보고자료 업로드 버튼을 둔다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.02",
+      "status": "done",
+      "text": "업로드 시 연도, 월, 주차를 자유롭게 선택할 수 있게 한다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.03",
+      "status": "done",
+      "text": "주차는 월요일~일요일 기준으로 계산한다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.04",
+      "status": "pending",
+      "text": "Word 파일의 주차와 시스템 주차가 일치하는지 검증한다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.05",
+      "status": "done",
+      "text": "업로드 자료는 업로더의 서버-side 조직 권한 기준으로만 분리 저장되도록 Edge Function에서 클라이언트 조직 fallback을 차단했다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.06",
+      "status": "pending",
+      "text": "타 조직 주간업무자료는 볼 수 없게 한다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.07",
+      "status": "done",
+      "text": "사업그룹 4파트 같은 고정 문구는 사용자 소속 조직명으로 바꾼다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.08",
+      "status": "done",
+      "text": "신규 투자 Projects, 관리 Projects, 자산현황은 핵심 변경 정보만 남기고 상세는 버튼/drawer로 분리한다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.09",
+      "status": "done",
+      "text": "슬래시 표기는 bullet point 중심으로 줄바꿈 표시한다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.10",
+      "status": "done",
+      "text": "기준 및 기타사항은 제거한다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.11",
+      "status": "partial",
+      "text": "Word 원본 파일 자체 저장 여부와 파싱 결과/요약/수정 결과/dashboard record 분리 정책을 확정한다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.12",
+      "status": "partial",
+      "text": "런칭 후 AI가 Word 내용을 파싱해 핵심 이슈, 현재 현황, 다음 계획, 담당자, 관련 자산/펀드, 이해관계자로 구조화하는 서버 흐름을 설계한다.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.13",
+      "status": "done",
+      "text": "Weekly upload popup is reduced to title, period, file picker, and submit button only.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.14",
+      "status": "done",
+      "text": "Weekly top controls use six equal horizontal blocks for year, month, week, report date, asset count, and gross area.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.15",
+      "status": "done",
+      "text": "주간업무보고자료 업로드 팝업의 제출 버튼 문구를 데이터 반영으로 바꾸고, 버튼 안 글자가 잘리지 않게 min-width/nowrap을 적용했다. Evidence: session-implementation-static-qa-20260515 weekly_upload_popup_is_minimal_and_not_noisy pass.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 5,
+      "id": "5.16",
+      "status": "done",
+      "text": "주간업무보고자료 업로드와 Weekly 탭의 주차 알고리즘은 목요일이 속한 월을 기준으로 월요일~일요일 주간 구간을 귀속시켜, 2026년 4월 5주차(2026-04-27~2026-05-03)와 2026년 5월 1주차(2026-05-04~2026-05-10)가 겹치지 않게 했다. Evidence: weekly-week-mece-static-qa-20260515 allPass=true.",
+      "reason": "Superseded by latest request: remove Weekly tab and weekly upload UI; move weekly asset status into Work Platform management project table."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 3,
+      "id": "3.15",
+      "status": "pending",
+      "text": "통합 검색을 자산/임차인 추천 연결뿐 아니라 내부 데이터와 대시보드 내용을 바탕으로 질문에 답하는 검색+질의 탭으로 확장한다. Gemma/Gemini 연결은 Gate 6 핵심 UI/DB/QA 이후 마지막 단계로 처리한다.",
+      "reason": "Superseded by latest request: AI should not be merged into main keyword search; it belongs in the right collapsible chatbot dock."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 15,
+      "id": "15.24",
+      "status": "partial",
+      "text": "PDF Report에 Dashboard 주요 컴포넌트 선택지를 확장하고 선택 항목의 drag-and-drop 순서 변경, print 전용 CSS, 좌측 nav print 숨김, PDF 본문 1컬럼 인쇄 레이아웃을 추가했다. Evidence: WorkspaceLogistics.jsx componentOptions/reorderComponent/print CSS, IotaLeftNav.jsx print:hidden, npm run build pass. 실제 PDF 저장 미리보기 QA는 사용자 확인 필요.",
+      "reason": "Moved to Stage 4 Dashboard common/PDF tracking; Stage 15 should contain only final acceptance criteria."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 15,
+      "id": "15.25",
+      "status": "partial",
+      "text": "PDF Report 컴포넌트 선택/순서 목록을 선택 항목 우선 정렬로 바꾸고, 선택 순서 번호·위/아래 이동·drag-and-drop이 실제 PDF 미리보기와 저장 순서에 동일하게 반영되도록 수정했다. PDF 저장은 앱 전체 window.print 대신 미리보기 영역만 새 인쇄창으로 복제해 A4 세로 문서로 출력하도록 변경했다. 읽기 권한 자산 필터는 filterAssetsByPermission 기준으로 유지하고, Analysis/Pivot/Data Quality 컴포넌트는 권한자에게만 노출된다.",
+      "reason": "Moved to Stage 4 Dashboard common/PDF tracking; Stage 15 should contain only final acceptance criteria."
+    },
+    {
+      "retired_at": "2026-05-20T01:27:01.270Z",
+      "stage": 15,
+      "id": "15.26",
+      "status": "partial",
+      "text": "PDF Report가 선택 컴포넌트를 A4 세로로 끝까지 출력하도록 인쇄 CSS를 보정하고, Asset 탭 기준 자산개요·투자개요 전체 행 및 PDF 저장용 자산 위치 지도를 포함하도록 구현했다. 브라우저 PDF 저장 결과의 페이지 분할 최종 확인은 남아 있다.",
+      "reason": "Moved to Stage 4 Dashboard common/PDF tracking; Stage 15 should contain only final acceptance criteria."
+    }
+  ]
 }
