@@ -16,12 +16,12 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 169,
-    "total": 280,
-    "completion_rate": 60.4,
-    "updated_at": "2026-05-20T01:27:01.270Z",
+    "completed": 170,
+    "total": 281,
+    "completion_rate": 60.5,
+    "updated_at": "2026-05-20T01:33:15.189Z",
     "conflict_resolution": "Cleaned active checklist to latest requirements: Weekly tab/upload retired, AI moved to right chatbot dock, Data Playground renamed Pivot Table, PDF details moved out of final acceptance stage, legacy completed status normalized to done.",
-    "latest_priority_update": "Checklist dedupe/conflict cleanup only; no product code change."
+    "latest_priority_update": "Post-deploy changes now use preview branch codex/logistics-gate6-post-deploy-updates; gh-pages remains current user-facing release."
   },
   "stages": [
     {
@@ -1171,8 +1171,8 @@
     {
       "stage": 12,
       "area": "승인대기 대상",
-      "completed": 12,
-      "total": 21,
+      "completed": 13,
+      "total": 22,
       "items": [
         {
           "id": "12.01",
@@ -1282,6 +1282,11 @@
           "id": "12.23",
           "status": "done",
           "text": "ll-dashboard-api auth/logistics-status action을 qvegpozwrcmspdvjokiz Edge Function에 배포했다. Evidence: npx supabase functions deploy ll-dashboard-api --project-ref qvegpozwrcmspdvjokiz success."
+        },
+        {
+          "id": "12.24",
+          "status": "done",
+          "text": "Post-deploy additional changes are isolated on preview branch codex/logistics-gate6-post-deploy-updates in KYLee94/logistics-gate6-preview. Existing gh-pages deployment remains untouched until an explicit deploy step."
         }
       ]
     },
@@ -1635,22 +1640,16 @@
   ],
   "last_user_request_added": {
     "date": "2026-05-20",
-    "summary": "Deduplicate and resolve contradictory checklist items, keeping latest user requirements active.",
+    "summary": "Create a separate post-deploy branch for future changes and prioritize remaining checklist work.",
     "added_item_ids": [
-      "5.17",
-      "5.18",
-      "5.19",
-      "5.20",
-      "15.15"
+      "12.24"
     ],
-    "retired_item_count": 20,
     "latest_evidence": [
-      "duplicate id scan: 0 exact duplicates",
-      "invalid status normalized: completed -> done",
-      "Weekly legacy items retired from active denominator"
+      "git switch -c codex/logistics-gate6-post-deploy-updates",
+      "git push -u preview codex/logistics-gate6-post-deploy-updates"
     ]
   },
-  "lastUpdated": "2026-05-20T01:27:01.270Z",
+  "lastUpdated": "2026-05-20T01:33:15.189Z",
   "retired_items": [
     {
       "retired_at": "2026-05-20T01:27:01.270Z",
