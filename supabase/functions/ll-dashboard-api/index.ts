@@ -450,6 +450,17 @@ async function audit(serviceClient: SupabaseClient, userId: string | null, actio
   if (error) throw new Error(`Failed to write API audit log: ${error.message}`);
 }
 
+async function auditOptional(serviceClient: SupabaseClient, userId: string | null, action: string, status: number, payload: unknown) {
+  try {
+    await audit(serviceClient, userId, action, status, payload);
+    return null;
+  } catch (error) {
+    const message = String((error as Error)?.message || error || 'Failed to write API audit log');
+    console.error(`[ll-dashboard-api] ${action} audit failed: ${message}`);
+    return message;
+  }
+}
+
 async function denyDashboardRead(ctx: Context, action: string, status: number, message: string, reason: string) {
   await audit(ctx.serviceClient, ctx.user.id, `${action}/denied`, status, { reason });
   return fail(status, message, ctx.origin);
@@ -2482,15 +2493,30 @@ function boardMetadata(ctx: Context, payload: Record<string, unknown>, currentMe
 async function listWorkPlatformBoardPosts(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const limit = Math.min(Number(payload.limit || 200), 500);
-  const { data, error } = await ctx.serviceClient
+  const queryLimit = Math.min(Math.max(limit * 3, 300), 1000);
+  let query = ctx.serviceClient
     .from('ll_work_platform_board_posts')
     .select(WORK_PLATFORM_BOARD_SELECT)
-    .neq('status', 'deleted')
-    .order('work_date', { ascending: false })
+    .neq('status', 'deleted');
+
+  if (!hasRole(ctx.role, 'Manager') && !allReadableAssetsAllowed(ctx)) {
+    const { rows: readableAssets } = await listReadableAssetsForDashboard(ctx);
+    const readableAssetIds = Array.from(new Set(
+      readableAssets
+        .map((asset) => safeText(asset.asset_id))
+        .filter((assetId) => /^[a-zA-Z0-9_-]+$/u.test(assetId)),
+    ));
+    const filters = [`created_by.eq.${ctx.user.id}`];
+    if (readableAssetIds.length) filters.push(`related_asset_id.in.(${readableAssetIds.join(',')})`);
+    query = query.or(filters.join(','));
+  }
+
+  const { data, error } = await query
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .order('work_date', { ascending: false })
+    .limit(queryLimit);
   if (error) return fail(500, 'Failed to list work platform board posts', ctx.origin);
-  return jsonResponse({ ok: true, data: filterWorkPlatformBoardRows(ctx, data || []) }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: filterWorkPlatformBoardRows(ctx, data || []).slice(0, limit) }, 200, ctx.origin);
 }
 
 async function saveWorkPlatformBoardPost(ctx: Context, payload: Record<string, unknown>) {
@@ -2529,9 +2555,14 @@ async function saveWorkPlatformBoardPost(ctx: Context, payload: Record<string, u
     }))
     .select(WORK_PLATFORM_BOARD_SELECT)
     .single();
-  if (error) return fail(500, 'Failed to save work platform board post', ctx.origin);
-  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/board-posts/create', 200, { id: data.id, log_id: logId, related_asset_id: relatedAssetId });
-  return jsonResponse({ ok: true, message: 'Work platform board post saved', data }, 200, ctx.origin);
+  if (error) return fail(500, 'Failed to save work platform board post', ctx.origin, { code: error.code, message: error.message });
+  const auditWarning = await auditOptional(ctx.serviceClient, ctx.user.id, 'work-platform/board-posts/create', 200, { id: data.id, log_id: logId, related_asset_id: relatedAssetId });
+  return jsonResponse({
+    ok: true,
+    message: 'Work platform board post saved',
+    data,
+    warnings: auditWarning ? [{ code: 'audit_failed', message: auditWarning }] : [],
+  }, 200, ctx.origin);
 }
 
 async function readWorkPlatformBoardForWrite(ctx: Context, idOrLogId: string) {

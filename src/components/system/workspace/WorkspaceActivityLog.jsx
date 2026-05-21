@@ -127,6 +127,19 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
             : [],
     });
 
+    const handleSavedLog = (row) => {
+        if (!row) return;
+        const nextLog = toLogisticsBoardLog(row);
+        setLogs(prev => [nextLog, ...prev.filter(log => log.log_id !== nextLog.log_id)]);
+        setCurrentPage(1);
+        setLogSearchQuery('');
+        setFilterStakeholder('');
+        setFilterCell('');
+        setFilterPurpose('');
+        setFilterStatus('');
+        setFilterPriority('');
+    };
+
     const renderLogTextWithMentions = (text) => {
         if (!text) return null;
         if (!effectiveMasterStakeholders || effectiveMasterStakeholders.length === 0) return text;
@@ -169,6 +182,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                     body: { action: 'work-platform/board-posts/list', payload: { workspace: 'logistics' } },
                 });
                 if (error) throw error;
+                if (!data?.ok) throw new Error(data?.message || '협업게시판 목록을 불러오지 못했습니다.');
                 setLogs(Array.isArray(data?.data) ? data.data.map(toLogisticsBoardLog) : []);
                 return;
             }
@@ -196,10 +210,11 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         setIsDeleting(true);
         try {
             if (isLogisticsMode) {
-                const { error } = await supabase.functions.invoke('ll-dashboard-api', {
+                const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
                     body: { action: 'work-platform/board-posts/delete', payload: { log_id: logId } },
                 });
                 if (error) throw error;
+                if (!data?.ok) throw new Error(data?.message || '협업게시판 글 삭제에 실패했습니다.');
                 setLogs(prev => prev.filter(l => l.log_id !== logId));
                 setLogToDelete(null);
                 return;
@@ -228,6 +243,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                     body: { action: 'work-platform/board-posts/comment', payload: { log_id: logId, text: commentContent } },
                 });
                 if (error) throw error;
+                if (!data?.ok) throw new Error(data?.message || '댓글 저장에 실패했습니다.');
                 const next = data?.data ? toLogisticsBoardLog(data.data) : null;
                 setLogs(prev => prev.map(l => l.log_id === logId && next ? next : l));
                 setCommentingLogId(null);
@@ -274,6 +290,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                     body: { action: 'work-platform/board-posts/comment-delete', payload: { log_id: logId, comment_id: commentId } },
                 });
                 if (error) throw error;
+                if (!data?.ok) throw new Error(data?.message || '댓글 삭제에 실패했습니다.');
                 const next = data?.data ? toLogisticsBoardLog(data.data) : null;
                 setLogs(prev => prev.map(l => l.log_id === logId && next ? next : l));
                 return;
@@ -402,7 +419,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
 
     const filteredLogs = logs.filter(log => {
         // Filter out non-members
-        if (getCellName(log.writer_name) === '기타') return false;
+        if (!isLogisticsMode && getCellName(log.writer_name) === '기타') return false;
 
         const cell = getLogCell(log);
         
@@ -428,7 +445,11 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         const query = logSearchQuery.toLowerCase();
         return (
             log.raw_text?.toLowerCase().includes(query) ||
+            log.summary?.toLowerCase().includes(query) ||
             log.writer_name?.toLowerCase().includes(query) ||
+            log.metadata?.project_name?.toLowerCase().includes(query) ||
+            log.metadata?.asset_name?.toLowerCase().includes(query) ||
+            log.iota_seoul_log_stakeholders?.[0]?.sh_name?.toLowerCase().includes(query) ||
             log.metadata?.workspace_label?.toLowerCase().includes(query) ||
             log.metadata?.iota_matches?.[0]?.label?.toLowerCase().includes(query)
         );
@@ -472,6 +493,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                 memberInfo={memberInfo}
                 masterStakeholders={effectiveMasterStakeholders}
                 fetchLogs={fetchLogs}
+                onSavedLog={handleSavedLog}
                 fetchMasterStakeholders={fetchMasterStakeholders}
                 workspaceCode={workspaceCode}
                 workspaceLabel={workspaceLabel}
@@ -888,6 +910,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                             memberInfo={memberInfo}
                             masterStakeholders={effectiveMasterStakeholders}
                             fetchLogs={fetchLogs}
+                            onSavedLog={handleSavedLog}
                             fetchMasterStakeholders={fetchMasterStakeholders}
                             workspaceCode={workspaceCode}
                             workspaceLabel={workspaceLabel}

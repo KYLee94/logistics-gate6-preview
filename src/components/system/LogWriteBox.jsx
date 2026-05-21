@@ -177,7 +177,7 @@ function DarkDropdown({
     );
 }
 
-export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs, fetchMasterStakeholders, workspaceCode, workspaceLabel, projectOptions = null, defaultExpanded = false, editMode = false, initialData = null, onCancel = null, onSuccess = null }) {
+export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs, fetchMasterStakeholders, workspaceCode, workspaceLabel, projectOptions = null, defaultExpanded = false, editMode = false, initialData = null, onCancel = null, onSuccess = null, onSavedLog = null }) {
     const isLogisticsMode = workspaceCode === 'WS_LOGISTICS';
     const fallbackProjectOptions = useMemo(() => [
         { id: 'IOTA_COMMON', label: 'IOTA 공통' },
@@ -248,6 +248,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
         availableContacts = [...new Set(effectiveMasterStakeholders.map(s => s.contact_name).filter(Boolean))];
     }
     const filteredContacts = availableContacts.filter(c => c.toLowerCase().includes(contactQuery.toLowerCase()));
+    const isSubmitDisabled = isSubmitting || (isLogisticsMode && normalizedProjectOptions.length === 0);
 
     useEffect(() => {
         if (!normalizedProjectOptions.length) {
@@ -445,7 +446,15 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
         }
     };
 
+    const normalizeVisibilityIndividualNames = () => (
+        visibilityIndividuals
+            .map((item) => (typeof item === 'string' ? item : item?.contact_name))
+            .map((item) => String(item || '').trim())
+            .filter(Boolean)
+    );
+
     const processSubmit = async () => {
+        if (isSubmitting) return;
         setIsSubmitting(true);
         setSubmitError('');
         setShowNewStakeholderModal(false);
@@ -455,6 +464,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
             const logId = isEditing ? initialData.log_id : `iota_issue_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             const writerId = isEditing ? initialData.writer_staff_id : (memberInfo?.email || 'unknown');
             const writerName = isEditing ? initialData.writer_name : (memberInfo?.staff_name || '익명');
+            const visibilityIndividualNames = normalizeVisibilityIndividualNames();
 
             const selectedProject = normalizedProjectOptions.find(option => option.id === projectId);
             if (isLogisticsMode && !selectedProject?.id) {
@@ -476,8 +486,8 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                     issue_status: issueStatus,
                     priority: priority,
                     permissions: {
-                        groups: visibilityGroups,
-                        individuals: visibilityIndividuals.map(i => i.contact_name)
+                        groups: visibilityGroups.filter(Boolean),
+                        individuals: visibilityIndividualNames
                     }
                 }
             };
@@ -499,8 +509,8 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                             priority,
                             stakeholder_category: stakeholderCat,
                             stakeholder_name: [companyQuery, contactQuery].filter(Boolean).join(' - '),
-                            visibility_groups: visibilityGroups,
-                            visibility_individuals: visibilityIndividuals.map(i => i.contact_name),
+                            visibility_groups: visibilityGroups.filter(Boolean),
+                            visibility_individuals: visibilityIndividualNames,
                             metadata: logData.metadata,
                         },
                     },
@@ -515,7 +525,8 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                     setVisibilityGroups([]);
                     setVisibilityIndividuals([]);
                 }
-                if (fetchLogs) fetchLogs();
+                if (data?.data && onSavedLog) onSavedLog(data.data);
+                if (fetchLogs) await fetchLogs();
                 setShowSuccessModal(true);
                 setTimeout(() => {
                     setShowSuccessModal(false);
@@ -1040,11 +1051,11 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                         <div className="flex items-center mr-2 max-w-[250px]">
                             <span 
                                 className="text-red-500 font-bold text-[13px] truncate block"
-                                title={`${visibilityGroups.join(', ')}${visibilityGroups.length > 0 && visibilityIndividuals.length > 0 ? ', ' : ''}${visibilityIndividuals.map(i => i.contact_name).join(', ')}`}
+                                title={`${visibilityGroups.join(', ')}${visibilityGroups.length > 0 && normalizeVisibilityIndividualNames().length > 0 ? ', ' : ''}${normalizeVisibilityIndividualNames().join(', ')}`}
                             >
                                 {visibilityGroups.join(', ')}
-                                {visibilityGroups.length > 0 && visibilityIndividuals.length > 0 && ', '}
-                                {visibilityIndividuals.map(i => i.contact_name).join(', ')}
+                                {visibilityGroups.length > 0 && normalizeVisibilityIndividualNames().length > 0 && ', '}
+                                {normalizeVisibilityIndividualNames().join(', ')}
                             </span>
                         </div>
                     )}
@@ -1072,8 +1083,8 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                             <button 
                                 type="button"
                                 onClick={handlePreSubmit}
-                                disabled={isSubmitting}
-                                className={`px-[32px] py-[10px] rounded-[10px] border border-transparent bg-[#2997ff] text-white font-bold text-[13px] transition-all duration-200 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#0071e3] cursor-pointer'}`}
+                                disabled={isSubmitDisabled}
+                                className={`px-[32px] py-[10px] rounded-[10px] border border-transparent bg-[#2997ff] text-white font-bold text-[13px] transition-all duration-200 ${isSubmitDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#0071e3] cursor-pointer'}`}
                             >
                                 {isSubmitting ? '저장 중...' : '수정 완료'}
                             </button>
@@ -1082,10 +1093,10 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                         <button 
                             type="button"
                             onClick={handlePreSubmit}
-                            disabled={isSubmitting}
-                            className={`px-[32px] py-[10px] rounded-[10px] border border-[#444] text-[#E5E5E5] font-bold text-[13px] transition-all duration-200 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#333] hover:border-[#555] cursor-pointer'}`}
+                            disabled={isSubmitDisabled}
+                            className={`px-[32px] py-[10px] rounded-[10px] border border-[#444] text-[#E5E5E5] font-bold text-[13px] transition-all duration-200 ${isSubmitDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-[#333] hover:border-[#555] cursor-pointer'}`}
                         >
-                            {isSubmitting ? '저장 중...' : '작성하기'}
+                            {isSubmitting ? '저장 중...' : (isLogisticsMode && normalizedProjectOptions.length === 0 ? '권한 확인 중' : '작성하기')}
                         </button>
                     )}
                 </div>
@@ -1186,7 +1197,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                                 <p className="text-[#e2aa29] text-[13px] font-bold">
                                     {visibilityGroups.length === 0 && visibilityIndividuals.length === 0 ? 
                                         "이 게시물은 전체 공개로 모든 인원이 열람할 수 있습니다." : 
-                                        `이 게시물은 ${[...visibilityGroups, ...visibilityIndividuals.map(i => i.contact_name)].join(', ')}만 열람할 수 있습니다.`}
+                                        `이 게시물은 ${[...visibilityGroups, ...normalizeVisibilityIndividualNames()].join(', ')}만 열람할 수 있습니다.`}
                                 </p>
                             </div>
                             <button 
