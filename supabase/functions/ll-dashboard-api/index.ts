@@ -2003,6 +2003,25 @@ const WORK_PLATFORM_TASK_SELECT = [
   'updated_at',
 ].join(', ');
 
+const WORK_PLATFORM_TASK_SNAPSHOT_SELECT = [
+  'id',
+  'workspace',
+  'week_key',
+  'week_label',
+  'week_range',
+  'group_label',
+  'basis_date',
+  'snapshot_data',
+  'task_count',
+  'created_by',
+  'created_by_email',
+  'created_by_name',
+  'organization',
+  'payload',
+  'created_at',
+  'updated_at',
+].join(', ');
+
 const WORK_PLATFORM_BOARD_SELECT = [
   'id',
   'log_id',
@@ -2068,16 +2087,213 @@ async function resolveWorkPlatformAssetForWrite(ctx: Context, relatedAssetId: un
 async function listWorkPlatformTasks(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const limit = Math.min(Number(payload.limit || 200), 500);
-  const includeArchived = Boolean(payload.include_archived || payload.include_deleted);
+  const includeDeleted = Boolean(payload.include_deleted || payload.include_archived);
   let query = ctx.serviceClient
     .from('ll_work_platform_tasks')
     .select(WORK_PLATFORM_TASK_SELECT)
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (!includeArchived) query = query.neq('status', 'deleted');
+  if (!includeDeleted) query = query.neq('status', 'deleted');
   const { data, error } = await query;
   if (error) return fail(500, 'Failed to list work platform tasks', ctx.origin);
   return jsonResponse({ ok: true, data: filterWorkPlatformTaskRows(ctx, data || []) }, 200, ctx.origin);
+}
+
+function pad2(value: number) {
+  return String(value).padStart(2, '0');
+}
+
+function mondayOfWeek(value: Date) {
+  const next = new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  const day = next.getDay();
+  next.setDate(next.getDate() + (day === 0 ? -6 : 1 - day));
+  return next;
+}
+
+function addDays(value: Date, days: number) {
+  const next = new Date(value);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function shortKoreanDate(value: Date) {
+  return `${String(value.getFullYear()).slice(2)}.${value.getMonth() + 1}.${value.getDate()}`;
+}
+
+function logisticsWeekMeta(value: unknown) {
+  const parsed = safeText(value) ? new Date(safeText(value)) : new Date();
+  const basis = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  const monday = mondayOfWeek(basis);
+  const sunday = addDays(monday, 6);
+  const monthStart = new Date(monday.getFullYear(), monday.getMonth(), 1);
+  const firstMonday = mondayOfWeek(monthStart);
+  const weekNo = Math.floor((monday.getTime() - firstMonday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
+  return {
+    weekKey: `${monday.getFullYear()}-${pad2(monday.getMonth() + 1)}-${pad2(monday.getDate())}`,
+    weekLabel: `${String(monday.getFullYear()).slice(2)}년 ${monday.getMonth() + 1}월 ${weekNo}주`,
+    weekRange: `${shortKoreanDate(monday)}~${shortKoreanDate(sunday)}`,
+    groupLabel: `${monday.getFullYear()}년 ${monday.getMonth() + 1}월`,
+    basisDate: `${monday.getFullYear()}-${pad2(monday.getMonth() + 1)}-${pad2(monday.getDate())}`,
+  };
+}
+
+function actorDisplay(ctx: Context, row?: Record<string, unknown>) {
+  const name = safeText(row?.created_by_name) || actorName(ctx);
+  const email = safeText(row?.created_by_email) || actorEmail(ctx);
+  return email ? `${name}(${email})` : name;
+}
+
+function safeSnapshotTask(ctx: Context, row: Record<string, unknown>) {
+  const payload = (row.payload || {}) as Record<string, unknown>;
+  const createdByName = safeText(row.created_by_name) || safeText(payload.createdByName) || actorName(ctx);
+  const createdByEmail = safeText(row.created_by_email) || safeText(payload.createdByEmail) || actorEmail(ctx);
+  const createdByDisplay = createdByEmail ? `${createdByName}(${createdByEmail})` : createdByName;
+  return stripUndefined({
+    id: safeText(row.id),
+    source: 'll_work_platform_tasks',
+    related_asset: safeText(firstDefined(row.related_asset_name, payload.assetName, payload.relatedAsset)),
+    related_asset_id: safeText(row.related_asset_id),
+    task_name: safeText(firstDefined(row.task_name, payload.taskName), 'Task'),
+    company_name: safeText(firstDefined(row.company_name, payload.companyName, payload.stakeholder)),
+    status: safeText(row.status, 'new'),
+    due_date: row.due_date || null,
+    priority: safeText(firstDefined(row.priority, payload.priority)),
+    next_action: safeText(firstDefined(row.next_action, payload.nextAction)),
+    issue: safeText(firstDefined(row.issue, payload.issue)),
+    notes: safeText(firstDefined(row.notes, payload.notes)),
+    created_by_name: createdByName,
+    created_by_email: createdByEmail,
+    created_by_display: createdByDisplay,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  });
+}
+
+function safeSnapshotSeedTask(ctx: Context, task: Record<string, unknown>) {
+  const relatedAssetId = safeText(firstDefined(task.related_asset_id, task.assetId));
+  const relatedAssetName = safeText(firstDefined(task.related_asset_name, task.assetName, task.relatedAsset));
+  const createdByName = safeText(firstDefined(task.createdByName, task.created_by_name)) || actorName(ctx);
+  const createdByEmail = safeText(firstDefined(task.createdByEmail, task.created_by_email)) || actorEmail(ctx);
+  const createdByDisplay = createdByEmail ? `${createdByName}(${createdByEmail})` : createdByName;
+  return stripUndefined({
+    id: safeText(firstDefined(task.id, task.seedId, task.seed_id)),
+    seed_id: safeText(firstDefined(task.seedId, task.seed_id, task.id)),
+    source: 'weekly_report_seed',
+    related_asset: relatedAssetName,
+    related_asset_id: relatedAssetId,
+    task_name: safeText(firstDefined(task.taskName, task.task_name), 'Task'),
+    company_name: safeText(firstDefined(task.companyName, task.company_name, task.stakeholder)),
+    status: safeText(task.status, 'new'),
+    due_date: safeText(firstDefined(task.dueDate, task.due_date)),
+    priority: safeText(task.priority),
+    next_action: safeText(firstDefined(task.nextAction, task.next_action)),
+    issue: safeText(task.issue),
+    notes: safeText(task.notes),
+    created_by_name: createdByName,
+    created_by_email: createdByEmail,
+    created_by_display: createdByDisplay,
+    created_at: safeText(firstDefined(task.createdAt, task.created_at)) || new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+}
+
+async function upsertCurrentWorkPlatformTaskSnapshot(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const meta = logisticsWeekMeta(payload.basis_date);
+  const { data: rows, error } = await ctx.serviceClient
+    .from('ll_work_platform_tasks')
+    .select(WORK_PLATFORM_TASK_SELECT)
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) return fail(500, 'Failed to read current work platform tasks for snapshot', ctx.origin);
+
+  const permittedRows = filterWorkPlatformTaskRows(ctx, (rows || []) as Record<string, unknown>[]);
+  const deletedSeedIds = new Set(
+    permittedRows
+      .filter((row) => safeText(row.status) === 'deleted')
+      .map((row) => safeText(((row.payload || {}) as Record<string, unknown>).seedId || ((row.payload || {}) as Record<string, unknown>).seed_id))
+      .filter(Boolean),
+  );
+  const materializedSeedIds = new Set(
+    permittedRows
+      .filter((row) => safeText(row.status) !== 'deleted')
+      .map((row) => safeText(((row.payload || {}) as Record<string, unknown>).seedId || ((row.payload || {}) as Record<string, unknown>).seed_id))
+      .filter(Boolean),
+  );
+  const persistedTasks = permittedRows
+    .filter((row) => safeText(row.status) !== 'deleted')
+    .map((row) => safeSnapshotTask(ctx, row));
+
+  const seedTasks = Array.isArray(payload.seed_tasks) ? payload.seed_tasks as Record<string, unknown>[] : [];
+  const sanitizedSeeds = seedTasks
+    .map((task) => safeSnapshotSeedTask(ctx, task))
+    .filter((task) => {
+      const seedId = safeText(task.seed_id || task.id);
+      if (!seedId || deletedSeedIds.has(seedId) || materializedSeedIds.has(seedId)) return false;
+      return canReadRelatedAsset(ctx, task.related_asset_id || task.related_asset);
+    });
+
+  const snapshotTasks = [...persistedTasks, ...sanitizedSeeds]
+    .sort((a, b) => new Date(String(b.created_at || b.updated_at || 0)).getTime() - new Date(String(a.created_at || a.updated_at || 0)).getTime());
+
+  const snapshotRow = stripUndefined({
+    workspace: 'logistics',
+    week_key: meta.weekKey,
+    week_label: meta.weekLabel,
+    week_range: meta.weekRange,
+    group_label: meta.groupLabel,
+    basis_date: meta.basisDate,
+    snapshot_data: snapshotTasks,
+    task_count: snapshotTasks.length,
+    created_by: ctx.user.id,
+    created_by_email: actorEmail(ctx),
+    created_by_name: actorName(ctx),
+    organization: safeText(ctx.permission?.organization) || null,
+    payload: {
+      source: 'll_work_platform_task_snapshots',
+      timing: 'auto_after_task_list_loaded_or_changed',
+      actor_display: actorDisplay(ctx),
+    },
+    updated_at: new Date().toISOString(),
+  });
+
+  const { data, error: upsertError } = await ctx.serviceClient
+    .from('ll_work_platform_task_snapshots')
+    .upsert(snapshotRow, { onConflict: 'workspace,week_key,created_by' })
+    .select(WORK_PLATFORM_TASK_SNAPSHOT_SELECT)
+    .single();
+  if (upsertError) return fail(500, 'Failed to save work platform task snapshot', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/tasks/snapshots/upsert-current', 200, {
+    id: data.id,
+    week_key: meta.weekKey,
+    task_count: snapshotTasks.length,
+  });
+  return jsonResponse({ ok: true, data }, 200, ctx.origin);
+}
+
+async function listWorkPlatformTaskSnapshots(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const limit = Math.min(Number(payload.limit || 100), 500);
+  let query = ctx.serviceClient
+    .from('ll_work_platform_task_snapshots')
+    .select(WORK_PLATFORM_TASK_SNAPSHOT_SELECT)
+    .eq('workspace', 'logistics')
+    .order('basis_date', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  if (!hasRole(ctx.role, 'Manager')) query = query.eq('created_by', ctx.user.id);
+  const { data, error } = await query;
+  if (error) return fail(500, 'Failed to list work platform task snapshots', ctx.origin);
+  const snapshots = ((data || []) as Record<string, unknown>[]).map((snapshot) => ({
+    ...snapshot,
+    snapshot_data: Array.isArray(snapshot.snapshot_data)
+      ? (snapshot.snapshot_data as Record<string, unknown>[]).filter((task) => {
+        if (safeText(task.status) === 'deleted') return false;
+        return canReadRelatedAsset(ctx, task.related_asset_id || task.related_asset) || safeText(task.created_by_email) === actorEmail(ctx);
+      })
+      : [],
+  })).filter((snapshot) => (snapshot.snapshot_data as unknown[]).length > 0);
+  return jsonResponse({ ok: true, data: snapshots }, 200, ctx.origin);
 }
 
 async function saveWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
@@ -4916,6 +5132,8 @@ Deno.serve(async (request) => {
   if (action === 'worklogs/complete') return completeWorklog(ctx, payload);
   if (action === 'worklogs/delete') return deleteWorklog(ctx, payload);
   if (action === 'work-platform/tasks/list') return listWorkPlatformTasks(ctx, payload);
+  if (action === 'work-platform/tasks/snapshots/upsert-current') return upsertCurrentWorkPlatformTaskSnapshot(ctx, payload);
+  if (action === 'work-platform/tasks/snapshots/list') return listWorkPlatformTaskSnapshots(ctx, payload);
   if (action === 'work-platform/tasks') return saveWorkPlatformTask(ctx, payload);
   if (action === 'work-platform/tasks/update') return updateWorkPlatformTask(ctx, payload);
   if (action === 'work-platform/tasks/complete') return completeWorkPlatformTask(ctx, payload);

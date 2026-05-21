@@ -67,6 +67,8 @@ function weekMeta(value) {
 function normalizeTask(row = {}) {
   const status = safeText(row.status || row.issue_status || row.progress_status, 'new');
   const basisDate = row.completed_at || row.deleted_at || row.updated_at || row.created_at;
+  const createdByName = safeText(row.created_by_name || row.owner_name || row.owner, '');
+  const createdByEmail = safeText(row.created_by_email || row.owner_email, '');
   return {
     id: row.id || `${safeText(row.task_name || row.title)}-${basisDate || ''}`,
     related_asset: safeText(row.related_asset_name || row.related_asset || row.asset_name, ''),
@@ -76,7 +78,9 @@ function normalizeTask(row = {}) {
     due_date: row.due_date || row.target_date || '',
     next_action: safeText(row.next_action || row.body || row.issue || row.content, ''),
     notes: safeText(row.notes || row.payload?.notes || row.payload?.source_text || '', ''),
-    created_by_name: safeText(row.created_by_name || row.owner_name || row.owner, ''),
+    created_by_name: createdByName,
+    created_by_email: createdByEmail,
+    created_by_display: safeText(row.created_by_display, createdByEmail ? `${createdByName || createdByEmail}(${createdByEmail})` : createdByName),
     created_at: row.created_at || basisDate || new Date().toISOString(),
     updated_at: row.updated_at || basisDate || row.created_at || new Date().toISOString(),
   };
@@ -112,21 +116,19 @@ function groupSnapshots(snapshots) {
 }
 
 async function fetchLogisticsTaskSnapshots() {
-  try {
-    const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-      body: { action: 'work-platform/tasks/list', payload: { limit: 500, include_archived: true } },
-    });
-    if (error || data?.ok === false) throw error || new Error(data?.message || 'Edge Function returned false');
-    return snapshotsFromTasks(data?.data || [], 'logistics');
-  } catch (edgeError) {
-    const { data, error } = await supabase
-      .from('ll_work_platform_tasks')
-      .select('*')
-      .order('updated_at', { ascending: false })
-      .limit(500);
-    if (error) throw edgeError || error;
-    return snapshotsFromTasks(data || [], 'logistics');
-  }
+  const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+    body: { action: 'work-platform/tasks/snapshots/list', payload: { limit: 500 } },
+  });
+  if (error || data?.ok === false) throw error || new Error(data?.message || 'Edge Function returned false');
+  return (data?.data || []).map((snapshot) => ({
+    id: snapshot.id,
+    workspace: snapshot.workspace || 'logistics',
+    week_label: snapshot.week_label,
+    week_range: snapshot.week_range,
+    group_label: snapshot.group_label,
+    created_at: snapshot.updated_at || snapshot.created_at,
+    snapshot_data: (snapshot.snapshot_data || []).map(normalizeTask).filter((task) => task.status !== 'deleted'),
+  }));
 }
 
 export default function WorkspaceArchive() {
@@ -208,7 +210,7 @@ export default function WorkspaceArchive() {
       <aside className="print:hidden flex h-full w-[280px] shrink-0 flex-col border-r border-[#333] bg-[#202020]">
         <div className="border-b border-[#333] p-6">
           <h1 className="mb-2 text-[20px] font-bold tracking-tight text-white">지난 TASK 관리</h1>
-          <p className="text-[12px] leading-5 text-[#86868B]">주차별 저장본과 완료·삭제 이력을 함께 확인합니다.</p>
+          <p className="text-[12px] leading-5 text-[#86868B]">주차별로 자동 저장된 TASK 스냅샷만 확인합니다.</p>
         </div>
         <div className="border-b border-[#333] p-4">
           <div className="flex flex-col gap-1">
@@ -340,7 +342,7 @@ export default function WorkspaceArchive() {
                             <h4 className="mb-2 text-[20px] font-bold leading-tight tracking-tight text-white">{row.task_name}</h4>
                             <div className="flex flex-wrap gap-3 text-[13px] text-[#A1A1AA]">
                               {row.company_name ? <span>이해관계자: <b className="text-[#E5E5E5]">{row.company_name}</b></span> : null}
-                              {row.created_by_name ? <span>작성자: <b className="text-[#E5E5E5]">{row.created_by_name}</b></span> : null}
+                              {row.created_by_display || row.created_by_name ? <span>작성자: <b className="text-[#E5E5E5]">{row.created_by_display || row.created_by_name}</b></span> : null}
                             </div>
                           </div>
                           <div className="w-full xl:w-[38%]">

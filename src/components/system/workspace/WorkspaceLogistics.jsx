@@ -3902,6 +3902,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     },
   ]);
   const aiChatScrollRef = useRef(null);
+  const taskSnapshotSyncRef = useRef('');
   const [selectedSearchResult, setSelectedSearchResult] = useState(null);
   const [taskRecords, setTaskRecords] = useState([]);
   const [stakeholderMasterRows, setStakeholderMasterRows] = useState([]);
@@ -3929,7 +3930,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       setIsLoadingTasks(true);
       try {
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'work-platform/tasks/list', payload: { workspace: 'logistics', include_archived: true } },
+          body: { action: 'work-platform/tasks/list', payload: { workspace: 'logistics', include_deleted: true } },
         });
         if (error) throw error;
         if (data?.ok === false) throw new Error(data.message || 'TASK 목록을 불러오지 못했습니다.');
@@ -3957,6 +3958,38 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       cancelled = true;
     };
   }, [permission, weeklyTasks]);
+
+  useEffect(() => {
+    if (isLoadingTasks || !permission.email) return undefined;
+    const activeTaskSignature = taskRecords
+      .filter((task) => !isDeletedTask(task))
+      .map((task) => `${task.id}:${task.status}:${task.createdAt || ''}:${task.updatedAt || ''}`)
+      .join('|');
+    const seedSignature = weeklyTasks.map((task) => `${taskSeedId(task)}:${task.assetName}:${task.taskName}`).join('|');
+    const signature = `${permission.email}|${activeTaskSignature}|${seedSignature}`;
+    if (taskSnapshotSyncRef.current === signature) return undefined;
+    taskSnapshotSyncRef.current = signature;
+    let cancelled = false;
+    const syncSnapshot = async () => {
+      try {
+        await supabase.functions.invoke('ll-dashboard-api', {
+          body: {
+            action: 'work-platform/tasks/snapshots/upsert-current',
+            payload: {
+              workspace: 'logistics',
+              seed_tasks: weeklyTasks,
+            },
+          },
+        });
+      } catch (error) {
+        if (!cancelled) console.warn('Failed to sync logistics task snapshot:', error);
+      }
+    };
+    syncSnapshot();
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoadingTasks, permission.email, taskRecords, weeklyTasks]);
 
   useEffect(() => {
     let cancelled = false;
