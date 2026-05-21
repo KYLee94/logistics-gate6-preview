@@ -12,6 +12,9 @@ const LOGISTICS_MASTER_STAKEHOLDERS = (logisticsPermissionData.users || []).map(
     role_category: user.organization || 'IGIS 내부인력',
     email: user.email,
 })).filter((item) => item.contact_name);
+const LOGISTICS_NAME_BY_EMAIL = new Map((logisticsPermissionData.users || [])
+    .filter((user) => user.email && user.name)
+    .map((user) => [String(user.email).toLowerCase(), user.name]));
 
 function cleanStakeholderText(value) {
     return String(value || '').trim();
@@ -57,6 +60,18 @@ function mergeStakeholderRows(...rowGroups) {
     ));
 }
 
+function resolveLogisticsDisplayName(name, email) {
+    const normalizedEmail = cleanStakeholderText(email || name).toLowerCase();
+    const normalizedName = cleanStakeholderText(name);
+    if (normalizedEmail && LOGISTICS_NAME_BY_EMAIL.has(normalizedEmail)) {
+        return LOGISTICS_NAME_BY_EMAIL.get(normalizedEmail);
+    }
+    if (normalizedName.includes('@')) {
+        return LOGISTICS_NAME_BY_EMAIL.get(normalizedName.toLowerCase()) || normalizedName;
+    }
+    return normalizedName || cleanStakeholderText(email) || '익명';
+}
+
 export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, assetOptions = [] }) {
     const { memberInfo } = useAuth();
     const isLogisticsMode = workspaceCode === 'WS_LOGISTICS';
@@ -99,33 +114,43 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
     const [commentContent, setCommentContent] = useState('');
     const [isSavingComment, setIsSavingComment] = useState(false);
 
-    const toLogisticsBoardLog = (row) => ({
-        log_id: row.log_id,
-        work_date: row.work_date,
-        raw_text: row.content,
-        summary: row.title,
-        writer_staff_id: row.created_by_email,
-        writer_name: row.created_by_name,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-        metadata: {
-            ...(row.metadata || {}),
-            project_name: row.related_asset_name,
-            asset_name: row.related_asset_name,
-            asset_id: row.related_asset_id,
-            triage_type: row.triage_type,
-            issue_status: row.issue_status,
-            priority: row.priority,
-            comments: Array.isArray(row.comments) ? row.comments : [],
-            permissions: {
-                groups: row.visibility_groups || [],
-                individuals: row.visibility_individuals || [],
+    const toLogisticsBoardLog = (row) => {
+        const writerEmail = cleanStakeholderText(row.created_by_email).toLowerCase();
+        const writerName = resolveLogisticsDisplayName(row.created_by_name, writerEmail);
+        const comments = Array.isArray(row.comments)
+            ? row.comments.map((comment) => ({
+                ...comment,
+                author: resolveLogisticsDisplayName(comment.author, comment.author_email),
+            }))
+            : [];
+        return {
+            log_id: row.log_id,
+            work_date: row.work_date,
+            raw_text: row.content,
+            summary: row.title,
+            writer_staff_id: writerEmail,
+            writer_name: writerName,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            metadata: {
+                ...(row.metadata || {}),
+                project_name: row.related_asset_name,
+                asset_name: row.related_asset_name,
+                asset_id: row.related_asset_id,
+                triage_type: row.triage_type,
+                issue_status: row.issue_status,
+                priority: row.priority,
+                comments,
+                permissions: {
+                    groups: row.visibility_groups || [],
+                    individuals: row.visibility_individuals || [],
+                },
             },
-        },
-        iota_seoul_log_stakeholders: row.stakeholder_name
-            ? [{ sh_name: row.stakeholder_name, role_category: row.stakeholder_category }]
-            : [],
-    });
+            iota_seoul_log_stakeholders: row.stakeholder_name
+                ? [{ sh_name: row.stakeholder_name, role_category: row.stakeholder_category }]
+                : [],
+        };
+    };
 
     const handleSavedLog = (row) => {
         if (!row) return;

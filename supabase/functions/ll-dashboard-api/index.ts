@@ -30,6 +30,43 @@ const DEFAULT_AI_DEMO_ALLOWED_ORIGINS = [
   'https://kylee94.github.io',
 ];
 
+const LOGISTICS_STAFF_NAME_BY_EMAIL: Record<string, string> = {
+  'ethan.lee@igisam.com': '이철승',
+  'sjlee@igisam.com': '이시정',
+  'jk.jeon@igisam.com': '전기영',
+  'kylee@igisam.com': '이관용',
+  'gwansik.yoon@igisam.com': '윤관식',
+  'jmjung@igisam.com': '정조민',
+  'hyungsuk.woo@igisam.com': '우형석',
+  'seunghoon.lee@igisam.com': '이승훈',
+  'hyunho.lee@igisam.com': '이현호',
+  'kim17826@igisam.com': '김연수',
+  'minsukim@igisam.com': '김민수',
+  'shkang@igisam.com': '강성호',
+  'mihyunu@igisam.com': '유미현',
+  'gulee@igisam.com': '이구',
+  'jslee@igisam.com': '이준수',
+  'whan@igisam.com': '한원석',
+  'hkim@igisam.com': '김행단',
+  'jihkim@igisam.com': '김지현',
+  'oce@igisam.com': '오채은',
+  'jhlee@igisam.com': '이정훈B',
+  'davidlee@igisam.com': '이진우',
+  'dy.kwon@igisam.com': '권도엽',
+  'jwlim@igisam.com': '임주우',
+  'dmpark@igisam.com': '박동민',
+  'sw.jeoung@igisam.com': '정승우',
+  'shyung.choi@igisam.com': '최성현',
+  'jy3142@igisam.com': '이주영',
+  'minz@igisam.com': '유민종',
+  'cskim@igisam.com': '김찬솔',
+  'cwcho@igisam.com': '조청원',
+  'choijt@igisam.com': '최정택',
+  'hayoung.lee@igisam.com': '이하영',
+  'sh.han@igisam.com': '한상후',
+  'double0507@igisam.com': '윤재진',
+};
+
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_edit_requests',
   'public.ll_worklogs',
@@ -1209,13 +1246,14 @@ async function callDashboardCompanyRead(ctx: Context, payload: Record<string, un
 }
 
 function actorName(ctx: Context) {
-  return String(
-    ctx.permission?.staff_name
-      || ctx.permission?.name
-      || ctx.permission?.display_name
-      || ctx.permission?.email
-      || 'unknown',
-  );
+  const email = String(ctx.permission?.email || '').trim().toLowerCase();
+  const explicitName = safeText(firstDefined(
+    ctx.permission?.staff_name,
+    ctx.permission?.name,
+    ctx.permission?.display_name,
+  ));
+  if (explicitName && !explicitName.includes('@')) return explicitName;
+  return LOGISTICS_STAFF_NAME_BY_EMAIL[email] || explicitName || email || 'unknown';
 }
 
 function actorEmail(ctx: Context) {
