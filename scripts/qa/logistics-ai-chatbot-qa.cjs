@@ -138,6 +138,27 @@ async function main() {
     throw new Error(`context follow-up answer did not address E. NOC: ${followUpAnswer}`);
   }
 
+  const bukukENoc = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
+    question: '부국물류센터 e. noc 알려줘',
+    history: [
+      { role: 'user', content: '아레나스 안성 E. NOC 알려줘' },
+      { role: 'assistant', content: '아레나스안성의 E. NOC는 33,305원입니다.' },
+    ],
+  });
+  const bukukENocAnswer = assertCleanAnswer(bukukENoc, 'bukuk e.noc');
+  if (!/부국|E\.?\s*NOC|원/iu.test(bukukENocAnswer) || /아레나스안성/iu.test(bukukENocAnswer)) {
+    throw new Error(`bukuk e.noc answer is not current-question specific: ${bukukENocAnswer}`);
+  }
+
+  const portfolioVacancy = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
+    question: '전체 자산 평균 공실률 얼마야?',
+    history: [],
+  });
+  const portfolioVacancyAnswer = assertCleanAnswer(portfolioVacancy, 'portfolio vacancy');
+  if (!/공실률|%/iu.test(portfolioVacancyAnswer) || /\basset_[a-z0-9_]+\b/iu.test(portfolioVacancyAnswer)) {
+    throw new Error(`portfolio vacancy answer is not a vacancy-rate answer: ${portfolioVacancyAnswer}`);
+  }
+
   const demoBlocked = await invoke(endpoint, anonKey, origin, '', 'ai/search-chat-demo', {
     question: '운영 URL에서 demo fallback이 열려 있나요?',
   });
@@ -155,6 +176,8 @@ async function main() {
       asset_count: { status: assetCount.status, answer: assetCountAnswer },
       asset_lookup: { status: assetLookup.status, answer: assetLookupAnswer },
       context_follow_up: { status: followUp.status, answer: followUpAnswer },
+      bukuk_e_noc: { status: bukukENoc.status, answer: bukukENocAnswer },
+      portfolio_vacancy: { status: portfolioVacancy.status, answer: portfolioVacancyAnswer },
       production_demo_blocked: demoBlocked.status,
     },
   };

@@ -1189,7 +1189,8 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
   const leasedAreaSqm = sumNumber(leaseSpaces, 'leased_area_sqm');
   const sourceGrossAreaSqm = dashboardNumber(asset.gross_floor_area_sqm);
   const vacancyAreaSqm = Math.max(0, sourceGrossAreaSqm - leasedAreaSqm);
-  const grossAreaSqm = leasedAreaSqm + vacancyAreaSqm;
+  const grossAreaSqm = sourceGrossAreaSqm;
+  const areaReconciliationGapSqm = grossAreaSqm - leasedAreaSqm - vacancyAreaSqm;
   const body = {
     ok: true,
     source: 'supabase',
@@ -1210,6 +1211,7 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
         gross_floor_area_sqm: grossAreaSqm,
         leased_area_sqm: leasedAreaSqm,
         vacancy_area_sqm: vacancyAreaSqm,
+        area_reconciliation_gap_sqm: areaReconciliationGapSqm,
         exclusive_area_sqm: sumNumber(leaseSpaces, 'exclusive_area_sqm'),
         current_monthly_rent_total: sumNumber(leaseSpaces, 'current_monthly_rent_total'),
         current_monthly_mf_total: sumNumber(leaseSpaces, 'current_monthly_mf_total'),
@@ -4002,6 +4004,20 @@ function rowAreaPy(row: Record<string, unknown>) {
   return sqm && sqm > 0 ? sqm * 0.3025 : null;
 }
 
+function rowGrossAreaPy(row: Record<string, unknown>) {
+  const directPy = numberValue(firstDefined(row.gross_floor_area_py, row.grossFloorAreaPy, row.total_area_py, row.totalAreaPy));
+  if (directPy && directPy > 0) return directPy;
+  const sqm = numberValue(firstDefined(row.gross_floor_area_sqm, row.grossFloorAreaSqm, row.total_area_sqm, row.totalAreaSqm));
+  return sqm && sqm > 0 ? sqm * 0.3025 : null;
+}
+
+function rowVacancyAreaPy(row: Record<string, unknown>) {
+  const directPy = numberValue(firstDefined(row.vacancy_area_py, row.vacancyAreaPy));
+  if (directPy !== null && directPy >= 0) return directPy;
+  const sqm = numberValue(firstDefined(row.vacancy_area_sqm, row.vacancyAreaSqm));
+  return sqm !== null && sqm >= 0 ? sqm * 0.3025 : null;
+}
+
 function rowMonthlyCombined(row: Record<string, unknown>) {
   const combined = numberValue(firstDefined(row.monthly_combined_total, row.monthlyCombinedTotal, row.monthly_cost_total, row.monthlyCostTotal, row.current_monthly_cost_total, row.currentMonthlyCostTotal));
   if (combined && combined > 0) return combined;
@@ -4048,8 +4064,20 @@ function formatKoreanPy(value: number) {
   return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(value)}평`;
 }
 
+function formatKoreanPercent(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 function isENocQuestion(question: string) {
-  return /e\.?\s*noc|enoc|이\s*엔\s*오\s*씨|평당\s*(월\s*)?임\s*관리비|평당\s*월\s*임대료\s*\+\s*관리비/iu.test(question);
+  return /e\.?\s*noc|enoc|이\s*엔\s*오\s*씨|이\s*노씨|평당\s*(월\s*)?임\s*관리비|평당\s*월\s*임대료\s*\+\s*관리비/iu.test(question);
+}
+
+function isVacancyQuestion(question: string) {
+  return /공실|vacancy/iu.test(question);
+}
+
+function isOverallQuestion(question: string) {
+  return /전체|전\s*자산|포트폴리오|평균|총합|합계/iu.test(question);
 }
 
 function isReadableAssetCountQuestion(question: string) {
@@ -4193,11 +4221,29 @@ async function collectAiSearchContext(ctx: Context, question: string) {
     row.asset_name,
     row.assetName,
   ].map(normalizeKey).filter(Boolean)));
-  const namedLeaseSpaceRows = enrichRowsWithAssetTenantNames(currentDashboardLeaseSpaces(leaseSpaceRows), assetRows, tenantRows);
   const namedRentRows = enrichRowsWithAssetTenantNames(rentRows, assetRows, tenantRows);
+  const namedLeaseSpaceRows = enrichRowsWithAssetTenantNames(
+    applyLatestRentHistoryAmountsToLeaseSpaces(
+      currentDashboardLeaseSpaces(leaseSpaceRows),
+      namedRentRows,
+      currentKstMonthEndDate(),
+    ),
+    assetRows,
+    tenantRows,
+  );
   const permittedLeaseRows = namedLeaseSpaceRows.filter((row) => canReadDataRow(ctx, row));
   const permittedRentRows = namedRentRows.filter((row) => canReadDataRow(ctx, row));
-  const permittedMetricRows: Record<string, unknown>[] = [];
+  const permittedMetricRows = metricRows.filter((row) => {
+    if (hasRole(ctx.role, 'Manager')) return true;
+    const candidates = [
+      row.asset_id,
+      row.assetId,
+      row.asset_name,
+      row.assetName,
+      row.entity_id,
+    ].map(normalizeKey).filter(Boolean);
+    return candidates.some((candidate) => allowedAssetKeys.has(candidate));
+  });
   const weeklyAssetSourceRows = weeklyAssetRows.filter((row) => safeText(row.record_type) === 'asset');
   const weeklyProjectSourceRows = weeklyProjectRows.filter((row) => safeText(row.record_type) === 'project');
   const permittedWeeklyAssets = weeklyAssetSourceRows.filter((row) => canReadDataRow(ctx, row));
@@ -4352,7 +4398,8 @@ function matchedMetricRows(context: Record<string, unknown>, metricKey: string, 
 }
 
 function buildDeterministicAiAnswer(question: string, context: Record<string, unknown>, lookupQuestion = question) {
-  const assetRows = findQuestionAssetRows(context, lookupQuestion);
+  const directAssetRows = findQuestionAssetRows(context, question);
+  const assetRows = directAssetRows.length ? directAssetRows : findQuestionAssetRows(context, lookupQuestion);
   const assetName = rowAssetName(assetRows[0] || {}) || uniqueStrings((context.evidence as Record<string, unknown>[] || []).map((row) => row.asset), 1)[0] || '';
   if (isReadableAssetCountQuestion(question)) {
     const count = numberValue(context.scope && (context.scope as Record<string, unknown>).readable_asset_count);
@@ -4362,6 +4409,45 @@ function buildDeterministicAiAnswer(question: string, context: Record<string, un
         answer: `현재 읽기 권한 범위에서 조회 가능한 자산은 ${new Intl.NumberFormat('ko-KR').format(count)}개입니다.`,
       };
     }
+  }
+
+  if (isVacancyQuestion(question)) {
+    const targetAssetRows = assetRows.length && !isOverallQuestion(question)
+      ? assetRows
+      : ((context.assetRows as Record<string, unknown>[] | undefined) || []);
+    const leaseRows = assetRows.length && !isOverallQuestion(question)
+      ? rowsForAssets((context.leaseRows as Record<string, unknown>[] | undefined) || [], assetRows)
+      : ((context.leaseRows as Record<string, unknown>[] | undefined) || []);
+    const grossAreaPy = targetAssetRows.reduce((sum, row) => sum + (rowGrossAreaPy(row) || 0), 0);
+    const leasedAreaPy = leaseRows.reduce((sum, row) => sum + (rowAreaPy(row) || 0), 0);
+    const explicitVacancyAreaPy = targetAssetRows.reduce((sum, row) => sum + (rowVacancyAreaPy(row) || 0), 0);
+    const vacancyAreaPy = explicitVacancyAreaPy || Math.max(0, grossAreaPy - leasedAreaPy);
+    if (grossAreaPy > 0) {
+      const label = assetRows.length && !isOverallQuestion(question) ? assetName : '읽기 권한 범위 전체 자산';
+      return {
+        mode: 'deterministic_vacancy_rate',
+        answer: `${label}의 공실률은 ${formatKoreanPercent(vacancyAreaPy / grossAreaPy)}입니다. 총 연면적 ${formatKoreanPy(grossAreaPy)}, 임대면적 ${formatKoreanPy(leasedAreaPy)}, 공실면적 ${formatKoreanPy(vacancyAreaPy)} 기준입니다.`,
+      };
+    }
+    return {
+      mode: 'deterministic_vacancy_missing',
+      answer: '공실률 계산에 필요한 연면적 또는 임대면적 근거가 현재 권한 범위에서 확인되지 않습니다.',
+    };
+  }
+
+  if (isENocQuestion(question) && (!assetRows.length || isOverallQuestion(question))) {
+    const rows = (context.leaseRows as Record<string, unknown>[] | undefined) || [];
+    const computed = weightedENoc(rows);
+    if (computed) {
+      return {
+        mode: 'deterministic_portfolio_enoc',
+        answer: `읽기 권한 범위 전체 자산의 임대면적 가중평균 E. NOC는 ${formatKoreanWon(computed.value)}입니다.`,
+      };
+    }
+    return {
+      mode: 'deterministic_portfolio_enoc_missing',
+      answer: '전체 E. NOC 계산에 필요한 계약별 임대면적과 월 임관리비 근거가 현재 권한 범위에서 확인되지 않습니다.',
+    };
   }
 
   if (isENocQuestion(question) && assetRows.length) {

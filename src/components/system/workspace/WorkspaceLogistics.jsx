@@ -80,6 +80,9 @@ const DATA_STATUS = [
 const PRIMARY_BLUE_BUTTON_CLASS = 'border-[#3b82f6]/30 bg-[#3b82f6]/20 text-[#60a5fa] hover:bg-[#3b82f6]/30';
 const DARK_BUTTON_CLASS = 'border-[#333333] bg-[#222] text-[#D1D1D6] hover:border-[#555] hover:text-white';
 const DASHBOARD_READ_MODE = import.meta.env.VITE_LOGISTICS_DASHBOARD_READ_MODE || 'primary-safe';
+const DASHBOARD_READ_CACHE = new Map();
+const ASSET_PROJECT_DETAIL_CACHE = new Map();
+const ASSET_FUND_OVERVIEW_CACHE = new Map();
 const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
 const DASHBOARD_BASIS_DATE = currentKstMonthEndDate();
 const DASHBOARD_BASIS_LABEL = dashboardBasisLabel(DASHBOARD_BASIS_DATE);
@@ -202,10 +205,20 @@ function canUseStaticDashboardFallback(mode, status, message) {
     || /timeout|network|failed to fetch|failed to send a request/iu.test(String(message || ''));
 }
 
+function dashboardReadCacheKey(action, payloadKey) {
+  return `${action}:${payloadKey || '{}'}`;
+}
+
 function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled = true) {
   const payloadKey = JSON.stringify(payload || {});
   const summaryKey = JSON.stringify(staticSummary || {});
-  const [state, setState] = useState({ status: 'idle', payload: null, raw: null, blocked: false, message: '' });
+  const cacheKey = dashboardReadCacheKey(action, payloadKey);
+  const [state, setState] = useState(() => {
+    const cached = DASHBOARD_READ_CACHE.get(cacheKey);
+    return cached
+      ? { status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' }
+      : { status: 'idle', payload: null, raw: null, blocked: false, message: '' };
+  });
   const mode = dashboardReadRuntimeMode();
   const primaryMode = isDashboardReadPrimaryMode(mode);
 
@@ -218,7 +231,13 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
     const runDashboardRead = async () => {
       const requestPayload = JSON.parse(payloadKey || '{}');
       const expectedSummary = JSON.parse(summaryKey || '{}');
-      if (primaryMode) setState({ status: 'loading', payload: null, raw: null, blocked: false, message: '' });
+      if (primaryMode) setState((current) => ({
+        status: 'loading',
+        payload: current.payload || DASHBOARD_READ_CACHE.get(cacheKey)?.payload || null,
+        raw: current.raw || DASHBOARD_READ_CACHE.get(cacheKey)?.raw || null,
+        blocked: false,
+        message: '',
+      }));
       try {
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
           body: { action, payload: requestPayload },
@@ -242,13 +261,13 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
           };
           if (!cancelled) {
             storeDashboardShadowDiff(report);
-            setState({
+            setState((current) => ({
               status: fallbackAllowed ? 'fallback' : 'blocked',
-              payload: null,
+              payload: fallbackAllowed ? current.payload : null,
               raw: data || null,
               blocked: !fallbackAllowed,
               message,
-            });
+            }));
           }
           return;
         }
@@ -278,6 +297,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
         };
         if (!cancelled) {
           storeDashboardShadowDiff(report);
+          DASHBOARD_READ_CACHE.set(cacheKey, { payload: adapted.payload, raw: data, checkedAt: report.checked_at });
           setState({
             status: primaryMode ? 'primary' : 'preview',
             payload: primaryMode ? adapted.payload : null,
@@ -302,13 +322,13 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
         };
         if (!cancelled) {
           storeDashboardShadowDiff(report);
-          setState({
+          setState((current) => ({
             status: fallbackAllowed ? 'fallback' : 'blocked',
-            payload: null,
+            payload: fallbackAllowed ? current.payload : null,
             raw: null,
             blocked: !fallbackAllowed,
             message,
-          });
+          }));
         }
       }
     };
@@ -316,7 +336,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
     return () => {
       cancelled = true;
     };
-  }, [action, enabled, mode, payloadKey, primaryMode, summaryKey, adapter]);
+  }, [action, enabled, mode, payloadKey, primaryMode, summaryKey, adapter, cacheKey]);
 
   return {
     ...state,
@@ -328,10 +348,24 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
 }
 
 function DashboardAccessState({ title, message }) {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
   return (
-    <div className="rounded-[20px] border border-[#7A6425] bg-[#2B2613] p-6 text-[#FFD166]">
-      <div className="text-[16px] font-bold">{title}</div>
-      <div className="mt-2 text-[13px] leading-5">{message}</div>
+    <div className="rounded-[20px] border border-[#3A3A3C] bg-[#1F1F1E] p-5 text-[#D1D1D6]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[16px] font-bold">{title}</div>
+          <div className="mt-2 text-[13px] leading-5">{message}</div>
+        </div>
+        <button
+          type="button"
+          aria-label="메시지 닫기"
+          onClick={() => setDismissed(true)}
+          className="h-8 w-8 shrink-0 rounded-[8px] border border-[#3A3A3C] bg-[#252524] text-[18px] leading-none text-[#C7C7CC] hover:bg-[#30302F] hover:text-white"
+        >
+          ×
+        </button>
+      </div>
     </div>
   );
 }
@@ -1209,6 +1243,15 @@ function formatArea(value) {
   return `${formatDecimalNumber(numeric * 0.3025, 1)}평`;
 }
 
+function formatSignedArea(value) {
+  if (value === undefined || value === null || value === '') return '-';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '-';
+  if (Math.abs(numeric) < 0.5) return '0.0평';
+  const prefix = numeric > 0 ? '+' : '-';
+  return `${prefix}${formatDecimalNumber(Math.abs(numeric) * 0.3025, 1)}평`;
+}
+
 function calculatePerPy(totalValue, areaSqm) {
   const total = Number(totalValue || 0);
   const areaPy = Number(areaSqm || 0) * 0.3025;
@@ -1757,7 +1800,7 @@ function tableHeaderText(header) {
 
 function getTableColumnMeta(header, index, total) {
   const label = tableHeaderText(header);
-  const compact = /^(No\.?|ID|코드|구분|상태|여부|단계|우선순위|중요도)$/u.test(label);
+  const compact = /^(No\.?|ID|코드|구분|상태|여부|단계|우선순위|중요도|RF|FO|TI)$/u.test(label);
   const countLike = /^(자산 수|구역 수|행 수|건수)$/u.test(label);
   const periodLike = /계약기간|현재 계약기간/u.test(label);
   const dateLike = !periodLike && /날짜|일자|시점|만기|마감|기간|보고일|개시일|종료일/u.test(label);
@@ -1768,7 +1811,7 @@ function getTableColumnMeta(header, index, total) {
   let width = '140px';
   if (total <= 2) width = index === 0 ? '28%' : '72%';
   else if (label === '임차인명') width = '178px';
-  else if (label === '자산 목록') width = '340px';
+  else if (label === '자산 목록') width = '260px';
   else if (periodLike) width = '220px';
   else if (countLike) width = '72px';
   else if (compact) width = '76px';
@@ -1784,7 +1827,7 @@ function normalizeTableColumnWidths(metas) {
   if (metas.length >= 8) return metas;
   const weights = metas.map((meta, index) => {
     if (metas.length <= 2) return index === 0 ? 0.2 : 0.8;
-    if (meta.label === '자산 목록') return 2.2;
+    if (meta.label === '자산 목록') return 1.35;
     if (meta.label === '임차인명') return 1.05;
     if (meta.countLike) return 0.45;
     if (meta.compact) return 0.62;
@@ -1819,11 +1862,18 @@ function renderTableCell(cell, meta) {
   return <span className="block truncate" title={text}>{text}</span>;
 }
 
-function DataTable({ headers, rows, onRowClick, compact = false }) {
-  const metas = normalizeTableColumnWidths(headers.map((header, index) => getTableColumnMeta(header, index, headers.length)));
-  const minTableWidth = headers.length >= 8
+function DataTable({ headers, rows, onRowClick, compact = false, columnWidths = null, minTableWidth: minTableWidthProp, tight = false }) {
+  const defaultMetas = normalizeTableColumnWidths(headers.map((header, index) => getTableColumnMeta(header, index, headers.length)));
+  const metas = Array.isArray(columnWidths) && columnWidths.length
+    ? defaultMetas.map((meta, index) => ({ ...meta, width: columnWidths[index] || meta.width }))
+    : defaultMetas;
+  const computedMinTableWidth = headers.length >= 8
     ? `${Math.max(980, headers.length * 122)}px`
     : undefined;
+  const minTableWidth = minTableWidthProp === null ? undefined : (minTableWidthProp || computedMinTableWidth);
+  const headerPaddingClass = tight ? 'px-2 first:pl-3 last:pr-3' : 'px-3 first:pl-4 last:pr-4';
+  const bodyPaddingClass = tight ? 'px-2 first:pl-3 last:pr-3' : 'px-3 first:pl-4 last:pr-4';
+  const bodyTextClass = tight ? 'text-[12px]' : 'text-[13px]';
   return (
     <div className="custom-scrollbar overflow-x-auto rounded-[10px] border border-[#333333]">
       <table className="w-full min-w-full table-fixed border-collapse text-left" style={minTableWidth ? { minWidth: minTableWidth } : undefined}>
@@ -1833,7 +1883,7 @@ function DataTable({ headers, rows, onRowClick, compact = false }) {
         <thead className="bg-[#1F1F1E] text-[#86868B] text-[12px]">
           <tr>
             {headers.map((header, index) => (
-              <th key={`${tableHeaderText(header)}-${index}`} className={`px-3 py-2 first:pl-4 last:pr-4 font-semibold ${metas[index].numeric ? 'text-right' : 'text-left'} ${metas[index].compact || metas[index].dateLike ? 'whitespace-nowrap' : 'break-keep'}`}>{header}</th>
+              <th key={`${tableHeaderText(header)}-${index}`} className={`${headerPaddingClass} py-2 font-semibold ${metas[index].numeric ? 'text-right' : 'text-left'} ${metas[index].compact || metas[index].dateLike ? 'whitespace-nowrap' : 'break-keep'}`}>{header}</th>
             ))}
           </tr>
         </thead>
@@ -1845,7 +1895,7 @@ function DataTable({ headers, rows, onRowClick, compact = false }) {
               className={`border-b border-[#333333] last:border-b-0 ${onRowClick ? 'cursor-pointer hover:bg-white/[0.04]' : ''}`}
             >
               {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className={`${compact ? 'py-1.5' : 'py-2.5'} px-3 first:pl-4 last:pr-4 align-top text-[13px] leading-5 text-[#E5E5E5] ${metas[cellIndex]?.numeric ? 'text-right tabular-nums' : 'text-left'} ${metas[cellIndex]?.compact || metas[cellIndex]?.dateLike || metas[cellIndex]?.nameLike || metas[cellIndex]?.spaceLike ? 'whitespace-nowrap' : ''}`}>
+                <td key={cellIndex} className={`${compact ? 'py-1.5' : 'py-2.5'} ${bodyPaddingClass} align-top ${bodyTextClass} leading-5 text-[#E5E5E5] ${metas[cellIndex]?.numeric ? 'text-right tabular-nums' : 'text-left'} ${metas[cellIndex]?.compact || metas[cellIndex]?.dateLike || metas[cellIndex]?.nameLike || metas[cellIndex]?.spaceLike ? 'whitespace-nowrap' : ''}`}>
                   {renderTableCell(cell, metas[cellIndex] || {})}
                 </td>
               ))}
@@ -1924,12 +1974,12 @@ function LogisticsModal({ modal, onClose }) {
   const sizeClass = modal.size === 'wide'
     ? 'max-w-[min(1760px,96vw)]'
     : modal.size === 'fullscreen'
-      ? 'max-w-[calc(100vw-24px)]'
+      ? 'max-w-none'
       : 'max-w-[1120px]';
-  const bodyHeightClass = modal.size === 'fullscreen' ? 'max-h-[calc(100vh-110px)]' : 'max-h-[calc(88vh-88px)]';
+  const bodyHeightClass = modal.size === 'fullscreen' ? 'h-[calc(100vh-102px)]' : 'max-h-[calc(88vh-88px)]';
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center px-3 py-3" role="dialog" aria-modal="true">
-      <div className={`w-full ${sizeClass} ${modal.size === 'fullscreen' ? 'h-[calc(100vh-24px)] max-h-[calc(100vh-24px)]' : 'max-h-[94vh]'} overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl`}>
+    <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-4" role="dialog" aria-modal="true">
+      <div className={`w-full ${sizeClass} ${modal.size === 'fullscreen' ? 'h-[calc(100vh-32px)] max-h-[calc(100vh-32px)]' : 'max-h-[94vh]'} overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl`}>
         <div className="px-6 py-5 border-b border-[#333333] flex items-center justify-between gap-4">
           <div>
             <div className="text-[12px] text-[#86868B] font-semibold">DETAIL</div>
@@ -2137,9 +2187,51 @@ function buildAssetInvestmentRows(project, weeklyRow) {
   ];
   const parsedEtcRows = splitProjectEtcRows(managementProjectValue(project, '기타'));
   const parsedByItem = new Map(parsedEtcRows.map((row) => [row[1], row[2]]));
-  const fixedEtcRows = ['매입가', '평당 매입가', '운영사', '비고'].map((item) => ['기타', item, parsedByItem.get(item) || '']);
+  const fixedEtcRows = [
+    '매입가',
+    '평당 매입가',
+    '취득가',
+    '장부가',
+    '임대면적',
+    '임대구조',
+    '저온비중',
+    '주차장',
+    'WARE',
+    '시공사',
+    '구조',
+    '전기용량',
+    '하중',
+    '층고',
+    '주요투자자',
+    '담보대출',
+    'NPL',
+    '주요대주',
+    '리파캐피탈',
+    '대출만기',
+    '목표 IRR',
+    '목표 배당',
+    '보통주 재간접 설정액',
+    '우선주 재간접 설정액',
+    '셀다운',
+    '운영사',
+    '비고',
+  ].map((item) => ['기타', item, parsedByItem.get(item) || '']);
   const extraEtcRows = parsedEtcRows.filter((row) => !fixedEtcRows.some((fixed) => fixed[1] === row[1]));
   return [...baseRows, ...fixedEtcRows, ...extraEtcRows];
+}
+
+function normalizeInvestmentRowsForUi(rows = []) {
+  return (Array.isArray(rows) ? rows : []).flatMap((row) => {
+    const cells = Array.isArray(row) ? row : [];
+    const group = cleanDisplay(cells[0], '');
+    const item = cleanDisplay(cells[1], '');
+    const value = cleanDisplay(cells[2], '');
+    if (group && item && group === item && value.includes('/')) {
+      const splitRows = splitProjectEtcRows(value);
+      return splitRows.length ? splitRows.map((splitRow) => [group, splitRow[1] || item, splitRow[2] || '']) : [cells];
+    }
+    return [cells];
+  });
 }
 
 const FUND_INFO_ROW_TEMPLATE = [
@@ -2203,7 +2295,7 @@ function normalizeFundLoanRowsForUi(rows) {
 function AssetProjectToggleTable({ id, title, rows, openSections, onToggle, isEditing = false, onCellChange, onAddRow, onDeleteRow }) {
   const groupedRows = rows.map((row, index) => {
     const [group] = row;
-    const shouldMergeGroup = !(id === 'investment' && group === '기타');
+    const shouldMergeGroup = true;
     const isFirst = !shouldMergeGroup || index === 0 || rows[index - 1]?.[0] !== group;
     let rowSpan = 0;
     if (isFirst) {
@@ -2449,7 +2541,7 @@ function AssetFundOverviewTable({
       {open ? (
         <div className="space-y-3">
           {blockedMessage ? (
-            <div className="rounded-[10px] border border-[#7A6425] bg-[#2B2613] px-3 py-2 text-[13px] font-semibold text-[#FFD166]">
+            <div className="rounded-[10px] border border-[#3A3A3C] bg-[#252524] px-3 py-2 text-[13px] font-semibold text-[#D1D1D6]">
               {blockedMessage}
             </div>
           ) : null}
@@ -2478,7 +2570,7 @@ function AssetFundOverviewTable({
   );
 }
 
-function AssetProjectInfoPanel({ assetName }) {
+function AssetProjectInfoPanel({ assetName, modalMode = false }) {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const { rows: latestWeeklyAssetRows } = useLatestWeeklyAssetRows(permission, memberInfo);
@@ -2507,14 +2599,14 @@ function AssetProjectInfoPanel({ assetName }) {
     serverRows?.overview?.length ? serverRows.overview : finalOverviewRows
   ), [finalOverviewRows, serverRows]);
   const effectiveInvestmentRows = useMemo(() => (
-    serverRows?.investment?.length ? serverRows.investment : finalInvestmentRows
+    serverRows?.investment?.length ? normalizeInvestmentRowsForUi(serverRows.investment) : finalInvestmentRows
   ), [finalInvestmentRows, serverRows]);
   const effectiveFundInfoRows = useMemo(() => {
-    if (fundAccessBlock || fundReadMode === 'loading') return [];
+    if (fundAccessBlock) return [];
     return serverFundRows?.fundInfo?.length ? serverFundRows.fundInfo : fallbackFundInfoRows;
   }, [fallbackFundInfoRows, fundAccessBlock, fundReadMode, serverFundRows]);
-  const effectiveBeneficiaryRows = useMemo(() => (fundAccessBlock || fundReadMode === 'loading' ? [] : serverFundRows?.beneficiaries || []), [fundAccessBlock, fundReadMode, serverFundRows]);
-  const effectiveLoanRows = useMemo(() => (fundAccessBlock || fundReadMode === 'loading' ? [] : serverFundRows?.loans || []), [fundAccessBlock, fundReadMode, serverFundRows]);
+  const effectiveBeneficiaryRows = useMemo(() => (fundAccessBlock ? [] : serverFundRows?.beneficiaries || []), [fundAccessBlock, fundReadMode, serverFundRows]);
+  const effectiveLoanRows = useMemo(() => (fundAccessBlock ? [] : serverFundRows?.loans || []), [fundAccessBlock, fundReadMode, serverFundRows]);
   const assetId = resolveAssetIdByName(assetName);
   const canEditProject = Boolean(permission.role === 'Admin' || (
     assetIdMatchesPermission(assetId, assetName, permission)
@@ -2522,10 +2614,14 @@ function AssetProjectInfoPanel({ assetName }) {
   ));
   useEffect(() => {
     let cancelled = false;
-    setServerRows(null);
-    setServerFundRows(null);
+    const detailCacheKey = assetId || normalizeAssetNameKey(assetName);
+    const fundCacheKey = assetId || normalizeAssetNameKey(assetName);
+    const cachedDetail = detailCacheKey ? ASSET_PROJECT_DETAIL_CACHE.get(detailCacheKey) : null;
+    const cachedFund = fundCacheKey ? ASSET_FUND_OVERVIEW_CACHE.get(fundCacheKey) : null;
+    setServerRows(cachedDetail || null);
+    setServerFundRows(cachedFund || null);
     setFundAccessBlock(null);
-    setFundReadMode(assetName ? 'loading' : 'idle');
+    setFundReadMode(cachedFund ? 'allowed' : assetName ? 'loading' : 'idle');
     setSaveStatus(null);
     if (!assetName) return undefined;
     supabase.functions.invoke('ll-dashboard-api', {
@@ -2535,12 +2631,14 @@ function AssetProjectInfoPanel({ assetName }) {
       },
     }).then(({ data }) => {
       if (cancelled || !data?.ok || !data?.data) return;
-      setServerRows({
+      const nextServerRows = {
         overview: Array.isArray(data.data.overview_rows) ? data.data.overview_rows : [],
-        investment: Array.isArray(data.data.investment_rows) ? data.data.investment_rows : [],
-      });
+        investment: Array.isArray(data.data.investment_rows) ? normalizeInvestmentRowsForUi(data.data.investment_rows) : [],
+      };
+      if (detailCacheKey) ASSET_PROJECT_DETAIL_CACHE.set(detailCacheKey, nextServerRows);
+      setServerRows(nextServerRows);
     }).catch(() => {
-      if (!cancelled) setServerRows(null);
+      if (!cancelled && !cachedDetail) setServerRows(null);
     });
     supabase.functions.invoke('ll-dashboard-api', {
       body: {
@@ -2563,11 +2661,13 @@ function AssetProjectInfoPanel({ assetName }) {
         return;
       }
       if (!data?.data) return;
-      setServerFundRows({
+      const nextFundRows = {
         fundInfo: normalizeFundInfoRowsForUi(data.data.fund_info_rows, fallbackFundInfoRows),
         beneficiaries: normalizeFundBeneficiaryRowsForUi(data.data.beneficiary_rows),
         loans: normalizeFundLoanRowsForUi(data.data.loan_rows),
-      });
+      };
+      if (fundCacheKey) ASSET_FUND_OVERVIEW_CACHE.set(fundCacheKey, nextFundRows);
+      setServerFundRows(nextFundRows);
       setFundReadMode('allowed');
     }).catch((error) => {
       if (!cancelled) {
@@ -2579,7 +2679,7 @@ function AssetProjectInfoPanel({ assetName }) {
         } else {
           setFundReadMode('fallback');
         }
-        setServerFundRows(null);
+        if (!cachedFund) setServerFundRows(null);
       }
     });
     return () => {
@@ -2741,7 +2841,13 @@ function AssetProjectInfoPanel({ assetName }) {
         beneficiaries: draftRows.fundBeneficiaries,
         loans: draftRows.fundLoans,
       };
-      setServerRows({ overview: draftRows.overview, investment: draftRows.investment });
+      const nextProjectRows = { overview: draftRows.overview, investment: draftRows.investment };
+      const cacheKey = assetId || normalizeAssetNameKey(assetName);
+      if (cacheKey) {
+        ASSET_PROJECT_DETAIL_CACHE.set(cacheKey, nextProjectRows);
+        ASSET_FUND_OVERVIEW_CACHE.set(cacheKey, nextFundRows);
+      }
+      setServerRows(nextProjectRows);
       setServerFundRows(nextFundRows);
       setFundAccessBlock(null);
       setFundReadMode('allowed');
@@ -2758,7 +2864,7 @@ function AssetProjectInfoPanel({ assetName }) {
       : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#C7C7CC]';
 
   return (
-    <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+    <section className={`${modalMode ? 'min-h-[calc(100vh-170px)]' : ''} rounded-[20px] border border-[#333333] bg-[#252524] p-5`}>
       <SectionHeader
         eyebrow="WEEKLY MANAGEMENT PROJECT"
         title="자산개요 · 투자개요 · 펀드개요"
@@ -2794,7 +2900,7 @@ function AssetProjectInfoPanel({ assetName }) {
           fundInfoRows={isEditing ? draftRows.fundInfo : effectiveFundInfoRows}
           beneficiaryRows={isEditing ? draftRows.fundBeneficiaries : effectiveBeneficiaryRows}
           loanRows={isEditing ? draftRows.fundLoans : effectiveLoanRows}
-          blockedMessage={fundAccessBlock || (fundReadMode === 'loading' ? '펀드개요 권한과 Supabase 데이터를 확인 중입니다.' : null)}
+          blockedMessage={fundAccessBlock}
           isEditing={isEditing}
           onFundInfoCellChange={updateFundInfoCell}
           onBeneficiaryChange={updateFundBeneficiaryRow}
@@ -3440,7 +3546,17 @@ function normalizeAssetNameKey(value) {
   return String(value || '').replace(/\s+/gu, '').toLowerCase();
 }
 
+function hasAllAssetReadPermission(permission) {
+  const role = String(permission?.role || permission?.logisticsRole || '').trim();
+  return Boolean(
+    permission?.permissions?.otherAsset?.read
+    || role === 'Admin'
+    || role === 'System Admin',
+  );
+}
+
 function assetMatchesPermission(assetName, permission) {
+  if (hasAllAssetReadPermission(permission)) return true;
   const key = normalizeAssetNameKey(assetName);
   if (!key) return true;
   return (permission.managedAssets || []).some((asset) => {
@@ -3450,6 +3566,7 @@ function assetMatchesPermission(assetName, permission) {
 }
 
 function assetIdMatchesPermission(assetId, assetName, permission) {
+  if (hasAllAssetReadPermission(permission)) return true;
   const readableAssets = permission?.managedAssets || [];
   if (!readableAssets.length) return false;
   const id = String(assetId || '').toLowerCase();
@@ -6005,14 +6122,18 @@ function HomeDashboard() {
   const metricAssetRows = readableAssetOptions.map((asset) => {
     const sourceGrossAreaSqm = Number(asset.grossFloorAreaSqm || 0);
     const leasedAreaSqm = Number(asset.leasedAreaSqm || 0);
-    const vacancyAreaSqm = Math.max(0, sourceGrossAreaSqm - leasedAreaSqm);
-    const grossFloorAreaSqm = leasedAreaSqm + vacancyAreaSqm;
+    const explicitVacancyAreaSqm = firstDefined(asset.vacancyAreaSqm, asset.vacancy_area_sqm);
+    const vacancyAreaSqm = explicitVacancyAreaSqm !== undefined && explicitVacancyAreaSqm !== null && explicitVacancyAreaSqm !== ''
+      ? Number(explicitVacancyAreaSqm || 0)
+      : Math.max(0, sourceGrossAreaSqm - leasedAreaSqm);
+    const areaReconciliationGapSqm = sourceGrossAreaSqm - leasedAreaSqm - vacancyAreaSqm;
     return {
       ...asset,
-      grossFloorAreaSqm,
+      grossFloorAreaSqm: sourceGrossAreaSqm,
       leasedAreaSqm,
       vacancyAreaSqm,
-      vacancyRate: grossFloorAreaSqm > 0 ? vacancyAreaSqm / grossFloorAreaSqm : 0,
+      areaReconciliationGapSqm,
+      vacancyRate: sourceGrossAreaSqm > 0 ? vacancyAreaSqm / sourceGrossAreaSqm : 0,
     };
   });
   const filteredHomeMetrics = {
@@ -6022,8 +6143,9 @@ function HomeDashboard() {
     vacancyArea: sumRows(metricAssetRows, (row) => row.vacancyAreaSqm),
   };
   filteredHomeMetrics.vacancyRate = filteredHomeMetrics.grossArea > 0 ? filteredHomeMetrics.vacancyArea / filteredHomeMetrics.grossArea : data.vacancyRate;
+  filteredHomeMetrics.areaReconciliationGap = filteredHomeMetrics.grossArea - filteredHomeMetrics.leasedArea - filteredHomeMetrics.vacancyArea;
 
-  const openTableModal = (title, headers, rows) => setModal({ title, headers, rows });
+  const openTableModal = (title, headers, rows, options = {}) => setModal({ title, headers, rows, ...options });
   const openTenantContractDetail = (tenant) => setModal({
     title: `임차인 계약 상세 · ${tenant.tenantMasterName}`,
     content: (
@@ -6072,11 +6194,11 @@ function HomeDashboard() {
     ),
   });
   const kpiCards = [
-    ['운영 자산 수', formatMetric(filteredHomeMetrics.operatingAssetCount, 'number'), DASHBOARD_BASIS_LABEL, () => openTableModal('운영 자산 목록', ['자산명', '주소', '연면적(평)', '임대면적(평)', '공실면적(평)', '공실률'], metricAssetRows.map((row) => [row.assetName, row.address || '-', formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatPercent(row.vacancyRate)]))],
-    ['총 연면적', formatMetric(filteredHomeMetrics.grossArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 연면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm)]))],
-    ['총 임대면적', formatMetric(filteredHomeMetrics.leasedArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 임대면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm)]))],
-    ['총 공실면적', formatMetric(filteredHomeMetrics.vacancyArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 공실면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm)]))],
-    ['공실률', formatMetric(filteredHomeMetrics.vacancyRate, 'percent'), DASHBOARD_BASIS_LABEL, () => openTableModal('공실률 계산 근거', ['항목', '내용'], [['기준시점', DASHBOARD_BASIS_LABEL], ['총 연면적(평)', formatArea(filteredHomeMetrics.grossArea)], ['총 임대면적(평)', formatArea(filteredHomeMetrics.leasedArea)], ['총 공실면적(평)', formatArea(filteredHomeMetrics.vacancyArea)], ['계산식', '총 공실면적 / 총 연면적'], ['공실률', formatPercent(filteredHomeMetrics.vacancyRate)]])],
+    ['운영 자산 수', formatMetric(filteredHomeMetrics.operatingAssetCount, 'number'), DASHBOARD_BASIS_LABEL, () => openTableModal('운영 자산 목록', ['자산명', '주소', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이', '공실률'], metricAssetRows.map((row) => [row.assetName, row.address || '-', formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm), formatPercent(row.vacancyRate)]))],
+    ['총 연면적', formatMetric(filteredHomeMetrics.grossArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 연면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm)]))],
+    ['총 임대면적', formatMetric(filteredHomeMetrics.leasedArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 임대면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm)]))],
+    ['총 공실면적', formatMetric(filteredHomeMetrics.vacancyArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 공실면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm)]))],
+    ['공실률', formatMetric(filteredHomeMetrics.vacancyRate, 'percent'), DASHBOARD_BASIS_LABEL, () => openTableModal('공실률 계산 근거', ['항목', '내용'], [['기준시점', DASHBOARD_BASIS_LABEL], ['총 연면적(평)', formatArea(filteredHomeMetrics.grossArea)], ['총 임대면적(평)', formatArea(filteredHomeMetrics.leasedArea)], ['총 공실면적(평)', formatArea(filteredHomeMetrics.vacancyArea)], ['연면적-임대면적-공실면적 차이', formatSignedArea(filteredHomeMetrics.areaReconciliationGap)], ['계산식', '총 공실면적 / 총 연면적'], ['공실률', formatPercent(filteredHomeMetrics.vacancyRate)]])],
     ['월 임관리비 총액', formatMetric(canonicalMonthlyCost, 'currency'), `${DASHBOARD_BASIS_LABEL} · Rent History 기준`, () => openTableModal('월 임관리비 총액 근거', ['구분', '값', '비고'], [['기준시점', DASHBOARD_BASIS_LABEL, '기준월 이전 최신 rent history를 계약 구역별로 반영'], ['자산 합계', formatCurrency(assetSnapshotMonthlyCost), 'KPI/자산별 도넛 기준'], ['Lease space 합계', formatCurrency(leaseSpaceMonthlyCost), '임차인 계약 row 기준'], ['차이', formatCurrency(leaseSpaceToKpiGap), 'Data Quality reconciliation 대상'], ...monthlyCostEvidenceRows.map((row) => [row.tenantMasterName, formatCurrency(row.value), `${formatNumber(row.assetCount)}개 자산 · 최근 만기 ${formatDate(row.latestExpiry)}`])])],
   ];
   const composition = home.composition || {};
@@ -6174,10 +6296,28 @@ function HomeDashboard() {
   ));
   const sectorAssetRows = sectorTopAssets.map((row) => [row.assetName, formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyRentTotal)), formatArea(row.leasedAreaSqm), topTenantNameByAsset[row.assetName] || '-']);
   const sectorTenantRows = sectorTopTenants.map((row) => [row.tenantMasterName, formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(firstDefined(row.monthlyCostTotal, Number(row.monthlyRentTotal || 0) + Number(row.monthlyMfTotal || 0))), formatArea(row.leasedAreaSqm)]);
-  const regionExposureRows = regionRows.map((row) => [row.label, formatNumber(row.assetCount), formatArea(row.grossFloorAreaSqm), formatCurrency(row.monthlyCostTotal)]);
+  const regionAreaTotal = regionRows.reduce((sum, row) => sum + Number(row.grossFloorAreaSqm || 0), 0);
+  const regionCostTotal = regionRows.reduce((sum, row) => sum + Number(row.monthlyCostTotal || 0), 0);
+  const regionExposureRows = regionRows.map((row) => [
+    row.label,
+    formatNumber(row.assetCount),
+    formatArea(row.grossFloorAreaSqm),
+    formatPercent(regionAreaTotal ? Number(row.grossFloorAreaSqm || 0) / regionAreaTotal : 0),
+    formatCurrency(row.monthlyCostTotal),
+    formatPercent(regionCostTotal ? Number(row.monthlyCostTotal || 0) / regionCostTotal : 0),
+  ]);
   const regionChartRows = regionRows.map((row) => ({
     ...row,
-    value: regionMetric === 'area' ? row.grossFloorAreaSqm : row.monthlyCostTotal,
+    value: regionMetric === 'area'
+      ? (regionAreaTotal ? Number(row.grossFloorAreaSqm || 0) / regionAreaTotal : 0)
+      : (regionCostTotal ? Number(row.monthlyCostTotal || 0) / regionCostTotal : 0),
+    displayValue: regionMetric === 'area'
+      ? `${formatArea(row.grossFloorAreaSqm)} (${formatPercent(regionAreaTotal ? Number(row.grossFloorAreaSqm || 0) / regionAreaTotal : 0)})`
+      : `${formatCurrency(row.monthlyCostTotal)} (${formatPercent(regionCostTotal ? Number(row.monthlyCostTotal || 0) / regionCostTotal : 0)})`,
+    tooltipLines: [
+      ['연면적 비율', formatPercent(regionAreaTotal ? Number(row.grossFloorAreaSqm || 0) / regionAreaTotal : 0)],
+      ['월 임관리비 비율', formatPercent(regionCostTotal ? Number(row.monthlyCostTotal || 0) / regionCostTotal : 0)],
+    ],
   }));
 
   return (
@@ -6341,11 +6481,11 @@ function HomeDashboard() {
                     <button key={value} type="button" onClick={() => setRegionMetric(value)} className={`h-8 rounded-[6px] px-3 text-[12px] font-semibold ${regionMetric === value ? 'bg-white text-[#1F1F1E]' : 'text-[#A1A1AA] hover:text-white'}`}>{label}</button>
                   ))}
                 </div>
-                <button type="button" onClick={() => openTableModal('권역별 노출도', ['권역', '자산 수', '연면적(평)', '월 임관리비'], regionExposureRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세</button>
+                <button type="button" onClick={() => openTableModal('권역별 노출도', ['권역', '자산 수', '연면적(평)', '연면적 비율', '월 임관리비', '임관리비 비율'], regionExposureRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세</button>
               </div>
             )}
           />
-          <RichBarChart rows={regionChartRows} labelKey="label" valueKey="value" valueType={regionMetric === 'area' ? 'area' : 'currency'} valueLabel={regionMetric === 'area' ? '권역별 연면적' : '권역별 월 임관리비'} onClick={() => openTableModal('권역별 노출도', ['권역', '자산 수', '연면적(평)', '월 임관리비'], regionExposureRows)} />
+          <RichBarChart rows={regionChartRows} labelKey="label" valueKey="value" valueType="percent" valueLabel={regionMetric === 'area' ? '권역별 연면적 비율' : '권역별 월 임관리비 비율'} barMaxValue={1} showXAxisLabels={false} onClick={() => openTableModal('권역별 노출도', ['권역', '자산 수', '연면적(평)', '연면적 비율', '월 임관리비', '임관리비 비율'], regionExposureRows)} />
         </div>
       </section>
 
@@ -6354,7 +6494,7 @@ function HomeDashboard() {
           <SectionHeader
             eyebrow="EXPIRY"
             title="만기 집중도"
-            right={<button type="button" onClick={() => openTableModal('만기 집중도 월별 상세', ['만기월', '임차인', '자산', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', 'E.NOC', '공간'], expiryDetailRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">월별 상세 보기</button>}
+            right={<button type="button" onClick={() => openTableModal('만기 집중도 월별 상세', ['만기월', '임차인', '자산', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', 'E.NOC', '공간'], expiryDetailRows, { size: 'fullscreen' })} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">월별 상세 보기</button>}
           />
           <RichTrendChart
             rows={data.monthlyExpiryRows}
@@ -6364,7 +6504,7 @@ function HomeDashboard() {
             rightAxisColor="#FFD166"
             chartHeight={460}
             chartHeightClass="h-[440px]"
-            onClick={() => openTableModal('만기 집중도 월별 상세', ['만기월', '임차인', '자산', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', 'E.NOC', '공간'], expiryDetailRows)}
+            onClick={() => openTableModal('만기 집중도 월별 상세', ['만기월', '임차인', '자산', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', 'E.NOC', '공간'], expiryDetailRows, { size: 'fullscreen' })}
             series={[
               { key: 'expiringAreaSqm', label: '만기 임대면적', valueType: 'area', chartType: 'bar', color: '#9AD7FF' },
               { key: 'uniqueTenantCount', label: '만기 임차인 수', valueType: 'count', axis: 'right', color: '#FFD166' },
@@ -6432,7 +6572,19 @@ function SimpleBarChart({ rows, labelKey, valueKey, valueType = 'number', onClic
   );
 }
 
-function RichBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick, valueLabel, maxRows = 10, includeZero = false }) {
+function RichBarChart({
+  rows,
+  labelKey,
+  valueKey,
+  valueType = 'number',
+  onClick,
+  valueLabel,
+  maxRows = 10,
+  includeZero = false,
+  showXAxisLabels = true,
+  barValueKey = null,
+  barMaxValue = null,
+}) {
   const chartRef = useRef(null);
   const [hoveredBar, setHoveredBar] = useState(null);
   const filteredRows = (rows || []).filter((row) => {
@@ -6440,28 +6592,33 @@ function RichBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick,
     return Number.isFinite(value) && (includeZero ? value >= 0 : value > 0);
   });
   const chartRows = Number.isFinite(maxRows) ? filteredRows.slice(0, maxRows) : filteredRows;
-  const axis = buildAxisSpec(Math.max(...chartRows.map((row) => Number(row[valueKey] || 0)), 1), valueType);
-  const maxValue = axis.max;
+  const axisValueKey = barValueKey || valueKey;
+  const maxValue = Number.isFinite(barMaxValue)
+    ? Math.max(Number(barMaxValue), 1)
+    : buildAxisSpec(Math.max(...chartRows.map((row) => Number(row[axisValueKey] || 0)), 1), valueType).max;
   const metricName = valueLabel || chartMetricLabel(valueKey, valueType);
   if (!chartRows.length) return <div className="text-[13px] text-[#86868B]">차트로 표시할 값이 없습니다.</div>;
   return (
     <div ref={chartRef} onMouseLeave={() => setHoveredBar(null)} className="relative rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[12px]">
-        <span className="text-[#86868B]">Y축: 항목 · X축: {metricName}</span>
-        <span className="text-[#D1D1D6]"><span className="mr-1 inline-block h-2 w-6 rounded-full bg-[#9AD7FF]" />막대 길이 = {metricName}</span>
-      </div>
+      {showXAxisLabels ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[12px]">
+          <span className="text-[#86868B]">Y축: 항목 · X축: {metricName}</span>
+          <span className="text-[#D1D1D6]"><span className="mr-1 inline-block h-2 w-6 rounded-full bg-[#9AD7FF]" />막대 길이 = {metricName}</span>
+        </div>
+      ) : null}
       <div className="space-y-3">
         {chartRows.map((row) => {
           const value = Number(row[valueKey] || 0);
+          const barValue = Number(row[axisValueKey] || 0);
           const label = chartLabel(row, labelKey);
           return (
             <button
               key={`${label}-${valueKey}`}
               type="button"
               onClick={onClick}
-              onMouseEnter={(event) => setHoveredBar({ row, label, value, ...getTooltipPoint(event, chartRef.current, 240, 150) })}
-              onMouseMove={(event) => setHoveredBar({ row, label, value, ...getTooltipPoint(event, chartRef.current, 240, 150) })}
-              onFocus={() => setHoveredBar({ row, label, value, x: 220, y: 72 })}
+              onMouseEnter={(event) => setHoveredBar({ row, label, value, barValue, ...getTooltipPoint(event, chartRef.current, 240, 150) })}
+              onMouseMove={(event) => setHoveredBar({ row, label, value, barValue, ...getTooltipPoint(event, chartRef.current, 240, 150) })}
+              onFocus={() => setHoveredBar({ row, label, value, barValue, x: 220, y: 72 })}
               onBlur={() => setHoveredBar(null)}
               aria-label={`${label} ${metricName} ${formatMetric(value, valueType)}`}
               className="group relative w-full cursor-pointer rounded-[10px] px-2 py-1.5 text-left hover:bg-[#282827]"
@@ -6470,7 +6627,7 @@ function RichBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick,
               <div className="grid grid-cols-[168px_1fr_152px] items-center gap-3 text-[12px]">
                 <span className="truncate font-semibold text-[#E5E5E5]">{label}</span>
                 <div className="relative h-5 rounded-full bg-[#151515]">
-                  <div className="h-full rounded-full bg-[#9AD7FF] transition-colors group-hover:bg-[#B5E48C]" style={{ width: `${Math.max(3, (value / maxValue) * 100)}%` }} />
+                  <div className="h-full rounded-full bg-[#9AD7FF] transition-colors group-hover:bg-[#B5E48C]" style={{ width: `${Math.min(100, Math.max(3, (barValue / maxValue) * 100))}%` }} />
                 </div>
                 <span className="text-right font-semibold text-[#D1D1D6]">{row.displayValue || formatMetric(value, valueType)}</span>
               </div>
@@ -6478,18 +6635,20 @@ function RichBarChart({ rows, labelKey, valueKey, valueType = 'number', onClick,
           );
         })}
       </div>
-      <div className="mt-3 grid grid-cols-5 border-t border-[#333333] pt-2 text-[11px] text-[#86868B]">
-        {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
-          <span key={tick} className={tick === 1 ? 'text-right' : tick === 0 ? 'text-left' : 'text-center'}>
-            {shortChartValue(maxValue * tick, valueType)}
-          </span>
-        ))}
-      </div>
+      {showXAxisLabels ? (
+        <div className="mt-3 grid grid-cols-5 border-t border-[#333333] pt-2 text-[11px] text-[#86868B]">
+          {[0, 0.25, 0.5, 0.75, 1].map((tick) => (
+            <span key={tick} className={tick === 1 ? 'text-right' : tick === 0 ? 'text-left' : 'text-center'}>
+              {shortChartValue(maxValue * tick, valueType)}
+            </span>
+          ))}
+        </div>
+      ) : null}
       {hoveredBar ? (
         <div data-testid="chart-tooltip" className="pointer-events-none fixed z-50 w-[240px] rounded-[8px] border border-[#3A3A3C] bg-[#101010]/95 px-3 py-2 text-[12px] text-white shadow-xl" style={{ left: hoveredBar.x, top: hoveredBar.y }}>
           <div className="font-semibold">{hoveredBar.label}</div>
           <div className="mt-1 text-[#A1A1AA]">{metricName}: {hoveredBar.row.displayValue || formatMetric(hoveredBar.value, valueType)}</div>
-          <div className="text-[#86868B]">전체 최대값 대비 {((hoveredBar.value / maxValue) * 100).toFixed(1)}%</div>
+          <div className="text-[#86868B]">전체 최대값 대비 {((Number(hoveredBar.barValue || 0) / maxValue) * 100).toFixed(1)}%</div>
           {Array.isArray(hoveredBar.row.tooltipLines) ? (
             <div className="mt-2 space-y-1 border-t border-[#3A3A3C] pt-2">
               {hoveredBar.row.tooltipLines.map(([tooltipLabel, tooltipValue]) => (
@@ -7033,6 +7192,15 @@ function buildSpaceLabel(row) {
   return [floors, details].filter(Boolean).join(' / ') || '-';
 }
 
+function formatFloorZoneLabel(value) {
+  const text = String(value || '').trim();
+  if (!text || text === '-') return '-';
+  if (/^\d+$/u.test(text)) return `${text}층`;
+  if (/^B\d+$/iu.test(text)) return `${text.toUpperCase()}층`;
+  if (/층|F/iu.test(text)) return text;
+  return text;
+}
+
 function normalizeCompanyPayload(payload) {
   const sourceRows = payload.rows || [];
   const rowByAssetName = new Map(sourceRows.map((row) => [row.assetName, row]));
@@ -7260,40 +7428,6 @@ function applyAssetDisplayCorrections(payload, rows) {
   const overview = { ...(payload.overview || {}) };
   const kpis = normalizeKpiList(payload.kpis).map((item) => ({ ...item }));
   let normalizedRows = rows;
-  const setKpiValue = (key, value) => {
-    const found = kpis.find((item) => item.key === key);
-    if (found) found.value = value;
-    else kpis.push({ key, label: key, value });
-  };
-
-  if (overview.assetId === 'asset_a120085001' || overview.assetName === '경산 쿠팡물류센터') {
-    overview.vacancyAreaSqm = 0;
-    overview.vacancyRate = 0;
-    overview.leasedAreaSqm = firstDefined(overview.grossFloorAreaSqm, overview.leasedAreaSqm);
-    setKpiValue('occupancy_rate', 1);
-    setKpiValue('leased_area_total', overview.leasedAreaSqm);
-    setKpiValue('vacancy_area_total', 0);
-  }
-
-  if (overview.assetId === 'asset_a112109001' || overview.assetName === '부산송정물류센터') {
-    overview.leasedAreaSqm = 0;
-    overview.vacancyAreaSqm = overview.grossFloorAreaSqm || 0;
-    overview.vacancyRate = 1;
-    overview.tenantCount = 0;
-    overview.uniqueTenantCount = 0;
-    overview.leaseSpaceCount = 0;
-    overview.monthlyRentTotal = null;
-    overview.monthlyMfTotal = null;
-    overview.monthlyCostTotal = null;
-    overview.averageENoc = null;
-    normalizedRows = [];
-    setKpiValue('occupancy_rate', 0);
-    setKpiValue('leased_area_total', 0);
-    setKpiValue('vacancy_area_total', overview.vacancyAreaSqm);
-    setKpiValue('unique_tenant_count', 0);
-    setKpiValue('monthly_total_cost', null);
-    setKpiValue('average_e_noc', null);
-  }
 
   if (overview.assetId === 'asset_a112127001' || overview.assetName === '아레나스양지물류센터') {
     normalizedRows = normalizedRows.map((row) => {
@@ -7665,6 +7799,7 @@ function CompanyDashboard() {
   const exposureTotal = exposureRows.reduce((sum, row) => sum + Number(row.value || 0), 0);
   const exposureChartRows = exposureRows.map((row) => ({
     ...row,
+    shareValue: exposureTotal ? Number(row.value || 0) / exposureTotal : 0,
     displayValue: `${formatMetric(row.value, effectiveExposureMode === 'area' ? 'area' : 'currency')} (${formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0)})`,
     tooltipLines: [
       ['전체 대비', formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0)],
@@ -7689,6 +7824,7 @@ function CompanyDashboard() {
     formatCurrency(row.monthlyRentTotal),
     formatCurrency(row.monthlyMfTotal),
     formatCurrency(row.monthlyCostTotal),
+    formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0),
   ]);
   const openTableModal = (title, headers, rows) => setModal({ title, headers, rows });
   const refreshOpenDart = async () => {
@@ -7855,11 +7991,11 @@ function CompanyDashboard() {
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setExposureMode('cost')} className={`h-9 px-3 rounded-[8px] text-[13px] font-semibold ${effectiveExposureMode === 'cost' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}>임관리비 총합 기준</button>
               <button type="button" onClick={() => setExposureMode('area')} className={`h-9 px-3 rounded-[8px] text-[13px] font-semibold ${effectiveExposureMode === 'area' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}>임대면적 기준</button>
-              <button type="button" onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비'], exposureTableRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>
+              <button type="button" onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '비율'], exposureTableRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>
             </div>
           )}
         />
-        <RichBarChart rows={exposureChartRows} labelKey="label" valueKey="value" valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} valueLabel={effectiveExposureMode === 'area' ? '자산별 임대면적(평)' : '자산별 월 임관리비'} onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비'], exposureTableRows)} />
+        <RichBarChart rows={exposureChartRows} labelKey="label" valueKey="value" barValueKey="shareValue" barMaxValue={1} valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} valueLabel={effectiveExposureMode === 'area' ? '자산별 임대면적(평)' : '자산별 월 임관리비'} showXAxisLabels={false} onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '비율'], exposureTableRows)} />
         {!hasCostExposure && exposureMode === 'cost' ? <div className="mt-2 text-[12px] text-[#86868B]">월 임관리비 값이 비어 있어 임대면적 기준으로 표시했습니다.</div> : null}
       </section>
     </div>
@@ -8060,7 +8196,7 @@ function AnalysisToolsDashboard() {
               </button>
             ))}
           </div>
-          <RichBarChart rows={rows.map((row) => ({ ...row, value: metricValueFromRow(row, benchmarkMetric) }))} labelKey="assetName" valueKey="value" valueType={benchmarkMetricDef.type} valueLabel={benchmarkMetricDef.label} onClick={() => setModal({ title: '자산 비교', headers: ['자산명', benchmarkMetricDef.label, '공실률', '임대면적(평)', '월 임관리비'], rows: rows.map((row) => [row.assetName, formatMetric(metricValueFromRow(row, benchmarkMetric), benchmarkMetricDef.type), formatPercent(row.vacancyRate), formatArea(row.leasedAreaSqm), formatCurrency(row.monthlyCostTotal)]) })} />
+          <RichBarChart rows={rows.map((row) => ({ ...row, value: metricValueFromRow(row, benchmarkMetric) }))} labelKey="assetName" valueKey="value" valueType={benchmarkMetricDef.type} valueLabel={benchmarkMetricDef.label} showXAxisLabels={false} onClick={() => setModal({ title: '자산 비교', headers: ['자산명', benchmarkMetricDef.label, '공실률', '임대면적(평)', '월 임관리비'], rows: rows.map((row) => [row.assetName, formatMetric(metricValueFromRow(row, benchmarkMetric), benchmarkMetricDef.type), formatPercent(row.vacancyRate), formatArea(row.leasedAreaSqm), formatCurrency(row.monthlyCostTotal)]) })} />
         </div>
 
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
@@ -8097,7 +8233,7 @@ function AnalysisToolsDashboard() {
               </button>
             ))}
           </div>
-          <RichBarChart rows={companyCompareRows} labelKey="tenantMasterName" valueKey="metricValue" valueType={benchmarkMetricDef.type} valueLabel={benchmarkMetricDef.label} onClick={() => setModal({ title: '기업 비교', headers: ['기업명', '자산 목록', '계약 수', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', benchmarkMetricDef.label], rows: companyTableRows })} />
+          <RichBarChart rows={companyCompareRows} labelKey="tenantMasterName" valueKey="metricValue" valueType={benchmarkMetricDef.type} valueLabel={benchmarkMetricDef.label} showXAxisLabels={false} onClick={() => setModal({ title: '기업 비교', headers: ['기업명', '자산 목록', '계약 수', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', benchmarkMetricDef.label], rows: companyTableRows })} />
         </div>
       </section>
       <section
@@ -8380,7 +8516,7 @@ function DataPlaygroundDashboard() {
             ['원본 행', `${formatNumber(row.recordCount)}건`],
             ['집계', `${aggregationLabel} ${metricDef.label}`],
           ],
-        }))} labelKey="label" valueKey="value" valueType={metricDef.type} valueLabel={`${aggregationLabel} ${metricDef.label}`} onClick={() => setModal({ title: 'Pivot Table 차트 상세', size: 'wide', headers: tableHeaders, rows: tableRows })} />
+        }))} labelKey="label" valueKey="value" valueType={metricDef.type} valueLabel={`${aggregationLabel} ${metricDef.label}`} showXAxisLabels={false} onClick={() => setModal({ title: 'Pivot Table 차트 상세', size: 'wide', headers: tableHeaders, rows: tableRows })} />
       </section>
       {mode === 'explorer' ? (
         <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
@@ -9512,6 +9648,45 @@ function AssetDashboard() {
   const assetWeightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
   const buildingRegisterSource = rows.find((row) => row.asset?.sigunguCd || row.sigunguCd) || overview;
   const buildingRegisterPayload = buildBuildingRegisterPayload(buildingRegisterSource);
+  useEffect(() => {
+    const assetNameForPrefetch = overview.assetName;
+    const cacheKey = selectedAssetId || normalizeAssetNameKey(assetNameForPrefetch);
+    if (!assetNameForPrefetch || !cacheKey) return undefined;
+    let cancelled = false;
+    if (!ASSET_PROJECT_DETAIL_CACHE.has(cacheKey)) {
+      supabase.functions.invoke('ll-dashboard-api', {
+        body: {
+          action: 'weekly-projects/get-asset-detail',
+          payload: { asset_name: assetNameForPrefetch, asset_id: selectedAssetId },
+        },
+      }).then(({ data }) => {
+        if (cancelled || !data?.ok || !data?.data) return;
+        ASSET_PROJECT_DETAIL_CACHE.set(cacheKey, {
+          overview: Array.isArray(data.data.overview_rows) ? data.data.overview_rows : [],
+          investment: Array.isArray(data.data.investment_rows) ? normalizeInvestmentRowsForUi(data.data.investment_rows) : [],
+        });
+      }).catch(() => {});
+    }
+    if (!ASSET_FUND_OVERVIEW_CACHE.has(cacheKey)) {
+      const fallbackFundRows = buildDefaultFundInfoRows(assetNameForPrefetch, {});
+      supabase.functions.invoke('ll-dashboard-api', {
+        body: {
+          action: 'funds/read-by-asset',
+          payload: { asset_name: assetNameForPrefetch, asset_id: selectedAssetId },
+        },
+      }).then(({ data, error }) => {
+        if (cancelled || error || data?.ok === false || !data?.data) return;
+        ASSET_FUND_OVERVIEW_CACHE.set(cacheKey, {
+          fundInfo: normalizeFundInfoRowsForUi(data.data.fund_info_rows, fallbackFundRows),
+          beneficiaries: normalizeFundBeneficiaryRowsForUi(data.data.beneficiary_rows),
+          loans: normalizeFundLoanRowsForUi(data.data.loan_rows),
+        });
+      }).catch(() => {});
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [overview.assetName, selectedAssetId]);
   const kpiByKey = kpiLookupFrom(asset.kpis);
   const sourceAssetGrossAreaSqm = Number(firstDefined(
     overview.grossFloorAreaSqm,
@@ -9531,7 +9706,8 @@ function AssetDashboard() {
   const assetVacancyAreaBasisSqm = explicitAssetVacancyAreaSqm !== undefined && explicitAssetVacancyAreaSqm !== null && explicitAssetVacancyAreaSqm !== ''
     ? Number(explicitAssetVacancyAreaSqm || 0)
     : Math.max(0, sourceAssetGrossAreaSqm - assetLeasedAreaBasisSqm);
-  const assetGrossAreaBasisSqm = (assetLeasedAreaBasisSqm + assetVacancyAreaBasisSqm) || sourceAssetGrossAreaSqm;
+  const assetGrossAreaBasisSqm = sourceAssetGrossAreaSqm || (assetLeasedAreaBasisSqm + assetVacancyAreaBasisSqm);
+  const assetAreaReconciliationGapSqm = assetGrossAreaBasisSqm - assetLeasedAreaBasisSqm - assetVacancyAreaBasisSqm;
   const assetOccupancyRate = assetGrossAreaBasisSqm > 0 ? assetLeasedAreaBasisSqm / assetGrossAreaBasisSqm : 1 - Number(overview.vacancyRate || 0);
   const assetKpiLabels = {
     gross_floor_area_total: '총 연면적',
@@ -9739,6 +9915,7 @@ function AssetDashboard() {
     [<span key="parking" className="pl-4">주차장</span>, formatArea(breakdown.parkingAreaSqm), areaRatio(breakdown.parkingAreaSqm)],
   ];
   const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', 'RF', 'FO', 'TI', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
+  const rosterColumnWidths = ['13%', '7.5%', '8%', '7.5%', '7.2%', '7.8%', '6.6%', '4.2%', '4.2%', '5.2%', '7%', '6.8%', '6.4%', '6.6%'];
   const rosterRows = rows.map((row) => [
     row.tenantMasterName,
     row.spaceLabel,
@@ -9766,7 +9943,7 @@ function AssetDashboard() {
     formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal)),
   ]);
   const expiryChartRows = effectiveExpirySourceRows.map((row) => {
-    const zone = row.spaceLabel || row.detailAreaLabel || row.floorLabel || '-';
+    const zone = formatFloorZoneLabel(row.spaceLabel || row.detailAreaLabel || row.floorLabel || '-');
     const expiryDate = formatDate(firstDefined(row.currentEndDate, row.earliestExpiry, row.latestExpiry));
     return {
       ...row,
@@ -9825,7 +10002,28 @@ function AssetDashboard() {
         <DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 선택 자산 읽기 권한을 허용하지 않아 정적 JSON fallback을 차단했습니다." />
       ) : null}
 
-      <AssetProjectInfoPanel assetName={overview.assetName} />
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader
+          eyebrow="WEEKLY MANAGEMENT PROJECT"
+          title="자산개요 · 투자개요 · 펀드개요"
+          right={(
+            <button
+              type="button"
+              onClick={() => setModal({
+                title: `자산개요 · 투자개요 · 펀드개요 · ${overview.assetName || ''}`,
+                size: 'fullscreen',
+                content: <AssetProjectInfoPanel assetName={overview.assetName} modalMode />,
+              })}
+              className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS}`}
+            >
+              전체 화면 보기
+            </button>
+          )}
+        />
+        <p className="text-[13px] leading-6 text-[#A1A1AA]">
+          자산개요, 투자개요, 펀드개요는 전체 화면 팝업에서 확인하고 수정합니다.
+        </p>
+      </section>
 
       <section className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-3">
         {kpis.map((item) => (
@@ -9834,7 +10032,7 @@ function AssetDashboard() {
               openENocAudit();
               return;
             }
-            openTableModal(item.label, ['항목', '내용'], [['값', formatMetric(item.value, item.valueType)], ['자산', overview.assetName || '-'], ['상태', item.status || '-']]);
+            openTableModal(item.label, ['항목', '내용'], [['값', formatMetric(item.value, item.valueType)], ['자산', overview.assetName || '-'], ['연면적-임대면적-공실면적 차이', formatSignedArea(assetAreaReconciliationGapSqm)], ['상태', item.status || '-']]);
           }} className="text-left rounded-[14px] border border-[#333333] bg-[#252524] px-4 py-4 hover:bg-[#2A2A29]">
             <div className="text-[12px] text-[#86868B] font-semibold">{item.label}</div>
             <div className="text-[22px] text-white font-semibold mt-2">{item.key === 'monthly_total_cost' && item.value != null ? `${formatDecimalNumber(Number(item.value) / 100000000, 1)}억` : formatMetric(item.value, item.valueType)}</div>
@@ -9844,13 +10042,21 @@ function AssetDashboard() {
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="TENANTS" title="임차인 현황" />
-        <DataTable headers={rosterHeaders} rows={rosterRows} onRowClick={(index) => openTenantDetail(rows[index], '임차인 상세')} compact />
+        <DataTable
+          headers={rosterHeaders}
+          rows={rosterRows}
+          onRowClick={(index) => openTenantDetail(rows[index], '임차인 상세')}
+          columnWidths={rosterColumnWidths}
+          minTableWidth="1120px"
+          compact
+          tight
+        />
       </section>
 
       <section className="grid grid-cols-1 gap-5">
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="RENT" title="임차인별 월 임관리비" right={<button type="button" onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세 보기</button>} />
-          <RichBarChart rows={asset.monthlyCostByTenant} labelKey="tenantMasterName" valueKey="monthlyCostTotal" valueType="currency" valueLabel="임차인별 월 임관리비" onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} />
+          <RichBarChart rows={asset.monthlyCostByTenant} labelKey="tenantMasterName" valueKey="monthlyCostTotal" valueType="currency" valueLabel="임차인별 월 임관리비" showXAxisLabels={false} onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} />
         </div>
       </section>
 
@@ -9868,7 +10074,7 @@ function AssetDashboard() {
       <section className="grid grid-cols-1 xl:grid-cols-2 gap-5">
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="EXPIRY" title="만기 스냅샷" right={<button type="button" onClick={() => openTableModal('만기 스냅샷', ['임차인명', '세부 구역', '계약만기일', '잔여 개월', '월 임관리비'], expiryRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>} />
-          <RichBarChart rows={expiryChartRows} labelKey="expiryChartLabel" valueKey="monthsToExpiry" valueType="number" valueLabel="계약만기까지 잔여 개월" maxRows={Infinity} includeZero onClick={() => openTableModal('만기 스냅샷', ['임차인명', '세부 구역', '계약만기일', '잔여 개월', '월 임관리비'], expiryRows)} />
+          <RichBarChart rows={expiryChartRows} labelKey="expiryChartLabel" valueKey="monthsToExpiry" valueType="number" valueLabel="계약만기까지 잔여 개월" maxRows={Infinity} includeZero showXAxisLabels={false} onClick={() => openTableModal('만기 스냅샷', ['임차인명', '세부 구역', '계약만기일', '잔여 개월', '월 임관리비'], expiryRows)} />
         </div>
       </section>
     </div>
@@ -10022,7 +10228,7 @@ function PdfReportBuilder() {
   const pdfFundInfoRowsForOutput = selectedPdfFundRows?.blockedMessage
     ? [['펀드개요', '조회 제한', selectedPdfFundRows.blockedMessage]]
     : currentPdfFundMode === 'loading'
-      ? [['펀드개요', '조회 확인 중', '펀드개요 권한과 Supabase 데이터를 확인 중입니다.']]
+      ? fallbackPdfFundInfoRows.map((row) => ['펀드개요', row[1], row[2]])
       : (selectedPdfFundRows?.fundInfo?.length ? selectedPdfFundRows.fundInfo : fallbackPdfFundInfoRows).map((row) => ['펀드개요', row[1], row[2]]);
   const pdfBeneficiaryRowsForOutput = selectedPdfFundRows && !selectedPdfFundRows.blockedMessage ? selectedPdfFundRows.beneficiaries || [] : [];
   const pdfLoanRowsForOutput = selectedPdfFundRows && !selectedPdfFundRows.blockedMessage ? selectedPdfFundRows.loans || [] : [];
@@ -10368,11 +10574,29 @@ function DashboardShell({ activeModule }) {
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission));
   const [modal, setModal] = useState(null);
+  const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([activeModule || 'home']));
   const visibleModules = useMemo(() => (
     MODULES.filter((item) => !ADMIN_ONLY_MODULE_IDS.has(item.id) || canViewAdvancedLogisticsTools(memberInfo, permission))
   ), [memberInfo, permission]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
   const canUseOriginalDataEdit = canViewAdvancedLogisticsTools(memberInfo, permission);
+  useEffect(() => {
+    if (!selected?.id) return;
+    setMountedModuleIds((current) => {
+      if (current.has(selected.id)) return current;
+      return new Set([...current, selected.id]);
+    });
+  }, [selected?.id]);
+  const mountedIds = useMemo(() => new Set([...mountedModuleIds, selected?.id].filter(Boolean)), [mountedModuleIds, selected?.id]);
+  const renderDashboardModule = (moduleId) => (
+    moduleId === 'home' ? <HomeDashboard />
+      : moduleId === 'asset' ? <AssetDashboard />
+        : moduleId === 'company' ? <CompanyDashboard />
+          : moduleId === 'tools' ? <AnalysisToolsDashboard />
+            : moduleId === 'playground' ? <DataPlaygroundDashboard />
+              : moduleId === 'quality' ? <DataQualityDashboard />
+                : null
+  );
 
   return (
     <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
@@ -10402,7 +10626,13 @@ function DashboardShell({ activeModule }) {
         ) : null}
       />
 
-      {selected.id === 'home' ? <HomeDashboard /> : selected.id === 'asset' ? <AssetDashboard /> : selected.id === 'company' ? <CompanyDashboard /> : selected.id === 'tools' ? <AnalysisToolsDashboard /> : selected.id === 'playground' ? <DataPlaygroundDashboard /> : selected.id === 'quality' ? <DataQualityDashboard /> : null}
+      <div className="relative">
+        {visibleModules.filter((item) => mountedIds.has(item.id)).map((item) => (
+          <div key={item.id} className={selected.id === item.id ? 'block' : 'hidden'} aria-hidden={selected.id !== item.id}>
+            {renderDashboardModule(item.id)}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

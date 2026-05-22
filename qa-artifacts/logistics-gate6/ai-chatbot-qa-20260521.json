@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-22T06:13:50.156Z",
+  "generated_at": "2026-05-22T09:08:43.645Z",
   "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
   "origin": "https://kylee94.github.io",
   "auth_source": "password_grant",
@@ -15,7 +15,15 @@
     },
     "context_follow_up": {
       "status": 200,
-      "answer": "인천석남물류센터의 E. NOC는 31,633원입니다."
+      "answer": "스카이박스1, 스카이박스2의 E. NOC는 103,070원입니다."
+    },
+    "bukuk_e_noc": {
+      "status": 200,
+      "answer": "부국물류센터의 E. NOC는 27,450원입니다."
+    },
+    "portfolio_vacancy": {
+      "status": 200,
+      "answer": "읽기 권한 범위 전체 자산의 공실률은 17.2%입니다. 총 연면적 493,364.8평, 임대면적 408,665.3평, 공실면적 84,699.5평 기준입니다."
     },
     "production_demo_blocked": 401
   }
