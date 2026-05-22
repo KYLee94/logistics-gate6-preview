@@ -7,6 +7,29 @@ const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const OUT_JSON = path.join(OUT_DIR, 'supabase-catalog-inventory-20260521.json');
 const OUT_MD = path.join(OUT_DIR, 'supabase-catalog-inventory-20260521.md');
 const NPX = 'npx';
+const LEGACY_COMPATIBILITY_VIEWS = [
+  'll_lease_space_area_breakdowns',
+  'll_lease_space_specs',
+  'll_lease_special_terms',
+  'll_fund_beneficiary_tranches',
+  'll_fund_loan_tranches',
+  'll_api_audit_logs',
+  'll_data_change_audit_logs',
+  'll_source_review_logs',
+  'll_issues',
+  'll_work_platform_tasks',
+  'll_work_platform_task_snapshots',
+  'll_work_platform_board_posts',
+  'll_weekly_reports',
+  'll_weekly_assets',
+  'll_weekly_projects',
+  'll_weekly_doc_ingest_runs',
+  'll_sheet_rows',
+  'll_import_runs',
+  'll_data_quality_findings',
+  'll_asset_managers',
+  'll_migration_row_backups',
+];
 
 function parseSupabaseJson(raw) {
   const start = raw.indexOf('{');
@@ -69,7 +92,6 @@ function usageCounts(tableNames) {
     path.join(ROOT, 'src'),
     path.join(ROOT, 'scripts'),
     path.join(ROOT, 'supabase'),
-    path.join(ROOT, 'qa-artifacts', 'logistics-gate6'),
   ];
   const files = targets.flatMap((target) => walkFiles(target));
   const counts = Object.fromEntries(tableNames.map((name) => [name, 0]));
@@ -84,26 +106,23 @@ function usageCounts(tableNames) {
 }
 
 function classifyTable(tableName) {
-  if (['ll_source_cells', 'll_sheet_rows', 'll_import_runs', 'll_source_field_registry', 'll_source_review_logs'].includes(tableName)) {
+  if (['ll_source_cells', 'll_source_runs', 'll_source_field_registry'].includes(tableName)) {
     return { group: 'Raw Source', decision: 'delete_prohibited', reason: '원본 Excel/live Sheets/source cell 보존층입니다.' };
   }
-  if (['ll_assets', 'll_tenants', 'll_leases', 'll_lease_spaces', 'll_rent_history', 'll_asset_managers'].includes(tableName)) {
+  if (['ll_assets', 'll_tenants', 'll_leases', 'll_lease_spaces', 'll_rent_history'].includes(tableName)) {
     return { group: 'Core Normalized', decision: 'keep', reason: 'Dashboard/AI/Data Quality 기준 정규화 테이블입니다.' };
   }
-  if (['ll_lease_space_area_breakdowns', 'll_lease_space_specs', 'll_lease_special_terms'].includes(tableName)) {
-    return { group: 'Detail Normalized', decision: 'keep', reason: '원본 Excel 세부 항목을 구조화하는 detail 테이블입니다.' };
+  if (['ll_lease_attributes'].includes(tableName)) {
+    return { group: 'Detail Normalized', decision: 'keep', reason: '원본 Excel 세부 면적, 스펙, 특수조건을 통합한 detail 테이블입니다.' };
   }
-  if (['ll_funds', 'll_fund_asset_links', 'll_fund_beneficiary_tranches', 'll_fund_loan_tranches'].includes(tableName)) {
+  if (['ll_funds', 'll_fund_asset_links', 'll_fund_capital_tranches'].includes(tableName)) {
     return { group: 'Fund', decision: 'keep', reason: '펀드 master/link/tranche 구조입니다.' };
   }
-  if (['ll_issues', 'll_work_platform_tasks', 'll_work_platform_board_posts', 'll_work_platform_task_snapshots', 'll_weekly_reports', 'll_weekly_assets', 'll_weekly_projects', 'll_weekly_doc_ingest_runs'].includes(tableName)) {
+  if (['ll_work_items', 'll_board_posts', 'll_weekly_records'].includes(tableName)) {
     return { group: 'Work Platform / Weekly', decision: 'keep', reason: '업무 플랫폼과 weekly 관리 Project 운영 데이터입니다.' };
   }
-  if (['ll_user_permissions', 'll_edit_requests', 'll_data_change_audit_logs', 'll_api_audit_logs', 'll_data_quality_findings'].includes(tableName)) {
+  if (['ll_user_permissions', 'll_edit_requests', 'll_audit_events'].includes(tableName)) {
     return { group: 'Permission / Audit', decision: 'delete_prohibited', reason: '권한, 승인, readback, 감사 근거입니다.' };
-  }
-  if (tableName === 'll_migration_row_backups') {
-    return { group: 'Migration Safety', decision: 'delete_prohibited', reason: '데이터 보정 rollback/readback 근거로 보존해야 합니다.' };
   }
   if (tableName === 'll_cache_entries') {
     return { group: 'Cache / Snapshot', decision: 'keep', reason: '외부 API cache와 dashboard metric cache를 통합한 운영 cache contract입니다.' };
@@ -161,6 +180,29 @@ where n.nspname = 'public'
   and c.relkind = 'r'
   and c.relname like 'll\\_%' escape '\\'
 order by c.relname;
+`;
+
+const objectSql = `
+select
+  n.nspname as object_schema,
+  c.relname as object_name,
+  case c.relkind
+    when 'r' then 'BASE TABLE'
+    when 'p' then 'PARTITIONED TABLE'
+    when 'v' then 'VIEW'
+    when 'm' then 'MATERIALIZED VIEW'
+    when 'S' then 'SEQUENCE'
+    else c.relkind::text
+  end as object_type,
+  pg_get_userbyid(c.relowner) as object_owner,
+  c.relrowsecurity as rls_enabled,
+  obj_description(c.oid) as object_comment
+from pg_class c
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public'
+  and c.relname like 'll\\_%' escape '\\'
+  and c.relkind in ('r', 'p', 'v', 'm', 'S')
+order by object_type, object_name;
 `;
 
 const columnSql = `
@@ -302,6 +344,7 @@ order by table_name, grantee, privilege_type;
 
 function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
+  const objects = runQuery(objectSql);
   const tables = runQuery(tableSql);
   const columns = runQuery(columnSql);
   const constraints = runQuery(constraintSql);
@@ -363,6 +406,11 @@ function main() {
   const missingPrimaryKeys = tableMatrix.filter((row) => !row.primary_key.length).map((row) => row.table_name);
   const missingFkIndexes = fkIndexCoverage.filter((row) => row.has_supporting_index !== true);
   const rlsDisabled = tableMatrix.filter((row) => row.rls_enabled !== true).map((row) => row.table_name);
+  const compatibilityViews = objects.filter((row) => row.object_type === 'VIEW' && LEGACY_COMPATIBILITY_VIEWS.includes(row.object_name));
+  const objectTypeCounts = objects.reduce((acc, row) => {
+    acc[row.object_type] = (acc[row.object_type] || 0) + 1;
+    return acc;
+  }, {});
   const cleanupCandidates = tableMatrix
     .filter((row) => ['ttl_or_slim_candidate', 'approval_delete_candidate', 'review_required'].includes(row.classification.decision))
     .map((row) => ({
@@ -381,6 +429,10 @@ function main() {
     mode: 'read_only_catalog_inventory',
     summary: {
       table_count: tables.length,
+      base_table_count: objectTypeCounts['BASE TABLE'] || 0,
+      view_count: objectTypeCounts.VIEW || 0,
+      legacy_compatibility_view_count: compatibilityViews.length,
+      legacy_compatibility_view_denylist_count: LEGACY_COMPATIBILITY_VIEWS.length,
       column_count: columns.length,
       constraint_count: constraints.length,
       index_count: indexes.length,
@@ -391,6 +443,9 @@ function main() {
       rls_disabled_count: rlsDisabled.length,
       cleanup_candidate_count: cleanupCandidates.length,
     },
+    objects,
+    legacy_compatibility_views: compatibilityViews,
+    legacy_compatibility_view_denylist: LEGACY_COMPATIBILITY_VIEWS,
     tables: tableMatrix,
     columns,
     constraints,
@@ -421,6 +476,29 @@ function main() {
     markdownTable(
       ['Metric', 'Value'],
       Object.entries(inventory.summary).map(([key, value]) => [key, value]),
+    ),
+    '',
+    '## Object Type Matrix',
+    '',
+    markdownTable(
+      ['Object', 'Type', 'Owner', 'RLS', 'Comment'],
+      objects.map((row) => [
+        row.object_name,
+        row.object_type,
+        row.object_owner,
+        row.rls_enabled ? 'enabled' : '',
+        row.object_comment || '',
+      ]),
+    ),
+    '',
+    '## Compatibility View Denylist',
+    '',
+    markdownTable(
+      ['View', 'Current object exists'],
+      LEGACY_COMPATIBILITY_VIEWS.map((viewName) => [
+        viewName,
+        compatibilityViews.some((row) => row.object_name === viewName) ? 'yes' : 'no',
+      ]),
     ),
     '',
     '## Table Matrix',

@@ -3,9 +3,18 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const EDGE_FUNCTION = 'll-dashboard-api';
-const DEFAULT_BASIS_DATE = '2026-04-30';
+const DEFAULT_BASIS_DATE = currentKstMonthEndDate();
 const DEFAULT_ORIGIN = 'https://kylee94.github.io';
 const DEFAULT_OUT = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'dashboard-primary-parity-20260521.json');
+
+function currentKstMonthEndDate() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  const year = kst.getUTCFullYear();
+  const month = kst.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};

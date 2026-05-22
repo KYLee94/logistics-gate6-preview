@@ -51,124 +51,129 @@ create index if not exists ll_cache_entries_metric_idx
   on public.ll_cache_entries(metric_scope, metric_key, basis_date)
   where cache_type = 'dashboard_metric';
 
-insert into public.ll_cache_entries (
-  cache_type,
-  cache_key,
-  entity_type,
-  entity_id,
-  metric_scope,
-  metric_key,
-  asset_id,
-  asset_name,
-  tenant_id,
-  tenant_name,
-  basis_date,
-  numeric_value,
-  text_value,
-  unit,
-  source_table,
-  source_row_count,
-  payload,
-  computed_at,
-  created_at,
-  updated_at
-)
-select
-  'dashboard_metric',
-  s.snapshot_key,
-  s.metric_scope,
-  coalesce(nullif(s.asset_id, ''), nullif(s.tenant_id, ''), s.metric_scope),
-  s.metric_scope,
-  s.metric_key,
-  s.asset_id,
-  s.asset_name,
-  s.tenant_id,
-  s.tenant_name,
-  s.basis_date,
-  s.numeric_value,
-  s.text_value,
-  s.unit,
-  s.source_table,
-  s.source_row_count,
-  jsonb_build_object(
-    'metric_scope', s.metric_scope,
-    'metric_key', s.metric_key,
-    'source_payload', s.source_payload
-  ),
-  s.computed_at,
-  s.created_at,
-  s.updated_at
-from public.ll_dashboard_metric_snapshots s
-where to_regclass('public.ll_dashboard_metric_snapshots') is not null
-on conflict (cache_type, cache_key) do update
-set entity_type = excluded.entity_type,
-    entity_id = excluded.entity_id,
-    metric_scope = excluded.metric_scope,
-    metric_key = excluded.metric_key,
-    asset_id = excluded.asset_id,
-    asset_name = excluded.asset_name,
-    tenant_id = excluded.tenant_id,
-    tenant_name = excluded.tenant_name,
-    basis_date = excluded.basis_date,
-    numeric_value = excluded.numeric_value,
-    text_value = excluded.text_value,
-    unit = excluded.unit,
-    source_table = excluded.source_table,
-    source_row_count = excluded.source_row_count,
-    payload = excluded.payload,
-    computed_at = excluded.computed_at,
-    updated_at = now();
+do $$
+begin
+  if to_regclass('public.ll_dashboard_metric_snapshots') is not null then
+    insert into public.ll_cache_entries (
+      cache_type,
+      cache_key,
+      entity_type,
+      entity_id,
+      metric_scope,
+      metric_key,
+      asset_id,
+      asset_name,
+      tenant_id,
+      tenant_name,
+      basis_date,
+      numeric_value,
+      text_value,
+      unit,
+      source_table,
+      source_row_count,
+      payload,
+      computed_at,
+      created_at,
+      updated_at
+    )
+    select
+      'dashboard_metric',
+      s.snapshot_key,
+      s.metric_scope,
+      coalesce(nullif(s.asset_id, ''), nullif(s.tenant_id, ''), s.metric_scope),
+      s.metric_scope,
+      s.metric_key,
+      s.asset_id,
+      s.asset_name,
+      s.tenant_id,
+      s.tenant_name,
+      s.basis_date,
+      s.numeric_value,
+      s.text_value,
+      s.unit,
+      s.source_table,
+      s.source_row_count,
+      jsonb_build_object(
+        'metric_scope', s.metric_scope,
+        'metric_key', s.metric_key,
+        'source_payload', s.source_payload
+      ),
+      s.computed_at,
+      s.created_at,
+      s.updated_at
+    from public.ll_dashboard_metric_snapshots s
+    on conflict (cache_type, cache_key) do update
+    set entity_type = excluded.entity_type,
+        entity_id = excluded.entity_id,
+        metric_scope = excluded.metric_scope,
+        metric_key = excluded.metric_key,
+        asset_id = excluded.asset_id,
+        asset_name = excluded.asset_name,
+        tenant_id = excluded.tenant_id,
+        tenant_name = excluded.tenant_name,
+        basis_date = excluded.basis_date,
+        numeric_value = excluded.numeric_value,
+        text_value = excluded.text_value,
+        unit = excluded.unit,
+        source_table = excluded.source_table,
+        source_row_count = excluded.source_row_count,
+        payload = excluded.payload,
+        computed_at = excluded.computed_at,
+        updated_at = now();
+  end if;
 
-insert into public.ll_cache_entries (
-  cache_type,
-  cache_key,
-  entity_type,
-  entity_id,
-  provider,
-  provider_status,
-  request_payload,
-  response_payload,
-  payload,
-  fetched_at,
-  expires_at,
-  created_by,
-  created_at,
-  updated_at
-)
-select
-  'external_api',
-  c.provider || ':' || c.cache_key,
-  case
-    when c.provider like 'opendart/%' then 'tenant'
-    when c.provider like 'building-register/%' then 'asset'
-    when c.provider like 'naver/%' then 'location'
-    else 'external'
-  end,
-  c.cache_key,
-  c.provider,
-  c.provider_status,
-  c.request_payload,
-  c.response_payload,
-  c.response_payload,
-  c.fetched_at,
-  c.expires_at,
-  c.created_by,
-  c.fetched_at,
-  c.updated_at
-from public.ll_external_api_cache c
-where to_regclass('public.ll_external_api_cache') is not null
-on conflict (cache_type, cache_key) do update
-set entity_type = excluded.entity_type,
-    entity_id = excluded.entity_id,
-    provider = excluded.provider,
-    provider_status = excluded.provider_status,
-    request_payload = excluded.request_payload,
-    response_payload = excluded.response_payload,
-    payload = excluded.payload,
-    fetched_at = excluded.fetched_at,
-    expires_at = excluded.expires_at,
-    created_by = excluded.created_by,
-    updated_at = now();
+  if to_regclass('public.ll_external_api_cache') is not null then
+    insert into public.ll_cache_entries (
+      cache_type,
+      cache_key,
+      entity_type,
+      entity_id,
+      provider,
+      provider_status,
+      request_payload,
+      response_payload,
+      payload,
+      fetched_at,
+      expires_at,
+      created_by,
+      created_at,
+      updated_at
+    )
+    select
+      'external_api',
+      c.provider || ':' || c.cache_key,
+      case
+        when c.provider like 'opendart/%' then 'tenant'
+        when c.provider like 'building-register/%' then 'asset'
+        when c.provider like 'naver/%' then 'location'
+        else 'external'
+      end,
+      c.cache_key,
+      c.provider,
+      c.provider_status,
+      c.request_payload,
+      c.response_payload,
+      c.response_payload,
+      c.fetched_at,
+      c.expires_at,
+      c.created_by,
+      c.fetched_at,
+      c.updated_at
+    from public.ll_external_api_cache c
+    on conflict (cache_type, cache_key) do update
+    set entity_type = excluded.entity_type,
+        entity_id = excluded.entity_id,
+        provider = excluded.provider,
+        provider_status = excluded.provider_status,
+        request_payload = excluded.request_payload,
+        response_payload = excluded.response_payload,
+        payload = excluded.payload,
+        fetched_at = excluded.fetched_at,
+        expires_at = excluded.expires_at,
+        created_by = excluded.created_by,
+        updated_at = now();
+  end if;
+end $$;
 
 create table if not exists public.ll_schema_metadata (
   metadata_id uuid primary key default gen_random_uuid(),

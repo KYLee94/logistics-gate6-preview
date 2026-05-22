@@ -1,8 +1,8 @@
 {
   "ok": true,
-  "checked_at": "2026-05-21T09:55:49.903Z",
+  "checked_at": "2026-05-22T07:40:37.338Z",
   "branch_only": true,
-  "basis_date": "2026-04-30",
+  "basis_date": "2026-05-31",
   "static_checks": {
     "readMode": {
       "status": "pass",
@@ -11,7 +11,7 @@
     },
     "fallbackPolicy": {
       "status": "pass",
-      "line": 184,
+      "line": 199,
       "evidence": "primary-safe/primary and 401/403 should not be eligible for static fallback"
     },
     "loadingBlock": {
@@ -25,7 +25,7 @@
       "component": "Home",
       "api": "dashboard/home/read",
       "lines": [
-        745
+        785
       ],
       "static_fallback": "logisticsHomeData.json",
       "residual_static_dependencies": [
@@ -55,7 +55,7 @@
       "component": "Asset",
       "api": "dashboard/asset/read",
       "lines": [
-        9394
+        9497
       ],
       "static_fallback": "logisticsAssetData/*.json",
       "residual_static_dependencies": [
@@ -106,7 +106,7 @@
       "component": "Company",
       "api": "dashboard/company/read",
       "lines": [
-        7529
+        7632
       ],
       "static_fallback": "logisticsCompanyData/*.json",
       "residual_static_dependencies": [
@@ -136,8 +136,8 @@
       "component": "PDF Report",
       "api": "dashboard/home/read + dashboard/asset/read",
       "lines": [
-        9759,
-        9811
+        9878,
+        9930
       ],
       "static_fallback": "current selected payload fallback",
       "residual_static_dependencies": [
@@ -173,7 +173,7 @@
       "component": "Analysis Tools",
       "api": "dashboard/home/read shared dataset",
       "lines": [
-        7766
+        7869
       ],
       "static_fallback": "shared home fallback rows",
       "residual_static_dependencies": [
@@ -203,7 +203,7 @@
       "component": "Pivot Table",
       "api": "dashboard/home/read shared dataset",
       "lines": [
-        8033
+        8136
       ],
       "static_fallback": "shared home fallback rows",
       "residual_static_dependencies": [
@@ -234,7 +234,7 @@
     "status": "pass",
     "auth_source": "password_grant",
     "origin": "https://kylee94.github.io",
-    "basis_date": "2026-04-30",
+    "basis_date": "2026-05-31",
     "results": [
       {
         "action": "dashboard/home/read",
@@ -245,7 +245,7 @@
           "ok": true,
           "source": "supabase",
           "version": "ll-dashboard-payload-v1",
-          "basis_date": "2026-04-30",
+          "basis_date": "2026-05-31",
           "scope_hash": "bd4eff8c73b59cc49438507c8435e51aca4944b8ce315cd40951f4bd2d24af81",
           "readable_asset_count": 17,
           "evidence_tables": [
@@ -253,37 +253,37 @@
             "public.ll_tenants",
             "public.ll_leases",
             "public.ll_lease_spaces",
-            "public.ll_lease_space_area_breakdowns",
-            "public.ll_lease_space_specs",
-            "public.ll_lease_special_terms",
+            "public.ll_lease_attributes:area_breakdown",
+            "public.ll_lease_attributes:space_spec",
+            "public.ll_lease_attributes:special_term",
             "public.ll_rent_history"
           ],
           "evidence_rows": {
             "public.ll_assets": 17,
             "public.ll_tenants": 31,
             "public.ll_leases": 45,
-            "public.ll_lease_spaces": 80,
-            "public.ll_lease_space_area_breakdowns": 387,
-            "public.ll_lease_space_specs": 513,
-            "public.ll_lease_special_terms": 1000,
+            "public.ll_lease_spaces": 72,
+            "public.ll_lease_attributes:area_breakdown": 387,
+            "public.ll_lease_attributes:space_spec": 513,
+            "public.ll_lease_attributes:special_term": 1000,
             "public.ll_rent_history": 163
           },
           "summary": {
             "operating_asset_count": 17,
             "gross_floor_area_sqm": 1630957.9110000003,
-            "leased_area_sqm": 1623178.02,
-            "exclusive_area_sqm": 1397464.8599999994,
-            "current_monthly_rent_total": 16156966431,
-            "current_monthly_mf_total": 763749216,
-            "current_monthly_cost_total": 16920715647,
-            "latest_rent_history_monthly_rent_total": 12483019585,
-            "latest_rent_history_monthly_mf_total": 595567971
+            "leased_area_sqm": 1350959.7200000004,
+            "exclusive_area_sqm": 1176412.5700000003,
+            "current_monthly_rent_total": 12581460525,
+            "current_monthly_mf_total": 602983271,
+            "current_monthly_cost_total": 13184443796,
+            "latest_rent_history_monthly_rent_total": 12350086525,
+            "latest_rent_history_monthly_mf_total": 581292271
           },
           "assets": 17,
           "tenants": 31,
           "leases": 45,
-          "lease_spaces": 80,
-          "expiry_candidate_rows": 78,
+          "lease_spaces": 72,
+          "expiry_candidate_rows": 70,
           "rent_history": 163,
           "fund_overview": false
         }
@@ -297,7 +297,7 @@
           "ok": true,
           "source": "supabase",
           "version": "ll-dashboard-payload-v1",
-          "basis_date": "2026-04-30",
+          "basis_date": "2026-05-31",
           "scope_hash": "bd4eff8c73b59cc49438507c8435e51aca4944b8ce315cd40951f4bd2d24af81",
           "readable_asset_count": 17,
           "evidence_tables": [
@@ -307,9 +307,9 @@
             "public.ll_tenants",
             "public.ll_leases",
             "public.ll_lease_spaces",
-            "public.ll_lease_space_area_breakdowns",
-            "public.ll_lease_space_specs",
-            "public.ll_lease_special_terms",
+            "public.ll_lease_attributes:area_breakdown",
+            "public.ll_lease_attributes:space_spec",
+            "public.ll_lease_attributes:special_term",
             "public.ll_rent_history"
           ],
           "evidence_rows": {
@@ -319,14 +319,15 @@
             "public.ll_tenants": 1,
             "public.ll_leases": 1,
             "public.ll_lease_spaces": 14,
-            "public.ll_lease_space_area_breakdowns": 113,
-            "public.ll_lease_space_specs": 138,
-            "public.ll_lease_special_terms": 460,
+            "public.ll_lease_attributes:area_breakdown": 113,
+            "public.ll_lease_attributes:space_spec": 138,
+            "public.ll_lease_attributes:special_term": 460,
             "public.ll_rent_history": 16
           },
           "summary": {
             "gross_floor_area_sqm": 98673.64,
             "leased_area_sqm": 73821.68,
+            "vacancy_area_sqm": 24851.960000000006,
             "exclusive_area_sqm": 65712.59999999999,
             "current_monthly_rent_total": 983384975,
             "current_monthly_mf_total": 77339958,
@@ -350,7 +351,7 @@
           "ok": true,
           "source": "supabase",
           "version": "ll-dashboard-payload-v1",
-          "basis_date": "2026-04-30",
+          "basis_date": "2026-05-31",
           "scope_hash": "bd4eff8c73b59cc49438507c8435e51aca4944b8ce315cd40951f4bd2d24af81",
           "readable_asset_count": 17,
           "evidence_tables": [
@@ -358,9 +359,9 @@
             "public.ll_assets",
             "public.ll_leases",
             "public.ll_lease_spaces",
-            "public.ll_lease_space_area_breakdowns",
-            "public.ll_lease_space_specs",
-            "public.ll_lease_special_terms",
+            "public.ll_lease_attributes:area_breakdown",
+            "public.ll_lease_attributes:space_spec",
+            "public.ll_lease_attributes:special_term",
             "public.ll_rent_history"
           ],
           "evidence_rows": {
@@ -368,9 +369,9 @@
             "public.ll_assets": 1,
             "public.ll_leases": 1,
             "public.ll_lease_spaces": 1,
-            "public.ll_lease_space_area_breakdowns": 0,
-            "public.ll_lease_space_specs": 0,
-            "public.ll_lease_special_terms": 0,
+            "public.ll_lease_attributes:area_breakdown": 0,
+            "public.ll_lease_attributes:space_spec": 0,
+            "public.ll_lease_attributes:special_term": 0,
             "public.ll_rent_history": 10
           },
           "summary": {

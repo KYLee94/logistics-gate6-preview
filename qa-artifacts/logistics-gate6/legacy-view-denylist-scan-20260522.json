@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-22T07:04:16.724Z",
+  "scanned_roots": [
+    "src",
+    "supabase/functions",
+    "scripts/qa",
+    "package.json",
+    "dist"
+  ],
+  "denylist_count": 21,
+  "finding_count": 0,
+  "findings": []
+}

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
 
 const WORKSPACES = [
-  { id: 'logistics', name: '물류센터 워크 플랫폼', table: 'll_work_platform_tasks' },
+  { id: 'logistics', name: '물류센터 워크 플랫폼', table: 'll_work_items' },
   { id: 'pm', name: '사업 PM', table: 'iota_pm_tasks' },
   { id: 'financing', name: '파이낸싱-LFC', table: 'iota_financing_tasks' },
   { id: 'development', name: '개발솔루션-DSC', table: 'iota_development_tasks' },

@@ -72,30 +72,25 @@ const LOGISTICS_STAFF_NAME_BY_EMAIL: Record<string, string> = {
 
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_edit_requests',
-  'public.ll_work_platform_tasks',
-  'public.ll_work_platform_board_posts',
-  'public.ll_weekly_assets',
+  'public.ll_work_items',
+  'public.ll_board_posts',
+  'public.ll_weekly_records',
   'public.ll_funds',
-  'public.ll_fund_beneficiary_tranches',
-  'public.ll_fund_loan_tranches',
-  'public.ll_api_audit_logs',
-  'public.ll_data_change_audit_logs',
+  'public.ll_fund_capital_tranches',
+  'public.ll_audit_events',
   'public.ll_cache_entries',
 ]);
 
 const EDIT_TARGET_TABLE_ALLOWLIST = new Set([
   'public.ll_assets',
-  'public.ll_data_quality_findings',
+  'public.ll_audit_events',
   'public.ll_lease_spaces',
   'public.ll_leases',
   'public.ll_rent_history',
   'public.ll_tenants',
-  'public.ll_weekly_assets',
-  'public.ll_weekly_projects',
-  'public.ll_weekly_reports',
+  'public.ll_weekly_records',
   'public.ll_funds',
-  'public.ll_fund_beneficiary_tranches',
-  'public.ll_fund_loan_tranches',
+  'public.ll_fund_capital_tranches',
 ]);
 
 const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
@@ -137,18 +132,18 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'tenantMasterName', 'tenant_master_name', 'businessRegistrationNo', 'business_registration_no',
     'dartCorpCode', 'dart_corp_code', 'companyName', 'company_name',
   ]),
-  'public.ll_weekly_assets': new Set(['asset_name', 'issue', 'plan', 'status', 'owner_name', 'stakeholder', 'row_json']),
-  'public.ll_weekly_projects': new Set(['project_type', 'project_name', 'issue', 'plan', 'status', 'owner_name', 'stakeholder', 'row_json']),
-  'public.ll_weekly_reports': new Set(['report_json', 'summary_text', 'key_issues', 'current_status', 'next_plan']),
+  'public.ll_weekly_records': new Set([
+    'record_type', 'asset_name', 'fund_name', 'project_type', 'project_name',
+    'issue', 'plan', 'status', 'stakeholder', 'row_json', 'report_json',
+    'source_text', 'source_file_name',
+  ]),
   'public.ll_funds': new Set([
     'fund_name', 'short_name', 'legal_form', 'investment_sector', 'fund_type', 'investment_strategy',
     'initial_setup_date', 'maturity_date', 'notes',
   ]),
-  'public.ll_fund_beneficiary_tranches': new Set([
-    'tranche', 'beneficiary_name', 'committed_amount_krw', 'display_order', 'is_active',
-  ]),
-  'public.ll_fund_loan_tranches': new Set([
-    'tranche', 'lender_name', 'committed_amount_krw', 'drawdown_date', 'maturity_date',
+  'public.ll_fund_capital_tranches': new Set([
+    'tranche_type', 'tranche', 'party_name', 'beneficiary_name', 'lender_name',
+    'committed_amount_krw', 'drawdown_date', 'maturity_date',
     'loan_period', 'loan_type', 'interest_type', 'base_rate', 'spread_rate', 'loan_rate',
     'interest_rate', 'fee', 'fee_rate', 'all_in', 'all_in_rate', 'display_order', 'is_active',
   ]),
@@ -442,11 +437,14 @@ async function getContext(request: Request, origin: string): Promise<Context> {
 }
 
 async function audit(serviceClient: SupabaseClient, userId: string | null, action: string, status: number, payload: unknown) {
-  const { error } = await serviceClient.from('ll_api_audit_logs').insert({
+  const { error } = await serviceClient.from('ll_audit_events').insert({
+    event_type: 'api',
     action,
     status_code: status,
     requested_by: userId,
     request_payload: stripUndefined(redactSensitivePayload(payload)),
+    legacy_table: 'public.ll_audit_events',
+    event_status: status >= 200 && status < 400 ? 'success' : 'failed',
   });
   if (error) throw new Error(`Failed to write API audit log: ${error.message}`);
 }
@@ -610,9 +608,19 @@ async function listReadableAssetsForDashboard(ctx: Context) {
   };
 }
 
+function currentKstMonthEndDate() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  const year = kst.getUTCFullYear();
+  const month = kst.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
 function dashboardBasisDate(payload: Record<string, unknown>) {
-  const basisDate = safeText(firstDefined(payload.basis_date, payload.basisDate, '2026-04-30'));
-  return /^\d{4}-\d{2}-\d{2}$/u.test(basisDate) ? basisDate : '2026-04-30';
+  const fallbackBasisDate = currentKstMonthEndDate();
+  const basisDate = safeText(firstDefined(payload.basis_date, payload.basisDate, fallbackBasisDate));
+  return /^\d{4}-\d{2}-\d{2}$/u.test(basisDate) ? basisDate : fallbackBasisDate;
 }
 
 async function dashboardScope(ctx: Context, assets: Record<string, unknown>[]) {
@@ -640,6 +648,123 @@ function sumNumber(rows: Record<string, unknown>[], key: string) {
     const value = Number(row[key] || 0);
     return Number.isFinite(value) ? sum + value : sum;
   }, 0);
+}
+
+function isCurrentDashboardLeaseSpace(row: Record<string, unknown>) {
+  const status = normalizeText(row.contract_status).trim().toLowerCase();
+  if (!status) return true;
+  if (['active', 'y', 'yes', 'current', 'in_force', 'ongoing'].includes(status)) return true;
+  if (['inactive', 'n', 'no', 'false', '0'].includes(status)) return false;
+  if (
+    status.includes('superseded')
+    || status.includes('inactive')
+    || status.includes('expired')
+    || status.includes('terminated')
+    || status.includes('cancelled')
+    || status.includes('종료')
+    || status.includes('해지')
+    || status.includes('만료')
+  ) return false;
+  return true;
+}
+
+function currentDashboardLeaseSpaces(rows: Record<string, unknown>[]) {
+  return rows.filter(isCurrentDashboardLeaseSpace);
+}
+
+function dashboardNumber(value: unknown) {
+  const numeric = Number(String(value ?? '').replace(/,/gu, '').replace(/[^\d.-]/gu, ''));
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function dashboardAreaKey(value: unknown) {
+  const numeric = dashboardNumber(value);
+  return numeric ? String(Math.round(numeric)) : '';
+}
+
+function dashboardRentHistoryComponentKey(row: Record<string, unknown>) {
+  return [
+    row.asset_id,
+    row.tenant_id,
+    firstDefined(row.source_contract_lease_space_id, row.lease_space_id),
+    row.floor_label,
+    row.detail_area_label,
+    row.temperature_type,
+    dashboardAreaKey(row.leased_area_sqm),
+    dashboardAreaKey(row.exclusive_area_sqm),
+  ].map((value) => normalizeText(value)).join('|');
+}
+
+function dashboardRentHistoryDateValue(row: Record<string, unknown>) {
+  const text = safeText(row.effective_date);
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(text)) return text;
+  return '';
+}
+
+function dashboardRentHistoryCost(row: Record<string, unknown>) {
+  return dashboardNumber(row.monthly_rent_total) + dashboardNumber(row.monthly_mf_total);
+}
+
+function selectLatestDashboardRentHistoryRows(rows: Record<string, unknown>[], basisDate = '') {
+  const latestByComponent = new Map<string, Record<string, unknown>>();
+  const basisValue = dashboardRentHistoryDateValue({ effective_date: basisDate });
+  for (const row of rows) {
+    const key = dashboardRentHistoryComponentKey(row);
+    if (!key.trim()) continue;
+    const date = dashboardRentHistoryDateValue(row);
+    if (basisValue && date && date > basisValue) continue;
+    const previous = latestByComponent.get(key);
+    if (!previous) {
+      latestByComponent.set(key, row);
+      continue;
+    }
+    const previousDate = dashboardRentHistoryDateValue(previous);
+    if (date > previousDate) {
+      latestByComponent.set(key, row);
+      continue;
+    }
+    if (date === previousDate) {
+      const cost = dashboardRentHistoryCost(row);
+      const previousCost = dashboardRentHistoryCost(previous);
+      if (
+        cost > previousCost
+        || (cost === previousCost && safeText(row.source_sheet_row_id) > safeText(previous.source_sheet_row_id))
+      ) {
+        latestByComponent.set(key, row);
+      }
+    }
+  }
+  return [...latestByComponent.values()];
+}
+
+function applyLatestRentHistoryAmountsToLeaseSpaces(leaseSpaces: Record<string, unknown>[], rentHistory: Record<string, unknown>[], basisDate = '') {
+  const latestHistoryRows = selectLatestDashboardRentHistoryRows(rentHistory, basisDate);
+  const amountByLeaseSpace = new Map<string, { rent: number; mf: number; cost: number }>();
+  for (const row of latestHistoryRows) {
+    const leaseSpaceId = safeText(firstDefined(row.source_contract_lease_space_id, row.lease_space_id));
+    if (!leaseSpaceId) continue;
+    const previous = amountByLeaseSpace.get(leaseSpaceId) || { rent: 0, mf: 0, cost: 0 };
+    const rent = dashboardNumber(row.monthly_rent_total);
+    const mf = dashboardNumber(row.monthly_mf_total);
+    previous.rent += rent;
+    previous.mf += mf;
+    previous.cost += rent + mf;
+    amountByLeaseSpace.set(leaseSpaceId, previous);
+  }
+  return leaseSpaces.map((row) => {
+    const leaseSpaceId = safeText(row.lease_space_id);
+    const amount = amountByLeaseSpace.get(leaseSpaceId);
+    if (!amount) return row;
+    const leasedAreaPy = dashboardNumber(row.leased_area_sqm) * 0.3025;
+    return stripUndefined({
+      ...row,
+      current_monthly_rent_total: amount.rent,
+      current_monthly_mf_total: amount.mf,
+      current_monthly_cost_total: amount.cost,
+      e_noc: leasedAreaPy > 0 ? Math.round((amount.cost / leasedAreaPy) * 100) / 100 : row.e_noc,
+      review_status: firstDefined(row.review_status, 'dashboard_latest_history_applied'),
+    });
+  });
 }
 
 function pickAssetPublic(row: Record<string, unknown>) {
@@ -834,36 +959,66 @@ async function listAreaBreakdownsForLeaseSpaces(ctx: Context, leaseSpaceIds: str
   const ids = [...new Set(leaseSpaceIds.filter(Boolean))];
   if (!ids.length) return { rows: [], errorResponse: null };
   const { data, error } = await ctx.serviceClient
-    .from('ll_lease_space_area_breakdowns')
+    .from('ll_lease_attributes')
     .select('*')
+    .eq('attribute_type', 'area_breakdown')
     .in('lease_space_id', ids)
     .limit(5000);
   if (error) return { rows: [], errorResponse: fail(500, 'Failed to read lease-space area breakdowns', ctx.origin) };
-  return { rows: (data || []) as Record<string, unknown>[], errorResponse: null };
+  return {
+    rows: ((data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
+      ...row,
+      area_type: firstDefined(row.area_type, row.attribute_key),
+      area_label: firstDefined(row.area_label, row.attribute_label),
+      area_sqm: firstDefined(row.area_sqm, row.value_sqm, row.value_numeric),
+      area_py: firstDefined(row.area_py, row.value_py),
+    })),
+    errorResponse: null,
+  };
 }
 
 async function listLeaseSpaceSpecsForLeaseSpaces(ctx: Context, leaseSpaceIds: string[]) {
   const ids = [...new Set(leaseSpaceIds.filter(Boolean))];
   if (!ids.length) return { rows: [], errorResponse: null };
   const { data, error } = await ctx.serviceClient
-    .from('ll_lease_space_specs')
+    .from('ll_lease_attributes')
     .select('*')
+    .eq('attribute_type', 'space_spec')
     .in('lease_space_id', ids)
     .limit(5000);
   if (error) return { rows: [], errorResponse: fail(500, 'Failed to read lease-space specs', ctx.origin) };
-  return { rows: (data || []) as Record<string, unknown>[], errorResponse: null };
+  return {
+    rows: ((data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
+      ...row,
+      spec_key: firstDefined(row.spec_key, row.attribute_key),
+      spec_label: firstDefined(row.spec_label, row.attribute_label),
+      spec_value: firstDefined(row.spec_value, row.value_text),
+      spec_numeric: firstDefined(row.spec_numeric, row.value_numeric),
+    })),
+    errorResponse: null,
+  };
 }
 
 async function listSpecialTermsForLeaseSpaces(ctx: Context, leaseSpaceIds: string[]) {
   const ids = [...new Set(leaseSpaceIds.filter(Boolean))];
   if (!ids.length) return { rows: [], errorResponse: null };
   const { data, error } = await ctx.serviceClient
-    .from('ll_lease_special_terms')
+    .from('ll_lease_attributes')
     .select('*')
+    .eq('attribute_type', 'special_term')
     .in('lease_space_id', ids)
     .limit(10000);
   if (error) return { rows: [], errorResponse: fail(500, 'Failed to read lease special terms', ctx.origin) };
-  return { rows: (data || []) as Record<string, unknown>[], errorResponse: null };
+  return {
+    rows: ((data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
+      ...row,
+      term_key: firstDefined(row.term_key, row.attribute_key),
+      term_label: firstDefined(row.term_label, row.attribute_label),
+      term_value: firstDefined(row.term_value, row.value_text),
+      term_numeric: firstDefined(row.term_numeric, row.value_numeric),
+    })),
+    errorResponse: null,
+  };
 }
 
 async function listTenantsByIds(ctx: Context, tenantIds: string[]) {
@@ -886,7 +1041,7 @@ async function listLeaseSpacesForAssets(ctx: Context, assetIds: string[]) {
     .in('asset_id', assetIds)
     .limit(2000);
   if (error) return { rows: [], errorResponse: fail(500, 'Failed to read lease spaces', ctx.origin) };
-  return { rows: (data || []) as Record<string, unknown>[], errorResponse: null };
+  return { rows: currentDashboardLeaseSpaces((data || []) as Record<string, unknown>[]), errorResponse: null };
 }
 
 async function listRentHistoryForAssets(ctx: Context, assetIds: string[]) {
@@ -903,6 +1058,7 @@ async function listRentHistoryForAssets(ctx: Context, assetIds: string[]) {
 
 async function callDashboardHomeRead(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return denyDashboardRead(ctx, 'dashboard/home/read', 403, 'Insufficient logistics permission', 'role_below_reader');
+  const basisDate = dashboardBasisDate(payload);
   const assetResult = await listReadableAssetsForDashboard(ctx);
   if (assetResult.errorResponse) return assetResult.errorResponse;
   const assets = assetResult.rows;
@@ -911,8 +1067,8 @@ async function callDashboardHomeRead(ctx: Context, payload: Record<string, unkno
   if (spacesResult.errorResponse) return spacesResult.errorResponse;
   const historyResult = await listRentHistoryForAssets(ctx, assetIds);
   if (historyResult.errorResponse) return historyResult.errorResponse;
-  const leaseSpaces = spacesResult.rows;
   const rentHistory = historyResult.rows;
+  const leaseSpaces = applyLatestRentHistoryAmountsToLeaseSpaces(spacesResult.rows, rentHistory, basisDate);
   const leaseSpaceIds = leaseSpaces.map((row) => String(row.lease_space_id || '')).filter(Boolean);
   const areaResult = await listAreaBreakdownsForLeaseSpaces(ctx, leaseSpaceIds);
   if (areaResult.errorResponse) return areaResult.errorResponse;
@@ -929,7 +1085,7 @@ async function callDashboardHomeRead(ctx: Context, payload: Record<string, unkno
   if (tenantResult.errorResponse) return tenantResult.errorResponse;
   const leases = leaseResult.rows;
   const tenants = tenantResult.rows;
-  const latestHistory = rentHistory.filter((row) => row.is_latest === true);
+  const latestHistory = selectLatestDashboardRentHistoryRows(rentHistory, basisDate);
   const summary = {
     operating_asset_count: assets.length,
     gross_floor_area_sqm: sumNumber(assets, 'gross_floor_area_sqm'),
@@ -946,7 +1102,7 @@ async function callDashboardHomeRead(ctx: Context, payload: Record<string, unkno
     ok: true,
     source: 'supabase',
     version: 'll-dashboard-payload-v1',
-    basis_date: dashboardBasisDate(payload),
+    basis_date: basisDate,
     scope,
     data: {
       summary,
@@ -964,9 +1120,9 @@ async function callDashboardHomeRead(ctx: Context, payload: Record<string, unkno
       { table: 'public.ll_tenants', rows: tenants.length },
       { table: 'public.ll_leases', rows: leases.length },
       { table: 'public.ll_lease_spaces', rows: leaseSpaces.length },
-      { table: 'public.ll_lease_space_area_breakdowns', rows: areaBreakdowns.length },
-      { table: 'public.ll_lease_space_specs', rows: leaseSpaceSpecs.length },
-      { table: 'public.ll_lease_special_terms', rows: specialTerms.length },
+      { table: 'public.ll_lease_attributes:area_breakdown', rows: areaBreakdowns.length },
+      { table: 'public.ll_lease_attributes:space_spec', rows: leaseSpaceSpecs.length },
+      { table: 'public.ll_lease_attributes:special_term', rows: specialTerms.length },
       { table: 'public.ll_rent_history', rows: rentHistory.length },
     ]),
     warnings: [],
@@ -987,6 +1143,7 @@ async function callDashboardHomeRead(ctx: Context, payload: Record<string, unkno
 
 async function callDashboardAssetRead(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return denyDashboardRead(ctx, 'dashboard/asset/read', 403, 'Insufficient logistics permission', 'role_below_reader');
+  const basisDate = dashboardBasisDate(payload);
   const assetResult = await listReadableAssetsForDashboard(ctx);
   if (assetResult.errorResponse) return assetResult.errorResponse;
   const readableAssets = assetResult.rows;
@@ -1003,8 +1160,8 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
   if (spacesResult.errorResponse) return spacesResult.errorResponse;
   const historyResult = await listRentHistoryForAssets(ctx, [assetId]);
   if (historyResult.errorResponse) return historyResult.errorResponse;
-  const leaseSpaces = spacesResult.rows;
   const rentHistory = historyResult.rows;
+  const leaseSpaces = applyLatestRentHistoryAmountsToLeaseSpaces(spacesResult.rows, rentHistory, basisDate);
   const leaseSpaceIds = leaseSpaces.map((row) => String(row.lease_space_id || '')).filter(Boolean);
   const areaResult = await listAreaBreakdownsForLeaseSpaces(ctx, leaseSpaceIds);
   if (areaResult.errorResponse) return areaResult.errorResponse;
@@ -1029,11 +1186,15 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
   } catch (error) {
     warnings.push(error instanceof Error ? error.message : 'Fund overview read failed');
   }
+  const leasedAreaSqm = sumNumber(leaseSpaces, 'leased_area_sqm');
+  const sourceGrossAreaSqm = dashboardNumber(asset.gross_floor_area_sqm);
+  const vacancyAreaSqm = Math.max(0, sourceGrossAreaSqm - leasedAreaSqm);
+  const grossAreaSqm = leasedAreaSqm + vacancyAreaSqm;
   const body = {
     ok: true,
     source: 'supabase',
     version: 'll-dashboard-payload-v1',
-    basis_date: dashboardBasisDate(payload),
+    basis_date: basisDate,
     scope,
     data: {
       asset: pickAssetPublic(asset),
@@ -1046,8 +1207,9 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
       lease_special_terms: specialTerms.map(pickSpecialTermPublic),
       rent_history: rentHistory.map(pickRentHistoryPublic),
       summary: {
-        gross_floor_area_sqm: asset.gross_floor_area_sqm,
-        leased_area_sqm: sumNumber(leaseSpaces, 'leased_area_sqm'),
+        gross_floor_area_sqm: grossAreaSqm,
+        leased_area_sqm: leasedAreaSqm,
+        vacancy_area_sqm: vacancyAreaSqm,
         exclusive_area_sqm: sumNumber(leaseSpaces, 'exclusive_area_sqm'),
         current_monthly_rent_total: sumNumber(leaseSpaces, 'current_monthly_rent_total'),
         current_monthly_mf_total: sumNumber(leaseSpaces, 'current_monthly_mf_total'),
@@ -1061,9 +1223,9 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
       { table: 'public.ll_tenants', rows: tenants.length },
       { table: 'public.ll_leases', rows: leases.length },
       { table: 'public.ll_lease_spaces', rows: leaseSpaces.length },
-      { table: 'public.ll_lease_space_area_breakdowns', rows: areaBreakdowns.length },
-      { table: 'public.ll_lease_space_specs', rows: leaseSpaceSpecs.length },
-      { table: 'public.ll_lease_special_terms', rows: specialTerms.length },
+      { table: 'public.ll_lease_attributes:area_breakdown', rows: areaBreakdowns.length },
+      { table: 'public.ll_lease_attributes:space_spec', rows: leaseSpaceSpecs.length },
+      { table: 'public.ll_lease_attributes:special_term', rows: specialTerms.length },
       { table: 'public.ll_rent_history', rows: rentHistory.length },
     ]),
     warnings,
@@ -1084,6 +1246,7 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
 
 async function callDashboardCompanyRead(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return denyDashboardRead(ctx, 'dashboard/company/read', 403, 'Insufficient logistics permission', 'role_below_reader');
+  const basisDate = dashboardBasisDate(payload);
   const assetResult = await listReadableAssetsForDashboard(ctx);
   if (assetResult.errorResponse) return assetResult.errorResponse;
   const readableAssets = assetResult.rows;
@@ -1097,7 +1260,8 @@ async function callDashboardCompanyRead(ctx: Context, payload: Record<string, un
     .limit(1000);
   if (spacesError) return fail(500, 'Failed to read readable lease spaces', ctx.origin);
   const readableLeaseSpaces = (spacesData || []) as Record<string, unknown>[];
-  const readableTenantIds = [...new Set(readableLeaseSpaces.map((row) => String(row.tenant_id || '')).filter(Boolean))];
+  const currentReadableLeaseSpaces = currentDashboardLeaseSpaces(readableLeaseSpaces);
+  const readableTenantIds = [...new Set(currentReadableLeaseSpaces.map((row) => String(row.tenant_id || '')).filter(Boolean))];
   if (!readableTenantIds.length) return denyDashboardRead(ctx, 'dashboard/company/read', 403, 'No readable tenant exposure for this user', 'no_readable_tenant_exposure');
   const { data: tenantsData, error: tenantsError } = await ctx.serviceClient
     .from('ll_tenants')
@@ -1116,7 +1280,7 @@ async function callDashboardCompanyRead(ctx: Context, payload: Record<string, un
     : tenants[0];
   if (!tenant) return denyDashboardRead(ctx, 'dashboard/company/read', 403, 'No readable tenant exposure for this user', 'tenant_not_in_readable_exposure');
   const tenantId = String(tenant.tenant_id || '');
-  const leaseSpaces = readableLeaseSpaces.filter((row) => String(row.tenant_id || '') === tenantId);
+  const leaseSpaces = currentReadableLeaseSpaces.filter((row) => String(row.tenant_id || '') === tenantId);
   const leaseSpaceIds = leaseSpaces.map((row) => String(row.lease_space_id || '')).filter(Boolean);
   const assetIds = [...new Set(leaseSpaces.map((row) => String(row.asset_id || '')).filter(Boolean))];
   if (!leaseSpaces.length) return denyDashboardRead(ctx, 'dashboard/company/read', 403, 'No readable tenant exposure for this user', 'tenant_has_no_readable_lease_space');
@@ -1135,13 +1299,14 @@ async function callDashboardCompanyRead(ctx: Context, payload: Record<string, un
   const leaseSpaceSpecs = specResult.rows;
   const specialTerms = termResult.rows;
   const rentHistory = historyResult.rows.filter((row) => String(row.tenant_id || '') === tenantId);
+  const adjustedLeaseSpaces = applyLatestRentHistoryAmountsToLeaseSpaces(leaseSpaces, rentHistory, basisDate);
   const assets = readableAssets.filter((row) => assetIds.includes(String(row.asset_id || '')));
   const scope = await dashboardScope(ctx, readableAssets);
   const body = {
     ok: true,
     source: 'supabase',
     version: 'll-dashboard-payload-v1',
-    basis_date: dashboardBasisDate(payload),
+    basis_date: basisDate,
     scope,
     data: {
       tenant: stripUndefined({
@@ -1156,17 +1321,17 @@ async function callDashboardCompanyRead(ctx: Context, payload: Record<string, un
       assets: assets.map(pickAssetPublic),
       tenants: [tenant].map(pickTenantPublic),
       leases: leases.map(pickLeasePublic),
-      lease_spaces: leaseSpaces.map(pickLeaseSpacePublic),
+      lease_spaces: adjustedLeaseSpaces.map(pickLeaseSpacePublic),
       lease_space_area_breakdowns: areaBreakdowns.map(pickAreaBreakdownPublic),
       lease_space_specs: leaseSpaceSpecs.map(pickLeaseSpaceSpecPublic),
       lease_special_terms: specialTerms.map(pickSpecialTermPublic),
       rent_history: rentHistory.map(pickRentHistoryPublic),
       summary: {
         asset_count: assets.length,
-        leased_area_sqm: sumNumber(leaseSpaces, 'leased_area_sqm'),
-        current_monthly_rent_total: sumNumber(leaseSpaces, 'current_monthly_rent_total'),
-        current_monthly_mf_total: sumNumber(leaseSpaces, 'current_monthly_mf_total'),
-        current_monthly_cost_total: sumNumber(leaseSpaces, 'current_monthly_cost_total'),
+        leased_area_sqm: sumNumber(adjustedLeaseSpaces, 'leased_area_sqm'),
+        current_monthly_rent_total: sumNumber(adjustedLeaseSpaces, 'current_monthly_rent_total'),
+        current_monthly_mf_total: sumNumber(adjustedLeaseSpaces, 'current_monthly_mf_total'),
+        current_monthly_cost_total: sumNumber(adjustedLeaseSpaces, 'current_monthly_cost_total'),
       },
     },
     evidence: dashboardEvidence([
@@ -1174,9 +1339,9 @@ async function callDashboardCompanyRead(ctx: Context, payload: Record<string, un
       { table: 'public.ll_assets', rows: assets.length },
       { table: 'public.ll_leases', rows: leases.length },
       { table: 'public.ll_lease_spaces', rows: leaseSpaces.length },
-      { table: 'public.ll_lease_space_area_breakdowns', rows: areaBreakdowns.length },
-      { table: 'public.ll_lease_space_specs', rows: leaseSpaceSpecs.length },
-      { table: 'public.ll_lease_special_terms', rows: specialTerms.length },
+      { table: 'public.ll_lease_attributes:area_breakdown', rows: areaBreakdowns.length },
+      { table: 'public.ll_lease_attributes:space_spec', rows: leaseSpaceSpecs.length },
+      { table: 'public.ll_lease_attributes:special_term', rows: specialTerms.length },
       { table: 'public.ll_rent_history', rows: rentHistory.length },
     ]),
     warnings: [],
@@ -1324,6 +1489,19 @@ async function writeTargetCell(client: SupabaseClient, cell: ReturnType<typeof n
   if (error) throw new Error(`Write failed: ${error.message}`);
 }
 
+async function resolveExistingSourceCellId(client: SupabaseClient, value: unknown) {
+  const sourceCellId = safeText(value);
+  if (!sourceCellId) return null;
+  const { data, error } = await client
+    .from('ll_source_cells')
+    .select('source_cell_id')
+    .eq('source_cell_id', sourceCellId)
+    .limit(1)
+    .maybeSingle();
+  if (error || !data?.source_cell_id) return null;
+  return sourceCellId;
+}
+
 async function rollbackAppliedEdits(client: SupabaseClient, applied: Array<{ cell: ReturnType<typeof normalizeEditCells>[number]; previousValue: unknown }>) {
   for (const item of [...applied].reverse()) {
     await writeTargetCell(client, item.cell, item.previousValue);
@@ -1331,7 +1509,9 @@ async function rollbackAppliedEdits(client: SupabaseClient, applied: Array<{ cel
 }
 
 async function writeDataChangeAudit(ctx: Context, editRequestId: string, cell: ReturnType<typeof normalizeEditCells>[number], beforeValue: unknown, afterValue: unknown, readbackValue: unknown, status: string, actorId?: string) {
-  const { error } = await ctx.serviceClient.from('ll_data_change_audit_logs').insert({
+  const sourceCellId = await resolveExistingSourceCellId(ctx.serviceClient, cell.sourceCellId);
+  const { error } = await ctx.serviceClient.from('ll_audit_events').insert({
+    event_type: 'data_change',
     edit_request_id: editRequestId,
     action: 'data_quality_write',
     target_table: cell.targetTable,
@@ -1344,8 +1524,10 @@ async function writeDataChangeAudit(ctx: Context, editRequestId: string, cell: R
     actor_id: actorId || ctx.user.id,
     approver_id: ctx.user.id,
     source_row_id: cell.sourceRowId || null,
-    source_cell_id: cell.sourceCellId || null,
+    source_cell_id: sourceCellId,
     approval_status: status,
+    legacy_table: 'public.ll_audit_events',
+    event_status: status,
     metadata: redactSensitivePayload({ primary_key_field: cell.primaryKeyField, asset_id: cell.assetId || null, asset_name: cell.assetName || null }),
   });
   if (error) throw new Error(`Failed to write data change audit log: ${error.message}`);
@@ -1365,13 +1547,45 @@ async function listQualityFindings(ctx: Context, payload: Record<string, unknown
   if (!checkRateLimit(ctx.user.id, 'quality/findings', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 200), 1), 500);
   let query = ctx.serviceClient
-    .from('ll_data_quality_findings')
-    .select('*')
+    .from('ll_audit_events')
+    .select('id, finding_id, finding_type, severity, entity_type, entity_id, source_sheet_name, source_row_id, source_row_number, source_column_number, source_header, source_value_text, supabase_value_text, event_status, event_payload, created_at, updated_at')
+    .eq('event_type', 'data_quality_finding')
+    .order('created_at', { ascending: false })
     .limit(limit);
   if (payload.severity && String(payload.severity) !== 'all') query = query.eq('severity', String(payload.severity));
   const { data, error } = await query;
   if (error) return fail(500, 'Failed to list data quality findings', ctx.origin);
-  const rows = (data || []).filter((row: Record<string, unknown>) => canReadDataQualityRow(ctx, row));
+  const rows = (data || [])
+    .map((row: Record<string, unknown>) => {
+      const eventPayload = parseJsonValue(row.event_payload, {}) as Record<string, unknown>;
+      return {
+        id: firstDefined(row.finding_id, row.id),
+        finding_id: row.finding_id || null,
+        severity: firstDefined(row.severity, eventPayload.severity, 'warning'),
+        sheet_name: firstDefined(row.source_sheet_name, eventPayload.sheet_name, eventPayload.sheetName, eventPayload.source_sheet),
+        target_type: firstDefined(row.entity_type, eventPayload.target_type, eventPayload.entity_type, 'finding'),
+        target_name: firstDefined(eventPayload.target_name, eventPayload.asset_name, eventPayload.tenant_master_name, eventPayload.row_ref, row.entity_id, row.id),
+        entity_type: row.entity_type || null,
+        entity_id: row.entity_id || null,
+        field_name: firstDefined(row.source_header, eventPayload.field_name, eventPayload.field, eventPayload.column_name, eventPayload.rule_name),
+        reason_code: firstDefined(row.finding_type, eventPayload.reason_code, eventPayload.failure_reason, eventPayload.issue_type, eventPayload.reason, row.event_status),
+        action: firstDefined(eventPayload.suggested_fix, eventPayload.action, eventPayload.message, eventPayload.detail, '원본 값과 정규화 결과 대조 필요'),
+        source_sheet_name: row.source_sheet_name || null,
+        source_row_id: row.source_row_id || null,
+        source_row_number: row.source_row_number || null,
+        source_column_number: row.source_column_number || null,
+        source_value_text: row.source_value_text || null,
+        supabase_value_text: row.supabase_value_text || null,
+        status: row.event_status || null,
+        source_table: 'public.ll_audit_events',
+        table_name: 'll_audit_events',
+        raw_event_id: row.id,
+        event_payload: eventPayload,
+        created_at: row.created_at || null,
+        updated_at: row.updated_at || null,
+      };
+    })
+    .filter((row: Record<string, unknown>) => canReadDataQualityRow(ctx, row));
   await audit(ctx.serviceClient, ctx.user.id, 'quality/findings', 200, { limit, returned: rows.length });
   return jsonResponse({ ok: true, data: rows }, 200, ctx.origin);
 }
@@ -1434,7 +1648,7 @@ async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!canUseDataQuality(ctx)) return fail(403, 'Data Quality permission is limited to Planning Center users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/submit', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
-  const sourceTable = normalizePublicLlTable(payload.source_table || 'public.ll_data_quality_findings');
+  const sourceTable = normalizePublicLlTable(payload.source_table || 'public.ll_audit_events');
   if (!EDIT_TARGET_TABLE_ALLOWLIST.has(sourceTable)) return fail(403, 'Source table is not allowed', ctx.origin);
   const rawRequestPayload = payload.request_payload && typeof payload.request_payload === 'object' && !Array.isArray(payload.request_payload)
     ? payload.request_payload as Record<string, unknown>
@@ -1515,7 +1729,8 @@ async function writeFundOverviewAudit(
   status: string,
   actorId: string,
 ) {
-  const { error } = await ctx.serviceClient.from('ll_data_change_audit_logs').insert({
+  const { error } = await ctx.serviceClient.from('ll_audit_events').insert({
+    event_type: 'data_change',
     edit_request_id: editRequestId,
     action: 'fund_overview_write',
     target_table: 'public.ll_funds',
@@ -1530,6 +1745,8 @@ async function writeFundOverviewAudit(
     source_row_id: null,
     source_cell_id: null,
     approval_status: status,
+    legacy_table: 'public.ll_audit_events',
+    event_status: status,
     metadata: redactSensitivePayload({ edge_action: 'edits/approve', target_type: 'fund_overview' }),
   });
   if (error) throw new Error(`Failed to write fund overview audit log: ${error.message}`);
@@ -1545,14 +1762,14 @@ async function restoreFundOverviewSnapshot(ctx: Context, fundId: string, snapsho
   if (fundError) throw new Error(`Failed to restore fund overview: ${fundError.message}`);
   await replaceFundRows(
     ctx,
-    'll_fund_beneficiary_tranches',
+    'beneficiary',
     fundId,
     normalizeBeneficiaryTrancheRows(snapshot.beneficiary_rows),
     [],
   );
   await replaceFundRows(
     ctx,
-    'll_fund_loan_tranches',
+    'loan',
     fundId,
     normalizeLoanTrancheRows(snapshot.loan_rows),
     [],
@@ -1630,10 +1847,10 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
     if (fundError) throw new Error(`Failed to write fund overview: ${fundError.message}`);
 
     if (beneficiaryRows) {
-      await replaceFundRows(ctx, 'll_fund_beneficiary_tranches', fundId, beneficiaryRows, beforeResolved.beneficiaryRows);
+      await replaceFundRows(ctx, 'beneficiary', fundId, beneficiaryRows, beforeResolved.beneficiaryRows);
     }
     if (loanRows) {
-      await replaceFundRows(ctx, 'll_fund_loan_tranches', fundId, loanRows, beforeResolved.loanRows);
+      await replaceFundRows(ctx, 'loan', fundId, loanRows, beforeResolved.loanRows);
     }
 
     const afterReadback = await readFundOverviewPayload(ctx, { asset_id: assetId, asset_name: assetName });
@@ -1932,7 +2149,7 @@ const WORK_PLATFORM_BOARD_SELECT = [
 
 function workPlatformTaskMutationPayload(ctx: Context, payload: Record<string, unknown>, currentPayload: Record<string, unknown> = {}) {
   return serverWorklogPayload(ctx, payload.payload, currentPayload, {
-    source: 'll_work_platform_tasks',
+    source: 'll_work_items',
     assetName: safeText(firstDefined(payload.related_asset_name, payload.assetName, payload.asset_name)),
     companyName: safeText(payload.company_name),
     taskName: safeText(payload.task_name),
@@ -1968,8 +2185,9 @@ async function listWorkPlatformTasks(ctx: Context, payload: Record<string, unkno
   const limit = Math.min(Number(payload.limit || 200), 500);
   const includeDeleted = Boolean(payload.include_deleted || payload.include_archived);
   let query = ctx.serviceClient
-    .from('ll_work_platform_tasks')
+    .from('ll_work_items')
     .select(WORK_PLATFORM_TASK_SELECT)
+    .eq('item_type', 'task')
     .order('created_at', { ascending: false })
     .limit(limit);
   if (!includeDeleted) query = query.neq('status', 'deleted');
@@ -2029,7 +2247,7 @@ function safeSnapshotTask(ctx: Context, row: Record<string, unknown>) {
   const createdByDisplay = createdByEmail ? `${createdByName}(${createdByEmail})` : createdByName;
   return stripUndefined({
     id: safeText(row.id),
-    source: 'll_work_platform_tasks',
+    source: 'll_work_items',
     related_asset: safeText(firstDefined(row.related_asset_name, payload.assetName, payload.relatedAsset)),
     related_asset_id: safeText(row.related_asset_id),
     task_name: safeText(firstDefined(row.task_name, payload.taskName), 'Task'),
@@ -2080,8 +2298,9 @@ async function upsertCurrentWorkPlatformTaskSnapshot(ctx: Context, payload: Reco
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const meta = logisticsWeekMeta(payload.basis_date);
   const { data: rows, error } = await ctx.serviceClient
-    .from('ll_work_platform_tasks')
+    .from('ll_work_items')
     .select(WORK_PLATFORM_TASK_SELECT)
+    .eq('item_type', 'task')
     .order('created_at', { ascending: false })
     .limit(500);
   if (error) return fail(500, 'Failed to read current work platform tasks for snapshot', ctx.origin);
@@ -2129,7 +2348,8 @@ async function upsertCurrentWorkPlatformTaskSnapshot(ctx: Context, payload: Reco
     created_by_name: actorName(ctx),
     organization: safeText(ctx.permission?.organization) || null,
     payload: {
-      source: 'll_work_platform_task_snapshots',
+      source: 'll_work_items',
+      item_type: 'task_snapshot',
       timing: 'auto_after_task_list_loaded_or_changed',
       actor_display: actorDisplay(ctx),
     },
@@ -2137,8 +2357,8 @@ async function upsertCurrentWorkPlatformTaskSnapshot(ctx: Context, payload: Reco
   });
 
   const { data, error: upsertError } = await ctx.serviceClient
-    .from('ll_work_platform_task_snapshots')
-    .upsert(snapshotRow, { onConflict: 'workspace,week_key,created_by' })
+    .from('ll_work_items')
+    .upsert({ ...snapshotRow, item_type: 'task_snapshot' }, { onConflict: 'item_type,workspace,week_key,created_by' })
     .select(WORK_PLATFORM_TASK_SNAPSHOT_SELECT)
     .single();
   if (upsertError) return fail(500, 'Failed to save work platform task snapshot', ctx.origin);
@@ -2154,8 +2374,9 @@ async function listWorkPlatformTaskSnapshots(ctx: Context, payload: Record<strin
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const limit = Math.min(Number(payload.limit || 100), 500);
   let query = ctx.serviceClient
-    .from('ll_work_platform_task_snapshots')
+    .from('ll_work_items')
     .select(WORK_PLATFORM_TASK_SNAPSHOT_SELECT)
+    .eq('item_type', 'task_snapshot')
     .eq('workspace', 'logistics')
     .order('basis_date', { ascending: false })
     .order('updated_at', { ascending: false })
@@ -2183,8 +2404,9 @@ async function saveWorkPlatformTask(ctx: Context, payload: Record<string, unknow
   const relatedAssetId = safeText(resolvedAsset.asset_id);
   if (!canMutateWorklog(ctx, 'create', relatedAssetId)) return fail(403, 'Insufficient create permission for this task asset', ctx.origin);
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_tasks')
+    .from('ll_work_items')
     .insert(stripUndefined({
+      item_type: 'task',
       task_name: safeText(firstDefined(payload.task_name, payload.title), 'Task'),
       company_name: safeText(payload.company_name) || null,
       related_asset_id: relatedAssetId,
@@ -2211,8 +2433,9 @@ async function saveWorkPlatformTask(ctx: Context, payload: Record<string, unknow
 
 async function readWorkPlatformTaskForWrite(ctx: Context, id: string) {
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_tasks')
+    .from('ll_work_items')
     .select(WORK_PLATFORM_TASK_SELECT)
+    .eq('item_type', 'task')
     .eq('id', id)
     .single();
   if (error || !data) return { data: null, response: fail(404, 'Work platform task not found', ctx.origin) };
@@ -2245,7 +2468,7 @@ async function updateWorkPlatformTask(ctx: Context, payload: Record<string, unkn
   }
   const currentPayload = (currentRow.payload || {}) as Record<string, unknown>;
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_tasks')
+    .from('ll_work_items')
     .update(stripUndefined({
       task_name: payload.task_name === undefined && payload.title === undefined ? undefined : safeText(firstDefined(payload.task_name, payload.title), safeText(currentRow.task_name)),
       company_name: payload.company_name === undefined ? undefined : safeText(payload.company_name) || null,
@@ -2263,6 +2486,7 @@ async function updateWorkPlatformTask(ctx: Context, payload: Record<string, unkn
       updated_at: new Date().toISOString(),
     }))
     .eq('id', id)
+    .eq('item_type', 'task')
     .select(WORK_PLATFORM_TASK_SELECT)
     .single();
   if (error) return fail(500, 'Failed to update work platform task', ctx.origin);
@@ -2284,7 +2508,7 @@ async function deleteWorkPlatformTask(ctx: Context, payload: Record<string, unkn
   if (!canMutateWorklog(ctx, 'delete', currentRow.related_asset_id)) return fail(403, 'Insufficient delete permission for existing task asset', ctx.origin);
   const currentPayload = (currentRow.payload || {}) as Record<string, unknown>;
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_tasks')
+    .from('ll_work_items')
     .update({
       status: 'deleted',
       deleted_at: new Date().toISOString(),
@@ -2292,6 +2516,7 @@ async function deleteWorkPlatformTask(ctx: Context, payload: Record<string, unkn
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
+    .eq('item_type', 'task')
     .select(WORK_PLATFORM_TASK_SELECT)
     .single();
   if (error) return fail(500, 'Failed to delete work platform task', ctx.origin);
@@ -2308,8 +2533,9 @@ async function archiveSeedWorkPlatformTask(ctx: Context, payload: Record<string,
   if (!canMutateWorklog(ctx, 'delete', relatedAssetId)) return fail(403, 'Insufficient delete permission for this seed task asset', ctx.origin);
   const now = new Date().toISOString();
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_tasks')
+    .from('ll_work_items')
     .insert(stripUndefined({
+      item_type: 'task',
       task_name: safeText(firstDefined(payload.task_name, payload.title), 'Task'),
       company_name: safeText(payload.company_name) || null,
       related_asset_id: relatedAssetId,
@@ -2363,7 +2589,7 @@ async function listWorkPlatformBoardPosts(ctx: Context, payload: Record<string, 
   const limit = Math.min(Number(payload.limit || 200), 500);
   const queryLimit = Math.min(Math.max(limit * 3, 300), 1000);
   let query = ctx.serviceClient
-    .from('ll_work_platform_board_posts')
+    .from('ll_board_posts')
     .select(WORK_PLATFORM_BOARD_SELECT)
     .neq('status', 'deleted');
 
@@ -2396,7 +2622,7 @@ async function saveWorkPlatformBoardPost(ctx: Context, payload: Record<string, u
   if (!canMutateWorklog(ctx, 'create', relatedAssetId)) return fail(403, 'Insufficient create permission for this board post scope', ctx.origin);
   const logId = safeText(payload.log_id, `ll_board_${crypto.randomUUID()}`);
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_board_posts')
+    .from('ll_board_posts')
     .insert(stripUndefined({
       log_id: logId,
       workspace_code: 'WS_LOGISTICS',
@@ -2437,7 +2663,7 @@ async function readWorkPlatformBoardForWrite(ctx: Context, idOrLogId: string) {
   const idText = safeText(idOrLogId);
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(idText);
   const query = ctx.serviceClient
-    .from('ll_work_platform_board_posts')
+    .from('ll_board_posts')
     .select(WORK_PLATFORM_BOARD_SELECT);
   const { data, error } = await (isUuid ? query.eq('id', idText) : query.eq('log_id', idText)).single();
   if (error || !data) return { data: null, response: fail(404, 'Work platform board post not found', ctx.origin) };
@@ -2469,7 +2695,7 @@ async function updateWorkPlatformBoardPost(ctx: Context, payload: Record<string,
     return fail(403, 'Insufficient update permission for new board post scope', ctx.origin);
   }
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_board_posts')
+    .from('ll_board_posts')
     .update(stripUndefined({
       work_date: payload.work_date === undefined ? undefined : safeDateText(payload.work_date),
       title: payload.title === undefined && payload.summary === undefined ? undefined : safeText(firstDefined(payload.title, payload.summary), safeText(currentRow.title)),
@@ -2504,7 +2730,7 @@ async function deleteWorkPlatformBoardPost(ctx: Context, payload: Record<string,
   const currentRow = current.data as Record<string, unknown>;
   if (!canMutateWorklog(ctx, 'delete', currentRow.related_asset_id)) return fail(403, 'Insufficient delete permission for existing board post scope', ctx.origin);
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_board_posts')
+    .from('ll_board_posts')
     .update({
       status: 'deleted',
       deleted_at: new Date().toISOString(),
@@ -2537,7 +2763,7 @@ async function commentWorkPlatformBoardPost(ctx: Context, payload: Record<string
     created_at: new Date().toISOString(),
   };
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_board_posts')
+    .from('ll_board_posts')
     .update({ comments: [...comments, nextComment], updated_at: new Date().toISOString() })
     .eq('id', currentRow.id)
     .select(WORK_PLATFORM_BOARD_SELECT)
@@ -2562,7 +2788,7 @@ async function deleteWorkPlatformBoardComment(ctx: Context, payload: Record<stri
     return fail(403, 'Only comment author or manager can delete this comment', ctx.origin);
   }
   const { data, error } = await ctx.serviceClient
-    .from('ll_work_platform_board_posts')
+    .from('ll_board_posts')
     .update({ comments: comments.filter((comment) => comment.id !== commentId), updated_at: new Date().toISOString() })
     .eq('id', currentRow.id)
     .select(WORK_PLATFORM_BOARD_SELECT)
@@ -2615,8 +2841,9 @@ async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown
   if (!rows.length && !originalAssetNames.length) return fail(400, 'rows or original_asset_names is required', ctx.origin);
 
   const { data: report, error: reportError } = await ctx.serviceClient
-    .from('ll_weekly_reports')
+    .from('ll_weekly_records')
     .select('id')
+    .eq('record_type', 'report')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -2637,16 +2864,17 @@ async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown
     .map((row) => ({ ...row, report_id: report.id }));
 
   const { error: deleteError } = await ctx.serviceClient
-    .from('ll_weekly_assets')
+    .from('ll_weekly_records')
     .delete()
+    .eq('record_type', 'asset')
     .eq('report_id', report.id)
     .in('asset_name', permittedNames);
   if (deleteError) return fail(500, 'Failed to delete previous weekly asset rows', ctx.origin);
 
   if (rowsToInsert.length) {
     const { error: insertError } = await ctx.serviceClient
-      .from('ll_weekly_assets')
-      .insert(rowsToInsert);
+      .from('ll_weekly_records')
+      .insert(rowsToInsert.map((row) => ({ ...row, record_type: 'asset' })));
     if (insertError) return fail(500, 'Failed to insert weekly asset rows', ctx.origin);
   }
   await audit(ctx.serviceClient, ctx.user.id, 'weekly-assets/replace-latest', 200, {
@@ -2674,7 +2902,7 @@ function weeklyAssetResponse(row: Record<string, unknown>) {
     issue: firstDefined(row.issue, rowJson.issue),
     plan: firstDefined(row.plan, rowJson.plan),
     ...rowJson,
-    sourceTable: 'public.ll_weekly_assets',
+    sourceTable: 'public.ll_weekly_records',
   });
 }
 
@@ -2683,8 +2911,9 @@ async function listLatestWeeklyAssets(ctx: Context) {
   const reportId = await latestWeeklyReportId(ctx);
   if (!reportId) return fail(404, 'Weekly report not found', ctx.origin);
   const { data, error } = await ctx.serviceClient
-    .from('ll_weekly_assets')
+    .from('ll_weekly_records')
     .select('*')
+    .eq('record_type', 'asset')
     .eq('report_id', reportId)
     .order('asset_name', { ascending: true })
     .limit(300);
@@ -2754,8 +2983,9 @@ function weeklyProjectRowsFromRowJson(rowJson: Record<string, unknown>) {
 
 async function latestWeeklyReportId(ctx: Context) {
   const { data, error } = await ctx.serviceClient
-    .from('ll_weekly_reports')
+    .from('ll_weekly_records')
     .select('id')
+    .eq('record_type', 'report')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -2788,8 +3018,9 @@ async function listWeeklyProjectsForLatestReport(ctx: Context) {
   const reportId = await latestWeeklyReportId(ctx);
   if (!reportId) return { reportId: '', rows: [] as Record<string, unknown>[] };
   const { data, error } = await ctx.serviceClient
-    .from('ll_weekly_projects')
+    .from('ll_weekly_records')
     .select('*')
+    .eq('record_type', 'project')
     .eq('report_id', reportId)
     .eq('project_type', 'managementProjects')
     .limit(200);
@@ -2866,7 +3097,7 @@ async function saveWeeklyProjectAssetDetail(ctx: Context, payload: Record<string
 
   if (matched?.id) {
     const { error } = await ctx.serviceClient
-      .from('ll_weekly_projects')
+      .from('ll_weekly_records')
       .update({
         row_json: nextRowJson,
         project_name: safeText(matched.project_name) || assetRef.assetName,
@@ -2875,8 +3106,9 @@ async function saveWeeklyProjectAssetDetail(ctx: Context, payload: Record<string
     if (error) return fail(500, 'Failed to update weekly project detail', ctx.origin);
   } else {
     const { error } = await ctx.serviceClient
-      .from('ll_weekly_projects')
+      .from('ll_weekly_records')
       .insert({
+        record_type: 'project',
         report_id: reportId,
         project_type: 'managementProjects',
         project_name: assetRef.assetName,
@@ -2990,14 +3222,15 @@ function normalizeBeneficiaryTrancheRows(value: unknown) {
         : {};
     return {
       row_key: activeRowKey('beneficiary', index, row),
+      tranche_type: 'beneficiary',
       tranche: safeText(firstDefined(row.tranche, row.tranche_name)),
-      beneficiary_name: safeText(firstDefined(row.beneficiary_name, row.beneficiaryName, row.beneficiary, row.name)),
+      party_name: safeText(firstDefined(row.party_name, row.beneficiary_name, row.beneficiaryName, row.beneficiary, row.name)),
       committed_amount_krw: parseKrwAmount(firstDefined(row.committed_amount_krw, row.committedAmountKrw, row.amount, row.value)),
       display_order: index + 1,
       is_active: true,
       deleted_at: null,
     };
-  }).filter((row) => row.tranche || row.beneficiary_name || row.committed_amount_krw !== null);
+  }).filter((row) => row.tranche || row.party_name || row.committed_amount_krw !== null);
 }
 
 function normalizeLoanTrancheRows(value: unknown) {
@@ -3020,8 +3253,9 @@ function normalizeLoanTrancheRows(value: unknown) {
         : {};
     return {
       row_key: activeRowKey('loan', index, row),
+      tranche_type: 'loan',
       tranche: safeText(firstDefined(row.tranche, row.tranche_name)),
-      lender_name: safeText(firstDefined(row.lender_name, row.lenderName, row.lender, row.name)),
+      party_name: safeText(firstDefined(row.party_name, row.lender_name, row.lenderName, row.lender, row.name)),
       committed_amount_krw: parseKrwAmount(firstDefined(row.committed_amount_krw, row.committedAmountKrw, row.amount, row.value)),
       drawdown_date: safeDateText(firstDefined(row.drawdown_date, row.drawdownDate)),
       maturity_date: safeDateText(firstDefined(row.maturity_date, row.maturityDate)),
@@ -3040,14 +3274,14 @@ function normalizeLoanTrancheRows(value: unknown) {
       is_active: true,
       deleted_at: null,
     };
-  }).filter((row) => row.tranche || row.lender_name || row.committed_amount_krw !== null);
+  }).filter((row) => row.tranche || row.party_name || row.committed_amount_krw !== null);
 }
 
 function publicBeneficiaryRow(row: Record<string, unknown>) {
   return stripUndefined({
     row_key: row.row_key,
     tranche: row.tranche,
-    beneficiary_name: row.beneficiary_name,
+    beneficiary_name: firstDefined(row.beneficiary_name, row.party_name),
     committed_amount_krw: row.committed_amount_krw,
     display_order: row.display_order,
   });
@@ -3057,7 +3291,7 @@ function publicLoanRow(row: Record<string, unknown>) {
   return stripUndefined({
     row_key: row.row_key,
     tranche: row.tranche,
-    lender_name: row.lender_name,
+    lender_name: firstDefined(row.lender_name, row.party_name),
     committed_amount_krw: row.committed_amount_krw,
     drawdown_date: row.drawdown_date,
     maturity_date: row.maturity_date,
@@ -3096,17 +3330,19 @@ async function resolveFundOverview(ctx: Context, payload: Record<string, unknown
   if (fundError) throw new Error(`Failed to read fund: ${fundError.message}`);
   if (!fund) throw new Error('Fund row was not found');
   const { data: beneficiaryRows, error: beneficiaryError } = await ctx.serviceClient
-    .from('ll_fund_beneficiary_tranches')
+    .from('ll_fund_capital_tranches')
     .select('*')
     .eq('fund_id', fundId)
+    .eq('tranche_type', 'beneficiary')
     .eq('is_active', true)
     .order('display_order', { ascending: true })
     .limit(200);
   if (beneficiaryError) throw new Error(`Failed to read beneficiary tranches: ${beneficiaryError.message}`);
   const { data: loanRows, error: loanError } = await ctx.serviceClient
-    .from('ll_fund_loan_tranches')
+    .from('ll_fund_capital_tranches')
     .select('*')
     .eq('fund_id', fundId)
+    .eq('tranche_type', 'loan')
     .eq('is_active', true)
     .order('display_order', { ascending: true })
     .limit(200);
@@ -3161,9 +3397,11 @@ async function readFundOverviewByAsset(ctx: Context, payload: Record<string, unk
   }
 }
 
-async function markFundRowsInactive(ctx: Context, tableName: 'll_fund_beneficiary_tranches' | 'll_fund_loan_tranches', fundId: string) {
+type FundTrancheType = 'beneficiary' | 'loan';
+
+async function markFundRowsInactive(ctx: Context, trancheType: FundTrancheType, fundId: string) {
   const { error } = await ctx.serviceClient
-    .from(tableName)
+    .from('ll_fund_capital_tranches')
     .update({
       is_active: false,
       deleted_at: new Date().toISOString(),
@@ -3171,14 +3409,15 @@ async function markFundRowsInactive(ctx: Context, tableName: 'll_fund_beneficiar
       updated_at: new Date().toISOString(),
     })
     .eq('fund_id', fundId)
+    .eq('tranche_type', trancheType)
     .eq('is_active', true);
-  if (error) throw new Error(`Failed to deactivate ${tableName}: ${error.message}`);
+  if (error) throw new Error(`Failed to deactivate ${trancheType} fund tranches: ${error.message}`);
 }
 
-async function restoreFundRowsActive(ctx: Context, tableName: 'll_fund_beneficiary_tranches' | 'll_fund_loan_tranches', ids: string[]) {
+async function restoreFundRowsActive(ctx: Context, ids: string[]) {
   if (!ids.length) return;
   const { error } = await ctx.serviceClient
-    .from(tableName)
+    .from('ll_fund_capital_tranches')
     .update({
       is_active: true,
       deleted_at: null,
@@ -3186,12 +3425,12 @@ async function restoreFundRowsActive(ctx: Context, tableName: 'll_fund_beneficia
       updated_at: new Date().toISOString(),
     })
     .in('id', ids);
-  if (error) throw new Error(`Failed to restore ${tableName}: ${error.message}`);
+  if (error) throw new Error(`Failed to restore fund tranches: ${error.message}`);
 }
 
 async function replaceFundRows(
   ctx: Context,
-  tableName: 'll_fund_beneficiary_tranches' | 'll_fund_loan_tranches',
+  trancheType: FundTrancheType,
   fundId: string,
   rows: Record<string, unknown>[],
   existingRows: Record<string, unknown>[],
@@ -3203,25 +3442,27 @@ async function replaceFundRows(
     return;
   }
   const previousIds = existingRows.map((row) => safeText(row.id)).filter(Boolean);
-  await markFundRowsInactive(ctx, tableName, fundId);
+  await markFundRowsInactive(ctx, trancheType, fundId);
   const nextRows = rows.map((row) => ({
     ...row,
     fund_id: fundId,
+    tranche_type: trancheType,
     created_by: ctx.user.id,
     updated_by: ctx.user.id,
     updated_at: new Date().toISOString(),
   }));
   const { error } = await ctx.serviceClient
-    .from(tableName)
-    .upsert(nextRows, { onConflict: 'fund_id,row_key' });
+    .from('ll_fund_capital_tranches')
+    .upsert(nextRows, { onConflict: 'fund_id,tranche_type,row_key' });
   if (error) {
-    await restoreFundRowsActive(ctx, tableName, previousIds);
-    throw new Error(`Failed to save ${tableName}: ${error.message}`);
+    await restoreFundRowsActive(ctx, previousIds);
+    throw new Error(`Failed to save ${trancheType} fund tranches: ${error.message}`);
   }
 }
 
 async function writeFundAudit(ctx: Context, fundId: string, beforeValue: unknown, afterValue: unknown, readbackValue: unknown) {
-  await ctx.serviceClient.from('ll_data_change_audit_logs').insert({
+  await ctx.serviceClient.from('ll_audit_events').insert({
+    event_type: 'data_change',
     action: 'funds/save-by-asset',
     target_table: 'public.ll_funds',
     target_row_id: fundId,
@@ -3231,6 +3472,8 @@ async function writeFundAudit(ctx: Context, fundId: string, beforeValue: unknown
     actor_id: ctx.user.id,
     approver_id: ctx.user.id,
     approval_status: 'server_authorized_write',
+    legacy_table: 'public.ll_audit_events',
+    event_status: 'server_authorized_write',
     metadata: { edge_action: 'funds/save-by-asset' },
   });
 }
@@ -3282,7 +3525,8 @@ async function saveFundOverviewByAsset(ctx: Context, payload: Record<string, unk
       .select('id, status')
       .single();
     if (editError) return fail(500, 'Failed to submit fund overview edit request', ctx.origin, editError.message);
-    const { error: apiAuditError } = await ctx.serviceClient.from('ll_api_audit_logs').insert({
+    const { error: apiAuditError } = await ctx.serviceClient.from('ll_audit_events').insert({
+      event_type: 'api',
       action: 'funds/save-by-asset',
       status_code: 202,
       requested_by: ctx.user.id,
@@ -3293,6 +3537,8 @@ async function saveFundOverviewByAsset(ctx: Context, payload: Record<string, unk
         beneficiary_rows: beneficiaryRows.length,
         loan_rows: loanRows.length,
       }),
+      legacy_table: 'public.ll_audit_events',
+      event_status: 'accepted',
     });
     if (apiAuditError) return fail(500, 'Failed to audit fund overview edit request', ctx.origin, apiAuditError.message);
     return jsonResponse({
@@ -3607,15 +3853,28 @@ function rowAssetIdentity(row: Record<string, unknown>) {
   ) || '').trim();
 }
 
+function isInternalTenantIdentifier(value: unknown) {
+  const text = normalizeText(value).trim();
+  return /^tenant[_-]/iu.test(text) || /^brn[_-]?\d+/iu.test(text);
+}
+
+function firstHumanTenantIdentity(...values: unknown[]) {
+  for (const value of values) {
+    const text = normalizeText(value).trim();
+    if (text && !isInternalTenantIdentifier(text)) return text;
+  }
+  return '';
+}
+
 function rowTenantIdentity(row: Record<string, unknown>) {
-  return String(firstDefined(
-    row.tenant_id,
-    row.tenantId,
+  return String(firstHumanTenantIdentity(
     row.tenant_master_name,
     row.tenantMasterName,
     row.company_name,
     row.companyName,
     row.raw_tenant_name,
+    row.tenant_id,
+    row.tenantId,
   ) || '').trim();
 }
 
@@ -3918,10 +4177,10 @@ async function collectAiSearchContext(ctx: Context, question: string) {
     safeSelectRows(ctx, 'll_lease_spaces', 1000),
     safeSelectRows(ctx, 'll_rent_history', 500),
     safeSelectRows(ctx, 'll_tenants', 300),
-    safeSelectRows(ctx, 'll_work_platform_tasks', 300),
-    safeSelectRows(ctx, 'll_work_platform_board_posts', 300),
-    safeSelectRows(ctx, 'll_weekly_assets', 300),
-    safeSelectRows(ctx, 'll_weekly_projects', 300),
+    safeSelectRows(ctx, 'll_work_items', 500),
+    safeSelectRows(ctx, 'll_board_posts', 300),
+    safeSelectRows(ctx, 'll_weekly_records', 500),
+    safeSelectRows(ctx, 'll_weekly_records', 500),
     safeSelectRows(ctx, 'll_cache_entries', 1000),
   ]);
   const metricRows = metricCacheRows.filter((row) => normalizeText(row.cache_type) === 'dashboard_metric');
@@ -3934,13 +4193,15 @@ async function collectAiSearchContext(ctx: Context, question: string) {
     row.asset_name,
     row.assetName,
   ].map(normalizeKey).filter(Boolean)));
-  const namedLeaseSpaceRows = enrichRowsWithAssetTenantNames(leaseSpaceRows, assetRows, tenantRows);
+  const namedLeaseSpaceRows = enrichRowsWithAssetTenantNames(currentDashboardLeaseSpaces(leaseSpaceRows), assetRows, tenantRows);
   const namedRentRows = enrichRowsWithAssetTenantNames(rentRows, assetRows, tenantRows);
   const permittedLeaseRows = namedLeaseSpaceRows.filter((row) => canReadDataRow(ctx, row));
   const permittedRentRows = namedRentRows.filter((row) => canReadDataRow(ctx, row));
-  const permittedMetricRows = metricRows.filter((row) => canReadDataRow(ctx, row));
-  const permittedWeeklyAssets = weeklyAssetRows.filter((row) => canReadDataRow(ctx, row));
-  const permittedTasks = filterWorkPlatformTaskRows(ctx, taskRows);
+  const permittedMetricRows: Record<string, unknown>[] = [];
+  const weeklyAssetSourceRows = weeklyAssetRows.filter((row) => safeText(row.record_type) === 'asset');
+  const weeklyProjectSourceRows = weeklyProjectRows.filter((row) => safeText(row.record_type) === 'project');
+  const permittedWeeklyAssets = weeklyAssetSourceRows.filter((row) => canReadDataRow(ctx, row));
+  const permittedTasks = filterWorkPlatformTaskRows(ctx, taskRows.filter((row) => safeText(row.item_type) === 'task'));
   const permittedBoardPosts = filterWorkPlatformBoardRows(ctx, boardRows);
   const allowedTenantKeys = new Set([...permittedLeaseRows, ...permittedRentRows].flatMap((row) => [
     row.tenant_id,
@@ -3955,7 +4216,7 @@ async function collectAiSearchContext(ctx: Context, question: string) {
     const keys = [row.tenant_id, row.tenantId, row.tenant_master_name, row.tenantMasterName, row.company_name, row.companyName, row.raw_tenant_name].map(normalizeKey).filter(Boolean);
     return keys.some((key) => allowedTenantKeys.has(key));
   });
-  const permittedWeeklyProjects = weeklyProjectRows.filter((row) => {
+  const permittedWeeklyProjects = weeklyProjectSourceRows.filter((row) => {
     const text = normalizeKey(rowText(row));
     return [...allowedAssetKeys].some((key) => key && text.includes(key)) || hasRole(ctx.role, 'Manager');
   });
@@ -3964,10 +4225,10 @@ async function collectAiSearchContext(ctx: Context, question: string) {
     { table: 'll_lease_spaces', rows: permittedLeaseRows },
     { table: 'll_rent_history', rows: permittedRentRows },
     { table: 'll_tenants', rows: permittedTenants },
-    { table: 'll_work_platform_tasks', rows: permittedTasks },
-    { table: 'll_work_platform_board_posts', rows: permittedBoardPosts },
-    { table: 'll_weekly_assets', rows: permittedWeeklyAssets },
-    { table: 'll_weekly_projects', rows: permittedWeeklyProjects },
+    { table: 'll_work_items', rows: permittedTasks },
+    { table: 'll_board_posts', rows: permittedBoardPosts },
+    { table: 'll_weekly_records:asset', rows: permittedWeeklyAssets },
+    { table: 'll_weekly_records:project', rows: permittedWeeklyProjects },
     { table: 'll_cache_entries', rows: permittedMetricRows },
   ].map((bucket) => ({
     ...bucket,
@@ -4222,7 +4483,7 @@ function buildDashboardMetricSnapshotRows(assetRows: Record<string, unknown>[], 
     const assetId = rowAssetId(assetRow);
     const assetName = rowAssetName(assetRow);
     const leaseRowsForAsset = rowsForAssets(leaseRows, [assetRow]);
-    const rentRowsForAsset = rowsForAssets(rentRows, [assetRow]);
+    const rentRowsForAsset = selectLatestDashboardRentHistoryRows(rowsForAssets(rentRows, [assetRow]), basisDate);
     const sourceRows = leaseRowsForAsset.length ? leaseRowsForAsset : rentRowsForAsset;
     const computedENoc = weightedENoc(sourceRows);
     const storedENoc = rowENoc(assetRow);
@@ -4305,7 +4566,7 @@ function buildDashboardMetricSnapshotRows(assetRows: Record<string, unknown>[], 
   });
 }
 
-async function refreshDashboardMetricSnapshots(serviceClient: SupabaseClient, basisDate = '2026-04-30') {
+async function refreshDashboardMetricSnapshots(serviceClient: SupabaseClient, basisDate = currentKstMonthEndDate()) {
   const [assetResult, leaseResult, rentResult, tenantResult] = await Promise.all([
     serviceClient.from('ll_assets').select('*').limit(500),
     serviceClient.from('ll_lease_spaces').select('*').limit(2000),
@@ -4315,8 +4576,16 @@ async function refreshDashboardMetricSnapshots(serviceClient: SupabaseClient, ba
   if (assetResult.error) throw new Error(`ll_assets read failed: ${assetResult.error.message}`);
   const assetRows = (assetResult.data || []) as Record<string, unknown>[];
   const tenantRows = tenantResult.error ? [] : (tenantResult.data || []) as Record<string, unknown>[];
-  const leaseRows = leaseResult.error ? [] : enrichRowsWithAssetTenantNames((leaseResult.data || []) as Record<string, unknown>[], assetRows, tenantRows);
   const rentRows = rentResult.error ? [] : enrichRowsWithAssetTenantNames((rentResult.data || []) as Record<string, unknown>[], assetRows, tenantRows);
+  const leaseRows = leaseResult.error ? [] : enrichRowsWithAssetTenantNames(
+    applyLatestRentHistoryAmountsToLeaseSpaces(
+      currentDashboardLeaseSpaces((leaseResult.data || []) as Record<string, unknown>[]),
+      rentRows,
+      basisDate,
+    ),
+    assetRows,
+    tenantRows,
+  );
   const records = buildDashboardMetricSnapshotRows(assetRows, leaseRows, rentRows, basisDate);
   for (let index = 0; index < records.length; index += 200) {
     const chunk = records.slice(index, index + 200);
@@ -4338,7 +4607,7 @@ async function refreshDashboardMetricSnapshots(serviceClient: SupabaseClient, ba
 async function callDashboardMetricRefresh(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'dashboard-metrics/refresh', 6, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
-  const basisDate = String(payload.basis_date || payload.basisDate || '2026-04-30').slice(0, 10);
+  const basisDate = dashboardBasisDate(payload);
   try {
     const result = await refreshDashboardMetricSnapshots(ctx.serviceClient, basisDate);
     await audit(ctx.serviceClient, ctx.user.id, 'dashboard-metrics/refresh', 200, result);
@@ -4715,11 +4984,11 @@ async function collectAiDemoSearchContext(serviceClient: SupabaseClient, questio
   } catch {
     metricRows = [];
   }
-  const namedLeaseSpaceRows = enrichRowsWithAssetTenantNames(leaseSpaceRows, rows, tenantRows);
+  const namedLeaseSpaceRows = enrichRowsWithAssetTenantNames(currentDashboardLeaseSpaces(leaseSpaceRows), rows, tenantRows);
   const namedRentRows = enrichRowsWithAssetTenantNames(rentRows, rows, tenantRows);
   const searchableLeaseRows = namedLeaseSpaceRows;
   const contractTextByAsset = new Map<string, string>();
-  [...searchableLeaseRows, ...namedRentRows, ...metricRows].forEach((row) => {
+  [...searchableLeaseRows, ...namedRentRows].forEach((row) => {
     const assetName = normalizeText(firstDefined(row.asset_name, row.assetName));
     if (!assetName) return;
     const current = contractTextByAsset.get(normalizeKey(assetName)) || '';
@@ -4745,7 +5014,7 @@ async function collectAiDemoSearchContext(serviceClient: SupabaseClient, questio
     .map(({ row }) => stripUndefined({
       table: 'll_lease_spaces',
       asset: firstDefined(row.asset_name, row.assetName),
-      tenant: firstDefined(row.tenant_master_name, row.tenantMasterName, row.company_name, row.companyName),
+      tenant: firstHumanTenantIdentity(row.tenant_master_name, row.tenantMasterName, row.company_name, row.companyName, row.tenant_id, row.tenantId),
       space: firstDefined(row.space_label, row.spaceLabel, row.floor_label, row.floorLabel, row.detail_area_label, row.detailAreaLabel),
       leased_area_py: firstDefined(row.leased_area_py, row.leasedAreaPy),
       leased_area_sqm: firstDefined(row.leased_area_sqm, row.leasedAreaSqm),
@@ -4765,7 +5034,7 @@ async function collectAiDemoSearchContext(serviceClient: SupabaseClient, questio
     .map(({ row }) => stripUndefined({
       table: 'll_rent_history',
       asset: firstDefined(row.asset_name, row.assetName),
-      tenant: firstDefined(row.tenant_master_name, row.tenantMasterName, row.company_name, row.companyName),
+      tenant: firstHumanTenantIdentity(row.tenant_master_name, row.tenantMasterName, row.company_name, row.companyName, row.tenant_id, row.tenantId),
       space: firstDefined(row.space_label, row.spaceLabel, row.floor_label, row.floorLabel, row.detail_area_label, row.detailAreaLabel),
       leased_area_sqm: firstDefined(row.leased_area_sqm, row.leasedAreaSqm),
       monthly_combined_total: firstDefined(row.monthly_combined_total, row.monthlyCombinedTotal),
@@ -4775,26 +5044,13 @@ async function collectAiDemoSearchContext(serviceClient: SupabaseClient, questio
       current_mf_per_py: firstDefined(row.current_mf_per_py, row.currentMfPerPy, row.mf_per_py, row.mfPerPy),
       basis_date: firstDefined(row.basis_date, row.basisDate),
     }));
-  const matchedMetricRows = metricRows
-    .map((row) => ({ row, score: keywordMatchScore(rowText(row), terms) }))
-    .filter((item) => !terms.length || item.score > 0)
-    .sort((a, b) => b.score - a.score || rowText(a.row).localeCompare(rowText(b.row), 'ko'))
-    .slice(0, 12)
-    .map(({ row }) => stripUndefined({
-      table: 'll_cache_entries',
-      asset: firstDefined(row.asset_name, row.assetName),
-      tenant: firstDefined(row.tenant_name, row.tenantName),
-      metric_key: row.metric_key,
-      value: firstDefined(row.numeric_value, row.text_value),
-      unit: row.unit,
-      basis_date: row.basis_date,
-    }));
+  const matchedMetricRows: Record<string, unknown>[] = [];
   const evidence = [...assetEvidence, ...matchedMetricRows, ...matchedContractRows, ...matchedRentRows].slice(0, 24);
   return {
     evidence,
     scope: {
       demo_mode: true,
-      evidence_policy: 'll_assets, ll_lease_spaces, ll_rent_history, and ll_cache_entries dashboard metric summary fields only',
+      evidence_policy: 'll_assets, current ll_lease_spaces, and ll_rent_history fields only',
       readable_asset_count: rows.length,
       evidence_rows: evidence.length,
       matched_asset_rows: matchedRows.length,
@@ -4809,7 +5065,7 @@ async function collectAiDemoSearchContext(serviceClient: SupabaseClient, questio
     assetRows: rows,
     leaseRows: searchableLeaseRows,
     rentRows: namedRentRows,
-    metricRows,
+    metricRows: [],
     matchedAssetRows: matchedRows,
     matchedLeaseRows: matchedContractRows,
     matchedRentRows,
@@ -4996,16 +5252,18 @@ async function callWeeklyAssetsLatestPreview(origin: string, payload: Record<str
   });
 
   const { data: report, error: reportError } = await serviceClient
-    .from('ll_weekly_reports')
+    .from('ll_weekly_records')
     .select('id')
+    .eq('record_type', 'report')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (reportError || !report?.id) return fail(404, 'Weekly report not found', origin);
 
   const { data, error } = await serviceClient
-    .from('ll_weekly_assets')
+    .from('ll_weekly_records')
     .select('*')
+    .eq('record_type', 'asset')
     .eq('report_id', report.id)
     .order('asset_name', { ascending: true })
     .limit(300);

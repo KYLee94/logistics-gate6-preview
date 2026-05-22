@@ -7,10 +7,7 @@ type SupabaseClient = ReturnType<typeof createClient>;
 type RateBucket = { resetAt: number; count: number };
 
 const WRITE_TABLE_ALLOWLIST = new Set([
-  'public.ll_weekly_reports',
-  'public.ll_weekly_assets',
-  'public.ll_weekly_projects',
-  'public.ll_weekly_doc_ingest_runs',
+  'public.ll_weekly_records',
 ]);
 
 const MAX_WEEKLY_DOC_BYTES = 20 * 1024 * 1024;
@@ -182,14 +179,14 @@ async function restoreWeeklySnapshot(
   previousAssets: Record<string, unknown>[],
   previousProjects: Record<string, unknown>[],
 ) {
-  await serviceClient.from('ll_weekly_assets').delete().eq('report_id', reportId);
-  await serviceClient.from('ll_weekly_projects').delete().eq('report_id', reportId);
+  await serviceClient.from('ll_weekly_records').delete().eq('record_type', 'asset').eq('report_id', reportId);
+  await serviceClient.from('ll_weekly_records').delete().eq('record_type', 'project').eq('report_id', reportId);
   if (previousReport) {
-    await serviceClient.from('ll_weekly_reports').upsert(previousReport, { onConflict: 'id' });
-    if (previousAssets.length) await serviceClient.from('ll_weekly_assets').insert(previousAssets);
-    if (previousProjects.length) await serviceClient.from('ll_weekly_projects').insert(previousProjects);
+    await serviceClient.from('ll_weekly_records').upsert(previousReport, { onConflict: 'id' });
+    if (previousAssets.length) await serviceClient.from('ll_weekly_records').insert(previousAssets);
+    if (previousProjects.length) await serviceClient.from('ll_weekly_records').insert(previousProjects);
   } else {
-    await serviceClient.from('ll_weekly_reports').delete().eq('id', reportId);
+    await serviceClient.from('ll_weekly_records').delete().eq('id', reportId).eq('record_type', 'report');
   }
 }
 
@@ -301,8 +298,9 @@ Deno.serve(async (request) => {
   if (!hasWordFileSignature(buffer)) return fail(400, 'Word file signature is invalid', origin);
   const sourceSha = await sha256Hex(buffer);
   const { data: duplicate } = await serviceClient
-    .from('ll_weekly_reports')
+    .from('ll_weekly_records')
     .select('id, source_file_name')
+    .eq('record_type', 'report')
     .eq('week_key', weekKey)
     .eq('organization', organization)
     .eq('source_sha256', sourceSha)
@@ -323,49 +321,60 @@ Deno.serve(async (request) => {
   if (!weekly.lines.length) return fail(422, 'Word parsing produced no readable text', origin);
 
   const { data: previousReport } = await serviceClient
-    .from('ll_weekly_reports')
+    .from('ll_weekly_records')
     .select('*')
+    .eq('record_type', 'report')
     .eq('week_key', weekKey)
     .eq('organization', organization)
     .maybeSingle();
   const previousReportId = previousReport?.id || null;
   const [{ data: previousAssets }, { data: previousProjects }] = previousReportId ? await Promise.all([
-    serviceClient.from('ll_weekly_assets').select('*').eq('report_id', previousReportId),
-    serviceClient.from('ll_weekly_projects').select('*').eq('report_id', previousReportId),
+    serviceClient.from('ll_weekly_records').select('*').eq('record_type', 'asset').eq('report_id', previousReportId),
+    serviceClient.from('ll_weekly_records').select('*').eq('record_type', 'project').eq('report_id', previousReportId),
   ]) : [{ data: [] }, { data: [] }];
 
-  const { data: report, error: reportError } = await serviceClient
-    .from('ll_weekly_reports')
-    .upsert({
-      week_key: weekKey,
-      organization,
-      report_year: year,
-      report_month: month,
-      report_week: week,
-      source_file_name: file.name,
-      source_sha256: sourceSha,
-      source_text: parsed.value || '',
-      report_json: { ...weekly.reportJson, weekRange },
-      created_by: userData.user.id,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'week_key,organization' })
-    .select('id')
-    .single();
+  const reportPayload = {
+    record_type: 'report',
+    week_key: weekKey,
+    organization,
+    report_year: year,
+    report_month: month,
+    report_week: week,
+    source_file_name: file.name,
+    source_sha256: sourceSha,
+    source_text: parsed.value || '',
+    report_json: { ...weekly.reportJson, weekRange },
+    created_by: userData.user.id,
+    updated_at: new Date().toISOString(),
+  };
+  const { data: report, error: reportError } = previousReportId
+    ? await serviceClient
+      .from('ll_weekly_records')
+      .update(reportPayload)
+      .eq('id', previousReportId)
+      .eq('record_type', 'report')
+      .select('id')
+      .single()
+    : await serviceClient
+      .from('ll_weekly_records')
+      .insert(reportPayload)
+      .select('id')
+      .single();
   if (reportError || !report) return fail(500, 'Failed to save weekly report', origin);
 
   try {
-    await serviceClient.from('ll_weekly_assets').delete().eq('report_id', report.id);
-    await serviceClient.from('ll_weekly_projects').delete().eq('report_id', report.id);
+    await serviceClient.from('ll_weekly_records').delete().eq('record_type', 'asset').eq('report_id', report.id);
+    await serviceClient.from('ll_weekly_records').delete().eq('record_type', 'project').eq('report_id', report.id);
 
     if (weekly.assetRows.length) {
-      const { error } = await serviceClient.from('ll_weekly_assets').insert(
-        weekly.assetRows.map((row) => ({ ...row, report_id: report.id })),
+      const { error } = await serviceClient.from('ll_weekly_records').insert(
+        weekly.assetRows.map((row) => ({ ...row, record_type: 'asset', report_id: report.id })),
       );
       if (error) throw error;
     }
     if (weekly.projectRows.length) {
-      const { error } = await serviceClient.from('ll_weekly_projects').insert(
-        weekly.projectRows.map((row) => ({ ...row, report_id: report.id })),
+      const { error } = await serviceClient.from('ll_weekly_records').insert(
+        weekly.projectRows.map((row) => ({ ...row, record_type: 'project', report_id: report.id })),
       );
       if (error) throw error;
     }
@@ -380,7 +389,8 @@ Deno.serve(async (request) => {
     return fail(500, 'Weekly ingest failed without leaving partial writes', origin);
   }
 
-  await serviceClient.from('ll_weekly_doc_ingest_runs').insert({
+  await serviceClient.from('ll_weekly_records').insert({
+    record_type: 'doc_ingest',
     report_id: report.id,
     week_key: weekKey,
     organization,

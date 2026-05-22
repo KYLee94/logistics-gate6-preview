@@ -16,7 +16,8 @@
     "qa:data-quality-e2e": "node scripts/qa/logistics-data-quality-e2e.cjs",
     "qa:ai-chatbot": "node scripts/qa/logistics-ai-chatbot-qa.cjs",
     "qa:supabase-catalog": "node scripts/qa/logistics-supabase-catalog-inventory.cjs",
-    "qa:browser-visible-parity": "node scripts/qa/logistics-browser-visible-parity.cjs"
+    "qa:browser-visible-parity": "node scripts/qa/logistics-browser-visible-parity.cjs",
+    "qa:legacy-view-denylist": "node scripts/qa/logistics-legacy-view-denylist.cjs"
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",

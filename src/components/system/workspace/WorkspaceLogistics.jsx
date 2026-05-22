@@ -81,7 +81,8 @@ const PRIMARY_BLUE_BUTTON_CLASS = 'border-[#3b82f6]/30 bg-[#3b82f6]/20 text-[#60
 const DARK_BUTTON_CLASS = 'border-[#333333] bg-[#222] text-[#D1D1D6] hover:border-[#555] hover:text-white';
 const DASHBOARD_READ_MODE = import.meta.env.VITE_LOGISTICS_DASHBOARD_READ_MODE || 'primary-safe';
 const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
-const DASHBOARD_BASIS_LABEL = '2026년 4월 기준';
+const DASHBOARD_BASIS_DATE = currentKstMonthEndDate();
+const DASHBOARD_BASIS_LABEL = dashboardBasisLabel(DASHBOARD_BASIS_DATE);
 const USE_CATEGORY_COLORS = {
   상온창고: '#F59E0B',
   저온창고: '#7DD3FC',
@@ -117,6 +118,20 @@ const WEEKLY_ASSET_DB_CONTEXT = {
   평택아디다스: { assetName: '평택아디다스물류센터', fundName: '이지스인컴앤그로스일반사모부동산자투자신탁제2-2호', leaseMaturity: '2027-08-31' },
   안성홈플러스: { assetName: '안성 홈플러스 중부허브 물류센터', fundName: '이지스인컴앤그로스제2의3호일반사모부동산모투자회사', leaseMaturity: '2032-12-20' },
 };
+
+function currentKstMonthEndDate() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  const year = kst.getUTCFullYear();
+  const month = kst.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
+function dashboardBasisLabel(basisDate) {
+  const [year, month] = String(basisDate || '').split('-');
+  return year && month ? `${year}년 ${Number(month)}월 기준` : '현재월 기준';
+}
 
 function pathFor(suffix = '') {
   const base = LOGISTICS_INTERNAL_BASE;
@@ -434,7 +449,7 @@ function generalRowsFromDashboardReadData(readData = {}, fallbackRows = []) {
   const leasesById = new Map((readData.leases || []).map((row) => [firstDefined(row.lease_id, row.leaseId), row]));
   const tenantsById = new Map((readData.tenants || []).map((row) => [firstDefined(row.tenant_id, row.tenantId), row]));
   const fallbackByLeaseSpaceId = new Map((fallbackRows || []).map((row) => [row.leaseSpaceId, row]));
-  return (readData.lease_spaces || []).map((row) => {
+  return filterCurrentDashboardLeaseRows(readData.lease_spaces || []).map((row) => {
     const lease = leasesById.get(firstDefined(row.lease_id, row.leaseId)) || {};
     const tenantId = firstDefined(row.tenant_id, row.tenantId, lease.tenant_id, lease.tenantId);
     const tenant = tenantsById.get(tenantId) || {};
@@ -507,7 +522,7 @@ function areaBreakdownFromDashboardDetails(rows = []) {
 }
 
 function assetOptionsFromDashboardReadData(readData = {}, fallbackOptions = []) {
-  const spaces = readData.lease_spaces || [];
+  const spaces = filterCurrentDashboardLeaseRows(readData.lease_spaces || []);
   return (readData.assets || []).map((rawAsset) => {
     const asset = camelAssetFromApi(rawAsset);
     const fallback = fallbackOptions.find((row) => row.assetId === asset.assetId || normalizeAssetNameKey(row.assetName) === normalizeAssetNameKey(asset.assetName)) || {};
@@ -540,18 +555,36 @@ function monthKeyFromDate(value) {
   return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
 }
 
+function dashboardRentHistoryComponentKey(row = {}) {
+  const areaKey = (value) => {
+    const numeric = Number(String(value ?? '').replace(/,/g, '').replace(/[^\d.-]/g, ''));
+    return Number.isFinite(numeric) && numeric ? String(Math.round(numeric)) : '';
+  };
+  return [
+    firstDefined(row.asset_id, row.assetId),
+    firstDefined(row.tenant_id, row.tenantId),
+    firstDefined(row.source_contract_lease_space_id, row.sourceContractLeaseSpaceId, row.lease_space_id, row.leaseSpaceId),
+    firstDefined(row.floor_label, row.floorLabel),
+    firstDefined(row.detail_area_label, row.detailAreaLabel),
+    firstDefined(row.temperature_type, row.temperatureType, row.coldStorageType),
+    areaKey(firstDefined(row.leased_area_sqm, row.leasedAreaSqm)),
+    areaKey(firstDefined(row.exclusive_area_sqm, row.exclusiveAreaSqm)),
+  ].map((value) => String(value || '').trim()).join('|');
+}
+
 function buildRentTrendRowsFromDashboardReadData(readData = {}) {
   const rentRows = (readData.rent_history || [])
     .map((row) => ({
       ...row,
       month: monthKeyFromDate(row.effective_date),
       leaseSpaceId: firstDefined(row.lease_space_id, row.leaseSpaceId),
+      rentComponentKey: dashboardRentHistoryComponentKey(row),
       assetId: firstDefined(row.asset_id, row.assetId),
       monthlyRentTotal: Number(firstDefined(row.monthly_rent_total, row.monthlyRentTotal, 0) || 0),
       monthlyMfTotal: Number(firstDefined(row.monthly_mf_total, row.monthlyMfTotal, 0) || 0),
       leasedAreaSqm: Number(firstDefined(row.leased_area_sqm, row.leasedAreaSqm, 0) || 0),
     }))
-    .filter((row) => row.month && row.leaseSpaceId);
+    .filter((row) => row.month && row.rentComponentKey);
   const monthKeys = [...new Set(rentRows.map((row) => row.month))].sort();
   const assetById = new Map((readData.assets || []).map((row) => [firstDefined(row.asset_id, row.assetId), camelAssetFromApi(row)]));
   const firstAssetMonth = new Map();
@@ -564,8 +597,15 @@ function buildRentTrendRowsFromDashboardReadData(readData = {}) {
     const activeBySpace = new Map();
     rentRows
       .filter((row) => row.month <= month)
-      .sort((a, b) => String(a.month).localeCompare(String(b.month)))
-      .forEach((row) => activeBySpace.set(row.leaseSpaceId, row));
+      .sort((a, b) => {
+        const dateCompare = String(a.month).localeCompare(String(b.month));
+        if (dateCompare !== 0) return dateCompare;
+        const costA = Number(a.monthlyRentTotal || 0) + Number(a.monthlyMfTotal || 0);
+        const costB = Number(b.monthlyRentTotal || 0) + Number(b.monthlyMfTotal || 0);
+        if (costA !== costB) return costA - costB;
+        return String(firstDefined(a.source_sheet_row_id, a.sourceSheetRowId)).localeCompare(String(firstDefined(b.source_sheet_row_id, b.sourceSheetRowId)));
+      })
+      .forEach((row) => activeBySpace.set(row.rentComponentKey, row));
     const activeRows = [...activeBySpace.values()];
     const activeAssetIds = new Set(activeRows.map((row) => row.assetId).filter(Boolean));
     const newlyAddedAssets = [...activeAssetIds]
@@ -742,12 +782,12 @@ function useDashboardHomeReadDataset(memberInfo, enabled = true) {
   const homeReadAdapter = useMemo(() => (
     (response) => homePayloadFromDashboardRead(response, homeData, staticGeneralRows)
   ), [staticGeneralRows]);
-  const homeRead = useDashboardReadBridge('dashboard/home/read', { basis_date: '2026-04-30' }, {
+  const homeRead = useDashboardReadBridge('dashboard/home/read', { basis_date: DASHBOARD_BASIS_DATE }, {
     operating_asset_count: staticHomeData.operatingAssetCount,
     leased_area_sqm: staticHomeData.leasedArea,
     current_monthly_cost_total: staticHomeData.monthlyCost,
   }, homeReadAdapter, enabled && Boolean(memberInfo));
-  const blocked = homeRead.primaryMode && !homeRead.fallbackAllowed && !homeRead.payload;
+  const blocked = homeRead.blocked === true;
   const payload = useMemo(() => (
     homeRead.payload || (blocked ? {
       kpis: [],
@@ -1056,6 +1096,45 @@ function firstHumanTenantName(...values) {
     if (text && !isInternalTenantCode(text)) return text;
   }
   return '';
+}
+
+function isCurrentDashboardLeaseRow(row = {}) {
+  const status = String(firstDefined(row.contract_status, row.contractStatus, '') || '').trim().toLowerCase();
+  if (!status) return true;
+  if (['active', 'y', 'yes', 'current', 'in_force', 'ongoing'].includes(status)) return true;
+  if (['inactive', 'n', 'no', 'false', '0'].includes(status)) return false;
+  if (
+    status.includes('superseded')
+    || status.includes('inactive')
+    || status.includes('expired')
+    || status.includes('terminated')
+    || status.includes('cancelled')
+    || status.includes('종료')
+    || status.includes('해지')
+    || status.includes('만료')
+  ) return false;
+  return true;
+}
+
+function filterCurrentDashboardLeaseRows(rows = []) {
+  const byKey = new Map();
+  (rows || []).filter(isCurrentDashboardLeaseRow).forEach((row, index) => {
+    const key = firstDefined(
+      row.lease_space_id,
+      row.leaseSpaceId,
+      [
+        row.asset_id || row.assetId,
+        row.tenant_id || row.tenantId,
+        row.lease_id || row.leaseId,
+        row.floor_label || row.floorLabel,
+        row.detail_area_label || row.detailAreaLabel,
+        row.temperature_type || row.temperatureType,
+      ].map((value) => cleanDisplay(value, '')).join('|'),
+      `row-${index}`,
+    );
+    byKey.set(String(key), row);
+  });
+  return [...byKey.values()];
 }
 
 function safeFileNameText(value) {
@@ -1367,6 +1446,13 @@ function formatCurrency(value) {
   if (Math.abs(numeric) >= 100000000) return `${formatDecimalNumber(numeric / 100000000, 1)}억`;
   if (Math.abs(numeric) >= 10000) return `${formatNumber(Math.round(numeric / 10000))}만`;
   return formatNumber(Math.round(numeric));
+}
+
+function formatFavorMonths(value) {
+  if (value === undefined || value === null || value === '') return '-';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return cleanDisplay(value, '-');
+  return `${formatDecimalNumber(numeric, numeric % 1 === 0 ? 0 : 1)}개월`;
 }
 
 function formatWon(value) {
@@ -3512,7 +3598,7 @@ function normalizeServerWorklogTask(row, permission) {
     completed: row.status === 'completed' || Boolean(row.completed_at) || payload.completed,
     deleted: row.status === 'deleted' || Boolean(row.deleted_at) || payload.deleted,
     createdAt: row.created_at || payload.createdAt || '',
-    source: payload.source || 'll_work_platform_tasks',
+    source: payload.source || 'll_work_items',
   };
 }
 
@@ -5777,7 +5863,7 @@ function HomeDashboard() {
   const homeReadAdapter = useMemo(() => (
     (response) => homePayloadFromDashboardRead(response, homeData, staticGeneralRows)
   ), [staticGeneralRows]);
-  const homeRead = useDashboardReadBridge('dashboard/home/read', { basis_date: '2026-04-30' }, {
+  const homeRead = useDashboardReadBridge('dashboard/home/read', { basis_date: DASHBOARD_BASIS_DATE }, {
     operating_asset_count: staticHomeData.operatingAssetCount,
     leased_area_sqm: staticHomeData.leasedArea,
     current_monthly_cost_total: staticHomeData.monthlyCost,
@@ -5916,11 +6002,24 @@ function HomeDashboard() {
       exposureAvailable: true,
     }))
     .sort((a, b) => b.value - a.value);
+  const metricAssetRows = readableAssetOptions.map((asset) => {
+    const sourceGrossAreaSqm = Number(asset.grossFloorAreaSqm || 0);
+    const leasedAreaSqm = Number(asset.leasedAreaSqm || 0);
+    const vacancyAreaSqm = Math.max(0, sourceGrossAreaSqm - leasedAreaSqm);
+    const grossFloorAreaSqm = leasedAreaSqm + vacancyAreaSqm;
+    return {
+      ...asset,
+      grossFloorAreaSqm,
+      leasedAreaSqm,
+      vacancyAreaSqm,
+      vacancyRate: grossFloorAreaSqm > 0 ? vacancyAreaSqm / grossFloorAreaSqm : 0,
+    };
+  });
   const filteredHomeMetrics = {
-    operatingAssetCount: readableMapPoints.length || mapAssetRows.length,
-    leasedArea: sumRows(generalRows, (row) => row.leasedAreaSqm),
-    vacancyArea: sumRows(readableVacancyRows, (row) => row.vacancyAreaSqm),
-    grossArea: sumRows(readableVacancyRows, (row) => row.grossFloorAreaSqm),
+    operatingAssetCount: metricAssetRows.length || readableMapPoints.length || mapAssetRows.length,
+    grossArea: sumRows(metricAssetRows, (row) => row.grossFloorAreaSqm),
+    leasedArea: sumRows(metricAssetRows, (row) => row.leasedAreaSqm),
+    vacancyArea: sumRows(metricAssetRows, (row) => row.vacancyAreaSqm),
   };
   filteredHomeMetrics.vacancyRate = filteredHomeMetrics.grossArea > 0 ? filteredHomeMetrics.vacancyArea / filteredHomeMetrics.grossArea : data.vacancyRate;
 
@@ -5973,11 +6072,12 @@ function HomeDashboard() {
     ),
   });
   const kpiCards = [
-    ['운영 자산 수', formatMetric(filteredHomeMetrics.operatingAssetCount, 'number'), DASHBOARD_BASIS_LABEL, () => openTableModal('운영 자산 목록', ['자산명', '주소', '연면적(평)', '공실률'], mapAssetRows.map((row) => [row.assetName, row.address || '-', formatArea(row.grossFloorAreaSqm), formatPercent(row.vacancyRate)]))],
-    ['총 임대면적', formatMetric(filteredHomeMetrics.leasedArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 임대면적 근거', ['자산명', '연면적(평)', '공실면적(평)', '공실률'], readableVacancyRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.vacancyAreaSqm), formatPercent(row.vacancyRate)]))],
-    ['총 공실면적', formatMetric(filteredHomeMetrics.vacancyArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 공실면적 근거', ['자산명', '공실면적(평)', '공실률'], readableVacancyRows.map((row) => [row.assetName, formatArea(row.vacancyAreaSqm), formatPercent(row.vacancyRate)]))],
-    ['공실률', formatMetric(filteredHomeMetrics.vacancyRate, 'percent'), DASHBOARD_BASIS_LABEL, () => openTableModal('공실률 계산 근거', ['항목', '내용'], [['기준시점', DASHBOARD_BASIS_LABEL], ['연면적(평)', formatArea(filteredHomeMetrics.grossArea)], ['임대면적(평)', formatArea(filteredHomeMetrics.leasedArea)], ['공실면적(평)', formatArea(filteredHomeMetrics.vacancyArea)], ['공실률', formatPercent(filteredHomeMetrics.vacancyRate)]])],
-    ['월 임관리비 총액', formatMetric(canonicalMonthlyCost, 'currency'), `${DASHBOARD_BASIS_LABEL} · 자산 snapshot 기준`, () => openTableModal('월 임관리비 총액 근거', ['구분', '값', '비고'], [['기준시점', DASHBOARD_BASIS_LABEL, 'Home snapshot'], ['자산 snapshot 합계', formatCurrency(assetSnapshotMonthlyCost), 'KPI/자산별 도넛 기준'], ['Lease space 합계', formatCurrency(leaseSpaceMonthlyCost), '임차인 계약 row 기준'], ['차이', formatCurrency(leaseSpaceToKpiGap), 'Data Quality reconciliation 대상'], ...monthlyCostEvidenceRows.map((row) => [row.tenantMasterName, formatCurrency(row.value), `${formatNumber(row.assetCount)}개 자산 · 최근 만기 ${formatDate(row.latestExpiry)}`])])],
+    ['운영 자산 수', formatMetric(filteredHomeMetrics.operatingAssetCount, 'number'), DASHBOARD_BASIS_LABEL, () => openTableModal('운영 자산 목록', ['자산명', '주소', '연면적(평)', '임대면적(평)', '공실면적(평)', '공실률'], metricAssetRows.map((row) => [row.assetName, row.address || '-', formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatPercent(row.vacancyRate)]))],
+    ['총 연면적', formatMetric(filteredHomeMetrics.grossArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 연면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm)]))],
+    ['총 임대면적', formatMetric(filteredHomeMetrics.leasedArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 임대면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm)]))],
+    ['총 공실면적', formatMetric(filteredHomeMetrics.vacancyArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 공실면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm)]))],
+    ['공실률', formatMetric(filteredHomeMetrics.vacancyRate, 'percent'), DASHBOARD_BASIS_LABEL, () => openTableModal('공실률 계산 근거', ['항목', '내용'], [['기준시점', DASHBOARD_BASIS_LABEL], ['총 연면적(평)', formatArea(filteredHomeMetrics.grossArea)], ['총 임대면적(평)', formatArea(filteredHomeMetrics.leasedArea)], ['총 공실면적(평)', formatArea(filteredHomeMetrics.vacancyArea)], ['계산식', '총 공실면적 / 총 연면적'], ['공실률', formatPercent(filteredHomeMetrics.vacancyRate)]])],
+    ['월 임관리비 총액', formatMetric(canonicalMonthlyCost, 'currency'), `${DASHBOARD_BASIS_LABEL} · Rent History 기준`, () => openTableModal('월 임관리비 총액 근거', ['구분', '값', '비고'], [['기준시점', DASHBOARD_BASIS_LABEL, '기준월 이전 최신 rent history를 계약 구역별로 반영'], ['자산 합계', formatCurrency(assetSnapshotMonthlyCost), 'KPI/자산별 도넛 기준'], ['Lease space 합계', formatCurrency(leaseSpaceMonthlyCost), '임차인 계약 row 기준'], ['차이', formatCurrency(leaseSpaceToKpiGap), 'Data Quality reconciliation 대상'], ...monthlyCostEvidenceRows.map((row) => [row.tenantMasterName, formatCurrency(row.value), `${formatNumber(row.assetCount)}개 자산 · 최근 만기 ${formatDate(row.latestExpiry)}`])])],
   ];
   const composition = home.composition || {};
   const selectedCompositionOption = compositionAssetId === 'all' ? null : readableAssetOptions.find((item) => item.assetId === compositionAssetId);
@@ -6086,11 +6186,11 @@ function HomeDashboard() {
       {homeRead.blocked ? (
         <DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 Home 데이터 읽기 권한을 허용하지 않아 정적 JSON fallback을 차단했습니다." />
       ) : null}
-      <section className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {kpiCards.map(([label, value, basis, action]) => (
-          <button key={label} type="button" onClick={action} className="text-left rounded-[14px] border border-[#333333] bg-[#252524] px-4 py-4 hover:bg-[#2A2A29]">
+          <button key={label} type="button" onClick={action} className="min-w-0 text-left rounded-[14px] border border-[#333333] bg-[#252524] px-3 py-3 hover:bg-[#2A2A29]">
             <div className="text-[12px] text-[#86868B] font-semibold">{label}</div>
-            <div className="text-[22px] text-white font-semibold mt-2">{value}</div>
+            <div className="mt-2 truncate text-[20px] font-semibold text-white" title={String(value)}>{value}</div>
             <div className="mt-1 text-[11px] font-medium text-[#86868B]">{basis}</div>
           </button>
         ))}
@@ -6803,10 +6903,11 @@ function buildStackingFloorsFromRows(rows = [], fallbackFloors = []) {
     const key = floorLabel.toUpperCase();
     if (!grouped.has(key)) grouped.set(key, { floorLabel, totalLeasedAreaSqm: 0, tenants: [] });
     const group = grouped.get(key);
+    const tenantDisplayName = firstHumanTenantName(row.tenantMasterName, row.tenantName, row.companyName);
     group.totalLeasedAreaSqm += Number.isFinite(leasedAreaSqm) ? leasedAreaSqm : 0;
     group.tenants.push({
       ...row,
-      tenantMasterName: firstDefined(row.tenantMasterName, row.tenantName, row.companyName, '-'),
+      tenantMasterName: tenantDisplayName || '-',
       detailAreaLabel: cleanDisplay(row.detailAreaLabel, ''),
       leasedAreaSqm,
       monthlyCostTotal: firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, row.currentMonthlyCostTotal),
@@ -6833,7 +6934,7 @@ function buildStackingFloorsFromRows(rows = [], fallbackFloors = []) {
           }
         : {
             ...tenant,
-            tenantMasterName: firstDefined(tenant.tenantMasterName, tenant.tenantName, tenant.companyName, '-'),
+            tenantMasterName: firstHumanTenantName(tenant.tenantMasterName, tenant.tenantName, tenant.companyName) || '-',
             leasedAreaSqm: firstDefined(tenant.leasedAreaSqm, floorArea),
             monthlyCostTotal: firstDefined(tenant.monthlyCostTotal, floor.monthlyCostTotal),
             share: firstDefined(tenant.share, tenantRows.length ? 1 / tenantRows.length : 1),
@@ -6890,9 +6991,11 @@ function normalizeAssetPayload(payload) {
     const monthlyMfTotal = firstDefined(row.currentMonthlyMfTotal, rent.monthlyMfTotal, row.monthlyMfTotal, row.currentMfTotal);
     const monthlyCombinedTotal = firstDefined(row.currentMonthlyCostTotal, rent.monthlyTotal, row.monthlyCostTotal, Number(monthlyRentTotal || 0) + Number(monthlyMfTotal || 0));
     const derivedENoc = firstDefined(row.eNoc, row.averageENoc, calculatePerPy(monthlyCombinedTotal, leasedAreaSqm));
+    const tenantDisplayName = firstHumanTenantName(row.tenantMasterName, row.tenantName, row.companyName, row.tenantLabel);
     return {
       ...row,
-      tenantMasterName: firstDefined(row.tenantMasterName, row.tenantName, row.companyName, row.tenantLabel, '-'),
+      tenantMasterName: tenantDisplayName || '-',
+      companyName: firstHumanTenantName(row.companyName, row.tenantMasterName, row.tenantName, row.tenantLabel) || tenantDisplayName || '-',
       leasedAreaSqm,
       monthlyRentTotal,
       monthlyMfTotal,
@@ -7077,7 +7180,7 @@ function buildLogisticsGeneralRows() {
 function buildTenantContractGroups(rows) {
   const groups = new Map();
   (rows || []).forEach((row) => {
-    const tenantName = firstDefined(row.tenantMasterName, row.tenantName, row.companyName, '미분류 임차인');
+    const tenantName = firstHumanTenantName(row.tenantMasterName, row.tenantName, row.companyName) || '미분류 임차인';
     const key = firstDefined(row.tenantId, tenantName);
     if (!groups.has(key)) {
       groups.set(key, {
@@ -7526,7 +7629,7 @@ function CompanyDashboard() {
   const companyReadAdapter = useMemo(() => (
     (response) => companyPayloadFromDashboardRead(response, staticRawPayload)
   ), [staticRawPayload]);
-  const companyRead = useDashboardReadBridge('dashboard/company/read', { basis_date: '2026-04-30', tenant_id: selectedTenantId }, staticCompanySummary, companyReadAdapter, Boolean(selectedTenantId));
+  const companyRead = useDashboardReadBridge('dashboard/company/read', { basis_date: DASHBOARD_BASIS_DATE, tenant_id: selectedTenantId }, staticCompanySummary, companyReadAdapter, Boolean(selectedTenantId));
   const rawPayload = useMemo(() => (
     companyRead.payload || (companyRead.primaryMode && !companyRead.fallbackAllowed
       ? { profile: {}, leasedAssets: [], rows: [], mapPoints: [], operations: {} }
@@ -8366,13 +8469,13 @@ function normalizeRemoteQualityFinding(row, index) {
   return {
     id: row.id || row.finding_id || `remote-${index}`,
     severity: String(row.severity || row.level || row.status || 'warning').toLowerCase(),
-    sheetName: row.sheet_name || row.sheetName || row.source_sheet || row.table_name || row.target_table || 'll_data_quality_findings',
+    sheetName: row.sheet_name || row.sheetName || row.source_sheet || row.table_name || row.target_table || 'll_audit_events',
     targetType: row.target_type || row.entity_type || row.table_name || 'finding',
     target: row.target_name || row.asset_name || row.tenant_master_name || row.entity_id || row.row_ref || row.id || '-',
     field: row.field_name || row.field || row.column_name || row.rule_name || '-',
     reason: row.reason_code || row.failure_reason || row.issue_type || row.reason || row.status || 'unknown',
     action: row.suggested_fix || row.action || row.message || row.detail || '원본 값과 정규화 결과 대조 필요',
-    sourceTable: 'public.ll_data_quality_findings',
+    sourceTable: row.source_table || row.sourceTable || 'public.ll_audit_events',
     raw: row,
   };
 }
@@ -8411,7 +8514,7 @@ function inferQualityTargetTable(finding) {
   if (/history|히스토리|rent/i.test(source)) return 'public.ll_rent_history';
   if (/company|기업/i.test(source)) return 'public.ll_tenants';
   if (/asset|자산/i.test(source)) return 'public.ll_assets';
-  if (/weekly/i.test(source)) return 'public.ll_weekly_reports';
+  if (/weekly/i.test(source)) return 'public.ll_weekly_records';
   if (source === 'public.ll_companies') return 'public.ll_tenants';
   if (source === 'public.ll_leasing_contracts') return 'public.ll_lease_spaces';
   return source.startsWith('public.ll_') ? source : 'public.ll_lease_spaces';
@@ -8900,7 +9003,7 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
         body: {
           action: 'edits/submit',
           payload: {
-            source_table: 'public.ll_data_quality_findings',
+            source_table: 'public.ll_audit_events',
             finding_id: null,
             target_type: 'excel_batch',
             target_name: `${assetName} · 원본 데이터 수정`,
@@ -8983,7 +9086,7 @@ async function fetchRemoteQualityFindings(signal) {
   return {
     status: 'loaded',
     rows: rows.map(normalizeRemoteQualityFinding),
-    message: `Edge readback public.ll_data_quality_findings ${rows.length}건`,
+    message: `Edge readback public.ll_audit_events ${rows.length}건`,
   };
 }
 
@@ -9090,7 +9193,7 @@ function DataQualityDashboard() {
         body: {
           action: 'edits/submit',
           payload: {
-            source_table: editTarget.sourceTable || 'public.ll_data_quality_findings',
+            source_table: editTarget.sourceTable || 'public.ll_audit_events',
             finding_id: editTarget.id || null,
             target_type: editTarget.targetType,
             target_name: editTarget.target,
@@ -9391,7 +9494,7 @@ function AssetDashboard() {
   const assetReadAdapter = useMemo(() => (
     (response) => assetPayloadFromDashboardRead(response, staticRawPayload)
   ), [staticRawPayload]);
-  const assetRead = useDashboardReadBridge('dashboard/asset/read', { basis_date: '2026-04-30', asset_id: selectedAssetId }, {
+  const assetRead = useDashboardReadBridge('dashboard/asset/read', { basis_date: DASHBOARD_BASIS_DATE, asset_id: selectedAssetId }, {
     gross_floor_area_sqm: staticAsset.overview?.grossFloorAreaSqm,
     leased_area_sqm: staticAsset.overview?.leasedAreaSqm,
     current_monthly_cost_total: staticAsset.overview?.monthlyCostTotal,
@@ -9410,6 +9513,26 @@ function AssetDashboard() {
   const buildingRegisterSource = rows.find((row) => row.asset?.sigunguCd || row.sigunguCd) || overview;
   const buildingRegisterPayload = buildBuildingRegisterPayload(buildingRegisterSource);
   const kpiByKey = kpiLookupFrom(asset.kpis);
+  const sourceAssetGrossAreaSqm = Number(firstDefined(
+    overview.grossFloorAreaSqm,
+    kpiByKey.gross_floor_area_total?.value,
+    0,
+  ) || 0);
+  const assetLeasedAreaBasisSqm = Number(firstDefined(
+    overview.leasedAreaSqm,
+    kpiByKey.leased_area_total?.value,
+    sumRows(rows, (row) => firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm)),
+    0,
+  ) || 0);
+  const explicitAssetVacancyAreaSqm = firstDefined(
+    overview.vacancyAreaSqm,
+    kpiByKey.vacancy_area_total?.value,
+  );
+  const assetVacancyAreaBasisSqm = explicitAssetVacancyAreaSqm !== undefined && explicitAssetVacancyAreaSqm !== null && explicitAssetVacancyAreaSqm !== ''
+    ? Number(explicitAssetVacancyAreaSqm || 0)
+    : Math.max(0, sourceAssetGrossAreaSqm - assetLeasedAreaBasisSqm);
+  const assetGrossAreaBasisSqm = (assetLeasedAreaBasisSqm + assetVacancyAreaBasisSqm) || sourceAssetGrossAreaSqm;
+  const assetOccupancyRate = assetGrossAreaBasisSqm > 0 ? assetLeasedAreaBasisSqm / assetGrossAreaBasisSqm : 1 - Number(overview.vacancyRate || 0);
   const assetKpiLabels = {
     gross_floor_area_total: '총 연면적',
     occupancy_rate: '임대율',
@@ -9443,13 +9566,13 @@ function AssetDashboard() {
     value: item.key === 'average_e_noc'
       ? assetWeightedENoc
       : item.key === 'gross_floor_area_total'
-        ? overview.grossFloorAreaSqm
+        ? assetGrossAreaBasisSqm
         : item.key === 'occupancy_rate'
-          ? 1 - Number(overview.vacancyRate || 0)
+          ? assetOccupancyRate
           : item.key === 'leased_area_total'
-            ? overview.leasedAreaSqm
+            ? assetLeasedAreaBasisSqm
             : item.key === 'vacancy_area_total'
-              ? overview.vacancyAreaSqm
+              ? assetVacancyAreaBasisSqm
               : item.key === 'unique_tenant_count'
                 ? firstDefined(overview.uniqueTenantCount, rows.length)
                 : firstDefined(item.value, item.key === 'monthly_total_cost' ? overview.monthlyCostTotal : item.value),
@@ -9514,6 +9637,9 @@ function AssetDashboard() {
               ['월 관리비', formatCurrency(firstDefined(source.monthlyMfTotal, tenant.monthlyMfTotal))],
               ['월 임관리비', formatCurrency(firstDefined(source.monthlyCombinedTotal, source.monthlyCostTotal, tenant.monthlyCombinedTotal, tenant.monthlyCostTotal))],
               ['E. NOC', formatWon(firstDefined(source.eNoc, source.averageENoc, tenant.eNoc, tenant.averageENoc))],
+              ['RF', formatFavorMonths(firstDefined(source.rfMonths, tenant.rfMonths))],
+              ['FO', formatFavorMonths(firstDefined(source.foMonths, tenant.foMonths))],
+              ['TI', formatCurrency(firstDefined(source.tiAmount, tenant.tiAmount))],
               ['평당 임대료', formatWon(firstDefined(source.currentRentPerPy, tenant.rentPerPy))],
               ['평당 관리비', formatWon(firstDefined(source.currentMfPerPy, tenant.mfPerPy))],
               ['현재 계약개시일', formatDate(source.currentStartDate)],
@@ -9532,6 +9658,9 @@ function AssetDashboard() {
                 formatCurrency(row.monthlyMfTotal),
                 formatCurrency(row.monthlyCombinedTotal),
                 formatWon(firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy)),
+                formatFavorMonths(row.rfMonths),
+                formatFavorMonths(row.foMonths),
+                formatCurrency(row.tiAmount),
                 formatWon(row.currentRentPerPy),
                 formatWon(row.currentMfPerPy),
                 formatDate(row.currentStartDate),
@@ -9591,21 +9720,8 @@ function AssetDashboard() {
     Number(breakdown.coreAreaSqm || 0) + Number(breakdown.corridorAreaSqm || 0) + Number(breakdown.mechanicalAreaSqm || 0) + Number(breakdown.otherCommonAreaSqm || 0) + Number(breakdown.rampAreaSqm || 0) + Number(breakdown.parkingAreaSqm || 0),
   ) || 0);
   const recomputedGrossAreaSqm = exclusiveAreaSqm + commonAreaSqm;
-  const sourceGrossAreaSqm = Number(firstDefined(breakdown.grossFloorAreaSqm, overview.grossFloorAreaSqm) || 0);
-  const leasedAreaForBasisSqm = Number(firstDefined(
-    overview.leasedAreaSqm,
-    kpiByKey.leased_area_total?.value,
-    sumRows(rows, (row) => firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm)),
-    0,
-  ) || 0);
-  const vacancyAreaForBasisSqm = Number(firstDefined(
-    overview.vacancyAreaSqm,
-    breakdown.vacancyAreaSqm,
-    kpiByKey.vacancy_area_total?.value,
-    0,
-  ) || 0);
-  const occupancyGrossAreaSqm = leasedAreaForBasisSqm + vacancyAreaForBasisSqm;
-  const areaBasisSqm = Math.max(sourceGrossAreaSqm, recomputedGrossAreaSqm, occupancyGrossAreaSqm);
+  const occupancyGrossAreaSqm = assetLeasedAreaBasisSqm + assetVacancyAreaBasisSqm;
+  const areaBasisSqm = occupancyGrossAreaSqm || recomputedGrossAreaSqm || sourceAssetGrossAreaSqm;
   const areaRatio = (value) => (areaBasisSqm > 0 ? formatPercent(Number(value || 0) / areaBasisSqm) : '-');
   const areaRows = [
     [<span key="gross" className="font-bold text-white">전체 연면적</span>, formatArea(areaBasisSqm), '100.0%'],
@@ -9622,7 +9738,7 @@ function AssetDashboard() {
     [<span key="ramp" className="pl-4">램프</span>, formatArea(breakdown.rampAreaSqm), areaRatio(breakdown.rampAreaSqm)],
     [<span key="parking" className="pl-4">주차장</span>, formatArea(breakdown.parkingAreaSqm), areaRatio(breakdown.parkingAreaSqm)],
   ];
-  const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
+  const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', 'RF', 'FO', 'TI', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
   const rosterRows = rows.map((row) => [
     row.tenantMasterName,
     row.spaceLabel,
@@ -9631,6 +9747,9 @@ function AssetDashboard() {
     formatCurrency(row.monthlyMfTotal),
     formatCurrency(row.monthlyCombinedTotal),
     formatWon(firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy)),
+    formatFavorMonths(row.rfMonths),
+    formatFavorMonths(row.foMonths),
+    formatCurrency(row.tiAmount),
     formatWon(row.currentRentPerPy),
     formatWon(row.currentMfPerPy),
     formatDate(row.currentStartDate),
@@ -9808,7 +9927,7 @@ function PdfReportBuilder() {
   const pdfAssetReadAdapter = useMemo(() => (
     (response) => assetPayloadFromDashboardRead(response, findAssetPayload(selectedAsset.assetId, selectedAsset.assetName))
   ), [selectedAsset.assetId, selectedAsset.assetName]);
-  const pdfAssetRead = useDashboardReadBridge('dashboard/asset/read', { basis_date: '2026-04-30', asset_id: selectedAsset.assetId }, {
+  const pdfAssetRead = useDashboardReadBridge('dashboard/asset/read', { basis_date: DASHBOARD_BASIS_DATE, asset_id: selectedAsset.assetId }, {
     gross_floor_area_sqm: firstDefined(selectedAsset.grossFloorAreaSqm, staticAssetPayload?.overview?.grossFloorAreaSqm),
     current_monthly_cost_total: firstDefined(selectedAsset.monthlyCostTotal, staticAssetPayload?.overview?.monthlyCostTotal),
   }, pdfAssetReadAdapter, Boolean(selectedAsset.assetId));
@@ -9992,8 +10111,8 @@ function PdfReportBuilder() {
     formatArea(row.leasedAreaSqm),
   ]);
   const qualityRows = [
-    ['자산개요·투자개요', 'll_weekly_projects 저장 및 readback 기준'],
-    ['자산현황', 'll_weekly_assets 저장 및 readback 기준'],
+    ['자산개요·투자개요', 'll_weekly_records(project) 저장 및 readback 기준'],
+    ['자산현황', 'll_weekly_records(asset) 저장 및 readback 기준'],
     ['계약 원장', 'll_lease_spaces / ll_rent_history 기준'],
     ['외부 API', 'OpenDART·건축물대장·Naver는 Edge Function 기준'],
   ];

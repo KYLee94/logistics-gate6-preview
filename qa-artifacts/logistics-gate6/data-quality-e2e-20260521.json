@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "generated_at": "2026-05-21T09:26:46.327Z",
+  "generated_at": "2026-05-22T07:08:29.699Z",
   "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
   "origin": "https://kylee94.github.io",
   "auth_source": "password_grant",
   "auth_user_id": "9ca68a02...",
-  "edit_request_id": "5cde41fc-a623-464c-a998-0651b8dcd955",
+  "edit_request_id": "ce220155-7abb-461d-b2c3-01b9e001a243",
   "asset_id": "asset_a120085001",
   "asset_name": "경산 쿠팡물류센터",
   "checks": {

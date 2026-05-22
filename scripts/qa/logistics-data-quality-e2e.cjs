@@ -224,7 +224,7 @@ select
   er.write_result,
   count(al.id)::int as audit_rows
 from public.ll_edit_requests er
-left join public.ll_data_change_audit_logs al on al.edit_request_id = er.id
+left join public.ll_audit_events al on al.edit_request_id = er.id and al.event_type in ('data_change', 'fund_overview_write')
 where er.id = ${sqlLiteral(editId)}
 group by er.id, er.status, er.write_status, er.target_row_id, er.field_name, er.readback_value, er.write_result;
 `);
