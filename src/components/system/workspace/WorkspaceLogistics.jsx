@@ -806,6 +806,7 @@ function companyOptionsFromDashboardRows(rows = [], fallbackOptions = []) {
       displayName: tenantMasterName,
       companyName: firstDefined(row.companyName, fallback.companyName, tenantMasterName),
       businessRegistrationNo: firstDefined(row.businessRegistrationNo, fallback.businessRegistrationNo),
+      dartCorpCode: firstDefined(row.dartCorpCode, fallback.dartCorpCode),
     });
   });
   return [...grouped.values()].sort((a, b) => String(a.tenantMasterName || '').localeCompare(String(b.tenantMasterName || ''), 'ko-KR'));
@@ -1450,6 +1451,90 @@ function buildBuildingRegisterPayload(source = {}) {
 
 function isCompleteBuildingRegisterPayload(payload = {}) {
   return Boolean(payload.sigungu_cd && payload.bjdong_cd && payload.bun && payload.ji);
+}
+
+function assetOptionKey(asset = {}) {
+  return String(firstDefined(asset.assetId, asset.asset_id, normalizeAssetNameKey(asset.assetName), '') || '');
+}
+
+function buildBuildingRegisterRefreshTargets(assetOptions = [], generalRows = []) {
+  const rowsByAssetId = new Map();
+  const rowsByAssetName = new Map();
+  (generalRows || []).forEach((row) => {
+    if (row.assetId) {
+      if (!rowsByAssetId.has(row.assetId)) rowsByAssetId.set(row.assetId, []);
+      rowsByAssetId.get(row.assetId).push(row);
+    }
+    const nameKey = normalizeAssetNameKey(row.assetName);
+    if (nameKey) {
+      if (!rowsByAssetName.has(nameKey)) rowsByAssetName.set(nameKey, []);
+      rowsByAssetName.get(nameKey).push(row);
+    }
+  });
+  const seen = new Set();
+  return (assetOptions || []).map((asset) => {
+    const key = assetOptionKey(asset);
+    if (!key || seen.has(key)) return null;
+    seen.add(key);
+    const staticPayload = ASSET_PAYLOADS[asset.assetId] || findAssetPayload(asset.assetId, asset.assetName) || {};
+    const candidates = [
+      ...(rowsByAssetId.get(asset.assetId) || []),
+      ...(rowsByAssetName.get(normalizeAssetNameKey(asset.assetName)) || []),
+      ...(staticPayload.rows || staticPayload.leaseSpaces || []),
+      staticPayload.overview,
+      asset,
+    ].filter(Boolean);
+    const payload = candidates.map((candidate) => buildBuildingRegisterPayload(candidate)).find(isCompleteBuildingRegisterPayload)
+      || buildBuildingRegisterPayload(asset);
+    return {
+      assetId: asset.assetId,
+      assetName: asset.assetName || staticPayload.overview?.assetName || '-',
+      payload,
+      ready: isCompleteBuildingRegisterPayload(payload),
+    };
+  }).filter(Boolean);
+}
+
+function companyStaticPayloadFor(candidate = {}) {
+  const tenantId = String(candidate.tenantId || candidate.tenant_id || '').trim();
+  if (tenantId && COMPANY_PAYLOADS[tenantId]) return COMPANY_PAYLOADS[tenantId];
+  const nameKey = normalizeAssetNameKey(candidate.tenantMasterName || candidate.companyName || candidate.tenantName);
+  if (!nameKey) return {};
+  return Object.values(COMPANY_PAYLOADS).find((payload) => (
+    normalizeAssetNameKey(payload.profile?.tenantMasterName || payload.profile?.company?.tenantMasterName) === nameKey
+  )) || {};
+}
+
+function buildOpenDartRefreshTargets(companyOptions = [], generalRows = []) {
+  const targets = new Map();
+  const addCandidate = (candidate = {}) => {
+    const staticPayload = companyStaticPayloadFor(candidate);
+    const profile = staticPayload.profile || {};
+    const company = profile.company || {};
+    const tenantId = String(firstDefined(candidate.tenantId, candidate.tenant_id, profile.tenantId, staticPayload.filters?.selectedTenantId, '') || '').trim();
+    const tenantName = cleanDisplay(firstDefined(candidate.tenantMasterName, candidate.companyName, candidate.tenantName, profile.tenantMasterName, company.tenantMasterName), '');
+    const corpCode = String(firstDefined(candidate.dartCorpCode, candidate.dart_corp_code, profile.dartCorpCode, company.dartCorpCode, '') || '').trim();
+    const key = corpCode || tenantId || normalizeAssetNameKey(tenantName);
+    if (!key || targets.has(key)) return;
+    targets.set(key, {
+      tenantId,
+      tenantName: tenantName || '-',
+      corpCode,
+      ready: Boolean(corpCode),
+    });
+  };
+  (companyOptions || []).forEach(addCandidate);
+  (generalRows || []).forEach(addCandidate);
+  return [...targets.values()].sort((a, b) => String(a.tenantName || '').localeCompare(String(b.tenantName || ''), 'ko-KR'));
+}
+
+function externalRefreshOutcome(data, error) {
+  if (error) return { status: '실패', stored: false, refreshed: false, message: error.message || '요청 실패' };
+  if (!data || data.ok === false) return { status: '실패', stored: false, refreshed: false, message: data?.message || 'API 응답 실패' };
+  const cache = data.cache || {};
+  if (cache.stale) return { status: '기존 저장값 유지', stored: false, refreshed: false, message: '실시간 호출 실패로 저장된 값을 표시했습니다.' };
+  if (cache.hit === false) return { status: '새로고침 완료', stored: !cache.write_error, refreshed: true, message: cache.write_error || 'Supabase 저장 완료' };
+  return { status: '저장값 확인', stored: true, refreshed: false, message: 'Supabase 저장값을 확인했습니다.' };
 }
 
 function compactCompositionRows(rows, limit = 8, otherLabel = '기타') {
@@ -7406,23 +7491,33 @@ function normalizeCompanyPayload(payload) {
 function companyDartRows(profile = {}, financials = {}) {
   const company = profile.company || {};
   const dart = financials.openDart || {};
+  const financialRows = normalizeDartFinancialRows(profile, financials);
+  const latest = financialRows[0] || {};
   return [
     ['표준기업명', firstDefined(company.tenantMasterName, profile.tenantMasterName, dart.corp_name, '-')],
     ['사업자번호', formatBusinessRegistrationNo(firstDefined(company.businessRegistrationNo, profile.businessRegistrationNo))],
-    ['법인등록번호', company.corpRegistrationNo || '-'],
-    ['본점소재지', company.headquartersAddress || '-'],
+    ['대표자명', firstDefined(dart.ceo_nm, company.representativeName, company.ceoName, '-')],
+    ['개업일자', formatCompactDate(firstDefined(dart.open_date, dart.openDate, company.openingDate, company.businessStartDate))],
+    ['설립일자', formatCompactDate(firstDefined(dart.est_dt, company.establishmentDate, company.estDt))],
+    ['종업원수', firstDefined(dart.employee_count, dart.employeeCount, financials.employeeCount, company.latestEmployeeCount) == null ? '-' : `${formatNumber(firstDefined(dart.employee_count, dart.employeeCount, financials.employeeCount, company.latestEmployeeCount))}명`],
+    ['표준산업분류(11차)', firstDefined(dart.ksic_11, dart.ksic11, dart.industry_name, dart.industryName, company.standardIndustryClassification, company.industryName, company.industryCode, '-')],
+    ['주요 상품', firstDefined(dart.main_products, dart.mainProducts, company.mainProducts, company.majorProducts, '-')],
+    ['본사 주소', firstDefined(dart.adres, company.headquartersAddress, profile.headquartersAddress, '-')],
+    ['법인등록번호', firstDefined(dart.jurir_no, company.corpRegistrationNo, '-')],
     ['상장여부', company.listedYn || '-'],
     ['그룹명', company.groupName || '-'],
     ['OpenDART 기업명', dart.corp_name || '-'],
-    ['OpenDART 대표자', dart.ceo_nm || '-'],
     ['OpenDART 법인구분', dart.corp_cls || '-'],
-    ['OpenDART 주소', dart.adres || '-'],
     ['OpenDART 결산월', dart.acc_mt || '-'],
-    ['최근 재무제표 연도', company.latestFinancialYear || '-'],
-    ['최근 매출', formatCurrency(firstDefined(financials.revenue, company.latestRevenue))],
-    ['영업이익', formatCurrency(firstDefined(financials.operatingIncome, company.latestOperatingIncome))],
+    ['최근 재무제표 연도', firstDefined(latest.year, company.latestFinancialYear, '-')],
+    ['회사채 신용등급', firstDefined(latest.creditRating, dart.credit_rating, company.creditRating, '-')],
+    ['총 자산', formatCurrency(firstDefined(latest.totalAssets, company.latestTotalAssets, dart.total_assets))],
+    ['총 부채', formatCurrency(firstDefined(latest.totalLiabilities, company.latestTotalLiabilities, dart.total_liabilities))],
+    ['총 자본', formatCurrency(firstDefined(latest.totalEquity, company.latestTotalEquity, dart.total_equity))],
+    ['매출액', formatCurrency(firstDefined(latest.revenue, financials.revenue, company.latestRevenue, dart.revenue))],
+    ['영업이익', formatCurrency(firstDefined(latest.operatingIncome, financials.operatingIncome, company.latestOperatingIncome, dart.operating_income))],
+    ['당기순이익', formatCurrency(firstDefined(latest.netIncome, financials.netIncome, company.latestNetIncome, dart.net_income))],
     ['부채비율', firstDefined(financials.debtRatio, company.latestDebtRatio) == null ? '-' : `${formatNumber(firstDefined(financials.debtRatio, company.latestDebtRatio))}%`],
-    ['직원수', firstDefined(financials.employeeCount, company.latestEmployeeCount) == null ? '-' : `${formatNumber(firstDefined(financials.employeeCount, company.latestEmployeeCount))}명`],
   ];
 }
 
@@ -7544,6 +7639,8 @@ function financialMetricRows(financialRows = []) {
 }
 
 function DartFinancialTrendChart({ rows }) {
+  const chartRef = useRef(null);
+  const [hoveredMetric, setHoveredMetric] = useState(null);
   const metrics = [
     { key: 'revenue', label: '매출액', color: '#9AD7FF' },
     { key: 'operatingIncome', label: '영업이익', color: '#B5E48C' },
@@ -7556,7 +7653,7 @@ function DartFinancialTrendChart({ rows }) {
     return <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4 text-[13px] text-[#86868B]">차트로 표시할 3개년 재무 수치가 없습니다.</div>;
   }
   return (
-    <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4">
+    <div ref={chartRef} onMouseLeave={() => setHoveredMetric(null)} className="relative rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4">
       <div className="mb-3 flex flex-wrap items-center gap-4 text-[12px] text-[#C7C7CC]">
         {metrics.map((metric) => (
           <span key={metric.key} className="inline-flex items-center gap-2">
@@ -7572,7 +7669,13 @@ function DartFinancialTrendChart({ rows }) {
               {metrics.map((metric) => {
                 const value = Number(row[metric.key] || 0);
                 return (
-                  <div key={metric.key} className="flex h-full w-10 flex-col justify-end" title={`${row.year} ${metric.label}: ${formatCurrency(value)}`}>
+                  <div
+                    key={metric.key}
+                    className="flex h-full w-10 flex-col justify-end"
+                    title={`${row.year} ${metric.label}: ${formatCurrency(value)}`}
+                    onMouseEnter={(event) => setHoveredMetric({ year: row.year, label: metric.label, value, color: metric.color, ...getTooltipPoint(event, chartRef.current, 250, 110) })}
+                    onMouseMove={(event) => setHoveredMetric({ year: row.year, label: metric.label, value, color: metric.color, ...getTooltipPoint(event, chartRef.current, 250, 110) })}
+                  >
                     <div className="rounded-t-[6px]" style={{ height: `${Math.max(4, Math.abs(value) / maxValue * 100)}%`, backgroundColor: metric.color, opacity: value < 0 ? 0.55 : 1 }} />
                   </div>
                 );
@@ -7582,6 +7685,15 @@ function DartFinancialTrendChart({ rows }) {
           </div>
         ))}
       </div>
+      {hoveredMetric ? (
+        <div data-testid="dart-financial-tooltip" className="pointer-events-none fixed z-50 w-[250px] rounded-[8px] border border-[#3A3A3C] bg-[#101010]/95 px-3 py-2 text-[12px] text-white shadow-xl" style={{ left: hoveredMetric.x, top: hoveredMetric.y }}>
+          <div className="flex items-center gap-2 font-semibold">
+            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: hoveredMetric.color }} />
+            {hoveredMetric.year} {hoveredMetric.label}
+          </div>
+          <div className="mt-1 text-[#D1D1D6]">{formatCurrency(hoveredMetric.value)}</div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -8066,6 +8178,7 @@ function SectorDashboard() {
 function CompanyDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
+  const canUseExternalApiRefresh = canViewAdvancedLogisticsTools(memberInfo, permission);
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo);
   const readableCompanyOptions = useMemo(() => (
     dashboardDataset.companyOptions
@@ -8166,21 +8279,43 @@ function CompanyDashboard() {
     formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0),
   ]);
   const openTableModal = (title, headers, rows) => setModal({ title, headers, rows });
+  const selectedCorpCode = String(firstDefined(profile.company?.dartCorpCode, profile.dartCorpCode, financials.dartCorpCode, '') || '').trim();
   const openDartDetailModal = (dartOverride = dartApiSummary) => setModal({
     title: 'DART 상세 정보',
     size: 'wide',
     content: <CompanyDartDetailView profile={profile} financials={{ ...financials, openDart: dartOverride }} />,
   });
+  useEffect(() => {
+    if (!selectedCorpCode) {
+      setDartApiSummary(null);
+      return undefined;
+    }
+    let cancelled = false;
+    supabase.functions.invoke('ll-dashboard-api', {
+      body: { action: 'opendart/company', payload: { corp_code: selectedCorpCode, include_financials: true } },
+    }).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error || data?.ok === false) return;
+      setDartApiSummary(data?.data || null);
+      if (data?.cache?.stale) {
+        setDartApiStatus({ type: 'blocked', message: 'OpenDART 실시간 조회가 실패해 기존 저장값을 표시하고 있습니다.' });
+      } else {
+        setDartApiStatus(null);
+      }
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCorpCode]);
   const refreshOpenDart = async () => {
-    const corpCode = firstDefined(profile.company?.dartCorpCode, profile.dartCorpCode, financials.dartCorpCode);
-    if (!corpCode) {
+    if (!selectedCorpCode) {
       setDartApiStatus({ type: 'blocked', message: 'OpenDART 조회에 필요한 corp_code가 없습니다. DB_기업 매칭값을 먼저 확인해야 합니다.' });
       return;
     }
-    setDartApiStatus(null);
+    setDartApiStatus({ type: 'loading', message: 'OpenDART 원천 API를 다시 호출하고 Supabase 저장값을 갱신하는 중입니다.' });
     try {
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'opendart/company', payload: { corp_code: corpCode, include_financials: true } },
+        body: { action: 'opendart/company', payload: { corp_code: selectedCorpCode, include_financials: true, force_refresh: true } },
       });
       if (error) throw error;
       const dart = data?.data || {};
@@ -8189,6 +8324,9 @@ function CompanyDashboard() {
         return;
       }
       setDartApiSummary(dart);
+      setDartApiStatus(data?.cache?.stale
+        ? { type: 'blocked', message: 'OpenDART 실시간 원천 호출이 실패해 기존 저장값을 표시했습니다. 이 경우 새로고침 완료로 보지 않습니다.' }
+        : { type: 'success', message: 'OpenDART 원천 API 결과를 Supabase 저장값에 반영했습니다.' });
       openDartDetailModal(dart);
     } catch (error) {
       setDartApiStatus({ type: 'blocked', message: `OpenDART Edge Function 연결 또는 secret 설정이 필요합니다. (${error.message || 'unknown error'})` });
@@ -8298,12 +8436,15 @@ function CompanyDashboard() {
             title="DART 상세 정보"
             right={(
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={refreshOpenDart} className="h-9 px-3 rounded-[8px] bg-white text-[#1F1F1E] text-[13px] font-semibold hover:bg-[#E5E5E5]">OpenDART 새로 조회</button>
+                {canUseExternalApiRefresh ? <button type="button" onClick={refreshOpenDart} className="h-9 px-3 rounded-[8px] bg-white text-[#1F1F1E] text-[13px] font-semibold hover:bg-[#E5E5E5]">OpenDART 새로 조회</button> : null}
                 <button type="button" onClick={() => openDartDetailModal()} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세 보기</button>
               </div>
             )}
           />
           <DataTable headers={['항목', '값']} rows={companyDartRows(profile, { ...financials, openDart: dartApiSummary })} compact />
+          <div className="mt-4">
+            <DartFinancialTrendChart rows={normalizeDartFinancialRows(profile, { ...financials, openDart: dartApiSummary })} />
+          </div>
           {dartApiStatus ? (
             <div className={`mt-4 rounded-[12px] border px-4 py-3 text-[12px] leading-5 ${dartApiStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : dartApiStatus.type === 'loading' ? 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' : 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]'}`}>
               {dartApiStatus.message}
@@ -8919,6 +9060,9 @@ function ContractDataManagementDashboard() {
   const assetRows = useMemo(() => readableRows.filter((row) => !activeAssetId || row.assetId === activeAssetId), [activeAssetId, readableRows]);
   const selectedAsset = readableAssets.find((asset) => asset.assetId === activeAssetId) || {};
   const selectedLeaseRow = assetRows.find((row) => row.leaseSpaceId === selectedLeaseSpaceId) || assetRows[0] || {};
+  const selectedLeaseRowDraftKey = CONTRACT_DATA_FIELDS.map((field) => (
+    `${field.fieldName}:${excelCellText(contractFieldRawValue(selectedLeaseRow, field))}`
+  )).join('|');
   const canSubmit = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.role === 'Admin' || permission.role === 'Manager');
 
   useEffect(() => {
@@ -8959,7 +9103,7 @@ function ContractDataManagementDashboard() {
       excelCellText(contractFieldRawValue(selectedLeaseRow, field)),
     ])));
     setFieldEditStatus(null);
-  }, [selectedLeaseRow]);
+  }, [selectedLeaseRowDraftKey]);
 
   const contractRows = assetRows.map((row) => [
     row.assetName || '-',
@@ -9086,7 +9230,7 @@ function ContractDataManagementDashboard() {
             requested_value: `${cellEdits.length}개 필드 after`,
             request_payload: {
               kind: 'contract_data_edit',
-              source: 'Contract Data',
+              source: 'Data Update',
               asset_id: activeAssetId,
               asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
               lease_space_id: selectedLeaseRow.leaseSpaceId || '',
@@ -9108,7 +9252,7 @@ function ContractDataManagementDashboard() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Contract Data" />
+      <SectionHeader title="Data Update" />
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader
           eyebrow="LEASE CONTRACT LEDGER"
@@ -9493,6 +9637,7 @@ const QUALITY_EXPORT_FIELDS = [
       ? 'public.ll_tenants'
       : field.table,
 }));
+const CONTRACT_DATA_FIELDS = QUALITY_EXPORT_FIELDS;
 const QUALITY_ALLOWED_ACTIONS = new Set(['수정']);
 const QUALITY_REQUIRED_UPLOAD_COLUMNS = ['행위', '현재값', '수정값', 'target_table', 'target_row_id', 'primary_key_field', 'field_name', 'source_row_id', 'source_cell_id', 'before_value', 'asset_id'];
 
@@ -9520,6 +9665,12 @@ function snakeCaseFieldName(value) {
 
 function contractFieldDbName(field) {
   return snakeCaseFieldName(field.fieldName);
+}
+
+function normalizeContractTargetTable(table) {
+  if (table === 'public.ll_leasing_contracts') return 'public.ll_lease_spaces';
+  if (table === 'public.ll_companies') return 'public.ll_tenants';
+  return table || 'public.ll_lease_spaces';
 }
 
 function contractFieldRawValue(row, field) {
@@ -10326,7 +10477,6 @@ function AssetDashboard() {
     : readableAssetOptions[0]?.assetId || assetOptionsData[0]?.assetId || Object.keys(ASSET_PAYLOADS)[0];
   const [selectedAssetId, setSelectedAssetId] = useState(defaultAssetId);
   const [modal, setModal] = useState(null);
-  const [buildingApiStatus, setBuildingApiStatus] = useState(null);
   const [buildingRegisterSummary, setBuildingRegisterSummary] = useState(null);
   useEffect(() => {
     if (!readableAssetOptions.length) return;
@@ -10335,7 +10485,6 @@ function AssetDashboard() {
     if (!nextAssetId) return;
     window.sessionStorage.setItem('logisticsSelectedAssetId', nextAssetId);
     setSelectedAssetId(nextAssetId);
-    setBuildingApiStatus(null);
     setBuildingRegisterSummary(null);
   }, [readableAssetOptions, selectedAssetId]);
   const staticRawPayload = ASSET_PAYLOADS[selectedAssetId] || ASSET_PAYLOADS[defaultAssetId] || Object.values(ASSET_PAYLOADS)[0];
@@ -10503,36 +10652,6 @@ function AssetDashboard() {
     longitude: overview.longitude,
   }] : [];
   const openTableModal = (title, headers, tableRows) => setModal({ title, headers, rows: tableRows });
-  const refreshBuildingRegister = async () => {
-    if (!isCompleteBuildingRegisterPayload(buildingRegisterPayload)) {
-      setBuildingApiStatus({ type: 'blocked', message: '건축물대장 조회에 필요한 시군구코드, 법정동코드, 본번, 부번이 부족합니다.' });
-      return;
-    }
-    setBuildingApiStatus(null);
-    try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'building-register/summary', payload: buildingRegisterPayload },
-      });
-      if (error) throw error;
-      const summary = data?.data || {};
-      if (!data?.ok) {
-        setBuildingApiStatus({ type: 'blocked', message: `건축물대장 provider 상태 확인 필요: ${data?.provider_status || '-'}` });
-        return;
-      }
-      setBuildingRegisterSummary(summary);
-      if (buildingRegisterCacheKey) ASSET_BUILDING_REGISTER_CACHE.set(buildingRegisterCacheKey, summary);
-      setModal({
-        title: '건축물대장 조회 결과',
-        headers: ['항목', '값'],
-        rows: [
-          ['자산명', overview.assetName || '-'],
-          ...buildBuildingRegisterOverviewRows(summary).map((row) => [row[1], row[2]]),
-        ],
-      });
-    } catch (error) {
-      setBuildingApiStatus({ type: 'blocked', message: `건축물대장 Edge Function 연결 또는 secret 설정이 필요합니다. (${error.message || 'unknown error'})` });
-    }
-  };
   const openTenantDetail = (tenant, title = '임차인 상세') => {
     if (!tenant) return;
     const matchedRows = rows.filter((row) => (
@@ -10706,6 +10825,27 @@ function AssetDashboard() {
     formatCurrency(row.monthlyMfTotal),
     formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal)),
   ]);
+  const monthlyCostTotalForShare = Number(firstDefined(
+    overview.monthlyCostTotal,
+    kpis.find((item) => item.key === 'monthly_total_cost')?.value,
+    sumRows(asset.monthlyCostByTenant || [], (row) => firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal)),
+    0,
+  ) || 0);
+  const monthlyCostChartRows = (asset.monthlyCostByTenant || []).map((row) => {
+    const monthlyCost = Number(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, 0) || 0);
+    const share = monthlyCostTotalForShare > 0 ? monthlyCost / monthlyCostTotalForShare : 0;
+    return {
+      ...row,
+      monthlyCostTotal: monthlyCost,
+      monthlyCostShare: share,
+      displayValue: `${formatCurrency(monthlyCost)} (${formatPercent(share)})`,
+      tooltipLines: [
+        ['전체 월 임관리비 중 비율', formatPercent(share)],
+        ['월 임관리비', formatCurrency(monthlyCost)],
+        ['임대면적', formatArea(row.leasedAreaSqm)],
+      ],
+    };
+  });
 
   return (
     <div className="space-y-6">
@@ -10724,25 +10864,12 @@ function AssetDashboard() {
             <select value={selectedAssetId} onChange={(event) => {
               window.sessionStorage.setItem('logisticsSelectedAssetId', event.target.value);
               setSelectedAssetId(event.target.value);
-              setBuildingApiStatus(null);
               setBuildingRegisterSummary(null);
             }} className="h-10 min-w-[280px] rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white">
               {readableAssetOptions.map((item) => <option key={item.assetId} value={item.assetId}>{item.assetName}</option>)}
             </select>
             <button type="button" onClick={() => (mapPoint.length ? setModal({ title: '포트폴리오 위치', content: <div className="space-y-4"><PortfolioMapPlot points={mapPoint} /><DataTable headers={['자산명', '주소', '좌표']} rows={[[overview.assetName, overview.standardizedAddress || '-', `${overview.latitude}, ${overview.longitude}`]]} compact /></div> }) : openTableModal('자산 위치 정보', ['항목', '내용'], [['자산명', overview.assetName || '-'], ['주소', overview.standardizedAddress || '-'], ['좌표', '미입력']]))} className="h-10 px-3 rounded-[8px] bg-white text-[#1F1F1E] text-[13px] font-semibold hover:bg-[#E5E5E5]">자산 위치 보기</button>
-            <button type="button" onClick={refreshBuildingRegister} className="h-10 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">건축물대장 조회</button>
           </div>
-        </div>
-        {buildingApiStatus ? (
-          <div className={`mt-4 rounded-[10px] border px-4 py-3 text-[12px] leading-5 ${buildingApiStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : buildingApiStatus.type === 'loading' ? 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' : 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]'}`}>
-            {buildingApiStatus.message}
-          </div>
-        ) : null}
-        <div className="mt-4 grid grid-cols-2 gap-2 rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-3 text-[12px] text-[#D1D1D6] md:grid-cols-4">
-          <div><span className="block text-[#86868B]">건축물대장 주용도</span>{buildingRegisterSummary?.main_purps_cd_nm || '-'}</div>
-          <div><span className="block text-[#86868B]">대장 연면적</span>{buildingRegisterSummary?.tot_area ? `${formatNumber(buildingRegisterSummary.tot_area)}㎡` : '-'}</div>
-          <div><span className="block text-[#86868B]">지상/지하층</span>{buildingRegisterSummary?.grnd_flr_cnt || '-'} / {buildingRegisterSummary?.ugrnd_flr_cnt || '-'}</div>
-          <div><span className="block text-[#86868B]">사용승인일</span>{formatCompactDate(buildingRegisterSummary?.use_apr_day)}</div>
         </div>
       </section>
 
@@ -10804,7 +10931,7 @@ function AssetDashboard() {
       <section className="grid grid-cols-1 gap-5">
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="RENT" title="임차인별 월 임관리비" right={<button type="button" onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세 보기</button>} />
-          <RichBarChart rows={asset.monthlyCostByTenant} labelKey="tenantMasterName" valueKey="monthlyCostTotal" valueType="currency" valueLabel="임차인별 월 임관리비" showXAxisLabels={false} onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} />
+          <RichBarChart rows={monthlyCostChartRows} labelKey="tenantMasterName" valueKey="monthlyCostTotal" barValueKey="monthlyCostShare" barMaxValue={1} valueType="currency" valueLabel="임차인별 월 임관리비" showXAxisLabels={false} onClick={() => openTableModal('임차인별 월 임관리비', monthlyCostHeaders, monthlyCostRows)} />
         </div>
       </section>
 
@@ -11317,6 +11444,146 @@ function ReportPreviewCard({ title, children }) {
   );
 }
 
+function ExternalRefreshResultView({ summary, headers, rows, note }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {summary.map((item) => (
+          <div key={item.label} className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3">
+            <div className="text-[12px] font-semibold text-[#86868B]">{item.label}</div>
+            <div className="mt-1 text-[20px] font-semibold text-white tabular-nums">{item.value}</div>
+          </div>
+        ))}
+      </div>
+      {note ? <div className="rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 py-3 text-[13px] leading-5 text-[#C7C7CC]">{note}</div> : null}
+      <DataTable headers={headers} rows={rows} compact />
+    </div>
+  );
+}
+
+function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal }) {
+  const [running, setRunning] = useState('');
+  const sourceRows = useMemo(() => filterAssetsByPermission(dashboardDataset.generalRows || [], permission), [dashboardDataset.generalRows, permission]);
+  const readableAssets = useMemo(() => filterAssetsByPermission(dashboardDataset.assetOptions || [], permission), [dashboardDataset.assetOptions, permission]);
+  const readableCompanies = useMemo(() => companyOptionsFromDashboardRows(sourceRows, dashboardDataset.companyOptions || companyOptionsData), [dashboardDataset.companyOptions, sourceRows]);
+  const buildingTargets = useMemo(() => buildBuildingRegisterRefreshTargets(readableAssets, sourceRows), [readableAssets, sourceRows]);
+  const openDartTargets = useMemo(() => buildOpenDartRefreshTargets(readableCompanies, sourceRows), [readableCompanies, sourceRows]);
+
+  const runBuildingRefresh = async () => {
+    setRunning('building');
+    const rows = [];
+    try {
+      for (const target of buildingTargets) {
+        if (!target.ready) {
+          rows.push([target.assetName, '파라미터 부족', `${target.payload.sigungu_cd || '-'} / ${target.payload.bjdong_cd || '-'} / ${target.payload.bun || '-'}-${target.payload.ji || '-'}`, '-', '미반영']);
+          continue;
+        }
+        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+          body: { action: 'building-register/summary', payload: { ...target.payload, force_refresh: true } },
+        });
+        const outcome = externalRefreshOutcome(data, error);
+        rows.push([
+          target.assetName,
+          outcome.status,
+          `${target.payload.sigungu_cd} / ${target.payload.bjdong_cd} / ${target.payload.bun}-${target.payload.ji}`,
+          data?.data?.plat_plc || data?.data?.new_plat_plc || '-',
+          outcome.stored ? 'Supabase 반영' : outcome.message,
+        ]);
+      }
+    } finally {
+      setRunning('');
+    }
+    const successCount = rows.filter((row) => row[1] === '새로고침 완료').length;
+    const skippedCount = rows.filter((row) => row[1] === '파라미터 부족').length;
+    onOpenModal({
+      title: '건축물대장 새로고침 결과',
+      size: 'wide',
+      content: (
+        <ExternalRefreshResultView
+          summary={[
+            { label: '대상 자산', value: `${formatNumber(rows.length)}개` },
+            { label: '새로고침 완료', value: `${formatNumber(successCount)}개` },
+            { label: '파라미터 부족', value: `${formatNumber(skippedCount)}개` },
+            { label: '저장 위치', value: 'Supabase' },
+          ]}
+          note="API key는 브라우저에 노출하지 않고 Edge Function이 서버에서만 사용합니다. 성공한 값은 ll_cache_entries에 저장됩니다."
+          headers={['자산명', '상태', '조회 파라미터', '주소/대장 위치', 'Supabase 반영']}
+          rows={rows}
+        />
+      ),
+    });
+  };
+
+  const runOpenDartRefresh = async () => {
+    setRunning('opendart');
+    const rows = [];
+    try {
+      for (const target of openDartTargets) {
+        if (!target.ready) {
+          rows.push([target.tenantName, '-', 'corp code 없음', '-', '미반영']);
+          continue;
+        }
+        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+          body: { action: 'opendart/company', payload: { corp_code: target.corpCode, include_financials: true, force_refresh: true } },
+        });
+        const outcome = externalRefreshOutcome(data, error);
+        const financialRowCount = Array.isArray(data?.data?.financials) ? data.data.financials.length : 0;
+        rows.push([
+          target.tenantName,
+          target.corpCode,
+          outcome.status,
+          financialRowCount ? `${formatNumber(financialRowCount)}개` : '-',
+          outcome.stored ? 'Supabase 반영' : outcome.message,
+        ]);
+      }
+    } finally {
+      setRunning('');
+    }
+    const successCount = rows.filter((row) => row[2] === '새로고침 완료').length;
+    const skippedCount = rows.filter((row) => row[2] === 'corp code 없음').length;
+    onOpenModal({
+      title: 'OpenDART 새로고침 결과',
+      size: 'wide',
+      content: (
+        <ExternalRefreshResultView
+          summary={[
+            { label: '대상 기업', value: `${formatNumber(rows.length)}개` },
+            { label: '새로고침 완료', value: `${formatNumber(successCount)}개` },
+            { label: 'corp code 없음', value: `${formatNumber(skippedCount)}개` },
+            { label: '저장 위치', value: 'Supabase' },
+          ]}
+          note="OpenDART도 API key는 Edge Function 안에서만 사용합니다. 실시간 원천 호출이 실패하면 기존 저장값을 유지하고, 그 경우는 새로고침 완료로 세지 않습니다."
+          headers={['기업명', 'OpenDART corp code', '상태', '재무 row', 'Supabase 반영']}
+          rows={rows}
+        />
+      ),
+    });
+  };
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <button
+        type="button"
+        data-testid="building-register-refresh"
+        disabled={Boolean(running)}
+        onClick={runBuildingRefresh}
+        className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}
+      >
+        {running === 'building' ? '건축물대장 새로고침 중' : '건축물대장 새로고침'}
+      </button>
+      <button
+        type="button"
+        data-testid="opendart-refresh"
+        disabled={Boolean(running)}
+        onClick={runOpenDartRefresh}
+        className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}
+      >
+        {running === 'opendart' ? 'OpenDART 새로고침 중' : 'OpenDART 새로고침'}
+      </button>
+    </div>
+  );
+}
+
 function DashboardShell({ activeModule }) {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
@@ -11326,7 +11593,7 @@ function DashboardShell({ activeModule }) {
     MODULES.filter((item) => !ADMIN_ONLY_MODULE_IDS.has(item.id) || canViewAdvancedLogisticsTools(memberInfo, permission))
   ), [memberInfo, permission]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
-  const canUseOriginalDataEdit = canViewAdvancedLogisticsTools(memberInfo, permission);
+  const canUseExternalApiRefresh = canViewAdvancedLogisticsTools(memberInfo, permission);
   const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
   useEffect(() => {
     if (!selected?.id) return undefined;
@@ -11359,26 +11626,8 @@ function DashboardShell({ activeModule }) {
       <LogisticsModal modal={modal} onClose={() => setModal(null)} />
       <SectionHeader
         title={selected.label}
-        right={canUseOriginalDataEdit ? (
-          <div className="flex flex-wrap items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setModal({
-                title: '원본 데이터 수정',
-                size: 'wide',
-                content: (
-                  <OriginalDataEditPanel
-                    permission={permission}
-                    sourceRows={dashboardDataset.generalRows}
-                    assetOptions={dashboardDataset.assetOptions}
-                  />
-                ),
-              })}
-              className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}
-            >
-              원본 데이터 수정
-            </button>
-          </div>
+        right={canUseExternalApiRefresh ? (
+          <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} />
         ) : null}
       />
 

@@ -183,10 +183,10 @@ async function invokeWithRetry(endpoint, anonKey, origin, token, action, payload
 
 function classifyOpenDart(result) {
   const body = result.body || {};
-  if (result.status === 200 && body.ok !== false && body.provider_status === 200 && body.cache?.hit === true && body.cache?.source !== 'll_tenants') return 'fresh_cache';
-  if (result.status === 200 && body.ok !== false && body.provider_status === 200 && body.cache?.source !== 'll_tenants') return 'provider_success';
-  if (result.status === 200 && body.provider_status === 206 && body.cache?.source === 'll_tenants') return 'tenant_fallback';
   if (result.status === 200 && body.cache?.stale === true) return 'stale_cache';
+  if (result.status === 200 && body.ok !== false && body.provider_status === 200 && body.cache?.hit === true && body.cache?.stale === false && body.cache?.source !== 'll_tenants') return 'fresh_cache';
+  if (result.status === 200 && body.ok !== false && body.provider_status === 200 && body.cache?.hit !== true && body.cache?.source !== 'll_tenants') return 'provider_success';
+  if (result.status === 200 && body.provider_status === 206 && body.cache?.source === 'll_tenants') return 'tenant_fallback';
   if (result.status === 502 && /HandshakeFailure|provider request failed/iu.test(JSON.stringify(body))) return 'provider_tls_failure';
   if (result.status === 503) return 'not_configured';
   return 'provider_failure';
@@ -274,6 +274,7 @@ async function main() {
   const companyRead = await invoke(endpoint, anonKey, origin, auth.token, 'dashboard/company/read', { basis_date: basisDate });
   const corpCode = argsValue('corp-code', envValue('LOGISTICS_DART_CORP_CODE') || companyRead.body?.data?.tenant?.dart_corp_code || companyRead.body?.data?.tenant?.dartCorpCode || '');
   let openDartCheck = null;
+  let openDartForceCheck = null;
   if (corpCode) {
     const dart = await invoke(endpoint, anonKey, origin, auth.token, 'opendart/company', { corp_code: corpCode, include_financials: true });
     assertNoSecrets('opendart/company', dart.body);
@@ -310,10 +311,26 @@ async function main() {
         : null,
       body: summarizeExternalBody(dart.body),
     };
+    const dartForce = await invoke(endpoint, anonKey, origin, auth.token, 'opendart/company', { corp_code: corpCode, include_financials: true, force_refresh: true });
+    assertNoSecrets('opendart/company force_refresh', dartForce.body);
+    const forceClassification = classifyOpenDart(dartForce);
+    openDartForceCheck = {
+      name: 'opendart/company-provider-force-refresh',
+      status: dartForce.status,
+      ok: ['provider_success', 'stale_cache', 'provider_tls_failure'].includes(forceClassification),
+      provider_success: forceClassification === 'provider_success',
+      cache_success: false,
+      fallback_success: forceClassification === 'stale_cache',
+      classification: forceClassification,
+      force_refresh: true,
+      body: summarizeExternalBody(dartForce.body),
+    };
   } else {
     openDartCheck = { name: 'opendart/company-provider-separated', status: 'skipped', ok: false, provider_success: false, fallback_success: false, classification: 'corp_code_missing' };
+    openDartForceCheck = { name: 'opendart/company-provider-force-refresh', status: 'skipped', ok: false, provider_success: false, fallback_success: false, classification: 'corp_code_missing', force_refresh: true };
   }
   checks.push(openDartCheck);
+  checks.push(openDartForceCheck);
 
   const cacheUpsertReject = await invoke(endpoint, anonKey, origin, auth.token, 'opendart/company/cache-upsert', {
     corp_code: '00000000',
@@ -356,9 +373,10 @@ async function main() {
     auth_source: auth.source,
     checks,
     building_register_assets: buildingAssetChecks,
-    opendart_provider_success: Boolean(openDartCheck?.provider_success),
+    opendart_provider_success: Boolean(openDartForceCheck?.provider_success || openDartCheck?.provider_success),
+    opendart_force_provider_success: Boolean(openDartForceCheck?.provider_success),
     opendart_cache_success: Boolean(openDartCheck?.cache_success),
-    opendart_fallback_success: Boolean(openDartCheck?.fallback_success),
+    opendart_fallback_success: Boolean(openDartForceCheck?.fallback_success || openDartCheck?.fallback_success),
     opendart_requires_external_provider_resolution: Boolean(openDartCheck?.required_user_action),
   };
   fs.mkdirSync(OUT_DIR, { recursive: true });

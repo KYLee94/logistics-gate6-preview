@@ -1,9 +1,45 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-26T17:30:00.000+09:00
-- Overall: 283 / 366 (77.3%) - stage totals have not been fully rebaselined after the browser fix.
+- Updated at: 2026-05-26T18:43:00.000+09:00
+- Overall: 291 / 366 (79.5%) - current deltas rebaselined for Data Update, external refresh controls, OpenDART cache/readback separation, Asset chart cleanup, and live browser smoke.
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
-- gh-pages deployment: current AI browser fix deployed; live URL returned HTTP 200 with `assets/index-DSrDzuBh.js`.
+- gh-pages deployment: current Data Update / external refresh / Asset chart fix deployed; live URL returned HTTP 200 with `assets/index-Dpi1mLuf.js`.
+
+## 2026-05-26 Update - Data Update / External Refresh / OpenDART Separation
+
+- User-reported Contract Data black-screen regression is now fixed and renamed:
+  - tab label: `Data Update`.
+  - live browser smoke: `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260526-094104.json`.
+  - forbidden text check confirms the old `Contract Data` label and top-right `원본 데이터 수정` button are not visible.
+- Added planning-center-only external API refresh controls in the former top-right edit-button location:
+  - visible for `기획추진센터` users in the allowed staff set (`이관용`, `전기영`, `이시정`).
+  - buttons: `건축물대장 새로고침`, `OpenDART 새로고침`.
+  - live browser smoke: `qa-artifacts/logistics-gate6/external-refresh-buttons-browser-smoke-20260526-094241.json`.
+- Edge Function refresh behavior:
+  - `building-register/summary` now accepts `force_refresh` and rewrites the same `ll_cache_entries` cache key on provider success.
+  - `opendart/company` now accepts `force_refresh`, bypasses normal cache first, blocks `ll_tenants` fallback from being counted as force-refresh success, and returns stale stored OpenDART cache separately when direct provider calls fail.
+  - OpenDART response no longer returns provider URLs or secret-like key names.
+- External API QA after Edge deploy:
+  - artifact: `qa-artifacts/logistics-gate6/external-api-smoke-20260526-093508.json`.
+  - building-register all-asset smoke/readback: 17 / 17 pass.
+  - OpenDART stored cache/readback: pass, `classification=fresh_cache`.
+  - OpenDART force provider call: not provider-success; classified as `stale_cache` because Supabase Edge direct HTTPS still returns TLS `HandshakeFailure`.
+  - `OPENDART_API_KEY` exists in Edge secrets; `OPENDART_PROXY_URL` is not configured.
+- Company tab DART detail integration updated:
+  - representative, dates, employees, industry, products, HQ address, credit/rating fields, and latest financial metrics are surfaced from OpenDART cache/API data where present.
+  - 3-year revenue / operating income / net income chart now renders from normalized OpenDART financial rows and shows hover values.
+- Asset tab cleanup:
+  - removed the building-register summary block under the asset name.
+  - `임차인별 월 임관리비` bar fill now uses each tenant's share of total monthly lease/management cost, while the label still shows the actual won amount.
+- Verification in this batch:
+  - `git diff --check`: pass.
+  - `npm run build:preview`: pass.
+  - `npm run qa:data-update:browser`: pass on live.
+  - `npm run qa:external-refresh-buttons:browser`: pass on live.
+  - `npm run qa:external-api`: pass with OpenDART provider/cache/fallback separated.
+  - `npm run qa:ai-chatbot`: pass, 22 checks.
+  - `npm run qa:ai-chatbot:browser`: pass on live for the user-reported stuck-loading question.
+  - `npm run qa:enoc-weighted`: pass; all average E. NOC checks use leased-area weighted average, not simple arithmetic average.
 
 ## 2026-05-26 Update - AI Chatbot Browser Regression / Checklist Correction
 
@@ -85,16 +121,16 @@
 | 4 | Dashboard 공통 | 13 / 19 |
 | 5 | Weekly 탭 | 3 / 4 |
 | 6 | Home 탭 | 39 / 44 |
-| 7 | Asset 탭 | 29 / 33 |
-| 8 | Company 탭 | 12 / 17 |
+| 7 | Asset 탭 | 30 / 33 |
+| 8 | Company 탭 | 14 / 17 |
 | 9 | Pivot Table | 13 / 14 |
 | 10 | Data Quality | 18 / 21 |
 | 11 | Analysis Tools | 8 / 11 |
 | 12 | Supabase / Edge / 배포 | 33 / 33 |
-| 13 | 외부 API / AI / 외부권한 | 8 / 12 |
-| 14 | QA 계획 및 증거 | 46 / 53 |
+| 13 | 외부 API / AI / 외부권한 | 9 / 12 |
+| 14 | QA 계획 및 증거 | 48 / 53 |
 | 15 | 최종 완료 기준 | 8 / 15 |
-| 16 | 임대차계약 데이터 관리 탭 구축 | 3 / 24 |
+| 16 | 임대차계약 데이터 관리 탭 구축 | 5 / 24 |
 
 ## 2026-05-22 Update - Asset Tenant Table Width
 

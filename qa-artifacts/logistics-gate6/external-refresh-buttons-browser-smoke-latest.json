@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-26T09:42:42.038Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/?p=home",
+  "ui_email": "kylee@igisam.com",
+  "required_controls": [
+    "building-register-refresh",
+    "opendart-refresh"
+  ],
+  "missing_controls": [],
+  "forbidden_text": [
+    "원본 데이터 수정"
+  ],
+  "forbidden_found": [],
+  "page_errors": [],
+  "screenshot": "qa-artifacts/logistics-gate6/external-refresh-buttons-browser-smoke-20260526-094241.png",
+  "body_excerpt": "Logistics\nLOGISTICS PLATFORM\nWork Platform\nDashboard\nHome\nAsset\nCompany\nAnalysis Tools\nPivot Table\nData Quality\nData Update\nPDF Report\n이관용\n기획추진센터\nHome\n건축물대장 새로고침\nOpenDART 새로고침\n운영 자산 수\n0\n2026년 5월 기준\n총 연면적\n0.0평\n2026년 5월 기준\n총 임대면적\n0.0평\n2026년 5월 기준\n총 공실면적\n0.0평\n2026년 5월 기준\n공실률\n-\n2026년 5월 기준\n월 임관리비 총액\n0\n2026년 5월 기준 · Rent History 기준\nLOCATION\n포트폴리오 위치\n자산 표\n좌표가 등록된 자산이 없습니다.\nNo.\t자산명\t주소(시군구)\t연면적(평)\t저온창고 비율\tE. NOC\nCOMPOSITION\n용도별 비율\n전체\n구성 표 보기\n구성 차트 데이터가 없습니다.\nCOMPOSITION\n월 임관리비 비중\n자산별\n임차인별\n구성 표 보기\n구성 차트 데이터가 없습니다.\nTREND\n계약 이력 기준 임대료 추이\n원본 표 보기\n표시할 차트 데이터가 없습니다.\nSECTOR TOP\nTop 자산\n임관리비\n면적\n상세\n자산명\t월 임관리비\t임대면적(평)\t핵심 임차인\nSECTOR TOP\nTop 임차인\n임관리비\n면적\n상세\n임차인명\t월 임대료\t월 관리비\t월 임관리비\t임대면적(평)\nVACANCY\n공실 요약\n자산명\t연면적(평)\t공실면적(평)\t공실률\nREGION\n권역별 노출도\n임관리비\n연면적\n상세\n차트로 표시할 값이 없습니다.\nEXPIRY\n만기 집중도\n월별 상세 보기\n표시할 차트 데이터가 없습니다.\nCONTRACTS\n임차인 계약\n전체 표 보기\n임차인명\t자산 수\t구역 수\t자산 목록\t임대면적(평)\t월 임대료\t월 관리비\t월 임관리비\t평당 월 임대료\t평당 월 관리비\t평당 월 임관리비\t최근 만기일"
+}

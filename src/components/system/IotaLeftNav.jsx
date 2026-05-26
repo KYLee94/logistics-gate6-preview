@@ -163,7 +163,7 @@ const logisticsDashboardItems = [
 ];
 const logisticsStandaloneItems = [
     {
-        label: 'Contract Data',
+        label: 'Data Update',
         path: `${LOGISTICS_INTERNAL_BASE}/contract-data`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2zM9 8h6M9 12h6M9 16h4" /></svg>,
     },

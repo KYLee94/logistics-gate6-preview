@@ -3963,8 +3963,8 @@ function providerFailureBody(message: string, response: Response, body: Record<s
 function safeProviderError(error: unknown) {
   const raw = error instanceof Error ? error.message : normalizeText(error);
   return raw
-    .replace(/(crtfc_key|serviceKey|api[_-]?key|apikey|client[_-]?secret|token)=([^&\s)]+)/giu, '$1=[redacted]')
-    .replace(/(x-ncp-apigw-api-key-id|x-ncp-apigw-api-key)[:=]\s*([^&\s)]+)/giu, '$1=[redacted]')
+    .replace(/(?:crtfc_key|serviceKey|api[_-]?key|apikey|client[_-]?secret|token)=([^&\s)]+)/giu, '[redacted credential]')
+    .replace(/(?:x-ncp-apigw-api-key-id|x-ncp-apigw-api-key)[:=]\s*([^&\s)]+)/giu, '[redacted credential]')
     .replace(/(Bearer\s+)[A-Za-z0-9._~-]+/gu, '$1[redacted]')
     .slice(0, 500);
 }
@@ -3983,7 +3983,7 @@ function callNaverMapsConfig(origin: string) {
 
 async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!checkRateLimit(ctx.user.id, 'opendart/company', 20)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'opendart/company', 120)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const apiKey = (Deno.env.get('OPENDART_API_KEY') || '').trim();
   const proxyUrl = (Deno.env.get('OPENDART_PROXY_URL') || '').trim();
   const proxyToken = (Deno.env.get('OPENDART_PROXY_TOKEN') || '').trim();
@@ -3991,8 +3991,9 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
   const corpCode = String(payload.corp_code || '').trim();
   if (!corpCode) return fail(400, 'corp_code is required', ctx.origin);
   const includeFinancials = Boolean(payload.include_financials);
+  const forceRefresh = payload.force_refresh === true || payload.forceRefresh === true || payload.bypass_cache === true;
   const cacheKey = await cacheKeyFor('opendart/company', { corp_code: corpCode, include_financials: includeFinancials });
-  const cached = await readExternalApiCache(ctx, 'opendart/company', cacheKey);
+  const cached = forceRefresh ? null : await readExternalApiCache(ctx, 'opendart/company', cacheKey);
   if (cached) {
     await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/cache-hit', 200, { corp_code: corpCode, provider_status: cached.providerStatus });
     return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
@@ -4049,11 +4050,11 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
       }
     }
     const providerMessage = providerMessageFromBody(providerBody);
-    await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', response.status, { corp_code: corpCode, provider_url: usedCompanyUrl, cache_hit: false, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined, provider_errors: providerErrors.length ? providerErrors : undefined });
+    await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', response.status, { corp_code: corpCode, provider_url: usedCompanyUrl, cache_hit: false, force_refresh: forceRefresh || undefined, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined, provider_errors: providerErrors.length ? providerErrors : undefined });
     if (!providerOk) {
       const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
       if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt });
-      const tenantFallback = await readOpenDartTenantFallback(ctx, corpCode);
+      const tenantFallback = forceRefresh ? null : await readOpenDartTenantFallback(ctx, corpCode);
       if (tenantFallback) {
         await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/tenant-fallback', 206, { corp_code: corpCode, provider_message: providerMessage });
         return jsonResponse({ ok: true, provider_status: 206, data: tenantFallback, cache: { hit: true, stale: true, source: 'll_tenants' }, provider_warning: 'OpenDART provider failed; using verified tenant mapping fallback' }, 200, ctx.origin);
@@ -4071,11 +4072,11 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
         }
       }
     }
-    return jsonResponse({ ok: true, provider_status: response.status, provider_url: usedCompanyUrl, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
+    return jsonResponse({ ok: true, provider_status: response.status, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
   } catch (error) {
     const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
-    const tenantFallback = await readOpenDartTenantFallback(ctx, corpCode);
+    const tenantFallback = forceRefresh ? null : await readOpenDartTenantFallback(ctx, corpCode);
     if (tenantFallback) {
       const providerError = safeProviderError(error);
       await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/tenant-fallback', 206, { corp_code: corpCode, provider_error: providerError, provider_errors: providerErrors.length ? providerErrors : undefined });
@@ -4146,6 +4147,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
   if (!checkRateLimit(ctx.user.id, 'building-register/summary', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const apiKey = (Deno.env.get('BUILDING_REGISTER_API_KEY') || '').trim();
   if (!apiKey) return fail(503, 'Building-register API key is not configured', ctx.origin);
+  const forceRefresh = payload.force_refresh === true || payload.forceRefresh === true || payload.bypass_cache === true;
   const cachePayload = {
     summary_version: 'v2',
     sigungu_cd: String(payload.sigungu_cd || ''),
@@ -4155,7 +4157,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
     ji: String(payload.ji || '0').padStart(4, '0'),
   };
   const cacheKey = await cacheKeyFor('building-register/summary', cachePayload);
-  const cached = await readExternalApiCache(ctx, 'building-register/summary', cacheKey);
+  const cached = forceRefresh ? null : await readExternalApiCache(ctx, 'building-register/summary', cacheKey);
   if (cached) {
     await auditOptional(ctx.serviceClient, ctx.user.id, 'building-register/summary/cache-hit', 200, { ...cachePayload, provider_status: cached.providerStatus });
     return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
@@ -4217,7 +4219,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
       }
     }
     const providerMessage = providerMessageFromBody(body);
-    await audit(ctx.serviceClient, ctx.user.id, 'building-register/summary', response.status, { ...cachePayload, cache_hit: false, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined });
+    await audit(ctx.serviceClient, ctx.user.id, 'building-register/summary', response.status, { ...cachePayload, cache_hit: false, force_refresh: forceRefresh || undefined, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined });
     if (!providerOk) {
       const stale = await readExternalApiCache(ctx, 'building-register/summary', cacheKey, true);
       if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt });

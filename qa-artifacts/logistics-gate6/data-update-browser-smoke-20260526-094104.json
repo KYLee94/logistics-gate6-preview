@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-26T09:41:05.799Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/?p=contract-data",
+  "auth_source": "password_grant",
+  "ui_email": "kylee@igisam.com",
+  "required_text": [
+    "Data Update",
+    "임대차계약 데이터 관리",
+    "현재 계약 원장",
+    "원본 Excel 전체 필드 수정 요청"
+  ],
+  "forbidden_text": [
+    "Contract Data",
+    "원본 데이터 수정"
+  ],
+  "missing_text": [],
+  "forbidden_found": [],
+  "page_errors": [],
+  "resource_errors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "cors_warnings": [],
+  "screenshot": "qa-artifacts/logistics-gate6/data-update-browser-smoke-20260526-094104.png",
+  "body_excerpt": "Logistics\nLOGISTICS PLATFORM\nWork Platform\nDashboard\nHome\nAsset\nCompany\nAnalysis Tools\nPivot Table\nData Quality\nData Update\nPDF Report\n이관용\n기획추진센터\nData Update\nLEASE CONTRACT LEDGER\n임대차계약 데이터 관리\nDB_일반 + DB_히스토리 누적 기준\n자산\n경산 쿠팡물류센터\n동산물류센터\n두동 LG전자 통합물류센터\n부국물류센터\n부산송정물류센터\n스카이박스1, 스카이박스2\n아레나스안성\n아레나스양지물류센터\n안성 성은지구 물류센터\n안성 홈플러스 중부허브 물류센터\n양산 유산동 물류센터\n에이블로지스물류센터\n여주 본두리 물류센터\n이천 마장면 물류센터\n인천석남물류센터\n평택아디다스물류센터\n화성 석포리 물류센터\n계약 구역\n쿠팡(주) / 12\n쿠팡(주) / 11\n쿠팡(주) / 10\n쿠팡(주) / 9\n쿠팡(주) / 8\n쿠팡(주) / 7\n쿠팡(주) / 6\n쿠팡(주) / 5\n쿠팡(주) / 4\n쿠팡(주) / 3\n쿠팡(주) / 2\n쿠팡(주) / 1\n쿠팡(주) / B1\n쿠팡(주) / B2\n임차인 쿠팡(주)\n구역 12\n월 임관리비 1,273만\n계약기간 2024-08-01 ~ 2030-05-01\n변경 유형\n오입력 정정\n신규 계약\n연장 계약\n임대료/관리비 변경\nRF/FO/TI 변경\n만료/공실 전환\n부분공실\n층/구역 분할\n변경 요약\n브라우저 직접 저장이 아니라 Edge Function 승인 요청으로 접수됩니다.\n승인 요청\nCURRENT CONTRACTS\n현재 계약 원장\n자산\t임차인\t층/구역\t임대면적\t월 임대료\t월 관리비\t월 임관리비\tE. NOC\t계약개시\t계약만기\n\n경산 쿠팡물류센터\n\t\n쿠팡(주)\n\t\n12\n\t\n325.2평\n\t\n1,172만\n\t\n100만\n\t\n1,273만\n\t\n63,108원\n\t\n2024-08-01\n\t\n2030-05-01\n\n\n경산 쿠팡물류센터\n\t\n쿠팡(주)\n\t\n11\n\t\n2,755.0평\n\t\n9,932만\n\t\n851만\n\t\n1.1억\n\t\n33,413원\n\t\n2024-08-01\n\t\n2030-05-01\n\n\n경산 쿠팡물류센터\n\t\n쿠팡(주)\n\t\n10\n\t\n325.2평\n\t\n1,172만\n\t\n100만\n\t\n1,273만\n\t\n63,108원\n\t\n2024-08-01\n\t\n2030-05-01\n\n\n경산 쿠팡물류센터\n\t\n쿠팡(주)\n\t\n9\n\t\n2,755.0평\n\t\n9,932만\n\t\n851만\n\t\n1.1억\n\t\n36,544원\n\t\n2024-08-01\n\t\n2030-05"
+}
