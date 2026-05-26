@@ -1,9 +1,48 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-26T11:30:00.000+09:00
-- Overall: 283 / 366 (77.3%)
+- Updated at: 2026-05-26T17:30:00.000+09:00
+- Overall: 283 / 366 (77.3%) - stage totals have not been fully rebaselined after the browser fix.
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
-- gh-pages deployment: executed for compatibility view cleanup release.
+- gh-pages deployment: current AI browser fix deployed; live URL returned HTTP 200 with `assets/index-DSrDzuBh.js`.
+
+## 2026-05-26 Update - AI Chatbot Browser Regression / Checklist Correction
+
+- User-reported live UI failure is now the active AI blocker:
+  - exact question: `안성 성은 물류센터 임대 현황 알려줘`
+  - visible symptom: chatbot stays at `답변 생성 중...`.
+- Status correction:
+  - `npm run qa:ai-chatbot` validates direct qveg Edge Function calls only.
+  - That does not prove the live browser chatbot is working.
+  - Therefore the AI chatbot is **not complete** until browser smoke confirms the answer appears and the loading bubble disappears.
+- Added the exact user question to `scripts/qa/logistics-ai-chatbot-qa.cjs`.
+  - Latest direct Edge QA artifact: `qa-artifacts/logistics-gate6/ai-chatbot-qa-20260526-082808.json`.
+  - The Edge answer for the exact question now includes asset, fund, location, gross area, leased area, vacancy, monthly lease/management cost, weighted E. NOC, and top tenants.
+- Frontend fix:
+  - `src/components/system/workspace/WorkspaceLogistics.jsx` now uses a direct authenticated Edge Function `fetch` with a component-owned timeout for chatbot calls.
+  - This prevents the UI from staying indefinitely on `답변 생성 중...` when the browser request stalls.
+- Added browser regression smoke script:
+  - `scripts/qa/logistics-ai-chatbot-browser-smoke.cjs`
+  - npm alias: `npm run qa:ai-chatbot:browser`
+  - latest pass artifact: `qa-artifacts/logistics-gate6/ai-chatbot-browser-smoke-20260526-083803.json`.
+  - latest screenshot: `qa-artifacts/logistics-gate6/ai-chatbot-browser-smoke-20260526-083803.png`.
+- Deployment / live verification:
+  - `npm run build:preview`: pass.
+  - `npm run deploy`: pass.
+  - live URL 200: pass.
+  - browser chatbot smoke on live `work-platform`: pass, `ai/search-chat` status 200, loading bubble removed, answer rendered.
+- Latest E. NOC weighted-average audit:
+  - `npm run qa:enoc-weighted`: pass.
+  - artifact: `qa-artifacts/logistics-gate6/enoc-weighted-audit-20260526-084035.json`.
+  - formula: `sum(monthly_rent_total + monthly_mf_total) / sum(leased_area_sqm * 0.3025)`.
+  - portfolio weighted E. NOC: `34,209원`; simple arithmetic average would be `35,842원`, so the QA confirms the weighted method is being used.
+- Current Stage 13 interpretation:
+  - AI deterministic Edge QA: partial pass.
+  - AI live/browser UX: pass for the exact user-reported regression question.
+  - Broader dashboard-number chatbot coverage remains tracked in `gate6-next-version-checklist-20260518.md`.
+  - OpenDART monthly ingest/cache: provider-backed monthly ingest succeeded and is separated from realtime provider/fallback status.
+  - Latest external API smoke: `qa-artifacts/logistics-gate6/external-api-smoke-20260526-084004.json`.
+  - Building-register all-asset smoke/readback: 17 assets pass.
+  - OpenDART realtime company check: fresh cache success, fallback false, provider direct success false.
 
 ## 2026-05-26 Update - 1~5 Implementation / Edge + Front Deploy
 
@@ -12,8 +51,8 @@
 - External API smoke:
   - `naver/maps-config`: pass.
   - `naver/geocode`: pass.
-  - `opendart/company`: still fails at provider TLS handshake from Supabase Edge. This is not marked complete.
-  - `building-register/summary`: still returns provider `Unexpected errors`; kept as incomplete.
+  - `opendart/company`: superseded by the latest smoke above; realtime direct provider success remains false, but fresh OpenDART monthly cache is available and fallback is false.
+  - `building-register/summary`: superseded by the latest smoke above; 17 asset all-asset smoke/readback now passes.
 - Added Contract Data tab first implementation:
   - contract ledger display from permission-filtered dashboard rows.
   - lease event submit request through Edge Function and `ll_edit_requests`.

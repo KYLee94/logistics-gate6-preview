@@ -286,15 +286,17 @@ async function main() {
   const incheonSeoknam = findAsset(assets, '인천', '석남');
   const bukuk = findAsset(assets, '부국');
   const arenaAnseong = findAsset(assets, '아레나스', '안성');
+  const anseongSeongeun = findAsset(assets, '안성', '성은');
 
   const assetReads = {};
-  for (const asset of [busan, arenaYangji, incheonSeoknam, bukuk, arenaAnseong]) {
+  for (const asset of [busan, arenaYangji, incheonSeoknam, bukuk, arenaAnseong, anseongSeongeun]) {
     assetReads[asset.asset_id] = await invoke(endpoint, anonKey, origin, auth.token, 'dashboard/asset/read', { basis_date: basisDate, asset_id: asset.asset_id });
     assertStatus(assetReads[asset.asset_id], 200, `dashboard/asset/read ${asset.asset_name}`);
   }
 
   const arenaRows = leaseRowsFromAssetRead(assetReads[arenaYangji.asset_id]);
   const busanRows = leaseRowsFromAssetRead(assetReads[busan.asset_id]);
+  const anseongSeongeunRows = leaseRowsFromAssetRead(assetReads[anseongSeongeun.asset_id]);
   const allLeaseRows = Object.values(assetReads).flatMap(leaseRowsFromAssetRead);
   const arenaTopTenant = topTenantByArea(arenaRows);
   if (!arenaTopTenant) throw new Error('Could not derive Arena Yangji top tenant from dashboard/asset/read');
@@ -309,6 +311,7 @@ async function main() {
   const portfolioENoc = weightedENoc(homeRead.body?.data?.lease_spaces || []);
   const arenaSummary = summaryFromAssetRead(assetReads[arenaYangji.asset_id]);
   const busanSummary = summaryFromAssetRead(assetReads[busan.asset_id]);
+  const anseongSeongeunSummary = summaryFromAssetRead(assetReads[anseongSeongeun.asset_id]);
   const bukukRows = leaseRowsFromAssetRead(assetReads[bukuk.asset_id]);
   const incheonRows = leaseRowsFromAssetRead(assetReads[incheonSeoknam.asset_id]);
   const bukukENoc = weightedENoc(bukukRows) || assetStoredENoc(assetReads[bukuk.asset_id]);
@@ -319,6 +322,8 @@ async function main() {
   const busanGrossPy = (numberValue(firstDefined(busanSummary.gross_floor_area_sqm, busanSummary.grossFloorAreaSqm, busan.gross_floor_area_sqm)) || 0) * PY_PER_SQM;
   const busanLeasedPy = busanRows.reduce((sum, row) => sum + rowAreaPy(row), 0);
   const busanVacancyRate = busanGrossPy > 0 ? Math.max(0, busanGrossPy - busanLeasedPy) / busanGrossPy : 0;
+  const anseongSeongeunGrossPy = (numberValue(firstDefined(anseongSeongeunSummary.gross_floor_area_sqm, anseongSeongeunSummary.grossFloorAreaSqm, anseongSeongeun.gross_floor_area_sqm)) || 0) * PY_PER_SQM;
+  const anseongSeongeunLeasedPy = anseongSeongeunRows.reduce((sum, row) => sum + rowAreaPy(row), 0);
   const arenaRent = arenaRows.reduce((sum, row) => sum + (numberValue(firstDefined(row.monthly_rent_total, row.monthlyRentTotal, row.current_monthly_rent_total, row.currentMonthlyRentTotal)) || 0), 0);
   const arenaMf = arenaRows.reduce((sum, row) => sum + (numberValue(firstDefined(row.monthly_mf_total, row.monthlyMfTotal, row.current_monthly_mf_total, row.currentMonthlyMfTotal)) || 0), 0);
   const arenaMonthly = arenaRows.reduce((sum, row) => sum + rowMonthlyCombined(row), 0);
@@ -371,6 +376,25 @@ async function main() {
     question: '부산 송정 물류센터 운영 현황 말해줘',
     basis: { asset_name: busan.asset_name, gross_py: formatPy(busanGrossPy), leased_py: formatPy(busanLeasedPy), source: 'dashboard/asset/read lease rows' },
     validate: (answer) => assertIncludes(answer, 'busan operations', '부산', '송정', formatPy(busanGrossPy), formatPy(busanLeasedPy)),
+  });
+
+  await runCase({
+    id: 'anseong_seongeun_lease_status_exact_ui_regression',
+    category: '자산 운영현황',
+    question: '안성 성은 물류센터 임대 현황 알려줘',
+    basis: {
+      asset_name: anseongSeongeun.asset_name,
+      gross_py: formatPy(anseongSeongeunGrossPy),
+      leased_py: formatPy(anseongSeongeunLeasedPy),
+      source: 'dashboard/asset/read lease rows',
+      regression: 'user-reported browser chatbot question',
+    },
+    validate: (answer) => {
+      assertIncludes(answer, 'anseong seongeun lease status', '안성', '성은', formatPy(anseongSeongeunLeasedPy));
+      if (/관련 임차인은/u.test(answer) && !/임대면적|운영 현황|공실률/u.test(answer)) {
+        throw new Error(`anseong seongeun answer is only a tenant fallback: ${answer}`);
+      }
+    },
   });
 
   await runCase({

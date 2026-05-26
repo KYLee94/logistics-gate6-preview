@@ -15,6 +15,7 @@
     "qa:logistics-primary-parity": "node scripts/qa/logistics-dashboard-primary-parity.cjs",
     "qa:data-quality-e2e": "node scripts/qa/logistics-data-quality-e2e.cjs",
     "qa:ai-chatbot": "node scripts/qa/logistics-ai-chatbot-qa.cjs",
+    "qa:ai-chatbot:browser": "node scripts/qa/logistics-ai-chatbot-browser-smoke.cjs",
     "qa:external-api": "node scripts/qa/logistics-external-api-smoke.cjs",
     "qa:enoc-weighted": "node scripts/qa/logistics-enoc-weighted-audit.cjs",
     "opendart:monthly-ingest": "node scripts/integrations/opendart-monthly-ingest.cjs",

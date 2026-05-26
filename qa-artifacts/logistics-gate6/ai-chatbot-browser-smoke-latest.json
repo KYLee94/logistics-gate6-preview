@@ -1,0 +1,75 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-26T08:38:04.235Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/work-platform",
+  "question": "안성 성은 물류센터 임대 현황 알려줘",
+  "auth_source": "password_grant",
+  "ui_email": "kylee@igisam.com",
+  "duration_ms": 5148,
+  "requests": [
+    {
+      "method": "POST",
+      "action": "weekly-assets/latest",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "work-platform/board-posts/list",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "work-platform/tasks/list",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "work-platform/tasks/list",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "ai/search-chat",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "work-platform/tasks/snapshots/upsert-current",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    }
+  ],
+  "responses": [
+    {
+      "status": 200,
+      "action": "work-platform/board-posts/list",
+      "body_ok": true,
+      "body_message": ""
+    },
+    {
+      "status": 200,
+      "action": "work-platform/tasks/list",
+      "body_ok": true,
+      "body_message": ""
+    },
+    {
+      "status": 200,
+      "action": "work-platform/tasks/list",
+      "body_ok": true,
+      "body_message": ""
+    },
+    {
+      "status": 200,
+      "action": "weekly-assets/latest",
+      "body_ok": true,
+      "body_message": ""
+    },
+    {
+      "status": 200,
+      "action": "ai/search-chat",
+      "body_ok": true,
+      "body_message": "안성 성은지구 물류센터 운영 현황입니다. 펀드는 안성성은물류피에프브이 주식회사입니다. 위치는 경기도 안성시 원곡면 지문로 459-14입니다. 총 연면적은 35,123.8평입니다. 임대면적은 24,539.8평입니다. 공실면적은 10,584.1평이고 공실률은 30.1%입니다. 월 임관리비는 6억입니다. E. NOC는 41,317원입니다. 주요 임차인은 롯데글로벌로지스(주) 9,912.6평, 아디"
+    }
+  ],
+  "answer_excerpt": "안성 성은지구 물류센터 운영 현황입니다. 펀드는 안성성은물류피에프브이 주식회사입니다. 위치는 경기도 안성시 원곡면 지문로 459-14입니다. 총 연면적은 35,123.8평입니다. 임대면적은 24,539.8평입니다. 공실면적은 10,584.1평이고 공실률은 30.1%입니다. 월 임관리비는 6억입니다. E. NOC는 41,317원입니다. 주요 임차인은 롯데글로벌로지스(주) 9,912.6평, 아디",
+  "screenshot": "qa-artifacts/logistics-gate6/ai-chatbot-browser-smoke-20260526-083803.png"
+}

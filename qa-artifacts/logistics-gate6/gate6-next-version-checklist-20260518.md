@@ -7,6 +7,7 @@
 - Purpose: Keep a restorable version before the login/navigation/workspace restructuring work.
 
 ## 1. Chatbot Dashboard-Number Coverage - Pending For Next Phase
+- 2026-05-26 correction: Direct Edge QA passing is not enough. The live/browser chatbot must also answer the exact regression question `안성 성은 물류센터 임대 현황 알려줘` and remove `답변 생성 중...`; this is tracked in `gate6-progress-tracker-20260515.md` and `npm run qa:ai-chatbot:browser`. Latest browser smoke passed on the live `work-platform` route.
 - [ ] 모든 Dashboard 탭의 KPI, 표, 차트 숫자를 `ll_dashboard_metric_snapshots` 또는 대응되는 Supabase 계산 테이블에 사전 계산해 저장한다.
 - [ ] Home 탭 숫자 질문: 운영 자산 수, 총 연면적, 총 임대면적, 공실면적, 공실률, 월 임관리비, 도넛/차트/표 숫자 전부 답변 가능하게 한다.
 - [ ] Asset 탭 숫자 질문: 총 연면적, 임대율, 임대면적, 공실면적, 월 임관리비, E.NOC, 임차인 수, 층/구역별 계약 상세를 답변 가능하게 한다.

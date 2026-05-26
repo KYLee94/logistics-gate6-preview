@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { supabase } from '../../../utils/supabaseClient';
+import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -4702,22 +4702,70 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     }
     setTaskRecords((tasks) => tasks.filter((item) => item.id !== task.id));
   };
+  const invokeLogisticsAiFunction = async (action, payload, { timeoutMs = 30000, allowOkFalse = false } = {}) => {
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (sessionError || !accessToken) {
+      const error = new Error('로그인 세션을 확인하지 못했습니다. 새로고침 후 다시 로그인해 주세요.');
+      error.context = { status: 401 };
+      throw error;
+    }
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/functions/v1/ll-dashboard-api`, {
+        method: 'POST',
+        headers: {
+          apikey: supabaseAnonKey,
+          authorization: `Bearer ${accessToken}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ action, payload }),
+        signal: controller.signal,
+      });
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = { message: text.slice(0, 300) };
+      }
+      if (!response.ok || (!allowOkFalse && data?.ok === false)) {
+        const error = new Error(data?.message || data?.error || `AI request failed (${response.status})`);
+        error.context = { status: response.status };
+        error.data = data;
+        throw error;
+      }
+      return data;
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        const timeoutError = new Error('AI 답변 시간이 길어져 요청을 중단했습니다. 잠시 뒤 다시 시도해 주세요.');
+        timeoutError.context = { status: 408 };
+        throw timeoutError;
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  };
+
   const describeAiFunctionError = (error, data = null) => {
     const status = data?.provider_status || data?.status || error?.context?.status || error?.status || null;
     const providerError = data?.detail?.provider_error || data?.provider_error || data?.message || '';
     const rawMessage = `${error?.message || ''} ${providerError || ''}`.trim();
     if (/Failed to send a request to the Edge Function/i.test(rawMessage)) {
-      return `Edge Function 호출 실패입니다. 배포 URL origin 허용 또는 네트워크/CORS 설정을 먼저 확인해야 합니다. (${rawMessage})`;
+      return `AI 서버 호출이 실패했습니다. 네트워크 연결이나 배포 URL 허용 설정을 확인해야 합니다. (${rawMessage})`;
     }
-    if (status === 401) return 'Edge Function 인증이 거절되었습니다. 로그인 토큰 또는 anon key 설정을 확인해야 합니다.';
-    if (status === 403) return 'Edge Function 권한 또는 origin 허용이 거절되었습니다. live preview URL 허용 설정을 확인해야 합니다.';
-    if (/spending cap|spend cap|monthly spending/iu.test(rawMessage)) return 'Edge 연결은 정상입니다. 다만 Google AI Studio의 월 지출 한도 설정 때문에 Gemini 응답이 막혀 있습니다.';
-    if (status === 429 || /quota|rate limit|exceeded/iu.test(rawMessage)) return 'Gemini 사용량 한도에 걸렸습니다. 내부 DB 근거 답변으로 대체하거나 잠시 뒤 다시 시도해야 합니다.';
+    if (status === 401) return '로그인 세션을 확인하지 못했습니다. 새로고침 후 다시 로그인해 주세요.';
+    if (status === 403) return '현재 로그인 권한으로는 이 챗봇 데이터를 읽을 수 없습니다.';
+    if (status === 408) return rawMessage || 'AI 답변 시간이 길어져 요청을 중단했습니다. 잠시 뒤 다시 시도해 주세요.';
+    if (/spending cap|spend cap|monthly spending/iu.test(rawMessage)) return 'AI 답변 생성 한도 문제로 응답이 지연되고 있습니다. 숫자형 질문은 내부 데이터 기준 답변으로 우선 처리됩니다.';
+    if (status === 429 || /quota|rate limit|exceeded/iu.test(rawMessage)) return 'AI 답변 요청이 일시적으로 많습니다. 잠시 뒤 다시 시도해 주세요.';
     if (/Google AI key is not configured/i.test(rawMessage)) {
-      return 'Edge Function에 Google AI용 secret이 설정되지 않았습니다.';
+      return 'AI 답변 설정이 아직 완료되지 않았습니다.';
     }
     if (status >= 500 || /provider request failed/i.test(rawMessage)) {
-      return `Gemini provider 호출 실패입니다. Edge secret, 모델명, Google 응답 상태를 확인해야 합니다. (${rawMessage || status || 'unknown error'})`;
+      return `AI 답변 서버에서 오류가 발생했습니다. (${rawMessage || status || 'unknown error'})`;
     }
     return `AI 답변을 불러오지 못했습니다. (${rawMessage || 'unknown error'})`;
   };
@@ -4730,10 +4778,11 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const runAiDiagnostics = async () => {
     setAiDiagnosticsLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'ai/provider-diagnostics', payload: { source: 'workspace-chatbot' } },
-      });
-      if (error) throw error;
+      const data = await invokeLogisticsAiFunction(
+        'ai/provider-diagnostics',
+        { source: 'workspace-chatbot' },
+        { timeoutMs: 18000, allowOkFalse: true },
+      );
       setAiToast(diagnosticToastMessage(data));
     } catch (error) {
       setAiToast({
@@ -4771,13 +4820,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       let responseData = null;
       let primaryError = null;
       try {
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'ai/search-chat', payload: { question, history } },
-        });
-        responseData = data;
-        if (error || !data?.ok) {
-          primaryError = error instanceof Error ? error : new Error(data?.message || error?.message || 'AI primary action failed');
-          primaryError.data = data;
+        responseData = await invokeLogisticsAiFunction(
+          'ai/search-chat',
+          { question, history },
+          { timeoutMs: 30000 },
+        );
+        if (!responseData?.ok) {
+          primaryError = new Error(responseData?.message || 'AI primary action failed');
+          primaryError.data = responseData;
         }
       } catch (error) {
         primaryError = error;
