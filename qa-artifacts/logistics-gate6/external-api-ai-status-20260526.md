@@ -20,10 +20,15 @@ File reviewed: `supabase/functions/ll-dashboard-api/index.ts`
   - Cache read/write path exists.
   - Audit event is written.
   - Stale cache fallback exists for provider failure.
-- Remaining evidence needed:
-  - live provider smoke with a known `corp_code`
-  - cache readback
-  - UI confirmation in Company tab
+- Latest live smoke:
+  - `opendart/company` still returns 502 from Supabase Edge.
+  - Both official HTTPS endpoints were tested from Edge:
+    - `https://opendart.fss.or.kr/api/company.json`
+    - `https://engopendart.fss.or.kr/engapi/company.json`
+  - Both fail before provider JSON response with TLS `HandshakeFailure`.
+  - Local Windows `Invoke-WebRequest` to the Korean official endpoint succeeds and returns provider JSON, so this is not a wrong URL/key-shape issue.
+- Remaining implementation decision:
+  - OpenDART needs a secure non-Supabase-Edge server runtime/proxy or a server-side cache refresh job. Do not downgrade to HTTP because the API key would cross the network without TLS.
 
 ### Building Register
 
@@ -37,10 +42,12 @@ File reviewed: `supabase/functions/ll-dashboard-api/index.ts`
   - Cache read/write path exists.
   - Audit event is written.
   - Stale cache fallback exists for provider failure.
+- Latest live smoke:
+  - `building-register/summary` passed with status 200 after switching to the official Building HUB endpoint.
+  - Endpoint now uses `https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo`.
+  - `bun`/`ji` are padded to 4 digits and the service key is not double-encoded.
 - Remaining evidence needed:
-  - live provider smoke with one asset that has complete building-register query keys
-  - readback of cached response
-  - UI confirmation in Asset tab
+  - UI confirmation in Asset tab for a real asset button click.
 
 ### Naver Map / Geocode
 
@@ -104,8 +111,11 @@ Files reviewed:
 
 - Server-only wiring: partial pass.
 - Secret exposure from frontend source: no direct exposure found in reviewed paths.
-- Live provider smoke: still needed.
-- AI answer quality/context: not complete; kept in checklist under external API / AI.
+- Live provider smoke:
+  - Naver maps/geocode: pass.
+  - Building-register: pass.
+  - OpenDART: blocked by Supabase Edge TLS handshake against official HTTPS endpoints.
+- AI answer quality/context: latest scripted QA pass for asset count, asset lookup, E. NOC follow-up, specific asset E. NOC, portfolio vacancy, and production demo blocking. Broader natural-language QA remains in checklist.
 
 ## Reviewer Addendum
 

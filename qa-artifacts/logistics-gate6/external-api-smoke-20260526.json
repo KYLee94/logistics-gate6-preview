@@ -1,6 +1,6 @@
 {
   "ok": false,
-  "generated_at": "2026-05-26T02:29:18.304Z",
+  "generated_at": "2026-05-26T04:16:14.409Z",
   "origin": "https://kylee94.github.io",
   "auth_source": "password_grant",
   "checks": [
@@ -19,26 +19,35 @@
         "message": "OpenDART provider request failed",
         "status": 502,
         "detail": {
-          "provider_error": "error sending request for url (https://opendart.fss.or.kr/api/company.json?crtfc_key=[redacted]&corp_code=01561359): client error (Connect): received fatal alert: HandshakeFailure"
+          "provider_error": "https://opendart.fss.or.kr/api/company.json: error sending request for url (https://opendart.fss.or.kr/api/company.json?crtfc_key=[redacted]&corp_code=01561359): client error (Connect): received fatal alert: HandshakeFailure | https://engopendart.fss.or.kr/engapi/company.json: error sending request for url (https://engopendart.fss.or.kr/engapi/company.json?crtfc_key=[redacted]&corp_code=01561359): client error (Connect): received fatal alert: HandshakeFailure"
         }
       }
     },
     {
       "name": "building-register/summary",
-      "status": 502,
-      "ok": false,
+      "status": 200,
+      "ok": true,
       "cache": {
         "hit": false,
         "stale": false
       },
       "body": {
-        "ok": false,
-        "message": "Building-register provider returned an error",
-        "provider_message": "Unexpected errors\n",
+        "ok": true,
         "cache": {
           "hit": false,
           "stale": false
-        }
+        },
+        "data_keys": [
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "arch_area",
+          "tot_area",
+          "use_apr_day"
+        ]
       }
     },
     {

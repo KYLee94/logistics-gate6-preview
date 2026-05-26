@@ -3873,8 +3873,27 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
     return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
   }
   const query = new URLSearchParams({ crtfc_key: apiKey, corp_code: corpCode });
+  const configuredCompanyUrl = (Deno.env.get('OPENDART_COMPANY_URL') || '').trim();
+  const companyUrls = [...new Set([
+    configuredCompanyUrl || 'https://opendart.fss.or.kr/api/company.json',
+    'https://engopendart.fss.or.kr/engapi/company.json',
+  ].filter(Boolean))];
+  const providerErrors: string[] = [];
   try {
-    const { response, body } = await fetchJsonWithTimeout(`https://opendart.fss.or.kr/api/company.json?${query.toString()}`, {}, 10_000, 1);
+    let result: { response: Response; body: Record<string, unknown> } | null = null;
+    let usedCompanyUrl = '';
+    for (const companyUrl of companyUrls) {
+      try {
+        const { response, body } = await fetchJsonWithTimeout(`${companyUrl}?${query.toString()}`, {}, 10_000, 1);
+        result = { response, body: body as Record<string, unknown> };
+        usedCompanyUrl = companyUrl;
+        break;
+      } catch (error) {
+        providerErrors.push(`${companyUrl}: ${safeProviderError(error)}`);
+      }
+    }
+    if (!result) throw new Error(providerErrors.join(' | ') || 'OpenDART provider request failed');
+    const { response, body } = result;
     const providerOk = openDartProviderOk(response, body as Record<string, unknown>);
     const company = stripUndefined({
       status: body.status,
@@ -3904,18 +3923,18 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
       }
     }
     const providerMessage = providerMessageFromBody(body);
-    await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', response.status, { corp_code: corpCode, cache_hit: false, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined });
+    await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', response.status, { corp_code: corpCode, provider_url: usedCompanyUrl, cache_hit: false, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined, provider_errors: providerErrors.length ? providerErrors : undefined });
     if (!providerOk) {
       const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
       if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt });
       return jsonResponse(providerFailureBody('OpenDART provider returned an error', response, body as Record<string, unknown>, { cache: { hit: false, stale: false } }), 502, ctx.origin);
     }
-    return jsonResponse({ ok: true, provider_status: response.status, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
+    return jsonResponse({ ok: true, provider_status: response.status, provider_url: usedCompanyUrl, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
   } catch (error) {
     const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
     const providerError = safeProviderError(error);
-    await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', 502, { corp_code: corpCode, provider_error: providerError });
+    await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', 502, { corp_code: corpCode, provider_error: providerError, provider_errors: providerErrors.length ? providerErrors : undefined });
     return fail(502, 'OpenDART provider request failed', ctx.origin, { provider_error: providerError });
   }
 }
@@ -3946,10 +3965,13 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
     `platGbCd=${encodeURIComponent(cachePayload.plat_gb_cd)}`,
     `bun=${encodeURIComponent(cachePayload.bun)}`,
     `ji=${encodeURIComponent(cachePayload.ji)}`,
+    'numOfRows=10',
+    'pageNo=1',
     '_type=json',
   ].join('&');
   try {
-    const { response, body } = await fetchJsonWithTimeout(`https://apis.data.go.kr/1613000/BldRgstService_v2/getBrTitleInfo?${query}`, {}, 12_000, 1);
+    const buildingBaseUrl = (Deno.env.get('BUILDING_REGISTER_TITLE_URL') || 'https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo').trim();
+    const { response, body } = await fetchJsonWithTimeout(`${buildingBaseUrl}?${query}`, {}, 12_000, 1);
     const providerOk = buildingRegisterProviderOk(response, body as Record<string, unknown>);
     const item = body?.response?.body?.items?.item;
     const first = Array.isArray(item) ? item[0] : item;
