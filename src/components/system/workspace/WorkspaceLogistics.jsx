@@ -83,6 +83,7 @@ const DASHBOARD_READ_MODE = import.meta.env.VITE_LOGISTICS_DASHBOARD_READ_MODE |
 const DASHBOARD_READ_CACHE = new Map();
 const ASSET_PROJECT_DETAIL_CACHE = new Map();
 const ASSET_FUND_OVERVIEW_CACHE = new Map();
+const ASSET_BUILDING_REGISTER_CACHE = new Map();
 const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
 const DASHBOARD_BASIS_DATE = currentKstMonthEndDate();
 const DASHBOARD_BASIS_LABEL = dashboardBasisLabel(DASHBOARD_BASIS_DATE);
@@ -985,6 +986,17 @@ function companyPayloadFromDashboardRead(response, fallbackPayload = {}) {
           tenantMasterName: firstDefined(tenant.tenant_master_name, tenant.company_name, fallbackPayload.profile?.company?.tenantMasterName),
           businessRegistrationNo: firstDefined(tenant.business_registration_no, fallbackPayload.profile?.company?.businessRegistrationNo),
           dartCorpCode: firstDefined(tenant.dart_corp_code, fallbackPayload.profile?.company?.dartCorpCode),
+          representativeName: firstDefined(tenant.representative_name, tenant.ceo_nm, fallbackPayload.profile?.company?.representativeName),
+          openingDate: firstDefined(tenant.opening_date, tenant.business_start_date, fallbackPayload.profile?.company?.openingDate),
+          establishmentDate: firstDefined(tenant.establishment_date, tenant.est_dt, fallbackPayload.profile?.company?.establishmentDate),
+          standardIndustryClassification: firstDefined(tenant.standard_industry_classification, tenant.industry_name, tenant.industry_code, fallbackPayload.profile?.company?.standardIndustryClassification),
+          mainProducts: firstDefined(tenant.main_products, tenant.major_products, fallbackPayload.profile?.company?.mainProducts),
+          headquartersAddress: firstDefined(tenant.headquarters_address, tenant.address, fallbackPayload.profile?.company?.headquartersAddress),
+          latestEmployeeCount: firstDefined(tenant.latest_employee_count, tenant.employee_count, fallbackPayload.profile?.company?.latestEmployeeCount),
+          latestFinancialYear: firstDefined(tenant.latest_financial_year, fallbackPayload.profile?.company?.latestFinancialYear),
+          latestRevenue: firstDefined(tenant.latest_revenue, fallbackPayload.profile?.company?.latestRevenue),
+          latestOperatingIncome: firstDefined(tenant.latest_operating_income, fallbackPayload.profile?.company?.latestOperatingIncome),
+          latestNetIncome: firstDefined(tenant.latest_net_income, fallbackPayload.profile?.company?.latestNetIncome),
         },
       },
       leasedAssets: rows,
@@ -1507,6 +1519,12 @@ function formatWon(value) {
 
 function formatDate(value) {
   return String(value || '-').slice(0, 10);
+}
+
+function formatCompactDate(value) {
+  const text = String(value || '').replace(/\D/gu, '');
+  if (text.length === 8) return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`;
+  return formatDate(value);
 }
 
 function monthsUntil(dateValue, baseDate = new Date()) {
@@ -2175,6 +2193,72 @@ function buildAssetOverviewRows(assetName, project, weeklyRow) {
   ];
 }
 
+const BUILDING_REGISTER_OVERVIEW_TEMPLATE = [
+  ['대지위치', 'plat_plc'],
+  ['도로명주소', 'new_plat_plc'],
+  ['건물명', 'bld_nm'],
+  ['주용도', 'main_purps_cd_nm'],
+  ['기타용도', 'etc_purps'],
+  ['구조', 'strct_cd_nm'],
+  ['지붕', 'roof_cd_nm'],
+  ['대지면적', 'plat_area', 'sqm'],
+  ['건축면적', 'arch_area', 'sqm'],
+  ['연면적', 'tot_area', 'sqm'],
+  ['용적률 산정 연면적', 'vl_rat_estm_tot_area', 'sqm'],
+  ['건폐율', 'bc_rat', 'percentNumber'],
+  ['용적률', 'vl_rat', 'percentNumber'],
+  ['지상층수', 'grnd_flr_cnt'],
+  ['지하층수', 'ugrnd_flr_cnt'],
+  ['높이', 'heit', 'meter'],
+  ['세대수', 'hhld_cnt'],
+  ['가구수', 'fmly_cnt'],
+  ['호수', 'ho_cnt'],
+  ['주건축물 수', 'main_bld_cnt'],
+  ['부속건축물 수', 'atch_bld_cnt'],
+  ['총 주차대수', 'tot_pkng_cnt'],
+  ['사용승인일', 'use_apr_day', 'date'],
+  ['관리건축물대장PK', 'mgm_bldrgst_pk'],
+];
+
+function formatBuildingRegisterValue(value, type) {
+  if (value === undefined || value === null || value === '') return '-';
+  if (type === 'date') return formatCompactDate(value);
+  if (type === 'sqm') {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return cleanDisplay(value, '-');
+    return `${formatNumber(numeric)}㎡ (${formatDecimalNumber(numeric * 0.3025, 1)}평)`;
+  }
+  if (type === 'percentNumber') {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return cleanDisplay(value, '-');
+    return `${formatDecimalNumber(numeric, 2)}%`;
+  }
+  if (type === 'meter') {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return cleanDisplay(value, '-');
+    return `${formatDecimalNumber(numeric, 2)}m`;
+  }
+  return cleanDisplay(value, '-');
+}
+
+function snakeToCamelKey(key = '') {
+  return String(key).replace(/_([a-z])/gu, (_, letter) => letter.toUpperCase());
+}
+
+function buildBuildingRegisterOverviewRows(summary = {}) {
+  const source = summary && typeof summary === 'object' ? summary : {};
+  return BUILDING_REGISTER_OVERVIEW_TEMPLATE.map(([label, key, type]) => [
+    '건축물대장',
+    label,
+    formatBuildingRegisterValue(firstDefined(source[key], source[snakeToCamelKey(key)]), type),
+  ]);
+}
+
+function mergeBuildingRegisterOverviewRows(baseRows = [], summary = null) {
+  const withoutBuildingRows = (baseRows || []).filter((row) => row?.[0] !== '건축물대장');
+  return [...withoutBuildingRows, ...buildBuildingRegisterOverviewRows(summary || {})];
+}
+
 function buildAssetInvestmentRows(project, weeklyRow) {
   const baseRows = [
     ['투자', '투자 전략', managementProjectValue(project, '투자 전략') || cleanDisplay(weeklyRow?.investmentType, '')],
@@ -2570,7 +2654,7 @@ function AssetFundOverviewTable({
   );
 }
 
-function AssetProjectInfoPanel({ assetName, modalMode = false }) {
+function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterSummary = null }) {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const { rows: latestWeeklyAssetRows } = useLatestWeeklyAssetRows(permission, memberInfo);
@@ -2592,12 +2676,16 @@ function AssetProjectInfoPanel({ assetName, modalMode = false }) {
       .find((row) => normalizeAssetNameKey(row.assetName) === normalizeAssetNameKey(assetName))
   ), [assetName, weeklyAssetRowsForSource]);
   void splitManagementProjectRows;
-  const finalOverviewRows = useMemo(() => buildAssetOverviewRows(assetName, project, weeklyRow || {}), [assetName, project, weeklyRow]);
+  const finalOverviewRows = useMemo(() => mergeBuildingRegisterOverviewRows(
+    buildAssetOverviewRows(assetName, project, weeklyRow || {}),
+    buildingRegisterSummary,
+  ), [assetName, buildingRegisterSummary, project, weeklyRow]);
   const finalInvestmentRows = useMemo(() => buildAssetInvestmentRows(project, weeklyRow || {}), [project, weeklyRow]);
   const fallbackFundInfoRows = useMemo(() => buildDefaultFundInfoRows(assetName, weeklyRow || {}), [assetName, weeklyRow]);
-  const effectiveOverviewRows = useMemo(() => (
-    serverRows?.overview?.length ? serverRows.overview : finalOverviewRows
-  ), [finalOverviewRows, serverRows]);
+  const effectiveOverviewRows = useMemo(() => mergeBuildingRegisterOverviewRows(
+    serverRows?.overview?.length ? serverRows.overview : finalOverviewRows,
+    buildingRegisterSummary,
+  ), [buildingRegisterSummary, finalOverviewRows, serverRows]);
   const effectiveInvestmentRows = useMemo(() => (
     serverRows?.investment?.length ? normalizeInvestmentRowsForUi(serverRows.investment) : finalInvestmentRows
   ), [finalInvestmentRows, serverRows]);
@@ -7279,6 +7367,190 @@ function companyDartRows(profile = {}, financials = {}) {
   ];
 }
 
+function normalizeFinancialYear(value) {
+  const text = cleanDisplay(value, '');
+  const match = text.match(/20\d{2}/u);
+  return match ? match[0] : text;
+}
+
+function numberOrNull(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const numeric = Number(String(value).replace(/[,\s원]/gu, ''));
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function accountMetricKey(name) {
+  const text = cleanDisplay(name, '');
+  if (/매출|수익|영업수익|revenue|sales/iu.test(text)) return 'revenue';
+  if (/영업이익|operating/iu.test(text)) return 'operatingIncome';
+  if (/당기순이익|순이익|net\s*income/iu.test(text)) return 'netIncome';
+  if (/자산총계|총\s*자산|total\s*assets/iu.test(text)) return 'totalAssets';
+  if (/부채총계|총\s*부채|total\s*liabil/iu.test(text)) return 'totalLiabilities';
+  if (/자본총계|총\s*자본|total\s*equity/iu.test(text)) return 'totalEquity';
+  return '';
+}
+
+function normalizeDartFinancialRows(profile = {}, financials = {}) {
+  const company = profile.company || {};
+  const dart = financials.openDart || {};
+  const explicitRows = firstDefined(
+    dart.financials,
+    dart.financial_statements,
+    dart.financialStatements,
+    financials.financials,
+    financials.financialStatements,
+    company.financials,
+    company.financialStatements,
+  );
+  const byYear = new Map();
+  const ensureYear = (yearValue) => {
+    const year = normalizeFinancialYear(yearValue || company.latestFinancialYear || financials.latestFinancialYear || '');
+    if (!year) return null;
+    if (!byYear.has(year)) {
+      byYear.set(year, {
+        year,
+        creditRating: '-',
+        totalAssets: null,
+        totalLiabilities: null,
+        totalEquity: null,
+        revenue: null,
+        operatingIncome: null,
+        netIncome: null,
+      });
+    }
+    return byYear.get(year);
+  };
+  if (Array.isArray(explicitRows)) {
+    explicitRows.forEach((row) => {
+      const yearRow = ensureYear(firstDefined(row.year, row.bsns_year, row.fiscalYear, row.reportYear));
+      if (!yearRow) return;
+      const metricKey = accountMetricKey(firstDefined(row.account_nm, row.accountName, row.metric, row.name, ''));
+      if (metricKey) {
+        yearRow[metricKey] = numberOrNull(firstDefined(row.amount, row.thstrm_amount, row.value, row.currentAmount));
+      } else {
+        yearRow.creditRating = firstDefined(row.creditRating, row.bondCreditRating, row.companyBondCreditRating, yearRow.creditRating);
+        yearRow.totalAssets = firstDefined(numberOrNull(row.totalAssets), yearRow.totalAssets);
+        yearRow.totalLiabilities = firstDefined(numberOrNull(row.totalLiabilities), yearRow.totalLiabilities);
+        yearRow.totalEquity = firstDefined(numberOrNull(row.totalEquity), yearRow.totalEquity);
+        yearRow.revenue = firstDefined(numberOrNull(row.revenue), yearRow.revenue);
+        yearRow.operatingIncome = firstDefined(numberOrNull(row.operatingIncome), yearRow.operatingIncome);
+        yearRow.netIncome = firstDefined(numberOrNull(row.netIncome), yearRow.netIncome);
+      }
+    });
+  }
+  const latestYear = normalizeFinancialYear(firstDefined(company.latestFinancialYear, financials.latestFinancialYear, dart.bsns_year, ''));
+  if (latestYear && !byYear.has(latestYear)) {
+    byYear.set(latestYear, {
+      year: latestYear,
+      creditRating: firstDefined(company.creditRating, financials.creditRating, '-'),
+      totalAssets: numberOrNull(firstDefined(company.latestTotalAssets, financials.totalAssets, dart.total_assets)),
+      totalLiabilities: numberOrNull(firstDefined(company.latestTotalLiabilities, financials.totalLiabilities, dart.total_liabilities)),
+      totalEquity: numberOrNull(firstDefined(company.latestTotalEquity, financials.totalEquity, dart.total_equity)),
+      revenue: numberOrNull(firstDefined(financials.revenue, company.latestRevenue, dart.revenue)),
+      operatingIncome: numberOrNull(firstDefined(financials.operatingIncome, company.latestOperatingIncome, dart.operating_income)),
+      netIncome: numberOrNull(firstDefined(financials.netIncome, company.latestNetIncome, dart.net_income)),
+    });
+  }
+  return [...byYear.values()]
+    .sort((a, b) => String(b.year).localeCompare(String(a.year), 'ko-KR', { numeric: true }))
+    .slice(0, 3);
+}
+
+function companyDartDetailRows(profile = {}, financials = {}) {
+  const company = profile.company || {};
+  const dart = financials.openDart || {};
+  return [
+    ['대표자명', firstDefined(dart.ceo_nm, company.representativeName, company.ceoName, '-')],
+    ['개업일자', formatCompactDate(firstDefined(dart.open_date, dart.openDate, company.openingDate, company.businessStartDate))],
+    ['설립일자', formatCompactDate(firstDefined(dart.est_dt, company.establishmentDate, company.estDt))],
+    ['종업원수', firstDefined(dart.employee_count, dart.employeeCount, financials.employeeCount, company.latestEmployeeCount) == null ? '-' : `${formatNumber(firstDefined(dart.employee_count, dart.employeeCount, financials.employeeCount, company.latestEmployeeCount))}명`],
+    ['표준산업분류(11차)', firstDefined(dart.ksic_11, dart.ksic11, dart.industry_name, dart.industryName, company.standardIndustryClassification, company.industryName, company.industryCode, '-')],
+    ['주요 상품', firstDefined(dart.main_products, dart.mainProducts, company.mainProducts, company.majorProducts, '-')],
+    ['본사 주소', firstDefined(dart.adres, company.headquartersAddress, profile.headquartersAddress, '-')],
+  ];
+}
+
+function financialMetricRows(financialRows = []) {
+  return (financialRows.length ? financialRows : [{ year: '-', creditRating: '-', totalAssets: null, totalLiabilities: null, totalEquity: null, revenue: null, operatingIncome: null, netIncome: null }]).map((row) => [
+    row.year || '-',
+    row.creditRating || '-',
+    formatCurrency(row.totalAssets),
+    formatCurrency(row.totalLiabilities),
+    formatCurrency(row.totalEquity),
+    formatCurrency(row.revenue),
+    formatCurrency(row.operatingIncome),
+    formatCurrency(row.netIncome),
+  ]);
+}
+
+function DartFinancialTrendChart({ rows }) {
+  const metrics = [
+    { key: 'revenue', label: '매출액', color: '#9AD7FF' },
+    { key: 'operatingIncome', label: '영업이익', color: '#B5E48C' },
+    { key: 'netIncome', label: '당기순이익', color: '#FFD166' },
+  ];
+  const chartRows = (rows || []).slice().reverse();
+  const chartValues = chartRows.flatMap((row) => metrics.map((metric) => Math.abs(Number(row[metric.key] || 0))));
+  const maxValue = Math.max(...chartValues, 1);
+  if (!chartRows.length || maxValue <= 1) {
+    return <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4 text-[13px] text-[#86868B]">차트로 표시할 3개년 재무 수치가 없습니다.</div>;
+  }
+  return (
+    <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4">
+      <div className="mb-3 flex flex-wrap items-center gap-4 text-[12px] text-[#C7C7CC]">
+        {metrics.map((metric) => (
+          <span key={metric.key} className="inline-flex items-center gap-2">
+            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: metric.color }} />
+            {metric.label}
+          </span>
+        ))}
+      </div>
+      <div className="grid min-h-[220px] grid-cols-1 gap-4 md:grid-cols-3">
+        {chartRows.map((row) => (
+          <div key={row.year} className="flex flex-col justify-end rounded-[10px] bg-[#151515] p-3">
+            <div className="mb-2 flex h-[150px] items-end justify-center gap-3">
+              {metrics.map((metric) => {
+                const value = Number(row[metric.key] || 0);
+                return (
+                  <div key={metric.key} className="flex h-full w-10 flex-col justify-end" title={`${row.year} ${metric.label}: ${formatCurrency(value)}`}>
+                    <div className="rounded-t-[6px]" style={{ height: `${Math.max(4, Math.abs(value) / maxValue * 100)}%`, backgroundColor: metric.color, opacity: value < 0 ? 0.55 : 1 }} />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="text-center text-[13px] font-bold text-white">{row.year}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CompanyDartDetailView({ profile, financials }) {
+  const rows = normalizeDartFinancialRows(profile, financials);
+  return (
+    <div className="space-y-5">
+      <section>
+        <h4 className="mb-3 text-[15px] font-bold text-white">기업 정보</h4>
+        <DataTable headers={['항목', '값']} rows={companyDartDetailRows(profile, financials)} compact minTableWidth={null} />
+      </section>
+      <section>
+        <h4 className="mb-3 text-[15px] font-bold text-white">최근 3개년 재무제표 주요 지표</h4>
+        <DataTable
+          headers={['연도', '회사채 신용등급', '총 자산', '총 부채', '총 자본', '매출액', '영업이익', '당기순이익']}
+          rows={financialMetricRows(rows)}
+          compact
+        />
+      </section>
+      <section>
+        <h4 className="mb-3 text-[15px] font-bold text-white">매출액 · 영업이익 · 당기순이익 추이</h4>
+        <DartFinancialTrendChart rows={rows} />
+      </section>
+    </div>
+  );
+}
+
 function deriveLogisticsRegionFromAddress(address, fallback = '미분류') {
   const text = String(address || '');
   const cityMatch = text.match(/([가-힣]+(?:시|군|구|읍|면|동))/gu) || [];
@@ -7835,6 +8107,11 @@ function CompanyDashboard() {
     formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0),
   ]);
   const openTableModal = (title, headers, rows) => setModal({ title, headers, rows });
+  const openDartDetailModal = (dartOverride = dartApiSummary) => setModal({
+    title: 'DART 상세 정보',
+    size: 'wide',
+    content: <CompanyDartDetailView profile={profile} financials={{ ...financials, openDart: dartOverride }} />,
+  });
   const refreshOpenDart = async () => {
     const corpCode = firstDefined(profile.company?.dartCorpCode, profile.dartCorpCode, financials.dartCorpCode);
     if (!corpCode) {
@@ -7844,7 +8121,7 @@ function CompanyDashboard() {
     setDartApiStatus(null);
     try {
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'opendart/company', payload: { corp_code: corpCode } },
+        body: { action: 'opendart/company', payload: { corp_code: corpCode, include_financials: true } },
       });
       if (error) throw error;
       const dart = data?.data || {};
@@ -7853,22 +8130,7 @@ function CompanyDashboard() {
         return;
       }
       setDartApiSummary(dart);
-      setModal({
-        title: 'OpenDART 조회 결과',
-        headers: ['항목', '값'],
-        rows: [
-          ['기업명', dart.corp_name || profile.tenantMasterName || '-'],
-          ['corp_code', dart.corp_code || corpCode],
-          ['종목명', dart.stock_name || '-'],
-          ['종목코드', dart.stock_code || '-'],
-          ['대표자', dart.ceo_nm || '-'],
-          ['법인구분', dart.corp_cls || '-'],
-          ['법인등록번호', dart.jurir_no || '-'],
-          ['사업자등록번호', formatBusinessRegistrationNo(dart.bizr_no || profile.businessRegistrationNo, selectedTenantId)],
-          ['주소', dart.adres || '-'],
-          ['결산월', dart.acc_mt || '-'],
-        ],
-      });
+      openDartDetailModal(dart);
     } catch (error) {
       setDartApiStatus({ type: 'blocked', message: `OpenDART Edge Function 연결 또는 secret 설정이 필요합니다. (${error.message || 'unknown error'})` });
     }
@@ -7978,7 +8240,7 @@ function CompanyDashboard() {
             right={(
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={refreshOpenDart} className="h-9 px-3 rounded-[8px] bg-white text-[#1F1F1E] text-[13px] font-semibold hover:bg-[#E5E5E5]">OpenDART 새로 조회</button>
-                <button type="button" onClick={() => openTableModal('DART 상세 정보', ['항목', '값'], companyDartRows(profile, { ...financials, openDart: dartApiSummary }))} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세 보기</button>
+                <button type="button" onClick={() => openDartDetailModal()} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세 보기</button>
               </div>
             )}
           />
@@ -10040,6 +10302,35 @@ function AssetDashboard() {
   const assetWeightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
   const buildingRegisterSource = rows.find((row) => row.asset?.sigunguCd || row.sigunguCd) || overview;
   const buildingRegisterPayload = buildBuildingRegisterPayload(buildingRegisterSource);
+  const buildingRegisterCacheKey = isCompleteBuildingRegisterPayload(buildingRegisterPayload)
+    ? `${buildingRegisterPayload.sigungu_cd}|${buildingRegisterPayload.bjdong_cd}|${buildingRegisterPayload.plat_gb_cd}|${buildingRegisterPayload.bun}|${buildingRegisterPayload.ji}`
+    : '';
+  useEffect(() => {
+    if (!buildingRegisterCacheKey) return undefined;
+    let cancelled = false;
+    const cached = ASSET_BUILDING_REGISTER_CACHE.get(buildingRegisterCacheKey);
+    if (cached) {
+      setBuildingRegisterSummary(cached);
+      return undefined;
+    }
+    supabase.functions.invoke('ll-dashboard-api', {
+      body: { action: 'building-register/summary', payload: buildingRegisterPayload },
+    }).then(({ data, error }) => {
+      if (cancelled || error || data?.ok === false || !data?.data) return;
+      ASSET_BUILDING_REGISTER_CACHE.set(buildingRegisterCacheKey, data.data);
+      setBuildingRegisterSummary(data.data);
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    buildingRegisterCacheKey,
+    buildingRegisterPayload.bjdong_cd,
+    buildingRegisterPayload.bun,
+    buildingRegisterPayload.ji,
+    buildingRegisterPayload.plat_gb_cd,
+    buildingRegisterPayload.sigungu_cd,
+  ]);
   useEffect(() => {
     const assetNameForPrefetch = overview.assetName;
     const cacheKey = selectedAssetId || normalizeAssetNameKey(assetNameForPrefetch);
@@ -10170,18 +10461,13 @@ function AssetDashboard() {
         return;
       }
       setBuildingRegisterSummary(summary);
+      if (buildingRegisterCacheKey) ASSET_BUILDING_REGISTER_CACHE.set(buildingRegisterCacheKey, summary);
       setModal({
         title: '건축물대장 조회 결과',
         headers: ['항목', '값'],
         rows: [
           ['자산명', overview.assetName || '-'],
-          ['대지위치', summary.plat_plc || '-'],
-          ['도로명주소', summary.new_plat_plc || '-'],
-          ['건물명', summary.bld_nm || '-'],
-          ['주용도', summary.main_purps_cd_nm || '-'],
-          ['지상/지하층', `${summary.grnd_flr_cnt || '-'} / ${summary.ugrnd_flr_cnt || '-'}`],
-          ['연면적', summary.tot_area || '-'],
-          ['사용승인일', summary.use_apr_day || '-'],
+          ...buildBuildingRegisterOverviewRows(summary).map((row) => [row[1], row[2]]),
         ],
       });
     } catch (error) {
@@ -10398,7 +10684,7 @@ function AssetDashboard() {
             <div><span className="block text-[#86868B]">건축물대장 주용도</span>{buildingRegisterSummary.main_purps_cd_nm || '-'}</div>
             <div><span className="block text-[#86868B]">대장 연면적</span>{buildingRegisterSummary.tot_area ? `${formatNumber(buildingRegisterSummary.tot_area)}㎡` : '-'}</div>
             <div><span className="block text-[#86868B]">지상/지하층</span>{buildingRegisterSummary.grnd_flr_cnt || '-'} / {buildingRegisterSummary.ugrnd_flr_cnt || '-'}</div>
-            <div><span className="block text-[#86868B]">사용승인일</span>{formatDate(buildingRegisterSummary.use_apr_day)}</div>
+            <div><span className="block text-[#86868B]">사용승인일</span>{formatCompactDate(buildingRegisterSummary.use_apr_day)}</div>
           </div>
         ) : null}
       </section>
@@ -10417,7 +10703,7 @@ function AssetDashboard() {
               onClick={() => setModal({
                 title: `자산개요 · 투자개요 · 펀드개요 · ${overview.assetName || ''}`,
                 size: 'fullscreen',
-                content: <AssetProjectInfoPanel assetName={overview.assetName} modalMode />,
+                content: <AssetProjectInfoPanel assetName={overview.assetName} modalMode buildingRegisterSummary={buildingRegisterSummary} />,
               })}
               className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS}`}
             >

@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-26T04:52:35.685Z",
+  "generated_at": "2026-05-26T05:20:36.168Z",
   "origin": "https://kylee94.github.io",
   "auth_source": "password_grant",
   "checks": [
@@ -30,7 +30,8 @@
           "corp_name",
           "corp_cls",
           "bizr_no",
-          "adres"
+          "adres",
+          "industry_name"
         ]
       }
     },
@@ -39,25 +40,30 @@
       "status": 200,
       "ok": true,
       "cache": {
-        "hit": false,
-        "stale": false
+        "hit": true,
+        "stale": false,
+        "fetched_at": "2026-05-26T05:12:49.45+00:00"
       },
       "body": {
         "ok": true,
         "cache": {
-          "hit": false,
-          "stale": false
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T05:12:49.45+00:00"
         },
         "data_keys": [
-          "plat_plc",
-          "new_plat_plc",
+          "heit",
+          "bc_rat",
           "bld_nm",
-          "main_purps_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "arch_area",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
           "tot_area",
-          "use_apr_day"
+          "arch_area",
+          "etc_purps",
+          "plat_area"
         ]
       }
     },

@@ -3790,9 +3790,24 @@ async function readOpenDartTenantFallback(ctx: Context, corpCode: string) {
     corp_code: corpCode,
     corp_name: firstDefined(row.tenant_master_name, row.tenantMasterName, row.company_name, row.companyName),
     corp_cls: firstDefined(row.listed_yn, row.listedYn),
+    ceo_nm: firstDefined(row.ceo_nm, row.ceoName, row.representative_name, row.representativeName),
     bizr_no: firstDefined(row.business_registration_no, row.businessRegistrationNo),
+    jurir_no: firstDefined(row.corp_registration_no, row.corpRegistrationNo, row.jurir_no),
     adres: firstDefined(row.headquarters_address, row.headquartersAddress, row.address),
     acc_mt: firstDefined(row.accounting_month, row.acc_mt),
+    est_dt: firstDefined(row.establishment_date, row.establishmentDate, row.est_dt),
+    open_date: firstDefined(row.opening_date, row.openingDate, row.business_start_date, row.businessStartDate),
+    employee_count: firstDefined(row.latest_employee_count, row.latestEmployeeCount, row.employee_count, row.employeeCount),
+    industry_name: firstDefined(row.standard_industry_classification, row.standardIndustryClassification, row.industry_name, row.industryName, row.industry_code, row.industryCode),
+    main_products: firstDefined(row.main_products, row.mainProducts, row.major_products, row.majorProducts),
+    latest_financial_year: firstDefined(row.latest_financial_year, row.latestFinancialYear),
+    revenue: firstDefined(row.latest_revenue, row.latestRevenue),
+    operating_income: firstDefined(row.latest_operating_income, row.latestOperatingIncome),
+    net_income: firstDefined(row.latest_net_income, row.latestNetIncome),
+    total_assets: firstDefined(row.latest_total_assets, row.latestTotalAssets),
+    total_liabilities: firstDefined(row.latest_total_liabilities, row.latestTotalLiabilities),
+    total_equity: firstDefined(row.latest_total_equity, row.latestTotalEquity),
+    credit_rating: firstDefined(row.credit_rating, row.creditRating, row.bond_credit_rating, row.bondCreditRating),
   });
 }
 
@@ -3833,6 +3848,52 @@ function providerMessageFromBody(body: Record<string, unknown> | null | undefine
 
 function openDartProviderOk(response: Response, body: Record<string, unknown>) {
   return response.ok && normalizeText(body.status) === '000';
+}
+
+function recentOpenDartFinancialYears(count = 3) {
+  const latestLikelyClosedYear = new Date().getUTCFullYear() - 1;
+  return Array.from({ length: count }, (_, index) => String(latestLikelyClosedYear - index));
+}
+
+async function fetchOpenDartFinancialRows(apiKey: string, corpCode: string, providerErrors: string[]) {
+  if (!apiKey) return [];
+  const endpoints = [
+    'https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json',
+    'https://engopendart.fss.or.kr/engapi/fnlttSinglAcntAll.json',
+  ];
+  const rows: Record<string, unknown>[] = [];
+  for (const year of recentOpenDartFinancialYears(3)) {
+    let yearRows: Record<string, unknown>[] = [];
+    for (const fsDiv of ['CFS', 'OFS']) {
+      for (const endpoint of endpoints) {
+        const query = new URLSearchParams({
+          crtfc_key: apiKey,
+          corp_code: corpCode,
+          bsns_year: year,
+          reprt_code: '11011',
+          fs_div: fsDiv,
+        });
+        try {
+          const { response, body } = await fetchJsonWithTimeout(`${endpoint}?${query.toString()}`, {}, 10_000, 1);
+          const providerBody = body as Record<string, unknown>;
+          if (!openDartProviderOk(response, providerBody)) {
+            providerErrors.push(`${endpoint}/${year}/${fsDiv}: ${providerMessageFromBody(providerBody) || response.status}`);
+            continue;
+          }
+          const list = providerBody.list;
+          yearRows = Array.isArray(list)
+            ? list.map((row) => ({ ...(row as Record<string, unknown>), bsns_year: firstDefined((row as Record<string, unknown>).bsns_year, year), fs_div: fsDiv }))
+            : [];
+          if (yearRows.length) break;
+        } catch (error) {
+          providerErrors.push(`${endpoint}/${year}/${fsDiv}: ${safeProviderError(error)}`);
+        }
+      }
+      if (yearRows.length) break;
+    }
+    rows.push(...yearRows);
+  }
+  return rows;
 }
 
 function buildingRegisterProviderOk(response: Response, body: Record<string, unknown>) {
@@ -3892,7 +3953,8 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
   if (!apiKey && !proxyUrl) return fail(503, 'OpenDART API key or proxy is not configured', ctx.origin);
   const corpCode = String(payload.corp_code || '').trim();
   if (!corpCode) return fail(400, 'corp_code is required', ctx.origin);
-  const cacheKey = await cacheKeyFor('opendart/company', { corp_code: corpCode });
+  const includeFinancials = Boolean(payload.include_financials);
+  const cacheKey = await cacheKeyFor('opendart/company', { corp_code: corpCode, include_financials: includeFinancials });
   const cached = await readExternalApiCache(ctx, 'opendart/company', cacheKey);
   if (cached) {
     await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/cache-hit', 200, { corp_code: corpCode, provider_status: cached.providerStatus });
@@ -3915,7 +3977,7 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
         const { response, body } = await fetchJsonWithTimeout(proxyUrl, {
           method: 'POST',
           headers,
-          body: JSON.stringify({ corp_code: corpCode }),
+          body: JSON.stringify({ corp_code: corpCode, include_financials: includeFinancials }),
         }, 10_000, 1);
         result = { response, body: body as Record<string, unknown> };
         usedCompanyUrl = 'opendart-proxy';
@@ -3958,11 +4020,23 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
       phn_no: providerBody.phn_no,
       est_dt: providerBody.est_dt,
       acc_mt: providerBody.acc_mt,
+      open_date: firstDefined(providerBody.open_date, providerBody.openDate),
+      employee_count: firstDefined(providerBody.employee_count, providerBody.employeeCount),
+      industry_name: firstDefined(providerBody.industry_name, providerBody.industryName, providerBody.ksic_11, providerBody.ksic11),
+      main_products: firstDefined(providerBody.main_products, providerBody.mainProducts),
+      financials: firstDefined(providerBody.financials, providerBody.financial_statements, providerBody.financialStatements),
+      credit_rating: firstDefined(providerBody.credit_rating, providerBody.creditRating, providerBody.bond_credit_rating, providerBody.bondCreditRating),
+      total_assets: firstDefined(providerBody.total_assets, providerBody.totalAssets),
+      total_liabilities: firstDefined(providerBody.total_liabilities, providerBody.totalLiabilities),
+      total_equity: firstDefined(providerBody.total_equity, providerBody.totalEquity),
+      revenue: firstDefined(providerBody.revenue, providerBody.sales),
+      operating_income: firstDefined(providerBody.operating_income, providerBody.operatingIncome),
+      net_income: firstDefined(providerBody.net_income, providerBody.netIncome),
     }) as Record<string, unknown>;
     let cacheWriteError = '';
     if (providerOk) {
       try {
-        await writeExternalApiCache(ctx, 'opendart/company', cacheKey, { corp_code: corpCode }, company, response.status);
+        await writeExternalApiCache(ctx, 'opendart/company', cacheKey, { corp_code: corpCode, include_financials: includeFinancials }, company, response.status);
       } catch (error) {
         cacheWriteError = error instanceof Error ? error.message : 'cache write failed';
       }
@@ -3978,6 +4052,17 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
         return jsonResponse({ ok: true, provider_status: 206, data: tenantFallback, cache: { hit: true, stale: true, source: 'll_tenants' }, provider_warning: 'OpenDART provider failed; using verified tenant mapping fallback' }, 200, ctx.origin);
       }
       return jsonResponse(providerFailureBody('OpenDART provider returned an error', response, body as Record<string, unknown>, { cache: { hit: false, stale: false } }), 502, ctx.origin);
+    }
+    if (includeFinancials && apiKey) {
+      const financialRows = await fetchOpenDartFinancialRows(apiKey, corpCode, providerErrors);
+      if (financialRows.length) {
+        company.financials = financialRows;
+        try {
+          await writeExternalApiCache(ctx, 'opendart/company', cacheKey, { corp_code: corpCode, include_financials: includeFinancials }, company, response.status);
+        } catch (error) {
+          cacheWriteError = error instanceof Error ? error.message : 'cache write failed';
+        }
+      }
     }
     return jsonResponse({ ok: true, provider_status: response.status, provider_url: usedCompanyUrl, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
   } catch (error) {
@@ -4001,6 +4086,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
   const apiKey = (Deno.env.get('BUILDING_REGISTER_API_KEY') || '').trim();
   if (!apiKey) return fail(503, 'Building-register API key is not configured', ctx.origin);
   const cachePayload = {
+    summary_version: 'v2',
     sigungu_cd: String(payload.sigungu_cd || ''),
     bjdong_cd: String(payload.bjdong_cd || ''),
     plat_gb_cd: String(payload.plat_gb_cd || '0'),
@@ -4032,14 +4118,33 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
     const item = body?.response?.body?.items?.item;
     const first = Array.isArray(item) ? item[0] : item;
     const summary = first ? stripUndefined({
+      mgm_bldrgst_pk: first.mgmBldrgstPk,
       plat_plc: first.platPlc,
       new_plat_plc: first.newPlatPlc,
       bld_nm: first.bldNm,
       main_purps_cd_nm: first.mainPurpsCdNm,
+      etc_purps: first.etcPurps,
+      strct_cd_nm: first.strctCdNm,
+      roof_cd_nm: first.roofCdNm,
       grnd_flr_cnt: first.grndFlrCnt,
       ugrnd_flr_cnt: first.ugrndFlrCnt,
+      plat_area: first.platArea,
       arch_area: first.archArea,
       tot_area: first.totArea,
+      vl_rat_estm_tot_area: first.vlRatEstmTotArea,
+      bc_rat: first.bcRat,
+      vl_rat: first.vlRat,
+      heit: first.heit,
+      hhld_cnt: first.hhldCnt,
+      fmly_cnt: first.fmlyCnt,
+      ho_cnt: first.hoCnt,
+      main_bld_cnt: first.mainBldCnt,
+      atch_bld_cnt: first.atchBldCnt,
+      tot_pkng_cnt: first.totPkngCnt,
+      indr_mech_utcnt: first.indrMechUtcnt,
+      oudr_mech_utcnt: first.oudrMechUtcnt,
+      indr_auto_utcnt: first.indrAutoUtcnt,
+      oudr_auto_utcnt: first.oudrAutoUtcnt,
       use_apr_day: first.useAprDay,
     }) : null;
     let cacheWriteError = '';
