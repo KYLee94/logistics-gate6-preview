@@ -179,6 +179,7 @@ const PRIMARY_KEY_FIELDS = new Set([
 const rateBuckets = new Map<string, RateBucket>();
 const MAX_EDIT_CELLS_PER_REQUEST = 500;
 const EXTERNAL_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const OPENDART_MONTHLY_CACHE_TTL_MS = 45 * 24 * 60 * 60 * 1000;
 const FREE_TIER_GOOGLE_AI_MODELS = new Set([
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
@@ -3749,8 +3750,8 @@ async function readExternalApiCache(ctx: Context, provider: string, cacheKey: st
   };
 }
 
-async function writeExternalApiCache(ctx: Context, provider: string, cacheKey: string, requestPayload: Record<string, unknown>, responsePayload: unknown, providerStatus: number) {
-  const expiresAt = new Date(Date.now() + EXTERNAL_CACHE_TTL_MS).toISOString();
+async function writeExternalApiCache(ctx: Context, provider: string, cacheKey: string, requestPayload: Record<string, unknown>, responsePayload: unknown, providerStatus: number, options: { ttlMs?: number } = {}) {
+  const expiresAt = new Date(Date.now() + (options.ttlMs || EXTERNAL_CACHE_TTL_MS)).toISOString();
   const { error } = await ctx.serviceClient
     .from('ll_cache_entries')
     .upsert({
@@ -3767,6 +3768,7 @@ async function writeExternalApiCache(ctx: Context, provider: string, cacheKey: s
       updated_at: new Date().toISOString(),
     }, { onConflict: 'cache_type,cache_key' });
   if (error && !isMissingCacheTable(error)) throw new Error(`External API cache write failed: ${error.message}`);
+  return { expiresAt };
 }
 
 async function cacheKeyFor(provider: string, payload: Record<string, unknown>) {
@@ -3912,6 +3914,41 @@ function naverGeocodeProviderOk(response: Response, body: Record<string, unknown
   return !status || status.toUpperCase() === 'OK';
 }
 
+function normalizeOpenDartCompanyPayload(providerBody: Record<string, unknown>) {
+  return stripUndefined({
+    status: providerBody.status,
+    message: providerBody.message,
+    corp_code: providerBody.corp_code,
+    corp_name: providerBody.corp_name,
+    corp_name_eng: providerBody.corp_name_eng,
+    stock_name: providerBody.stock_name,
+    stock_code: providerBody.stock_code,
+    ceo_nm: providerBody.ceo_nm,
+    corp_cls: providerBody.corp_cls,
+    jurir_no: providerBody.jurir_no,
+    bizr_no: providerBody.bizr_no,
+    adres: providerBody.adres,
+    hm_url: providerBody.hm_url,
+    ir_url: providerBody.ir_url,
+    phn_no: providerBody.phn_no,
+    est_dt: providerBody.est_dt,
+    acc_mt: providerBody.acc_mt,
+    open_date: firstDefined(providerBody.open_date, providerBody.openDate),
+    employee_count: firstDefined(providerBody.employee_count, providerBody.employeeCount),
+    industry_name: firstDefined(providerBody.industry_name, providerBody.industryName, providerBody.ksic_11, providerBody.ksic11, providerBody.induty_code),
+    main_products: firstDefined(providerBody.main_products, providerBody.mainProducts),
+    financials: firstDefined(providerBody.financials, providerBody.financial_statements, providerBody.financialStatements),
+    credit_rating: firstDefined(providerBody.credit_rating, providerBody.creditRating, providerBody.bond_credit_rating, providerBody.bondCreditRating),
+    total_assets: firstDefined(providerBody.total_assets, providerBody.totalAssets),
+    total_liabilities: firstDefined(providerBody.total_liabilities, providerBody.totalLiabilities),
+    total_equity: firstDefined(providerBody.total_equity, providerBody.totalEquity),
+    revenue: firstDefined(providerBody.revenue, providerBody.sales),
+    operating_income: firstDefined(providerBody.operating_income, providerBody.operatingIncome),
+    net_income: firstDefined(providerBody.net_income, providerBody.netIncome),
+    bsns_year: firstDefined(providerBody.bsns_year, providerBody.latestFinancialYear, providerBody.latest_financial_year),
+  }) as Record<string, unknown>;
+}
+
 function providerFailureBody(message: string, response: Response, body: Record<string, unknown>, extra: Record<string, unknown> = {}) {
   return {
     ok: false,
@@ -4002,37 +4039,7 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
     const providerOk = response.ok
       && body.ok !== false
       && (openDartProviderOk(response, providerBody) || Boolean(providerBody.corp_code || providerBody.corp_name || providerBody.bizr_no));
-    const company = stripUndefined({
-      status: providerBody.status,
-      message: providerBody.message,
-      corp_code: providerBody.corp_code,
-      corp_name: providerBody.corp_name,
-      corp_name_eng: providerBody.corp_name_eng,
-      stock_name: providerBody.stock_name,
-      stock_code: providerBody.stock_code,
-      ceo_nm: providerBody.ceo_nm,
-      corp_cls: providerBody.corp_cls,
-      jurir_no: providerBody.jurir_no,
-      bizr_no: providerBody.bizr_no,
-      adres: providerBody.adres,
-      hm_url: providerBody.hm_url,
-      ir_url: providerBody.ir_url,
-      phn_no: providerBody.phn_no,
-      est_dt: providerBody.est_dt,
-      acc_mt: providerBody.acc_mt,
-      open_date: firstDefined(providerBody.open_date, providerBody.openDate),
-      employee_count: firstDefined(providerBody.employee_count, providerBody.employeeCount),
-      industry_name: firstDefined(providerBody.industry_name, providerBody.industryName, providerBody.ksic_11, providerBody.ksic11),
-      main_products: firstDefined(providerBody.main_products, providerBody.mainProducts),
-      financials: firstDefined(providerBody.financials, providerBody.financial_statements, providerBody.financialStatements),
-      credit_rating: firstDefined(providerBody.credit_rating, providerBody.creditRating, providerBody.bond_credit_rating, providerBody.bondCreditRating),
-      total_assets: firstDefined(providerBody.total_assets, providerBody.totalAssets),
-      total_liabilities: firstDefined(providerBody.total_liabilities, providerBody.totalLiabilities),
-      total_equity: firstDefined(providerBody.total_equity, providerBody.totalEquity),
-      revenue: firstDefined(providerBody.revenue, providerBody.sales),
-      operating_income: firstDefined(providerBody.operating_income, providerBody.operatingIncome),
-      net_income: firstDefined(providerBody.net_income, providerBody.netIncome),
-    }) as Record<string, unknown>;
+    const company = normalizeOpenDartCompanyPayload(providerBody);
     let cacheWriteError = '';
     if (providerOk) {
       try {
@@ -4078,6 +4085,60 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
     await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', 502, { corp_code: corpCode, provider_error: providerError, provider_errors: providerErrors.length ? providerErrors : undefined });
     return fail(502, 'OpenDART provider request failed', ctx.origin, { provider_error: providerError });
   }
+}
+
+async function callOpenDartCacheUpsert(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'opendart/company/cache-upsert', 120)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  if (/(crtfc_key|serviceKey|api[_-]?key|apikey|authorization|service[_-]?role|Bearer\s+)/iu.test(JSON.stringify(payload))) {
+    return fail(400, 'OpenDART cache payload must not include secrets or provider request URLs', ctx.origin);
+  }
+  const providerBody = (payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data))
+    ? payload.data as Record<string, unknown>
+    : payload;
+  const corpCode = String(firstDefined(payload.corp_code, providerBody.corp_code) || '').trim();
+  if (!corpCode) return fail(400, 'corp_code is required', ctx.origin);
+  const providerStatus = Number(firstDefined(payload.provider_status, providerBody.provider_status, 200) || 200);
+  const providerCode = normalizeText(firstDefined(providerBody.status, providerBody.provider_code, '000'));
+  const providerOk = providerStatus >= 200
+    && providerStatus < 300
+    && (!providerCode || providerCode === '000')
+    && Boolean(firstDefined(providerBody.corp_code, providerBody.corp_name, providerBody.bizr_no));
+  if (!providerOk) return fail(422, 'OpenDART provider payload is not successful', ctx.origin);
+  const includeFinancials = payload.include_financials !== false;
+  const cacheKey = await cacheKeyFor('opendart/company', { corp_code: corpCode, include_financials: includeFinancials });
+  const company = normalizeOpenDartCompanyPayload({
+    ...providerBody,
+    corp_code: firstDefined(providerBody.corp_code, corpCode),
+    status: firstDefined(providerBody.status, providerBody.provider_code, '000'),
+  });
+  const writeResult = await writeExternalApiCache(
+    ctx,
+    'opendart/company',
+    cacheKey,
+    { corp_code: corpCode, include_financials: includeFinancials, source: 'monthly_ingest' },
+    company,
+    providerStatus,
+    { ttlMs: OPENDART_MONTHLY_CACHE_TTL_MS },
+  );
+  const readback = await readExternalApiCache(ctx, 'opendart/company', cacheKey);
+  await audit(ctx.serviceClient, ctx.user.id, 'opendart/company/cache-upsert', 200, {
+    corp_code: corpCode,
+    provider_status: providerStatus,
+    financial_rows: Array.isArray(company.financials) ? company.financials.length : 0,
+    readback_hit: Boolean(readback),
+  });
+  return jsonResponse({
+    ok: true,
+    provider_status: providerStatus,
+    data: company,
+    cache: {
+      stored: true,
+      readback_hit: Boolean(readback),
+      stale: false,
+      expires_at: writeResult.expiresAt,
+    },
+  }, 200, ctx.origin);
 }
 
 async function callBuildingRegister(ctx: Context, payload: Record<string, unknown>) {
@@ -6184,6 +6245,7 @@ Deno.serve(async (request) => {
   if (action === 'weekly-projects/save-asset-detail') return saveWeeklyProjectAssetDetail(ctx, payload);
   if (action === 'funds/read-by-asset') return readFundOverviewByAsset(ctx, payload);
   if (action === 'funds/save-by-asset') return saveFundOverviewByAsset(ctx, payload);
+  if (action === 'opendart/company/cache-upsert') return callOpenDartCacheUpsert(ctx, payload);
   if (action === 'opendart/company') return callOpenDart(ctx, payload);
   if (action === 'building-register/summary') return callBuildingRegister(ctx, payload);
   if (action === 'naver/geocode') return callNaverGeocode(ctx, payload);

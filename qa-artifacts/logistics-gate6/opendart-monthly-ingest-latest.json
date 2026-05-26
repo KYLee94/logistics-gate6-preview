@@ -1,0 +1,11 @@
+{
+  "ok": false,
+  "generated_at": "2026-05-26T07:46:10.730Z",
+  "origin": "https://kylee94.github.io",
+  "mode": "opendart_monthly_ingest",
+  "opendart_provider_success": false,
+  "opendart_fallback_success": false,
+  "checks": [],
+  "missing_local_opendart_key": true,
+  "required_action": "Set OPENDART_API_KEY in the local environment or GitHub Actions secret before running monthly ingest. Supabase Edge secrets cannot be read back by local scripts."
+}

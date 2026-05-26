@@ -183,7 +183,8 @@ async function invokeWithRetry(endpoint, anonKey, origin, token, action, payload
 
 function classifyOpenDart(result) {
   const body = result.body || {};
-  if (result.status === 200 && body.ok !== false && body.provider_status === 200 && body.cache?.source !== 'll_tenants') return 'provider_success_or_fresh_cache';
+  if (result.status === 200 && body.ok !== false && body.provider_status === 200 && body.cache?.hit === true && body.cache?.source !== 'll_tenants') return 'fresh_cache';
+  if (result.status === 200 && body.ok !== false && body.provider_status === 200 && body.cache?.source !== 'll_tenants') return 'provider_success';
   if (result.status === 200 && body.provider_status === 206 && body.cache?.source === 'll_tenants') return 'tenant_fallback';
   if (result.status === 200 && body.cache?.stale === true) return 'stale_cache';
   if (result.status === 502 && /HandshakeFailure|provider request failed/iu.test(JSON.stringify(body))) return 'provider_tls_failure';
@@ -278,21 +279,27 @@ async function main() {
     assertNoSecrets('opendart/company', dart.body);
     const classification = classifyOpenDart(dart);
     const proxyUrlConfigured = Boolean(envValue('OPENDART_PROXY_URL'));
-    const needsProxyAction = !proxyUrlConfigured && ['tenant_fallback', 'provider_tls_failure', 'provider_failure'].includes(classification);
+    const needsProviderResolution = !proxyUrlConfigured && ['tenant_fallback', 'provider_tls_failure', 'provider_failure'].includes(classification);
     openDartCheck = {
       name: 'opendart/company-provider-separated',
       status: dart.status,
-      ok: ['provider_success_or_fresh_cache', 'tenant_fallback', 'stale_cache', 'provider_tls_failure'].includes(classification),
-      provider_success: classification === 'provider_success_or_fresh_cache',
+      ok: ['provider_success', 'fresh_cache', 'tenant_fallback', 'stale_cache', 'provider_tls_failure'].includes(classification),
+      provider_success: classification === 'provider_success',
+      cache_success: classification === 'fresh_cache',
       fallback_success: ['tenant_fallback', 'stale_cache'].includes(classification),
       classification,
       proxy_url_configured: proxyUrlConfigured,
-      required_user_action: needsProxyAction
+      required_user_action: needsProviderResolution
         ? {
-          secret_name: 'OPENDART_PROXY_URL',
+          action: 'Run monthly OpenDART ingest with a local/GitHub OPENDART_API_KEY, or configure OPENDART_PROXY_URL only if realtime provider calls are required.',
           reason: classification === 'tenant_fallback'
-            ? 'OpenDART 원천 provider가 성공하지 못해 ll_tenants 검증 fallback으로 응답했습니다. Supabase Edge secret OPENDART_PROXY_URL이 없으면 원천 provider 성공을 보장할 수 없습니다.'
+            ? 'Supabase Edge secret OPENDART_API_KEY는 존재하지만 Edge에서 OpenDART 원천 provider 호출이 성공하지 못해 ll_tenants 검증 fallback으로 응답했습니다. 월 1회 적재 구조에서는 로컬/GitHub 작업이 OpenDART를 직접 호출한 뒤 Edge cache-upsert로 저장해야 합니다.'
             : 'Supabase Edge direct OpenDART HTTPS call is failing before a verified provider payload is returned.',
+          monthly_ingest: {
+            command: 'npm run opendart:monthly-ingest',
+            required_secret: 'OPENDART_API_KEY in the local environment or GitHub Actions secret',
+            stores_to: 'll_cache_entries via opendart/company/cache-upsert',
+          },
           contract: {
             method: 'POST',
             request: { corp_code: 'string', include_financials: 'boolean' },
@@ -307,6 +314,24 @@ async function main() {
     openDartCheck = { name: 'opendart/company-provider-separated', status: 'skipped', ok: false, provider_success: false, fallback_success: false, classification: 'corp_code_missing' };
   }
   checks.push(openDartCheck);
+
+  const cacheUpsertReject = await invoke(endpoint, anonKey, origin, auth.token, 'opendart/company/cache-upsert', {
+    corp_code: '00000000',
+    include_financials: true,
+    provider_status: 200,
+    data: {
+      corp_code: '00000000',
+      corp_name: 'QA secret reject canary',
+      status: '000',
+      api_key: 'must-not-be-accepted',
+    },
+  });
+  assertNoSecrets('opendart/company/cache-upsert secret reject', cacheUpsertReject.body);
+  checks.push({
+    name: 'opendart/company-cache-upsert-secret-reject',
+    status: cacheUpsertReject.status,
+    ok: cacheUpsertReject.status === 400 && cacheUpsertReject.body?.ok === false,
+  });
 
   const geocodeQuery = argsValue('geocode-query', envValue('LOGISTICS_GEOCODE_QUERY'));
   if (geocodeQuery) {
@@ -332,8 +357,9 @@ async function main() {
     checks,
     building_register_assets: buildingAssetChecks,
     opendart_provider_success: Boolean(openDartCheck?.provider_success),
+    opendart_cache_success: Boolean(openDartCheck?.cache_success),
     opendart_fallback_success: Boolean(openDartCheck?.fallback_success),
-    opendart_requires_proxy_url: Boolean(openDartCheck?.required_user_action),
+    opendart_requires_external_provider_resolution: Boolean(openDartCheck?.required_user_action),
   };
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const outJson = path.join(OUT_DIR, `external-api-smoke-${timestampForFile()}.json`);
