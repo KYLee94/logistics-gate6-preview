@@ -3567,7 +3567,7 @@ async function replaceFundRows(
 ) {
   if (!rows.length) {
     if (existingRows.length) {
-      throw new Error(`Refusing to clear ${tableName} without explicit deletion workflow`);
+      throw new Error(`Refusing to clear ${trancheType} fund tranches without explicit deletion workflow`);
     }
     return;
   }
