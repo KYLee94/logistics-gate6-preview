@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-26T04:48:12.740Z",
+  "generated_at": "2026-05-26T05:56:56.698Z",
   "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
   "origin": "https://kylee94.github.io",
   "auth_source": "password_grant",
@@ -12,6 +12,18 @@
     "asset_lookup": {
       "status": 200,
       "answer": "인천석남물류센터은 읽기 권한 범위에서 확인됩니다. 펀드는 이지스인컴앤그로스제2의4호일반사모부동산모투자회사입니다. 주소는 인천광역시 서구 봉수대로 370입니다."
+    },
+    "busan_operations_summary": {
+      "status": 200,
+      "answer": "부산송정물류센터 운영 현황입니다. 위치는 부산광역시 강서구 녹산산단232로 38-17입니다. 총 연면적은 7,377.3평입니다. 임대면적은 7,178.1평입니다. 공실면적은 199.2평이고 공실률은 2.7%입니다. 현재 권한 범위에서 확인되는 임차인 계약은 없습니다."
+    },
+    "busan_area_summary": {
+      "status": 200,
+      "answer": "부산송정물류센터의 면적 현황입니다. 총 연면적 7,377.3평 임대면적 7,178.1평 공실면적 199.2평, 공실률 2.7%"
+    },
+    "arena_monthly_cost": {
+      "status": 200,
+      "answer": "아레나스양지물류센터의 월 임관리비 합계는 24.7억입니다. 월 임대료 23.5억. 월 관리비 1.2억."
     },
     "context_follow_up": {
       "status": 200,

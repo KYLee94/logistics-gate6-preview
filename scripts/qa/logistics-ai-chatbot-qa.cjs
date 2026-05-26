@@ -126,6 +126,37 @@ async function main() {
   const assetLookupAnswer = assertCleanAnswer(assetLookup, 'asset lookup');
   if (!/인천|석남|물류센터/iu.test(assetLookupAnswer)) throw new Error(`asset lookup answer is not asset-specific: ${assetLookupAnswer}`);
 
+  const busanOperations = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
+    question: '부산 송정 물류센터 운영 현황 말해줘',
+    history: [],
+  });
+  const busanOperationsAnswer = assertCleanAnswer(busanOperations, 'busan operations summary');
+  if (!/부산.*송정|부산송정/iu.test(busanOperationsAnswer)
+    || !/(운영\s*현황|총\s*연면적|임대면적|월\s*임관리비|공실률)/iu.test(busanOperationsAnswer)) {
+    throw new Error(`busan operations summary is not asset-specific: ${busanOperationsAnswer}`);
+  }
+  if (/주요\s*임차인은\s*-/iu.test(busanOperationsAnswer)) {
+    throw new Error(`busan operations summary exposed placeholder tenant: ${busanOperationsAnswer}`);
+  }
+
+  const busanArea = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
+    question: '부산 송정 물류센터 총 연면적과 임대면적 알려줘',
+    history: [],
+  });
+  const busanAreaAnswer = assertCleanAnswer(busanArea, 'busan area summary');
+  if (!/부산.*송정|부산송정/iu.test(busanAreaAnswer) || !/총\s*연면적|임대면적/iu.test(busanAreaAnswer)) {
+    throw new Error(`busan area summary is not useful: ${busanAreaAnswer}`);
+  }
+
+  const arenaMonthlyCost = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
+    question: '아레나스 양지 물류센터 월 임관리비 총액 얼마야?',
+    history: [],
+  });
+  const arenaMonthlyCostAnswer = assertCleanAnswer(arenaMonthlyCost, 'arena monthly cost');
+  if (!/아레나스.*양지|아레나스양지/iu.test(arenaMonthlyCostAnswer) || !/월\s*임관리비/iu.test(arenaMonthlyCostAnswer) || !/억|원/iu.test(arenaMonthlyCostAnswer)) {
+    throw new Error(`arena monthly cost answer is not useful: ${arenaMonthlyCostAnswer}`);
+  }
+
   const followUp = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
     question: '그 자산 E. NOC는?',
     history: [
@@ -206,6 +237,9 @@ async function main() {
     checks: {
       asset_count: { status: assetCount.status, answer: assetCountAnswer },
       asset_lookup: { status: assetLookup.status, answer: assetLookupAnswer },
+      busan_operations_summary: { status: busanOperations.status, answer: busanOperationsAnswer },
+      busan_area_summary: { status: busanArea.status, answer: busanAreaAnswer },
+      arena_monthly_cost: { status: arenaMonthlyCost.status, answer: arenaMonthlyCostAnswer },
       context_follow_up: { status: followUp.status, answer: followUpAnswer },
       bukuk_e_noc: { status: bukukENoc.status, answer: bukukENocAnswer },
       arena_top_tenant: { status: arenaTopTenant.status, answer: arenaTopTenantAnswer },

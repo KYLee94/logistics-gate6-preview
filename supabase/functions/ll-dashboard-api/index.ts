@@ -4499,7 +4499,28 @@ function isLargestTenantAreaQuestion(question: string) {
 }
 
 function isAssetLookupQuestion(question: string) {
-  return /(있어|있나|찾아|검색|어디|알려|보여)/iu.test(question);
+  return /(있어|있나|찾아|검색|어디|알려|보여|말해|현황|요약|상태)/iu.test(question);
+}
+
+function isAssetOperationsSummaryQuestion(question: string) {
+  return /(운영\s*현황|현황|요약|상태|어때|말해)/iu.test(question)
+    && !isReadableAssetCountQuestion(question)
+    && !isENocQuestion(question)
+    && !isVacancyQuestion(question)
+    && !isLargestTenantAreaQuestion(question);
+}
+
+function isAreaSummaryQuestion(question: string) {
+  return /(총\s*연면적|연면적|임대면적|임차\s*면적|공실면적|면적\s*얼마)/iu.test(question)
+    && !isLargestTenantAreaQuestion(question);
+}
+
+function isMonthlyCostQuestion(question: string) {
+  return /(월\s*임관리비|임관리비\s*총액|월\s*임대료|월\s*관리비|금액|얼마)/iu.test(question)
+    && !isENocQuestion(question)
+    && !isVacancyQuestion(question)
+    && !isAreaSummaryQuestion(question)
+    && !isReadableAssetCountQuestion(question);
 }
 
 function metricSnapshotKey(metricScope: string, metricKey: string, assetId: string, tenantId: string, basisDate: string) {
@@ -4589,6 +4610,7 @@ function groupTenantArea(rows: Record<string, unknown>[]) {
   const grouped = new Map<string, { tenantName: string; areaPy: number; rowCount: number }>();
   rows.forEach((row) => {
     const tenantName = rowTenantName(row);
+    if (!isPublicDisplayName(tenantName)) return;
     const areaPy = rowAreaPy(row);
     if (!tenantName || !areaPy || areaPy <= 0) return;
     const key = normalizeKey(tenantName);
@@ -4598,6 +4620,33 @@ function groupTenantArea(rows: Record<string, unknown>[]) {
     grouped.set(key, current);
   });
   return [...grouped.values()].sort((a, b) => b.areaPy - a.areaPy || a.tenantName.localeCompare(b.tenantName, 'ko'));
+}
+
+function summarizeAssetOperations(assetRows: Record<string, unknown>[], leaseRows: Record<string, unknown>[]) {
+  const grossAreaPy = assetRows.reduce((sum, row) => sum + (rowGrossAreaPy(row) || 0), 0);
+  const leasedAreaPy = leaseRows.reduce((sum, row) => sum + (rowAreaPy(row) || 0), 0);
+  const explicitVacancyAreaPy = assetRows.reduce((sum, row) => sum + (rowVacancyAreaPy(row) || 0), 0);
+  const vacancyAreaPy = explicitVacancyAreaPy || (grossAreaPy > 0 ? Math.max(0, grossAreaPy - leasedAreaPy) : 0);
+  const monthlyCost = leaseRows.reduce((sum, row) => sum + (rowMonthlyCombined(row) || 0), 0);
+  const eNoc = weightedENoc(leaseRows)?.value || assetRows.map((row) => rowENoc(row)).find((value) => value !== null && value > 0) || null;
+  const tenantAreas = groupTenantArea(leaseRows);
+  return {
+    grossAreaPy,
+    leasedAreaPy,
+    vacancyAreaPy,
+    vacancyRate: grossAreaPy > 0 ? vacancyAreaPy / grossAreaPy : null,
+    monthlyCost,
+    eNoc,
+    tenantAreas,
+  };
+}
+
+function formatAssetAreaSummary(label: string, summary: ReturnType<typeof summarizeAssetOperations>) {
+  const pieces = [`${label}의 면적 현황입니다.`];
+  if (summary.grossAreaPy > 0) pieces.push(`총 연면적 ${formatAiPy(summary.grossAreaPy)}`);
+  if (summary.leasedAreaPy > 0) pieces.push(`임대면적 ${formatAiPy(summary.leasedAreaPy)}`);
+  if (summary.vacancyRate !== null) pieces.push(`공실면적 ${formatAiPy(summary.vacancyAreaPy)}, 공실률 ${formatAiPercent(summary.vacancyRate)}`);
+  return pieces.join(' ');
 }
 
 function findQuestionTenantNames(context: Record<string, unknown>, question: string) {
@@ -4831,6 +4880,12 @@ function uniqueStrings(values: unknown[], limit: number) {
   return [...new Set(values.map((item) => normalizeText(item).trim()).filter(Boolean))].slice(0, limit);
 }
 
+function isPublicDisplayName(value: unknown) {
+  const text = normalizeText(value).trim();
+  if (!text || text === '-' || text === '미입력' || text === '없음') return false;
+  return !/^(asset|tenant)[_-]/iu.test(text);
+}
+
 function buildProviderFallbackAnswer(question: string, context: { evidence: Record<string, unknown>[]; scope: Record<string, unknown> }, providerStatus?: number, providerMessage?: string) {
   const evidence = context.evidence || [];
   const assetNames = uniqueStrings(evidence.map((row) => row.asset), 8);
@@ -5043,6 +5098,57 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
       if (isENocQuestion(question) && computedENoc?.value) pieces.push(`임대면적 가중평균 E. NOC는 ${formatAiWon(computedENoc.value)}입니다.`);
       if (/임관리비|월\s*관리|월\s*임대|금액|얼마/iu.test(question) && monthlyCost > 0) pieces.push(`월 임관리비 합계는 ${compactAiValue(monthlyCost)}입니다.`);
       return { mode: 'deterministic_tenant_metric_v2', answer: pieces.join(' ') };
+    }
+  }
+  if (assetRows.length && isAssetOperationsSummaryQuestion(question)) {
+    const assetLeaseRows = rowsForAssets(leaseRowsAll, assetRows);
+    const summary = summarizeAssetOperations(assetRows, assetLeaseRows);
+    const fund = uniqueStrings(assetRows.map((row) => firstDefined(row.fund_name, row.fundName)), 1)[0] || '';
+    const address = uniqueStrings(assetRows.map((row) => firstDefined(
+      row.sigungu_address,
+      row.address_sigungu,
+      row.standardized_address,
+      row.standardizedAddress,
+      row.address,
+    )), 1)[0] || '';
+    const topTenants = summary.tenantAreas.slice(0, 3).map((tenant) => `${tenant.tenantName} ${formatAiPy(tenant.areaPy)}`);
+    const pieces = [`${assetName} 운영 현황입니다.`];
+    if (fund) pieces.push(`펀드는 ${fund}입니다.`);
+    if (address) pieces.push(`위치는 ${address}입니다.`);
+    if (summary.grossAreaPy > 0) pieces.push(`총 연면적은 ${formatAiPy(summary.grossAreaPy)}입니다.`);
+    if (summary.leasedAreaPy > 0) pieces.push(`임대면적은 ${formatAiPy(summary.leasedAreaPy)}입니다.`);
+    if (summary.vacancyRate !== null) pieces.push(`공실면적은 ${formatAiPy(summary.vacancyAreaPy)}이고 공실률은 ${formatAiPercent(summary.vacancyRate)}입니다.`);
+    if (summary.monthlyCost > 0) pieces.push(`월 임관리비는 ${compactAiValue(summary.monthlyCost)}입니다.`);
+    if (summary.eNoc) pieces.push(`E. NOC는 ${formatAiWon(summary.eNoc)}입니다.`);
+    pieces.push(topTenants.length ? `주요 임차인은 ${topTenants.join(', ')}입니다.` : '현재 권한 범위에서 확인되는 임차인 계약은 없습니다.');
+    return { mode: 'deterministic_asset_operations_summary_v2', answer: pieces.join(' ') };
+  }
+  if (isAreaSummaryQuestion(question)) {
+    const targetAssetRows = assetRows.length && !isOverallQuestion(question)
+      ? assetRows
+      : ((context.assetRows as Record<string, unknown>[] | undefined) || []);
+    const targetLeaseRows = assetRows.length && !isOverallQuestion(question)
+      ? rowsForAssets(leaseRowsAll, assetRows)
+      : leaseRowsAll;
+    const summary = summarizeAssetOperations(targetAssetRows, targetLeaseRows);
+    const label = assetRows.length && !isOverallQuestion(question) ? assetName : '읽기 권한 범위 전체 자산';
+    if (summary.grossAreaPy > 0 || summary.leasedAreaPy > 0) {
+      return { mode: 'deterministic_area_summary_v2', answer: formatAssetAreaSummary(label, summary) };
+    }
+  }
+  if (isMonthlyCostQuestion(question)) {
+    const targetLeaseRows = assetRows.length && !isOverallQuestion(question)
+      ? rowsForAssets(leaseRowsAll, assetRows)
+      : leaseRowsAll;
+    const rentTotal = targetLeaseRows.reduce((sum, row) => sum + (numberValue(firstDefined(row.monthly_rent_total, row.monthlyRentTotal, row.current_monthly_rent_total, row.currentMonthlyRentTotal)) || 0), 0);
+    const mfTotal = targetLeaseRows.reduce((sum, row) => sum + (numberValue(firstDefined(row.monthly_mf_total, row.monthlyMfTotal, row.current_monthly_mf_total, row.currentMonthlyMfTotal)) || 0), 0);
+    const monthlyCost = targetLeaseRows.reduce((sum, row) => sum + (rowMonthlyCombined(row) || 0), 0);
+    const label = assetRows.length && !isOverallQuestion(question) ? assetName : '읽기 권한 범위 전체 자산';
+    if (monthlyCost > 0 || rentTotal > 0 || mfTotal > 0) {
+      const pieces = [`${label}의 월 임관리비 합계는 ${compactAiValue(monthlyCost || rentTotal + mfTotal)}입니다.`];
+      if (rentTotal > 0) pieces.push(`월 임대료 ${compactAiValue(rentTotal)}.`);
+      if (mfTotal > 0) pieces.push(`월 관리비 ${compactAiValue(mfTotal)}.`);
+      return { mode: 'deterministic_monthly_cost_v2', answer: pieces.join(' ') };
     }
   }
   if (isENocQuestion(question)) {

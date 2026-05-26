@@ -4398,6 +4398,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const [pendingTaskAction, setPendingTaskAction] = useState(null);
   const [taskSaveStatus, setTaskSaveStatus] = useState(null);
 
+  const isContractData = normalizeLogisticsPath(currentPath) === pathFor('contract-data');
   const isDashboard = currentPath.startsWith(pathFor('dashboard'));
   const isPdfReport = currentPath.startsWith(pathFor('pdf-report'));
   const requestedModule = currentPath.split('/').pop() || 'home';
@@ -4830,6 +4831,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     await submitTaskOperation('update', current, { createdAt: otherCreatedAt });
     await submitTaskOperation('update', other, { createdAt: currentCreatedAt });
   };
+
+  if (isContractData) {
+    return (
+      <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
+        <ContractDataManagementDashboard />
+      </div>
+    );
+  }
 
   if (isPdfReport) {
     return <PdfReportBuilder />;
