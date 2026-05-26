@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-26T04:17:03.017Z",
+  "generated_at": "2026-05-26T04:48:12.740Z",
   "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
   "origin": "https://kylee94.github.io",
   "auth_source": "password_grant",
@@ -20,6 +20,14 @@
     "bukuk_e_noc": {
       "status": 200,
       "answer": "부국물류센터의 E. NOC는 27,450원입니다."
+    },
+    "arena_top_tenant": {
+      "status": 200,
+      "answer": "아레나스양지물류센터에서 가장 많은 면적을 임차한 임차인은 씨제이대한통운(주)이고, 임대면적은 77,448.8평입니다."
+    },
+    "arena_tenant_metric_follow_up": {
+      "status": 200,
+      "answer": "아레나스양지물류센터에서 씨제이대한통운(주)은 77,448.8평를 임차하고 있습니다. 임대면적 가중평균 E. NOC는 29,427원입니다. 월 임관리비 합계는 22.8억입니다."
     },
     "portfolio_vacancy": {
       "status": 200,

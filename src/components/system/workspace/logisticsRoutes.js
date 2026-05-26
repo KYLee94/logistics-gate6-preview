@@ -9,7 +9,7 @@ export const LOGISTICS_ROUTE_BY_KEY = {
   'data-playground': `${LOGISTICS_INTERNAL_BASE}/dashboard/playground`,
   'pivot-table': `${LOGISTICS_INTERNAL_BASE}/dashboard/playground`,
   'data-quality': `${LOGISTICS_INTERNAL_BASE}/dashboard/quality`,
-  'contract-data': `${LOGISTICS_INTERNAL_BASE}/dashboard/contracts`,
+  'contract-data': `${LOGISTICS_INTERNAL_BASE}/contract-data`,
   'pdf-report': `${LOGISTICS_INTERNAL_BASE}/pdf-report`,
 };
 
@@ -23,6 +23,7 @@ export function normalizeLogisticsPath(path = '') {
   if (LOGISTICS_ROUTE_BY_KEY[clean]) return LOGISTICS_ROUTE_BY_KEY[clean];
   if (clean === 'logistics-gate6-preview') return LOGISTICS_INTERNAL_BASE;
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/weekly`)) return LOGISTICS_ROUTE_BY_KEY.home;
+  if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/contracts`)) return LOGISTICS_ROUTE_BY_KEY['contract-data'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/data-playground`)) return LOGISTICS_ROUTE_BY_KEY['data-playground'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/pivot-table`)) return LOGISTICS_ROUTE_BY_KEY['pivot-table'];
   if (clean.startsWith(LOGISTICS_INTERNAL_BASE)) return clean;

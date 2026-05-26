@@ -10,7 +10,7 @@ import homeData from './logisticsHomeData.json';
 import rawAssetOptionsData from './logisticsAssetOptionsData.json';
 import companyOptionsData from './logisticsCompanyOptionsData.json';
 import sectorData from './logisticsSectorData.json';
-import { LOGISTICS_INTERNAL_BASE, pathForLogisticsUrl } from './logisticsRoutes';
+import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
 
 const MotionDiv = motion.div;
 
@@ -52,7 +52,6 @@ const MODULES = [
   { id: 'tools', label: 'Analysis Tools', source: 'Analysis Tools' },
   { id: 'playground', label: 'Pivot Table', source: 'Pivot Table' },
   { id: 'quality', label: 'Data Quality', source: 'Data Quality' },
-  { id: 'contracts', label: 'Contract Data', source: 'Contract Data' },
 ];
 const ADMIN_ONLY_MODULE_IDS = new Set(['tools', 'playground', 'quality']);
 
@@ -7259,13 +7258,19 @@ function normalizeCompanyPayload(payload) {
 
 function companyDartRows(profile = {}, financials = {}) {
   const company = profile.company || {};
+  const dart = financials.openDart || {};
   return [
-    ['표준기업명', firstDefined(company.tenantMasterName, profile.tenantMasterName, '-')],
+    ['표준기업명', firstDefined(company.tenantMasterName, profile.tenantMasterName, dart.corp_name, '-')],
     ['사업자번호', formatBusinessRegistrationNo(firstDefined(company.businessRegistrationNo, profile.businessRegistrationNo))],
     ['법인등록번호', company.corpRegistrationNo || '-'],
     ['본점소재지', company.headquartersAddress || '-'],
     ['상장여부', company.listedYn || '-'],
     ['그룹명', company.groupName || '-'],
+    ['OpenDART 기업명', dart.corp_name || '-'],
+    ['OpenDART 대표자', dart.ceo_nm || '-'],
+    ['OpenDART 법인구분', dart.corp_cls || '-'],
+    ['OpenDART 주소', dart.adres || '-'],
+    ['OpenDART 결산월', dart.acc_mt || '-'],
     ['최근 재무제표 연도', company.latestFinancialYear || '-'],
     ['최근 매출', formatCurrency(firstDefined(financials.revenue, company.latestRevenue))],
     ['영업이익', formatCurrency(firstDefined(financials.operatingIncome, company.latestOperatingIncome))],
@@ -7742,6 +7747,7 @@ function CompanyDashboard() {
   const [exposureMode, setExposureMode] = useState('cost');
   const [modal, setModal] = useState(null);
   const [dartApiStatus, setDartApiStatus] = useState(null);
+  const [dartApiSummary, setDartApiSummary] = useState(null);
   useEffect(() => {
     if (!readableCompanyOptions.length) return;
     if (readableCompanyOptions.some((item) => item.tenantId === selectedTenantId)) return;
@@ -7750,6 +7756,7 @@ function CompanyDashboard() {
     window.sessionStorage.setItem('logisticsSelectedTenantId', nextTenantId);
     setSelectedTenantId(nextTenantId);
     setDartApiStatus(null);
+    setDartApiSummary(null);
   }, [readableCompanyOptions, selectedTenantId]);
   const staticRawPayload = COMPANY_PAYLOADS[selectedTenantId] || COMPANY_PAYLOADS[defaultTenantId] || Object.values(COMPANY_PAYLOADS)[0];
   const staticCompany = useMemo(() => normalizeCompanyPayload(staticRawPayload || {}), [staticRawPayload]);
@@ -7834,14 +7841,18 @@ function CompanyDashboard() {
       setDartApiStatus({ type: 'blocked', message: 'OpenDART 조회에 필요한 corp_code가 없습니다. DB_기업 매칭값을 먼저 확인해야 합니다.' });
       return;
     }
-    setDartApiStatus({ type: 'loading', message: 'OpenDART 서버 함수를 호출하는 중입니다.' });
+    setDartApiStatus(null);
     try {
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
         body: { action: 'opendart/company', payload: { corp_code: corpCode } },
       });
       if (error) throw error;
       const dart = data?.data || {};
-      setDartApiStatus({ type: data?.ok ? 'success' : 'blocked', message: data?.ok ? 'OpenDART server-only 조회 응답을 받았습니다.' : `OpenDART provider 상태 확인 필요: ${data?.provider_status || '-'}` });
+      if (!data?.ok) {
+        setDartApiStatus({ type: 'blocked', message: `OpenDART provider 상태 확인 필요: ${data?.provider_status || '-'}` });
+        return;
+      }
+      setDartApiSummary(dart);
       setModal({
         title: 'OpenDART 조회 결과',
         headers: ['항목', '값'],
@@ -7930,6 +7941,7 @@ function CompanyDashboard() {
             window.sessionStorage.setItem('logisticsSelectedTenantId', event.target.value);
             setSelectedTenantId(event.target.value);
             setDartApiStatus(null);
+            setDartApiSummary(null);
           }} className="h-10 min-w-[280px] rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white">
             {readableCompanyOptions.map((item) => <option key={item.tenantId} value={item.tenantId}>{item.tenantMasterName}</option>)}
           </select>
@@ -7966,13 +7978,13 @@ function CompanyDashboard() {
             right={(
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={refreshOpenDart} className="h-9 px-3 rounded-[8px] bg-white text-[#1F1F1E] text-[13px] font-semibold hover:bg-[#E5E5E5]">OpenDART 새로 조회</button>
-                <button type="button" onClick={() => openTableModal('DART 상세 정보', ['항목', '값'], companyDartRows(profile, financials))} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세 보기</button>
+                <button type="button" onClick={() => openTableModal('DART 상세 정보', ['항목', '값'], companyDartRows(profile, { ...financials, openDart: dartApiSummary }))} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">상세 보기</button>
               </div>
             )}
           />
-          <DataTable headers={['항목', '값']} rows={companyDartRows(profile, financials)} compact />
+          <DataTable headers={['항목', '값']} rows={companyDartRows(profile, { ...financials, openDart: dartApiSummary })} compact />
           {dartApiStatus ? (
-            <div className={`mt-4 rounded-[12px] border px-4 py-3 text-[12px] leading-5 ${dartApiStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : dartApiStatus.type === 'loading' ? 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
+            <div className={`mt-4 rounded-[12px] border px-4 py-3 text-[12px] leading-5 ${dartApiStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : dartApiStatus.type === 'loading' ? 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' : 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]'}`}>
               {dartApiStatus.message}
             </div>
           ) : null}
@@ -8576,6 +8588,9 @@ function ContractDataManagementDashboard() {
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fieldDrafts, setFieldDrafts] = useState({});
+  const [fieldEditStatus, setFieldEditStatus] = useState(null);
+  const [isSubmittingFields, setIsSubmittingFields] = useState(false);
 
   const readableRows = useMemo(() => filterAssetsByPermission(dashboardDataset.generalRows || [], permission), [dashboardDataset.generalRows, permission]);
   const readableAssets = useMemo(() => filterAssetsByPermission(dashboardDataset.assetOptions || [], permission), [dashboardDataset.assetOptions, permission]);
@@ -8616,6 +8631,14 @@ function ContractDataManagementDashboard() {
       setSelectedLeaseSpaceId(assetRows[0]?.leaseSpaceId || '');
     }
   }, [assetRows, selectedAssetId, selectedLeaseSpaceId]);
+
+  useEffect(() => {
+    setFieldDrafts(Object.fromEntries(CONTRACT_DATA_FIELDS.map((field) => [
+      field.fieldName,
+      excelCellText(contractFieldRawValue(selectedLeaseRow, field)),
+    ])));
+    setFieldEditStatus(null);
+  }, [selectedLeaseRow]);
 
   const contractRows = assetRows.map((row) => [
     row.assetName || '-',
@@ -8692,6 +8715,76 @@ function ContractDataManagementDashboard() {
     }
   };
 
+  const submitContractFieldEdits = async () => {
+    if (!canSubmit) {
+      setFieldEditStatus({ type: 'error', message: '현재 계정에는 계약 데이터 수정 요청 권한이 없습니다.' });
+      return;
+    }
+    const cellEdits = CONTRACT_DATA_FIELDS
+      .map((field) => {
+        const beforeValue = contractFieldRawValue(selectedLeaseRow, field);
+        const afterValue = fieldDrafts[field.fieldName] ?? '';
+        if (excelCellText(beforeValue) === excelCellText(afterValue)) return null;
+        const targetTable = normalizeContractTargetTable(field.table);
+        const targetRowId = contractTargetRowId(selectedLeaseRow, targetTable);
+        const primaryKeyField = contractPrimaryKeyField(selectedLeaseRow, targetTable);
+        if (!targetRowId || !primaryKeyField) return null;
+        return {
+          action: '수정',
+          target_table: targetTable,
+          target_row_id: targetRowId,
+          primary_key_field: primaryKeyField,
+          field_name: contractFieldDbName(field),
+          source_row_id: selectedLeaseRow.sourceRowId || selectedLeaseRow.source_row_id || '',
+          source_cell_id: selectedLeaseRow[`${field.fieldName}SourceCellId`] || '',
+          before_value: beforeValue ?? '',
+          after_value: afterValue,
+          asset_id: selectedLeaseRow.assetId || activeAssetId,
+          asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+        };
+      })
+      .filter(Boolean);
+    if (!cellEdits.length) {
+      setFieldEditStatus({ type: 'error', message: '변경된 필드가 없습니다.' });
+      return;
+    }
+    setIsSubmittingFields(true);
+    setFieldEditStatus({ type: 'pending', message: `${formatNumber(cellEdits.length)}개 필드를 승인 요청으로 접수하는 중입니다.` });
+    try {
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: {
+          action: 'edits/submit',
+          payload: {
+            source_table: cellEdits[0].target_table,
+            target_type: 'contract_data',
+            target_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+            target_row_id: selectedLeaseRow.leaseSpaceId || selectedLeaseRow.id || '',
+            field_name: 'contract_data_batch',
+            reason_code: 'contract_data_user_edit',
+            before_value: `${cellEdits.length}개 필드 before`,
+            requested_value: `${cellEdits.length}개 필드 after`,
+            request_payload: {
+              kind: 'contract_data_edit',
+              source: 'Contract Data',
+              asset_id: activeAssetId,
+              asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+              lease_space_id: selectedLeaseRow.leaseSpaceId || '',
+              tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
+              cell_edits: cellEdits,
+            },
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data.message || '계약 원본 필드 수정 요청 실패');
+      setFieldEditStatus({ type: 'success', message: `수정 요청이 접수됐습니다. 승인 후 Supabase 원장에 반영됩니다. 요청 ID: ${data?.data?.id || '-'}` });
+    } catch (error) {
+      setFieldEditStatus({ type: 'error', message: error?.message || '계약 원본 필드 수정 요청 중 오류가 발생했습니다.' });
+    } finally {
+      setIsSubmittingFields(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <SectionHeader title="Contract Data" />
@@ -8749,6 +8842,50 @@ function ContractDataManagementDashboard() {
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="CURRENT CONTRACTS" title="현재 계약 원장" />
         <DataTable headers={['자산', '임차인', '층/구역', '임대면적', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', '계약개시', '계약만기']} rows={contractRows} compact />
+      </section>
+
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader
+          eyebrow="SOURCE EXCEL FIELDS"
+          title="원본 Excel 전체 필드 수정 요청"
+          right={<button type="button" disabled={isSubmittingFields} onClick={submitContractFieldEdits} className={`h-9 rounded-[8px] px-3 text-[12px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>변경 필드 승인 요청</button>}
+        />
+        <div className="mb-3 text-[12px] leading-5 text-[#A1A1AA]">
+          DB_일반과 DB_히스토리 누적의 원본 항목을 선택 계약 기준으로 수정 요청합니다. 실제 저장은 관리자 승인, 승인 직전 readback, 승인 후 readback/audit 절차를 거칩니다.
+        </div>
+        <div className="max-h-[520px] overflow-auto rounded-[14px] border border-[#333333]">
+          <table className="min-w-[1180px] w-full border-collapse text-left text-[12px]">
+            <thead className="sticky top-0 z-10 bg-[#1F1F1E] text-[#A1A1AA]">
+              <tr>
+                <th className="w-[130px] border-b border-[#333333] px-3 py-2">시트</th>
+                <th className="w-[190px] border-b border-[#333333] px-3 py-2">원본 컬럼</th>
+                <th className="w-[220px] border-b border-[#333333] px-3 py-2">현재값</th>
+                <th className="border-b border-[#333333] px-3 py-2">수정값</th>
+              </tr>
+            </thead>
+            <tbody>
+              {CONTRACT_DATA_FIELDS.map((field) => {
+                const currentValue = excelCellText(contractFieldRawValue(selectedLeaseRow, field));
+                const changed = currentValue !== excelCellText(fieldDrafts[field.fieldName] ?? '');
+                return (
+                  <tr key={`${field.domain}-${field.fieldName}`} className={changed ? 'bg-[#132A44]' : 'bg-[#252524]'}>
+                    <td className="border-b border-[#333333] px-3 py-2 font-semibold text-[#E5E5EA]">{field.domain}</td>
+                    <td className="border-b border-[#333333] px-3 py-2 text-[#D1D1D6]">{field.sourceColumnLetter ? `${field.sourceColumnLetter}. ` : ''}{field.label}</td>
+                    <td className="border-b border-[#333333] px-3 py-2 text-[#A1A1AA]">{qualityDisplayValue(field, contractFieldRawValue(selectedLeaseRow, field))}</td>
+                    <td className="border-b border-[#333333] px-3 py-2">
+                      <input
+                        value={fieldDrafts[field.fieldName] ?? ''}
+                        onChange={(event) => setFieldDrafts((previous) => ({ ...previous, [field.fieldName]: event.target.value }))}
+                        className="h-8 w-full rounded-[7px] border border-[#3A3A3C] bg-[#111] px-2 text-[12px] text-white outline-none focus:border-[#2997ff]"
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {fieldEditStatus ? <div className={`mt-3 rounded-[10px] border px-3 py-2 text-[12px] ${fieldEditStatus.type === 'error' ? 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]' : fieldEditStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#A1A1AA]'}`}>{fieldEditStatus.message}</div> : null}
       </section>
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
@@ -9054,6 +9191,43 @@ function qualityTargetRowId(row, field, fallbackRowId) {
   if (field.table === 'public.ll_rent_history') return String(firstDefined(row.rentHistoryId, row.rent_history_id, row.historyId, row.history_row_id, row.leaseId, fallbackRowId));
   if (field.table === 'public.ll_lease_spaces') return String(firstDefined(row.leaseSpaceId, row.lease_space_id, row.leaseId, row.contractId, row.leaseRowId, fallbackRowId));
   return String(fallbackRowId);
+}
+
+function snakeCaseFieldName(value) {
+  return String(value || '').replace(/[A-Z]/g, (match) => `_${match.toLowerCase()}`);
+}
+
+function contractFieldDbName(field) {
+  return snakeCaseFieldName(field.fieldName);
+}
+
+function contractFieldRawValue(row, field) {
+  if (!row || !field) return '';
+  const snake = contractFieldDbName(field);
+  return firstDefined(
+    row[field.fieldName],
+    row[snake],
+    row.raw?.[field.sourceHeader],
+    row.raw?.[field.fieldName],
+    row.raw?.[snake],
+    '',
+  );
+}
+
+function contractPrimaryKeyField(row, targetTable) {
+  if (targetTable === 'public.ll_assets') return row.assetId || row.asset_id ? 'asset_id' : 'id';
+  if (targetTable === 'public.ll_tenants') return row.tenantId || row.tenant_id ? 'tenant_id' : 'id';
+  if (targetTable === 'public.ll_rent_history') return row.rentHistoryId || row.rent_history_id || row.historyId || row.history_row_id ? 'rent_history_id' : 'id';
+  if (targetTable === 'public.ll_lease_spaces') return row.leaseSpaceId || row.lease_space_id ? 'lease_space_id' : 'id';
+  return 'id';
+}
+
+function contractTargetRowId(row, targetTable) {
+  if (targetTable === 'public.ll_assets') return String(firstDefined(row.assetId, row.asset_id, row.id, ''));
+  if (targetTable === 'public.ll_tenants') return String(firstDefined(row.tenantId, row.tenant_id, row.tenantRowId, row.id, ''));
+  if (targetTable === 'public.ll_rent_history') return String(firstDefined(row.rentHistoryId, row.rent_history_id, row.historyId, row.history_row_id, ''));
+  if (targetTable === 'public.ll_lease_spaces') return String(firstDefined(row.leaseSpaceId, row.lease_space_id, row.id, ''));
+  return String(firstDefined(row.id, ''));
 }
 
 function qualityDisplayValue(field, value) {
@@ -9832,6 +10006,7 @@ function AssetDashboard() {
   const [selectedAssetId, setSelectedAssetId] = useState(defaultAssetId);
   const [modal, setModal] = useState(null);
   const [buildingApiStatus, setBuildingApiStatus] = useState(null);
+  const [buildingRegisterSummary, setBuildingRegisterSummary] = useState(null);
   useEffect(() => {
     if (!readableAssetOptions.length) return;
     if (readableAssetOptions.some((asset) => asset.assetId === selectedAssetId)) return;
@@ -9840,6 +10015,7 @@ function AssetDashboard() {
     window.sessionStorage.setItem('logisticsSelectedAssetId', nextAssetId);
     setSelectedAssetId(nextAssetId);
     setBuildingApiStatus(null);
+    setBuildingRegisterSummary(null);
   }, [readableAssetOptions, selectedAssetId]);
   const staticRawPayload = ASSET_PAYLOADS[selectedAssetId] || ASSET_PAYLOADS[defaultAssetId] || Object.values(ASSET_PAYLOADS)[0];
   const staticAsset = useMemo(() => normalizeAssetPayload(staticRawPayload || {}), [staticRawPayload]);
@@ -9982,14 +10158,18 @@ function AssetDashboard() {
       setBuildingApiStatus({ type: 'blocked', message: '건축물대장 조회에 필요한 시군구코드, 법정동코드, 본번, 부번이 부족합니다.' });
       return;
     }
-    setBuildingApiStatus({ type: 'loading', message: '건축물대장 서버 함수를 호출하는 중입니다.' });
+    setBuildingApiStatus(null);
     try {
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
         body: { action: 'building-register/summary', payload: buildingRegisterPayload },
       });
       if (error) throw error;
       const summary = data?.data || {};
-      setBuildingApiStatus({ type: data?.ok ? 'success' : 'blocked', message: data?.ok ? '건축물대장 server-only 조회 응답을 받았습니다.' : `건축물대장 provider 상태 확인 필요: ${data?.provider_status || '-'}` });
+      if (!data?.ok) {
+        setBuildingApiStatus({ type: 'blocked', message: `건축물대장 provider 상태 확인 필요: ${data?.provider_status || '-'}` });
+        return;
+      }
+      setBuildingRegisterSummary(summary);
       setModal({
         title: '건축물대장 조회 결과',
         headers: ['항목', '값'],
@@ -10200,6 +10380,7 @@ function AssetDashboard() {
               window.sessionStorage.setItem('logisticsSelectedAssetId', event.target.value);
               setSelectedAssetId(event.target.value);
               setBuildingApiStatus(null);
+              setBuildingRegisterSummary(null);
             }} className="h-10 min-w-[280px] rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white">
               {readableAssetOptions.map((item) => <option key={item.assetId} value={item.assetId}>{item.assetName}</option>)}
             </select>
@@ -10208,8 +10389,16 @@ function AssetDashboard() {
           </div>
         </div>
         {buildingApiStatus ? (
-          <div className={`mt-4 rounded-[10px] border px-4 py-3 text-[12px] leading-5 ${buildingApiStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : buildingApiStatus.type === 'loading' ? 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
+          <div className={`mt-4 rounded-[10px] border px-4 py-3 text-[12px] leading-5 ${buildingApiStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : buildingApiStatus.type === 'loading' ? 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' : 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]'}`}>
             {buildingApiStatus.message}
+          </div>
+        ) : null}
+        {buildingRegisterSummary ? (
+          <div className="mt-4 grid grid-cols-2 gap-2 rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-3 text-[12px] text-[#D1D1D6] md:grid-cols-4">
+            <div><span className="block text-[#86868B]">건축물대장 주용도</span>{buildingRegisterSummary.main_purps_cd_nm || '-'}</div>
+            <div><span className="block text-[#86868B]">대장 연면적</span>{buildingRegisterSummary.tot_area ? `${formatNumber(buildingRegisterSummary.tot_area)}㎡` : '-'}</div>
+            <div><span className="block text-[#86868B]">지상/지하층</span>{buildingRegisterSummary.grnd_flr_cnt || '-'} / {buildingRegisterSummary.ugrnd_flr_cnt || '-'}</div>
+            <div><span className="block text-[#86868B]">사용승인일</span>{formatDate(buildingRegisterSummary.use_apr_day)}</div>
           </div>
         ) : null}
       </section>
@@ -10819,8 +11008,7 @@ function DashboardShell({ activeModule }) {
           : moduleId === 'tools' ? <AnalysisToolsDashboard />
             : moduleId === 'playground' ? <DataPlaygroundDashboard />
               : moduleId === 'quality' ? <DataQualityDashboard />
-                : moduleId === 'contracts' ? <ContractDataManagementDashboard />
-                  : null
+                : null
   );
 
   return (
@@ -10868,6 +11056,7 @@ function LegacyWorkspaceLogistics({ currentPath = '' }) {
   const [scopeFilter, setScopeFilter] = useState('전체');
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
 
+  const isContractData = normalizeLogisticsPath(currentPath) === pathFor('contract-data');
   const isDashboard = currentPath.startsWith(pathFor('dashboard'));
   const legacyRequestedModule = currentPath.split('/').pop() || 'home';
   const activeModule = legacyRequestedModule === 'weekly' ? 'home' : legacyRequestedModule;
@@ -10898,6 +11087,14 @@ function LegacyWorkspaceLogistics({ currentPath = '' }) {
       return [item.title, item.owner, item.status, item.priority, item.asset, item.note].join(' ').toLowerCase().includes(text);
     });
   }, [query, scopeFilter]);
+
+  if (isContractData) {
+    return (
+      <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
+        <ContractDataManagementDashboard />
+      </div>
+    );
+  }
 
   if (isDashboard) {
     return <DashboardShell activeModule={MODULES.some((item) => item.id === activeModule) ? activeModule : 'home'} />;

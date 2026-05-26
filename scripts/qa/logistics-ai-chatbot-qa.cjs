@@ -150,6 +150,37 @@ async function main() {
     throw new Error(`bukuk e.noc answer is not current-question specific: ${bukukENocAnswer}`);
   }
 
+  const arenaTopTenant = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
+    question: '아레나스 양지에서 최대 면적 임차하고 있는 임차인은 누구야?',
+    history: [],
+  });
+  const arenaTopTenantAnswer = assertCleanAnswer(arenaTopTenant, 'arena top tenant');
+  if (!/아레나스/iu.test(arenaTopTenantAnswer)
+    || !/양지/iu.test(arenaTopTenantAnswer)
+    || !/(가장\s*많은\s*면적|임대면적은|임차인은)/iu.test(arenaTopTenantAnswer)
+    || !/평/iu.test(arenaTopTenantAnswer)
+    || /관련\s*임차인은|창원|asset_|tenant_/iu.test(arenaTopTenantAnswer)) {
+    throw new Error(`arena top tenant answer is not asset-specific: ${arenaTopTenantAnswer}`);
+  }
+
+  const arenaTenantMetric = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
+    question: '면적 얼마나 임차하고 있고, e. noc는 얼마야?',
+    history: [
+      { role: 'user', content: '아레나스 양지에서 최대 면적 임차하고 있는 임차인은 누구야?' },
+      { role: 'assistant', content: arenaTopTenantAnswer },
+    ],
+  });
+  const arenaTenantMetricAnswer = assertCleanAnswer(arenaTenantMetric, 'arena tenant metric follow-up');
+  if (!/아레나스/iu.test(arenaTenantMetricAnswer)
+    || !/양지/iu.test(arenaTenantMetricAnswer)
+    || !/임차하고\s*있/iu.test(arenaTenantMetricAnswer)
+    || !/평/iu.test(arenaTenantMetricAnswer)
+    || !/E\.?\s*NOC/iu.test(arenaTenantMetricAnswer)
+    || !/원/iu.test(arenaTenantMetricAnswer)
+    || /창원|두동|asset_|tenant_/iu.test(arenaTenantMetricAnswer)) {
+    throw new Error(`arena tenant metric follow-up lost context: ${arenaTenantMetricAnswer}`);
+  }
+
   const portfolioVacancy = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
     question: '전체 자산 평균 공실률 얼마야?',
     history: [],
@@ -177,6 +208,8 @@ async function main() {
       asset_lookup: { status: assetLookup.status, answer: assetLookupAnswer },
       context_follow_up: { status: followUp.status, answer: followUpAnswer },
       bukuk_e_noc: { status: bukukENoc.status, answer: bukukENocAnswer },
+      arena_top_tenant: { status: arenaTopTenant.status, answer: arenaTopTenantAnswer },
+      arena_tenant_metric_follow_up: { status: arenaTenantMetric.status, answer: arenaTenantMetricAnswer },
       portfolio_vacancy: { status: portfolioVacancy.status, answer: portfolioVacancyAnswer },
       production_demo_blocked: demoBlocked.status,
     },

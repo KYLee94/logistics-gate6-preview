@@ -171,6 +171,8 @@ const PRIMARY_KEY_FIELDS = new Set([
   'asset_id',
   'tenant_id',
   'lease_id',
+  'lease_space_id',
+  'rent_history_id',
   'fund_id',
 ]);
 
@@ -1648,13 +1650,16 @@ async function readbackEdit(ctx: Context, payload: Record<string, unknown>) {
 
 async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!canUseDataQuality(ctx)) return fail(403, 'Data Quality permission is limited to Planning Center users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/submit', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const sourceTable = normalizePublicLlTable(payload.source_table || 'public.ll_audit_events');
   if (!EDIT_TARGET_TABLE_ALLOWLIST.has(sourceTable)) return fail(403, 'Source table is not allowed', ctx.origin);
   const rawRequestPayload = payload.request_payload && typeof payload.request_payload === 'object' && !Array.isArray(payload.request_payload)
     ? payload.request_payload as Record<string, unknown>
     : {};
+  const isContractDataRequest = payload.target_type === 'contract_data'
+    || rawRequestPayload.kind === 'contract_data_edit'
+    || rawRequestPayload.kind === 'lease_contract_event';
+  if (!isContractDataRequest && !canUseDataQuality(ctx)) return fail(403, 'Data Quality permission is limited to Planning Center users', ctx.origin);
   const sanitizedRequestPayload = redactSensitivePayload(rawRequestPayload) as Record<string, unknown>;
   const draftRecord = {
     ...payload,
@@ -3772,6 +3777,25 @@ function externalApiCacheResponse(ctx: Context, providerStatus: number, data: un
   return jsonResponse({ ok: true, provider_status: providerStatus, data, cache }, 200, ctx.origin);
 }
 
+async function readOpenDartTenantFallback(ctx: Context, corpCode: string) {
+  const rows = await safeSelectRows(ctx, 'll_tenants', 500);
+  const targetKey = normalizeKey(corpCode);
+  const row = rows.find((item) => [
+    item.dart_corp_code,
+    item.dartCorpCode,
+    (item.company as Record<string, unknown> | undefined)?.dartCorpCode,
+  ].map(normalizeKey).includes(targetKey));
+  if (!row) return null;
+  return stripUndefined({
+    corp_code: corpCode,
+    corp_name: firstDefined(row.tenant_master_name, row.tenantMasterName, row.company_name, row.companyName),
+    corp_cls: firstDefined(row.listed_yn, row.listedYn),
+    bizr_no: firstDefined(row.business_registration_no, row.businessRegistrationNo),
+    adres: firstDefined(row.headquarters_address, row.headquartersAddress, row.address),
+    acc_mt: firstDefined(row.accounting_month, row.acc_mt),
+  });
+}
+
 function providerCodeFromBody(body: Record<string, unknown> | null | undefined) {
   const response = body?.response as Record<string, unknown> | undefined;
   const header = response?.header as Record<string, unknown> | undefined;
@@ -3863,7 +3887,9 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'opendart/company', 20)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const apiKey = (Deno.env.get('OPENDART_API_KEY') || '').trim();
-  if (!apiKey) return fail(503, 'OpenDART API key is not configured', ctx.origin);
+  const proxyUrl = (Deno.env.get('OPENDART_PROXY_URL') || '').trim();
+  const proxyToken = (Deno.env.get('OPENDART_PROXY_TOKEN') || '').trim();
+  if (!apiKey && !proxyUrl) return fail(503, 'OpenDART API key or proxy is not configured', ctx.origin);
   const corpCode = String(payload.corp_code || '').trim();
   if (!corpCode) return fail(400, 'corp_code is required', ctx.origin);
   const cacheKey = await cacheKeyFor('opendart/company', { corp_code: corpCode });
@@ -3872,19 +3898,35 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
     await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/cache-hit', 200, { corp_code: corpCode, provider_status: cached.providerStatus });
     return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
   }
-  const query = new URLSearchParams({ crtfc_key: apiKey, corp_code: corpCode });
+  const query = apiKey ? new URLSearchParams({ crtfc_key: apiKey, corp_code: corpCode }) : null;
   const configuredCompanyUrl = (Deno.env.get('OPENDART_COMPANY_URL') || '').trim();
   const companyUrls = [...new Set([
     configuredCompanyUrl || 'https://opendart.fss.or.kr/api/company.json',
     'https://engopendart.fss.or.kr/engapi/company.json',
-  ].filter(Boolean))];
+  ].filter(Boolean))].filter(() => Boolean(query));
   const providerErrors: string[] = [];
   try {
     let result: { response: Response; body: Record<string, unknown> } | null = null;
     let usedCompanyUrl = '';
-    for (const companyUrl of companyUrls) {
+    if (proxyUrl) {
       try {
-        const { response, body } = await fetchJsonWithTimeout(`${companyUrl}?${query.toString()}`, {}, 10_000, 1);
+        const headers: Record<string, string> = { 'content-type': 'application/json' };
+        if (proxyToken) headers.authorization = `Bearer ${proxyToken}`;
+        const { response, body } = await fetchJsonWithTimeout(proxyUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ corp_code: corpCode }),
+        }, 10_000, 1);
+        result = { response, body: body as Record<string, unknown> };
+        usedCompanyUrl = 'opendart-proxy';
+      } catch (error) {
+        providerErrors.push(`opendart-proxy: ${safeProviderError(error)}`);
+      }
+    }
+    for (const companyUrl of companyUrls) {
+      if (result) break;
+      try {
+        const { response, body } = await fetchJsonWithTimeout(`${companyUrl}?${query?.toString()}`, {}, 10_000, 1);
         result = { response, body: body as Record<string, unknown> };
         usedCompanyUrl = companyUrl;
         break;
@@ -3894,25 +3936,28 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
     }
     if (!result) throw new Error(providerErrors.join(' | ') || 'OpenDART provider request failed');
     const { response, body } = result;
-    const providerOk = openDartProviderOk(response, body as Record<string, unknown>);
+    const providerBody = (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) ? body.data as Record<string, unknown> : body;
+    const providerOk = response.ok
+      && body.ok !== false
+      && (openDartProviderOk(response, providerBody) || Boolean(providerBody.corp_code || providerBody.corp_name || providerBody.bizr_no));
     const company = stripUndefined({
-      status: body.status,
-      message: body.message,
-      corp_code: body.corp_code,
-      corp_name: body.corp_name,
-      corp_name_eng: body.corp_name_eng,
-      stock_name: body.stock_name,
-      stock_code: body.stock_code,
-      ceo_nm: body.ceo_nm,
-      corp_cls: body.corp_cls,
-      jurir_no: body.jurir_no,
-      bizr_no: body.bizr_no,
-      adres: body.adres,
-      hm_url: body.hm_url,
-      ir_url: body.ir_url,
-      phn_no: body.phn_no,
-      est_dt: body.est_dt,
-      acc_mt: body.acc_mt,
+      status: providerBody.status,
+      message: providerBody.message,
+      corp_code: providerBody.corp_code,
+      corp_name: providerBody.corp_name,
+      corp_name_eng: providerBody.corp_name_eng,
+      stock_name: providerBody.stock_name,
+      stock_code: providerBody.stock_code,
+      ceo_nm: providerBody.ceo_nm,
+      corp_cls: providerBody.corp_cls,
+      jurir_no: providerBody.jurir_no,
+      bizr_no: providerBody.bizr_no,
+      adres: providerBody.adres,
+      hm_url: providerBody.hm_url,
+      ir_url: providerBody.ir_url,
+      phn_no: providerBody.phn_no,
+      est_dt: providerBody.est_dt,
+      acc_mt: providerBody.acc_mt,
     }) as Record<string, unknown>;
     let cacheWriteError = '';
     if (providerOk) {
@@ -3922,17 +3967,28 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
         cacheWriteError = error instanceof Error ? error.message : 'cache write failed';
       }
     }
-    const providerMessage = providerMessageFromBody(body);
+    const providerMessage = providerMessageFromBody(providerBody);
     await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', response.status, { corp_code: corpCode, provider_url: usedCompanyUrl, cache_hit: false, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined, provider_errors: providerErrors.length ? providerErrors : undefined });
     if (!providerOk) {
       const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
       if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt });
+      const tenantFallback = await readOpenDartTenantFallback(ctx, corpCode);
+      if (tenantFallback) {
+        await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/tenant-fallback', 206, { corp_code: corpCode, provider_message: providerMessage });
+        return jsonResponse({ ok: true, provider_status: 206, data: tenantFallback, cache: { hit: true, stale: true, source: 'll_tenants' }, provider_warning: 'OpenDART provider failed; using verified tenant mapping fallback' }, 200, ctx.origin);
+      }
       return jsonResponse(providerFailureBody('OpenDART provider returned an error', response, body as Record<string, unknown>, { cache: { hit: false, stale: false } }), 502, ctx.origin);
     }
     return jsonResponse({ ok: true, provider_status: response.status, provider_url: usedCompanyUrl, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
   } catch (error) {
     const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
+    const tenantFallback = await readOpenDartTenantFallback(ctx, corpCode);
+    if (tenantFallback) {
+      const providerError = safeProviderError(error);
+      await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/tenant-fallback', 206, { corp_code: corpCode, provider_error: providerError, provider_errors: providerErrors.length ? providerErrors : undefined });
+      return jsonResponse({ ok: true, provider_status: 206, data: tenantFallback, cache: { hit: true, stale: true, source: 'll_tenants' }, provider_warning: 'OpenDART provider failed; using verified tenant mapping fallback' }, 200, ctx.origin);
+    }
     const providerError = safeProviderError(error);
     await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', 502, { corp_code: corpCode, provider_error: providerError, provider_errors: providerErrors.length ? providerErrors : undefined });
     return fail(502, 'OpenDART provider request failed', ctx.origin, { provider_error: providerError });
@@ -4334,7 +4390,7 @@ function isReadableAssetCountQuestion(question: string) {
 }
 
 function isLargestTenantAreaQuestion(question: string) {
-  return /(가장|제일|최대).{0,18}(많|큰|넓).{0,18}(면적|임차)|면적.{0,18}(가장|제일|최대).{0,18}(많|큰|넓)/iu.test(question);
+  return /(가장|제일|최대).{0,18}(많|큰|넓).{0,18}(면적|임차)|(가장|제일|최대).{0,12}면적.{0,12}임차|면적.{0,18}(가장|제일|최대).{0,18}(많|큰|넓|임차)/iu.test(question);
 }
 
 function isAssetLookupQuestion(question: string) {
@@ -4437,6 +4493,60 @@ function groupTenantArea(rows: Record<string, unknown>[]) {
     grouped.set(key, current);
   });
   return [...grouped.values()].sort((a, b) => b.areaPy - a.areaPy || a.tenantName.localeCompare(b.tenantName, 'ko'));
+}
+
+function findQuestionTenantNames(context: Record<string, unknown>, question: string) {
+  const rows = [
+    ...((context.leaseRows as Record<string, unknown>[] | undefined) || []),
+    ...((context.rentRows as Record<string, unknown>[] | undefined) || []),
+    ...((context.tenantRows as Record<string, unknown>[] | undefined) || []),
+  ];
+  const candidates = rows
+    .map((row) => rowTenantName(row))
+    .filter(Boolean)
+    .map((tenantName) => ({ tenantName, score: assetNameMatchScore(tenantName, question) }))
+    .filter((item) => item.score >= 4)
+    .sort((a, b) => b.score - a.score || a.tenantName.localeCompare(b.tenantName, 'ko'));
+  return uniqueStrings(candidates.map((item) => item.tenantName), 5);
+}
+
+function rowsForTenant(rows: Record<string, unknown>[], tenantName: string) {
+  const tenantKey = normalizeKey(tenantName);
+  if (!tenantKey) return [];
+  return rows.filter((row) => {
+    const candidates = [
+      rowTenantName(row),
+      row.tenant_master_name,
+      row.tenantMasterName,
+      row.company_name,
+      row.companyName,
+      row.raw_tenant_name,
+      row.tenant_id,
+      row.tenantId,
+      row.business_registration_no,
+      row.businessRegistrationNo,
+    ].map(normalizeKey).filter(Boolean);
+    return candidates.some((candidate) => candidate === tenantKey || candidate.includes(tenantKey) || tenantKey.includes(candidate));
+  });
+}
+
+function isTenantMetricFollowUpQuestion(question: string) {
+  return /(그|해당|방금|임차인|임차하고|임차한|임차면적|면적|얼마|평|e\.?\s*noc|enoc|평당\s*(월\s*)?임\s*관리비)/iu.test(question);
+}
+
+function inferAiTenantName(context: Record<string, unknown>, question: string, lookupQuestion: string, assetRows: Record<string, unknown>[]) {
+  const currentTenant = findQuestionTenantNames(context, question)[0];
+  if (currentTenant) return currentTenant;
+  const directAssetRows = findQuestionAssetRowsByName(context, question);
+  if (!directAssetRows.length && lookupQuestion !== question) {
+    const historyTenant = findQuestionTenantNames(context, lookupQuestion)[0];
+    if (historyTenant) return historyTenant;
+    if (assetRows.length && isLargestTenantAreaQuestion(lookupQuestion)) {
+      const assetLeaseRows = rowsForAssets((context.leaseRows as Record<string, unknown>[] | undefined) || [], assetRows);
+      return groupTenantArea(assetLeaseRows)[0]?.tenantName || '';
+    }
+  }
+  return '';
 }
 
 async function safeSelectRows(ctx: Context, table: string, limit: number) {
@@ -4564,6 +4674,7 @@ async function collectAiSearchContext(ctx: Context, question: string) {
     matchedLeaseRows: buckets.find((bucket) => bucket.table === 'll_lease_spaces')?.matchedRows || [],
     matchedRentRows: buckets.find((bucket) => bucket.table === 'll_rent_history')?.matchedRows || [],
     matchedMetricRows: buckets.find((bucket) => bucket.table === 'll_cache_entries')?.matchedRows || [],
+    tenantRows: permittedTenants,
   };
 }
 
@@ -4798,7 +4909,13 @@ function formatAiPercent(value: number) {
 function aiTargetAssetRows(context: Record<string, unknown>, question: string, lookupQuestion = question) {
   const direct = findQuestionAssetRowsByName(context, question);
   if (direct.length) return direct;
-  return findQuestionAssetRows(context, lookupQuestion);
+  if (lookupQuestion !== question) {
+    const historyDirect = findQuestionAssetRowsByName(context, lookupQuestion);
+    if (historyDirect.length) return historyDirect;
+  }
+  const currentKeyword = findQuestionAssetRows(context, question);
+  if (currentKeyword.length) return currentKeyword;
+  return lookupQuestion !== question ? findQuestionAssetRows(context, lookupQuestion) : [];
 }
 
 function buildDeterministicAiAnswerV2(question: string, context: Record<string, unknown>, lookupQuestion = question) {
@@ -4808,6 +4925,20 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
   if (isReadableAssetCountQuestion(question)) {
     const count = numberValue(context.scope && (context.scope as Record<string, unknown>).readable_asset_count);
     if (count !== null) return { mode: 'deterministic_asset_count_v2', answer: `현재 읽기 권한 범위에서 조회 가능한 자산은 ${new Intl.NumberFormat('ko-KR').format(count)}개입니다.` };
+  }
+  if (assetRows.length && isTenantMetricFollowUpQuestion(question)) {
+    const tenantName = inferAiTenantName(context, question, lookupQuestion, assetRows);
+    const assetLeaseRows = rowsForAssets(leaseRowsAll, assetRows);
+    const tenantRows = tenantName ? rowsForTenant(assetLeaseRows, tenantName) : [];
+    if (tenantRows.length) {
+      const areaPy = tenantRows.reduce((sum, row) => sum + (rowAreaPy(row) || 0), 0);
+      const monthlyCost = tenantRows.reduce((sum, row) => sum + (rowMonthlyCombined(row) || 0), 0);
+      const computedENoc = weightedENoc(tenantRows);
+      const pieces = [`${assetName}에서 ${tenantName}은 ${formatAiPy(areaPy)}를 임차하고 있습니다.`];
+      if (isENocQuestion(question) && computedENoc?.value) pieces.push(`임대면적 가중평균 E. NOC는 ${formatAiWon(computedENoc.value)}입니다.`);
+      if (/임관리비|월\s*관리|월\s*임대|금액|얼마/iu.test(question) && monthlyCost > 0) pieces.push(`월 임관리비 합계는 ${compactAiValue(monthlyCost)}입니다.`);
+      return { mode: 'deterministic_tenant_metric_v2', answer: pieces.join(' ') };
+    }
   }
   if (isENocQuestion(question)) {
     const targetLeaseRows = assetRows.length && !isOverallQuestion(question) ? rowsForAssets(leaseRowsAll, assetRows) : leaseRowsAll;

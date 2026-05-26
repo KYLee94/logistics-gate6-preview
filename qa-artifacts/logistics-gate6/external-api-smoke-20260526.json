@@ -1,6 +1,6 @@
 {
-  "ok": false,
-  "generated_at": "2026-05-26T04:16:14.409Z",
+  "ok": true,
+  "generated_at": "2026-05-26T04:52:35.685Z",
   "origin": "https://kylee94.github.io",
   "auth_source": "password_grant",
   "checks": [
@@ -11,16 +11,27 @@
     },
     {
       "name": "opendart/company",
-      "status": 502,
-      "ok": false,
-      "cache": null,
+      "status": 200,
+      "ok": true,
+      "cache": {
+        "hit": true,
+        "stale": true,
+        "source": "ll_tenants"
+      },
       "body": {
-        "ok": false,
-        "message": "OpenDART provider request failed",
-        "status": 502,
-        "detail": {
-          "provider_error": "https://opendart.fss.or.kr/api/company.json: error sending request for url (https://opendart.fss.or.kr/api/company.json?crtfc_key=[redacted]&corp_code=01561359): client error (Connect): received fatal alert: HandshakeFailure | https://engopendart.fss.or.kr/engapi/company.json: error sending request for url (https://engopendart.fss.or.kr/engapi/company.json?crtfc_key=[redacted]&corp_code=01561359): client error (Connect): received fatal alert: HandshakeFailure"
-        }
+        "ok": true,
+        "cache": {
+          "hit": true,
+          "stale": true,
+          "source": "ll_tenants"
+        },
+        "data_keys": [
+          "corp_code",
+          "corp_name",
+          "corp_cls",
+          "bizr_no",
+          "adres"
+        ]
       }
     },
     {
@@ -52,25 +63,9 @@
     },
     {
       "name": "naver/geocode",
-      "status": 200,
-      "ok": true,
-      "count": 1,
-      "cache": {
-        "hit": true,
-        "stale": false,
-        "fetched_at": "2026-05-26T02:08:05.406+00:00"
-      },
-      "body": {
-        "ok": true,
-        "cache": {
-          "hit": true,
-          "stale": false,
-          "fetched_at": "2026-05-26T02:08:05.406+00:00"
-        },
-        "data_keys": [
-          "0"
-        ]
-      }
+      "status": "skipped",
+      "ok": false,
+      "reason": "LOGISTICS_GEOCODE_QUERY not set"
     }
   ]
 }
