@@ -52,6 +52,7 @@ const MODULES = [
   { id: 'tools', label: 'Analysis Tools', source: 'Analysis Tools' },
   { id: 'playground', label: 'Pivot Table', source: 'Pivot Table' },
   { id: 'quality', label: 'Data Quality', source: 'Data Quality' },
+  { id: 'contracts', label: 'Contract Data', source: 'Contract Data' },
 ];
 const ADMIN_ONLY_MODULE_IDS = new Set(['tools', 'playground', 'quality']);
 
@@ -8551,6 +8552,221 @@ function DataPlaygroundDashboard() {
   );
 }
 
+const CONTRACT_EVENT_TYPES = [
+  ['correction', '오입력 정정'],
+  ['new_lease', '신규 계약'],
+  ['extension', '연장 계약'],
+  ['rent_change', '임대료/관리비 변경'],
+  ['concession_change', 'RF/FO/TI 변경'],
+  ['expiry_vacancy', '만료/공실 전환'],
+  ['partial_vacancy', '부분공실'],
+  ['space_split', '층/구역 분할'],
+];
+
+function ContractDataManagementDashboard() {
+  const { memberInfo } = useAuth();
+  const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
+  const dashboardDataset = useDashboardHomeReadDataset(memberInfo, Boolean(memberInfo));
+  const [selectedAssetId, setSelectedAssetId] = useState('');
+  const [selectedLeaseSpaceId, setSelectedLeaseSpaceId] = useState('');
+  const [eventType, setEventType] = useState('correction');
+  const [summary, setSummary] = useState('');
+  const [eventStatus, setEventStatus] = useState(null);
+  const [submittedEvents, setSubmittedEvents] = useState([]);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const [eventsError, setEventsError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const readableRows = useMemo(() => filterAssetsByPermission(dashboardDataset.generalRows || [], permission), [dashboardDataset.generalRows, permission]);
+  const readableAssets = useMemo(() => filterAssetsByPermission(dashboardDataset.assetOptions || [], permission), [dashboardDataset.assetOptions, permission]);
+  const activeAssetId = selectedAssetId || readableAssets[0]?.assetId || '';
+  const assetRows = useMemo(() => readableRows.filter((row) => !activeAssetId || row.assetId === activeAssetId), [activeAssetId, readableRows]);
+  const selectedAsset = readableAssets.find((asset) => asset.assetId === activeAssetId) || {};
+  const selectedLeaseRow = assetRows.find((row) => row.leaseSpaceId === selectedLeaseSpaceId) || assetRows[0] || {};
+  const canSubmit = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.role === 'Admin' || permission.role === 'Manager');
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadEvents = async () => {
+      setEventsLoading(true);
+      setEventsError('');
+      try {
+        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+          body: { action: 'lease-events/list', payload: { limit: 120 } },
+        });
+        if (error) throw error;
+        if (!cancelled) setSubmittedEvents(Array.isArray(data?.data) ? data.data : []);
+      } catch (error) {
+        if (!cancelled) {
+          setSubmittedEvents([]);
+          setEventsError(error?.message || '계약 변경 요청 목록을 불러오지 못했습니다.');
+        }
+      } finally {
+        if (!cancelled) setEventsLoading(false);
+      }
+    };
+    loadEvents();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (selectedAssetId && !assetRows.some((row) => row.leaseSpaceId === selectedLeaseSpaceId)) {
+      setSelectedLeaseSpaceId(assetRows[0]?.leaseSpaceId || '');
+    }
+  }, [assetRows, selectedAssetId, selectedLeaseSpaceId]);
+
+  const contractRows = assetRows.map((row) => [
+    row.assetName || '-',
+    row.tenantMasterName || row.companyName || '-',
+    row.spaceLabel || [row.floorLabel, row.detailAreaLabel].filter(Boolean).join(' / ') || '-',
+    formatArea(row.leasedAreaSqm),
+    formatCurrency(firstDefined(row.currentMonthlyRentTotal, row.monthlyRentTotal)),
+    formatCurrency(firstDefined(row.currentMonthlyMfTotal, row.monthlyMfTotal)),
+    formatCurrency(row.monthlyCostTotal),
+    formatWon(row.eNoc),
+    formatDate(firstDefined(row.currentStartDate, row.firstStartDate)),
+    formatDate(firstDefined(row.currentEndDate, row.latestExpiry)),
+  ]);
+
+  const eventRows = submittedEvents.map((row) => [
+    CONTRACT_EVENT_TYPES.find(([value]) => value === row.event_type)?.[1] || row.event_type || '-',
+    row.asset_name || '-',
+    row.tenant_name || '-',
+    row.summary || '-',
+    row.status || '-',
+    row.created_at ? formatDate(row.created_at) : '-',
+  ]);
+
+  const submitLeaseEvent = async () => {
+    if (!canSubmit) {
+      setEventStatus({ type: 'error', message: '현재 계정에는 계약 데이터 수정 요청 권한이 없습니다.' });
+      return;
+    }
+    if (!activeAssetId) {
+      setEventStatus({ type: 'error', message: '자산을 먼저 선택해주세요.' });
+      return;
+    }
+    if (!summary.trim()) {
+      setEventStatus({ type: 'error', message: '변경 요약을 입력해주세요.' });
+      return;
+    }
+    setIsSubmitting(true);
+    setEventStatus({ type: 'pending', message: '계약 변경 요청을 서버 승인 대기열에 접수하는 중입니다.' });
+    try {
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: {
+          action: 'lease-events/submit',
+          payload: {
+            event_type: eventType,
+            asset_id: activeAssetId,
+            asset_name: selectedAsset.assetName || selectedLeaseRow.assetName,
+            tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
+            lease_space_id: selectedLeaseRow.leaseSpaceId || '',
+            effective_date: currentKstMonthEndDate(),
+            summary,
+            before: selectedLeaseRow,
+            after: { summary },
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data.message || '계약 변경 요청 접수 실패');
+      const saved = data?.data ? {
+        id: data.data.id,
+        status: data.data.status,
+        event_type: eventType,
+        asset_name: selectedAsset.assetName || selectedLeaseRow.assetName,
+        tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
+        summary,
+        created_at: data.data.created_at || new Date().toISOString(),
+      } : null;
+      if (saved) setSubmittedEvents((rows) => [saved, ...rows]);
+      setSummary('');
+      setEventStatus({ type: 'success', message: '계약 변경 요청이 승인 대기열에 접수됐습니다. 실제 DB 반영은 승인 후 처리됩니다.' });
+    } catch (error) {
+      setEventStatus({ type: 'error', message: error?.message || '계약 변경 요청 중 오류가 발생했습니다.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <SectionHeader title="Contract Data" />
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader
+          eyebrow="LEASE CONTRACT LEDGER"
+          title="임대차계약 데이터 관리"
+          right={<span className="text-[12px] font-semibold text-[#A1A1AA]">DB_일반 + DB_히스토리 누적 기준</span>}
+        />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label className="block text-[12px] font-semibold text-[#A1A1AA]">
+                자산
+                <select value={activeAssetId} onChange={(event) => setSelectedAssetId(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 text-[13px] text-white">
+                  {readableAssets.map((asset) => <option key={asset.assetId} value={asset.assetId}>{asset.assetName}</option>)}
+                </select>
+              </label>
+              <label className="block text-[12px] font-semibold text-[#A1A1AA]">
+                계약 구역
+                <select value={selectedLeaseSpaceId || selectedLeaseRow.leaseSpaceId || ''} onChange={(event) => setSelectedLeaseSpaceId(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 text-[13px] text-white">
+                  {assetRows.map((row) => <option key={row.leaseSpaceId || `${row.tenantMasterName}-${row.spaceLabel}`} value={row.leaseSpaceId}>{`${row.tenantMasterName || row.companyName || '-'} / ${row.spaceLabel || row.floorLabel || '-'}`}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="mt-4 rounded-[12px] border border-[#333333] bg-[#252524] p-4 text-[13px] leading-6 text-[#D1D1D6]">
+              <div><span className="text-[#86868B]">임차인</span> {selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '-'}</div>
+              <div><span className="text-[#86868B]">구역</span> {selectedLeaseRow.spaceLabel || selectedLeaseRow.floorLabel || '-'}</div>
+              <div><span className="text-[#86868B]">월 임관리비</span> {formatCurrency(selectedLeaseRow.monthlyCostTotal)}</div>
+              <div><span className="text-[#86868B]">계약기간</span> {formatDate(firstDefined(selectedLeaseRow.currentStartDate, selectedLeaseRow.firstStartDate))} ~ {formatDate(firstDefined(selectedLeaseRow.currentEndDate, selectedLeaseRow.latestExpiry))}</div>
+            </div>
+          </div>
+          <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[180px_1fr]">
+              <label className="block text-[12px] font-semibold text-[#A1A1AA]">
+                변경 유형
+                <select value={eventType} onChange={(event) => setEventType(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 text-[13px] text-white">
+                  {CONTRACT_EVENT_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </select>
+              </label>
+              <label className="block text-[12px] font-semibold text-[#A1A1AA]">
+                변경 요약
+                <textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={3} className="mt-2 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 py-2 text-[13px] text-white outline-none focus:border-[#2997ff]" placeholder="예: 2026년 6월부터 임대료 변경 / 계약 연장 / 일부 공실 전환 등" />
+              </label>
+            </div>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="text-[12px] text-[#86868B]">브라우저 직접 저장이 아니라 Edge Function 승인 요청으로 접수됩니다.</div>
+              <button type="button" disabled={isSubmitting} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>승인 요청</button>
+            </div>
+            {eventStatus ? <div className={`mt-3 rounded-[10px] border px-3 py-2 text-[12px] ${eventStatus.type === 'error' ? 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]' : eventStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#4C4329] bg-[#2A240E] text-[#FFD166]'}`}>{eventStatus.message}</div> : null}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader eyebrow="CURRENT CONTRACTS" title="현재 계약 원장" />
+        <DataTable headers={['자산', '임차인', '층/구역', '임대면적', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', '계약개시', '계약만기']} rows={contractRows} compact />
+      </section>
+
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader eyebrow="APPROVAL QUEUE" title="계약 변경 승인 대기" />
+        {eventsLoading ? (
+          <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[13px] text-[#A1A1AA]">계약 변경 요청 목록을 불러오는 중입니다.</div>
+        ) : eventsError ? (
+          <div className="rounded-[12px] border border-[#7A2E2E] bg-[#2A1414] px-4 py-3 text-[13px] text-[#FFB4B4]">{eventsError}</div>
+        ) : eventRows.length ? (
+          <DataTable headers={['유형', '자산', '임차인', '요약', '상태', '요청일']} rows={eventRows} compact />
+        ) : (
+          <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[13px] text-[#A1A1AA]">접수된 계약 변경 요청이 없습니다.</div>
+        )}
+      </section>
+    </div>
+  );
+}
+
 function buildDataQualityFindings() {
   const findings = [];
   assetOptionsData.forEach((asset) => {
@@ -10574,20 +10790,28 @@ function DashboardShell({ activeModule }) {
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission));
   const [modal, setModal] = useState(null);
-  const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([activeModule || 'home']));
   const visibleModules = useMemo(() => (
     MODULES.filter((item) => !ADMIN_ONLY_MODULE_IDS.has(item.id) || canViewAdvancedLogisticsTools(memberInfo, permission))
   ), [memberInfo, permission]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
   const canUseOriginalDataEdit = canViewAdvancedLogisticsTools(memberInfo, permission);
+  const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
   useEffect(() => {
-    if (!selected?.id) return;
-    setMountedModuleIds((current) => {
-      if (current.has(selected.id)) return current;
-      return new Set([...current, selected.id]);
-    });
+    if (!selected?.id) return undefined;
+    const timer = window.setTimeout(() => {
+      setMountedModuleIds((previous) => {
+        if (previous.has(selected.id)) return previous;
+        const next = new Set(previous);
+        next.add(selected.id);
+        return next;
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [selected?.id]);
-  const mountedIds = useMemo(() => new Set([...mountedModuleIds, selected?.id].filter(Boolean)), [mountedModuleIds, selected?.id]);
+  const mountedIds = useMemo(() => {
+    const visibleIds = new Set(visibleModules.map((item) => item.id));
+    return new Set([...mountedModuleIds, selected?.id].filter((id) => id && visibleIds.has(id)));
+  }, [mountedModuleIds, selected?.id, visibleModules]);
   const renderDashboardModule = (moduleId) => (
     moduleId === 'home' ? <HomeDashboard />
       : moduleId === 'asset' ? <AssetDashboard />
@@ -10595,7 +10819,8 @@ function DashboardShell({ activeModule }) {
           : moduleId === 'tools' ? <AnalysisToolsDashboard />
             : moduleId === 'playground' ? <DataPlaygroundDashboard />
               : moduleId === 'quality' ? <DataQualityDashboard />
-                : null
+                : moduleId === 'contracts' ? <ContractDataManagementDashboard />
+                  : null
   );
 
   return (

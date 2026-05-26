@@ -15,6 +15,7 @@
     "qa:logistics-primary-parity": "node scripts/qa/logistics-dashboard-primary-parity.cjs",
     "qa:data-quality-e2e": "node scripts/qa/logistics-data-quality-e2e.cjs",
     "qa:ai-chatbot": "node scripts/qa/logistics-ai-chatbot-qa.cjs",
+    "qa:external-api": "node scripts/qa/logistics-external-api-smoke.cjs",
     "qa:supabase-catalog": "node scripts/qa/logistics-supabase-catalog-inventory.cjs",
     "qa:browser-visible-parity": "node scripts/qa/logistics-browser-visible-parity.cjs",
     "qa:legacy-view-denylist": "node scripts/qa/logistics-legacy-view-denylist.cjs"

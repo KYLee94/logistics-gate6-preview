@@ -9,6 +9,7 @@ export const LOGISTICS_ROUTE_BY_KEY = {
   'data-playground': `${LOGISTICS_INTERNAL_BASE}/dashboard/playground`,
   'pivot-table': `${LOGISTICS_INTERNAL_BASE}/dashboard/playground`,
   'data-quality': `${LOGISTICS_INTERNAL_BASE}/dashboard/quality`,
+  'contract-data': `${LOGISTICS_INTERNAL_BASE}/dashboard/contracts`,
   'pdf-report': `${LOGISTICS_INTERNAL_BASE}/pdf-report`,
 };
 
@@ -37,6 +38,7 @@ export function publicLogisticsPath(path = '') {
         tools: 'analysis-tools',
         playground: 'pivot-table',
         quality: 'data-quality',
+        contracts: 'contract-data',
         weekly: 'home',
         sector: 'home',
     }[moduleName] || moduleName;

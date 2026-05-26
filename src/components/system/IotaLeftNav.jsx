@@ -160,6 +160,11 @@ const logisticsDashboardItems = [
         adminOnly: true,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-2.8 8.2-7 9-4.2-.8-7-4.5-7-9V7l7-4z" /></svg>,
     },
+    {
+        label: 'Contract Data',
+        path: `${LOGISTICS_INTERNAL_BASE}/dashboard/contracts`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2zM9 8h6M9 12h6M9 16h4" /></svg>,
+    },
 ];
 const logisticsStandaloneItems = [
     {

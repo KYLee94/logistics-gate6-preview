@@ -1712,6 +1712,134 @@ async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
   return jsonResponse({ ok: true, message: 'Edit request submitted', data }, 200, ctx.origin);
 }
 
+const LEASE_EVENT_TYPES = new Set([
+  'new_lease',
+  'extension',
+  'rent_change',
+  'concession_change',
+  'expiry_vacancy',
+  'partial_vacancy',
+  'space_split',
+  'correction',
+]);
+
+function leaseEventKind(row: Record<string, unknown>) {
+  const requestPayload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
+  return safeText(requestPayload.kind);
+}
+
+function normalizeLeaseEventRow(row: Record<string, unknown>) {
+  const requestPayload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
+  return {
+    id: row.id,
+    status: row.status,
+    write_status: row.write_status || null,
+    event_type: firstDefined(requestPayload.event_type, row.reason_code, 'correction'),
+    asset_id: firstDefined(requestPayload.asset_id, row.target_row_id),
+    asset_name: firstDefined(requestPayload.asset_name, row.target_name),
+    tenant_name: firstDefined(requestPayload.tenant_name, requestPayload.tenant_master_name),
+    lease_space_id: requestPayload.lease_space_id || null,
+    effective_date: requestPayload.effective_date || null,
+    summary: requestPayload.summary || row.requested_value || '',
+    requested_by: row.requested_by,
+    approved_by: row.approved_by || null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    request_payload: requestPayload,
+  };
+}
+
+async function listLeaseEvents(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'lease-events/list', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const limit = Math.min(Math.max(Number(payload.limit || 100), 1), 300);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) return fail(500, 'Failed to list lease events', ctx.origin);
+  const rows = (data || [])
+    .filter((row: Record<string, unknown>) => leaseEventKind(row) === 'lease_contract_event')
+    .map((row: Record<string, unknown>) => normalizeLeaseEventRow(row))
+    .filter((row: Record<string, unknown>) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'lease-events/list', 200, { returned: rows.length });
+  return jsonResponse({ ok: true, data: rows }, 200, ctx.origin);
+}
+
+function normalizeLeaseEventPayload(payload: Record<string, unknown>) {
+  const eventType = safeText(payload.event_type || payload.eventType || 'correction');
+  return {
+    kind: 'lease_contract_event',
+    event_type: LEASE_EVENT_TYPES.has(eventType) ? eventType : 'correction',
+    asset_id: safeText(payload.asset_id || payload.assetId),
+    asset_name: safeText(payload.asset_name || payload.assetName),
+    tenant_name: safeText(payload.tenant_name || payload.tenantName || payload.tenant_master_name),
+    lease_space_id: safeText(payload.lease_space_id || payload.leaseSpaceId),
+    effective_date: safeText(payload.effective_date || payload.effectiveDate),
+    summary: safeText(payload.summary || payload.reason || payload.notes),
+    before: redactSensitivePayload(payload.before || {}),
+    after: redactSensitivePayload(payload.after || {}),
+    source_refs: redactSensitivePayload(payload.source_refs || []),
+  };
+}
+
+async function previewLeaseEvent(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'lease-events/preview', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const eventPayload = normalizeLeaseEventPayload(payload);
+  if (!eventPayload.asset_id && !eventPayload.asset_name) return fail(400, 'asset_id or asset_name is required', ctx.origin);
+  if (!canReadRelatedAsset(ctx, eventPayload.asset_id || eventPayload.asset_name)) return fail(403, 'Asset is not readable for this user', ctx.origin);
+  const leaseSpaces = await safeSelectRows(ctx, 'll_lease_spaces', 2000);
+  const targetRows = leaseSpaces.filter((row) => {
+    const matchesAsset = normalizeKey(row.asset_id) === normalizeKey(eventPayload.asset_id)
+      || normalizeKey(row.asset_name) === normalizeKey(eventPayload.asset_name);
+    const matchesLeaseSpace = !eventPayload.lease_space_id || normalizeKey(row.lease_space_id) === normalizeKey(eventPayload.lease_space_id);
+    return matchesAsset && matchesLeaseSpace;
+  }).slice(0, 50);
+  return jsonResponse({
+    ok: true,
+    data: {
+      event: eventPayload,
+      target_row_count: targetRows.length,
+      preview: {
+        write_mode: 'approval_required',
+        direct_browser_write: false,
+        expected_tables: ['ll_leases', 'll_lease_spaces', 'll_rent_history', 'll_lease_attributes'],
+      },
+    },
+  }, 200, ctx.origin);
+}
+
+async function submitLeaseEvent(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'lease-events/submit', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const eventPayload = normalizeLeaseEventPayload(payload);
+  if (!eventPayload.asset_id && !eventPayload.asset_name) return fail(400, 'asset_id or asset_name is required', ctx.origin);
+  if (!eventPayload.summary) return fail(400, 'summary is required', ctx.origin);
+  if (!canWriteRelatedAsset(ctx, eventPayload.asset_id || eventPayload.asset_name, eventPayload.asset_name)) return fail(403, 'Insufficient asset write permission for lease event', ctx.origin);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .insert({
+      source_table: 'public.ll_leases',
+      target_type: 'lease_contract_event',
+      target_name: eventPayload.asset_name || eventPayload.asset_id,
+      target_row_id: eventPayload.lease_space_id || eventPayload.asset_id || null,
+      field_name: eventPayload.event_type,
+      reason_code: eventPayload.event_type,
+      before_value: JSON.stringify(eventPayload.before || {}),
+      requested_value: eventPayload.summary,
+      request_payload: eventPayload,
+      requested_by: ctx.user.id,
+      status: 'submitted',
+    })
+    .select('id, status, created_at')
+    .single();
+  if (error) return fail(500, 'Failed to submit lease event', ctx.origin);
+  const auditWarning = await auditOptional(ctx.serviceClient, ctx.user.id, 'lease-events/submit', 200, { id: data.id, event_type: eventPayload.event_type, asset_id: eventPayload.asset_id, asset_name: eventPayload.asset_name });
+  return jsonResponse({ ok: true, message: 'Lease event submitted', data: { ...data, request_payload: eventPayload }, audit_warning: auditWarning || undefined }, 200, ctx.origin);
+}
+
 function fundOverviewComparable(value: unknown) {
   const record = (value && typeof value === 'object') ? value as Record<string, unknown> : {};
   return stableComparable({
@@ -3564,9 +3692,15 @@ async function fetchJsonWithTimeout(url: string, init: RequestInit = {}, timeout
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort('timeout'), timeoutMs);
     try {
-      const response = await fetch(url, { ...init, signal: controller.signal });
-      clearTimeout(timeout);
-      const body = await response.json().catch(() => ({}));
+    const response = await fetch(url, { ...init, signal: controller.signal });
+    clearTimeout(timeout);
+      const text = await response.text();
+      let body: Record<string, unknown> = {};
+      try {
+        body = text ? JSON.parse(text) as Record<string, unknown> : {};
+      } catch {
+        body = { raw_text: text.slice(0, 500) };
+      }
       return { response, body };
     } catch (error) {
       clearTimeout(timeout);
@@ -3638,6 +3772,21 @@ function externalApiCacheResponse(ctx: Context, providerStatus: number, data: un
   return jsonResponse({ ok: true, provider_status: providerStatus, data, cache }, 200, ctx.origin);
 }
 
+function providerCodeFromBody(body: Record<string, unknown> | null | undefined) {
+  const response = body?.response as Record<string, unknown> | undefined;
+  const header = response?.header as Record<string, unknown> | undefined;
+  const serviceResponse = body?.OpenAPI_ServiceResponse as Record<string, unknown> | undefined;
+  const messageHeader = serviceResponse?.cmmMsgHeader as Record<string, unknown> | undefined;
+  return normalizeText(firstDefined(
+    body?.status,
+    body?.code,
+    header?.resultCode,
+    body?.statusCode,
+    messageHeader?.returnReasonCode,
+    messageHeader?.returnAuthMsg,
+  )).slice(0, 80);
+}
+
 function providerMessageFromBody(body: Record<string, unknown> | null | undefined) {
   const errorBody = body?.error as Record<string, unknown> | undefined;
   const response = body?.response as Record<string, unknown> | undefined;
@@ -3654,7 +3803,39 @@ function providerMessageFromBody(body: Record<string, unknown> | null | undefine
     header?.resultCode,
     messageHeader?.returnAuthMsg,
     messageHeader?.errMsg,
+    body?.raw_text,
   )).slice(0, 300);
+}
+
+function openDartProviderOk(response: Response, body: Record<string, unknown>) {
+  return response.ok && normalizeText(body.status) === '000';
+}
+
+function buildingRegisterProviderOk(response: Response, body: Record<string, unknown>) {
+  if (!response.ok) return false;
+  if ((body.OpenAPI_ServiceResponse as Record<string, unknown> | undefined)?.cmmMsgHeader) return false;
+  const responseBody = body.response as Record<string, unknown> | undefined;
+  const header = responseBody?.header as Record<string, unknown> | undefined;
+  const resultCode = normalizeText(header?.resultCode);
+  return !resultCode || resultCode === '00';
+}
+
+function naverGeocodeProviderOk(response: Response, body: Record<string, unknown>) {
+  if (!response.ok) return false;
+  if (body.error) return false;
+  const status = normalizeText(body.status);
+  return !status || status.toUpperCase() === 'OK';
+}
+
+function providerFailureBody(message: string, response: Response, body: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+  return {
+    ok: false,
+    provider_status: response.status,
+    provider_code: providerCodeFromBody(body) || undefined,
+    provider_message: providerMessageFromBody(body) || undefined,
+    ...extra,
+    message,
+  };
 }
 
 function safeProviderError(error: unknown) {
@@ -3667,6 +3848,7 @@ function safeProviderError(error: unknown) {
 }
 
 function callNaverMapsConfig(origin: string) {
+  if (!checkRateLimit(`public:${origin || 'unknown'}`, 'naver/maps-config', 60)) return fail(429, 'Rate limit exceeded', origin);
   const clientId = (Deno.env.get('NAVER_MAPS_CLIENT_ID') || Deno.env.get('NAVER_CLOUD_CLIENT_ID') || '').trim();
   if (!clientId) return fail(503, 'Naver Maps client id is not configured', origin);
   return jsonResponse({
@@ -3686,10 +3868,14 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
   if (!corpCode) return fail(400, 'corp_code is required', ctx.origin);
   const cacheKey = await cacheKeyFor('opendart/company', { corp_code: corpCode });
   const cached = await readExternalApiCache(ctx, 'opendart/company', cacheKey);
-  if (cached) return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
+  if (cached) {
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/cache-hit', 200, { corp_code: corpCode, provider_status: cached.providerStatus });
+    return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
+  }
   const query = new URLSearchParams({ crtfc_key: apiKey, corp_code: corpCode });
   try {
     const { response, body } = await fetchJsonWithTimeout(`https://opendart.fss.or.kr/api/company.json?${query.toString()}`, {}, 10_000, 1);
+    const providerOk = openDartProviderOk(response, body as Record<string, unknown>);
     const company = stripUndefined({
       status: body.status,
       message: body.message,
@@ -3710,7 +3896,7 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
       acc_mt: body.acc_mt,
     }) as Record<string, unknown>;
     let cacheWriteError = '';
-    if (response.ok) {
+    if (providerOk) {
       try {
         await writeExternalApiCache(ctx, 'opendart/company', cacheKey, { corp_code: corpCode }, company, response.status);
       } catch (error) {
@@ -3719,11 +3905,12 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
     }
     const providerMessage = providerMessageFromBody(body);
     await audit(ctx.serviceClient, ctx.user.id, 'opendart/company', response.status, { corp_code: corpCode, cache_hit: false, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined });
-    if (!response.ok) {
+    if (!providerOk) {
       const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
       if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt });
+      return jsonResponse(providerFailureBody('OpenDART provider returned an error', response, body as Record<string, unknown>, { cache: { hit: false, stale: false } }), 502, ctx.origin);
     }
-    return jsonResponse({ ok: response.ok, provider_status: response.status, provider_message: providerMessage || undefined, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, response.ok ? 200 : 502, ctx.origin);
+    return jsonResponse({ ok: true, provider_status: response.status, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
   } catch (error) {
     const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
@@ -3742,23 +3929,28 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
     sigungu_cd: String(payload.sigungu_cd || ''),
     bjdong_cd: String(payload.bjdong_cd || ''),
     plat_gb_cd: String(payload.plat_gb_cd || '0'),
-    bun: String(payload.bun || ''),
-    ji: String(payload.ji || ''),
+    bun: String(payload.bun || '').padStart(4, '0'),
+    ji: String(payload.ji || '0').padStart(4, '0'),
   };
   const cacheKey = await cacheKeyFor('building-register/summary', cachePayload);
   const cached = await readExternalApiCache(ctx, 'building-register/summary', cacheKey);
-  if (cached) return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
-  const query = new URLSearchParams({
-    serviceKey: apiKey,
-    sigunguCd: cachePayload.sigungu_cd,
-    bjdongCd: cachePayload.bjdong_cd,
-    platGbCd: cachePayload.plat_gb_cd,
-    bun: cachePayload.bun,
-    ji: cachePayload.ji,
-    _type: 'json',
-  });
+  if (cached) {
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'building-register/summary/cache-hit', 200, { ...cachePayload, provider_status: cached.providerStatus });
+    return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
+  }
+  const encodedServiceKey = apiKey.includes('%') ? apiKey : encodeURIComponent(apiKey);
+  const query = [
+    `serviceKey=${encodedServiceKey}`,
+    `sigunguCd=${encodeURIComponent(cachePayload.sigungu_cd)}`,
+    `bjdongCd=${encodeURIComponent(cachePayload.bjdong_cd)}`,
+    `platGbCd=${encodeURIComponent(cachePayload.plat_gb_cd)}`,
+    `bun=${encodeURIComponent(cachePayload.bun)}`,
+    `ji=${encodeURIComponent(cachePayload.ji)}`,
+    '_type=json',
+  ].join('&');
   try {
-    const { response, body } = await fetchJsonWithTimeout(`https://apis.data.go.kr/1613000/BldRgstService_v2/getBrTitleInfo?${query.toString()}`, {}, 12_000, 1);
+    const { response, body } = await fetchJsonWithTimeout(`https://apis.data.go.kr/1613000/BldRgstService_v2/getBrTitleInfo?${query}`, {}, 12_000, 1);
+    const providerOk = buildingRegisterProviderOk(response, body as Record<string, unknown>);
     const item = body?.response?.body?.items?.item;
     const first = Array.isArray(item) ? item[0] : item;
     const summary = first ? stripUndefined({
@@ -3773,7 +3965,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
       use_apr_day: first.useAprDay,
     }) : null;
     let cacheWriteError = '';
-    if (response.ok) {
+    if (providerOk) {
       try {
         await writeExternalApiCache(ctx, 'building-register/summary', cacheKey, cachePayload, summary, response.status);
       } catch (error) {
@@ -3782,11 +3974,12 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
     }
     const providerMessage = providerMessageFromBody(body);
     await audit(ctx.serviceClient, ctx.user.id, 'building-register/summary', response.status, { ...cachePayload, cache_hit: false, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined });
-    if (!response.ok) {
+    if (!providerOk) {
       const stale = await readExternalApiCache(ctx, 'building-register/summary', cacheKey, true);
       if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt });
+      return jsonResponse(providerFailureBody('Building-register provider returned an error', response, body as Record<string, unknown>, { cache: { hit: false, stale: false } }), 502, ctx.origin);
     }
-    return jsonResponse({ ok: response.ok, provider_status: response.status, provider_message: providerMessage || undefined, data: summary, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, response.ok ? 200 : 502, ctx.origin);
+    return jsonResponse({ ok: true, provider_status: response.status, data: summary, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
   } catch (error) {
     const stale = await readExternalApiCache(ctx, 'building-register/summary', cacheKey, true);
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
@@ -3806,7 +3999,10 @@ async function callNaverGeocode(ctx: Context, payload: Record<string, unknown>) 
   if (!queryText) return fail(400, 'query is required', ctx.origin);
   const cacheKey = await cacheKeyFor('naver/geocode', { query: queryText });
   const cached = await readExternalApiCache(ctx, 'naver/geocode', cacheKey);
-  if (cached) return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
+  if (cached) {
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'naver/geocode/cache-hit', 200, { query: queryText, provider_status: cached.providerStatus });
+    return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
+  }
   const query = new URLSearchParams({ query: queryText });
   try {
     const { response, body } = await fetchJsonWithTimeout(`https://maps.apigw.ntruss.com/map-geocode/v2/geocode?${query.toString()}`, {
@@ -3815,6 +4011,7 @@ async function callNaverGeocode(ctx: Context, payload: Record<string, unknown>) 
         'x-ncp-apigw-api-key': clientSecret,
       },
     }, 10_000, 1);
+    const providerOk = naverGeocodeProviderOk(response, body as Record<string, unknown>);
     const addresses = Array.isArray(body.addresses) ? body.addresses.slice(0, 5).map((item: Record<string, unknown>) => ({
       road_address: item.roadAddress,
       jibun_address: item.jibunAddress,
@@ -3822,13 +4019,21 @@ async function callNaverGeocode(ctx: Context, payload: Record<string, unknown>) 
       y: item.y,
       distance: item.distance,
     })) : [];
-    if (response.ok) await writeExternalApiCache(ctx, 'naver/geocode', cacheKey, { query: queryText }, addresses, response.status);
-    await audit(ctx.serviceClient, ctx.user.id, 'naver/geocode', response.status, { query: queryText, cache_hit: false });
-    if (!response.ok) {
+    let cacheWriteError = '';
+    if (providerOk) {
+      try {
+        await writeExternalApiCache(ctx, 'naver/geocode', cacheKey, { query: queryText }, addresses, response.status);
+      } catch (error) {
+        cacheWriteError = error instanceof Error ? error.message : 'cache write failed';
+      }
+    }
+    await audit(ctx.serviceClient, ctx.user.id, 'naver/geocode', response.status, { query: queryText, cache_hit: false, cache_write_error: cacheWriteError || undefined });
+    if (!providerOk) {
       const stale = await readExternalApiCache(ctx, 'naver/geocode', cacheKey, true);
       if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt });
+      return jsonResponse(providerFailureBody('Naver geocoding provider returned an error', response, body as Record<string, unknown>, { cache: { hit: false, stale: false } }), 502, ctx.origin);
     }
-    return jsonResponse({ ok: response.ok, provider_status: response.status, data: addresses, cache: { hit: false, stale: false } }, response.ok ? 200 : 502, ctx.origin);
+    return jsonResponse({ ok: true, provider_status: response.status, data: addresses, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
   } catch (error) {
     const stale = await readExternalApiCache(ctx, 'naver/geocode', cacheKey, true);
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
@@ -3882,6 +4087,28 @@ function rowTenantIdentity(row: Record<string, unknown>) {
 
 function normalizeKey(value: unknown) {
   return String(value || '').replace(/\s+/gu, '').toLowerCase();
+}
+
+function normalizeAiLookupKey(value: unknown) {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/물류센터|물류|센터|자산|알려줘|찾아줘|검색|있어|있나|얼마|e\.?\s*noc|enoc|평균|공실률|공실|임관리비|임대료|관리비/giu, '')
+    .replace(/[^\p{Letter}\p{Number}]+/gu, '');
+}
+
+function assetNameMatchScore(assetName: unknown, question: string) {
+  const assetKey = normalizeAiLookupKey(assetName);
+  const questionKey = normalizeAiLookupKey(question);
+  if (!assetKey || !questionKey) return 0;
+  if (questionKey.includes(assetKey) || assetKey.includes(questionKey)) return Math.max(assetKey.length, questionKey.length) + 10;
+  let score = 0;
+  for (let size = Math.min(assetKey.length, 6); size >= 2; size -= 1) {
+    for (let index = 0; index <= assetKey.length - size; index += 1) {
+      const token = assetKey.slice(index, index + size);
+      if (questionKey.includes(token)) score += size;
+    }
+  }
+  return score;
 }
 
 function canReadDataRow(ctx: Context, row: Record<string, unknown>) {
@@ -4098,6 +4325,11 @@ function metricSnapshotKey(metricScope: string, metricKey: string, assetId: stri
 
 function findQuestionAssetRows(context: Record<string, unknown>, question: string) {
   const rows = (context.assetRows as Record<string, unknown>[] | undefined) || [];
+  const directNameMatches = rows
+    .map((row) => ({ row, score: assetNameMatchScore(rowAssetName(row), question) }))
+    .filter((item) => item.score >= 4)
+    .sort((a, b) => b.score - a.score);
+  if (directNameMatches.length) return directNameMatches.map((item) => item.row);
   const terms = aiAssetSearchTerms(question);
   if (!terms.length) {
     const matched = (context.matchedAssetRows as Record<string, unknown>[] | undefined) || [];
@@ -4107,6 +4339,15 @@ function findQuestionAssetRows(context: Record<string, unknown>, question: strin
   return rows
     .map((row) => ({ row, score: keywordMatchScore(rowText(row), terms) }))
     .filter((item) => item.score >= requiredScore)
+    .sort((a, b) => b.score - a.score)
+    .map((item) => item.row);
+}
+
+function findQuestionAssetRowsByName(context: Record<string, unknown>, question: string) {
+  const rows = (context.assetRows as Record<string, unknown>[] | undefined) || [];
+  return rows
+    .map((row) => ({ row, score: assetNameMatchScore(rowAssetName(row), question) }))
+    .filter((item) => item.score >= 4)
     .sort((a, b) => b.score - a.score)
     .map((item) => item.row);
 }
@@ -4318,11 +4559,10 @@ function normalizeAiHistory(value: unknown) {
 }
 
 function buildAiConversationQuestion(question: string, history: Array<{ role: string; content: string }>) {
-  const previousUserMessages = history
-    .filter((item) => item.role === 'user')
+  const previousMessages = history
     .map((item) => item.content)
-    .slice(-4);
-  return [...previousUserMessages, question].join('\n');
+    .slice(-6);
+  return [...previousMessages, question].join('\n');
 }
 
 function publicAiScope(scope: Record<string, unknown>) {
@@ -4519,6 +4759,83 @@ function buildDeterministicAiAnswer(question: string, context: Record<string, un
   }
 
   return null;
+}
+
+function formatAiWon(value: number) {
+  return `${new Intl.NumberFormat('ko-KR').format(Math.round(value))}원`;
+}
+
+function formatAiPy(value: number) {
+  return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(value)}평`;
+}
+
+function formatAiPercent(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function aiTargetAssetRows(context: Record<string, unknown>, question: string, lookupQuestion = question) {
+  const direct = findQuestionAssetRowsByName(context, question);
+  if (direct.length) return direct;
+  return findQuestionAssetRows(context, lookupQuestion);
+}
+
+function buildDeterministicAiAnswerV2(question: string, context: Record<string, unknown>, lookupQuestion = question) {
+  const assetRows = aiTargetAssetRows(context, question, lookupQuestion);
+  const assetName = rowAssetName(assetRows[0] || {});
+  const leaseRowsAll = (context.leaseRows as Record<string, unknown>[] | undefined) || [];
+  if (isReadableAssetCountQuestion(question)) {
+    const count = numberValue(context.scope && (context.scope as Record<string, unknown>).readable_asset_count);
+    if (count !== null) return { mode: 'deterministic_asset_count_v2', answer: `현재 읽기 권한 범위에서 조회 가능한 자산은 ${new Intl.NumberFormat('ko-KR').format(count)}개입니다.` };
+  }
+  if (isENocQuestion(question)) {
+    const targetLeaseRows = assetRows.length && !isOverallQuestion(question) ? rowsForAssets(leaseRowsAll, assetRows) : leaseRowsAll;
+    if (assetRows.length && !isOverallQuestion(question)) {
+      const metric = matchedMetricRows(context, 'average_e_noc', assetRows)
+        .map((row) => numberValue(firstDefined(row.numeric_value, row.value)))
+        .find((value) => value !== null && value > 0);
+      const assetStored = assetRows.map((row) => rowENoc(row)).find((value) => value !== null && value > 0);
+      const computed = weightedENoc(targetLeaseRows);
+      const value = metric || computed?.value || assetStored;
+      if (value && assetName) return { mode: 'deterministic_asset_enoc_v2', answer: `${assetName}의 E. NOC는 ${formatAiWon(value)}입니다.` };
+      if (assetName) return { mode: 'deterministic_asset_enoc_missing_v2', answer: `${assetName}의 E. NOC를 계산할 임대면적과 월 임관리비 근거가 부족합니다.` };
+    }
+    const computed = weightedENoc(targetLeaseRows);
+    if (computed) return { mode: 'deterministic_portfolio_enoc_v2', answer: `읽기 권한 범위 전체 자산의 임대면적 가중평균 E. NOC는 ${formatAiWon(computed.value)}입니다.` };
+  }
+  if (isVacancyQuestion(question)) {
+    const targetAssetRows = assetRows.length && !isOverallQuestion(question) ? assetRows : ((context.assetRows as Record<string, unknown>[] | undefined) || []);
+    const targetLeaseRows = assetRows.length && !isOverallQuestion(question) ? rowsForAssets(leaseRowsAll, assetRows) : leaseRowsAll;
+    const grossAreaPy = targetAssetRows.reduce((sum, row) => sum + (rowGrossAreaPy(row) || 0), 0);
+    const leasedAreaPy = targetLeaseRows.reduce((sum, row) => sum + (rowAreaPy(row) || 0), 0);
+    const explicitVacancyAreaPy = targetAssetRows.reduce((sum, row) => sum + (rowVacancyAreaPy(row) || 0), 0);
+    const vacancyAreaPy = explicitVacancyAreaPy || Math.max(0, grossAreaPy - leasedAreaPy);
+    if (grossAreaPy > 0) {
+      const label = assetRows.length && !isOverallQuestion(question) ? assetName : '읽기 권한 범위 전체 자산';
+      return { mode: 'deterministic_vacancy_rate_v2', answer: `${label}의 공실률은 ${formatAiPercent(vacancyAreaPy / grossAreaPy)}입니다. 총 연면적 ${formatAiPy(grossAreaPy)}, 임대면적 ${formatAiPy(leasedAreaPy)}, 공실면적 ${formatAiPy(vacancyAreaPy)} 기준입니다.` };
+    }
+  }
+  if (isLargestTenantAreaQuestion(question) && assetRows.length) {
+    const leaseRows = rowsForAssets(leaseRowsAll, assetRows);
+    const tenantAreas = groupTenantArea(leaseRows);
+    if (tenantAreas[0]) return { mode: 'deterministic_tenant_area_rank_v2', answer: `${assetName}에서 가장 많은 면적을 임차한 임차인은 ${tenantAreas[0].tenantName}이고, 임대면적은 ${formatAiPy(tenantAreas[0].areaPy)}입니다.` };
+  }
+  if (isAssetLookupQuestion(question) && assetRows.length === 1) {
+    const fund = normalizeText(firstDefined(assetRows[0].fund_name, assetRows[0].fundName)).trim();
+    const address = normalizeText(firstDefined(assetRows[0].sigungu_address, assetRows[0].address_sigungu, assetRows[0].standardized_address, assetRows[0].standardizedAddress, assetRows[0].address)).trim();
+    return { mode: 'deterministic_asset_lookup_v2', answer: `${assetName}은 읽기 권한 범위에서 확인됩니다.${fund ? ` 펀드는 ${fund}입니다.` : ''}${address ? ` 주소는 ${address}입니다.` : ''}` };
+  }
+  return null;
+}
+
+function buildProviderFallbackAnswerV2(question: string, context: { evidence: Record<string, unknown>[]; scope: Record<string, unknown> }) {
+  const evidence = context.evidence || [];
+  if (!evidence.length) return '읽기 권한 범위 안에서 답변할 근거 데이터를 찾지 못했습니다.';
+  const assetNames = uniqueStrings(evidence.map((row) => row.asset), 5).filter((name) => !/^asset[_-]/iu.test(name));
+  const tenantNames = uniqueStrings(evidence.map((row) => row.tenant), 5).filter((name) => !/^tenant[_-]/iu.test(name));
+  const lines: string[] = [];
+  if (assetNames.length) lines.push(`확인된 자산은 ${assetNames.join(', ')}입니다.`);
+  if (tenantNames.length) lines.push(`관련 임차인은 ${tenantNames.join(', ')}입니다.`);
+  return lines.length ? lines.join('\n') : '읽기 권한 범위 안에서 관련 데이터는 확인됐지만, 답변에 필요한 표시값이 부족합니다.';
 }
 
 function dashboardMetricRecord(input: {
@@ -4922,7 +5239,8 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
   const history = normalizeAiHistory(payload.history);
   const conversationQuestion = buildAiConversationQuestion(question, history);
   const context = await collectAiSearchContext(ctx, conversationQuestion);
-  const deterministicAnswer = buildDeterministicAiAnswer(question, context as Record<string, unknown>, conversationQuestion);
+  const deterministicAnswer = buildDeterministicAiAnswerV2(question, context as Record<string, unknown>, conversationQuestion)
+    || buildDeterministicAiAnswer(question, context as Record<string, unknown>, conversationQuestion);
   if (deterministicAnswer) {
     await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', 200, {
       question,
@@ -4964,7 +5282,7 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       provider_status: providerResult.status,
     });
     if (!providerResult.ok) {
-      const fallbackAnswer = buildProviderFallbackAnswer(question, context, providerResult.status, providerResult.providerMessage);
+      const fallbackAnswer = buildProviderFallbackAnswerV2(question, context);
       return jsonResponse({
         ok: true,
         mode: 'provider_fallback',
@@ -4991,7 +5309,7 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       evidence_rows: context.evidence.length,
       error: error instanceof Error ? error.message : 'provider error',
     });
-    const fallbackAnswer = buildProviderFallbackAnswer(question, context, 502, safeProviderError(error));
+    const fallbackAnswer = buildProviderFallbackAnswerV2(question, context);
     return jsonResponse({
       ok: true,
       mode: 'provider_fallback',
@@ -5403,6 +5721,9 @@ Deno.serve(async (request) => {
   if (action === 'edits/readback') return readbackEdit(ctx, payload);
   if (action === 'edits/approve') return approveEdit(ctx, payload);
   if (action === 'edits/reject') return rejectEdit(ctx, payload);
+  if (action === 'lease-events/list') return listLeaseEvents(ctx, payload);
+  if (action === 'lease-events/preview') return previewLeaseEvent(ctx, payload);
+  if (action === 'lease-events/submit') return submitLeaseEvent(ctx, payload);
   if (action === 'worklogs/list' || action === 'worklogs' || action === 'worklogs/update' || action === 'worklogs/complete' || action === 'worklogs/delete') {
     return fail(410, 'Legacy worklog API is retired. Use work-platform task APIs.', origin);
   }

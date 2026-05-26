@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-22T09:08:43.645Z",
+  "generated_at": "2026-05-26T02:25:48.620Z",
   "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
   "origin": "https://kylee94.github.io",
   "auth_source": "password_grant",
@@ -11,11 +11,11 @@
     },
     "asset_lookup": {
       "status": 200,
-      "answer": "인천석남물류센터은 조회 가능합니다. 펀드는 이지스인컴앤그로스제2의4호일반사모부동산모투자회사입니다."
+      "answer": "인천석남물류센터은 읽기 권한 범위에서 확인됩니다. 펀드는 이지스인컴앤그로스제2의4호일반사모부동산모투자회사입니다. 주소는 인천광역시 서구 봉수대로 370입니다."
     },
     "context_follow_up": {
       "status": 200,
-      "answer": "스카이박스1, 스카이박스2의 E. NOC는 103,070원입니다."
+      "answer": "인천석남물류센터의 E. NOC는 30,185원입니다."
     },
     "bukuk_e_noc": {
       "status": 200,

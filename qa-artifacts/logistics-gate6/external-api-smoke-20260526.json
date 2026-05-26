@@ -1,0 +1,67 @@
+{
+  "ok": false,
+  "generated_at": "2026-05-26T02:29:18.304Z",
+  "origin": "https://kylee94.github.io",
+  "auth_source": "password_grant",
+  "checks": [
+    {
+      "name": "naver/maps-config",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "name": "opendart/company",
+      "status": 502,
+      "ok": false,
+      "cache": null,
+      "body": {
+        "ok": false,
+        "message": "OpenDART provider request failed",
+        "status": 502,
+        "detail": {
+          "provider_error": "error sending request for url (https://opendart.fss.or.kr/api/company.json?crtfc_key=[redacted]&corp_code=01561359): client error (Connect): received fatal alert: HandshakeFailure"
+        }
+      }
+    },
+    {
+      "name": "building-register/summary",
+      "status": 502,
+      "ok": false,
+      "cache": {
+        "hit": false,
+        "stale": false
+      },
+      "body": {
+        "ok": false,
+        "message": "Building-register provider returned an error",
+        "provider_message": "Unexpected errors\n",
+        "cache": {
+          "hit": false,
+          "stale": false
+        }
+      }
+    },
+    {
+      "name": "naver/geocode",
+      "status": 200,
+      "ok": true,
+      "count": 1,
+      "cache": {
+        "hit": true,
+        "stale": false,
+        "fetched_at": "2026-05-26T02:08:05.406+00:00"
+      },
+      "body": {
+        "ok": true,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T02:08:05.406+00:00"
+        },
+        "data_keys": [
+          "0"
+        ]
+      }
+    }
+  ]
+}

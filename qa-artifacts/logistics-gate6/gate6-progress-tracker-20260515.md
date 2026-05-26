@@ -1,9 +1,61 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-22T19:31:00.000+09:00
-- Overall: 277 / 342 (81.0%)
+- Updated at: 2026-05-26T11:30:00.000+09:00
+- Overall: 283 / 366 (77.3%)
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
 - gh-pages deployment: executed for compatibility view cleanup release.
+
+## 2026-05-26 Update - 1~5 Implementation / Edge + Front Deploy
+
+- Implemented and deployed `ll-dashboard-api` updates for AI context handling, external API provider validation, lease event submit/list/preview hardening, and Contract Data route support.
+- AI chatbot QA now passes the follow-up context case: `인천석남물류센터` lookup followed by `그 자산 E. NOC` returns `인천석남물류센터의 E. NOC는 30,185원입니다.`
+- External API smoke:
+  - `naver/maps-config`: pass.
+  - `naver/geocode`: pass.
+  - `opendart/company`: still fails at provider TLS handshake from Supabase Edge. This is not marked complete.
+  - `building-register/summary`: still returns provider `Unexpected errors`; kept as incomplete.
+- Added Contract Data tab first implementation:
+  - contract ledger display from permission-filtered dashboard rows.
+  - lease event submit request through Edge Function and `ll_edit_requests`.
+  - lease event list with explicit loading/error/empty states.
+  - submit audit is now best-effort so an audit failure does not make a successfully inserted request look like a failed request.
+- Tab rendering was changed from "all modules mounted at once" to "active + visited modules only" to reduce black flicker without loading all heavy dashboard tabs upfront.
+- gh-pages deployment executed and live URL smoke confirmed the latest JS asset.
+
+## 2026-05-26 Update - Checklist Sync / Contract Data Management Parent
+
+- Current canonical tracker is this MD file. The JSON tracker was synced to the same stage totals during this session.
+- Added one new parent item: `임대차계약 데이터 관리 탭 구축`.
+  - Stage 16: `0 / 24`.
+  - This parent covers contract listing, contract event wizards, Excel-like edit UX, server validation, submit/approve/readback/write/audit, notification linkage, and dashboard recalculation.
+- Existing completed UI work is not reopened unless current browser evidence shows a regression.
+- Future UI/function changes remain subject to the user rule: propose 5 work items first, then proceed only on approved items.
+- Approved current 5-item batch:
+  - checklist sync and new parent registration
+  - OpenDART/building-register API status check
+  - AI chatbot quality/context/permission first-pass review
+  - residual hardcoding/static JSON dependency inventory
+  - contract data management parent first design artifact
+
+### Current Canonical Stage Summary
+
+| Stage | Area | Done / Total |
+|---:|---|---:|
+| 2 | 공통 데이터 기준 | 18 / 24 |
+| 3 | 업무 로그 메인 페이지 | 32 / 42 |
+| 4 | Dashboard 공통 | 13 / 19 |
+| 5 | Weekly 탭 | 3 / 4 |
+| 6 | Home 탭 | 39 / 44 |
+| 7 | Asset 탭 | 29 / 33 |
+| 8 | Company 탭 | 12 / 17 |
+| 9 | Pivot Table | 13 / 14 |
+| 10 | Data Quality | 18 / 21 |
+| 11 | Analysis Tools | 8 / 11 |
+| 12 | Supabase / Edge / 배포 | 33 / 33 |
+| 13 | 외부 API / AI / 외부권한 | 8 / 12 |
+| 14 | QA 계획 및 증거 | 46 / 53 |
+| 15 | 최종 완료 기준 | 8 / 15 |
+| 16 | 임대차계약 데이터 관리 탭 구축 | 3 / 24 |
 
 ## 2026-05-22 Update - Asset Tenant Table Width
 
