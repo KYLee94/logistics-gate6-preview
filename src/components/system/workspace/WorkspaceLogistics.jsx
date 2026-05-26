@@ -10688,14 +10688,12 @@ function AssetDashboard() {
             {buildingApiStatus.message}
           </div>
         ) : null}
-        {buildingRegisterSummary ? (
-          <div className="mt-4 grid grid-cols-2 gap-2 rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-3 text-[12px] text-[#D1D1D6] md:grid-cols-4">
-            <div><span className="block text-[#86868B]">건축물대장 주용도</span>{buildingRegisterSummary.main_purps_cd_nm || '-'}</div>
-            <div><span className="block text-[#86868B]">대장 연면적</span>{buildingRegisterSummary.tot_area ? `${formatNumber(buildingRegisterSummary.tot_area)}㎡` : '-'}</div>
-            <div><span className="block text-[#86868B]">지상/지하층</span>{buildingRegisterSummary.grnd_flr_cnt || '-'} / {buildingRegisterSummary.ugrnd_flr_cnt || '-'}</div>
-            <div><span className="block text-[#86868B]">사용승인일</span>{formatCompactDate(buildingRegisterSummary.use_apr_day)}</div>
-          </div>
-        ) : null}
+        <div className="mt-4 grid grid-cols-2 gap-2 rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-3 text-[12px] text-[#D1D1D6] md:grid-cols-4">
+          <div><span className="block text-[#86868B]">건축물대장 주용도</span>{buildingRegisterSummary?.main_purps_cd_nm || '-'}</div>
+          <div><span className="block text-[#86868B]">대장 연면적</span>{buildingRegisterSummary?.tot_area ? `${formatNumber(buildingRegisterSummary.tot_area)}㎡` : '-'}</div>
+          <div><span className="block text-[#86868B]">지상/지하층</span>{buildingRegisterSummary?.grnd_flr_cnt || '-'} / {buildingRegisterSummary?.ugrnd_flr_cnt || '-'}</div>
+          <div><span className="block text-[#86868B]">사용승인일</span>{formatCompactDate(buildingRegisterSummary?.use_apr_day)}</div>
+        </div>
       </section>
 
       {assetRead.blocked ? (

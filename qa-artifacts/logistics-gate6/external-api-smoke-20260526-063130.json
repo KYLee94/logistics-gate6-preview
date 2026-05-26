@@ -1,0 +1,1323 @@
+{
+  "ok": false,
+  "generated_at": "2026-05-26T06:31:30.035Z",
+  "origin": "https://kylee94.github.io",
+  "basis_date": "2026-05-31",
+  "auth_source": "password_grant",
+  "checks": [
+    {
+      "name": "naver/maps-config",
+      "status": 200,
+      "ok": true
+    },
+    {
+      "name": "building-register/summary-all-assets",
+      "status": 502,
+      "ok": false,
+      "asset_count": 17,
+      "passed": 14,
+      "failed": 3
+    },
+    {
+      "name": "opendart/company-provider-separated",
+      "status": 200,
+      "ok": true,
+      "provider_success": false,
+      "fallback_success": true,
+      "classification": "tenant_fallback",
+      "proxy_url_configured": false,
+      "required_user_action": null,
+      "body": {
+        "ok": true,
+        "provider_status": 206,
+        "provider_warning": "OpenDART provider failed; using verified tenant mapping fallback",
+        "cache": {
+          "hit": true,
+          "stale": true,
+          "source": "ll_tenants"
+        },
+        "detail": null,
+        "data_keys": [
+          "corp_code",
+          "corp_name",
+          "corp_cls",
+          "bizr_no",
+          "adres",
+          "industry_name"
+        ]
+      }
+    },
+    {
+      "name": "naver/geocode",
+      "status": "skipped",
+      "ok": false,
+      "reason": "LOGISTICS_GEOCODE_QUERY not set"
+    }
+  ],
+  "building_register_assets": [
+    {
+      "asset_name": "경산 쿠팡물류센터",
+      "payload": {
+        "sigungu_cd": "47290",
+        "bjdong_cd": "25330",
+        "plat_gb_cd": "0",
+        "bun": "0903",
+        "ji": "0000"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:28.161+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "동산물류센터",
+      "payload": {
+        "sigungu_cd": "41500",
+        "bjdong_cd": "33025",
+        "plat_gb_cd": "0",
+        "bun": "0977",
+        "ji": "0005"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:29.231+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "두동 LG전자 통합물류센터",
+      "payload": {
+        "sigungu_cd": "48129",
+        "bjdong_cd": "16100",
+        "plat_gb_cd": "0",
+        "bun": "1875",
+        "ji": "0000"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:30.423+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "부국물류센터",
+      "payload": {
+        "sigungu_cd": "41500",
+        "bjdong_cd": "35029",
+        "plat_gb_cd": "0",
+        "bun": "0003",
+        "ji": "0002"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:31.54+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "부산송정물류센터",
+      "payload": {
+        "sigungu_cd": "26440",
+        "bjdong_cd": "10900",
+        "plat_gb_cd": "0",
+        "bun": "1715",
+        "ji": "0002"
+      },
+      "provider_status": 200,
+      "cache_hit": true,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T05:12:49.45+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T05:12:49.45+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "스카이박스1, 스카이박스2",
+      "payload": {
+        "sigungu_cd": "28260",
+        "bjdong_cd": "11900",
+        "plat_gb_cd": "0",
+        "bun": "1549",
+        "ji": "0004"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:33.428+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "아레나스안성",
+      "payload": {
+        "sigungu_cd": "41550",
+        "bjdong_cd": "36027",
+        "plat_gb_cd": "0",
+        "bun": "0051",
+        "ji": "0003"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:35.239+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "아레나스양지물류센터",
+      "payload": {
+        "sigungu_cd": "41461",
+        "bjdong_cd": "36021",
+        "plat_gb_cd": "0",
+        "bun": "0914",
+        "ji": "0000"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": false,
+      "stored_readback": false,
+      "data_presence": {
+        "plat_plc": false,
+        "new_plat_plc": false,
+        "tot_area": false,
+        "main_purps_cd_nm": false,
+        "use_apr_day": false
+      },
+      "ok": false,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": []
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": []
+      }
+    },
+    {
+      "asset_name": "안성 성은지구 물류센터",
+      "payload": {
+        "sigungu_cd": "41550",
+        "bjdong_cd": "38021",
+        "plat_gb_cd": "0",
+        "bun": "0316",
+        "ji": "0000"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:51.174+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "안성 홈플러스 중부허브 물류센터",
+      "payload": {
+        "sigungu_cd": "41550",
+        "bjdong_cd": "38022",
+        "plat_gb_cd": "0",
+        "bun": "0941",
+        "ji": "0000"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:53.798+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "양산 유산동 물류센터",
+      "payload": {
+        "sigungu_cd": "48330",
+        "bjdong_cd": "11100",
+        "plat_gb_cd": "0",
+        "bun": "0509",
+        "ji": "0000"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:54.629+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "에이블로지스물류센터",
+      "payload": {
+        "sigungu_cd": "41461",
+        "bjdong_cd": "35023",
+        "plat_gb_cd": "0",
+        "bun": "0767",
+        "ji": "0013"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:55.76+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "여주 본두리 물류센터",
+      "payload": {
+        "sigungu_cd": "41670",
+        "bjdong_cd": "25032",
+        "plat_gb_cd": "0",
+        "bun": "0018",
+        "ji": "0003"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:30:59.035+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "이천 마장면 물류센터",
+      "payload": {
+        "sigungu_cd": "41500",
+        "bjdong_cd": "34024",
+        "plat_gb_cd": "0",
+        "bun": "0099",
+        "ji": "0000"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:31:00.249+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "인천석남물류센터",
+      "payload": {
+        "sigungu_cd": "28260",
+        "bjdong_cd": "11000",
+        "plat_gb_cd": "0",
+        "bun": "0224",
+        "ji": "0020"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": false,
+      "stored_readback": false,
+      "data_presence": {
+        "plat_plc": false,
+        "new_plat_plc": false,
+        "tot_area": false,
+        "main_purps_cd_nm": false,
+        "use_apr_day": false
+      },
+      "ok": false,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": []
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": []
+      }
+    },
+    {
+      "asset_name": "평택아디다스물류센터",
+      "payload": {
+        "sigungu_cd": "41220",
+        "bjdong_cd": "10600",
+        "plat_gb_cd": "0",
+        "bun": "1175",
+        "ji": "0003"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": true,
+      "stored_readback": true,
+      "data_presence": {
+        "plat_plc": true,
+        "new_plat_plc": true,
+        "tot_area": true,
+        "main_purps_cd_nm": true,
+        "use_apr_day": true
+      },
+      "ok": true,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": [
+          "mgm_bldrgst_pk",
+          "plat_plc",
+          "new_plat_plc",
+          "bld_nm",
+          "main_purps_cd_nm",
+          "etc_purps",
+          "strct_cd_nm",
+          "roof_cd_nm",
+          "grnd_flr_cnt",
+          "ugrnd_flr_cnt",
+          "plat_area",
+          "arch_area",
+          "tot_area",
+          "vl_rat_estm_tot_area",
+          "bc_rat",
+          "vl_rat",
+          "heit",
+          "hhld_cnt"
+        ]
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": true,
+          "stale": false,
+          "fetched_at": "2026-05-26T06:31:16.046+00:00"
+        },
+        "detail": null,
+        "data_keys": [
+          "heit",
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
+        ]
+      }
+    },
+    {
+      "asset_name": "화성 석포리 물류센터",
+      "payload": {
+        "sigungu_cd": "41590",
+        "bjdong_cd": "37022",
+        "plat_gb_cd": "0",
+        "bun": "0147",
+        "ji": "0012"
+      },
+      "provider_status": 200,
+      "cache_hit": false,
+      "readback_cache_hit": false,
+      "stored_readback": false,
+      "data_presence": {
+        "plat_plc": false,
+        "new_plat_plc": false,
+        "tot_area": false,
+        "main_purps_cd_nm": false,
+        "use_apr_day": false
+      },
+      "ok": false,
+      "first": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": []
+      },
+      "second": {
+        "ok": true,
+        "provider_status": 200,
+        "cache": {
+          "hit": false,
+          "stale": false
+        },
+        "detail": null,
+        "data_keys": []
+      }
+    }
+  ],
+  "opendart_provider_success": false,
+  "opendart_fallback_success": true,
+  "opendart_requires_proxy_url": false
+}

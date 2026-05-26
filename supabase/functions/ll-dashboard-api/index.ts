@@ -4082,7 +4082,7 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
 
 async function callBuildingRegister(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!checkRateLimit(ctx.user.id, 'building-register/summary', 20)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'building-register/summary', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const apiKey = (Deno.env.get('BUILDING_REGISTER_API_KEY') || '').trim();
   if (!apiKey) return fail(503, 'Building-register API key is not configured', ctx.origin);
   const cachePayload = {
@@ -4113,7 +4113,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
   ].join('&');
   try {
     const buildingBaseUrl = (Deno.env.get('BUILDING_REGISTER_TITLE_URL') || 'https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo').trim();
-    const { response, body } = await fetchJsonWithTimeout(`${buildingBaseUrl}?${query}`, {}, 12_000, 1);
+    const { response, body } = await fetchJsonWithTimeout(`${buildingBaseUrl}?${query}`, {}, 20_000, 2);
     const providerOk = buildingRegisterProviderOk(response, body as Record<string, unknown>);
     const item = body?.response?.body?.items?.item;
     const first = Array.isArray(item) ? item[0] : item;
@@ -4146,7 +4146,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
       indr_auto_utcnt: first.indrAutoUtcnt,
       oudr_auto_utcnt: first.oudrAutoUtcnt,
       use_apr_day: first.useAprDay,
-    }) : null;
+    }) : {};
     let cacheWriteError = '';
     if (providerOk) {
       try {
@@ -4437,14 +4437,20 @@ function rowMonthlyCombined(row: Record<string, unknown>) {
 }
 
 function rowENoc(row: Record<string, unknown>) {
-  const stored = numberValue(firstDefined(row.average_e_noc, row.averageENoc, row.e_noc, row.eNoc, row.current_e_noc, row.currentENoc, row.current_e_noc_per_py, row.currentENocPerPy));
+  const monthly = rowMonthlyCombined(row);
+  const areaPy = rowAreaPy(row);
+  if (monthly && areaPy && areaPy > 0) return monthly / areaPy;
+  const stored = rowStoredENoc(row);
   if (stored && stored > 0) return stored;
   const rentPerPy = numberValue(firstDefined(row.current_rent_per_py, row.currentRentPerPy, row.rent_per_py, row.rentPerPy));
   const mfPerPy = numberValue(firstDefined(row.current_mf_per_py, row.currentMfPerPy, row.mf_per_py, row.mfPerPy));
   if ((rentPerPy || 0) + (mfPerPy || 0) > 0) return (rentPerPy || 0) + (mfPerPy || 0);
-  const monthly = rowMonthlyCombined(row);
-  const areaPy = rowAreaPy(row);
-  return monthly && areaPy && areaPy > 0 ? monthly / areaPy : null;
+  return null;
+}
+
+function rowStoredENoc(row: Record<string, unknown>) {
+  const stored = numberValue(firstDefined(row.average_e_noc, row.averageENoc, row.e_noc, row.eNoc, row.current_e_noc, row.currentENoc, row.current_e_noc_per_py, row.currentENocPerPy));
+  return stored && stored > 0 ? stored : null;
 }
 
 function weightedENoc(rows: Record<string, unknown>[]) {
@@ -4533,7 +4539,10 @@ function findQuestionAssetRows(context: Record<string, unknown>, question: strin
     .map((row) => ({ row, score: assetNameMatchScore(rowAssetName(row), question) }))
     .filter((item) => item.score >= 4)
     .sort((a, b) => b.score - a.score);
-  if (directNameMatches.length) return directNameMatches.map((item) => item.row);
+  if (directNameMatches.length) {
+    const topScore = directNameMatches[0].score;
+    return directNameMatches.filter((item) => item.score === topScore).map((item) => item.row);
+  }
   const terms = aiAssetSearchTerms(question);
   if (!terms.length) {
     const matched = (context.matchedAssetRows as Record<string, unknown>[] | undefined) || [];
@@ -4553,6 +4562,7 @@ function findQuestionAssetRowsByName(context: Record<string, unknown>, question:
     .map((row) => ({ row, score: assetNameMatchScore(rowAssetName(row), question) }))
     .filter((item) => item.score >= 4)
     .sort((a, b) => b.score - a.score)
+    .filter((item, _index, items) => item.score === items[0]?.score)
     .map((item) => item.row);
 }
 
@@ -4649,6 +4659,51 @@ function formatAssetAreaSummary(label: string, summary: ReturnType<typeof summar
   return pieces.join(' ');
 }
 
+function isComparisonQuestion(question: string) {
+  return /비교|차이|둘\s*중|어느\s*쪽|각각|와|과|랑/iu.test(question);
+}
+
+function assetMetricSummaryForAi(assetRows: Record<string, unknown>[], leaseRowsAll: Record<string, unknown>[]) {
+  const leaseRows = rowsForAssets(leaseRowsAll, assetRows);
+  const summary = summarizeAssetOperations(assetRows, leaseRows);
+  const assetStored = assetRows.map((row) => rowStoredENoc(row)).find((value) => value !== null && value > 0);
+  const metric = matchedMetricRows({ metricRows: [] }, 'average_e_noc', assetRows)
+    .map((row) => numberValue(firstDefined(row.numeric_value, row.value)))
+    .find((value) => value !== null && value > 0);
+  return {
+    ...summary,
+    eNoc: summary.eNoc || assetStored || metric || null,
+  };
+}
+
+function buildAssetComparisonAnswer(question: string, assetRows: Record<string, unknown>[], leaseRowsAll: Record<string, unknown>[]) {
+  const byAsset = new Map<string, Record<string, unknown>[]>();
+  assetRows.forEach((row) => {
+    const name = rowAssetName(row);
+    if (!name) return;
+    byAsset.set(name, [...(byAsset.get(name) || []), row]);
+  });
+  if (byAsset.size < 2) return null;
+  const lines = [...byAsset.entries()].slice(0, 4).map(([name, rows]) => {
+    const summary = assetMetricSummaryForAi(rows, leaseRowsAll);
+    const parts = [`${name}:`];
+    if (isVacancyQuestion(question) && summary.vacancyRate !== null) parts.push(`공실률 ${formatAiPercent(summary.vacancyRate)}`);
+    if (isENocQuestion(question) && summary.eNoc) parts.push(`E. NOC ${formatAiWon(summary.eNoc)}`);
+    if ((isMonthlyCostQuestion(question) || /임관리비|임대료|관리비|월\s*비용/iu.test(question)) && summary.monthlyCost > 0) parts.push(`월 임관리비 ${compactAiValue(summary.monthlyCost)}`);
+    if (isAreaSummaryQuestion(question)) {
+      if (summary.grossAreaPy > 0) parts.push(`총 연면적 ${formatAiPy(summary.grossAreaPy)}`);
+      if (summary.leasedAreaPy > 0) parts.push(`임대면적 ${formatAiPy(summary.leasedAreaPy)}`);
+    }
+    if (parts.length === 1) {
+      if (summary.vacancyRate !== null) parts.push(`공실률 ${formatAiPercent(summary.vacancyRate)}`);
+      if (summary.monthlyCost > 0) parts.push(`월 임관리비 ${compactAiValue(summary.monthlyCost)}`);
+      if (summary.eNoc) parts.push(`E. NOC ${formatAiWon(summary.eNoc)}`);
+    }
+    return parts.join(' ');
+  });
+  return lines.length ? `요청하신 자산별 비교입니다. ${lines.join(' / ')}` : null;
+}
+
 function findQuestionTenantNames(context: Record<string, unknown>, question: string) {
   const rows = [
     ...((context.leaseRows as Record<string, unknown>[] | undefined) || []),
@@ -4703,6 +4758,10 @@ function inferAiTenantName(context: Record<string, unknown>, question: string, l
   return '';
 }
 
+function isTenantAssetQuestion(question: string) {
+  return /(회사|임차인|입주|임차|어느\s*자산|자산.*어디|어디.*입주)/iu.test(question);
+}
+
 async function safeSelectRows(ctx: Context, table: string, limit: number) {
   const { data, error } = await ctx.serviceClient
     .from(table)
@@ -4725,12 +4784,12 @@ function compactEvidenceRows(rows: Record<string, unknown>[], table: string, max
   }));
 }
 
-async function collectAiSearchContext(ctx: Context, question: string) {
+async function collectAiSearchContext(ctx: Context, question: string, basisDate = currentKstMonthEndDate()) {
   const terms = aiSearchTerms(question).slice(0, 8);
-  const [assetRows, leaseSpaceRows, rentRows, tenantRows, taskRows, boardRows, weeklyAssetRows, weeklyProjectRows, metricCacheRows] = await Promise.all([
+  const [assetRows, leaseSpaceRows, initialRentRows, tenantRows, taskRows, boardRows, weeklyAssetRows, weeklyProjectRows, metricCacheRows] = await Promise.all([
     safeSelectRows(ctx, 'll_assets', 250),
-    safeSelectRows(ctx, 'll_lease_spaces', 1000),
-    safeSelectRows(ctx, 'll_rent_history', 500),
+    safeSelectRows(ctx, 'll_lease_spaces', 2000),
+    safeSelectRows(ctx, 'll_rent_history', 10000),
     safeSelectRows(ctx, 'll_tenants', 300),
     safeSelectRows(ctx, 'll_work_items', 500),
     safeSelectRows(ctx, 'll_board_posts', 300),
@@ -4740,6 +4799,8 @@ async function collectAiSearchContext(ctx: Context, question: string) {
   ]);
   const metricRows = metricCacheRows.filter((row) => normalizeText(row.cache_type) === 'dashboard_metric');
   const allowedAssets = assetRows.filter((row) => canReadDataRow(ctx, row));
+  const scopedRentHistory = await listRentHistoryForAssets(ctx, allowedAssets.map((row) => String(row.asset_id || '')).filter(Boolean));
+  const rentRows = scopedRentHistory.errorResponse ? initialRentRows : scopedRentHistory.rows;
   const allowedAssetKeys = new Set(allowedAssets.flatMap((row) => [
     row.asset_id,
     row.assetId,
@@ -4750,11 +4811,11 @@ async function collectAiSearchContext(ctx: Context, question: string) {
   ].map(normalizeKey).filter(Boolean)));
   const namedRentRows = enrichRowsWithAssetTenantNames(rentRows, assetRows, tenantRows);
   const namedLeaseSpaceRows = enrichRowsWithAssetTenantNames(
-    applyLatestRentHistoryAmountsToLeaseSpaces(
-      currentDashboardLeaseSpaces(leaseSpaceRows),
-      namedRentRows,
-      currentKstMonthEndDate(),
-    ),
+      applyLatestRentHistoryAmountsToLeaseSpaces(
+        currentDashboardLeaseSpaces(leaseSpaceRows),
+        namedRentRows,
+        basisDate,
+      ),
     assetRows,
     tenantRows,
   );
@@ -4858,6 +4919,29 @@ function publicAiScope(scope: Record<string, unknown>) {
     readable_asset_count: scope.readable_asset_count || 0,
     evidence_rows: scope.evidence_rows || 0,
   };
+}
+
+function publicAiAnswerResponse(answer: string, origin: string) {
+  return jsonResponse({
+    ok: true,
+    answer,
+    evidence: [],
+  }, 200, origin);
+}
+
+async function dashboardWeightedENocForAsset(ctx: Context, assetRow: Record<string, unknown>, basisDate: string) {
+  const assetId = safeText(firstDefined(assetRow.asset_id, assetRow.assetId));
+  if (!assetId) return null;
+  const spacesResult = await listLeaseSpacesForAssets(ctx, [assetId]);
+  if (spacesResult.errorResponse) return null;
+  const historyResult = await listRentHistoryForAssets(ctx, [assetId]);
+  if (historyResult.errorResponse) return null;
+  const leaseRows = applyLatestRentHistoryAmountsToLeaseSpaces(
+    currentDashboardLeaseSpaces(spacesResult.rows),
+    historyResult.rows,
+    basisDate,
+  );
+  return weightedENoc(leaseRows);
 }
 
 function extractGoogleAiText(body: Record<string, unknown>) {
@@ -4987,21 +5071,6 @@ function buildDeterministicAiAnswer(question: string, context: Record<string, un
     const storedMetric = matchedMetricRows(context, 'average_e_noc', assetRows)
       .map((row) => numberValue(firstDefined(row.numeric_value, row.value)))
       .find((value) => value !== null && value > 0);
-    if (storedMetric) {
-      return {
-        mode: 'deterministic_metric_snapshot',
-        answer: `${assetName}의 E. NOC는 ${formatKoreanWon(storedMetric)}입니다.`,
-      };
-    }
-    const assetStored = assetRows
-      .map((row) => rowENoc(row))
-      .find((value) => value !== null && value > 0);
-    if (assetStored) {
-      return {
-        mode: 'deterministic_asset_metric',
-        answer: `${assetName}의 E. NOC는 ${formatKoreanWon(assetStored)}입니다.`,
-      };
-    }
     const leaseRows = rowsForAssets((context.leaseRows as Record<string, unknown>[] | undefined) || [], assetRows);
     const rentRows = rowsForAssets((context.rentRows as Record<string, unknown>[] | undefined) || [], assetRows);
     const computed = weightedENoc(leaseRows.length ? leaseRows : rentRows);
@@ -5009,6 +5078,21 @@ function buildDeterministicAiAnswer(question: string, context: Record<string, un
       return {
         mode: 'deterministic_computed_metric',
         answer: `${assetName}의 E. NOC는 ${formatKoreanWon(computed.value)}입니다.`,
+      };
+    }
+    if (storedMetric) {
+      return {
+        mode: 'deterministic_metric_snapshot',
+        answer: `${assetName}의 E. NOC는 ${formatKoreanWon(storedMetric)}입니다.`,
+      };
+    }
+    const assetStored = assetRows
+      .map((row) => rowStoredENoc(row))
+      .find((value) => value !== null && value > 0);
+    if (assetStored) {
+      return {
+        mode: 'deterministic_asset_metric',
+        answer: `${assetName}의 E. NOC는 ${formatKoreanWon(displayAssetStored)}입니다.`,
       };
     }
     return {
@@ -5086,6 +5170,39 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
     const count = numberValue(context.scope && (context.scope as Record<string, unknown>).readable_asset_count);
     if (count !== null) return { mode: 'deterministic_asset_count_v2', answer: `현재 읽기 권한 범위에서 조회 가능한 자산은 ${new Intl.NumberFormat('ko-KR').format(count)}개입니다.` };
   }
+  if (assetRows.length > 1 && isComparisonQuestion(question)) {
+    const comparisonAnswer = buildAssetComparisonAnswer(question, assetRows, leaseRowsAll);
+    if (comparisonAnswer) return { mode: 'deterministic_asset_comparison_v2', answer: comparisonAnswer };
+  }
+  if (!assetRows.length && isTenantAssetQuestion(question)) {
+    const tenantName = findQuestionTenantNames(context, question)[0];
+    if (tenantName) {
+      const tenantRows = rowsForTenant(leaseRowsAll, tenantName);
+      const groupedAssets = new Map<string, { areaPy: number; monthlyCost: number; eNocRows: Record<string, unknown>[] }>();
+      tenantRows.forEach((row) => {
+        const name = rowAssetName(row);
+        if (!name) return;
+        const current = groupedAssets.get(name) || { areaPy: 0, monthlyCost: 0, eNocRows: [] };
+        current.areaPy += rowAreaPy(row) || 0;
+        current.monthlyCost += rowMonthlyCombined(row) || 0;
+        current.eNocRows.push(row);
+        groupedAssets.set(name, current);
+      });
+      if (groupedAssets.size) {
+        const assets = [...groupedAssets.entries()].slice(0, 6).map(([name, value]) => {
+          const pieces = [name];
+          if (value.areaPy > 0) pieces.push(`임대면적 ${formatAiPy(value.areaPy)}`);
+          if (isMonthlyCostQuestion(question) && value.monthlyCost > 0) pieces.push(`월 임관리비 ${compactAiValue(value.monthlyCost)}`);
+          if (isENocQuestion(question)) {
+            const eNoc = weightedENoc(value.eNocRows)?.value;
+            if (eNoc) pieces.push(`E. NOC ${formatAiWon(eNoc)}`);
+          }
+          return pieces.join(' ');
+        });
+        return { mode: 'deterministic_tenant_assets_v2', answer: `${tenantName}은 읽기 권한 범위에서 ${assets.join(', ')}에 연결되어 있습니다.` };
+      }
+    }
+  }
   if (assetRows.length && isTenantMetricFollowUpQuestion(question)) {
     const tenantName = inferAiTenantName(context, question, lookupQuestion, assetRows);
     const assetLeaseRows = rowsForAssets(leaseRowsAll, assetRows);
@@ -5123,6 +5240,13 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
     pieces.push(topTenants.length ? `주요 임차인은 ${topTenants.join(', ')}입니다.` : '현재 권한 범위에서 확인되는 임차인 계약은 없습니다.');
     return { mode: 'deterministic_asset_operations_summary_v2', answer: pieces.join(' ') };
   }
+  if (!assetRows.length && !isOverallQuestion(question) && (isAssetLookupQuestion(question) || isVacancyQuestion(question) || isAreaSummaryQuestion(question) || isMonthlyCostQuestion(question) || isENocQuestion(question) || isTenantAssetQuestion(question))) {
+    const terms = aiAssetSearchTerms(question);
+    const tenantName = findQuestionTenantNames(context, question)[0];
+    if (terms.length || tenantName || /권한\s*밖|비공개|없는\s*자산|테스트\s*물류/iu.test(question)) {
+      return { mode: 'deterministic_no_readable_evidence_v2', answer: '읽기 권한 범위 안에서 해당 질문에 답할 근거 데이터를 찾지 못했습니다.' };
+    }
+  }
   if (isAreaSummaryQuestion(question)) {
     const targetAssetRows = assetRows.length && !isOverallQuestion(question)
       ? assetRows
@@ -5159,7 +5283,7 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
         .find((value) => value !== null && value > 0);
       const assetStored = assetRows.map((row) => rowENoc(row)).find((value) => value !== null && value > 0);
       const computed = weightedENoc(targetLeaseRows);
-      const value = metric || computed?.value || assetStored;
+      const value = computed?.value || metric || assetStored;
       if (value && assetName) return { mode: 'deterministic_asset_enoc_v2', answer: `${assetName}의 E. NOC는 ${formatAiWon(value)}입니다.` };
       if (assetName) return { mode: 'deterministic_asset_enoc_missing_v2', answer: `${assetName}의 E. NOC를 계산할 임대면적과 월 임관리비 근거가 부족합니다.` };
     }
@@ -5600,9 +5724,27 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
   const question = String(payload.question || payload.query || '').trim();
   if (question.length < 2) return fail(400, 'question is required', ctx.origin);
   if (!groqApiKey() && !googleAiApiKey()) return fail(503, 'AI provider key is not configured', ctx.origin);
+  const basisDate = dashboardBasisDate(payload);
   const history = normalizeAiHistory(payload.history);
   const conversationQuestion = buildAiConversationQuestion(question, history);
-  const context = await collectAiSearchContext(ctx, conversationQuestion);
+  const context = await collectAiSearchContext(ctx, conversationQuestion, basisDate);
+  if (isENocQuestion(question) && !isOverallQuestion(question) && !isComparisonQuestion(question) && !findQuestionTenantNames(context as Record<string, unknown>, question).length) {
+    const assetRows = aiTargetAssetRows(context as Record<string, unknown>, question, conversationQuestion);
+    if (assetRows.length && !inferAiTenantName(context as Record<string, unknown>, question, conversationQuestion, assetRows)) {
+      const computedENoc = await dashboardWeightedENocForAsset(ctx, assetRows[0], basisDate);
+      const assetName = rowAssetName(assetRows[0]);
+      if (computedENoc?.value && assetName) {
+        await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', 200, {
+          question,
+          provider: 'edge',
+          model: 'deterministic_dashboard_weighted_asset_enoc',
+          evidence_rows: computedENoc.rowCount,
+          deterministic: true,
+        });
+        return publicAiAnswerResponse(`${assetName}의 E. NOC는 ${formatAiWon(computedENoc.value)}입니다.`, ctx.origin);
+      }
+    }
+  }
   const deterministicAnswer = buildDeterministicAiAnswerV2(question, context as Record<string, unknown>, conversationQuestion)
     || buildDeterministicAiAnswer(question, context as Record<string, unknown>, conversationQuestion);
   if (deterministicAnswer) {
@@ -5614,15 +5756,7 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       matched_tables: context.scope.matched_tables,
       deterministic: true,
     });
-    return jsonResponse({
-      ok: true,
-      mode: deterministicAnswer.mode,
-      provider: 'edge',
-      model: 'dashboard-metrics',
-      answer: deterministicAnswer.answer,
-      evidence: [],
-      scope: publicAiScope(context.scope),
-    }, 200, ctx.origin);
+    return publicAiAnswerResponse(deterministicAnswer.answer, ctx.origin);
   }
   const prompt = [
     'You are the internal logistics leasing work-platform assistant.',
@@ -5647,26 +5781,9 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
     });
     if (!providerResult.ok) {
       const fallbackAnswer = buildProviderFallbackAnswerV2(question, context);
-      return jsonResponse({
-        ok: true,
-        mode: 'provider_fallback',
-        provider: providerResult.provider,
-        model: providerResult.model,
-        provider_status: providerResult.status,
-        provider_message: providerResult.providerMessage || undefined,
-        answer: fallbackAnswer,
-        evidence: [],
-        scope: publicAiScope(context.scope),
-      }, 200, ctx.origin);
+      return publicAiAnswerResponse(fallbackAnswer, ctx.origin);
     }
-    return jsonResponse({
-      ok: true,
-      provider: providerResult.provider,
-      model: providerResult.model,
-      answer: providerResult.answer || '권한 범위 안에서 답변할 수 있는 근거를 찾지 못했습니다.',
-      evidence: [],
-      scope: publicAiScope(context.scope),
-    }, 200, ctx.origin);
+    return publicAiAnswerResponse(providerResult.answer || '권한 범위 안에서 답변할 수 있는 근거를 찾지 못했습니다.', ctx.origin);
   } catch (error) {
     await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', 502, {
       question,
@@ -5674,16 +5791,7 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       error: error instanceof Error ? error.message : 'provider error',
     });
     const fallbackAnswer = buildProviderFallbackAnswerV2(question, context);
-    return jsonResponse({
-      ok: true,
-      mode: 'provider_fallback',
-      provider: 'edge',
-      model: '',
-      provider_status: 502,
-      answer: fallbackAnswer,
-      evidence: [],
-      scope: publicAiScope(context.scope),
-    }, 200, ctx.origin);
+    return publicAiAnswerResponse(fallbackAnswer, ctx.origin);
   }
 }
 
@@ -5866,15 +5974,7 @@ async function callGoogleAiSearchChatDemo(origin: string, payload: Record<string
         evidence_count: context.evidence.length,
         deterministic: true,
       }).catch(() => {});
-      return jsonResponse({
-        ok: true,
-        mode: deterministicAnswer.mode,
-        provider: 'edge',
-        model: 'dashboard-metrics',
-        answer: deterministicAnswer.answer,
-        evidence: [],
-        scope: publicAiScope(context.scope),
-      }, 200, origin);
+      return publicAiAnswerResponse(deterministicAnswer.answer, origin);
     }
     const prompt = [
       'You are the internal logistics leasing work-platform assistant in temporary demo mode.',
@@ -5897,27 +5997,9 @@ async function callGoogleAiSearchChatDemo(origin: string, payload: Record<string
     }).catch(() => {});
     if (!providerResult.ok) {
       const fallbackAnswer = buildProviderFallbackAnswer(question, context, providerResult.status, providerResult.providerMessage);
-      return jsonResponse({
-        ok: true,
-        mode: 'demo_provider_fallback',
-        provider: providerResult.provider,
-        model: providerResult.model,
-        provider_status: providerResult.status,
-        provider_message: providerResult.providerMessage || undefined,
-        answer: fallbackAnswer,
-        evidence: [],
-        scope: publicAiScope(context.scope),
-      }, 200, origin);
+      return publicAiAnswerResponse(fallbackAnswer, origin);
     }
-    return jsonResponse({
-      ok: true,
-      mode: 'demo',
-      provider: providerResult.provider,
-      model: providerResult.model,
-      answer: providerResult.answer || '답변을 생성하지 못했습니다.',
-      evidence: [],
-      scope: publicAiScope(context.scope),
-    }, status, origin);
+    return publicAiAnswerResponse(providerResult.answer || '답변을 생성하지 못했습니다.', origin);
   } catch (error) {
     await audit(serviceClient, null, 'ai/search-chat-demo', 502, {
       origin,
@@ -5934,16 +6016,7 @@ async function callGoogleAiSearchChatDemo(origin: string, payload: Record<string
       },
     };
     const fallbackAnswer = buildProviderFallbackAnswer(question, fallbackContext, 502, safeProviderError(error));
-    return jsonResponse({
-      ok: true,
-      mode: 'demo_provider_fallback',
-      provider: 'edge',
-      model: '',
-      provider_status: 502,
-      answer: fallbackAnswer,
-      evidence: [],
-      scope: publicAiScope(fallbackContext.scope),
-    }, 200, origin);
+    return publicAiAnswerResponse(fallbackAnswer, origin);
   }
 }
 

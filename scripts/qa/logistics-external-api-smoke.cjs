@@ -3,7 +3,6 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
-const OUT_JSON = path.join(OUT_DIR, 'external-api-smoke-20260526.json');
 const EDGE_FUNCTION = 'll-dashboard-api';
 const DEFAULT_ORIGIN = 'https://kylee94.github.io';
 
@@ -36,6 +35,16 @@ function argsValue(name, fallback = '') {
   const flag = `--${name}`;
   const index = process.argv.indexOf(flag);
   return index === -1 ? fallback : (process.argv[index + 1] || fallback);
+}
+
+function timestampForFile() {
+  return new Date().toISOString().replace(/[-:]/gu, '').replace(/\..+$/u, '').replace('T', '-');
+}
+
+function currentKstMonthEndDate() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
 }
 
 async function signInForAccessToken(supabaseUrl, anonKey, email, password) {
@@ -82,34 +91,111 @@ async function invoke(endpoint, anonKey, origin, token, action, payload) {
   return { action, status: response.status, ok: response.ok, body };
 }
 
-function optionalPayloadFromEnv(prefix) {
-  if (prefix === 'building') {
-    const sigungu = envValue('LOGISTICS_BUILDING_SIGUNGU_CD');
-    const bjdong = envValue('LOGISTICS_BUILDING_BJDONG_CD');
-    const bun = envValue('LOGISTICS_BUILDING_BUN');
-    const ji = envValue('LOGISTICS_BUILDING_JI') || '0000';
-    if (!sigungu || !bjdong || !bun) return null;
-    return { sigungu_cd: sigungu, bjdong_cd: bjdong, bun, ji, plat_gb_cd: envValue('LOGISTICS_BUILDING_PLAT_GB_CD') || '0' };
-  }
-  return null;
+function firstDefined(...values) {
+  return values.find((value) => value !== undefined && value !== null && value !== '');
 }
 
-function summarizeBody(body) {
+function normalizeKey(value) {
+  return String(value || '').replace(/\s+/gu, '').toLowerCase();
+}
+
+function loadStaticAssetPayloads() {
+  const dir = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'logisticsAssetData');
+  return fs.readdirSync(dir)
+    .filter((name) => name.endsWith('.json'))
+    .map((name) => JSON.parse(fs.readFileSync(path.join(dir, name), 'utf8')));
+}
+
+function buildBuildingRegisterPayload(source = {}) {
+  const asset = source.asset || source;
+  const sigunguCd = firstDefined(asset.sigunguCd, asset.sigungu_cd, asset.sigungu);
+  const bjdongCd = firstDefined(asset.bjdongCd, asset.bjdong_cd, asset.bjdong);
+  const platGbCd = firstDefined(asset.platGbCd, asset.plat_gb_cd, '0');
+  const bun = firstDefined(asset.bun, asset.mainBun);
+  const ji = firstDefined(asset.ji, asset.subBun, '0');
+  return {
+    sigungu_cd: sigunguCd ? String(sigunguCd) : '',
+    bjdong_cd: bjdongCd ? String(bjdongCd) : '',
+    plat_gb_cd: platGbCd ? String(platGbCd) : '0',
+    bun: bun ? String(bun).padStart(4, '0') : '',
+    ji: ji ? String(ji).padStart(4, '0') : '0000',
+  };
+}
+
+function isCompleteBuildingPayload(payload = {}) {
+  return Boolean(payload.sigungu_cd && payload.bjdong_cd && payload.bun && payload.ji);
+}
+
+function staticPayloadForAsset(staticPayloads, asset) {
+  const assetId = normalizeKey(asset.asset_id || asset.assetId);
+  const assetName = normalizeKey(asset.asset_name || asset.assetName);
+  return staticPayloads.find((payload) => (
+    normalizeKey(payload.overview?.assetId || payload.meta?.selection?.assetId) === assetId
+    || normalizeKey(payload.overview?.assetName) === assetName
+  ));
+}
+
+function payloadForAsset(staticPayloads, asset) {
+  const staticPayload = staticPayloadForAsset(staticPayloads, asset) || {};
+  const rows = staticPayload.normalizedRows || staticPayload.rows || [];
+  const source = rows.find((row) => row.asset?.sigunguCd || row.sigunguCd || row.asset?.sigungu_cd || row.sigungu_cd)
+    || staticPayload.overview
+    || asset;
+  return buildBuildingRegisterPayload(source);
+}
+
+function summarizeExternalBody(body) {
   if (!body || typeof body !== 'object') return body || null;
-  const out = {};
-  for (const key of ['ok', 'error', 'message', 'provider_error', 'provider_message', 'status', 'cache', 'detail']) {
-    if (Object.prototype.hasOwnProperty.call(body, key)) out[key] = body[key];
+  return {
+    ok: body.ok,
+    provider_status: body.provider_status,
+    provider_code: body.provider_code,
+    provider_message: body.provider_message,
+    provider_warning: body.provider_warning,
+    cache: body.cache || null,
+    detail: body.detail || null,
+    data_keys: body.data && typeof body.data === 'object' ? Object.keys(body.data).slice(0, 18) : [],
+  };
+}
+
+function assertNoSecrets(label, value) {
+  const serialized = JSON.stringify(value);
+  if (/(crtfc_key|serviceKey)=|Bearer\s+[A-Za-z0-9._~-]+|OPENDART_API_KEY|BUILDING_REGISTER_API_KEY|SUPABASE_SERVICE_ROLE_KEY/iu.test(serialized)) {
+    throw new Error(`${label} leaked a secret-like value`);
   }
-  if (body.data && typeof body.data === 'object') {
-    out.data_keys = Object.keys(body.data).slice(0, 12);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function invokeWithRetry(endpoint, anonKey, origin, token, action, payload, options = {}) {
+  const attempts = options.attempts || 3;
+  const delayMs = options.delayMs || 1500;
+  let last = null;
+  for (let index = 0; index < attempts; index += 1) {
+    last = await invoke(endpoint, anonKey, origin, token, action, payload);
+    if (last.status === 200 && last.body?.ok !== false) return last;
+    if (index < attempts - 1) await sleep(delayMs * (index + 1));
   }
-  return out;
+  return last;
+}
+
+function classifyOpenDart(result) {
+  const body = result.body || {};
+  if (result.status === 200 && body.ok !== false && body.provider_status === 200 && body.cache?.source !== 'll_tenants') return 'provider_success_or_fresh_cache';
+  if (result.status === 200 && body.provider_status === 206 && body.cache?.source === 'll_tenants') return 'tenant_fallback';
+  if (result.status === 200 && body.cache?.stale === true) return 'stale_cache';
+  if (result.status === 502 && /HandshakeFailure|provider request failed/iu.test(JSON.stringify(body))) return 'provider_tls_failure';
+  if (result.status === 503) return 'not_configured';
+  return 'provider_failure';
 }
 
 async function main() {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const origin = argsValue('origin', DEFAULT_ORIGIN);
+  const basisDate = argsValue('basis-date', envValue('LOGISTICS_BASIS_DATE') || currentKstMonthEndDate());
   if (!supabaseUrl || !anonKey) throw new Error('Missing Supabase URL or anon key.');
   const endpoint = `${supabaseUrl.replace(/\/$/u, '')}/functions/v1/${EDGE_FUNCTION}`;
   const auth = await resolveAccessToken(supabaseUrl, anonKey);
@@ -118,26 +204,121 @@ async function main() {
   const maps = await invoke(endpoint, anonKey, origin, auth.token, 'naver/maps-config', {});
   checks.push({ name: 'naver/maps-config', status: maps.status, ok: maps.status === 200 && maps.body?.ok === true });
 
-  const dartCorpCode = argsValue('corp-code', envValue('LOGISTICS_DART_CORP_CODE'));
-  if (dartCorpCode) {
-    const dart = await invoke(endpoint, anonKey, origin, auth.token, 'opendart/company', { corp_code: dartCorpCode });
-    checks.push({ name: 'opendart/company', status: dart.status, ok: dart.status === 200 && dart.body?.ok !== false, cache: dart.body?.cache || null, body: summarizeBody(dart.body) });
-  } else {
-    checks.push({ name: 'opendart/company', status: 'skipped', ok: false, reason: 'LOGISTICS_DART_CORP_CODE not set' });
+  const homeRead = await invoke(endpoint, anonKey, origin, auth.token, 'dashboard/home/read', { basis_date: basisDate });
+  if (homeRead.status !== 200 || homeRead.body?.ok !== true) throw new Error(`dashboard/home/read failed: ${homeRead.status}`);
+  const assets = homeRead.body?.data?.assets || [];
+  const staticPayloads = loadStaticAssetPayloads();
+
+  const buildingAssetChecks = [];
+  for (const asset of assets) {
+    const assetName = asset.asset_name || asset.assetName || '';
+    const payload = payloadForAsset(staticPayloads, asset);
+    if (!isCompleteBuildingPayload(payload)) {
+      buildingAssetChecks.push({
+        asset_name: assetName,
+        asset_id_redacted: String(asset.asset_id || asset.assetId || '').replace(/^asset_/u, 'asset_[redacted]_'),
+        payload,
+        provider_status: 'parameter_missing',
+        cache_hit: false,
+        stored_readback: false,
+        ok: false,
+        reason: 'building-register payload is incomplete',
+      });
+      continue;
+    }
+    const first = await invokeWithRetry(endpoint, anonKey, origin, auth.token, 'building-register/summary', payload, { attempts: 4, delayMs: 2000 });
+    await sleep(350);
+    const second = await invokeWithRetry(endpoint, anonKey, origin, auth.token, 'building-register/summary', payload, { attempts: 3, delayMs: 1000 });
+    assertNoSecrets(`building-register ${assetName}`, { first: first.body, second: second.body });
+    const data = second.body?.data || first.body?.data || {};
+    const hasProviderData = Boolean(data.plat_plc || data.new_plat_plc || data.tot_area || data.main_purps_cd_nm);
+    const ok = first.status === 200
+      && first.body?.ok !== false
+      && second.status === 200
+      && second.body?.ok !== false
+      && second.body?.cache?.hit === true
+      && !first.body?.cache?.write_error;
+    buildingAssetChecks.push({
+      asset_name: assetName,
+      payload,
+      provider_status: first.body?.provider_status || first.status,
+      cache_hit: Boolean(first.body?.cache?.hit),
+      readback_cache_hit: Boolean(second.body?.cache?.hit),
+      stored_readback: Boolean(second.body?.cache?.hit && second.body?.cache?.stale === false),
+      data_presence: {
+        plat_plc: Boolean(data.plat_plc),
+        new_plat_plc: Boolean(data.new_plat_plc),
+        tot_area: Boolean(data.tot_area),
+        main_purps_cd_nm: Boolean(data.main_purps_cd_nm),
+        use_apr_day: Boolean(data.use_apr_day),
+      },
+      provider_result: hasProviderData ? 'data' : 'empty',
+      ok,
+      first: summarizeExternalBody(first.body),
+      second: summarizeExternalBody(second.body),
+    });
+    await sleep(250);
   }
 
-  const buildingPayload = optionalPayloadFromEnv('building');
-  if (buildingPayload) {
-    const building = await invoke(endpoint, anonKey, origin, auth.token, 'building-register/summary', buildingPayload);
-    checks.push({ name: 'building-register/summary', status: building.status, ok: building.status === 200 && building.body?.ok !== false, cache: building.body?.cache || null, body: summarizeBody(building.body) });
+  const buildingOk = buildingAssetChecks.length === 17 && buildingAssetChecks.every((row) => row.ok);
+  checks.push({
+    name: 'building-register/summary-all-assets',
+    status: buildingOk ? 200 : 502,
+    ok: buildingOk,
+    asset_count: buildingAssetChecks.length,
+    passed: buildingAssetChecks.filter((row) => row.ok).length,
+    failed: buildingAssetChecks.filter((row) => !row.ok).length,
+  });
+
+  const companyRead = await invoke(endpoint, anonKey, origin, auth.token, 'dashboard/company/read', { basis_date: basisDate });
+  const corpCode = argsValue('corp-code', envValue('LOGISTICS_DART_CORP_CODE') || companyRead.body?.data?.tenant?.dart_corp_code || companyRead.body?.data?.tenant?.dartCorpCode || '');
+  let openDartCheck = null;
+  if (corpCode) {
+    const dart = await invoke(endpoint, anonKey, origin, auth.token, 'opendart/company', { corp_code: corpCode, include_financials: true });
+    assertNoSecrets('opendart/company', dart.body);
+    const classification = classifyOpenDart(dart);
+    const proxyUrlConfigured = Boolean(envValue('OPENDART_PROXY_URL'));
+    const needsProxyAction = !proxyUrlConfigured && ['tenant_fallback', 'provider_tls_failure', 'provider_failure'].includes(classification);
+    openDartCheck = {
+      name: 'opendart/company-provider-separated',
+      status: dart.status,
+      ok: ['provider_success_or_fresh_cache', 'tenant_fallback', 'stale_cache', 'provider_tls_failure'].includes(classification),
+      provider_success: classification === 'provider_success_or_fresh_cache',
+      fallback_success: ['tenant_fallback', 'stale_cache'].includes(classification),
+      classification,
+      proxy_url_configured: proxyUrlConfigured,
+      required_user_action: needsProxyAction
+        ? {
+          secret_name: 'OPENDART_PROXY_URL',
+          reason: classification === 'tenant_fallback'
+            ? 'OpenDART 원천 provider가 성공하지 못해 ll_tenants 검증 fallback으로 응답했습니다. Supabase Edge secret OPENDART_PROXY_URL이 없으면 원천 provider 성공을 보장할 수 없습니다.'
+            : 'Supabase Edge direct OpenDART HTTPS call is failing before a verified provider payload is returned.',
+          contract: {
+            method: 'POST',
+            request: { corp_code: 'string', include_financials: 'boolean' },
+            success: { ok: true, provider: 'opendart', provider_success: true, provider_status: 200, provider_code: '000', data: { corp_code: 'string', corp_name: 'string', financials: [] } },
+            failure: { ok: false, provider_success: false, provider_code: 'string', provider_message: 'redacted provider message' },
+          },
+        }
+        : null,
+      body: summarizeExternalBody(dart.body),
+    };
   } else {
-    checks.push({ name: 'building-register/summary', status: 'skipped', ok: false, reason: 'LOGISTICS_BUILDING_* env values not set' });
+    openDartCheck = { name: 'opendart/company-provider-separated', status: 'skipped', ok: false, provider_success: false, fallback_success: false, classification: 'corp_code_missing' };
   }
+  checks.push(openDartCheck);
 
   const geocodeQuery = argsValue('geocode-query', envValue('LOGISTICS_GEOCODE_QUERY'));
   if (geocodeQuery) {
     const geocode = await invoke(endpoint, anonKey, origin, auth.token, 'naver/geocode', { query: geocodeQuery });
-    checks.push({ name: 'naver/geocode', status: geocode.status, ok: geocode.status === 200 && geocode.body?.ok !== false, count: Array.isArray(geocode.body?.data) ? geocode.body.data.length : 0, cache: geocode.body?.cache || null, body: summarizeBody(geocode.body) });
+    assertNoSecrets('naver/geocode', geocode.body);
+    checks.push({
+      name: 'naver/geocode',
+      status: geocode.status,
+      ok: geocode.status === 200 && geocode.body?.ok !== false,
+      count: Array.isArray(geocode.body?.data) ? geocode.body.data.length : 0,
+      body: summarizeExternalBody(geocode.body),
+    });
   } else {
     checks.push({ name: 'naver/geocode', status: 'skipped', ok: false, reason: 'LOGISTICS_GEOCODE_QUERY not set' });
   }
@@ -146,12 +327,19 @@ async function main() {
     ok: checks.filter((row) => row.status !== 'skipped').every((row) => row.ok),
     generated_at: new Date().toISOString(),
     origin,
+    basis_date: basisDate,
     auth_source: auth.source,
     checks,
+    building_register_assets: buildingAssetChecks,
+    opendart_provider_success: Boolean(openDartCheck?.provider_success),
+    opendart_fallback_success: Boolean(openDartCheck?.fallback_success),
+    opendart_requires_proxy_url: Boolean(openDartCheck?.required_user_action),
   };
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.writeFileSync(OUT_JSON, JSON.stringify(output, null, 2), 'utf8');
-  console.log(JSON.stringify(output, null, 2));
+  const outJson = path.join(OUT_DIR, `external-api-smoke-${timestampForFile()}.json`);
+  fs.writeFileSync(outJson, JSON.stringify(output, null, 2), 'utf8');
+  fs.writeFileSync(path.join(OUT_DIR, 'external-api-smoke-latest.json'), JSON.stringify(output, null, 2), 'utf8');
+  console.log(JSON.stringify({ ...output, artifact: outJson }, null, 2));
   if (!output.ok) process.exitCode = 1;
 }
 
