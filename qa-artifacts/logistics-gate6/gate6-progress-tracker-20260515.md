@@ -1,9 +1,25 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-27T11:39:00.000+09:00
-- Overall: 302 / 366 (82.5%) - current deltas rebaselined for Data Update source-column coverage, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
+- Updated at: 2026-05-27T16:41:00+09:00
+- Overall: 304 / 366 (83.1%) - current deltas rebaselined for Data Update source-column coverage, Data Update UX cleanup, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
-- gh-pages deployment: current Data Update / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-C_mSzrfX.js`.
+- gh-pages deployment: current Data Update UX cleanup / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-Xi-iB5uL.js`.
+
+## 2026-05-27 Update - Data Update UX Cleanup
+
+- Data Update top flow was simplified so users choose `자산` and `계약 구역` first, then choose `추가 / 수정 / 삭제`.
+- `현재 계약 원장` no longer renders as a large inline table. It now opens from `원장 전체 보기` into a full-screen modal.
+- `원본 EXCEL 전체 필드 수정 요청` was simplified:
+  - removed the `전체 / DB_일반 / DB_히스토리 누적` split buttons.
+  - changed `원본 컬럼` header to `항목`.
+  - removed the `DB 반영` column.
+  - removed Excel column index prefixes such as `AA.`, `BA.`, `BB.` from visible row labels.
+  - renamed the edit action button from `Supabase 자동 반영` to `수정값 반영 요청`.
+- Browser QA was expanded to click the new ledger modal, add mode, delete confirmation modal, and simplified field table.
+  - local browser smoke: `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-073011.json`.
+  - screenshot: `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-073011.png`.
+  - live browser smoke: `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-074036.json`.
+  - live screenshot: `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-074036.png`.
 
 ## 2026-05-27 Update - Data Update / AI / E. NOC / External API Follow-up
 
@@ -173,7 +189,7 @@
 | 13 | 외부 API / AI / 외부권한 | 10 / 12 |
 | 14 | QA 계획 및 증거 | 51 / 53 |
 | 15 | 최종 완료 기준 | 9 / 15 |
-| 16 | 임대차계약 데이터 관리 탭 구축 | 8 / 24 |
+| 16 | 임대차계약 데이터 관리 탭 구축 | 10 / 24 |
 
 ## 2026-05-22 Update - Asset Tenant Table Width
 

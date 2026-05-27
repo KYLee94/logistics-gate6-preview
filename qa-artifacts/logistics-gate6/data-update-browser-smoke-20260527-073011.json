@@ -1,0 +1,81 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-27T07:30:12.812Z",
+  "url": "http://127.0.0.1:5174/?p=contract-data",
+  "auth_source": "password_grant",
+  "ui_email": "kylee@igisam.com",
+  "required_text": [
+    "Data Update",
+    "임대차계약 데이터 관리",
+    "현재 계약 원장",
+    "원본 EXCEL 전체 필드 수정 요청"
+  ],
+  "forbidden_text": [
+    "Contract Data",
+    "원본 데이터 수정",
+    "Supabase 자동 반영",
+    "DB 반영",
+    "원본 컬럼"
+  ],
+  "missing_text": [],
+  "forbidden_found": [],
+  "page_errors": [],
+  "resource_errors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "cors_warnings": [
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+  ],
+  "source_field_coverage": {
+    "ok": true,
+    "sheets": {
+      "DB_일반": {
+        "expected_count": 82,
+        "found_count": 82,
+        "missing_columns": [],
+        "ok": true
+      },
+      "DB_히스토리 누적": {
+        "expected_count": 18,
+        "found_count": 18,
+        "missing_columns": [],
+        "ok": true
+      }
+    }
+  },
+  "mode_checks": {
+    "ledger_modal": {
+      "ok": true,
+      "has_fullscreen_entry": true
+    },
+    "add_mode": {
+      "ok": true,
+      "has_example_column": true,
+      "has_input_column": true
+    },
+    "delete_modal": {
+      "ok": true,
+      "has_archive_message": true,
+      "has_yes_no": true
+    },
+    "field_table": {
+      "ok": true,
+      "has_item_header": true,
+      "removed_db_column": true,
+      "removed_column_index_prefix": true
+    }
+  },
+  "screenshot": "qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-073011.png",
+  "body_excerpt": "Logistics\nLOGISTICS PLATFORM\nWork Platform\nDashboard\nHome\nAsset\nCompany\nAnalysis Tools\nPivot Table\nData Quality\nData Update\nPDF Report\n이관용\n기획추진센터\nData Update\nLEASE CONTRACT LEDGER\n임대차계약 데이터 관리\nDB_일반 + DB_히스토리 누적 기준\n자산\n계약 구역\n작업\n추가\n수정\n삭제\n수정값 반영 요청\nCURRENT CONTRACTS\n현재 계약 원장\n원장 전체 보기\n- · 0개 계약 구역\nSOURCE EXCEL FIELDS\n원본 EXCEL 전체 필드 수정 요청\n수정값 반영 요청\n항목\t현재값\t수정값\n\n펀드코드\nDB_일반 · 펀드코드\n\t\t\n\n펀드명\nDB_일반 · 펀드명\n\t\t\n\n자산명\nDB_일반 · 자산명\n\t\t\n\n자산코드\nDB_일반 · 자산코드\n\t\t\n\n섹터\nDB_일반 · 섹터\n\t\t\n\n임차인명\nDB_일반 · 임차인명\n\t\t\n\n임차인 사업자번호\nDB_일반 · 임차인 사업자번호\n\t\t\n\n저온창고 여부\nDB_일반 · 저온창고 여부\n\t\t\n\n선임차 여부\nDB_일반 · 선임차 여부\n\t\t\n\n3PL 여부\nDB_일반 · 3PL 여부\n\t\t\n\n취급 상품 유형\nDB_일반 · 취급 상품 유형\n\t\t\n\n임차 층\nDB_일반 · 임차 층\n\t\t\n\n임차 세부 구역\nDB_일반 · 임차 세부 구역\n\t\t\n\n단일 임차인 여부\nDB_일반 · 단일 임차인 여부\n\t\t\n\n전체 연면적\nDB_일반 · 전체 연면적\n\t-\t\n\n임대면적\nDB_일반 · 임대면적\n\t-\t\n\n전용면적\nDB_일반 · 전용면적\n\t-\t\n\n전용률\nDB_일반 · 전용률\n\t-\t\n\n임대면적\nDB_일반 · 임대면적\n\t\t\n\n전용면적\nDB_일반 · 전용면적\n\t\t\n\n전용률\nDB_일반 · 전용률\n\t\t\n\n임대면적 체크\nDB_일반 · 임대면적\n\t\t\n\n전용면적 체크\nDB_일반 · 전용면적\n\t\t\n\n전용률 체크\nDB_일반 · 전용률\n\t\t\n\n세부면적(창고)\nDB_일반 · 세부면적(창고)\n\t-\t\n\n세부면적(하역장)\nDB_일반 · 세부면적(하역장)\n\t-\t\n\n세부면적(사무실)\nDB_일반 · 세부면적(사무실)\n\t-\t\n\n세부면적(기타 전용면적)\nDB_일반 · 세부면적(기타 전용면적)\n\t-\t\n\n세부면적(통로)\nDB_일반 · 세부면적(통로)\n\t-\t\n\n세부면적(램프)\nDB_일반 · 세부면적(램프)\n\t-\t\n\n세부면적(기계전기실)\nDB_일반 · 세부면적(기계전기실)\n\t-\t\n\n세부면적(주차장)\nDB_일반 · 세부면적(주"
+}

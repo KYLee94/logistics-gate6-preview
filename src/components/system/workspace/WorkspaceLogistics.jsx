@@ -9137,9 +9137,9 @@ const CONTRACT_EVENT_TYPES = [
 ];
 
 const CONTRACT_DATA_MODES = [
-  { id: 'add', label: '계약 구역 추가', description: '새 임대차계약 또는 신규 구역을 원본 Excel 필드 기준으로 접수합니다.' },
-  { id: 'edit', label: '계약 구역 수정', description: '선택한 계약 구역의 현재값을 Supabase에 자동 반영합니다.' },
-  { id: 'archive', label: '계약 구역 삭제', description: '선택한 계약 구역을 삭제하지 않고 별도 아카이빙 요청으로 남깁니다.' },
+  { id: 'add', label: '계약 구역 추가' },
+  { id: 'edit', label: '계약 구역 수정' },
+  { id: 'archive', label: '계약 구역 삭제' },
 ];
 
 function ContractDataManagementDashboard() {
@@ -9158,10 +9158,9 @@ function ContractDataManagementDashboard() {
   const [fieldDrafts, setFieldDrafts] = useState({});
   const [fieldEditStatus, setFieldEditStatus] = useState(null);
   const [isSubmittingFields, setIsSubmittingFields] = useState(false);
-  const [fieldSheetFilter, setFieldSheetFilter] = useState('all');
   const [fieldSearchQuery, setFieldSearchQuery] = useState('');
-  const [showChangedFieldsOnly, setShowChangedFieldsOnly] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [contractLedgerOpen, setContractLedgerOpen] = useState(false);
 
   const readableRows = useMemo(() => filterAssetsByPermission(dashboardDataset.generalRows || [], permission), [dashboardDataset.generalRows, permission]);
   const readableAssets = useMemo(() => filterAssetsByPermission(dashboardDataset.assetOptions || [], permission), [dashboardDataset.assetOptions, permission]);
@@ -9176,8 +9175,6 @@ function ContractDataManagementDashboard() {
   const canUpdate = Boolean(permission.permissions?.managedAsset?.update || permission.role === 'Admin' || permission.role === 'Manager');
   const canArchive = Boolean(permission.permissions?.managedAsset?.delete || permission.permissions?.managedAsset?.update || permission.role === 'Admin' || permission.role === 'Manager');
   const canSubmit = dataUpdateMode === 'add' ? canCreate : dataUpdateMode === 'archive' ? canArchive : canUpdate;
-  const fieldSheetOptions = useMemo(() => ['all', ...Array.from(new Set(CONTRACT_DATA_FIELDS.map((field) => field.domain).filter(Boolean)))], []);
-  const modeMeta = CONTRACT_DATA_MODES.find((mode) => mode.id === dataUpdateMode) || CONTRACT_DATA_MODES[1];
   const isAddMode = dataUpdateMode === 'add';
   const isEditMode = dataUpdateMode === 'edit';
   const visibleContractFields = useMemo(() => {
@@ -9186,9 +9183,6 @@ function ContractDataManagementDashboard() {
       const fieldKey = contractFieldKey(field);
       const currentValue = excelCellText(contractFieldRawValue(selectedLeaseRow, field));
       const draftValue = excelCellText(fieldDrafts[fieldKey] ?? '');
-      const changed = isAddMode ? draftValue.trim() !== '' : currentValue !== draftValue;
-      if (fieldSheetFilter !== 'all' && field.domain !== fieldSheetFilter) return false;
-      if (showChangedFieldsOnly && !changed) return false;
       if (!query) return true;
       return [
         field.label,
@@ -9201,7 +9195,7 @@ function ContractDataManagementDashboard() {
         draftValue,
       ].some((value) => String(value || '').toLowerCase().includes(query));
     });
-  }, [fieldDrafts, fieldSearchQuery, fieldSheetFilter, isAddMode, selectedLeaseRow, showChangedFieldsOnly]);
+  }, [fieldDrafts, fieldSearchQuery, selectedLeaseRow]);
   const changedFieldCount = useMemo(() => CONTRACT_DATA_FIELDS.reduce((count, field) => {
     const fieldKey = contractFieldKey(field);
     const currentValue = excelCellText(contractFieldRawValue(selectedLeaseRow, field));
@@ -9381,7 +9375,7 @@ function ContractDataManagementDashboard() {
 
   const submitContractFieldEdits = async () => {
     if (!isEditMode) {
-      setFieldEditStatus({ type: 'error', message: '계약 구역 수정 모드에서만 현재값을 Supabase에 자동 반영할 수 있습니다.' });
+      setFieldEditStatus({ type: 'error', message: '계약 구역 수정 모드에서만 수정값을 반영할 수 있습니다.' });
       return;
     }
     if (!canUpdate) {
@@ -9423,7 +9417,7 @@ function ContractDataManagementDashboard() {
       return;
     }
     setIsSubmittingFields(true);
-    setFieldEditStatus({ type: 'pending', message: `${formatNumber(changedFields.length)}개 필드를 Supabase에 자동 반영하는 중입니다.` });
+    setFieldEditStatus({ type: 'pending', message: `${formatNumber(changedFields.length)}개 필드의 수정값을 반영하는 중입니다.` });
     try {
       const directCount = changedFields.filter((row) => !row.source_only).length;
       const sourceOnlyCount = changedFields.length - directCount;
@@ -9446,10 +9440,10 @@ function ContractDataManagementDashboard() {
         },
       });
       if (error) throw error;
-      if (data?.ok === false) throw new Error(data.message || '계약 원본 필드 자동 반영 실패');
-      setFieldEditStatus({ type: 'success', message: `Supabase 자동 반영이 완료됐습니다. 직접 필드 ${formatNumber(directCount)}개, 원본 보존 필드 ${formatNumber(sourceOnlyCount)}개입니다. 요청 ID: ${data?.data?.id || '-'}` });
+      if (data?.ok === false) throw new Error(data.message || '계약 원본 필드 수정값 반영 실패');
+      setFieldEditStatus({ type: 'success', message: `수정값 반영이 완료됐습니다. 반영 필드 ${formatNumber(directCount)}개, 원본 보존 필드 ${formatNumber(sourceOnlyCount)}개입니다. 요청 ID: ${data?.data?.id || '-'}` });
     } catch (error) {
-      setFieldEditStatus({ type: 'error', message: error?.message || '계약 원본 필드 자동 반영 중 오류가 발생했습니다.' });
+      setFieldEditStatus({ type: 'error', message: error?.message || '계약 원본 필드 수정값 반영 중 오류가 발생했습니다.' });
     } finally {
       setIsSubmittingFields(false);
     }
@@ -9462,28 +9456,8 @@ function ContractDataManagementDashboard() {
         <SectionHeader
           eyebrow="LEASE CONTRACT LEDGER"
           title="임대차계약 데이터 관리"
-          right={<span className="text-[12px] font-semibold text-[#A1A1AA]">DB_일반 + DB_히스토리 누적 기준</span>}
         />
-        <div className="mb-4 grid grid-cols-1 gap-2 md:grid-cols-3">
-          {CONTRACT_DATA_MODES.map((mode) => {
-            const active = dataUpdateMode === mode.id;
-            return (
-              <button
-                key={mode.id}
-                type="button"
-                onClick={() => {
-                  setDataUpdateMode(mode.id);
-                  if (mode.id === 'archive') setArchiveConfirmOpen(true);
-                }}
-                className={`rounded-[10px] border px-4 py-3 text-left transition ${active ? 'border-[#2997ff] bg-[#10233C] text-white' : 'border-[#333333] bg-[#1F1F1E] text-[#C7C7CC] hover:border-[#4A4A4D]'}`}
-              >
-                <span className="block text-[14px] font-bold">{mode.label}</span>
-                <span className="mt-1 block text-[12px] leading-5 text-[#A1A1AA]">{mode.description}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <label className="block text-[12px] font-semibold text-[#A1A1AA]">
@@ -9494,49 +9468,43 @@ function ContractDataManagementDashboard() {
               </label>
               <label className="block text-[12px] font-semibold text-[#A1A1AA]">
                 계약 구역
-                <select value={selectedLeaseSpaceId || selectedLeaseRow.leaseSpaceId || ''} onChange={(event) => setSelectedLeaseSpaceId(event.target.value)} disabled={isAddMode} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 text-[13px] text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <select value={selectedLeaseSpaceId || selectedLeaseRow.leaseSpaceId || ''} onChange={(event) => setSelectedLeaseSpaceId(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 text-[13px] text-white">
                   {assetRows.map((row) => <option key={row.leaseSpaceId || `${row.tenantMasterName}-${row.spaceLabel}`} value={row.leaseSpaceId}>{`${row.tenantMasterName || row.companyName || '-'} / ${row.spaceLabel || row.floorLabel || '-'}`}</option>)}
                 </select>
               </label>
             </div>
-            <div className="mt-4 rounded-[12px] border border-[#333333] bg-[#252524] p-4 text-[13px] leading-6 text-[#D1D1D6]">
-              <div><span className="text-[#86868B]">{isAddMode ? '기준 자산' : '임차인'}</span> {isAddMode ? (selectedAsset.assetName || selectedLeaseRow.assetName || '-') : (selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '-')}</div>
-              <div><span className="text-[#86868B]">구역</span> {isAddMode ? '신규 입력 예정' : (selectedLeaseRow.spaceLabel || selectedLeaseRow.floorLabel || '-')}</div>
-              <div><span className="text-[#86868B]">월 임관리비</span> {isAddMode ? '-' : formatCurrency(selectedLeaseRow.monthlyCostTotal)}</div>
-              <div><span className="text-[#86868B]">계약기간</span> {isAddMode ? '-' : `${formatDate(firstDefined(selectedLeaseRow.currentStartDate, selectedLeaseRow.firstStartDate))} ~ ${formatDate(firstDefined(selectedLeaseRow.currentEndDate, selectedLeaseRow.latestExpiry))}`}</div>
-            </div>
           </div>
           <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
-            <div className="rounded-[12px] border border-[#333333] bg-[#252524] px-4 py-3">
-              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">선택 작업</div>
-              <div className="mt-1 text-[16px] font-bold text-white">{modeMeta.label}</div>
-              <p className="mt-1 text-[12px] leading-5 text-[#A1A1AA]">{modeMeta.description}</p>
+            <div className="mb-2 text-[12px] font-semibold text-[#A1A1AA]">작업</div>
+            <div className="grid grid-cols-3 gap-2">
+              {CONTRACT_DATA_MODES.map((mode) => {
+                const active = dataUpdateMode === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    type="button"
+                    onClick={() => {
+                      setDataUpdateMode(mode.id);
+                      if (mode.id === 'archive') setArchiveConfirmOpen(true);
+                    }}
+                    className={`h-10 rounded-[8px] border px-2 text-[12px] font-semibold transition ${active ? 'border-[#2997ff] bg-[#10233C] text-white' : 'border-[#333333] bg-[#111] text-[#C7C7CC] hover:border-[#4A4A4D]'}`}
+                  >
+                    {mode.label.replace('계약 구역 ', '')}
+                  </button>
+                );
+              })}
             </div>
             {isAddMode ? (
-              <label className="mt-3 block text-[12px] font-semibold text-[#A1A1AA]">
-                추가 요약
-                <textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={3} className="mt-2 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 py-2 text-[13px] text-white outline-none focus:border-[#2997ff]" placeholder="예: 신규 임차인 계약 등록 / 신규 구역 추가 / 미래 계약 예약 등" />
-              </label>
-            ) : isEditMode ? (
-              <div className="mt-3 rounded-[12px] border border-[#333333] bg-[#111] px-4 py-3 text-[12px] leading-5 text-[#A1A1AA]">
-                아래 원본 Excel 필드에서 수정값을 바꾼 뒤 Supabase 자동 반영 버튼을 누르면 됩니다. 원본 보존 필드는 감사 기록으로 남기고, 정규 테이블에 연결된 필드는 readback 기준으로 반영됩니다.
-              </div>
-            ) : (
-              <div className="mt-3 rounded-[12px] border border-[#5A3B3B] bg-[#211717] px-4 py-3 text-[12px] leading-5 text-[#FFB4B4]">
-                삭제는 실제 행을 즉시 지우지 않고, 선택 계약 구역을 아카이빙 요청으로 남깁니다.
-              </div>
-            )}
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <div className="text-[12px] text-[#86868B]">{isEditMode ? `${formatNumber(changedFieldCount)}개 필드 변경 감지` : isAddMode ? `${formatNumber(changedFieldCount)}개 필드 입력됨` : '삭제 전 확인 팝업을 거칩니다.'}</div>
-              <div className="flex flex-wrap justify-end gap-2">
-                {isAddMode ? (
-                  <button type="button" disabled={isSubmitting || !canCreate} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>추가 요청 접수</button>
-                ) : isEditMode ? (
-                  <button type="button" disabled={isSubmittingFields || !canUpdate} onClick={submitContractFieldEdits} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>Supabase 자동 반영</button>
-                ) : (
-                  <button type="button" disabled={isSubmitting || !canArchive} onClick={() => setArchiveConfirmOpen(true)} className={`h-10 rounded-[8px] border px-4 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}>삭제 요청 확인</button>
-                )}
-              </div>
+              <textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={2} className="mt-3 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 py-2 text-[13px] text-white outline-none focus:border-[#2997ff]" placeholder="추가 요약" />
+            ) : null}
+            <div className="mt-3 flex justify-end">
+              {isAddMode ? (
+                <button type="button" disabled={isSubmitting || !canCreate} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>추가 요청 접수</button>
+              ) : isEditMode ? (
+                <button type="button" disabled={isSubmittingFields || !canUpdate} onClick={submitContractFieldEdits} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>수정값 반영 요청</button>
+              ) : (
+                <button type="button" disabled={isSubmitting || !canArchive} onClick={() => setArchiveConfirmOpen(true)} className={`h-10 rounded-[8px] border px-4 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}>삭제 요청 확인</button>
+              )}
             </div>
             {eventStatus ? <div className={`mt-3 rounded-[10px] border px-3 py-2 text-[12px] ${eventStatus.type === 'error' ? 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]' : eventStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#4C4329] bg-[#2A240E] text-[#FFD166]'}`}>{eventStatus.message}</div> : null}
           </div>
@@ -9556,65 +9524,61 @@ function ContractDataManagementDashboard() {
       </section>
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-        <SectionHeader eyebrow="CURRENT CONTRACTS" title="현재 계약 원장" />
-        <DataTable headers={['자산', '임차인', '층/구역', '임대면적', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', '계약개시', '계약만기']} rows={contractRows} compact />
+        <SectionHeader
+          eyebrow="CURRENT CONTRACTS"
+          title="현재 계약 원장"
+          right={<button type="button" onClick={() => setContractLedgerOpen(true)} className={`h-9 rounded-[8px] border px-3 text-[12px] font-semibold ${DARK_BUTTON_CLASS}`}>원장 전체 보기</button>}
+        />
+        <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[13px] text-[#C7C7CC]">
+          {selectedAsset.assetName || selectedLeaseRow.assetName || '-'} · {formatNumber(contractRows.length)}개 계약 구역
+        </div>
       </section>
+      {contractLedgerOpen ? (
+        <div className="fixed inset-0 z-50 flex bg-black/80 p-4">
+          <div className="flex min-h-0 w-full flex-col rounded-[18px] border border-[#3A3A3C] bg-[#1F1F1E] shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-[#333333] px-5 py-4">
+              <div>
+                <div className="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#86868B]">CURRENT CONTRACTS</div>
+                <div className="mt-1 text-[20px] font-bold text-white">현재 계약 원장</div>
+              </div>
+              <button type="button" onClick={() => setContractLedgerOpen(false)} className={`h-10 rounded-[8px] border px-4 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}>닫기</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-5">
+              <DataTable headers={['자산', '임차인', '층/구역', '임대면적', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', '계약개시', '계약만기']} rows={contractRows} compact />
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader
           eyebrow="SOURCE EXCEL FIELDS"
-          title={isAddMode ? '원본 Excel 전체 필드 추가 요청' : '원본 Excel 전체 필드 수정 요청'}
-          right={isAddMode
-            ? <button type="button" disabled={isSubmitting || !canCreate} onClick={submitLeaseEvent} className={`h-9 rounded-[8px] px-3 text-[12px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>추가 요청 접수</button>
-            : isEditMode
-              ? <button type="button" disabled={isSubmittingFields || !canUpdate} onClick={submitContractFieldEdits} className={`h-9 rounded-[8px] px-3 text-[12px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>Supabase 자동 반영</button>
-              : <span className="text-[12px] font-semibold text-[#A1A1AA]">삭제는 아카이빙 팝업에서 확정</span>}
+          title={isAddMode ? '원본 EXCEL 전체 필드 추가 요청' : '원본 EXCEL 전체 필드 수정 요청'}
+          right={dataUpdateMode === 'archive' ? null : (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input
+                value={fieldSearchQuery}
+                onChange={(event) => setFieldSearchQuery(event.target.value)}
+                className="h-9 min-w-[240px] rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 text-[12px] text-white outline-none focus:border-[#2997ff]"
+                placeholder="항목 또는 값 검색"
+              />
+              {isAddMode
+                ? <button type="button" disabled={isSubmitting || !canCreate} onClick={submitLeaseEvent} className={`h-9 rounded-[8px] px-3 text-[12px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>추가 요청 접수</button>
+                : <button type="button" disabled={isSubmittingFields || !canUpdate} onClick={submitContractFieldEdits} className={`h-9 rounded-[8px] px-3 text-[12px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>수정값 반영 요청</button>}
+            </div>
+          )}
         />
-        <div className="mb-3 text-[12px] leading-5 text-[#A1A1AA]">
-          {isAddMode
-            ? '신규 계약 구역은 현재값 대신 예시를 보면서 필요한 원본 Excel 필드만 입력합니다. 입력값은 DB_일반과 DB_히스토리 누적 원본 컬럼명과 함께 저장됩니다.'
-            : isEditMode
-              ? 'DB_일반과 DB_히스토리 누적의 원본 항목을 선택 계약 기준으로 수정합니다. 정규 테이블 연결 필드는 Supabase 자동 반영 후 readback/audit 절차를 거칩니다.'
-              : '삭제 모드에서는 필드별 수정 없이 선택 계약 구역 전체를 아카이빙 요청으로 남깁니다.'}
-        </div>
         {dataUpdateMode === 'archive' ? (
           <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-5 text-[13px] text-[#C7C7CC]">
             선택 계약 구역을 삭제하려면 상단의 삭제 요청 확인을 누르세요. 원본값은 삭제하지 않고 별도 아카이빙 요청에 `before` 값으로 보관됩니다.
           </div>
         ) : (
           <>
-            <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap gap-2">
-                {fieldSheetOptions.map((sheet) => (
-                  <button
-                    key={sheet}
-                    type="button"
-                    onClick={() => setFieldSheetFilter(sheet)}
-                    className={`h-9 rounded-[8px] border px-3 text-[12px] font-semibold ${fieldSheetFilter === sheet ? 'border-[#2997ff] bg-[#10233C] text-white' : `${DARK_BUTTON_CLASS}`}`}
-                  >
-                    {sheet === 'all' ? '전체' : sheet}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <label className="inline-flex items-center gap-2 text-[12px] font-semibold text-[#A1A1AA]">
-                  <input type="checkbox" checked={showChangedFieldsOnly} onChange={(event) => setShowChangedFieldsOnly(event.target.checked)} className="h-4 w-4 accent-[#2997ff]" />
-                  변경값만
-                </label>
-                <input
-                  value={fieldSearchQuery}
-                  onChange={(event) => setFieldSearchQuery(event.target.value)}
-                  className="h-9 min-w-[260px] rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 text-[12px] text-white outline-none focus:border-[#2997ff]"
-                  placeholder="원본 컬럼, 필드명, 값 검색"
-                />
-              </div>
-            </div>
             <div className="max-h-[560px] overflow-auto rounded-[14px] border border-[#333333]">
-              <table className="min-w-[980px] w-full border-collapse text-left text-[12px]">
+              <table className="min-w-[820px] w-full border-collapse text-left text-[12px]">
                 <thead className="sticky top-0 z-10 bg-[#1F1F1E] text-[#A1A1AA]">
                   <tr>
-                    <th className="w-[320px] border-b border-[#333333] px-3 py-2">원본 컬럼</th>
-                    <th className="w-[170px] border-b border-[#333333] px-3 py-2">DB 반영</th>
+                    <th className="w-[360px] border-b border-[#333333] px-3 py-2">항목</th>
                     <th className="w-[260px] border-b border-[#333333] px-3 py-2">{isAddMode ? '예시' : '현재값'}</th>
                     <th className="border-b border-[#333333] px-3 py-2">{isAddMode ? '입력값' : '수정값'}</th>
                   </tr>
@@ -9625,19 +9589,10 @@ function ContractDataManagementDashboard() {
                     const currentValue = excelCellText(contractFieldRawValue(selectedLeaseRow, field));
                     const draftValue = fieldDrafts[fieldKey] ?? '';
                     const changed = isAddMode ? excelCellText(draftValue).trim() !== '' : currentValue !== excelCellText(draftValue);
-                    const targetTable = normalizeContractTargetTable(field.table);
-                    const sourceOnly = Boolean(field.sourceOnly || targetTable === 'source_only');
                     return (
                       <tr key={fieldKey} className={changed ? 'bg-[#132A44]' : 'bg-[#252524]'}>
-                        <td className="border-b border-[#333333] px-3 py-2 align-top">
-                          <div className="font-semibold text-[#E5E5EA]">{field.sourceColumnLetter ? `${field.sourceColumnLetter}. ` : ''}{field.label}</div>
-                          <div className="mt-1 text-[11px] leading-4 text-[#86868B]">{field.domain} · {field.sourceHeader || field.label}</div>
-                        </td>
-                        <td className="border-b border-[#333333] px-3 py-2 align-top">
-                          <span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${sourceOnly ? 'bg-[#2A240E] text-[#FFD166]' : 'bg-[#173522] text-[#B5E48C]'}`}>
-                            {sourceOnly ? '원본 보존' : '정규 테이블'}
-                          </span>
-                          <div className="mt-1 text-[11px] text-[#86868B]">{sourceOnly ? '감사 기록 보관' : contractFieldDbName(field)}</div>
+                        <td className="border-b border-[#333333] px-3 py-2 align-top" title={`${field.domain || ''} ${field.sourceHeader || field.label}`.trim()}>
+                          <div className="font-semibold text-[#E5E5EA]">{field.label}</div>
                         </td>
                         <td className="border-b border-[#333333] px-3 py-2 align-top text-[#A1A1AA]">{isAddMode ? contractFieldExampleValue(field) : qualityDisplayValue(field, contractFieldRawValue(selectedLeaseRow, field))}</td>
                         <td className="border-b border-[#333333] px-3 py-2 align-top">
@@ -9652,7 +9607,7 @@ function ContractDataManagementDashboard() {
                     );
                   }) : (
                     <tr>
-                      <td colSpan={4} className="border-b border-[#333333] px-3 py-8 text-center text-[13px] text-[#86868B]">표시할 원본 Excel 필드가 없습니다.</td>
+                      <td colSpan={3} className="border-b border-[#333333] px-3 py-8 text-center text-[13px] text-[#86868B]">표시할 원본 Excel 필드가 없습니다.</td>
                     </tr>
                   )}
                 </tbody>

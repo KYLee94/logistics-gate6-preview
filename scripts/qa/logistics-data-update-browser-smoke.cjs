@@ -177,8 +177,8 @@ async function main() {
     url: targetUrl,
     auth_source: auth.source,
     ui_email: uiEmail,
-    required_text: ['Data Update', '임대차계약 데이터 관리', '현재 계약 원장', '원본 Excel 전체 필드 수정 요청'],
-    forbidden_text: ['Contract Data', '원본 데이터 수정'],
+    required_text: ['Data Update', '임대차계약 데이터 관리', '현재 계약 원장', '원본 EXCEL 전체 필드 수정 요청'],
+    forbidden_text: ['Contract Data', '원본 데이터 수정', 'Supabase 자동 반영', 'DB 반영', '원본 컬럼', 'DB_일반 ·', 'DB_히스토리 누적 ·'],
     missing_text: [],
     forbidden_found: [],
     page_errors: errors,
@@ -217,16 +217,25 @@ async function main() {
     result.missing_text = result.required_text.filter((text) => !bodyText.includes(text));
     result.forbidden_found = result.forbidden_text.filter((text) => bodyText.includes(text));
 
-    await page.getByRole('button', { name: /계약 구역 추가/u }).first().click();
-    await page.waitForFunction(() => document.body.innerText.includes('원본 Excel 전체 필드 추가 요청'), null, { timeout: 10000 });
+    await page.getByRole('button', { name: '원장 전체 보기' }).click();
+    await page.waitForFunction(() => document.body.innerText.includes('CURRENT CONTRACTS') && document.body.innerText.includes('닫기'), null, { timeout: 10000 });
+    const ledgerModalText = await page.locator('body').innerText({ timeout: 10000 });
+    result.mode_checks.ledger_modal = {
+      ok: ledgerModalText.includes('CURRENT CONTRACTS') && ledgerModalText.includes('닫기'),
+      has_fullscreen_entry: ledgerModalText.includes('원장 전체 보기'),
+    };
+    await page.getByRole('button', { name: '닫기' }).click();
+
+    await page.getByRole('button', { name: /^추가$/u }).first().click();
+    await page.waitForFunction(() => document.body.innerText.includes('원본 EXCEL 전체 필드 추가 요청'), null, { timeout: 10000 });
     const addModeText = await page.locator('body').innerText({ timeout: 10000 });
     result.mode_checks.add_mode = {
-      ok: addModeText.includes('원본 Excel 전체 필드 추가 요청') && addModeText.includes('예시') && addModeText.includes('입력값'),
+      ok: addModeText.includes('원본 EXCEL 전체 필드 추가 요청') && addModeText.includes('예시') && addModeText.includes('입력값'),
       has_example_column: addModeText.includes('예시'),
       has_input_column: addModeText.includes('입력값'),
     };
 
-    await page.getByRole('button', { name: /계약 구역 삭제/u }).first().click();
+    await page.getByRole('button', { name: /^삭제$/u }).first().click();
     await page.waitForFunction(() => document.body.innerText.includes('정말 삭제하시겠습니까? 삭제된 내용은 별도 저장 공간에 아카이빙됩니다.'), null, { timeout: 10000 });
     const deleteModeText = await page.locator('body').innerText({ timeout: 10000 });
     result.mode_checks.delete_modal = {
@@ -238,17 +247,27 @@ async function main() {
     };
     await page.getByRole('button', { name: '아니오' }).click();
 
-    await page.getByRole('button', { name: /계약 구역 수정/u }).first().click();
-    await page.waitForFunction(() => document.body.innerText.includes('원본 Excel 전체 필드 수정 요청'), null, { timeout: 10000 });
+    await page.getByRole('button', { name: /^수정$/u }).first().click();
+    await page.waitForFunction(() => document.body.innerText.includes('원본 EXCEL 전체 필드 수정 요청'), null, { timeout: 10000 });
     bodyText = await page.locator('body').innerText({ timeout: 10000 });
+    result.mode_checks.field_table = {
+      ok: bodyText.includes('항목') && !bodyText.includes('DB 반영') && !bodyText.includes('원본 컬럼') && !/[A-Z]{2}\.\s/u.test(bodyText),
+      has_item_header: bodyText.includes('항목'),
+      removed_db_column: !bodyText.includes('DB 반영'),
+      removed_column_index_prefix: !/[A-Z]{2}\.\s/u.test(bodyText),
+      removed_sheet_prefix: !bodyText.includes('DB_일반 ·') && !bodyText.includes('DB_히스토리 누적 ·'),
+    };
+    result.forbidden_found = result.forbidden_text.filter((text) => bodyText.includes(text));
     await page.screenshot({ path: screenshotPath, fullPage: true });
     result.body_excerpt = bodyText.slice(0, 1200);
     result.ok = result.missing_text.length === 0
       && result.forbidden_found.length === 0
       && result.page_errors.length === 0
       && sourceFieldCoverage.ok
+      && result.mode_checks.ledger_modal.ok
       && result.mode_checks.add_mode.ok
-      && result.mode_checks.delete_modal.ok;
+      && result.mode_checks.delete_modal.ok
+      && result.mode_checks.field_table.ok;
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
     if (page) {
