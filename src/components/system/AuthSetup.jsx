@@ -66,6 +66,26 @@ const activateLocalLogisticsSession = (email, userId) => {
     window.dispatchEvent(new CustomEvent('logistics-local-auth-changed'));
     return true;
 };
+const recordLogisticsLoginHistory = async (email, authEmail, source = 'web_app') => {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        await supabase.functions.invoke('ll-dashboard-api', {
+            body: {
+                action: 'auth/login-history/record',
+                payload: {
+                    email,
+                    auth_email: authEmail || email,
+                    source,
+                    client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    user_agent: navigator.userAgent,
+                },
+            },
+        });
+    } catch (error) {
+        console.warn('Login history write skipped:', error?.message || error);
+    }
+};
 
 export default function AuthSetup({ onLogin }) {
     const { recoveryMode, setRecoveryMode } = useAuth();
@@ -353,6 +373,7 @@ export default function AuthSetup({ onLogin }) {
                     markFirstAccessComplete(normalizedEmail);
                     markFirstAccessComplete(authEmail);
                     activateLocalLogisticsSession(normalizedEmail, data.user.id);
+                    await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
                 } else {
                     markFirstAccessComplete(normalizedEmail);
                     markFirstAccessComplete(authEmail);
@@ -380,6 +401,7 @@ export default function AuthSetup({ onLogin }) {
                         },
                     });
                     activateLocalLogisticsSession(normalizedEmail, data.user.id);
+                    await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
                 }
             }
 

@@ -1,0 +1,190 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-27T09:22:03.121Z",
+  "endpoint": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+  "origin": "https://kylee94.github.io",
+  "auth_source": "password_grant",
+  "record_smoke_event": {
+    "status": 200,
+    "ok": true
+  },
+  "history_list": {
+    "status": 200,
+    "ok": true,
+    "rows": 0,
+    "summary": {
+      "stored_history_rows": 0,
+      "permission_user_count": 34,
+      "auth_user_read_ok": true,
+      "auth_read_error": null
+    }
+  },
+  "capability_list": {
+    "status": 200,
+    "ok": true,
+    "users": 34
+  },
+  "history_has_test_rows": false,
+  "history_rows_missing_identity": 0,
+  "capability_users_missing_identity": 0,
+  "blocked_login_users": [],
+  "first_access_pending_users": [
+    {
+      "email": "hkim@igisam.com",
+      "staff_name": "김행단",
+      "organization": "관리&운영"
+    },
+    {
+      "email": "jmjung@igisam.com",
+      "staff_name": "정조민",
+      "organization": "관리&운영"
+    },
+    {
+      "email": "oce@igisam.com",
+      "staff_name": "오채은",
+      "organization": "로지스틱스매니지먼트"
+    },
+    {
+      "email": "jhlee@igisam.com",
+      "staff_name": "이정훈B",
+      "organization": "로지스틱스매니지먼트"
+    },
+    {
+      "email": "davidlee@igisam.com",
+      "staff_name": "이진우",
+      "organization": "로지스틱스매니지먼트"
+    },
+    {
+      "email": "ethan.lee@igisam.com",
+      "staff_name": "이철승",
+      "organization": "리얼에셋부문"
+    },
+    {
+      "email": "hyungsuk.woo@igisam.com",
+      "staff_name": "우형석",
+      "organization": "사업그룹"
+    },
+    {
+      "email": "shyung.choi@igisam.com",
+      "staff_name": "최성현",
+      "organization": "사업그룹3파트"
+    },
+    {
+      "email": "shkang@igisam.com",
+      "staff_name": "강성호",
+      "organization": "사업그룹4파트"
+    },
+    {
+      "email": "minsukim@igisam.com",
+      "staff_name": "김민수",
+      "organization": "사업그룹4파트"
+    },
+    {
+      "email": "kim17826@igisam.com",
+      "staff_name": "김연수",
+      "organization": "사업그룹4파트"
+    },
+    {
+      "email": "mihyunu@igisam.com",
+      "staff_name": "유미현",
+      "organization": "사업그룹4파트"
+    },
+    {
+      "email": "gulee@igisam.com",
+      "staff_name": "이구",
+      "organization": "사업그룹4파트"
+    },
+    {
+      "email": "seunghoon.lee@igisam.com",
+      "staff_name": "이승훈",
+      "organization": "사업그룹4파트"
+    },
+    {
+      "email": "jslee@igisam.com",
+      "staff_name": "이준수",
+      "organization": "사업그룹4파트"
+    },
+    {
+      "email": "hyunho.lee@igisam.com",
+      "staff_name": "이현호",
+      "organization": "사업그룹4파트"
+    },
+    {
+      "email": "whan@igisam.com",
+      "staff_name": "한원석",
+      "organization": "사업그룹4파트"
+    },
+    {
+      "email": "jihkim@igisam.com",
+      "staff_name": "김지현",
+      "organization": "자산관리1파트"
+    },
+    {
+      "email": "dy.kwon@igisam.com",
+      "staff_name": "권도엽",
+      "organization": "자산관리3파트"
+    },
+    {
+      "email": "dmpark@igisam.com",
+      "staff_name": "박동민",
+      "organization": "자산관리3파트"
+    },
+    {
+      "email": "jwlim@igisam.com",
+      "staff_name": "임주우",
+      "organization": "자산관리3파트"
+    },
+    {
+      "email": "sw.jeoung@igisam.com",
+      "staff_name": "정승우",
+      "organization": "자산관리3파트"
+    },
+    {
+      "email": "gwansik.yoon@igisam.com",
+      "staff_name": "윤관식",
+      "organization": "투자&펀딩"
+    },
+    {
+      "email": "cskim@igisam.com",
+      "staff_name": "김찬솔",
+      "organization": "투자1그룹4파트"
+    },
+    {
+      "email": "minz@igisam.com",
+      "staff_name": "유민종",
+      "organization": "투자1그룹4파트"
+    },
+    {
+      "email": "double0507@igisam.com",
+      "staff_name": "윤재진",
+      "organization": "투자1그룹4파트"
+    },
+    {
+      "email": "jy3142@igisam.com",
+      "staff_name": "이주영",
+      "organization": "투자1그룹4파트"
+    },
+    {
+      "email": "hayoung.lee@igisam.com",
+      "staff_name": "이하영",
+      "organization": "투자1그룹4파트"
+    },
+    {
+      "email": "cwcho@igisam.com",
+      "staff_name": "조청원",
+      "organization": "투자1그룹4파트"
+    },
+    {
+      "email": "choijt@igisam.com",
+      "staff_name": "최정택",
+      "organization": "투자1그룹4파트"
+    },
+    {
+      "email": "sh.han@igisam.com",
+      "staff_name": "한상후",
+      "organization": "투자1그룹4파트"
+    }
+  ],
+  "email_confirmation_pending_users": [],
+  "failures": []
+}

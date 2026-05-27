@@ -1,0 +1,17 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-27T09:34:53.876Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/?p=contract-data",
+  "auth_source": "password_grant",
+  "ui_email": "kylee@igisam.com",
+  "checks": {
+    "button_visible": true,
+    "button_above_profile": true,
+    "modal_visible": true,
+    "capability_count_34": true,
+    "has_organization_column": true,
+    "has_name_column": true
+  },
+  "screenshot": "qa-artifacts/logistics-gate6/login-history-browser-smoke-20260527-093453.png",
+  "errors": []
+}

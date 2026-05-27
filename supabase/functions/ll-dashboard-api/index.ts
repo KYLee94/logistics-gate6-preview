@@ -4,7 +4,7 @@ type LogisticsRole = 'Reader' | 'Editor' | 'Manager' | 'Admin' | 'System Admin';
 type SupabaseClient = ReturnType<typeof createClient>;
 type Context = {
   serviceClient: SupabaseClient;
-  user: { id: string };
+  user: { id: string; email?: string | null };
   permission: Record<string, unknown> | null;
   role: string;
   origin: string;
@@ -68,6 +68,42 @@ const LOGISTICS_STAFF_NAME_BY_EMAIL: Record<string, string> = {
   'hayoung.lee@igisam.com': '이하영',
   'sh.han@igisam.com': '한상후',
   'double0507@igisam.com': '윤재진',
+};
+const LOGISTICS_ORGANIZATION_BY_EMAIL: Record<string, string> = {
+  'ethan.lee@igisam.com': '리얼에셋부문',
+  'sjlee@igisam.com': '기획추진센터',
+  'jk.jeon@igisam.com': '기획추진센터',
+  'kylee@igisam.com': '기획추진센터',
+  'gwansik.yoon@igisam.com': '투자&펀딩',
+  'jmjung@igisam.com': '관리&운영',
+  'hyungsuk.woo@igisam.com': '사업그룹',
+  'seunghoon.lee@igisam.com': '사업그룹4파트',
+  'hyunho.lee@igisam.com': '사업그룹4파트',
+  'kim17826@igisam.com': '사업그룹4파트',
+  'minsukim@igisam.com': '사업그룹4파트',
+  'shkang@igisam.com': '사업그룹4파트',
+  'mihyunu@igisam.com': '사업그룹4파트',
+  'gulee@igisam.com': '사업그룹4파트',
+  'jslee@igisam.com': '사업그룹4파트',
+  'whan@igisam.com': '사업그룹4파트',
+  'hkim@igisam.com': '관리&운영',
+  'jihkim@igisam.com': '자산관리1파트',
+  'oce@igisam.com': '로지스틱스매니지먼트',
+  'jhlee@igisam.com': '로지스틱스매니지먼트',
+  'davidlee@igisam.com': '로지스틱스매니지먼트',
+  'dy.kwon@igisam.com': '자산관리3파트',
+  'jwlim@igisam.com': '자산관리3파트',
+  'dmpark@igisam.com': '자산관리3파트',
+  'sw.jeoung@igisam.com': '자산관리3파트',
+  'shyung.choi@igisam.com': '사업그룹3파트',
+  'jy3142@igisam.com': '투자1그룹4파트',
+  'minz@igisam.com': '투자1그룹4파트',
+  'cskim@igisam.com': '투자1그룹4파트',
+  'cwcho@igisam.com': '투자1그룹4파트',
+  'choijt@igisam.com': '투자1그룹4파트',
+  'hayoung.lee@igisam.com': '투자1그룹4파트',
+  'sh.han@igisam.com': '투자1그룹4파트',
+  'double0507@igisam.com': '투자1그룹4파트',
 };
 
 const WRITE_TABLE_ALLOWLIST = new Set([
@@ -446,7 +482,7 @@ async function getContext(request: Request, origin: string): Promise<Context> {
   }
 
   const role = permission?.logistics_role || 'Reader';
-  return { serviceClient, user: { id: userData.user.id }, permission: permission || null, role, origin };
+  return { serviceClient, user: { id: userData.user.id, email: userData.user.email || null }, permission: permission || null, role, origin };
 }
 
 async function audit(serviceClient: SupabaseClient, userId: string | null, action: string, status: number, payload: unknown) {
@@ -6964,6 +7000,7 @@ async function callGoogleAiSearchChatDemo(origin: string, payload: Record<string
 const LOGISTICS_AUTH_EMAIL_ALIASES: Record<string, string> = {
   '10524@igisam.com': 'kylee@igisam.com',
 };
+const LOGIN_HISTORY_TEST_PATTERN = /(smoke|test|qa|playwright|codex|dummy|example)/iu;
 
 function normalizeAuthEmail(value: unknown) {
   return String(value || '').trim().toLowerCase();
@@ -6990,6 +7027,224 @@ async function findAuthUserByEmail(serviceClient: SupabaseClient, email: string)
     if (users.length < 1000) break;
   }
   return null;
+}
+
+async function listAuthUsers(serviceClient: SupabaseClient) {
+  const users: Record<string, unknown>[] = [];
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await serviceClient.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) throw error;
+    const pageUsers = (data?.users || []) as Record<string, unknown>[];
+    users.push(...pageUsers);
+    if (pageUsers.length < 1000) break;
+  }
+  return users;
+}
+
+function shortClientText(value: unknown, max = 180) {
+  return String(value || '').replace(/\s+/gu, ' ').trim().slice(0, max);
+}
+
+function staffNameForEmail(email: unknown) {
+  const normalized = normalizeAuthEmail(email);
+  return LOGISTICS_STAFF_NAME_BY_EMAIL[normalized] || LOGISTICS_STAFF_NAME_BY_EMAIL[normalizeAuthEmail(LOGISTICS_AUTH_EMAIL_ALIASES[normalized])] || normalized.split('@')[0] || '';
+}
+
+function organizationForEmail(email: unknown) {
+  const normalized = normalizeAuthEmail(email);
+  return LOGISTICS_ORGANIZATION_BY_EMAIL[normalized] || LOGISTICS_ORGANIZATION_BY_EMAIL[normalizeAuthEmail(LOGISTICS_AUTH_EMAIL_ALIASES[normalized])] || '';
+}
+
+function canonicalPermissionEmail(permission: Record<string, unknown> | null, fallback?: unknown) {
+  return normalizeAuthEmail(permission?.email || LOGISTICS_AUTH_EMAIL_ALIASES[normalizeAuthEmail(fallback)] || fallback);
+}
+
+function isTestLoginPayload(payload: Record<string, unknown>) {
+  return [
+    payload.source,
+    payload.event_source,
+    payload.email,
+    payload.auth_email,
+    payload.user_agent,
+    payload.client_label,
+  ].some((value) => LOGIN_HISTORY_TEST_PATTERN.test(String(value || '')));
+}
+
+function authUserByEmail(authUsers: Record<string, unknown>[], email: string) {
+  const candidates = new Set(logisticsAuthEmailCandidates(email));
+  return authUsers.find((user) => candidates.has(normalizeAuthEmail(user.email))) || null;
+}
+
+function loginCapabilityStatus(authUser: Record<string, unknown> | null) {
+  if (!authUser) return '최초 접속 전';
+  const bannedUntil = String(authUser.banned_until || '');
+  if (bannedUntil && new Date(bannedUntil).getTime() > Date.now()) return '로그인 차단';
+  if (!authUser.email_confirmed_at && !authUser.confirmed_at) return '이메일 확인 필요';
+  return '로그인 가능';
+}
+
+function publicLoginCapabilityRow(permission: Record<string, unknown>, authUsers: Record<string, unknown>[]) {
+  const email = canonicalPermissionEmail(permission);
+  const authUser = authUserByEmail(authUsers, email);
+  return stripUndefined({
+    email,
+    organization: String(permission.organization || '').trim() || organizationForEmail(email) || '-',
+    staff_name: staffNameForEmail(email),
+    logistics_role: permission.logistics_role || 'Reader',
+    has_permission: true,
+    has_auth_user: Boolean(authUser),
+    email_confirmed: Boolean(authUser?.email_confirmed_at || authUser?.confirmed_at),
+    login_status: loginCapabilityStatus(authUser),
+    last_sign_in_at: authUser?.last_sign_in_at || null,
+  }) as Record<string, unknown>;
+}
+
+function publicLoginHistoryRow(row: Record<string, unknown>) {
+  const eventPayload = (row.event_payload && typeof row.event_payload === 'object') ? row.event_payload as Record<string, unknown> : {};
+  const requestPayload = (row.request_payload && typeof row.request_payload === 'object') ? row.request_payload as Record<string, unknown> : {};
+  const email = normalizeAuthEmail(eventPayload.email || requestPayload.email || eventPayload.auth_email || requestPayload.auth_email);
+  return stripUndefined({
+    logged_at: row.created_at,
+    email,
+    auth_email: normalizeAuthEmail(eventPayload.auth_email || requestPayload.auth_email || email),
+    organization: eventPayload.organization || requestPayload.organization || '-',
+    staff_name: eventPayload.staff_name || requestPayload.staff_name || staffNameForEmail(email),
+    logistics_role: eventPayload.logistics_role || requestPayload.logistics_role || null,
+    status: row.event_status || ((Number(row.status_code) >= 200 && Number(row.status_code) < 400) ? 'success' : 'failed'),
+    source_label: eventPayload.source === 'web_app' ? '웹 로그인' : '로그인',
+  }) as Record<string, unknown>;
+}
+
+function loginCapabilityRows(permissionRows: Record<string, unknown>[], authUsers: Record<string, unknown>[]) {
+  const permissionByEmail = new Map<string, Record<string, unknown>>();
+  permissionRows.forEach((row) => {
+    const email = canonicalPermissionEmail(row);
+    if (email) permissionByEmail.set(email, row);
+  });
+  const emails = new Set([
+    ...Object.keys(LOGISTICS_STAFF_NAME_BY_EMAIL),
+    ...permissionByEmail.keys(),
+  ]);
+  return [...emails]
+    .filter((email) => email && !LOGIN_HISTORY_TEST_PATTERN.test(email))
+    .map((email) => publicLoginCapabilityRow(permissionByEmail.get(email) || {
+      email,
+      organization: organizationForEmail(email),
+      logistics_role: organizationForEmail(email) === '기획추진센터' ? 'Admin' : 'Reader',
+    }, authUsers))
+    .sort((a, b) => String(a.organization || '').localeCompare(String(b.organization || ''), 'ko')
+      || String(a.staff_name || '').localeCompare(String(b.staff_name || ''), 'ko')
+      || String(a.email || '').localeCompare(String(b.email || ''), 'ko'));
+}
+
+async function recordLogisticsLoginHistory(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasPermissionRow(ctx)) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const permissionEmail = canonicalPermissionEmail(ctx.permission, ctx.user.email);
+  const requestedEmail = normalizeAuthEmail(payload.email || permissionEmail);
+  const allowedEmails = new Set([
+    ...logisticsAuthEmailCandidates(permissionEmail),
+    ...logisticsAuthEmailCandidates(ctx.user.email),
+  ]);
+  if (requestedEmail && !allowedEmails.has(requestedEmail)) {
+    return fail(403, 'Login history email scope denied', ctx.origin);
+  }
+  const organization = String(ctx.permission?.organization || '').trim();
+  const staffName = staffNameForEmail(permissionEmail);
+  const source = shortClientText(payload.source || 'web_app', 40) || 'web_app';
+  const eventPayload = stripUndefined({
+    email: permissionEmail,
+    auth_email: normalizeAuthEmail(ctx.user.email || permissionEmail),
+    staff_name: staffName,
+    organization,
+    logistics_role: ctx.role || ctx.permission?.logistics_role || 'Reader',
+    source,
+    client_timezone: shortClientText(payload.client_timezone, 80),
+    user_agent: shortClientText(payload.user_agent, 180),
+  });
+  const { error } = await ctx.serviceClient.from('ll_audit_events').insert({
+    event_type: 'auth_login',
+    action: 'auth/login',
+    status_code: 200,
+    requested_by: ctx.user.id,
+    actor_id: ctx.user.id,
+    request_payload: eventPayload,
+    event_payload: eventPayload,
+    legacy_table: 'public.ll_audit_events',
+    event_status: 'success',
+  });
+  if (error) return fail(500, 'Failed to write login history', ctx.origin);
+  return jsonResponse({ ok: true, stored: true }, 200, ctx.origin);
+}
+
+async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, unknown>) {
+  if (!canUseDataQuality(ctx)) return fail(403, 'Login history permission is limited to Planning Center users', ctx.origin);
+  const limit = Math.min(Math.max(Number(payload.limit || 100), 1), 300);
+  const { data: rawRows, error: historyError } = await ctx.serviceClient
+    .from('ll_audit_events')
+    .select('created_at,event_type,action,status_code,event_status,event_payload,request_payload')
+    .eq('event_type', 'auth_login')
+    .order('created_at', { ascending: false })
+    .limit(Math.min(limit * 3, 900));
+  if (historyError) return fail(500, 'Failed to read login history', ctx.origin);
+
+  const { data: permissionRows, error: permissionError } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('email,organization,logistics_role,updated_at')
+    .order('organization', { ascending: true })
+    .order('email', { ascending: true });
+  if (permissionError) return fail(500, 'Failed to read logistics permissions', ctx.origin);
+
+  let authUsers: Record<string, unknown>[] = [];
+  let authReadError = '';
+  try {
+    authUsers = await listAuthUsers(ctx.serviceClient);
+  } catch (error) {
+    authReadError = safeProviderError(error);
+  }
+
+  const rows = ((rawRows || []) as Record<string, unknown>[])
+    .filter((row) => !isTestLoginPayload({
+      ...(row.event_payload as Record<string, unknown> || {}),
+      ...(row.request_payload as Record<string, unknown> || {}),
+    }))
+    .slice(0, limit)
+    .map(publicLoginHistoryRow);
+  const users = loginCapabilityRows((permissionRows || []) as Record<string, unknown>[], authUsers);
+
+  await audit(ctx.serviceClient, ctx.user.id, 'auth/login-history/list', 200, {
+    returned_history_rows: rows.length,
+    permission_users: users.length,
+    auth_read_error: authReadError || undefined,
+  });
+  return jsonResponse({
+    ok: true,
+    data: {
+      rows,
+      users,
+      summary: {
+        stored_history_rows: rows.length,
+        permission_user_count: users.length,
+        auth_user_read_ok: !authReadError,
+        auth_read_error: authReadError || null,
+      },
+    },
+  }, 200, ctx.origin);
+}
+
+async function listLogisticsLoginCapability(ctx: Context) {
+  if (!canUseDataQuality(ctx)) return fail(403, 'Login capability permission is limited to Planning Center users', ctx.origin);
+  const { data: permissionRows, error: permissionError } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('email,organization,logistics_role,updated_at')
+    .order('email', { ascending: true });
+  if (permissionError) return fail(500, 'Failed to read logistics permissions', ctx.origin);
+  const authUsers = await listAuthUsers(ctx.serviceClient);
+  const users = loginCapabilityRows((permissionRows || []) as Record<string, unknown>[], authUsers);
+  await audit(ctx.serviceClient, ctx.user.id, 'auth/login-capability/list', 200, {
+    permission_users: users.length,
+    missing_auth_users: users.filter((row) => !row.has_auth_user).length,
+  });
+  return jsonResponse({ ok: true, data: { users } }, 200, ctx.origin);
 }
 
 async function callLogisticsAuthStatus(origin: string, payload: Record<string, unknown>) {
@@ -7093,6 +7348,9 @@ Deno.serve(async (request) => {
   }
 
   if (action === 'health') return jsonResponse({ ok: true, role: ctx.role }, 200, origin);
+  if (action === 'auth/login-history/record') return recordLogisticsLoginHistory(ctx, payload);
+  if (action === 'auth/login-history/list') return listLogisticsLoginHistory(ctx, payload);
+  if (action === 'auth/login-capability/list') return listLogisticsLoginCapability(ctx);
   if (action === 'quality/findings') return listQualityFindings(ctx, payload);
   if (action === 'contract-data/apply') return applyContractData(ctx, payload);
   if (action === 'edits/submit') return submitEdit(ctx, payload);

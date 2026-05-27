@@ -120,6 +120,19 @@ const workspaceItems = [
 ];
 
 const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용']);
+const formatLoginHistoryTime = (value) => {
+    if (!value) return '-';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toLocaleString('ko-KR', {
+        timeZone: 'Asia/Seoul',
+        year: '2-digit',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
 const logisticsNavIconClass = 'w-4.5 h-4.5 mr-[10px]';
 const logisticsRootItem = {
     label: 'Work Platform',
@@ -187,6 +200,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [showLoginHistoryModal, setShowLoginHistoryModal] = useState(false);
+    const [loginHistoryLoading, setLoginHistoryLoading] = useState(false);
+    const [loginHistoryError, setLoginHistoryError] = useState('');
+    const [loginHistoryData, setLoginHistoryData] = useState({ rows: [], users: [], summary: null });
     const [newPassword, setNewPassword] = useState('');
     const [isCollapsed, setIsCollapsed] = useState(() => {
         const saved = sessionStorage.getItem('iotaLeftNavCollapsed');
@@ -251,6 +268,34 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
     const isLogisticsPath = normalizedCurrentPath.startsWith(LOGISTICS_INTERNAL_BASE);
     const isLogisticsAdmin = LOGISTICS_ADMIN_NAMES.has(memberInfo?.staff_name || memberInfo?.name);
+    const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
+    const loginCapabilityUsers = Array.isArray(loginHistoryData?.users) ? loginHistoryData.users : [];
+    const loadLoginHistory = async () => {
+        setLoginHistoryLoading(true);
+        setLoginHistoryError('');
+        try {
+            const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+                body: {
+                    action: 'auth/login-history/list',
+                    payload: { limit: 120 },
+                },
+            });
+            if (error || data?.ok === false) {
+                throw new Error(data?.message || error?.message || '로그인 이력을 불러오지 못했습니다.');
+            }
+            setLoginHistoryData(data?.data || { rows: [], users: [], summary: null });
+        } catch (error) {
+            setLoginHistoryError(error?.message || '로그인 이력을 불러오지 못했습니다.');
+        } finally {
+            setLoginHistoryLoading(false);
+        }
+    };
+    const openLoginHistoryModal = async (event) => {
+        event?.stopPropagation();
+        setShowProfileMenu(false);
+        setShowLoginHistoryModal(true);
+        await loadLoginHistory();
+    };
     const renderCollapsedTooltip = (label) => (
         isCollapsed ? (
             <span className="pointer-events-none absolute left-[58px] top-1/2 z-[9999] -translate-y-1/2 whitespace-nowrap rounded-[8px] border border-[#3A3A3C] bg-[#242424] px-2.5 py-1.5 text-[12px] font-semibold text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
@@ -349,15 +394,29 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 </div>
 
                 <div className="relative border-t border-[#2C2C2E] p-3">
-                    <button type="button" onClick={() => setShowProfileMenu((value) => !value)} className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} rounded-xl px-2 py-2 hover:bg-[#151515]`}>
-                        <div className="w-8 h-8 rounded-full bg-[#3c3c3c] overflow-hidden shrink-0">
-                            <img src={`${import.meta.env.BASE_URL}${(memberInfo?.staff_name || '').replace(/\s/g, '')}.webp`} alt={memberInfo?.staff_name || '사용자'} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
-                        </div>
-                        <div className={`ml-3 min-w-0 overflow-hidden text-left transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[170px] translate-x-0 opacity-100'}`}>
-                                <div className="truncate text-[13px] font-semibold text-white">{memberInfo?.staff_name || '로그인 사용자'}</div>
-                                <div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div>
-                        </div>
-                    </button>
+                    {isLogisticsAdmin ? (
+                        <button
+                            type="button"
+                            onClick={openLoginHistoryModal}
+                            title="로그인 이력"
+                            className={`mb-2 flex w-full items-center ${isCollapsed ? 'justify-center px-2' : 'justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] py-2 text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                        >
+                            <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {!isCollapsed ? <span>로그인 이력</span> : null}
+                        </button>
+                    ) : null}
+                    <div className="relative">
+                        <button type="button" onClick={() => setShowProfileMenu((value) => !value)} className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} rounded-xl px-2 py-2 hover:bg-[#151515]`}>
+                            <div className="w-8 h-8 rounded-full bg-[#3c3c3c] overflow-hidden shrink-0">
+                                <img src={`${import.meta.env.BASE_URL}${(memberInfo?.staff_name || '').replace(/\s/g, '')}.webp`} alt={memberInfo?.staff_name || '사용자'} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
+                            </div>
+                            <div className={`ml-3 min-w-0 overflow-hidden text-left transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[170px] translate-x-0 opacity-100'}`}>
+                                    <div className="truncate text-[13px] font-semibold text-white">{memberInfo?.staff_name || '로그인 사용자'}</div>
+                                    <div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div>
+                            </div>
+                        </button>
                     {showProfileMenu ? (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
@@ -368,7 +427,118 @@ export default function IotaLeftNav({ currentPath = '' }) {
                             </div>
                         </>
                     ) : null}
+                    </div>
                 </div>
+                {showLoginHistoryModal ? (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
+                        <div className="flex h-[82vh] w-full max-w-[1120px] flex-col overflow-hidden rounded-[18px] border border-[#333333] bg-[#171717] shadow-2xl">
+                            <div className="flex items-center justify-between border-b border-[#2C2C2E] px-6 py-4">
+                                <div>
+                                    <div className="text-[18px] font-bold text-white">로그인 이력</div>
+                                    <div className="mt-1 text-[12px] text-[#8E8E93]">기획추진센터 전용 조회 화면</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button type="button" onClick={loadLoginHistory} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                        새로고침
+                                    </button>
+                                    <button type="button" onClick={() => setShowLoginHistoryModal(false)} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                        닫기
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="custom-scrollbar flex-1 overflow-auto px-6 py-5">
+                                {loginHistoryLoading ? (
+                                    <div className="flex h-full items-center justify-center text-[14px] text-[#A1A1AA]">불러오는 중...</div>
+                                ) : loginHistoryError ? (
+                                    <div className="rounded-[14px] border border-[#5A2A2A] bg-[#2A1717] p-4 text-[13px] text-[#FFB4A9]">{loginHistoryError}</div>
+                                ) : (
+                                    <div className="grid gap-5">
+                                        <section>
+                                            <div className="mb-3 flex items-end justify-between gap-4">
+                                                <div>
+                                                    <h3 className="text-[14px] font-bold text-white">최근 로그인</h3>
+                                                    <p className="mt-1 text-[12px] text-[#8E8E93]">테스트 및 smoke 기록은 제외했습니다.</p>
+                                                </div>
+                                                <div className="text-[12px] text-[#A1A1AA]">총 {loginHistoryRows.length.toLocaleString('ko-KR')}건</div>
+                                            </div>
+                                            <div className="overflow-hidden rounded-[12px] border border-[#303033]">
+                                                <table className="w-full min-w-[760px] border-collapse text-left text-[12px]">
+                                                    <thead className="bg-[#202020] text-[#A1A1AA]">
+                                                        <tr>
+                                                            <th className="px-4 py-3 font-semibold">일시</th>
+                                                            <th className="px-4 py-3 font-semibold">조직</th>
+                                                            <th className="px-4 py-3 font-semibold">이름</th>
+                                                            <th className="px-4 py-3 font-semibold">이메일</th>
+                                                            <th className="px-4 py-3 font-semibold">상태</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-[#2C2C2E] text-[#E5E5E5]">
+                                                        {loginHistoryRows.length ? loginHistoryRows.map((row, index) => (
+                                                            <tr key={`${row.email || 'login'}-${row.logged_at || index}`} className="hover:bg-white/[0.03]">
+                                                                <td className="whitespace-nowrap px-4 py-3 text-[#C7C7CC]">{formatLoginHistoryTime(row.logged_at)}</td>
+                                                                <td className="px-4 py-3">{row.organization || '-'}</td>
+                                                                <td className="px-4 py-3 font-semibold">{row.staff_name || '-'}</td>
+                                                                <td className="px-4 py-3 text-[#C7C7CC]">{row.email || '-'}</td>
+                                                                <td className="px-4 py-3"><span className="rounded-full bg-[#203524] px-2 py-1 text-[11px] font-semibold text-[#8EE59A]">성공</span></td>
+                                                            </tr>
+                                                        )) : (
+                                                            <tr>
+                                                                <td className="px-4 py-8 text-center text-[#8E8E93]" colSpan={5}>저장된 실제 로그인 이력이 아직 없습니다. 다음 로그인부터 자동으로 기록됩니다.</td>
+                                                            </tr>
+                                                        )}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </section>
+
+                                        <section>
+                                            <div className="mb-3 flex items-end justify-between gap-4">
+                                                <div>
+                                                    <h3 className="text-[14px] font-bold text-white">권한자 로그인 상태</h3>
+                                                    <p className="mt-1 text-[12px] text-[#8E8E93]">비밀번호를 새로 만들지 않고 Auth 사용자와 권한 테이블 매칭만 확인합니다.</p>
+                                                </div>
+                                                <div className="text-[12px] text-[#A1A1AA]">총 {loginCapabilityUsers.length.toLocaleString('ko-KR')}명</div>
+                                            </div>
+                                            <div className="overflow-hidden rounded-[12px] border border-[#303033]">
+                                                <table className="w-full min-w-[860px] border-collapse text-left text-[12px]">
+                                                    <thead className="bg-[#202020] text-[#A1A1AA]">
+                                                        <tr>
+                                                            <th className="px-4 py-3 font-semibold">조직</th>
+                                                            <th className="px-4 py-3 font-semibold">이름</th>
+                                                            <th className="px-4 py-3 font-semibold">이메일</th>
+                                                            <th className="px-4 py-3 font-semibold">권한</th>
+                                                            <th className="px-4 py-3 font-semibold">상태</th>
+                                                            <th className="px-4 py-3 font-semibold">최근 로그인</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-[#2C2C2E] text-[#E5E5E5]">
+                                                        {loginCapabilityUsers.map((row, index) => {
+                                                            const ok = row.login_status === '로그인 가능';
+                                                            return (
+                                                                <tr key={`${row.email || 'user'}-${index}`} className="hover:bg-white/[0.03]">
+                                                                    <td className="px-4 py-3">{row.organization || '-'}</td>
+                                                                    <td className="px-4 py-3 font-semibold">{row.staff_name || '-'}</td>
+                                                                    <td className="px-4 py-3 text-[#C7C7CC]">{row.email || '-'}</td>
+                                                                    <td className="px-4 py-3 text-[#C7C7CC]">{row.logistics_role || '-'}</td>
+                                                                    <td className="px-4 py-3">
+                                                                        <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${ok ? 'bg-[#203524] text-[#8EE59A]' : 'bg-[#3A2E18] text-[#FFD479]'}`}>
+                                                                            {row.login_status || '-'}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="whitespace-nowrap px-4 py-3 text-[#C7C7CC]">{formatLoginHistoryTime(row.last_sign_in_at)}</td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </section>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
             </div>
         );
     }

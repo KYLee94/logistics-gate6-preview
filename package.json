@@ -21,6 +21,8 @@
     "qa:dart-chart:browser": "node scripts/qa/logistics-dart-chart-browser-smoke.cjs",
     "qa:external-api": "node scripts/qa/logistics-external-api-smoke.cjs",
     "qa:external-refresh-buttons:browser": "node scripts/qa/logistics-external-refresh-buttons-browser-smoke.cjs",
+    "qa:login-history": "node scripts/qa/logistics-login-history-smoke.cjs",
+    "qa:login-history:browser": "node scripts/qa/logistics-login-history-browser-smoke.cjs",
     "qa:enoc-weighted": "node scripts/qa/logistics-enoc-weighted-audit.cjs",
     "opendart:monthly-ingest": "node scripts/integrations/opendart-monthly-ingest.cjs",
     "qa:supabase-catalog": "node scripts/qa/logistics-supabase-catalog-inventory.cjs",
