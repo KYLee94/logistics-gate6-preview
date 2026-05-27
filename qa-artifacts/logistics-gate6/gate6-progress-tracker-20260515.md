@@ -1,9 +1,24 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-27T16:41:00+09:00
-- Overall: 304 / 366 (83.1%) - current deltas rebaselined for Data Update source-column coverage, Data Update UX cleanup, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
+- Updated at: 2026-05-27T18:02:00+09:00
+- Overall: 305 / 366 (83.3%) - current deltas rebaselined for Data Update source-column coverage, Data Update UX cleanup, Data Update rent/management field semantics, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
-- gh-pages deployment: current Data Update UX cleanup / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-Xi-iB5uL.js`.
+- gh-pages deployment: current Data Update rent/management field semantics / UX cleanup / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-CHhFVH1w.js`.
+
+## 2026-05-27 Update - Data Update Rent / History Semantics
+
+- `임대차계약 데이터 수정`의 `임대료/관리비` 그룹에 다음 항목이 같이 보이도록 재분류했습니다:
+  - `기준일자`, `임대료 변동 원인`, `월 임대료 총액`, `월 관리비 총액`, `평당 임대료`, `평당 관리비`.
+- `RF`와 `FO`의 화면 단위를 `개월`로 수정했습니다.
+- `임대료 변경 내역`은 원본 Excel의 중복 컬럼을 그대로 반복 표시하는 목적이 아니라, 최초 조사 이후 임대료 상승 조건 발동 시 변경 금액을 누적 관리하기 위한 레이어로 재정의했습니다.
+  - 현재 화면/QA는 기존 원본 전체 컬럼 노출과 기존 계약 필드 수정 readback까지 확인합니다.
+  - 신규 임대료 변경을 `ll_rent_history` 새 행으로 append하고 dashboard current 값을 재계산하는 자동 writer는 Stage 16 잔여 항목으로 유지합니다.
+- Verification:
+  - `npm run build:preview`: pass.
+  - Supabase write/readback/rollback smoke: `qa-artifacts/logistics-gate6/data-update-auto-smoke-20260527-090146.json`, 13 / 13 pass.
+  - local browser smoke: `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-085513.json`.
+  - live browser smoke: `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-085734.json`.
+  - live URL returned HTTP 200 with `assets/index-CHhFVH1w.js`.
 
 ## 2026-05-27 Update - Data Update UX Cleanup
 
@@ -189,7 +204,7 @@
 | 13 | 외부 API / AI / 외부권한 | 10 / 12 |
 | 14 | QA 계획 및 증거 | 51 / 53 |
 | 15 | 최종 완료 기준 | 9 / 15 |
-| 16 | 임대차계약 데이터 관리 탭 구축 | 10 / 24 |
+| 16 | 임대차계약 데이터 관리 탭 구축 | 11 / 24 |
 
 ## 2026-05-22 Update - Asset Tenant Table Width
 

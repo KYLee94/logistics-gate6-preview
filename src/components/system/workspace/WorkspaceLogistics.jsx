@@ -10013,6 +10013,13 @@ function formatContractNumberForDisplay(value, fractionDigits = null) {
 }
 
 function contractFieldDisplayLabel(field) {
+  const displayOverrides = {
+    monthlyRentTotal: '월 임대료 총액',
+    monthlyMfTotal: '월 관리비 총액',
+    currentRentPerPy: '평당 임대료',
+    currentMfPerPy: '평당 관리비',
+  };
+  if (displayOverrides[field?.fieldName]) return displayOverrides[field.fieldName];
   return String(field?.label || field?.sourceHeader || field?.fieldName || '')
     .replace(/히스토리\s*/gu, '')
     .trim() || '-';
@@ -10021,6 +10028,8 @@ function contractFieldDisplayLabel(field) {
 function contractFieldUnit(field) {
   const label = contractFieldDisplayLabel(field);
   const name = `${field?.fieldName || ''} ${label} ${field?.sourceHeader || ''}`;
+  const fieldName = String(field?.fieldName || '').toLowerCase();
+  if (fieldName === 'rf' || fieldName === 'fo') return '개월';
   if (field?.valueType === 'area') return '평';
   if (field?.valueType === 'currency' || field?.valueType === 'won') return '원';
   if (field?.valueType === 'percent') return '%';
@@ -10058,9 +10067,11 @@ function contractFieldDisplayParts(field, canonicalValue) {
 function contractFieldExampleParts(field) {
   const unit = contractFieldUnit(field);
   const name = `${field?.fieldName || ''} ${field?.label || ''} ${field?.sourceHeader || ''}`.toLowerCase();
+  const fieldName = String(field?.fieldName || '').toLowerCase();
   if (name.includes('asset')) return { value: '안성 성은 물류센터', unit };
   if (name.includes('tenant') || name.includes('company')) return { value: '쿠팡(주)', unit };
   if (name.includes('business')) return { value: '123-45-67890', unit };
+  if (fieldName === 'rf' || fieldName === 'fo') return { value: '3', unit };
   if (field?.valueType === 'date' || name.includes('date') || name.includes('start') || name.includes('end')) return { value: '2026-06-30', unit };
   if (field?.valueType === 'area') return { value: '1,000.0', unit };
   if (field?.valueType === 'currency') return { value: '10,000,000', unit };
@@ -10093,9 +10104,15 @@ function contractFieldCanonicalValueFromDisplay(field, displayValue, currentCano
   return text;
 }
 
+function isRentHistoryPaymentField(field) {
+  return field?.table === 'public.ll_rent_history'
+    && ['basisDate', 'rentChangeReason', 'monthlyRentTotal', 'monthlyMfTotal', 'currentRentPerPy', 'currentMfPerPy'].includes(String(field?.fieldName || ''));
+}
+
 function contractFieldGroupId(field) {
   const label = contractFieldDisplayLabel(field);
   const name = `${field?.fieldName || ''} ${field?.sourceHeader || ''} ${label}`;
+  if (isRentHistoryPaymentField(field)) return 'rent';
   if (String(field?.domain || '').includes('히스토리') || field?.table === 'public.ll_rent_history' || /history/i.test(field?.fieldName || '')) return 'rent_history';
   if (/grossFloorArea|leasedArea|exclusiveArea|AreaSqm|floorLabel|detailArea|coldStorage|officeUse|sublease|checkLeased|checkExclusive|warehouse|dock|corridor|rampArea|mechanical|parking|core|임차 층|임차 세부 구역|면적|전용률|사무실|전차/u.test(name)) return 'area';
   if (/ContractDate|StartDate|EndDate|OperationStart|ContractPeriod|extensionCount|계약일|계약개시|계약만기|운영개시|계약기간|연장횟수/u.test(name)) return 'schedule';
