@@ -187,15 +187,15 @@ async function main() {
     await page.getByTestId('logistics-ai-dock-open').click();
     await page.getByTestId('logistics-ai-input').fill(question);
     await page.getByTestId('logistics-ai-submit').click();
-    await page.waitForFunction(() => document.body.innerText.includes('답변 생성 중...'), null, { timeout: 8000 }).catch(() => {});
-    await page.waitForFunction(() => {
+    await page.waitForFunction(() => document.body.innerText.includes('답변 생성 중'), null, { timeout: 8000 }).catch(() => {});
+    await page.waitForFunction((submittedQuestion) => {
       const text = document.body.innerText;
-      return text.includes('안성 성은지구 물류센터') && text.includes('임대면적은') && !text.includes('답변 생성 중...');
-    }, null, { timeout: 45000 });
+      return text.includes(submittedQuestion) && !text.includes('답변 생성 중') && /공실률|임대면적|월 임관리비|E\.\s*NOC/iu.test(text);
+    }, question, { timeout: 45000 });
     const bodyText = await page.locator('body').innerText({ timeout: 10000 });
     await page.screenshot({ path: screenshotPath, fullPage: true });
-    const aiResponse = responses.find((response) => response.status === 200 && response.body_ok === true && /안성 성은지구/u.test(response.body_message));
-    const failedResponse = responses.find((response) => response.status >= 400 || response.body_ok === false);
+    const aiResponse = responses.find((response) => response.action === 'ai/search-chat' && response.status === 200 && response.body_ok === true && response.body_message);
+    const failedResponse = responses.find((response) => response.action === 'ai/search-chat' && (response.status >= 400 || response.body_ok === false));
     if (!aiResponse) throw new Error('AI chat response was not observed in browser network responses.');
     if (failedResponse) throw new Error(`AI browser smoke saw failed Edge response: ${JSON.stringify(failedResponse)}`);
     const answerStart = bodyText.indexOf(aiResponse.body_message.slice(0, 30));

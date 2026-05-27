@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-27T02:34:02.334Z",
+  "generated_at": "2026-05-27T02:27:09.656Z",
   "origin": "https://kylee94.github.io",
   "basis_date": "2026-05-31",
   "auth_source": "password_grant",
@@ -15,27 +15,6 @@
     "simple_average_e_noc": 35842,
     "weighted_formula_match": true,
     "simple_average_delta": 1633
-  },
-  "frontend_weighted_average_static": {
-    "ok": true,
-    "checks": [
-      {
-        "id": "analysis_average_helper_uses_weighted_enoc",
-        "ok": true
-      },
-      {
-        "id": "pivot_average_enoc_uses_average_metric_value",
-        "ok": true
-      },
-      {
-        "id": "analysis_portfolio_average_uses_helper",
-        "ok": true
-      },
-      {
-        "id": "analysis_selected_average_uses_helper",
-        "ok": true
-      }
-    ]
   },
   "asset_count": 17,
   "tenant_asset_count": 36,

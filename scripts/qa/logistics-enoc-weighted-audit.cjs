@@ -154,6 +154,33 @@ function weightedAudit(rows = []) {
   };
 }
 
+function frontendWeightedAverageStaticChecks() {
+  const sourcePath = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'WorkspaceLogistics.jsx');
+  const source = fs.readFileSync(sourcePath, 'utf8');
+  const checks = [
+    {
+      id: 'analysis_average_helper_uses_weighted_enoc',
+      ok: /function averageMetricValue\(rows, metric\)[\s\S]*metric === 'eNoc'[\s\S]*calculateWeightedENoc\(rows, 0\)/u.test(source),
+    },
+    {
+      id: 'pivot_average_enoc_uses_average_metric_value',
+      ok: /aggregation === 'average' && metric === 'eNoc'[\s\S]*averageMetricValue\(rows, metric\)/u.test(source),
+    },
+    {
+      id: 'analysis_portfolio_average_uses_helper',
+      ok: /const portfolioAverage = averageMetricValue\(metricRankRows, benchmarkMetric\);/u.test(source),
+    },
+    {
+      id: 'analysis_selected_average_uses_helper',
+      ok: /const selectedAverage = averageMetricValue\(rows, benchmarkMetric\);/u.test(source),
+    },
+  ];
+  return {
+    ok: checks.every((check) => check.ok),
+    checks,
+  };
+}
+
 function groupByTenant(rows = [], tenantMap = new Map()) {
   const groups = new Map();
   rows.forEach((row) => {
@@ -212,14 +239,16 @@ async function main() {
   }
 
   const portfolio = weightedAudit(allLeaseRows);
+  const frontendStatic = frontendWeightedAverageStaticChecks();
   const output = {
-    ok: assetResults.every((row) => row.ok) && tenantResults.every((row) => row.ok) && portfolio.weighted_formula_match,
+    ok: assetResults.every((row) => row.ok) && tenantResults.every((row) => row.ok) && portfolio.weighted_formula_match && frontendStatic.ok,
     generated_at: new Date().toISOString(),
     origin,
     basis_date: basisDate,
     auth_source: auth.source,
     formula: 'weighted_e_noc = sum(monthly_rent_total + monthly_mf_total) / sum(leased_area_sqm * 0.3025)',
     portfolio,
+    frontend_weighted_average_static: frontendStatic,
     asset_count: assetResults.length,
     tenant_asset_count: tenantResults.length,
     assets: assetResults,

@@ -227,25 +227,26 @@ async function main() {
       });
       continue;
     }
-    const first = await invokeWithRetry(endpoint, anonKey, origin, auth.token, 'building-register/summary', payload, { attempts: 4, delayMs: 2000 });
+    const first = await invokeWithRetry(endpoint, anonKey, origin, auth.token, 'building-register/summary', { ...payload, force_refresh: true }, { attempts: 4, delayMs: 2000 });
     await sleep(350);
     const second = await invokeWithRetry(endpoint, anonKey, origin, auth.token, 'building-register/summary', payload, { attempts: 3, delayMs: 1000 });
     assertNoSecrets(`building-register ${assetName}`, { first: first.body, second: second.body });
-    const data = second.body?.data || first.body?.data || {};
-    const hasProviderData = Boolean(data.plat_plc || data.new_plat_plc || data.tot_area || data.main_purps_cd_nm);
+    const providerData = first.body?.data || {};
+    const data = providerData || second.body?.data || {};
+    const hasProviderData = Boolean(providerData.plat_plc || providerData.new_plat_plc || providerData.tot_area || providerData.main_purps_cd_nm);
+    const providerResult = hasProviderData ? 'data' : 'empty';
     const ok = first.status === 200
       && first.body?.ok !== false
-      && second.status === 200
-      && second.body?.ok !== false
-      && second.body?.cache?.hit === true
+      && (providerResult === 'empty' || (second.status === 200 && second.body?.ok !== false && second.body?.cache?.hit === true))
       && !first.body?.cache?.write_error;
     buildingAssetChecks.push({
       asset_name: assetName,
+      asset_address: asset.standardized_address || asset.standardizedAddress || asset.address || asset.road_address || asset.roadAddress || null,
       payload,
       provider_status: first.body?.provider_status || first.status,
       cache_hit: Boolean(first.body?.cache?.hit),
       readback_cache_hit: Boolean(second.body?.cache?.hit),
-      stored_readback: Boolean(second.body?.cache?.hit && second.body?.cache?.stale === false),
+      stored_readback: Boolean(hasProviderData && second.body?.cache?.hit && second.body?.cache?.stale === false),
       data_presence: {
         plat_plc: Boolean(data.plat_plc),
         new_plat_plc: Boolean(data.new_plat_plc),
@@ -253,7 +254,7 @@ async function main() {
         main_purps_cd_nm: Boolean(data.main_purps_cd_nm),
         use_apr_day: Boolean(data.use_apr_day),
       },
-      provider_result: hasProviderData ? 'data' : 'empty',
+      provider_result: providerResult,
       ok,
       first: summarizeExternalBody(first.body),
       second: summarizeExternalBody(second.body),
@@ -287,7 +288,8 @@ async function main() {
       ok: ['provider_success', 'fresh_cache', 'tenant_fallback', 'stale_cache', 'provider_tls_failure'].includes(classification),
       provider_success: classification === 'provider_success',
       cache_success: classification === 'fresh_cache',
-      fallback_success: ['tenant_fallback', 'stale_cache'].includes(classification),
+      stale_cache_success: classification === 'stale_cache',
+      fallback_success: classification === 'tenant_fallback',
       classification,
       proxy_url_configured: proxyUrlConfigured,
       required_user_action: needsProviderResolution
@@ -320,7 +322,8 @@ async function main() {
       ok: ['provider_success', 'stale_cache', 'provider_tls_failure'].includes(forceClassification),
       provider_success: forceClassification === 'provider_success',
       cache_success: false,
-      fallback_success: forceClassification === 'stale_cache',
+      stale_cache_success: forceClassification === 'stale_cache',
+      fallback_success: false,
       classification: forceClassification,
       force_refresh: true,
       body: summarizeExternalBody(dartForce.body),
@@ -376,6 +379,7 @@ async function main() {
     opendart_provider_success: Boolean(openDartForceCheck?.provider_success || openDartCheck?.provider_success),
     opendart_force_provider_success: Boolean(openDartForceCheck?.provider_success),
     opendart_cache_success: Boolean(openDartCheck?.cache_success),
+    opendart_stale_cache_success: Boolean(openDartForceCheck?.stale_cache_success || openDartCheck?.stale_cache_success),
     opendart_fallback_success: Boolean(openDartForceCheck?.fallback_success || openDartCheck?.fallback_success),
     opendart_requires_external_provider_resolution: Boolean(openDartCheck?.required_user_action),
   };

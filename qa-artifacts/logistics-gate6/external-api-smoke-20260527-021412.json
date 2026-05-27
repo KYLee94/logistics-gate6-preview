@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-27T02:36:32.361Z",
+  "generated_at": "2026-05-27T02:14:12.873Z",
   "origin": "https://kylee94.github.io",
   "basis_date": "2026-05-31",
   "auth_source": "password_grant",
@@ -24,7 +24,6 @@
       "ok": true,
       "provider_success": false,
       "cache_success": true,
-      "stale_cache_success": false,
       "fallback_success": false,
       "classification": "fresh_cache",
       "proxy_url_configured": false,
@@ -35,7 +34,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:19:06.845+00:00"
+          "fetched_at": "2026-05-26T08:12:56.076+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -66,8 +65,7 @@
       "ok": true,
       "provider_success": false,
       "cache_success": false,
-      "stale_cache_success": true,
-      "fallback_success": false,
+      "fallback_success": true,
       "classification": "stale_cache",
       "force_refresh": true,
       "body": {
@@ -76,7 +74,7 @@
         "cache": {
           "hit": true,
           "stale": true,
-          "fetched_at": "2026-05-27T02:19:06.845+00:00",
+          "fetched_at": "2026-05-26T08:12:56.076+00:00",
           "provider_error": "https://opendart.fss.or.kr/api/company.json: error sending request for url (https://opendart.fss.or.kr/api/company.json?[redacted credential]&corp_code=00519164): client error (Connect): received fatal alert: HandshakeFailure | https://engopendart.fss.or.kr/engapi/company.json: error sending request for url (https://engopendart.fss.or.kr/engapi/company.json?[redacted credential]&corp_code=00519164): client error (Connect): received fatal alert: HandshakeFailure | http://opendart.fss.or.kr/api/co"
         },
         "detail": null,
@@ -117,7 +115,6 @@
   "building_register_assets": [
     {
       "asset_name": "경산 쿠팡물류센터",
-      "asset_address": "경상북도 경산시 진량읍 공단12로 213-18",
       "payload": {
         "sigungu_cd": "47290",
         "bjdong_cd": "25330",
@@ -126,7 +123,7 @@
         "ji": "0000"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -142,30 +139,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:14.869+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -174,7 +171,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:35:55.923+00:00"
+          "fetched_at": "2026-05-27T01:41:14.869+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -201,7 +198,6 @@
     },
     {
       "asset_name": "동산물류센터",
-      "asset_address": "경기도 이천시 호법면 덕평로 257-21",
       "payload": {
         "sigungu_cd": "41500",
         "bjdong_cd": "33025",
@@ -210,7 +206,7 @@
         "ji": "0005"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -226,30 +222,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:16.767+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -258,7 +254,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:35:57.821+00:00"
+          "fetched_at": "2026-05-27T01:41:16.767+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -285,7 +281,6 @@
     },
     {
       "asset_name": "두동 LG전자 통합물류센터",
-      "asset_address": "경상남도 창원시 진해구 두동로 32",
       "payload": {
         "sigungu_cd": "48129",
         "bjdong_cd": "16100",
@@ -294,7 +289,7 @@
         "ji": "0000"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -310,30 +305,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:17.611+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -342,7 +337,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:00.349+00:00"
+          "fetched_at": "2026-05-27T01:41:17.611+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -369,7 +364,6 @@
     },
     {
       "asset_name": "부국물류센터",
-      "asset_address": "경기도 이천시 대월면 대월로 627-61",
       "payload": {
         "sigungu_cd": "41500",
         "bjdong_cd": "35029",
@@ -378,7 +372,7 @@
         "ji": "0002"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -394,30 +388,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:18.326+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -426,7 +420,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:02.141+00:00"
+          "fetched_at": "2026-05-27T01:41:18.326+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -453,7 +447,6 @@
     },
     {
       "asset_name": "부산송정물류센터",
-      "asset_address": "부산광역시 강서구 녹산산단232로 38-17",
       "payload": {
         "sigungu_cd": "26440",
         "bjdong_cd": "10900",
@@ -462,7 +455,7 @@
         "ji": "0002"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -478,30 +471,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:19.228+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -510,7 +503,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:04.062+00:00"
+          "fetched_at": "2026-05-27T01:41:19.228+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -537,7 +530,6 @@
     },
     {
       "asset_name": "스카이박스1, 스카이박스2",
-      "asset_address": "인천광역시 서구 갑문1로 20, 인천광역시 서구 갑문3로 34",
       "payload": {
         "sigungu_cd": "28260",
         "bjdong_cd": "11900",
@@ -546,7 +538,7 @@
         "ji": "0004"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -562,30 +554,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:19.923+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -594,7 +586,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:06.22+00:00"
+          "fetched_at": "2026-05-27T01:41:19.923+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -621,7 +613,6 @@
     },
     {
       "asset_name": "아레나스안성",
-      "asset_address": "경기도 안성시 양성면 양성로 301",
       "payload": {
         "sigungu_cd": "41550",
         "bjdong_cd": "36027",
@@ -630,7 +621,7 @@
         "ji": "0003"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -646,30 +637,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:25.793+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -678,7 +669,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:08.134+00:00"
+          "fetched_at": "2026-05-27T01:41:25.793+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -705,7 +696,6 @@
     },
     {
       "asset_name": "아레나스양지물류센터",
-      "asset_address": "경기도 용인시 처인구 양지면 남평로 111-73",
       "payload": {
         "sigungu_cd": "41461",
         "bjdong_cd": "36021",
@@ -714,9 +704,9 @@
         "ji": "0000"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
-      "stored_readback": false,
+      "stored_readback": true,
       "data_presence": {
         "plat_plc": false,
         "new_plat_plc": false,
@@ -730,10 +720,9 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": false,
-          "empty_provider_result": true
+          "fetched_at": "2026-05-27T01:41:30.987+00:00"
         },
         "detail": null,
         "data_keys": []
@@ -752,7 +741,6 @@
     },
     {
       "asset_name": "안성 성은지구 물류센터",
-      "asset_address": "경기도 안성시 원곡면 지문로 459-14",
       "payload": {
         "sigungu_cd": "41550",
         "bjdong_cd": "38021",
@@ -761,7 +749,7 @@
         "ji": "0000"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -777,30 +765,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:31.695+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -809,7 +797,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:11.548+00:00"
+          "fetched_at": "2026-05-27T01:41:31.695+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -836,7 +824,6 @@
     },
     {
       "asset_name": "안성 홈플러스 중부허브 물류센터",
-      "asset_address": "경기도 안성시 원곡면 원곡물류단지1로 103",
       "payload": {
         "sigungu_cd": "41550",
         "bjdong_cd": "38022",
@@ -845,7 +832,7 @@
         "ji": "0000"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -861,30 +848,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:36.381+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -893,7 +880,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:14.862+00:00"
+          "fetched_at": "2026-05-27T01:41:36.381+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -920,7 +907,6 @@
     },
     {
       "asset_name": "양산 유산동 물류센터",
-      "asset_address": "경상남도 양산시 유산공단4길 28-170",
       "payload": {
         "sigungu_cd": "48330",
         "bjdong_cd": "11100",
@@ -929,7 +915,7 @@
         "ji": "0000"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -945,30 +931,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:38.298+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -977,7 +963,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:17.213+00:00"
+          "fetched_at": "2026-05-27T01:41:38.298+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1004,7 +990,6 @@
     },
     {
       "asset_name": "에이블로지스물류센터",
-      "asset_address": "경기도 용인시 처인구 백암면 죽양대로 956-8",
       "payload": {
         "sigungu_cd": "41461",
         "bjdong_cd": "35023",
@@ -1013,7 +998,7 @@
         "ji": "0013"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -1029,30 +1014,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:40.352+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -1061,7 +1046,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:20.067+00:00"
+          "fetched_at": "2026-05-27T01:41:40.352+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1088,7 +1073,6 @@
     },
     {
       "asset_name": "여주 본두리 물류센터",
-      "asset_address": "경기도 여주시 가남읍 여주남로 536",
       "payload": {
         "sigungu_cd": "41670",
         "bjdong_cd": "25032",
@@ -1097,7 +1081,7 @@
         "ji": "0003"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -1113,30 +1097,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:43.541+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -1145,7 +1129,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:22.284+00:00"
+          "fetched_at": "2026-05-27T01:41:43.541+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1172,7 +1156,6 @@
     },
     {
       "asset_name": "이천 마장면 물류센터",
-      "asset_address": "경기도 이천시 마장면 억만리로 140-18",
       "payload": {
         "sigungu_cd": "41500",
         "bjdong_cd": "34024",
@@ -1181,7 +1164,7 @@
         "ji": "0000"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -1197,30 +1180,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:44.275+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -1229,7 +1212,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:24.017+00:00"
+          "fetched_at": "2026-05-27T01:41:44.275+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1256,7 +1239,6 @@
     },
     {
       "asset_name": "인천석남물류센터",
-      "asset_address": "인천광역시 서구 봉수대로 370",
       "payload": {
         "sigungu_cd": "28260",
         "bjdong_cd": "11000",
@@ -1265,9 +1247,9 @@
         "ji": "0020"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
-      "stored_readback": false,
+      "stored_readback": true,
       "data_presence": {
         "plat_plc": false,
         "new_plat_plc": false,
@@ -1281,10 +1263,9 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": false,
-          "empty_provider_result": true
+          "fetched_at": "2026-05-27T01:41:48.313+00:00"
         },
         "detail": null,
         "data_keys": []
@@ -1303,7 +1284,6 @@
     },
     {
       "asset_name": "평택아디다스물류센터",
-      "asset_address": "경기도 평택시 도일유통길 64",
       "payload": {
         "sigungu_cd": "41220",
         "bjdong_cd": "10600",
@@ -1312,7 +1292,7 @@
         "ji": "0003"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
       "stored_readback": true,
       "data_presence": {
@@ -1328,30 +1308,30 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": true
+          "fetched_at": "2026-05-27T01:41:48.919+00:00"
         },
         "detail": null,
         "data_keys": [
-          "mgm_bldrgst_pk",
-          "plat_plc",
-          "new_plat_plc",
-          "bld_nm",
-          "main_purps_cd_nm",
-          "etc_purps",
-          "strct_cd_nm",
-          "roof_cd_nm",
-          "grnd_flr_cnt",
-          "ugrnd_flr_cnt",
-          "plat_area",
-          "arch_area",
-          "tot_area",
-          "vl_rat_estm_tot_area",
-          "bc_rat",
-          "vl_rat",
           "heit",
-          "hhld_cnt"
+          "bc_rat",
+          "bld_nm",
+          "ho_cnt",
+          "vl_rat",
+          "fmly_cnt",
+          "hhld_cnt",
+          "plat_plc",
+          "tot_area",
+          "arch_area",
+          "etc_purps",
+          "plat_area",
+          "roof_cd_nm",
+          "strct_cd_nm",
+          "use_apr_day",
+          "atch_bld_cnt",
+          "grnd_flr_cnt",
+          "new_plat_plc"
         ]
       },
       "second": {
@@ -1360,7 +1340,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:28.04+00:00"
+          "fetched_at": "2026-05-27T01:41:48.919+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1387,7 +1367,6 @@
     },
     {
       "asset_name": "화성 석포리 물류센터",
-      "asset_address": "경기도 화성시 장안면 북부마을길 42",
       "payload": {
         "sigungu_cd": "41590",
         "bjdong_cd": "37022",
@@ -1396,9 +1375,9 @@
         "ji": "0012"
       },
       "provider_status": 200,
-      "cache_hit": false,
+      "cache_hit": true,
       "readback_cache_hit": true,
-      "stored_readback": false,
+      "stored_readback": true,
       "data_presence": {
         "plat_plc": false,
         "new_plat_plc": false,
@@ -1412,10 +1391,9 @@
         "ok": true,
         "provider_status": 200,
         "cache": {
-          "hit": false,
+          "hit": true,
           "stale": false,
-          "readback_hit": false,
-          "empty_provider_result": true
+          "fetched_at": "2026-05-27T01:41:52.927+00:00"
         },
         "detail": null,
         "data_keys": []
@@ -1436,7 +1414,6 @@
   "opendart_provider_success": false,
   "opendart_force_provider_success": false,
   "opendart_cache_success": true,
-  "opendart_stale_cache_success": true,
-  "opendart_fallback_success": false,
+  "opendart_fallback_success": true,
   "opendart_requires_external_provider_resolution": false
 }

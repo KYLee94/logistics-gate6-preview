@@ -1,0 +1,77 @@
+{
+  "ok": false,
+  "generated_at": "2026-05-27T02:28:53.622Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/work-platform",
+  "question": "스카이박스1, 스카이박스2 운영 현황 요약해봐",
+  "auth_source": "password_grant",
+  "ui_email": "kylee@igisam.com",
+  "duration_ms": 8751,
+  "requests": [
+    {
+      "method": "POST",
+      "action": "weekly-assets/latest",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "work-platform/board-posts/list",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "work-platform/tasks/list",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "work-platform/tasks/list",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "ai/search-chat",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    },
+    {
+      "method": "POST",
+      "action": "work-platform/tasks/snapshots/upsert-current",
+      "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
+    }
+  ],
+  "responses": [
+    {
+      "status": 200,
+      "action": "work-platform/tasks/list",
+      "body_ok": true,
+      "body_message": ""
+    },
+    {
+      "status": 200,
+      "action": "work-platform/tasks/list",
+      "body_ok": true,
+      "body_message": ""
+    },
+    {
+      "status": 200,
+      "action": "work-platform/board-posts/list",
+      "body_ok": true,
+      "body_message": ""
+    },
+    {
+      "status": 200,
+      "action": "weekly-assets/latest",
+      "body_ok": true,
+      "body_message": ""
+    },
+    {
+      "status": 200,
+      "action": "ai/search-chat",
+      "body_ok": true,
+      "body_message": "스카이박스1, 스카이박스2 운영 현황입니다. 펀드는 이지스아레나스전문투자형사모부동산투자신탁4호입니다. 위치는 인천광역시 서구 갑문1로 20, 인천광역시 서구 갑문3로 34입니다. 총 연면적은 25,909.5평입니다. 임대면적은 17,952.4평입니다. 공실면적은 7,957.1평이고 공실률은 30.7%입니다. 월 임관리비는 7.5억입니다. E. NOC는 41,529원입니다. 주요 임차인은 쿠팡"
+    }
+  ],
+  "answer_excerpt": "",
+  "screenshot": "qa-artifacts/logistics-gate6/ai-chatbot-browser-smoke-20260527-022852.png",
+  "error": "AI chat response was not observed in browser network responses.",
+  "body_excerpt": "팡물류센터\n상태\n진행중\n중요도\n높음\n비고/링크\n하도급 업체 유치권 주장\n투자구조 변경(자산거래NPL 구조), 이지스 AI팀(NPL)과 협업\n담보대출 대주 심의완료\n6월 27일 클로징 완료\n재하도급 업체(효현건설) 시위\n공정위 회신 완료 및 소장 접수 완료\n쿠팡 운용중(상온, 저온)\n9층 화재(25.12.16) 치유 완료\n천장 사고처리 완료\n경산산업단지 입주계약 체결 완료\n협업게시판\n전체보기\n물류센터 워크 플랫폼과 협업 및 논의가 필요한 사항, 또는 공유할 내용을 등록하세요.\n글작성하기\n담당 자산\n경산 쿠팡물류센터\n동산물류센터\n두동 LG전자 통합물류센터\n부국물류센터\n부산송정물류센터\n스카이박스1, 스카이박스2\n아레나스안성\n아레나스양지물류센터\n안성 성은지구 물류센터\n안성 홈플러스 중부허브 물류센터\n양산 유산동 물류센터\n에이블로지스물류센터\n여주 본두리 물류센터\n이천 마장면 물류센터\n인천석남물류센터\n평택아디다스물류센터\n화성 석포리 물류센터\n기능셀\n등록자\n내용\n이해관계자\n투자자\n대주\nSI\n잠재임차자\n운영 파트너\nIGIS 내부인력\n목적\n공유\n협업\n리스크 판단\n의사결정\n진행상태\n신규\n검토중\n진행중\n보류\n완료\n중요도\n높음\n중간\n낮음\n등록일\n등록된 업무가 없습니다.\nAI\n챗\n봇\n물류센터 AI 챗봇\n읽기 권한 범위 내 데이터 기준\n연결 진단\n×\n물류센터 자산, 임차인, 계약, 이슈에 대해 질문하시면 읽기 권한 범위 안의 데이터로 답변합니다.\n스카이박스1, 스카이박스2 운영 현황 요약해봐\n스카이박스1, 스카이박스2 운영 현황입니다. 펀드는 이지스아레나스전문투자형사모부동산투자신탁4호입니다. 위치는 인천광역시 서구 갑문1로 20, 인천광역시 서구 갑문3로 34입니다. 총 연면적은 25,909.5평입니다. 임대면적은 17,952.4평입니다. 공실면적은 7,957.1평이고 공실률은 30.7%입니다. 월 임관리비는 7.5억입니다. E. NOC는 41,529원입니다. 주요 임차인은 쿠팡(주) 7,639.9평, (주)LG생활건강 2,234.3평, (주)하나로티앤에스 2,222.6평입니다.\n전송"
+}

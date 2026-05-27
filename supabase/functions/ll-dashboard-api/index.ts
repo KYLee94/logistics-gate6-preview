@@ -86,6 +86,7 @@ const EDIT_TARGET_TABLE_ALLOWLIST = new Set([
   'public.ll_audit_events',
   'public.ll_lease_spaces',
   'public.ll_leases',
+  'public.ll_lease_attributes',
   'public.ll_rent_history',
   'public.ll_tenants',
   'public.ll_weekly_records',
@@ -104,6 +105,11 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'tenantMasterName', 'tenant_master_name', 'assetName', 'asset_name', 'spaceLabel', 'space_label',
     'leasedAreaSqm', 'leased_area_sqm', 'exclusiveAreaSqm', 'exclusive_area_sqm',
     'currentStartDate', 'current_start_date', 'currentEndDate', 'current_end_date',
+  ]),
+  'public.ll_lease_attributes': new Set([
+    'attribute_type', 'attribute_key', 'attribute_label', 'attribute_value', 'value_text',
+    'value_number', 'value_json', 'source_sheet', 'source_column_letter', 'source_header',
+    'lease_id', 'lease_space_id', 'asset_id', 'tenant_id', 'is_active', 'review_status',
   ]),
   'public.ll_lease_spaces': new Set([
     'tenantMasterName', 'tenant_master_name', 'assetName', 'asset_name', 'assetCode', 'asset_code',
@@ -173,6 +179,7 @@ const PRIMARY_KEY_FIELDS = new Set([
   'lease_id',
   'lease_space_id',
   'rent_history_id',
+  'attribute_id',
   'fund_id',
 ]);
 
@@ -673,6 +680,23 @@ function isCurrentDashboardLeaseSpace(row: Record<string, unknown>) {
 
 function currentDashboardLeaseSpaces(rows: Record<string, unknown>[]) {
   return rows.filter(isCurrentDashboardLeaseSpace);
+}
+
+function parseDateMs(value: unknown) {
+  const text = normalizeText(value);
+  if (!text) return null;
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isCurrentOrFutureRentHistoryCell(cell: ReturnType<typeof normalizeEditCells>[number], row: Record<string, unknown>) {
+  if (cell.targetTable !== 'public.ll_rent_history') return true;
+  if (row.is_latest === true || normalizeText(row.is_latest).toLowerCase() === 'true') return true;
+  const basisMs = parseDateMs(firstDefined(row.basis_date, row.basisDate, row.effective_date, row.effectiveDate));
+  if (basisMs === null) return true;
+  const today = new Date();
+  const monthStartUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1);
+  return basisMs >= monthStartUtc;
 }
 
 function dashboardNumber(value: unknown) {
@@ -1307,6 +1331,15 @@ async function callDashboardCompanyRead(ctx: Context, payload: Record<string, un
   const adjustedLeaseSpaces = applyLatestRentHistoryAmountsToLeaseSpaces(leaseSpaces, rentHistory, basisDate);
   const assets = readableAssets.filter((row) => assetIds.includes(String(row.asset_id || '')));
   const scope = await dashboardScope(ctx, readableAssets);
+  const dartCorpCode = safeText(tenant.dart_corp_code);
+  let openDartCache: Record<string, unknown> | null = null;
+  if (dartCorpCode) {
+    const dartCacheKey = await cacheKeyFor('opendart/company', { corp_code: dartCorpCode, include_financials: true });
+    const cachedDart = await readExternalApiCache(ctx, 'opendart/company', dartCacheKey, true).catch(() => null);
+    openDartCache = cachedDart?.responsePayload && typeof cachedDart.responsePayload === 'object'
+      ? cachedDart.responsePayload as Record<string, unknown>
+      : null;
+  }
   const body = {
     ok: true,
     source: 'supabase',
@@ -1331,6 +1364,9 @@ async function callDashboardCompanyRead(ctx: Context, payload: Record<string, un
       lease_space_specs: leaseSpaceSpecs.map(pickLeaseSpaceSpecPublic),
       lease_special_terms: specialTerms.map(pickSpecialTermPublic),
       rent_history: rentHistory.map(pickRentHistoryPublic),
+      external_apis: stripUndefined({
+        openDart: openDartCache,
+      }),
       summary: {
         asset_count: assets.length,
         leased_area_sqm: sumNumber(adjustedLeaseSpaces, 'leased_area_sqm'),
@@ -1477,9 +1513,16 @@ async function assertTargetRowPermission(ctx: Context, row: Record<string, unkno
   return canWriteRelatedAsset(ctx, related.assetId, related.assetName);
 }
 
+function assertRowTemporalWriteAllowed(cell: ReturnType<typeof normalizeEditCells>[number], row: Record<string, unknown>) {
+  if (!isCurrentOrFutureRentHistoryCell(cell, row)) {
+    throw new Error('Past rent history rows are archived evidence and cannot be edited directly');
+  }
+}
+
 async function readTargetCell(ctx: Context, cell: ReturnType<typeof normalizeEditCells>[number]) {
   const row = await readTargetRow(ctx.serviceClient, cell);
   if (!await assertTargetRowPermission(ctx, row, cell)) throw new Error('Insufficient asset write permission for target row');
+  assertRowTemporalWriteAllowed(cell, row);
   return row[cell.fieldName];
 }
 
@@ -1676,6 +1719,7 @@ async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
     try {
       const row = await readTargetRow(ctx.serviceClient, cell);
       if (!await assertTargetRowPermission(ctx, row, cell)) return fail(403, 'Insufficient asset write permission for target row', ctx.origin);
+      assertRowTemporalWriteAllowed(cell, row);
       const currentValue = row[cell.fieldName];
       submissionReadbacks.push({
         target_table: cell.targetTable,
@@ -1775,6 +1819,8 @@ async function listLeaseEvents(ctx: Context, payload: Record<string, unknown>) {
 
 function normalizeLeaseEventPayload(payload: Record<string, unknown>) {
   const eventType = safeText(payload.event_type || payload.eventType || 'correction');
+  const sourceRows = Array.isArray(payload.source_rows) ? payload.source_rows : [];
+  const cellEdits = Array.isArray(payload.cell_edits) ? payload.cell_edits : [];
   return {
     kind: 'lease_contract_event',
     event_type: LEASE_EVENT_TYPES.has(eventType) ? eventType : 'correction',
@@ -1786,6 +1832,8 @@ function normalizeLeaseEventPayload(payload: Record<string, unknown>) {
     summary: safeText(payload.summary || payload.reason || payload.notes),
     before: redactSensitivePayload(payload.before || {}),
     after: redactSensitivePayload(payload.after || {}),
+    source_rows: redactSensitivePayload(sourceRows),
+    cell_edits: redactSensitivePayload(cellEdits),
     source_refs: redactSensitivePayload(payload.source_refs || []),
   };
 }
@@ -3862,6 +3910,7 @@ async function fetchOpenDartFinancialRows(apiKey: string, corpCode: string, prov
   const endpoints = [
     'https://opendart.fss.or.kr/api/fnlttSinglAcntAll.json',
     'https://engopendart.fss.or.kr/engapi/fnlttSinglAcntAll.json',
+    'http://opendart.fss.or.kr/api/fnlttSinglAcntAll.json',
   ];
   const rows: Record<string, unknown>[] = [];
   for (const year of recentOpenDartFinancialYears(3)) {
@@ -4003,6 +4052,7 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
   const companyUrls = [...new Set([
     configuredCompanyUrl || 'https://opendart.fss.or.kr/api/company.json',
     'https://engopendart.fss.or.kr/engapi/company.json',
+    'http://opendart.fss.or.kr/api/company.json',
   ].filter(Boolean))].filter(() => Boolean(query));
   const providerErrors: string[] = [];
   try {
@@ -4042,9 +4092,11 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
       && (openDartProviderOk(response, providerBody) || Boolean(providerBody.corp_code || providerBody.corp_name || providerBody.bizr_no));
     const company = normalizeOpenDartCompanyPayload(providerBody);
     let cacheWriteError = '';
+    let cacheReadbackHit = false;
     if (providerOk) {
       try {
         await writeExternalApiCache(ctx, 'opendart/company', cacheKey, { corp_code: corpCode, include_financials: includeFinancials }, company, response.status);
+        cacheReadbackHit = Boolean(await readExternalApiCache(ctx, 'opendart/company', cacheKey));
       } catch (error) {
         cacheWriteError = error instanceof Error ? error.message : 'cache write failed';
       }
@@ -4067,12 +4119,13 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
         company.financials = financialRows;
         try {
           await writeExternalApiCache(ctx, 'opendart/company', cacheKey, { corp_code: corpCode, include_financials: includeFinancials }, company, response.status);
+          cacheReadbackHit = Boolean(await readExternalApiCache(ctx, 'opendart/company', cacheKey));
         } catch (error) {
           cacheWriteError = error instanceof Error ? error.message : 'cache write failed';
         }
       }
     }
-    return jsonResponse({ ok: true, provider_status: response.status, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
+    return jsonResponse({ ok: true, provider_status: response.status, data: company, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined, readback_hit: cacheReadbackHit || undefined } }, 200, ctx.origin);
   } catch (error) {
     const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
@@ -4211,9 +4264,12 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
       use_apr_day: first.useAprDay,
     }) : {};
     let cacheWriteError = '';
-    if (providerOk) {
+    let cacheReadbackHit = false;
+    const hasSummaryData = Object.keys(summary).length > 0;
+    if (providerOk && hasSummaryData) {
       try {
         await writeExternalApiCache(ctx, 'building-register/summary', cacheKey, cachePayload, summary, response.status);
+        cacheReadbackHit = Boolean(await readExternalApiCache(ctx, 'building-register/summary', cacheKey));
       } catch (error) {
         cacheWriteError = error instanceof Error ? error.message : 'cache write failed';
       }
@@ -4225,7 +4281,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
       if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt });
       return jsonResponse(providerFailureBody('Building-register provider returned an error', response, body as Record<string, unknown>, { cache: { hit: false, stale: false } }), 502, ctx.origin);
     }
-    return jsonResponse({ ok: true, provider_status: response.status, data: summary, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined } }, 200, ctx.origin);
+    return jsonResponse({ ok: true, provider_status: response.status, data: summary, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined, readback_hit: hasSummaryData ? cacheReadbackHit || undefined : false, empty_provider_result: !hasSummaryData || undefined } }, 200, ctx.origin);
   } catch (error) {
     const stale = await readExternalApiCache(ctx, 'building-register/summary', cacheKey, true);
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
@@ -4590,6 +4646,36 @@ function isMonthlyCostQuestion(question: string) {
     && !isVacancyQuestion(question)
     && !isAreaSummaryQuestion(question)
     && !isReadableAssetCountQuestion(question);
+}
+
+function isTenantMonthlyCostShareQuestion(question: string) {
+  return /(임차인별|임차인\s*별|tenant|테넌트|각\s*임차인|개별\s*임차인)/iu.test(question)
+    && /(비율|구성|점유|share|%|퍼센트|얼마나|차지)/iu.test(question)
+    && /(월\s*임관리비|임관리비|월\s*임대료|월\s*관리비|관리비|임대료)/iu.test(question);
+}
+
+function buildTenantMonthlyCostShareAnswer(label: string, rows: Record<string, unknown>[]) {
+  const grouped = new Map<string, { cost: number; rent: number; mf: number; areaPy: number; rowCount: number }>();
+  (rows || []).forEach((row) => {
+    const tenant = rowTenantName(row) || '미분류 임차인';
+    const current = grouped.get(tenant) || { cost: 0, rent: 0, mf: 0, areaPy: 0, rowCount: 0 };
+    const rent = numberValue(firstDefined(row.monthly_rent_total, row.monthlyRentTotal, row.current_monthly_rent_total, row.currentMonthlyRentTotal)) || 0;
+    const mf = numberValue(firstDefined(row.monthly_mf_total, row.monthlyMfTotal, row.current_monthly_mf_total, row.currentMonthlyMfTotal)) || 0;
+    const cost = rowMonthlyCombined(row) || rent + mf;
+    current.cost += cost || 0;
+    current.rent += rent;
+    current.mf += mf;
+    current.areaPy += rowAreaPy(row) || 0;
+    current.rowCount += 1;
+    grouped.set(tenant, current);
+  });
+  const total = [...grouped.values()].reduce((sum, row) => sum + row.cost, 0);
+  if (!grouped.size || total <= 0) return '';
+  const rowsByShare = [...grouped.entries()]
+    .map(([tenant, value]) => ({ tenant, ...value, share: value.cost / total }))
+    .sort((a, b) => b.cost - a.cost);
+  const pieces = rowsByShare.map((row) => `${row.tenant} ${formatAiPercent(row.share)}(${compactAiValue(row.cost)})`);
+  return `${label}의 전체 월 임관리비는 ${compactAiValue(total)}입니다. 임차인별 비율은 ${pieces.join(', ')}입니다.`;
 }
 
 function metricSnapshotKey(metricScope: string, metricKey: string, assetId: string, tenantId: string, basisDate: string) {
@@ -5236,6 +5322,11 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
   if (assetRows.length > 1 && isComparisonQuestion(question)) {
     const comparisonAnswer = buildAssetComparisonAnswer(question, assetRows, leaseRowsAll);
     if (comparisonAnswer) return { mode: 'deterministic_asset_comparison_v2', answer: comparisonAnswer };
+  }
+  if (assetRows.length && isTenantMonthlyCostShareQuestion(question)) {
+    const targetLeaseRows = rowsForAssets(leaseRowsAll, assetRows);
+    const shareAnswer = buildTenantMonthlyCostShareAnswer(assetName, targetLeaseRows);
+    if (shareAnswer) return { mode: 'deterministic_tenant_monthly_cost_share_v2', answer: shareAnswer };
   }
   if (!assetRows.length && isTenantAssetQuestion(question)) {
     const tenantName = findQuestionTenantNames(context, question)[0];

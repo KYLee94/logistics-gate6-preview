@@ -1,9 +1,52 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-26T18:43:00.000+09:00
-- Overall: 291 / 366 (79.5%) - current deltas rebaselined for Data Update, external refresh controls, OpenDART cache/readback separation, Asset chart cleanup, and live browser smoke.
+- Updated at: 2026-05-27T11:39:00.000+09:00
+- Overall: 302 / 366 (82.5%) - current deltas rebaselined for Data Update source-column coverage, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
-- gh-pages deployment: current Data Update / external refresh / Asset chart fix deployed; live URL returned HTTP 200 with `assets/index-Dpi1mLuf.js`.
+- gh-pages deployment: current Data Update / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-C_mSzrfX.js`.
+
+## 2026-05-27 Update - Data Update / AI / E. NOC / External API Follow-up
+
+- Data Update coverage was rechecked against the original Excel workbook scope:
+  - `DB_일반`: 82 / 82 source columns exposed in the edit-request field registry.
+  - `DB_히스토리 누적`: 18 / 18 source columns exposed in the edit-request field registry.
+  - live browser smoke: `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-023811.json`.
+  - current implementation supports source-field edit requests, new lease event requests, current/future history change requests, and lease-end archive requests. Approval/writeback automation after request submission remains tracked in Stage 16 and is not counted as complete.
+- E. NOC average handling was corrected and re-audited:
+  - all direct asset/tenant/portfolio E. NOC QA uses leased-area weighted average, not arithmetic average.
+  - Analysis benchmark average and Pivot `average E. NOC` aggregation now route through the same weighted-average helper.
+  - subagent read-only 검산 confirmed the server, frontend, and QA script paths use weighted E. NOC; the discovered Analysis/Pivot risk was patched.
+  - latest audit: `qa-artifacts/logistics-gate6/enoc-weighted-audit-20260527-023402.json`.
+  - portfolio weighted E. NOC: `34,209원`; simple arithmetic average would be `35,842원`.
+- AI chatbot direct and browser QA was re-run against qveg:
+  - direct Edge QA: `qa-artifacts/logistics-gate6/ai-chatbot-qa-20260527-023613.json`, 22 checks pass.
+  - browser live QA: `qa-artifacts/logistics-gate6/ai-chatbot-browser-smoke-20260527-023816.json`, `ai/search-chat` POST returned 200 and the answer rendered.
+  - Skybox follow-up now returns all tenant monthly-cost shares, not one tenant only.
+  - numeric answers are deterministic server calculations from Supabase readback; AI is not hardcoded in the frontend.
+- OpenDART status is now separated into monthly provider ingest, live Edge force-refresh, cache readback, and fallback:
+  - `OPENDART_API_KEY` exists in Edge secrets; `OPENDART_PROXY_URL` is not configured.
+  - monthly ingest provider success: `23 / 23`, fallback false, cache/readback true.
+  - artifact: `qa-artifacts/logistics-gate6/opendart-monthly-ingest-20260527-021918.json`.
+  - live Edge force-refresh is still not provider-success; it returns stale stored cache after direct OpenDART HTTPS fails with TLS `HandshakeFailure`.
+  - latest separated smoke: `qa-artifacts/logistics-gate6/external-api-smoke-20260527-023632.json`.
+- Building-register all-asset smoke was re-run:
+  - 17 assets called and classified.
+  - 14 assets returned provider data and Supabase readback.
+  - 3 assets returned provider-empty with valid asset road addresses: `아레나스양지물류센터`, `인천석남물류센터`, `화성 석포리 물류센터`.
+  - `경산 쿠팡물류센터` now has provider data and Supabase readback success.
+  - latest smoke: `qa-artifacts/logistics-gate6/external-api-smoke-20260527-023632.json`.
+- Company OpenDART chart integration:
+  - Company detail reads OpenDART cache from `dashboard/company/read`.
+  - 3-year financial chart is one chart with revenue on LHS and operating income/net income on RHS, with hover values.
+  - monthly provider ingest shows 7 / 23 companies with financial rows and 16 / 23 with no annual financial rows returned by OpenDART for the available corp codes.
+- Deployment / live verification:
+  - `npx supabase functions deploy ll-dashboard-api --project-ref qvegpozwrcmspdvjokiz`: pass.
+  - `npm run build:preview`: pass after rerunning outside the Windows temp-file permission failure.
+  - `npm run deploy`: pass.
+  - live URL HEAD check via Node `fetch`: HTTP 200.
+  - `npm run qa:data-update:browser`: pass on live.
+  - `npm run qa:external-refresh-buttons:browser`: pass on live.
+  - `npm run qa:ai-chatbot:browser -- --question "스카이박스1, 스카이박스2 운영 현황 요약해봐"`: pass on live.
 
 ## 2026-05-26 Update - Data Update / External Refresh / OpenDART Separation
 
@@ -116,21 +159,21 @@
 
 | Stage | Area | Done / Total |
 |---:|---|---:|
-| 2 | 공통 데이터 기준 | 18 / 24 |
+| 2 | 공통 데이터 기준 | 19 / 24 |
 | 3 | 업무 로그 메인 페이지 | 32 / 42 |
 | 4 | Dashboard 공통 | 13 / 19 |
 | 5 | Weekly 탭 | 3 / 4 |
 | 6 | Home 탭 | 39 / 44 |
-| 7 | Asset 탭 | 30 / 33 |
-| 8 | Company 탭 | 14 / 17 |
+| 7 | Asset 탭 | 31 / 33 |
+| 8 | Company 탭 | 15 / 17 |
 | 9 | Pivot Table | 13 / 14 |
 | 10 | Data Quality | 18 / 21 |
 | 11 | Analysis Tools | 8 / 11 |
 | 12 | Supabase / Edge / 배포 | 33 / 33 |
-| 13 | 외부 API / AI / 외부권한 | 9 / 12 |
-| 14 | QA 계획 및 증거 | 48 / 53 |
-| 15 | 최종 완료 기준 | 8 / 15 |
-| 16 | 임대차계약 데이터 관리 탭 구축 | 5 / 24 |
+| 13 | 외부 API / AI / 외부권한 | 10 / 12 |
+| 14 | QA 계획 및 증거 | 51 / 53 |
+| 15 | 최종 완료 기준 | 9 / 15 |
+| 16 | 임대차계약 데이터 관리 탭 구축 | 8 / 24 |
 
 ## 2026-05-22 Update - Asset Tenant Table Width
 

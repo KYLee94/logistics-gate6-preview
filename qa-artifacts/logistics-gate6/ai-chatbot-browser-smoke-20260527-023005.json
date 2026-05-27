@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "generated_at": "2026-05-27T02:38:16.550Z",
+  "generated_at": "2026-05-27T02:30:06.380Z",
   "url": "https://kylee94.github.io/logistics-gate6-preview/work-platform",
   "question": "스카이박스1, 스카이박스2 운영 현황 요약해봐",
   "auth_source": "password_grant",
   "ui_email": "kylee@igisam.com",
-  "duration_ms": 6781,
+  "duration_ms": 4095,
   "requests": [
     {
       "method": "POST",
@@ -29,16 +29,22 @@
     },
     {
       "method": "POST",
-      "action": "work-platform/tasks/snapshots/upsert-current",
+      "action": "ai/search-chat",
       "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
     },
     {
       "method": "POST",
-      "action": "ai/search-chat",
+      "action": "work-platform/tasks/snapshots/upsert-current",
       "url": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api"
     }
   ],
   "responses": [
+    {
+      "status": 200,
+      "action": "work-platform/board-posts/list",
+      "body_ok": true,
+      "body_message": ""
+    },
     {
       "status": 200,
       "action": "work-platform/tasks/list",
@@ -59,23 +65,11 @@
     },
     {
       "status": 200,
-      "action": "work-platform/board-posts/list",
-      "body_ok": true,
-      "body_message": ""
-    },
-    {
-      "status": 200,
-      "action": "work-platform/tasks/snapshots/upsert-current",
-      "body_ok": true,
-      "body_message": ""
-    },
-    {
-      "status": 200,
       "action": "ai/search-chat",
       "body_ok": true,
       "body_message": "스카이박스1, 스카이박스2 운영 현황입니다. 펀드는 이지스아레나스전문투자형사모부동산투자신탁4호입니다. 위치는 인천광역시 서구 갑문1로 20, 인천광역시 서구 갑문3로 34입니다. 총 연면적은 25,909.5평입니다. 임대면적은 17,952.4평입니다. 공실면적은 7,957.1평이고 공실률은 30.7%입니다. 월 임관리비는 7.5억입니다. E. NOC는 41,529원입니다. 주요 임차인은 쿠팡"
     }
   ],
   "answer_excerpt": "스카이박스1, 스카이박스2 운영 현황입니다. 펀드는 이지스아레나스전문투자형사모부동산투자신탁4호입니다. 위치는 인천광역시 서구 갑문1로 20, 인천광역시 서구 갑문3로 34입니다. 총 연면적은 25,909.5평입니다. 임대면적은 17,952.4평입니다. 공실면적은 7,957.1평이고 공실률은 30.7%입니다. 월 임관리비는 7.5억입니다. E. NOC는 41,529원입니다. 주요 임차인은 쿠팡",
-  "screenshot": "qa-artifacts/logistics-gate6/ai-chatbot-browser-smoke-20260527-023816.png"
+  "screenshot": "qa-artifacts/logistics-gate6/ai-chatbot-browser-smoke-20260527-023005.png"
 }

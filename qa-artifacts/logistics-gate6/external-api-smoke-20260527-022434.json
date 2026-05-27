@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-27T02:36:32.361Z",
+  "generated_at": "2026-05-27T02:24:34.114Z",
   "origin": "https://kylee94.github.io",
   "basis_date": "2026-05-31",
   "auth_source": "password_grant",
@@ -24,7 +24,6 @@
       "ok": true,
       "provider_success": false,
       "cache_success": true,
-      "stale_cache_success": false,
       "fallback_success": false,
       "classification": "fresh_cache",
       "proxy_url_configured": false,
@@ -66,8 +65,7 @@
       "ok": true,
       "provider_success": false,
       "cache_success": false,
-      "stale_cache_success": true,
-      "fallback_success": false,
+      "fallback_success": true,
       "classification": "stale_cache",
       "force_refresh": true,
       "body": {
@@ -174,7 +172,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:35:55.923+00:00"
+          "fetched_at": "2026-05-27T02:23:49.942+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -258,7 +256,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:35:57.821+00:00"
+          "fetched_at": "2026-05-27T02:23:51.623+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -342,7 +340,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:00.349+00:00"
+          "fetched_at": "2026-05-27T02:23:54.232+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -426,7 +424,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:02.141+00:00"
+          "fetched_at": "2026-05-27T02:23:56.217+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -510,7 +508,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:04.062+00:00"
+          "fetched_at": "2026-05-27T02:23:57.916+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -594,7 +592,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:06.22+00:00"
+          "fetched_at": "2026-05-27T02:24:00.037+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -678,7 +676,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:08.134+00:00"
+          "fetched_at": "2026-05-27T02:24:03.819+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -809,7 +807,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:11.548+00:00"
+          "fetched_at": "2026-05-27T02:24:11.794+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -893,7 +891,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:14.862+00:00"
+          "fetched_at": "2026-05-27T02:24:13.465+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -977,7 +975,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:17.213+00:00"
+          "fetched_at": "2026-05-27T02:24:15.089+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1061,7 +1059,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:20.067+00:00"
+          "fetched_at": "2026-05-27T02:24:16.979+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1145,7 +1143,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:22.284+00:00"
+          "fetched_at": "2026-05-27T02:24:18.964+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1229,7 +1227,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:24.017+00:00"
+          "fetched_at": "2026-05-27T02:24:20.654+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1360,7 +1358,7 @@
         "cache": {
           "hit": true,
           "stale": false,
-          "fetched_at": "2026-05-27T02:36:28.04+00:00"
+          "fetched_at": "2026-05-27T02:24:26.603+00:00"
         },
         "detail": null,
         "data_keys": [
@@ -1436,7 +1434,6 @@
   "opendart_provider_success": false,
   "opendart_force_provider_success": false,
   "opendart_cache_success": true,
-  "opendart_stale_cache_success": true,
-  "opendart_fallback_success": false,
+  "opendart_fallback_success": true,
   "opendart_requires_external_provider_resolution": false
 }

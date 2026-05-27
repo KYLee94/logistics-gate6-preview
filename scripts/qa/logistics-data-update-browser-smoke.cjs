@@ -56,6 +56,60 @@ function joinUrl(baseUrl, route) {
   return new URL(route.replace(/^\/+/u, ''), normalizedBase).toString();
 }
 
+function excelColumnIndex(letter) {
+  return String(letter || '').toUpperCase().split('').reduce((sum, char) => sum * 26 + char.charCodeAt(0) - 64, 0);
+}
+
+function excelColumnName(index) {
+  let current = index;
+  let name = '';
+  while (current > 0) {
+    const remainder = (current - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    current = Math.floor((current - 1) / 26);
+  }
+  return name;
+}
+
+function excelColumnRange(start, end) {
+  const startIndex = excelColumnIndex(start);
+  const endIndex = excelColumnIndex(end);
+  return Array.from({ length: endIndex - startIndex + 1 }, (_, offset) => excelColumnName(startIndex + offset));
+}
+
+function dataUpdateFieldCoverage() {
+  const sourcePath = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'WorkspaceLogistics.jsx');
+  const source = fs.readFileSync(sourcePath, 'utf8');
+  const expected = {
+    'DB_일반': [...excelColumnRange('B', 'S'), ...excelColumnRange('U', 'Z'), ...excelColumnRange('AA', 'CF')],
+    'DB_히스토리 누적': excelColumnRange('B', 'S'),
+  };
+  const found = {
+    'DB_일반': new Set(),
+    'DB_히스토리 누적': new Set(),
+  };
+  source.split(/\r?\n/u).forEach((line) => {
+    if (!line.includes('sourceColumnLetter') || !line.includes('domain')) return;
+    const domain = line.match(/domain: '([^']+)'/u)?.[1];
+    const column = line.match(/sourceColumnLetter: '([^']+)'/u)?.[1];
+    if (domain && column && found[domain]) found[domain].add(column);
+  });
+  const sheets = Object.fromEntries(Object.entries(expected).map(([sheet, columns]) => {
+    const foundColumns = found[sheet] || new Set();
+    const missing = columns.filter((column) => !foundColumns.has(column));
+    return [sheet, {
+      expected_count: columns.length,
+      found_count: foundColumns.size,
+      missing_columns: missing,
+      ok: missing.length === 0,
+    }];
+  }));
+  return {
+    ok: Object.values(sheets).every((sheet) => sheet.ok),
+    sheets,
+  };
+}
+
 async function signInSession() {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
@@ -105,6 +159,7 @@ async function main() {
   const route = argsValue('route', DEFAULT_ROUTE);
   const targetUrl = joinUrl(baseUrl, route);
   const auth = await signInSession();
+  const sourceFieldCoverage = dataUpdateFieldCoverage();
   const uiEmail = argsValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com');
   const browserSession = {
     ...auth.session,
@@ -129,6 +184,7 @@ async function main() {
     page_errors: errors,
     resource_errors: resourceErrors,
     cors_warnings: corsWarnings,
+    source_field_coverage: sourceFieldCoverage,
     screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
   };
   let browser;
@@ -161,7 +217,7 @@ async function main() {
     result.missing_text = result.required_text.filter((text) => !bodyText.includes(text));
     result.forbidden_found = result.forbidden_text.filter((text) => bodyText.includes(text));
     result.body_excerpt = bodyText.slice(0, 1200);
-    result.ok = result.missing_text.length === 0 && result.forbidden_found.length === 0 && result.page_errors.length === 0;
+    result.ok = result.missing_text.length === 0 && result.forbidden_found.length === 0 && result.page_errors.length === 0 && sourceFieldCoverage.ok;
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
     if (page) {

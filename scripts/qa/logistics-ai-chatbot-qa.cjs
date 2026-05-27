@@ -229,6 +229,21 @@ function topTenantByArea(rows) {
   return [...grouped.values()].sort((a, b) => b.areaPy - a.areaPy)[0];
 }
 
+function tenantMonthlyCostShares(rows) {
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const name = tenantName(row);
+    if (!name || name === '-') return;
+    const current = grouped.get(name) || { tenantName: name, cost: 0 };
+    current.cost += rowMonthlyCombined(row);
+    grouped.set(name, current);
+  });
+  const total = [...grouped.values()].reduce((sum, row) => sum + row.cost, 0);
+  return [...grouped.values()]
+    .map((row) => ({ ...row, share: total > 0 ? row.cost / total : 0 }))
+    .sort((a, b) => b.cost - a.cost);
+}
+
 function assertStatus(result, expected, label) {
   if (result.status !== expected) {
     const message = result.body?.message || result.body?.error || JSON.stringify(result.body).slice(0, 300);
@@ -284,12 +299,13 @@ async function main() {
   const busan = findAsset(assets, '부산', '송정');
   const arenaYangji = findAsset(assets, '아레나스', '양지');
   const incheonSeoknam = findAsset(assets, '인천', '석남');
+  const skybox = findAsset(assets, '스카이', '박스');
   const bukuk = findAsset(assets, '부국');
   const arenaAnseong = findAsset(assets, '아레나스', '안성');
   const anseongSeongeun = findAsset(assets, '안성', '성은');
 
   const assetReads = {};
-  for (const asset of [busan, arenaYangji, incheonSeoknam, bukuk, arenaAnseong, anseongSeongeun]) {
+  for (const asset of [busan, arenaYangji, incheonSeoknam, skybox, bukuk, arenaAnseong, anseongSeongeun]) {
     assetReads[asset.asset_id] = await invoke(endpoint, anonKey, origin, auth.token, 'dashboard/asset/read', { basis_date: basisDate, asset_id: asset.asset_id });
     assertStatus(assetReads[asset.asset_id], 200, `dashboard/asset/read ${asset.asset_name}`);
   }
@@ -314,6 +330,21 @@ async function main() {
   const anseongSeongeunSummary = summaryFromAssetRead(assetReads[anseongSeongeun.asset_id]);
   const bukukRows = leaseRowsFromAssetRead(assetReads[bukuk.asset_id]);
   const incheonRows = leaseRowsFromAssetRead(assetReads[incheonSeoknam.asset_id]);
+  const skyboxRows = leaseRowsFromAssetRead(assetReads[skybox.asset_id]);
+  const skyboxRowsForQa = skyboxRows.length
+    ? skyboxRows
+    : rowsForAsset(assetReads[skybox.asset_id].body?.data?.rent_history || [], skybox).length
+      ? rowsForAsset(assetReads[skybox.asset_id].body?.data?.rent_history || [], skybox)
+      : rowsForAsset(homeRead.body?.data?.rent_history || [], skybox);
+  const skyboxTenantNames = new Map((assetReads[skybox.asset_id].body?.data?.tenants || [])
+    .map((row) => [String(row.tenant_id || row.tenantId || ''), tenantName(row)])
+    .filter(([id, name]) => id && name));
+  const skyboxRowsNamed = skyboxRowsForQa.map((row) => ({
+    ...row,
+    tenant_master_name: tenantName(row) || skyboxTenantNames.get(String(row.tenant_id || row.tenantId || '')) || row.tenant_id || row.tenantId,
+  }));
+  const skyboxCostShares = tenantMonthlyCostShares(skyboxRowsNamed);
+  if (!skyboxCostShares.length) throw new Error('Could not derive Skybox tenant monthly cost shares from Supabase readback');
   const bukukENoc = weightedENoc(bukukRows) || assetStoredENoc(assetReads[bukuk.asset_id]);
   const incheonENoc = weightedENoc(incheonRows) || assetStoredENoc(assetReads[incheonSeoknam.asset_id]);
   const arenaGrossPy = (numberValue(firstDefined(arenaSummary.gross_floor_area_sqm, arenaSummary.grossFloorAreaSqm, arenaYangji.gross_floor_area_sqm)) || 0) * PY_PER_SQM;
@@ -394,6 +425,27 @@ async function main() {
       if (/관련 임차인은/u.test(answer) && !/임대면적|운영 현황|공실률/u.test(answer)) {
         throw new Error(`anseong seongeun answer is only a tenant fallback: ${answer}`);
       }
+    },
+  });
+
+  await runCase({
+    id: 'skybox_tenant_monthly_cost_share_followup',
+    category: '이전 대화 맥락 follow-up',
+    question: '임차인별 월임관리비 비율은?',
+    history: [
+      { role: 'user', content: '스카이박스1, 스카이박스2 운영 현황 요약해봐' },
+      { role: 'assistant', content: '스카이박스1, 스카이박스2 운영 현황입니다.' },
+    ],
+    basis: {
+      asset_name: skybox.asset_name,
+      shares: skyboxCostShares.map((row) => ({ tenant: row.tenantName, share: formatPercent(row.share), cost: compactMoney(row.cost) })),
+      formula: 'tenant monthly cost / asset monthly cost',
+    },
+    validate: (answer) => {
+      assertIncludes(answer, 'skybox monthly cost share follow-up', '스카이박스', '비율');
+      skyboxCostShares.forEach((row) => {
+        assertIncludes(answer, `skybox monthly cost share ${row.tenantName}`, row.tenantName, formatPercent(row.share), compactMoney(row.cost));
+      });
     },
   });
 

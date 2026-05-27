@@ -942,6 +942,7 @@ function companyPayloadFromDashboardRead(response, fallbackPayload = {}) {
   const summary = readData.summary || {};
   const fallbackCompany = normalizeCompanyPayload(fallbackPayload || {});
   const tenant = readData.tenant || {};
+  const openDart = readData.external_apis?.openDart || fallbackPayload.financials?.openDart || {};
   const rows = generalRowsFromDashboardReadData(readData, fallbackCompany.normalizedLeasedAssets || []).map((row) => ({
     ...row,
     tenantId: firstDefined(row.tenantId, tenant.tenant_id),
@@ -1009,6 +1010,11 @@ function companyPayloadFromDashboardRead(response, fallbackPayload = {}) {
           ...(fallbackPayload.operations?.exposure || {}),
           byAsset: exposureRows,
         },
+      },
+      financials: {
+        ...(fallbackPayload.financials || {}),
+        openDart,
+        financials: firstDefined(openDart.financials, fallbackPayload.financials?.financials),
       },
       kpis: [
         { key: 'asset_count', label: '임차 자산 수', value: summary.asset_count, valueType: 'number' },
@@ -1489,6 +1495,7 @@ function buildBuildingRegisterRefreshTargets(assetOptions = [], generalRows = []
     return {
       assetId: asset.assetId,
       assetName: asset.assetName || staticPayload.overview?.assetName || '-',
+      address: firstDefined(asset.standardizedAddress, asset.address, staticPayload.overview?.standardizedAddress, staticPayload.overview?.address, candidates.find((candidate) => candidate.standardizedAddress || candidate.address)?.standardizedAddress, candidates.find((candidate) => candidate.standardizedAddress || candidate.address)?.address, ''),
       payload,
       ready: isCompleteBuildingRegisterPayload(payload),
     };
@@ -1533,7 +1540,11 @@ function externalRefreshOutcome(data, error) {
   if (!data || data.ok === false) return { status: '실패', stored: false, refreshed: false, message: data?.message || 'API 응답 실패' };
   const cache = data.cache || {};
   if (cache.stale) return { status: '기존 저장값 유지', stored: false, refreshed: false, message: '실시간 호출 실패로 저장된 값을 표시했습니다.' };
-  if (cache.hit === false) return { status: '새로고침 완료', stored: !cache.write_error, refreshed: true, message: cache.write_error || 'Supabase 저장 완료' };
+  if (cache.empty_provider_result) return { status: '원천 빈 응답', stored: false, refreshed: true, message: '원천 API가 정상 응답했지만 해당 위치의 상세 항목이 없습니다.' };
+  if (cache.hit === false) {
+    const stored = !cache.write_error && cache.readback_hit !== false;
+    return { status: stored ? '새로고침 완료' : '저장 확인 실패', stored, refreshed: true, message: cache.write_error || (stored ? 'Supabase 저장 완료' : 'Supabase 저장 readback 미확인') };
+  }
   return { status: '저장값 확인', stored: true, refreshed: false, message: 'Supabase 저장값을 확인했습니다.' };
 }
 
@@ -7536,12 +7547,13 @@ function numberOrNull(value) {
 
 function accountMetricKey(name) {
   const text = cleanDisplay(name, '');
-  if (/매출|수익|영업수익|revenue|sales/iu.test(text)) return 'revenue';
-  if (/영업이익|operating/iu.test(text)) return 'operatingIncome';
-  if (/당기순이익|순이익|net\s*income/iu.test(text)) return 'netIncome';
-  if (/자산총계|총\s*자산|total\s*assets/iu.test(text)) return 'totalAssets';
-  if (/부채총계|총\s*부채|total\s*liabil/iu.test(text)) return 'totalLiabilities';
-  if (/자본총계|총\s*자본|total\s*equity/iu.test(text)) return 'totalEquity';
+  const lower = text.toLowerCase();
+  if (/ifrs[-_]?full_assets|assets|total\s*assets/iu.test(lower) || /자산총계|총\s*자산/iu.test(text)) return 'totalAssets';
+  if (/ifrs[-_]?full_liabilities|liabil|total\s*liabil/iu.test(lower) || /부채총계|총\s*부채/iu.test(text)) return 'totalLiabilities';
+  if (/ifrs[-_]?full_equity|equity|total\s*equity/iu.test(lower) || /자본총계|총\s*자본/iu.test(text)) return 'totalEquity';
+  if (/ifrs[-_]?full_profitlossfromoperatingactivities|operating\s*(income|profit)/iu.test(lower) || /영업이익/iu.test(text)) return 'operatingIncome';
+  if (/ifrs[-_]?full_profitloss|net\s*income|profit\s*\(loss\)/iu.test(lower) || /당기순이익|순이익/iu.test(text)) return 'netIncome';
+  if (/ifrs[-_]?full_revenue|revenue|sales/iu.test(lower) || /매출|영업수익|수익\(매출액\)|매출액/iu.test(text)) return 'revenue';
   return '';
 }
 
@@ -7579,7 +7591,7 @@ function normalizeDartFinancialRows(profile = {}, financials = {}) {
     explicitRows.forEach((row) => {
       const yearRow = ensureYear(firstDefined(row.year, row.bsns_year, row.fiscalYear, row.reportYear));
       if (!yearRow) return;
-      const metricKey = accountMetricKey(firstDefined(row.account_nm, row.accountName, row.metric, row.name, ''));
+      const metricKey = accountMetricKey(firstDefined(row.metric, row.account_id, row.accountId, row.account_nm, row.accountName, row.name, ''));
       if (metricKey) {
         yearRow[metricKey] = numberOrNull(firstDefined(row.amount, row.thstrm_amount, row.value, row.currentAmount));
       } else {
@@ -7642,56 +7654,149 @@ function DartFinancialTrendChart({ rows }) {
   const chartRef = useRef(null);
   const [hoveredMetric, setHoveredMetric] = useState(null);
   const metrics = [
-    { key: 'revenue', label: '매출액', color: '#9AD7FF' },
-    { key: 'operatingIncome', label: '영업이익', color: '#B5E48C' },
-    { key: 'netIncome', label: '당기순이익', color: '#FFD166' },
+    { key: 'revenue', label: '매출액', color: '#9AD7FF', axis: 'left', kind: 'bar' },
+    { key: 'operatingIncome', label: '영업이익', color: '#B5E48C', axis: 'right', kind: 'line' },
+    { key: 'netIncome', label: '당기순이익', color: '#FFD166', axis: 'right', kind: 'line' },
   ];
-  const chartRows = (rows || []).slice().reverse();
-  const chartValues = chartRows.flatMap((row) => metrics.map((metric) => Math.abs(Number(row[metric.key] || 0))));
-  const maxValue = Math.max(...chartValues, 1);
-  if (!chartRows.length || maxValue <= 1) {
+  const chartRows = (rows || [])
+    .filter((row) => cleanDisplay(row.year, ''))
+    .slice(0, 3)
+    .sort((a, b) => String(a.year).localeCompare(String(b.year), 'ko-KR', { numeric: true }));
+  const revenueValues = chartRows.map((row) => numberOrNull(row.revenue)).filter((value) => value !== null);
+  const incomeValues = chartRows.flatMap((row) => [
+    numberOrNull(row.operatingIncome),
+    numberOrNull(row.netIncome),
+  ]).filter((value) => value !== null);
+  const allValues = [...revenueValues, ...incomeValues];
+  if (!chartRows.length || !allValues.length) {
     return <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4 text-[13px] text-[#86868B]">차트로 표시할 3개년 재무 수치가 없습니다.</div>;
   }
+  const rangeFor = (values) => {
+    const finite = values.filter((value) => Number.isFinite(value));
+    if (!finite.length) return { min: 0, max: 1 };
+    const min = Math.min(0, ...finite);
+    const max = Math.max(0, ...finite);
+    const spread = Math.max(max - min, Math.max(Math.abs(max), 1));
+    const pad = spread * 0.08;
+    return { min: min - pad, max: max + pad };
+  };
+  const leftRange = rangeFor(revenueValues);
+  const rightRange = rangeFor(incomeValues.length ? incomeValues : [0]);
+  const svg = { width: 820, height: 320, left: 86, right: 86, top: 30, bottom: 54 };
+  const plotWidth = svg.width - svg.left - svg.right;
+  const plotHeight = svg.height - svg.top - svg.bottom;
+  const xFor = (index) => (chartRows.length === 1
+    ? svg.left + plotWidth / 2
+    : svg.left + (plotWidth / (chartRows.length - 1)) * index);
+  const yFor = (value, range) => {
+    const denom = range.max - range.min || 1;
+    return svg.top + ((range.max - value) / denom) * plotHeight;
+  };
+  const ticksFor = (range) => Array.from({ length: 5 }, (_, index) => range.min + ((range.max - range.min) / 4) * index);
+  const zeroLeft = yFor(0, leftRange);
+  const zeroRight = yFor(0, rightRange);
+  const linePoints = (metric) => chartRows
+    .map((row, index) => {
+      const value = numberOrNull(row[metric.key]);
+      if (value === null) return null;
+      return `${xFor(index)},${yFor(value, rightRange)}`;
+    })
+    .filter(Boolean)
+    .join(' ');
+  const updateHover = (event, row, metric, value) => setHoveredMetric({
+    year: row.year,
+    label: metric.label,
+    value,
+    color: metric.color,
+    axis: metric.axis === 'left' ? 'LHS' : 'RHS',
+    ...getTooltipPoint(event, chartRef.current, 270, 120),
+  });
   return (
     <div ref={chartRef} onMouseLeave={() => setHoveredMetric(null)} className="relative rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4">
-      <div className="mb-3 flex flex-wrap items-center gap-4 text-[12px] text-[#C7C7CC]">
-        {metrics.map((metric) => (
-          <span key={metric.key} className="inline-flex items-center gap-2">
-            <span className="h-2 w-5 rounded-full" style={{ backgroundColor: metric.color }} />
-            {metric.label}
-          </span>
-        ))}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-[12px] text-[#C7C7CC]">
+        <div className="flex flex-wrap items-center gap-4">
+          {metrics.map((metric) => (
+            <span key={metric.key} className="inline-flex items-center gap-2">
+              <span className="h-2 w-5 rounded-full" style={{ backgroundColor: metric.color }} />
+              {metric.label} <span className="text-[#86868B]">{metric.axis === 'left' ? 'LHS' : 'RHS'}</span>
+            </span>
+          ))}
+        </div>
       </div>
-      <div className="grid min-h-[220px] grid-cols-1 gap-4 md:grid-cols-3">
-        {chartRows.map((row) => (
-          <div key={row.year} className="flex flex-col justify-end rounded-[10px] bg-[#151515] p-3">
-            <div className="mb-2 flex h-[150px] items-end justify-center gap-3">
-              {metrics.map((metric) => {
-                const value = Number(row[metric.key] || 0);
-                return (
-                  <div
-                    key={metric.key}
-                    className="flex h-full w-10 flex-col justify-end"
-                    title={`${row.year} ${metric.label}: ${formatCurrency(value)}`}
-                    onMouseEnter={(event) => setHoveredMetric({ year: row.year, label: metric.label, value, color: metric.color, ...getTooltipPoint(event, chartRef.current, 250, 110) })}
-                    onMouseMove={(event) => setHoveredMetric({ year: row.year, label: metric.label, value, color: metric.color, ...getTooltipPoint(event, chartRef.current, 250, 110) })}
-                  >
-                    <div className="rounded-t-[6px]" style={{ height: `${Math.max(4, Math.abs(value) / maxValue * 100)}%`, backgroundColor: metric.color, opacity: value < 0 ? 0.55 : 1 }} />
-                  </div>
-                );
-              })}
-            </div>
-            <div className="text-center text-[13px] font-bold text-white">{row.year}</div>
-          </div>
+      <svg viewBox={`0 0 ${svg.width} ${svg.height}`} className="h-[320px] w-full overflow-visible" role="img" aria-label="OpenDART 3개년 재무 차트">
+        {ticksFor(leftRange).map((tick) => {
+          const y = yFor(tick, leftRange);
+          return (
+            <g key={`left-${tick}`}>
+              <line x1={svg.left} x2={svg.width - svg.right} y1={y} y2={y} stroke="#333333" strokeDasharray="4 6" />
+              <text x={svg.left - 10} y={y + 4} textAnchor="end" fill="#86868B" fontSize="11">{formatCurrency(tick)}</text>
+            </g>
+          );
+        })}
+        {ticksFor(rightRange).map((tick) => {
+          const y = yFor(tick, rightRange);
+          return <text key={`right-${tick}`} x={svg.width - svg.right + 10} y={y + 4} fill="#86868B" fontSize="11">{formatCurrency(tick)}</text>;
+        })}
+        <line x1={svg.left} x2={svg.width - svg.right} y1={zeroLeft} y2={zeroLeft} stroke="#636366" />
+        <line x1={svg.left} x2={svg.width - svg.right} y1={zeroRight} y2={zeroRight} stroke="#636366" strokeDasharray="2 4" opacity="0.6" />
+        <text x={svg.left} y={16} fill="#9AD7FF" fontSize="12" fontWeight="700">LHS 매출액</text>
+        <text x={svg.width - svg.right} y={16} textAnchor="end" fill="#B5E48C" fontSize="12" fontWeight="700">RHS 영업이익 / 당기순이익</text>
+        {chartRows.map((row, index) => {
+          const x = xFor(index);
+          const revenue = numberOrNull(row.revenue);
+          const y = revenue === null ? zeroLeft : yFor(revenue, leftRange);
+          const barWidth = Math.min(56, Math.max(34, plotWidth / Math.max(chartRows.length * 3, 4)));
+          return (
+            <g key={`year-${row.year}`}>
+              {revenue !== null ? (
+                <rect
+                  x={x - barWidth / 2}
+                  y={Math.min(y, zeroLeft)}
+                  width={barWidth}
+                  height={Math.max(3, Math.abs(zeroLeft - y))}
+                  rx="5"
+                  fill="#9AD7FF"
+                  opacity="0.86"
+                  onMouseEnter={(event) => updateHover(event, row, metrics[0], revenue)}
+                  onMouseMove={(event) => updateHover(event, row, metrics[0], revenue)}
+                />
+              ) : null}
+              <text x={x} y={svg.height - 22} textAnchor="middle" fill="#E5E5EA" fontSize="13" fontWeight="700">{row.year}</text>
+            </g>
+          );
+        })}
+        {metrics.filter((metric) => metric.kind === 'line').map((metric) => (
+          <g key={metric.key}>
+            <polyline points={linePoints(metric)} fill="none" stroke={metric.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            {chartRows.map((row, index) => {
+              const value = numberOrNull(row[metric.key]);
+              if (value === null) return null;
+              const x = xFor(index);
+              const y = yFor(value, rightRange);
+              return (
+                <circle
+                  key={`${metric.key}-${row.year}`}
+                  cx={x}
+                  cy={y}
+                  r="5"
+                  fill={metric.color}
+                  stroke="#1F1F1E"
+                  strokeWidth="2"
+                  onMouseEnter={(event) => updateHover(event, row, metric, value)}
+                  onMouseMove={(event) => updateHover(event, row, metric, value)}
+                />
+              );
+            })}
+          </g>
         ))}
-      </div>
+      </svg>
       {hoveredMetric ? (
-        <div data-testid="dart-financial-tooltip" className="pointer-events-none fixed z-50 w-[250px] rounded-[8px] border border-[#3A3A3C] bg-[#101010]/95 px-3 py-2 text-[12px] text-white shadow-xl" style={{ left: hoveredMetric.x, top: hoveredMetric.y }}>
+        <div data-testid="dart-financial-tooltip" className="pointer-events-none fixed z-50 w-[270px] rounded-[8px] border border-[#3A3A3C] bg-[#101010]/95 px-3 py-2 text-[12px] text-white shadow-xl" style={{ left: hoveredMetric.x, top: hoveredMetric.y }}>
           <div className="flex items-center gap-2 font-semibold">
             <span className="h-2 w-5 rounded-full" style={{ backgroundColor: hoveredMetric.color }} />
             {hoveredMetric.year} {hoveredMetric.label}
           </div>
-          <div className="mt-1 text-[#D1D1D6]">{formatCurrency(hoveredMetric.value)}</div>
+          <div className="mt-1 text-[#D1D1D6]">{hoveredMetric.axis} 기준 · {formatCurrency(hoveredMetric.value)}</div>
         </div>
       ) : null}
     </div>
@@ -7861,8 +7966,17 @@ function metricValueFromRow(row, metricKey) {
   return Number(row[metricKey] || 0);
 }
 
+function averageMetricValue(rows, metric) {
+  if (metric === 'eNoc') return Number(calculateWeightedENoc(rows, 0) || 0);
+  const values = (rows || [])
+    .map((row) => metricValueFromRow(row, metric))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
 function aggregateMetricValues(rows, metric, aggregation) {
   if (aggregation === 'count' || metric === 'count') return (rows || []).length;
+  if (aggregation === 'average' && metric === 'eNoc') return averageMetricValue(rows, metric);
   const values = (rows || [])
     .map((row) => metricValueFromRow(row, metric))
     .filter((value) => Number.isFinite(value));
@@ -8533,10 +8647,8 @@ function AnalysisToolsDashboard() {
     .map((row) => ({ ...row, metricValue: Number(metricValueFromRow(row, benchmarkMetric) || 0) }))
     .filter((row) => row.metricValue > 0)
     .sort((a, b) => b.metricValue - a.metricValue);
-  const portfolioMetricValues = metricRankRows.map((row) => row.metricValue);
-  const portfolioAverage = portfolioMetricValues.length ? portfolioMetricValues.reduce((sum, value) => sum + value, 0) / portfolioMetricValues.length : 0;
-  const selectedMetricValues = rows.map((row) => Number(metricValueFromRow(row, benchmarkMetric) || 0)).filter((value) => value > 0);
-  const selectedAverage = selectedMetricValues.length ? selectedMetricValues.reduce((sum, value) => sum + value, 0) / selectedMetricValues.length : 0;
+  const portfolioAverage = averageMetricValue(metricRankRows, benchmarkMetric);
+  const selectedAverage = averageMetricValue(rows, benchmarkMetric);
   const metricRankByAssetId = new Map(metricRankRows.map((row, index) => [row.assetId, index + 1]));
   const tableRows = rows.map((row) => [
     row.assetName,
@@ -9155,7 +9267,23 @@ function ContractDataManagementDashboard() {
             effective_date: currentKstMonthEndDate(),
             summary,
             before: selectedLeaseRow,
-            after: { summary },
+            after: eventType === 'new_lease'
+              ? {
+                summary,
+                source_template: Object.fromEntries(CONTRACT_DATA_FIELDS
+                  .filter((field) => field.domain === 'DB_일반')
+                  .map((field) => [`${field.sourceColumnLetter || ''}.${field.sourceHeader || field.label}`, ''])),
+              }
+              : { summary },
+            source_rows: eventType === 'new_lease'
+              ? [{
+                sheet: 'DB_일반',
+                action: 'new_contract_row',
+                columns: Object.fromEntries(CONTRACT_DATA_FIELDS
+                  .filter((field) => field.domain === 'DB_일반')
+                  .map((field) => [`${field.sourceColumnLetter || ''}.${field.sourceHeader || field.label}`, ''])),
+              }]
+              : [],
           },
         },
       });
@@ -9180,12 +9308,46 @@ function ContractDataManagementDashboard() {
     }
   };
 
+  const submitArchiveRequest = async () => {
+    if (!canSubmit || !selectedLeaseRow?.leaseSpaceId) {
+      setEventStatus({ type: 'error', message: '아카이빙할 계약 구역을 먼저 선택해주세요.' });
+      return;
+    }
+    setIsSubmitting(true);
+    setEventStatus({ type: 'pending', message: '계약 종료/아카이빙 요청을 접수하는 중입니다.' });
+    try {
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: {
+          action: 'lease-events/submit',
+          payload: {
+            event_type: 'expiry_vacancy',
+            asset_id: activeAssetId,
+            asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+            tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
+            lease_space_id: selectedLeaseRow.leaseSpaceId || '',
+            effective_date: currentKstMonthEndDate(),
+            summary: `${selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '-'} 계약 종료 및 원장 아카이빙 요청`,
+            before: selectedLeaseRow,
+            after: { contract_status: 'archived', archived_at: new Date().toISOString() },
+          },
+        },
+      });
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data.message || '계약 아카이빙 요청 실패');
+      setEventStatus({ type: 'success', message: `계약 종료/아카이빙 요청이 접수됐습니다. 요청 ID: ${data?.data?.id || '-'}` });
+    } catch (error) {
+      setEventStatus({ type: 'error', message: error?.message || '계약 아카이빙 요청 중 오류가 발생했습니다.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const submitContractFieldEdits = async () => {
     if (!canSubmit) {
       setFieldEditStatus({ type: 'error', message: '현재 계정에는 계약 데이터 수정 요청 권한이 없습니다.' });
       return;
     }
-    const cellEdits = CONTRACT_DATA_FIELDS
+    const changedFields = CONTRACT_DATA_FIELDS
       .map((field) => {
         const beforeValue = contractFieldRawValue(selectedLeaseRow, field);
         const afterValue = fieldDrafts[field.fieldName] ?? '';
@@ -9193,7 +9355,6 @@ function ContractDataManagementDashboard() {
         const targetTable = normalizeContractTargetTable(field.table);
         const targetRowId = contractTargetRowId(selectedLeaseRow, targetTable);
         const primaryKeyField = contractPrimaryKeyField(selectedLeaseRow, targetTable);
-        if (!targetRowId || !primaryKeyField) return null;
         return {
           action: '수정',
           target_table: targetTable,
@@ -9206,43 +9367,80 @@ function ContractDataManagementDashboard() {
           after_value: afterValue,
           asset_id: selectedLeaseRow.assetId || activeAssetId,
           asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+          source_sheet: field.domain,
+          source_column_letter: field.sourceColumnLetter || '',
+          source_header: field.sourceHeader || field.label,
+          source_only: Boolean(field.sourceOnly || targetTable === 'source_only' || !targetRowId || !primaryKeyField),
         };
       })
       .filter(Boolean);
-    if (!cellEdits.length) {
+    if (!changedFields.length) {
       setFieldEditStatus({ type: 'error', message: '변경된 필드가 없습니다.' });
       return;
     }
+    const directCellEdits = changedFields.filter((row) => !row.source_only);
+    const sourceOnlyEdits = changedFields.filter((row) => row.source_only);
     setIsSubmittingFields(true);
-    setFieldEditStatus({ type: 'pending', message: `${formatNumber(cellEdits.length)}개 필드를 승인 요청으로 접수하는 중입니다.` });
+    setFieldEditStatus({ type: 'pending', message: `${formatNumber(changedFields.length)}개 필드를 승인 요청으로 접수하는 중입니다.` });
     try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'edits/submit',
-          payload: {
-            source_table: cellEdits[0].target_table,
-            target_type: 'contract_data',
-            target_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
-            target_row_id: selectedLeaseRow.leaseSpaceId || selectedLeaseRow.id || '',
-            field_name: 'contract_data_batch',
-            reason_code: 'contract_data_user_edit',
-            before_value: `${cellEdits.length}개 필드 before`,
-            requested_value: `${cellEdits.length}개 필드 after`,
-            request_payload: {
-              kind: 'contract_data_edit',
-              source: 'Data Update',
-              asset_id: activeAssetId,
-              asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
-              lease_space_id: selectedLeaseRow.leaseSpaceId || '',
-              tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
-              cell_edits: cellEdits,
+      const requestIds = [];
+      if (directCellEdits.length) {
+        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+          body: {
+            action: 'edits/submit',
+            payload: {
+              source_table: directCellEdits[0].target_table,
+              target_type: 'contract_data',
+              target_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+              target_row_id: selectedLeaseRow.leaseSpaceId || selectedLeaseRow.id || '',
+              field_name: 'contract_data_batch',
+              reason_code: 'contract_data_user_edit',
+              before_value: `${directCellEdits.length}개 필드 before`,
+              requested_value: `${directCellEdits.length}개 필드 after`,
+              request_payload: {
+                kind: 'contract_data_edit',
+                source: 'Data Update',
+                asset_id: activeAssetId,
+                asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+                lease_space_id: selectedLeaseRow.leaseSpaceId || '',
+                tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
+                cell_edits: directCellEdits,
+              },
             },
           },
-        },
-      });
-      if (error) throw error;
-      if (data?.ok === false) throw new Error(data.message || '계약 원본 필드 수정 요청 실패');
-      setFieldEditStatus({ type: 'success', message: `수정 요청이 접수됐습니다. 승인 후 Supabase 원장에 반영됩니다. 요청 ID: ${data?.data?.id || '-'}` });
+        });
+        if (error) throw error;
+        if (data?.ok === false) throw new Error(data.message || '계약 원본 필드 수정 요청 실패');
+        requestIds.push(data?.data?.id);
+      }
+      if (sourceOnlyEdits.length) {
+        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+          body: {
+            action: 'lease-events/submit',
+            payload: {
+              event_type: eventType === 'correction' ? 'correction' : eventType,
+              asset_id: activeAssetId,
+              asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+              tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
+              lease_space_id: selectedLeaseRow.leaseSpaceId || '',
+              effective_date: currentKstMonthEndDate(),
+              summary: `원본 Excel source-only 컬럼 ${sourceOnlyEdits.length}개 수정 요청`,
+              before: selectedLeaseRow,
+              after: { source_only_edits: sourceOnlyEdits },
+              cell_edits: sourceOnlyEdits,
+              source_rows: [{
+                sheet: 'DB_일반/DB_히스토리 누적',
+                action: 'source_only_update',
+                columns: Object.fromEntries(sourceOnlyEdits.map((row) => [`${row.source_sheet}:${row.source_column_letter}:${row.source_header}`, row.after_value])),
+              }],
+            },
+          },
+        });
+        if (error) throw error;
+        if (data?.ok === false) throw new Error(data.message || '원본 Excel 컬럼 수정 요청 실패');
+        requestIds.push(data?.data?.id);
+      }
+      setFieldEditStatus({ type: 'success', message: `수정 요청이 접수됐습니다. 자동 반영 ${formatNumber(directCellEdits.length)}개, 승인 이벤트 ${formatNumber(sourceOnlyEdits.length)}개입니다. 요청 ID: ${requestIds.filter(Boolean).join(', ') || '-'}` });
     } catch (error) {
       setFieldEditStatus({ type: 'error', message: error?.message || '계약 원본 필드 수정 요청 중 오류가 발생했습니다.' });
     } finally {
@@ -9297,7 +9495,10 @@ function ContractDataManagementDashboard() {
             </div>
             <div className="mt-3 flex items-center justify-between gap-3">
               <div className="text-[12px] text-[#86868B]">브라우저 직접 저장이 아니라 Edge Function 승인 요청으로 접수됩니다.</div>
-              <button type="button" disabled={isSubmitting} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>승인 요청</button>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button type="button" disabled={isSubmitting} onClick={submitArchiveRequest} className={`h-10 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}>종료 아카이빙</button>
+                <button type="button" disabled={isSubmitting} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>승인 요청</button>
+              </div>
             </div>
             {eventStatus ? <div className={`mt-3 rounded-[10px] border px-3 py-2 text-[12px] ${eventStatus.type === 'error' ? 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]' : eventStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#4C4329] bg-[#2A240E] text-[#FFD166]'}`}>{eventStatus.message}</div> : null}
           </div>
@@ -9637,7 +9838,27 @@ const QUALITY_EXPORT_FIELDS = [
       ? 'public.ll_tenants'
       : field.table,
 }));
-const CONTRACT_DATA_FIELDS = QUALITY_EXPORT_FIELDS;
+const CONTRACT_DATA_SOURCE_ONLY_FIELDS = [
+  { fieldName: 'formulaLeasedAreaSqm', label: '임대면적', sourceHeader: '임대면적', sourceColumnLetter: 'U', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 수식/검산 컬럼' },
+  { fieldName: 'formulaExclusiveAreaSqm', label: '전용면적', sourceHeader: '전용면적', sourceColumnLetter: 'V', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 수식/검산 컬럼' },
+  { fieldName: 'formulaExclusiveRatio', label: '전용률', sourceHeader: '전용률', sourceColumnLetter: 'W', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 수식/검산 컬럼' },
+  { fieldName: 'checkLeasedArea', label: '임대면적 체크', sourceHeader: '임대면적', sourceColumnLetter: 'X', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 체크 컬럼' },
+  { fieldName: 'checkExclusiveArea', label: '전용면적 체크', sourceHeader: '전용면적', sourceColumnLetter: 'Y', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 체크 컬럼' },
+  { fieldName: 'checkExclusiveRatio', label: '전용률 체크', sourceHeader: '전용률', sourceColumnLetter: 'Z', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 체크 컬럼' },
+  { fieldName: 'recentContractVsFirstContractCheck', label: '최근 계약일 - 최초 계약일 비교', sourceHeader: '최근 계약일 - 최초 계약일 비교', sourceColumnLetter: 'AM', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 날짜 검산 컬럼' },
+  { fieldName: 'firstStartVsFirstContractCheck', label: '최초 계약개시일-최초 계약일 비교', sourceHeader: '최초 계약개시일-최초 계약일 비교', sourceColumnLetter: 'AN', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 날짜 검산 컬럼' },
+  { fieldName: 'firstOperationVsFirstStartCheck', label: '최초 운영개시일 - 최초 계약개시일 비교', sourceHeader: '최초 운영개시일 - 최초 계약개시일 비교', sourceColumnLetter: 'AO', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 날짜 검산 컬럼' },
+  { fieldName: 'recentContractVsCurrentStartCheck', label: '최근 계약일 - 현재 계약개시일 비교', sourceHeader: '최근 계약일 - 현재 계약개시일 비교', sourceColumnLetter: 'AP', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 날짜 검산 컬럼' },
+  { fieldName: 'firstExpiryVsCurrentExpiryCheck', label: '최초 계약만기일 - 현재 계약만기일 비교', sourceHeader: '최초 계약만기일 - 현재 계약만기일 비교', sourceColumnLetter: 'AQ', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 날짜 검산 컬럼' },
+  { fieldName: 'historySector', label: '히스토리 섹터', sourceHeader: '섹터', sourceColumnLetter: 'F', domain: 'DB_히스토리 누적', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: 'DB_히스토리 누적 원본 컬럼' },
+];
+
+function excelColumnIndex(letter) {
+  return String(letter || '').toUpperCase().split('').reduce((sum, char) => sum * 26 + char.charCodeAt(0) - 64, 0);
+}
+
+const CONTRACT_DATA_FIELDS = [...QUALITY_EXPORT_FIELDS, ...CONTRACT_DATA_SOURCE_ONLY_FIELDS]
+  .sort((a, b) => String(a.domain).localeCompare(String(b.domain), 'ko-KR') || excelColumnIndex(a.sourceColumnLetter) - excelColumnIndex(b.sourceColumnLetter));
 const QUALITY_ALLOWED_ACTIONS = new Set(['수정']);
 const QUALITY_REQUIRED_UPLOAD_COLUMNS = ['행위', '현재값', '수정값', 'target_table', 'target_row_id', 'primary_key_field', 'field_name', 'source_row_id', 'source_cell_id', 'before_value', 'asset_id'];
 
@@ -9664,6 +9885,7 @@ function snakeCaseFieldName(value) {
 }
 
 function contractFieldDbName(field) {
+  if (field?.dbFieldName) return field.dbFieldName;
   return snakeCaseFieldName(field.fieldName);
 }
 
@@ -11475,26 +11697,31 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
     try {
       for (const target of buildingTargets) {
         if (!target.ready) {
-          rows.push([target.assetName, '파라미터 부족', `${target.payload.sigungu_cd || '-'} / ${target.payload.bjdong_cd || '-'} / ${target.payload.bun || '-'}-${target.payload.ji || '-'}`, '-', '미반영']);
+          rows.push([target.assetName, target.address || '-', '파라미터 부족', `${target.payload.sigungu_cd || '-'} / ${target.payload.bjdong_cd || '-'} / ${target.payload.bun || '-'}-${target.payload.ji || '-'}`, '-', '미반영']);
           continue;
         }
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
           body: { action: 'building-register/summary', payload: { ...target.payload, force_refresh: true } },
         });
         const outcome = externalRefreshOutcome(data, error);
+        const providerAddress = data?.data?.new_plat_plc || data?.data?.plat_plc || '';
+        const hasProviderData = Boolean(providerAddress || Object.keys(data?.data || {}).length);
+        const displayStatus = outcome.refreshed && !hasProviderData ? '원천 빈 응답' : outcome.status;
         rows.push([
           target.assetName,
-          outcome.status,
+          target.address || '-',
+          displayStatus,
           `${target.payload.sigungu_cd} / ${target.payload.bjdong_cd} / ${target.payload.bun}-${target.payload.ji}`,
-          data?.data?.plat_plc || data?.data?.new_plat_plc || '-',
+          providerAddress || '건축물대장 원천에 해당 위치 결과 없음',
           outcome.stored ? 'Supabase 반영' : outcome.message,
         ]);
       }
     } finally {
       setRunning('');
     }
-    const successCount = rows.filter((row) => row[1] === '새로고침 완료').length;
-    const skippedCount = rows.filter((row) => row[1] === '파라미터 부족').length;
+    const successCount = rows.filter((row) => row[2] === '새로고침 완료').length;
+    const emptyCount = rows.filter((row) => row[2] === '원천 빈 응답').length;
+    const skippedCount = rows.filter((row) => row[2] === '파라미터 부족').length;
     onOpenModal({
       title: '건축물대장 새로고침 결과',
       size: 'wide',
@@ -11503,11 +11730,11 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
           summary={[
             { label: '대상 자산', value: `${formatNumber(rows.length)}개` },
             { label: '새로고침 완료', value: `${formatNumber(successCount)}개` },
+            { label: '원천 빈 응답', value: `${formatNumber(emptyCount)}개` },
             { label: '파라미터 부족', value: `${formatNumber(skippedCount)}개` },
-            { label: '저장 위치', value: 'Supabase' },
           ]}
-          note="API key는 브라우저에 노출하지 않고 Edge Function이 서버에서만 사용합니다. 성공한 값은 ll_cache_entries에 저장됩니다."
-          headers={['자산명', '상태', '조회 파라미터', '주소/대장 위치', 'Supabase 반영']}
+          note="도로명주소는 자산 원장 값을 같이 표시합니다. 건축물대장 원천이 빈 응답이면 주소가 없는 것이 아니라, 해당 조회 파라미터로 대장 원천 결과가 없다는 뜻입니다."
+          headers={['자산명', '자산 원장 도로명주소', '상태', '조회 파라미터', '건축물대장 주소/대장 위치', 'Supabase 반영']}
           rows={rows}
         />
       ),
@@ -11520,26 +11747,45 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
     try {
       for (const target of openDartTargets) {
         if (!target.ready) {
-          rows.push([target.tenantName, '-', 'corp code 없음', '-', '미반영']);
+          rows.push([target.tenantName, '-', 'corp code 없음', '-', '-', '미반영']);
           continue;
         }
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
           body: { action: 'opendart/company', payload: { corp_code: target.corpCode, include_financials: true, force_refresh: true } },
         });
-        const outcome = externalRefreshOutcome(data, error);
-        const financialRowCount = Array.isArray(data?.data?.financials) ? data.data.financials.length : 0;
+        const forceOutcome = externalRefreshOutcome(data, error);
+        let finalData = data;
+        let finalOutcome = forceOutcome;
+        let sourceStatus = forceOutcome.status;
+        if (forceOutcome.status === '기존 저장값 유지') sourceStatus = 'Edge 원천 통신 실패';
+        if (forceOutcome.status === '새로고침 완료') sourceStatus = '원천 갱신 완료';
+
+        if (!forceOutcome.stored) {
+          const { data: cachedData, error: cachedError } = await supabase.functions.invoke('ll-dashboard-api', {
+            body: { action: 'opendart/company', payload: { corp_code: target.corpCode, include_financials: true } },
+          });
+          const cachedOutcome = externalRefreshOutcome(cachedData, cachedError);
+          if (cachedOutcome.stored) {
+            finalData = cachedData;
+            finalOutcome = { ...cachedOutcome, status: '월간 저장값 확인' };
+          }
+        }
+
+        const financialRowCount = Array.isArray(finalData?.data?.financials) ? finalData.data.financials.length : 0;
         rows.push([
           target.tenantName,
           target.corpCode,
-          outcome.status,
+          sourceStatus,
+          finalOutcome.status,
           financialRowCount ? `${formatNumber(financialRowCount)}개` : '-',
-          outcome.stored ? 'Supabase 반영' : outcome.message,
+          finalOutcome.stored ? 'Supabase 확인' : finalOutcome.message,
         ]);
       }
     } finally {
       setRunning('');
     }
-    const successCount = rows.filter((row) => row[2] === '새로고침 완료').length;
+    const directSuccessCount = rows.filter((row) => row[2] === '원천 갱신 완료').length;
+    const storedSuccessCount = rows.filter((row) => ['새로고침 완료', '저장값 확인', '월간 저장값 확인'].includes(row[3])).length;
     const skippedCount = rows.filter((row) => row[2] === 'corp code 없음').length;
     onOpenModal({
       title: 'OpenDART 새로고침 결과',
@@ -11548,12 +11794,13 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
         <ExternalRefreshResultView
           summary={[
             { label: '대상 기업', value: `${formatNumber(rows.length)}개` },
-            { label: '새로고침 완료', value: `${formatNumber(successCount)}개` },
+            { label: '원천 직접 성공', value: `${formatNumber(directSuccessCount)}개` },
+            { label: '저장값 확인', value: `${formatNumber(storedSuccessCount)}개` },
             { label: 'corp code 없음', value: `${formatNumber(skippedCount)}개` },
             { label: '저장 위치', value: 'Supabase' },
           ]}
-          note="OpenDART도 API key는 Edge Function 안에서만 사용합니다. 실시간 원천 호출이 실패하면 기존 저장값을 유지하고, 그 경우는 새로고침 완료로 세지 않습니다."
-          headers={['기업명', 'OpenDART corp code', '상태', '재무 row', 'Supabase 반영']}
+          note="버튼은 먼저 OpenDART 원천 직접 호출을 시도합니다. Supabase Edge에서 원천 통신이 막히면 월간 적재로 저장된 Supabase 값을 다시 확인해 표시하며, 두 상태를 분리해서 보여줍니다."
+          headers={['기업명', 'OpenDART corp code', '원천 직접 호출', 'Supabase 저장값', '재무 row', '반영 상태']}
           rows={rows}
         />
       ),

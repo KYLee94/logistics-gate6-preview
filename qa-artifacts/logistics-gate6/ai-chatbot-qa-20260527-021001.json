@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-27T02:36:13.636Z",
+  "generated_at": "2026-05-27T02:10:01.386Z",
   "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
   "origin": "https://kylee94.github.io",
   "basis_date": "2026-05-31",
@@ -70,38 +70,7 @@
       "answer": "스카이박스1, 스카이박스2의 전체 월 임관리비는 7.5억입니다. 임차인별 비율은 쿠팡(주) 45.6%(3.4억), (주)하나로티앤에스 12.7%(94,670,530), (주)LG생활건강 11.5%(85,443,250), 아이씨비로지스(주) 11.4%(84,829,535), ㈜싸이버로지텍 10.7%(79,909,400), 봄날창고 8.1%(60,673,622)입니다.",
       "basis": {
         "asset_name": "스카이박스1, 스카이박스2",
-        "shares": [
-          {
-            "tenant": "쿠팡(주)",
-            "share": "45.6%",
-            "cost": "3.4억"
-          },
-          {
-            "tenant": "(주)하나로티앤에스",
-            "share": "12.7%",
-            "cost": "94,670,530"
-          },
-          {
-            "tenant": "(주)LG생활건강",
-            "share": "11.5%",
-            "cost": "85,443,250"
-          },
-          {
-            "tenant": "아이씨비로지스(주)",
-            "share": "11.4%",
-            "cost": "84,829,535"
-          },
-          {
-            "tenant": "㈜싸이버로지텍",
-            "share": "10.7%",
-            "cost": "79,909,400"
-          },
-          {
-            "tenant": "봄날창고",
-            "share": "8.1%",
-            "cost": "60,673,622"
-          }
-        ],
+        "shares": [],
         "formula": "tenant monthly cost / asset monthly cost"
       }
     },
