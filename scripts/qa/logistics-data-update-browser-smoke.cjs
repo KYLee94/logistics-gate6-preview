@@ -256,10 +256,12 @@ async function main() {
     await page.getByRole('button', { name: /^추가$/u }).first().click();
     await page.waitForFunction(() => document.body.innerText.includes('임대차계약 데이터 수정'), null, { timeout: 10000 });
     const addModeText = await page.locator('body').innerText({ timeout: 10000 });
+    const addRequestButtonCount = await page.getByRole('button', { name: '추가 요청 접수' }).count();
     result.mode_checks.add_mode = {
-      ok: addModeText.includes('임대차계약 데이터 수정') && addModeText.includes('예시') && addModeText.includes('입력값'),
+      ok: addModeText.includes('임대차계약 데이터 수정') && addModeText.includes('예시') && addModeText.includes('입력값') && addRequestButtonCount === 1,
       has_example_column: addModeText.includes('예시'),
       has_input_column: addModeText.includes('입력값'),
+      add_request_button_count: addRequestButtonCount,
     };
 
     await page.getByRole('button', { name: /^삭제$/u }).first().click();
@@ -283,20 +285,26 @@ async function main() {
     const expandedToggleText = await rentHistoryToggle.innerText({ timeout: 10000 });
     bodyText = await page.locator('body').innerText({ timeout: 10000 });
     const customScrollbarCount = await page.locator('.custom-scrollbar').count();
+    const editSubmitButtonCount = await page.getByRole('button', { name: '수정값 반영 요청' }).count();
     result.mode_checks.field_table = {
       ok: bodyText.includes('항목')
         && bodyText.includes('단위')
         && bodyText.includes('임대차계약 데이터 수정')
+        && bodyText.includes('변경된 항목')
         && ['기본 정보', '임차 구역 및 면적', '계약 일정', '임대료/관리비', '권리·보험·특약', '시설 사양', '임대료 변경 내역'].every((text) => bodyText.includes(text))
         && !bodyText.includes('DB 반영')
         && !bodyText.includes('원본 컬럼')
         && !/[A-Z]{2}\.\s/u.test(bodyText)
         && !bodyText.includes('히스토리')
+        && editSubmitButtonCount === 1
         && collapsedToggleText.includes('펼치기')
         && expandedToggleText.includes('접기')
         && customScrollbarCount > 0,
       has_item_header: bodyText.includes('항목'),
       has_unit_column: bodyText.includes('단위'),
+      has_single_submit_button: editSubmitButtonCount === 1,
+      edit_submit_button_count: editSubmitButtonCount,
+      has_changed_count: bodyText.includes('변경된 항목'),
       has_group_accordion: collapsedToggleText.includes('펼치기') && expandedToggleText.includes('접기'),
       removed_db_column: !bodyText.includes('DB 반영'),
       removed_column_index_prefix: !/[A-Z]{2}\.\s/u.test(bodyText),

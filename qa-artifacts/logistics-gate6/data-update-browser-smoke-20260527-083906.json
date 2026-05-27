@@ -1,0 +1,123 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-27T08:39:07.885Z",
+  "url": "http://127.0.0.1:5174/?p=contract-data",
+  "auth_source": "password_grant",
+  "ui_email": "kylee@igisam.com",
+  "required_text": [
+    "Data Update",
+    "임대차계약 데이터 관리",
+    "현재 계약 원장",
+    "임대차계약 데이터 수정",
+    "단위",
+    "기본 정보",
+    "임차 구역 및 면적",
+    "계약 일정",
+    "임대료/관리비",
+    "권리·보험·특약",
+    "시설 사양",
+    "임대료 변경 내역"
+  ],
+  "forbidden_text": [
+    "Contract Data",
+    "원본 데이터 수정",
+    "Supabase 자동 반영",
+    "DB 반영",
+    "원본 컬럼",
+    "원본 EXCEL 전체 필드 수정 요청",
+    "원본 EXCEL 전체 필드 추가 요청",
+    "DB_일반",
+    "DB_히스토리",
+    "히스토리"
+  ],
+  "missing_text": [],
+  "forbidden_found": [],
+  "page_errors": [],
+  "resource_errors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "cors_warnings": [
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource.",
+    "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:5174' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+  ],
+  "source_field_coverage": {
+    "ok": true,
+    "sheets": {
+      "DB_일반": {
+        "expected_count": 82,
+        "found_count": 82,
+        "missing_columns": [],
+        "ok": true
+      },
+      "DB_히스토리 누적": {
+        "expected_count": 18,
+        "found_count": 18,
+        "missing_columns": [],
+        "ok": true
+      }
+    }
+  },
+  "mode_checks": {
+    "lease_space_sort": {
+      "ok": true,
+      "option_count": 14,
+      "floor_values": [
+        12,
+        11,
+        10,
+        9,
+        8,
+        7,
+        6,
+        5,
+        4,
+        3,
+        2,
+        1,
+        -1,
+        -2
+      ]
+    },
+    "ledger_modal": {
+      "ok": true,
+      "has_fullscreen_entry": true
+    },
+    "add_mode": {
+      "ok": true,
+      "has_example_column": true,
+      "has_input_column": true,
+      "add_request_button_count": 1
+    },
+    "delete_modal": {
+      "ok": true,
+      "has_archive_message": true,
+      "has_yes_no": true
+    },
+    "field_table": {
+      "ok": true,
+      "has_item_header": true,
+      "has_unit_column": true,
+      "has_single_submit_button": true,
+      "edit_submit_button_count": 1,
+      "has_changed_count": true,
+      "has_group_accordion": true,
+      "removed_db_column": true,
+      "removed_column_index_prefix": true,
+      "removed_sheet_prefix": true,
+      "removed_history_label": true,
+      "custom_scrollbar_count": 8
+    }
+  },
+  "screenshot": "qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-083906.png",
+  "body_excerpt": "Logistics\nLOGISTICS PLATFORM\nWork Platform\nDashboard\nHome\nAsset\nCompany\nAnalysis Tools\nPivot Table\nData Quality\nData Update\nPDF Report\n이관용\n기획추진센터\nData Update\nLEASE CONTRACT LEDGER\n임대차계약 데이터 관리\n현재 계약 원장\n자산\n계약 구역\n작업\n추가\n수정\n삭제\nLEASE DATA EDIT\n임대차계약 데이터 수정\n항목\n현재값\n단위\n수정값\n기본 정보\n12개 접기\n펀드코드\n-\n-\n펀드명\n-\n-\n자산명\n-\n-\n자산코드\n-\n-\n섹터\n-\n-\n임차인명\n-\n-\n임차인 사업자번호\n-\n-\n선임차 여부\n-\n-\n3PL 여부\n-\n-\n취급 상품 유형\n-\n-\n단일 임차인 여부\n-\n-\n계약 상태\n-\n-\n임차 구역 및 면적\n26개 접기\n저온창고 여부\n-\n-\n임차 층\n-\n-\n임차 세부 구역\n-\n-\n전체 연면적\n-\n평\n임대면적\n-\n평\n전용면적\n-\n평\n전용률\n-\n%\n임대면적\n-\n-\n전용면적\n-\n-\n전용률\n-\n-\n임대면적 체크\n-\n-\n전용면적 체크\n-\n-\n전용률 체크\n-\n-\n세부면적(창고)\n-\n평\n세부면적(하역장)\n-\n평\n세부면적(사무실)\n-\n평\n세부면적(기타 전용면적)\n-\n평\n세부면적(통로)\n-\n평\n세부면적(램프)\n-\n평\n세부면적(기계전기실)\n-\n평\n세부면적(주차장)\n-\n평\n세부면적(층별 코어)\n-\n평\n세부면적(기타 공용면적)\n-\n평\n사무실 사용 여부\n-\n-\n전차 여부\n-\n-\n(동시) 도크 접안 수\n-\n개\n계약 일정\n14개 접기\n최근 계약일 - 최초 계약일 비교\n-\n-\n최초 계약개시일-최초 계약일 비교\n-\n-\n최초 운영개시일 - 최초 계약개시일 비교\n-\n-\n최근 계약일 - 현재 계약개시일 비교\n-\n-\n최초 계약만기일 - 현재 계약만기일 비교\n-\n-\n최초 계약일\n-\n-\n최초 계약개시일\n-\n-\n최초 계약만기일\n-\n-\n최초 운영개시일\n-\n-\n최근 계약일\n-\n-\n현재 계약개시일\n-\n-\n현재 계약만기일\n-\n-\n현재 계약기간\n-\n-\n연장횟수\n-\n회\n임대료/관리비\n9개 접기\n임대보증금\n-\n원\nRF\n-\n-\nFO\n-\n-\nTI\n-\n원\n임대료 인상률\n-\n%\n관리비 인상률\n-\n-\n인상주기\n-\n개월\n차기 인상일\n-\n-\n임차인 부담 비용\n-\n-\n권리·보험·특약\n11개 접기\n중도해지권\n-\n-\n갱신 옵션\n-\n-\n재산종합보험 한도\n-\n원\n영업배상책임보험 한도\n-\n원\n기업휴지보험 한도\n-\n원\n재고자산보험 한도\n-\n원\n구상권 포기 여부\n-\n-\n"
+}

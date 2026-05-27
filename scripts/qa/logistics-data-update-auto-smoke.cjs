@@ -101,6 +101,25 @@ function numberValue(value) {
   return Number.isFinite(numeric) ? numeric : null;
 }
 
+function valuesEqual(a, b) {
+  const left = normalizeText(a).trim();
+  const right = normalizeText(b).trim();
+  if (left === right) return true;
+  const leftNumber = Number(left.replace(/,/gu, ''));
+  const rightNumber = Number(right.replace(/,/gu, ''));
+  return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && Math.abs(leftNumber - rightNumber) < 0.000001;
+}
+
+function readbackMatches(cell, readbacks, valueKey, expectedValue) {
+  return readbacks.some((row) => {
+    const sameField = normalizeText(row.field_name) === normalizeText(cell.field_name);
+    const sameTarget = cell.source_only
+      || normalizeText(row.target_row_id) === normalizeText(cell.target_row_id)
+      || normalizeText(row.target_table) === normalizeText(cell.target_table);
+    return sameField && sameTarget && valuesEqual(row[valueKey], expectedValue);
+  });
+}
+
 function nextTextValue(value, label) {
   const current = normalizeText(value);
   const suffix = ` QA_SMOKE_${label}`;
@@ -329,14 +348,18 @@ async function main() {
     const writeResult = result.body?.data?.write_result || {};
     const readbacks = writeResult.readbacks || [];
     const rollbackReadbacks = writeResult.rollback_readbacks || [];
+    const writeReadbackMatches = readbackMatches(testCase.cell, readbacks, 'readback_value', testCase.cell.after_value);
+    const rollbackReadbackMatches = readbackMatches(testCase.cell, rollbackReadbacks, 'rollback_readback_value', testCase.cell.before_value);
     results.push({
       name: testCase.name,
       status: result.status,
-      ok: result.status === 200 && result.body?.ok === true && readbacks.length >= 1 && rollbackReadbacks.length >= 1,
+      ok: result.status === 200 && result.body?.ok === true && readbacks.length >= 1 && rollbackReadbacks.length >= 1 && writeReadbackMatches && rollbackReadbackMatches,
       target_table: testCase.cell.target_table,
       field_name: testCase.cell.field_name,
       readback_count: readbacks.length,
       rollback_readback_count: rollbackReadbacks.length,
+      write_readback_matches_after_value: writeReadbackMatches,
+      rollback_readback_matches_before_value: rollbackReadbackMatches,
       request_id: result.body?.data?.id || null,
       message: result.body?.message || null,
       detail: result.status === 200 ? undefined : result.body,
@@ -345,14 +368,14 @@ async function main() {
 
   const passed = results.filter((row) => row.ok);
   const output = {
-    ok: passed.length >= 10,
+    ok: results.length >= 10 && passed.length === results.length,
     generated_at: new Date().toISOString(),
     endpoint: endpoint.replace(/https:\/\/([^./]+)\./u, 'https://$1.redacted.'),
     origin,
     auth_source: auth.source,
     asset_id: asset.asset_id,
     asset_name: asset.asset_name,
-    required_pass_count: 10,
+    required_pass_count: results.length,
     passed_count: passed.length,
     total_count: results.length,
     results,
@@ -361,7 +384,7 @@ async function main() {
   const outPath = path.join(OUT_DIR, `data-update-auto-smoke-${timestampForFile()}.json`);
   fs.writeFileSync(outPath, JSON.stringify(output, null, 2), 'utf8');
   console.log(JSON.stringify({ ...output, artifact: outPath }, null, 2));
-  if (!output.ok) throw new Error(`Data Update auto smoke passed ${passed.length}/10 required cases.`);
+  if (!output.ok) throw new Error(`Data Update auto smoke passed ${passed.length}/${results.length} required cases.`);
 }
 
 main().catch((error) => {

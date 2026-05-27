@@ -9512,15 +9512,11 @@ function ContractDataManagementDashboard() {
             {isAddMode ? (
               <textarea value={summary} onChange={(event) => setSummary(event.target.value)} rows={2} className="mt-3 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 py-2 text-[13px] text-white outline-none focus:border-[#2997ff]" placeholder="추가 요약" />
             ) : null}
-            <div className="mt-3 flex justify-end">
-              {isAddMode ? (
-                <button type="button" disabled={isSubmitting || !canCreate} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>추가 요청 접수</button>
-              ) : isEditMode ? (
-                <button type="button" disabled={isSubmittingFields || !canUpdate} onClick={submitContractFieldEdits} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>수정값 반영 요청</button>
-              ) : (
+            {dataUpdateMode === 'archive' ? (
+              <div className="mt-3 flex justify-end">
                 <button type="button" disabled={isSubmitting || !canArchive} onClick={() => setArchiveConfirmOpen(true)} className={`h-10 rounded-[8px] border px-4 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}>삭제 요청 확인</button>
-              )}
-            </div>
+              </div>
+            ) : null}
             {eventStatus ? <div className={`mt-3 rounded-[10px] border px-3 py-2 text-[12px] ${eventStatus.type === 'error' ? 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]' : eventStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#4C4329] bg-[#2A240E] text-[#FFD166]'}`}>{eventStatus.message}</div> : null}
           </div>
         </div>
@@ -9567,9 +9563,6 @@ function ContractDataManagementDashboard() {
                 className="h-9 min-w-[240px] rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 text-[12px] text-white outline-none focus:border-[#2997ff]"
                 placeholder="항목 또는 값 검색"
               />
-              {isAddMode
-                ? <button type="button" disabled={isSubmitting || !canCreate} onClick={submitLeaseEvent} className={`h-9 rounded-[8px] px-3 text-[12px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>추가 요청 접수</button>
-                : <button type="button" disabled={isSubmittingFields || !canUpdate} onClick={submitContractFieldEdits} className={`h-9 rounded-[8px] px-3 text-[12px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>수정값 반영 요청</button>}
             </div>
           )}
         />
@@ -9633,6 +9626,16 @@ function ContractDataManagementDashboard() {
                   <div className="px-3 py-8 text-center text-[13px] text-[#86868B]">표시할 임대차계약 데이터가 없습니다.</div>
                 )}
               </div>
+            </div>
+            <div className="mt-3 flex flex-col gap-3 rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-[12px] text-[#A1A1AA]">
+                {isAddMode ? '입력된 항목' : '변경된 항목'} <span className="font-semibold text-white">{formatNumber(changedFieldCount)}개</span>
+              </div>
+              {isAddMode ? (
+                <button type="button" disabled={isSubmitting || !canCreate || changedFieldCount <= 0} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>추가 요청 접수</button>
+              ) : (
+                <button type="button" disabled={isSubmittingFields || !canUpdate || changedFieldCount <= 0} onClick={submitContractFieldEdits} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>수정값 반영 요청</button>
+              )}
             </div>
           </>
         )}

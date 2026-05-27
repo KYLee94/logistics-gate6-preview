@@ -1,0 +1,62 @@
+{
+  "ok": false,
+  "generated_at": "2026-05-27T08:45:00.000Z",
+  "scope": "Data Update tab lifecycle review",
+  "review_method": [
+    "UI/Data Update source inspection",
+    "Supabase Edge Function contract-data/apply and lease-events/submit inspection",
+    "subagent review for data lifecycle risks",
+    "local browser smoke",
+    "live browser smoke",
+    "deployed Supabase Edge Function rollback_after_write smoke"
+  ],
+  "confirmed": {
+    "existing_contract_field_update": {
+      "status": "verified",
+      "evidence": "data-update-auto-smoke-20260527-083954.json",
+      "passed_count": 13,
+      "total_count": 13,
+      "checks": [
+        "write response ok",
+        "write readback matches after_value",
+        "rollback readback matches before_value"
+      ]
+    },
+    "source_field_coverage": {
+      "status": "verified",
+      "evidence": "data-update-browser-smoke-20260527-084223.json",
+      "db_general_columns": "82/82",
+      "db_history_columns": "18/18"
+    },
+    "single_submit_button": {
+      "status": "verified",
+      "evidence": "data-update-browser-smoke-20260527-084223.json",
+      "edit_submit_button_count": 1,
+      "add_request_button_count": 1
+    },
+    "contract_zone_sort": {
+      "status": "verified",
+      "evidence": "data-update-browser-smoke-20260527-084223.json",
+      "floor_values": [12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, -1, -2]
+    }
+  },
+  "not_yet_complete": {
+    "rent_change_history_append": {
+      "status": "not_implemented",
+      "reason": "Current automatic write can update existing allowed fields, but does not create a new ll_rent_history row for a rent escalation/change event."
+    },
+    "new_lease_creation": {
+      "status": "request_only",
+      "reason": "lease-events/submit stores a submitted request in ll_edit_requests; it does not insert ll_leases, ll_lease_spaces, ll_rent_history, or related attributes."
+    },
+    "lease_archive_apply": {
+      "status": "request_only",
+      "reason": "archive flow stores an expiry_vacancy request with before/after payload; it does not update the live contract row to archived."
+    },
+    "duplicate_request_guard": {
+      "status": "not_implemented",
+      "reason": "There is no confirmed uniqueness guard for repeated new_lease or expiry_vacancy requests with the same asset, lease space, tenant, event type, and effective date."
+    }
+  },
+  "conclusion": "The current Data Update tab is verified for existing-contract field edits and UI submission placement. It is not yet a complete lifecycle manager for rent-history append, new-lease creation, or applied archive workflows."
+}
