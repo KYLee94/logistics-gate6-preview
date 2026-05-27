@@ -7236,6 +7236,21 @@ function floorSortValue(label) {
   return numeric ? Number(numeric[0]) : -999;
 }
 
+function sortContractDataLeaseRows(rows = []) {
+  return (rows || []).slice().sort((a, b) => {
+    const floorDiff = floorSortValue(firstDefined(b.floorLabel, b.spaceLabel, b.detailAreaLabel))
+      - floorSortValue(firstDefined(a.floorLabel, a.spaceLabel, a.detailAreaLabel));
+    if (floorDiff) return floorDiff;
+    const tenantDiff = String(firstDefined(a.tenantMasterName, a.companyName, '') || '')
+      .localeCompare(String(firstDefined(b.tenantMasterName, b.companyName, '') || ''), 'ko-KR');
+    if (tenantDiff) return tenantDiff;
+    const spaceDiff = String(firstDefined(a.spaceLabel, a.floorLabel, a.detailAreaLabel, '') || '')
+      .localeCompare(String(firstDefined(b.spaceLabel, b.floorLabel, b.detailAreaLabel, '') || ''), 'ko-KR');
+    if (spaceDiff) return spaceDiff;
+    return String(firstDefined(a.leaseSpaceId, '') || '').localeCompare(String(firstDefined(b.leaseSpaceId, '') || ''), 'ko-KR');
+  });
+}
+
 function expiryDateForRow(row = {}) {
   return firstDefined(row.currentEndDate, row.latestExpiry, row.earliestExpiry, row.endDate, row.firstEndDate, row.contractEndDate);
 }
@@ -9142,6 +9157,16 @@ const CONTRACT_DATA_MODES = [
   { id: 'archive', label: '계약 구역 삭제' },
 ];
 
+const CONTRACT_DATA_FIELD_GROUPS = [
+  { id: 'basic', label: '기본 정보' },
+  { id: 'area', label: '임차 구역 및 면적' },
+  { id: 'schedule', label: '계약 일정' },
+  { id: 'rent', label: '임대료/관리비' },
+  { id: 'terms', label: '권리·보험·특약' },
+  { id: 'facility', label: '시설 사양' },
+  { id: 'rent_history', label: '임대료 변경 내역' },
+];
+
 function ContractDataManagementDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
@@ -9159,6 +9184,7 @@ function ContractDataManagementDashboard() {
   const [fieldEditStatus, setFieldEditStatus] = useState(null);
   const [isSubmittingFields, setIsSubmittingFields] = useState(false);
   const [fieldSearchQuery, setFieldSearchQuery] = useState('');
+  const [collapsedFieldGroups, setCollapsedFieldGroups] = useState({});
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [contractLedgerOpen, setContractLedgerOpen] = useState(false);
 
@@ -9166,8 +9192,9 @@ function ContractDataManagementDashboard() {
   const readableAssets = useMemo(() => filterAssetsByPermission(dashboardDataset.assetOptions || [], permission), [dashboardDataset.assetOptions, permission]);
   const activeAssetId = selectedAssetId || readableAssets[0]?.assetId || '';
   const assetRows = useMemo(() => readableRows.filter((row) => !activeAssetId || row.assetId === activeAssetId), [activeAssetId, readableRows]);
+  const sortedAssetRows = useMemo(() => sortContractDataLeaseRows(assetRows), [assetRows]);
   const selectedAsset = readableAssets.find((asset) => asset.assetId === activeAssetId) || {};
-  const selectedLeaseRow = assetRows.find((row) => row.leaseSpaceId === selectedLeaseSpaceId) || assetRows[0] || {};
+  const selectedLeaseRow = sortedAssetRows.find((row) => row.leaseSpaceId === selectedLeaseSpaceId) || sortedAssetRows[0] || {};
   const selectedLeaseRowDraftKey = CONTRACT_DATA_FIELDS.map((field) => (
     `${contractFieldKey(field)}:${excelCellText(contractFieldRawValue(selectedLeaseRow, field))}`
   )).join('|');
@@ -9177,28 +9204,13 @@ function ContractDataManagementDashboard() {
   const canSubmit = dataUpdateMode === 'add' ? canCreate : dataUpdateMode === 'archive' ? canArchive : canUpdate;
   const isAddMode = dataUpdateMode === 'add';
   const isEditMode = dataUpdateMode === 'edit';
-  const visibleContractFields = useMemo(() => {
-    const query = fieldSearchQuery.trim().toLowerCase();
-    return CONTRACT_DATA_FIELDS.filter((field) => {
-      const fieldKey = contractFieldKey(field);
-      const currentValue = excelCellText(contractFieldRawValue(selectedLeaseRow, field));
-      const draftValue = excelCellText(fieldDrafts[fieldKey] ?? '');
-      if (!query) return true;
-      return [
-        field.label,
-        field.sourceHeader,
-        field.sourceColumnLetter,
-        field.domain,
-        field.table,
-        contractFieldDbName(field),
-        currentValue,
-        draftValue,
-      ].some((value) => String(value || '').toLowerCase().includes(query));
-    });
+  const hasFieldSearch = fieldSearchQuery.trim().length > 0;
+  const visibleContractFieldGroups = useMemo(() => {
+    return buildContractDataFieldGroups(CONTRACT_DATA_FIELDS, selectedLeaseRow, fieldDrafts, fieldSearchQuery);
   }, [fieldDrafts, fieldSearchQuery, selectedLeaseRow]);
   const changedFieldCount = useMemo(() => CONTRACT_DATA_FIELDS.reduce((count, field) => {
     const fieldKey = contractFieldKey(field);
-    const currentValue = excelCellText(contractFieldRawValue(selectedLeaseRow, field));
+    const currentValue = excelCellText(contractFieldEditValueFromCanonical(field, contractFieldRawValue(selectedLeaseRow, field)));
     const draftValue = excelCellText(fieldDrafts[fieldKey] ?? '');
     const changed = isAddMode ? draftValue.trim() !== '' : currentValue !== draftValue;
     return count + (changed ? 1 : 0);
@@ -9231,21 +9243,21 @@ function ContractDataManagementDashboard() {
   }, []);
 
   useEffect(() => {
-    if (selectedAssetId && !assetRows.some((row) => row.leaseSpaceId === selectedLeaseSpaceId)) {
-      setSelectedLeaseSpaceId(assetRows[0]?.leaseSpaceId || '');
+    if (selectedAssetId && !sortedAssetRows.some((row) => row.leaseSpaceId === selectedLeaseSpaceId)) {
+      setSelectedLeaseSpaceId(sortedAssetRows[0]?.leaseSpaceId || '');
     }
-  }, [assetRows, selectedAssetId, selectedLeaseSpaceId]);
+  }, [selectedAssetId, selectedLeaseSpaceId, sortedAssetRows]);
 
   useEffect(() => {
     setFieldDrafts(Object.fromEntries(CONTRACT_DATA_FIELDS.map((field) => [
       contractFieldKey(field),
-      dataUpdateMode === 'add' ? '' : excelCellText(contractFieldRawValue(selectedLeaseRow, field)),
+      dataUpdateMode === 'add' ? '' : contractFieldEditValueFromCanonical(field, contractFieldRawValue(selectedLeaseRow, field)),
     ])));
     setFieldEditStatus(null);
     setEventStatus(null);
   }, [dataUpdateMode, selectedLeaseRowDraftKey]);
 
-  const contractRows = assetRows.map((row) => [
+  const contractRows = sortedAssetRows.map((row) => [
     row.assetName || '-',
     row.tenantMasterName || row.companyName || '-',
     row.spaceLabel || [row.floorLabel, row.detailAreaLabel].filter(Boolean).join(' / ') || '-',
@@ -9287,7 +9299,7 @@ function ContractDataManagementDashboard() {
     ]));
     const afterFields = Object.fromEntries(CONTRACT_DATA_FIELDS.map((field) => [
       contractFieldDbName(field),
-      fieldDrafts[contractFieldKey(field)] ?? '',
+      contractFieldCanonicalValueFromDisplay(field, fieldDrafts[contractFieldKey(field)] ?? '', ''),
     ]));
     setIsSubmitting(true);
     setEventStatus({ type: 'pending', message: '계약 구역 추가 요청을 서버 승인 대기열에 접수하는 중입니다.' });
@@ -9385,8 +9397,10 @@ function ContractDataManagementDashboard() {
     const changedFields = CONTRACT_DATA_FIELDS
       .map((field) => {
         const beforeValue = contractFieldRawValue(selectedLeaseRow, field);
-        const afterValue = fieldDrafts[contractFieldKey(field)] ?? '';
-        if (excelCellText(beforeValue) === excelCellText(afterValue)) return null;
+        const afterDisplayValue = fieldDrafts[contractFieldKey(field)] ?? '';
+        const beforeDisplayValue = contractFieldEditValueFromCanonical(field, beforeValue);
+        const afterValue = contractFieldCanonicalValueFromDisplay(field, afterDisplayValue, beforeValue);
+        if (excelCellText(beforeDisplayValue) === excelCellText(afterDisplayValue)) return null;
         const targetTable = normalizeContractTargetTable(field.table);
         const targetRowId = contractTargetRowId(selectedLeaseRow, targetTable);
         const primaryKeyField = contractPrimaryKeyField(selectedLeaseRow, targetTable);
@@ -9456,6 +9470,7 @@ function ContractDataManagementDashboard() {
         <SectionHeader
           eyebrow="LEASE CONTRACT LEDGER"
           title="임대차계약 데이터 관리"
+          right={<button type="button" onClick={() => setContractLedgerOpen(true)} className={`h-9 rounded-[8px] border px-3 text-[12px] font-semibold ${DARK_BUTTON_CLASS}`}>현재 계약 원장</button>}
         />
         <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
@@ -9469,7 +9484,7 @@ function ContractDataManagementDashboard() {
               <label className="block text-[12px] font-semibold text-[#A1A1AA]">
                 계약 구역
                 <select value={selectedLeaseSpaceId || selectedLeaseRow.leaseSpaceId || ''} onChange={(event) => setSelectedLeaseSpaceId(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111] px-3 text-[13px] text-white">
-                  {assetRows.map((row) => <option key={row.leaseSpaceId || `${row.tenantMasterName}-${row.spaceLabel}`} value={row.leaseSpaceId}>{`${row.tenantMasterName || row.companyName || '-'} / ${row.spaceLabel || row.floorLabel || '-'}`}</option>)}
+                  {sortedAssetRows.map((row) => <option key={row.leaseSpaceId || `${row.tenantMasterName}-${row.spaceLabel}`} value={row.leaseSpaceId}>{`${row.tenantMasterName || row.companyName || '-'} / ${row.spaceLabel || row.floorLabel || '-'}`}</option>)}
                 </select>
               </label>
             </div>
@@ -9523,16 +9538,6 @@ function ContractDataManagementDashboard() {
         ) : null}
       </section>
 
-      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-        <SectionHeader
-          eyebrow="CURRENT CONTRACTS"
-          title="현재 계약 원장"
-          right={<button type="button" onClick={() => setContractLedgerOpen(true)} className={`h-9 rounded-[8px] border px-3 text-[12px] font-semibold ${DARK_BUTTON_CLASS}`}>원장 전체 보기</button>}
-        />
-        <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[13px] text-[#C7C7CC]">
-          {selectedAsset.assetName || selectedLeaseRow.assetName || '-'} · {formatNumber(contractRows.length)}개 계약 구역
-        </div>
-      </section>
       {contractLedgerOpen ? (
         <div className="fixed inset-0 z-50 flex bg-black/80 p-4">
           <div className="flex min-h-0 w-full flex-col rounded-[18px] border border-[#3A3A3C] bg-[#1F1F1E] shadow-2xl">
@@ -9543,7 +9548,7 @@ function ContractDataManagementDashboard() {
               </div>
               <button type="button" onClick={() => setContractLedgerOpen(false)} className={`h-10 rounded-[8px] border px-4 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}>닫기</button>
             </div>
-            <div className="min-h-0 flex-1 overflow-auto p-5">
+            <div className="custom-scrollbar min-h-0 flex-1 overflow-auto p-5">
               <DataTable headers={['자산', '임차인', '층/구역', '임대면적', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', '계약개시', '계약만기']} rows={contractRows} compact />
             </div>
           </div>
@@ -9552,8 +9557,8 @@ function ContractDataManagementDashboard() {
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader
-          eyebrow="SOURCE EXCEL FIELDS"
-          title={isAddMode ? '원본 EXCEL 전체 필드 추가 요청' : '원본 EXCEL 전체 필드 수정 요청'}
+          eyebrow="LEASE DATA EDIT"
+          title="임대차계약 데이터 수정"
           right={dataUpdateMode === 'archive' ? null : (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <input
@@ -9574,44 +9579,60 @@ function ContractDataManagementDashboard() {
           </div>
         ) : (
           <>
-            <div className="max-h-[560px] overflow-auto rounded-[14px] border border-[#333333]">
-              <table className="min-w-[820px] w-full border-collapse text-left text-[12px]">
-                <thead className="sticky top-0 z-10 bg-[#1F1F1E] text-[#A1A1AA]">
-                  <tr>
-                    <th className="w-[360px] border-b border-[#333333] px-3 py-2">항목</th>
-                    <th className="w-[260px] border-b border-[#333333] px-3 py-2">{isAddMode ? '예시' : '현재값'}</th>
-                    <th className="border-b border-[#333333] px-3 py-2">{isAddMode ? '입력값' : '수정값'}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleContractFields.length ? visibleContractFields.map((field) => {
-                    const fieldKey = contractFieldKey(field);
-                    const currentValue = excelCellText(contractFieldRawValue(selectedLeaseRow, field));
-                    const draftValue = fieldDrafts[fieldKey] ?? '';
-                    const changed = isAddMode ? excelCellText(draftValue).trim() !== '' : currentValue !== excelCellText(draftValue);
-                    return (
-                      <tr key={fieldKey} className={changed ? 'bg-[#132A44]' : 'bg-[#252524]'}>
-                        <td className="border-b border-[#333333] px-3 py-2 align-top" title={`${field.domain || ''} ${field.sourceHeader || field.label}`.trim()}>
-                          <div className="font-semibold text-[#E5E5EA]">{field.label}</div>
-                        </td>
-                        <td className="border-b border-[#333333] px-3 py-2 align-top text-[#A1A1AA]">{isAddMode ? contractFieldExampleValue(field) : qualityDisplayValue(field, contractFieldRawValue(selectedLeaseRow, field))}</td>
-                        <td className="border-b border-[#333333] px-3 py-2 align-top">
-                          <input
-                            value={draftValue}
-                            onChange={(event) => setFieldDrafts((previous) => ({ ...previous, [fieldKey]: event.target.value }))}
-                            className="h-9 w-full rounded-[7px] border border-[#3A3A3C] bg-[#111] px-2 text-[12px] text-white outline-none focus:border-[#2997ff]"
-                            placeholder={isAddMode ? contractFieldExampleValue(field) : ''}
-                          />
-                        </td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr>
-                      <td colSpan={3} className="border-b border-[#333333] px-3 py-8 text-center text-[13px] text-[#86868B]">표시할 원본 Excel 필드가 없습니다.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="custom-scrollbar max-h-[620px] overflow-auto rounded-[14px] border border-[#333333]">
+              <div className="sticky top-0 z-20 grid min-w-[960px] grid-cols-[minmax(260px,1.2fr)_minmax(180px,0.8fr)_80px_minmax(220px,1fr)] border-b border-[#333333] bg-[#1F1F1E] text-left text-[12px] font-semibold text-[#A1A1AA]">
+                <div className="px-3 py-2">항목</div>
+                <div className="px-3 py-2">{isAddMode ? '예시' : '현재값'}</div>
+                <div className="px-3 py-2">단위</div>
+                <div className="px-3 py-2">{isAddMode ? '입력값' : '수정값'}</div>
+              </div>
+              <div className="min-w-[960px]">
+                {visibleContractFieldGroups.length ? visibleContractFieldGroups.map((group) => {
+                  const isOpen = hasFieldSearch || !collapsedFieldGroups[group.id];
+                  return (
+                    <div key={group.id} className="border-b border-[#333333] last:border-b-0">
+                      <button
+                        type="button"
+                        onClick={() => setCollapsedFieldGroups((previous) => ({ ...previous, [group.id]: !previous[group.id] }))}
+                        className="flex w-full items-center justify-between bg-[#20201F] px-3 py-3 text-left text-[13px] font-semibold text-white hover:bg-[#2A2A29]"
+                      >
+                        <span>{group.label}</span>
+                        <span className="text-[12px] text-[#A1A1AA]">{formatNumber(group.fields.length)}개 {isOpen ? '접기' : '펼치기'}</span>
+                      </button>
+                      {isOpen ? (
+                        <div className="custom-scrollbar max-h-[520px] overflow-auto">
+                          {group.fields.map((field) => {
+                            const fieldKey = contractFieldKey(field);
+                            const currentDisplay = isAddMode ? contractFieldExampleParts(field) : contractFieldDisplayParts(field, contractFieldRawValue(selectedLeaseRow, field));
+                            const currentValue = contractFieldEditValueFromCanonical(field, contractFieldRawValue(selectedLeaseRow, field));
+                            const draftValue = fieldDrafts[fieldKey] ?? '';
+                            const changed = isAddMode ? excelCellText(draftValue).trim() !== '' : currentValue !== excelCellText(draftValue);
+                            return (
+                              <div key={fieldKey} className={`grid grid-cols-[minmax(260px,1.2fr)_minmax(180px,0.8fr)_80px_minmax(220px,1fr)] border-b border-[#333333] text-[12px] last:border-b-0 ${changed ? 'bg-[#132A44]' : 'bg-[#252524]'}`}>
+                                <div className="px-3 py-2 align-top">
+                                  <div className="font-semibold text-[#E5E5EA]">{contractFieldDisplayLabel(field)}</div>
+                                </div>
+                                <div className="px-3 py-2 align-top font-mono text-[#A1A1AA]">{currentDisplay.value}</div>
+                                <div className="px-3 py-2 align-top text-[#86868B]">{currentDisplay.unit || '-'}</div>
+                                <div className="px-3 py-2 align-top">
+                                  <input
+                                    value={draftValue}
+                                    onChange={(event) => setFieldDrafts((previous) => ({ ...previous, [fieldKey]: event.target.value }))}
+                                    className="h-9 w-full rounded-[7px] border border-[#3A3A3C] bg-[#111] px-2 text-[12px] text-white outline-none focus:border-[#2997ff]"
+                                    placeholder={isAddMode ? currentDisplay.value : ''}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                }) : (
+                  <div className="px-3 py-8 text-center text-[13px] text-[#86868B]">표시할 임대차계약 데이터가 없습니다.</div>
+                )}
+              </div>
             </div>
           </>
         )}
@@ -9966,6 +9987,146 @@ function contractFieldKey(field) {
     field?.sourceColumnLetter || '',
     field?.fieldName || field?.sourceHeader || field?.label || '',
   ].map((part) => String(part).trim()).join('|');
+}
+
+function parseContractNumber(value) {
+  if (value === undefined || value === null || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const text = String(value).replace(/,/gu, '').replace(/％/gu, '%');
+  const match = text.match(/-?\d+(?:\.\d+)?/u);
+  if (!match) return null;
+  const numeric = Number(match[0]);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function formatContractNumberForDisplay(value, fractionDigits = null) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return excelCellText(value);
+  const digits = fractionDigits === null ? (Number.isInteger(numeric) ? 0 : 2) : fractionDigits;
+  return new Intl.NumberFormat('ko-KR', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(numeric);
+}
+
+function contractFieldDisplayLabel(field) {
+  return String(field?.label || field?.sourceHeader || field?.fieldName || '')
+    .replace(/히스토리\s*/gu, '')
+    .trim() || '-';
+}
+
+function contractFieldUnit(field) {
+  const label = contractFieldDisplayLabel(field);
+  const name = `${field?.fieldName || ''} ${label} ${field?.sourceHeader || ''}`;
+  if (field?.valueType === 'area') return '평';
+  if (field?.valueType === 'currency' || field?.valueType === 'won') return '원';
+  if (field?.valueType === 'percent') return '%';
+  if (/escalationCycleMonths|인상주기/u.test(name)) return '개월';
+  if (/extensionCount|연장횟수/u.test(name)) return '회';
+  if (/dockDoorCount|접안 수/u.test(name)) return '개';
+  if (/clearHeight|rampWidth|vehicleAisleWidth|층고|너비|통로/u.test(name)) return 'm';
+  if (/powerCapacity|전력/u.test(name)) return 'kVA';
+  return '';
+}
+
+function contractFieldDisplayParts(field, canonicalValue) {
+  const unit = contractFieldUnit(field);
+  if (canonicalValue === undefined || canonicalValue === null || canonicalValue === '') return { value: '-', unit };
+  const rawText = excelCellText(canonicalValue).trim();
+  const numeric = parseContractNumber(canonicalValue);
+  if (field?.valueType === 'area' && numeric !== null) {
+    const pyValue = /평/u.test(rawText) ? numeric : numeric * 0.3025;
+    return { value: formatContractNumberForDisplay(pyValue, 1), unit };
+  }
+  if ((field?.valueType === 'currency' || field?.valueType === 'won') && numeric !== null) {
+    return { value: formatContractNumberForDisplay(numeric, 0), unit };
+  }
+  if (field?.valueType === 'percent' && numeric !== null) {
+    const percentValue = Math.abs(numeric) <= 1 ? numeric * 100 : numeric;
+    return { value: formatContractNumberForDisplay(percentValue, 1), unit };
+  }
+  if (field?.valueType === 'number' && numeric !== null) {
+    return { value: formatContractNumberForDisplay(numeric), unit };
+  }
+  if (field?.valueType === 'date') return { value: formatDate(canonicalValue), unit };
+  return { value: rawText || '-', unit };
+}
+
+function contractFieldExampleParts(field) {
+  const unit = contractFieldUnit(field);
+  const name = `${field?.fieldName || ''} ${field?.label || ''} ${field?.sourceHeader || ''}`.toLowerCase();
+  if (name.includes('asset')) return { value: '안성 성은 물류센터', unit };
+  if (name.includes('tenant') || name.includes('company')) return { value: '쿠팡(주)', unit };
+  if (name.includes('business')) return { value: '123-45-67890', unit };
+  if (field?.valueType === 'date' || name.includes('date') || name.includes('start') || name.includes('end')) return { value: '2026-06-30', unit };
+  if (field?.valueType === 'area') return { value: '1,000.0', unit };
+  if (field?.valueType === 'currency') return { value: '10,000,000', unit };
+  if (field?.valueType === 'won') return { value: '42,000', unit };
+  if (field?.valueType === 'percent') return { value: '7.5', unit };
+  if (field?.valueType === 'number') return { value: '10', unit };
+  return { value: '신규 계약 값 입력', unit };
+}
+
+function contractFieldEditValueFromCanonical(field, canonicalValue) {
+  const display = contractFieldDisplayParts(field, canonicalValue).value;
+  return display === '-' ? '' : display;
+}
+
+function contractFieldCanonicalValueFromDisplay(field, displayValue, currentCanonicalValue) {
+  const text = excelCellText(displayValue).trim();
+  if (!text) return '';
+  const numeric = parseContractNumber(text);
+  if (field?.valueType === 'area' && numeric !== null) {
+    return numeric / 0.3025;
+  }
+  if ((field?.valueType === 'currency' || field?.valueType === 'won' || field?.valueType === 'number') && numeric !== null) {
+    return numeric;
+  }
+  if (field?.valueType === 'percent' && numeric !== null) {
+    const currentNumeric = parseContractNumber(currentCanonicalValue);
+    if ((currentNumeric !== null && Math.abs(currentNumeric) <= 1) || /%/u.test(text)) return numeric / 100;
+    return numeric;
+  }
+  return text;
+}
+
+function contractFieldGroupId(field) {
+  const label = contractFieldDisplayLabel(field);
+  const name = `${field?.fieldName || ''} ${field?.sourceHeader || ''} ${label}`;
+  if (String(field?.domain || '').includes('히스토리') || field?.table === 'public.ll_rent_history' || /history/i.test(field?.fieldName || '')) return 'rent_history';
+  if (/grossFloorArea|leasedArea|exclusiveArea|AreaSqm|floorLabel|detailArea|coldStorage|officeUse|sublease|checkLeased|checkExclusive|warehouse|dock|corridor|rampArea|mechanical|parking|core|임차 층|임차 세부 구역|면적|전용률|사무실|전차/u.test(name)) return 'area';
+  if (/ContractDate|StartDate|EndDate|OperationStart|ContractPeriod|extensionCount|계약일|계약개시|계약만기|운영개시|계약기간|연장횟수/u.test(name)) return 'schedule';
+  if (/Termination|renewal|Insurance|waiver|SpecialTerms|Arrears|중도해지|갱신|보험|구상권|대위권|특수 계약|연체/u.test(name)) return 'terms';
+  if (/floorLoad|flatness|abrasion|dockDoor|clearHeight|powerCapacity|rampType|rampWidth|vehicleAisleWidth|lighting|exteriorMaterial|바닥|평활도|마모도|도크|층고|전력|램프|차량|조명|외벽/u.test(name)) return 'facility';
+  if (/deposit|rent|mf|Rent|Mf|Escalation|tenantCostBurden|보증금|임대료|관리비|인상|부담 비용/u.test(name) || ['rf', 'fo', 'ti'].includes(String(field?.fieldName || '').toLowerCase())) return 'rent';
+  return 'basic';
+}
+
+function buildContractDataFieldGroups(fields, selectedRow, fieldDrafts, searchQuery) {
+  const query = searchQuery.trim().toLowerCase();
+  const groups = Object.fromEntries(CONTRACT_DATA_FIELD_GROUPS.map((group) => [group.id, { ...group, fields: [] }]));
+  fields.forEach((field) => {
+    const fieldKey = contractFieldKey(field);
+    const displayLabel = contractFieldDisplayLabel(field);
+    const displayParts = contractFieldDisplayParts(field, contractFieldRawValue(selectedRow, field));
+    const draftValue = excelCellText(fieldDrafts[fieldKey] ?? '');
+    const groupId = contractFieldGroupId(field);
+    const group = groups[groupId] || groups.basic;
+    const searchable = [
+      group.label,
+      displayLabel,
+      field.sourceHeader,
+      contractFieldDbName(field),
+      displayParts.value,
+      displayParts.unit,
+      draftValue,
+    ].map((value) => String(value || '').toLowerCase()).join(' ');
+    if (query && !searchable.includes(query)) return;
+    group.fields.push(field);
+  });
+  return CONTRACT_DATA_FIELD_GROUPS
+    .map((group) => groups[group.id])
+    .filter((group) => group.fields.length > 0);
 }
 
 function contractFieldExampleValue(field) {

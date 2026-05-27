@@ -77,6 +77,23 @@ function excelColumnRange(start, end) {
   return Array.from({ length: endIndex - startIndex + 1 }, (_, offset) => excelColumnName(startIndex + offset));
 }
 
+function floorSortValue(label) {
+  const value = String(label || '').trim().toUpperCase();
+  const matches = [...value.matchAll(/B\s*\d+|\d+(?:\.\d+)?\s*(?:F|층)?/giu)];
+  if (matches.length) {
+    return Math.max(...matches.map((match) => {
+      const token = match[0].trim().toUpperCase();
+      const numeric = Number((token.match(/\d+(?:\.\d+)?/u) || [])[0]);
+      if (!Number.isFinite(numeric)) return -999;
+      return token.startsWith('B') ? -numeric : numeric;
+    }));
+  }
+  const basement = value.match(/^B\s*(\d+)/u);
+  if (basement) return -Number(basement[1]);
+  const numeric = value.match(/-?\d+(?:\.\d+)?/u);
+  return numeric ? Number(numeric[0]) : -999;
+}
+
 function dataUpdateFieldCoverage() {
   const sourcePath = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'WorkspaceLogistics.jsx');
   const source = fs.readFileSync(sourcePath, 'utf8');
@@ -177,8 +194,8 @@ async function main() {
     url: targetUrl,
     auth_source: auth.source,
     ui_email: uiEmail,
-    required_text: ['Data Update', '임대차계약 데이터 관리', '현재 계약 원장', '원본 EXCEL 전체 필드 수정 요청'],
-    forbidden_text: ['Contract Data', '원본 데이터 수정', 'Supabase 자동 반영', 'DB 반영', '원본 컬럼', 'DB_일반 ·', 'DB_히스토리 누적 ·'],
+    required_text: ['Data Update', '임대차계약 데이터 관리', '현재 계약 원장', '임대차계약 데이터 수정', '단위', '기본 정보', '임차 구역 및 면적', '계약 일정', '임대료/관리비', '권리·보험·특약', '시설 사양', '임대료 변경 내역'],
+    forbidden_text: ['Contract Data', '원본 데이터 수정', 'Supabase 자동 반영', 'DB 반영', '원본 컬럼', '원본 EXCEL 전체 필드 수정 요청', '원본 EXCEL 전체 필드 추가 요청', 'DB_일반', 'DB_히스토리', '히스토리'],
     missing_text: [],
     forbidden_found: [],
     page_errors: errors,
@@ -217,20 +234,30 @@ async function main() {
     result.missing_text = result.required_text.filter((text) => !bodyText.includes(text));
     result.forbidden_found = result.forbidden_text.filter((text) => bodyText.includes(text));
 
-    await page.getByRole('button', { name: '원장 전체 보기' }).click();
+    const leaseOptions = await page.locator('label', { hasText: '계약 구역' }).locator('option').allTextContents();
+    const leaseFloorValues = leaseOptions
+      .map((text) => floorSortValue(text.split('/').slice(1).join('/').trim() || text))
+      .filter((value) => value > -999);
+    result.mode_checks.lease_space_sort = {
+      ok: leaseFloorValues.length > 1 && leaseFloorValues.every((value, index) => index === 0 || leaseFloorValues[index - 1] >= value),
+      option_count: leaseOptions.length,
+      floor_values: leaseFloorValues,
+    };
+
+    await page.getByRole('button', { name: '현재 계약 원장' }).first().click();
     await page.waitForFunction(() => document.body.innerText.includes('CURRENT CONTRACTS') && document.body.innerText.includes('닫기'), null, { timeout: 10000 });
     const ledgerModalText = await page.locator('body').innerText({ timeout: 10000 });
     result.mode_checks.ledger_modal = {
       ok: ledgerModalText.includes('CURRENT CONTRACTS') && ledgerModalText.includes('닫기'),
-      has_fullscreen_entry: ledgerModalText.includes('원장 전체 보기'),
+      has_fullscreen_entry: ledgerModalText.includes('현재 계약 원장'),
     };
     await page.getByRole('button', { name: '닫기' }).click();
 
     await page.getByRole('button', { name: /^추가$/u }).first().click();
-    await page.waitForFunction(() => document.body.innerText.includes('원본 EXCEL 전체 필드 추가 요청'), null, { timeout: 10000 });
+    await page.waitForFunction(() => document.body.innerText.includes('임대차계약 데이터 수정'), null, { timeout: 10000 });
     const addModeText = await page.locator('body').innerText({ timeout: 10000 });
     result.mode_checks.add_mode = {
-      ok: addModeText.includes('원본 EXCEL 전체 필드 추가 요청') && addModeText.includes('예시') && addModeText.includes('입력값'),
+      ok: addModeText.includes('임대차계약 데이터 수정') && addModeText.includes('예시') && addModeText.includes('입력값'),
       has_example_column: addModeText.includes('예시'),
       has_input_column: addModeText.includes('입력값'),
     };
@@ -248,14 +275,34 @@ async function main() {
     await page.getByRole('button', { name: '아니오' }).click();
 
     await page.getByRole('button', { name: /^수정$/u }).first().click();
-    await page.waitForFunction(() => document.body.innerText.includes('원본 EXCEL 전체 필드 수정 요청'), null, { timeout: 10000 });
+    await page.waitForFunction(() => document.body.innerText.includes('임대차계약 데이터 수정'), null, { timeout: 10000 });
+    const rentHistoryToggle = page.getByRole('button', { name: /임대료 변경 내역/u }).first();
+    await rentHistoryToggle.click();
+    const collapsedToggleText = await rentHistoryToggle.innerText({ timeout: 10000 });
+    await rentHistoryToggle.click();
+    const expandedToggleText = await rentHistoryToggle.innerText({ timeout: 10000 });
     bodyText = await page.locator('body').innerText({ timeout: 10000 });
+    const customScrollbarCount = await page.locator('.custom-scrollbar').count();
     result.mode_checks.field_table = {
-      ok: bodyText.includes('항목') && !bodyText.includes('DB 반영') && !bodyText.includes('원본 컬럼') && !/[A-Z]{2}\.\s/u.test(bodyText),
+      ok: bodyText.includes('항목')
+        && bodyText.includes('단위')
+        && bodyText.includes('임대차계약 데이터 수정')
+        && ['기본 정보', '임차 구역 및 면적', '계약 일정', '임대료/관리비', '권리·보험·특약', '시설 사양', '임대료 변경 내역'].every((text) => bodyText.includes(text))
+        && !bodyText.includes('DB 반영')
+        && !bodyText.includes('원본 컬럼')
+        && !/[A-Z]{2}\.\s/u.test(bodyText)
+        && !bodyText.includes('히스토리')
+        && collapsedToggleText.includes('펼치기')
+        && expandedToggleText.includes('접기')
+        && customScrollbarCount > 0,
       has_item_header: bodyText.includes('항목'),
+      has_unit_column: bodyText.includes('단위'),
+      has_group_accordion: collapsedToggleText.includes('펼치기') && expandedToggleText.includes('접기'),
       removed_db_column: !bodyText.includes('DB 반영'),
       removed_column_index_prefix: !/[A-Z]{2}\.\s/u.test(bodyText),
-      removed_sheet_prefix: !bodyText.includes('DB_일반 ·') && !bodyText.includes('DB_히스토리 누적 ·'),
+      removed_sheet_prefix: !bodyText.includes('DB_일반') && !bodyText.includes('DB_히스토리'),
+      removed_history_label: !bodyText.includes('히스토리'),
+      custom_scrollbar_count: customScrollbarCount,
     };
     result.forbidden_found = result.forbidden_text.filter((text) => bodyText.includes(text));
     await page.screenshot({ path: screenshotPath, fullPage: true });
@@ -264,6 +311,7 @@ async function main() {
       && result.forbidden_found.length === 0
       && result.page_errors.length === 0
       && sourceFieldCoverage.ok
+      && result.mode_checks.lease_space_sort.ok
       && result.mode_checks.ledger_modal.ok
       && result.mode_checks.add_mode.ok
       && result.mode_checks.delete_modal.ok
