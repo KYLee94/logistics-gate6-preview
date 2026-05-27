@@ -185,6 +185,7 @@ async function main() {
     resource_errors: resourceErrors,
     cors_warnings: corsWarnings,
     source_field_coverage: sourceFieldCoverage,
+    mode_checks: {},
     screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
   };
   let browser;
@@ -212,12 +213,42 @@ async function main() {
     });
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => document.body.innerText.includes('Data Update'), null, { timeout: 45000 });
-    const bodyText = await page.locator('body').innerText({ timeout: 10000 });
-    await page.screenshot({ path: screenshotPath, fullPage: true });
+    let bodyText = await page.locator('body').innerText({ timeout: 10000 });
     result.missing_text = result.required_text.filter((text) => !bodyText.includes(text));
     result.forbidden_found = result.forbidden_text.filter((text) => bodyText.includes(text));
+
+    await page.getByRole('button', { name: /계약 구역 추가/u }).first().click();
+    await page.waitForFunction(() => document.body.innerText.includes('원본 Excel 전체 필드 추가 요청'), null, { timeout: 10000 });
+    const addModeText = await page.locator('body').innerText({ timeout: 10000 });
+    result.mode_checks.add_mode = {
+      ok: addModeText.includes('원본 Excel 전체 필드 추가 요청') && addModeText.includes('예시') && addModeText.includes('입력값'),
+      has_example_column: addModeText.includes('예시'),
+      has_input_column: addModeText.includes('입력값'),
+    };
+
+    await page.getByRole('button', { name: /계약 구역 삭제/u }).first().click();
+    await page.waitForFunction(() => document.body.innerText.includes('정말 삭제하시겠습니까? 삭제된 내용은 별도 저장 공간에 아카이빙됩니다.'), null, { timeout: 10000 });
+    const deleteModeText = await page.locator('body').innerText({ timeout: 10000 });
+    result.mode_checks.delete_modal = {
+      ok: deleteModeText.includes('정말 삭제하시겠습니까? 삭제된 내용은 별도 저장 공간에 아카이빙됩니다.')
+        && deleteModeText.includes('예')
+        && deleteModeText.includes('아니오'),
+      has_archive_message: deleteModeText.includes('정말 삭제하시겠습니까? 삭제된 내용은 별도 저장 공간에 아카이빙됩니다.'),
+      has_yes_no: deleteModeText.includes('예') && deleteModeText.includes('아니오'),
+    };
+    await page.getByRole('button', { name: '아니오' }).click();
+
+    await page.getByRole('button', { name: /계약 구역 수정/u }).first().click();
+    await page.waitForFunction(() => document.body.innerText.includes('원본 Excel 전체 필드 수정 요청'), null, { timeout: 10000 });
+    bodyText = await page.locator('body').innerText({ timeout: 10000 });
+    await page.screenshot({ path: screenshotPath, fullPage: true });
     result.body_excerpt = bodyText.slice(0, 1200);
-    result.ok = result.missing_text.length === 0 && result.forbidden_found.length === 0 && result.page_errors.length === 0 && sourceFieldCoverage.ok;
+    result.ok = result.missing_text.length === 0
+      && result.forbidden_found.length === 0
+      && result.page_errors.length === 0
+      && sourceFieldCoverage.ok
+      && result.mode_checks.add_mode.ok
+      && result.mode_checks.delete_modal.ok;
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
     if (page) {

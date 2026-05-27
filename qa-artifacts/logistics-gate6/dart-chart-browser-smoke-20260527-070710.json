@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-27T07:07:10.960Z",
+  "url": "http://127.0.0.1:5174/?p=company",
+  "auth_source": "password_grant",
+  "ui_email": "kylee@igisam.com",
+  "checks": {
+    "axis": {
+      "right_label_count": 6,
+      "max_plot_x": 368,
+      "right_labels_outside_plot": true
+    },
+    "tooltip": {
+      "text": "2023 재무 주요 지표\n매출액\nLHS\n2,402.1억\n영업이익\nRHS\n-\n당기순이익\nRHS\n-",
+      "has_revenue": true,
+      "has_operating_income": true,
+      "has_net_income": true
+    }
+  },
+  "page_errors": [],
+  "screenshot": "qa-artifacts/logistics-gate6/dart-chart-browser-smoke-20260527-070710.png"
+}

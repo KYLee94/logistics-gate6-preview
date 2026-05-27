@@ -18,6 +18,7 @@
     "qa:ai-chatbot": "node scripts/qa/logistics-ai-chatbot-qa.cjs",
     "qa:ai-chatbot:browser": "node scripts/qa/logistics-ai-chatbot-browser-smoke.cjs",
     "qa:data-update:browser": "node scripts/qa/logistics-data-update-browser-smoke.cjs",
+    "qa:dart-chart:browser": "node scripts/qa/logistics-dart-chart-browser-smoke.cjs",
     "qa:external-api": "node scripts/qa/logistics-external-api-smoke.cjs",
     "qa:external-refresh-buttons:browser": "node scripts/qa/logistics-external-refresh-buttons-browser-smoke.cjs",
     "qa:enoc-weighted": "node scripts/qa/logistics-enoc-weighted-audit.cjs",
