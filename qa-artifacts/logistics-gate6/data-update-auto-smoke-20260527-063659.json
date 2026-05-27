@@ -1,0 +1,157 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-27T06:36:59.778Z",
+  "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
+  "origin": "https://kylee94.github.io",
+  "auth_source": "password_grant",
+  "asset_id": "asset_a120085001",
+  "asset_name": "경산 쿠팡물류센터",
+  "required_pass_count": 10,
+  "passed_count": 13,
+  "total_count": 13,
+  "results": [
+    {
+      "name": "asset-sector",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_assets",
+      "field_name": "sector",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "e6f929ae-8ed7-44a1-a265-c4b0fbe73942",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "asset-gross-area",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_assets",
+      "field_name": "gross_floor_area_sqm",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "bfe27e31-4a32-44a8-8cc6-f9b5debf3e29",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "tenant-master-name",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_tenants",
+      "field_name": "tenant_master_name",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "ff50218e-b74a-4807-9322-0028817dcfcc",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "tenant-business-registration",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_tenants",
+      "field_name": "business_registration_no",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "05823001-932c-4142-9d1a-259a832fbdda",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-floor",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "floor_label",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "2a164ef9-cdcf-40cb-8d69-b3f2c09a0ef4",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-detail-area",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "detail_area_label",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "6ff18479-89e3-4808-afb5-86ee6819b426",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-leased-area",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "leased_area_sqm",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "4f691081-986f-410b-a7db-fe40da44cc99",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-exclusive-area",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "exclusive_area_sqm",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "2892d6c1-492d-4605-8ef5-415b61d01bec",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-monthly-rent",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "current_monthly_rent_total",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "4f15f015-c89d-4be0-b9ca-aebb1e6205e4",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-monthly-mf",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "current_monthly_mf_total",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "48c46b66-3956-4620-8786-cb4d49fdf859",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "source-only-general-check",
+      "status": 200,
+      "ok": true,
+      "target_table": "source_only",
+      "field_name": "check_leased_area",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "705df70f-6c84-47ef-821a-28a8782d4b5f",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "source-only-history-sector",
+      "status": 200,
+      "ok": true,
+      "target_table": "source_only",
+      "field_name": "history_sector",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "fe45449d-731e-49c4-ade5-36ff87f16176",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "rent-history-review-status",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_rent_history",
+      "field_name": "review_status",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "request_id": "fa442e1b-1314-47aa-8f9b-42efa26e20e9",
+      "message": "Contract data written, read back, and audited"
+    }
+  ]
+}

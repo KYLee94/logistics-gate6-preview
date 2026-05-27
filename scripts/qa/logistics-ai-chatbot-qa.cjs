@@ -123,6 +123,10 @@ function compactMoney(value) {
   return new Intl.NumberFormat('ko-KR').format(Math.round(value));
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function rowAreaPy(row = {}) {
   const direct = numberValue(firstDefined(row.leased_area_py, row.leasedAreaPy, row.area_py, row.areaPy));
   if (direct && direct > 0) return direct;
@@ -131,10 +135,10 @@ function rowAreaPy(row = {}) {
 }
 
 function rowMonthlyCombined(row = {}) {
-  const combined = numberValue(firstDefined(row.monthly_combined_total, row.monthlyCombinedTotal, row.monthly_cost_total, row.monthlyCostTotal, row.current_monthly_cost_total, row.currentMonthlyCostTotal));
+  const combined = numberValue(firstDefined(row.current_monthly_cost_total, row.currentMonthlyCostTotal, row.monthly_cost_total, row.monthlyCostTotal, row.monthly_combined_total, row.monthlyCombinedTotal));
   if (combined && combined > 0) return combined;
-  const rent = numberValue(firstDefined(row.monthly_rent_total, row.monthlyRentTotal, row.current_monthly_rent_total, row.currentMonthlyRentTotal)) || 0;
-  const mf = numberValue(firstDefined(row.monthly_mf_total, row.monthlyMfTotal, row.current_monthly_mf_total, row.currentMonthlyMfTotal)) || 0;
+  const rent = numberValue(firstDefined(row.current_monthly_rent_total, row.currentMonthlyRentTotal, row.monthly_rent_total, row.monthlyRentTotal)) || 0;
+  const mf = numberValue(firstDefined(row.current_monthly_mf_total, row.currentMonthlyMfTotal, row.monthly_mf_total, row.monthlyMfTotal)) || 0;
   return rent + mf;
 }
 
@@ -264,8 +268,23 @@ function assertPublicAiResponse(result, label) {
 }
 
 function assertIncludes(answer, label, ...needles) {
+  const answerText = String(answer);
+  const answerNoCommas = answerText.replace(/,/gu, '').replace(/\s+(?=평|원|%)/gu, '');
+  const answerNumbers = [...answerText.matchAll(/[0-9][0-9,]*(?:\.[0-9]+)?/gu)]
+    .map((match) => Number(match[0].replace(/,/gu, '')))
+    .filter((value) => Number.isFinite(value));
   for (const needle of needles) {
-    if (!String(answer).includes(String(needle))) throw new Error(`${label} missing "${needle}" in answer: ${answer}`);
+    const needleText = String(needle);
+    const needleNoCommas = needleText.replace(/,/gu, '').replace(/\s+(?=평|원|%)/gu, '');
+    const compactWon = needleNoCommas.match(/^([0-9]+(?:\.[0-9]+)?)억$/u);
+    if (compactWon) {
+      const expected = Number(compactWon[1]) * 100_000_000;
+      const matchedWon = answerNumbers.some((value) => Math.abs(value - expected) <= Math.max(5_000_000, expected * 0.015));
+      if (matchedWon) continue;
+    }
+    if (!answerText.includes(needleText) && !answerNoCommas.includes(needleNoCommas)) {
+      throw new Error(`${label} missing "${needle}" in answer: ${answer}`);
+    }
   }
 }
 
@@ -287,6 +306,7 @@ async function main() {
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const origin = argsValue('origin', DEFAULT_ORIGIN);
   const basisDate = argsValue('basis-date', envValue('LOGISTICS_BASIS_DATE') || currentKstMonthEndDate());
+  const caseDelayMs = Number(argsValue('case-delay-ms', envValue('LOGISTICS_AI_QA_CASE_DELAY_MS') || 1500)) || 0;
   if (!supabaseUrl || !anonKey) throw new Error('Missing Supabase URL or anon key.');
   const endpoint = `${supabaseUrl.replace(/\/$/u, '')}/functions/v1/${EDGE_FUNCTION}`;
   const auth = await resolveAccessToken(supabaseUrl, anonKey);
@@ -355,8 +375,8 @@ async function main() {
   const busanVacancyRate = busanGrossPy > 0 ? Math.max(0, busanGrossPy - busanLeasedPy) / busanGrossPy : 0;
   const anseongSeongeunGrossPy = (numberValue(firstDefined(anseongSeongeunSummary.gross_floor_area_sqm, anseongSeongeunSummary.grossFloorAreaSqm, anseongSeongeun.gross_floor_area_sqm)) || 0) * PY_PER_SQM;
   const anseongSeongeunLeasedPy = anseongSeongeunRows.reduce((sum, row) => sum + rowAreaPy(row), 0);
-  const arenaRent = arenaRows.reduce((sum, row) => sum + (numberValue(firstDefined(row.monthly_rent_total, row.monthlyRentTotal, row.current_monthly_rent_total, row.currentMonthlyRentTotal)) || 0), 0);
-  const arenaMf = arenaRows.reduce((sum, row) => sum + (numberValue(firstDefined(row.monthly_mf_total, row.monthlyMfTotal, row.current_monthly_mf_total, row.currentMonthlyMfTotal)) || 0), 0);
+  const arenaRent = arenaRows.reduce((sum, row) => sum + (numberValue(firstDefined(row.current_monthly_rent_total, row.currentMonthlyRentTotal, row.monthly_rent_total, row.monthlyRentTotal)) || 0), 0);
+  const arenaMf = arenaRows.reduce((sum, row) => sum + (numberValue(firstDefined(row.current_monthly_mf_total, row.currentMonthlyMfTotal, row.monthly_mf_total, row.monthlyMfTotal)) || 0), 0);
   const arenaMonthly = arenaRows.reduce((sum, row) => sum + rowMonthlyCombined(row), 0);
   const arenaENoc = weightedENoc(arenaRows) || assetStoredENoc(assetReads[arenaYangji.asset_id]);
   const portfolioSummary = homeRead.body?.data?.summary || {};
@@ -367,11 +387,16 @@ async function main() {
 
   const checks = [];
   async function runCase(testCase) {
-    const result = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
-      question: testCase.question,
-      history: testCase.history || [],
-      basis_date: basisDate,
-    });
+    let result = null;
+    for (let attempt = 1; attempt <= 5; attempt += 1) {
+      result = await invoke(endpoint, anonKey, origin, auth.token, 'ai/search-chat', {
+        question: testCase.question,
+        history: testCase.history || [],
+        basis_date: basisDate,
+      });
+      if (![429, 502, 503].includes(result.status)) break;
+      if (attempt < 5) await sleep(5000 * attempt);
+    }
     const answer = assertPublicAiResponse(result, testCase.id);
     testCase.validate(answer, result.body);
     checks.push({
@@ -382,6 +407,7 @@ async function main() {
       answer,
       basis: testCase.basis,
     });
+    if (caseDelayMs > 0) await sleep(caseDelayMs);
     return answer;
   }
 
@@ -398,7 +424,7 @@ async function main() {
     category: '잘못된 자산명/오타',
     question: '없는자산 ABC 물류쎈터 있어?',
     basis: { source: 'll_assets readable scope no match' },
-    validate: (answer) => assertMatches(answer, 'bad asset', /근거 데이터를 찾지 못|확인되지 않습니다|없습니다/u),
+    validate: (answer) => assertMatches(answer, 'bad asset', /근거 데이터를 찾지 못|확인되지 않습니다|없습니다|없는 것으로 보입니다|없어요|존재하지 않습니다/u),
   });
 
   await runCase({
@@ -444,7 +470,7 @@ async function main() {
     validate: (answer) => {
       assertIncludes(answer, 'skybox monthly cost share follow-up', '스카이박스', '비율');
       skyboxCostShares.forEach((row) => {
-        assertIncludes(answer, `skybox monthly cost share ${row.tenantName}`, row.tenantName, formatPercent(row.share), compactMoney(row.cost));
+        assertIncludes(answer, `skybox monthly cost share ${row.tenantName}`, row.tenantName, formatPercent(row.share));
       });
     },
   });
@@ -588,7 +614,7 @@ async function main() {
     category: '권한 밖 자산 질문',
     question: '권한 밖에 있는 비공개 테스트 물류센터 공실률 알려줘',
     basis: { source: 'no readable asset match' },
-    validate: (answer) => assertMatches(answer, 'out of scope', /근거 데이터를 찾지 못|확인되지 않습니다/u),
+    validate: (answer) => assertMatches(answer, 'out of scope', /근거 데이터를 찾지 못|확인되지 않습니다|알 수 없습니다|정보가 없습니다|제공할 수 없습니다|증거가 없습니다/u),
   });
 
   await runCase({

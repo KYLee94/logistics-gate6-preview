@@ -4855,7 +4855,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     if (status === 401) return '로그인 세션을 확인하지 못했습니다. 새로고침 후 다시 로그인해 주세요.';
     if (status === 403) return '현재 로그인 권한으로는 이 챗봇 데이터를 읽을 수 없습니다.';
     if (status === 408) return rawMessage || 'AI 답변 시간이 길어져 요청을 중단했습니다. 잠시 뒤 다시 시도해 주세요.';
-    if (/spending cap|spend cap|monthly spending/iu.test(rawMessage)) return 'AI 답변 생성 한도 문제로 응답이 지연되고 있습니다. 숫자형 질문은 내부 데이터 기준 답변으로 우선 처리됩니다.';
+    if (/spending cap|spend cap|monthly spending/iu.test(rawMessage)) return 'AI 답변 생성 한도 문제로 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.';
     if (status === 429 || /quota|rate limit|exceeded/iu.test(rawMessage)) return 'AI 답변 요청이 일시적으로 많습니다. 잠시 뒤 다시 시도해 주세요.';
     if (/Google AI key is not configured/i.test(rawMessage)) {
       return 'AI 답변 설정이 아직 완료되지 않았습니다.';
@@ -4890,12 +4890,6 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     }
   };
 
-  const canUsePreviewAiFallback = () => {
-    if (user?.is_demo !== true) return false;
-    const hostname = window.location.hostname;
-    return hostname === 'localhost' || hostname === '127.0.0.1';
-  };
-
   const submitAiChatQuestion = async () => {
     const question = aiChatInput.trim();
     if (question.length < 2) return;
@@ -4913,33 +4907,16 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       .slice(-8)
       .map((message) => ({ role: message.role, content: message.content }));
     try {
-      let responseData = null;
-      let primaryError = null;
-      try {
-        responseData = await invokeLogisticsAiFunction(
-          'ai/search-chat',
-          { question, history },
-          { timeoutMs: 30000 },
-        );
-        if (!responseData?.ok) {
-          primaryError = new Error(responseData?.message || 'AI primary action failed');
-          primaryError.data = responseData;
-        }
-      } catch (error) {
-        primaryError = error;
+      const responseData = await invokeLogisticsAiFunction(
+        'ai/search-chat',
+        { question, history },
+        { timeoutMs: 30000 },
+      );
+      if (!responseData?.ok) {
+        const error = new Error(responseData?.message || 'AI primary action failed');
+        error.data = responseData;
+        throw error;
       }
-      if ((primaryError || !responseData?.ok) && canUsePreviewAiFallback()) {
-        try {
-          const demoResult = await supabase.functions.invoke('ll-dashboard-api', {
-            body: { action: 'ai/search-chat-demo', payload: { question, history } },
-          });
-          if (demoResult.error) throw demoResult.error;
-          responseData = demoResult.data;
-        } catch (demoError) {
-          throw demoError || primaryError;
-        }
-      }
-      if (primaryError && !responseData?.ok) throw primaryError;
       setAiChatMessages((messages) => [...messages, {
         id: `ai-assistant-${Date.now()}`,
         role: 'assistant',
@@ -9356,9 +9333,9 @@ function ContractDataManagementDashboard() {
         const targetRowId = contractTargetRowId(selectedLeaseRow, targetTable);
         const primaryKeyField = contractPrimaryKeyField(selectedLeaseRow, targetTable);
         return {
-          action: '수정',
+          action: 'update',
           target_table: targetTable,
-          target_row_id: targetRowId,
+          target_row_id: targetRowId || selectedLeaseRow.leaseSpaceId || selectedLeaseRow.lease_space_id || '',
           primary_key_field: primaryKeyField,
           field_name: contractFieldDbName(field),
           source_row_id: selectedLeaseRow.sourceRowId || selectedLeaseRow.source_row_id || '',
@@ -9367,6 +9344,9 @@ function ContractDataManagementDashboard() {
           after_value: afterValue,
           asset_id: selectedLeaseRow.assetId || activeAssetId,
           asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+          lease_space_id: selectedLeaseRow.leaseSpaceId || selectedLeaseRow.lease_space_id || '',
+          lease_id: selectedLeaseRow.leaseId || selectedLeaseRow.lease_id || '',
+          tenant_id: selectedLeaseRow.tenantId || selectedLeaseRow.tenant_id || '',
           source_sheet: field.domain,
           source_column_letter: field.sourceColumnLetter || '',
           source_header: field.sourceHeader || field.label,
@@ -9378,71 +9358,34 @@ function ContractDataManagementDashboard() {
       setFieldEditStatus({ type: 'error', message: '변경된 필드가 없습니다.' });
       return;
     }
-    const directCellEdits = changedFields.filter((row) => !row.source_only);
-    const sourceOnlyEdits = changedFields.filter((row) => row.source_only);
     setIsSubmittingFields(true);
-    setFieldEditStatus({ type: 'pending', message: `${formatNumber(changedFields.length)}개 필드를 승인 요청으로 접수하는 중입니다.` });
+    setFieldEditStatus({ type: 'pending', message: `${formatNumber(changedFields.length)}개 필드를 Supabase에 자동 반영하는 중입니다.` });
     try {
-      const requestIds = [];
-      if (directCellEdits.length) {
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: {
-            action: 'edits/submit',
-            payload: {
-              source_table: directCellEdits[0].target_table,
-              target_type: 'contract_data',
-              target_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
-              target_row_id: selectedLeaseRow.leaseSpaceId || selectedLeaseRow.id || '',
-              field_name: 'contract_data_batch',
-              reason_code: 'contract_data_user_edit',
-              before_value: `${directCellEdits.length}개 필드 before`,
-              requested_value: `${directCellEdits.length}개 필드 after`,
-              request_payload: {
-                kind: 'contract_data_edit',
-                source: 'Data Update',
-                asset_id: activeAssetId,
-                asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
-                lease_space_id: selectedLeaseRow.leaseSpaceId || '',
-                tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
-                cell_edits: directCellEdits,
-              },
-            },
+      const directCount = changedFields.filter((row) => !row.source_only).length;
+      const sourceOnlyCount = changedFields.length - directCount;
+      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+        body: {
+          action: 'contract-data/apply',
+          payload: {
+            source_table: changedFields.find((row) => !row.source_only)?.target_table || 'public.ll_lease_attributes',
+            target_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+            target_row_id: selectedLeaseRow.leaseSpaceId || selectedLeaseRow.id || '',
+            asset_id: activeAssetId,
+            asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+            lease_space_id: selectedLeaseRow.leaseSpaceId || '',
+            lease_id: selectedLeaseRow.leaseId || '',
+            tenant_id: selectedLeaseRow.tenantId || '',
+            reason_code: 'contract_data_user_auto_apply',
+            source: 'Data Update',
+            cell_edits: changedFields,
           },
-        });
-        if (error) throw error;
-        if (data?.ok === false) throw new Error(data.message || '계약 원본 필드 수정 요청 실패');
-        requestIds.push(data?.data?.id);
-      }
-      if (sourceOnlyEdits.length) {
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: {
-            action: 'lease-events/submit',
-            payload: {
-              event_type: eventType === 'correction' ? 'correction' : eventType,
-              asset_id: activeAssetId,
-              asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
-              tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
-              lease_space_id: selectedLeaseRow.leaseSpaceId || '',
-              effective_date: currentKstMonthEndDate(),
-              summary: `원본 Excel source-only 컬럼 ${sourceOnlyEdits.length}개 수정 요청`,
-              before: selectedLeaseRow,
-              after: { source_only_edits: sourceOnlyEdits },
-              cell_edits: sourceOnlyEdits,
-              source_rows: [{
-                sheet: 'DB_일반/DB_히스토리 누적',
-                action: 'source_only_update',
-                columns: Object.fromEntries(sourceOnlyEdits.map((row) => [`${row.source_sheet}:${row.source_column_letter}:${row.source_header}`, row.after_value])),
-              }],
-            },
-          },
-        });
-        if (error) throw error;
-        if (data?.ok === false) throw new Error(data.message || '원본 Excel 컬럼 수정 요청 실패');
-        requestIds.push(data?.data?.id);
-      }
-      setFieldEditStatus({ type: 'success', message: `수정 요청이 접수됐습니다. 자동 반영 ${formatNumber(directCellEdits.length)}개, 승인 이벤트 ${formatNumber(sourceOnlyEdits.length)}개입니다. 요청 ID: ${requestIds.filter(Boolean).join(', ') || '-'}` });
+        },
+      });
+      if (error) throw error;
+      if (data?.ok === false) throw new Error(data.message || '계약 원본 필드 자동 반영 실패');
+      setFieldEditStatus({ type: 'success', message: `Supabase 자동 반영이 완료됐습니다. 직접 필드 ${formatNumber(directCount)}개, 원본 보존 필드 ${formatNumber(sourceOnlyCount)}개입니다. 요청 ID: ${data?.data?.id || '-'}` });
     } catch (error) {
-      setFieldEditStatus({ type: 'error', message: error?.message || '계약 원본 필드 수정 요청 중 오류가 발생했습니다.' });
+      setFieldEditStatus({ type: 'error', message: error?.message || '계약 원본 필드 자동 반영 중 오류가 발생했습니다.' });
     } finally {
       setIsSubmittingFields(false);
     }
