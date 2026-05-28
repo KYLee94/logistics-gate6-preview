@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-28T02:33:02.934Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics",
+  "archive_url": "https://kylee94.github.io/logistics-gate6-preview/platform/iotaseoul/workspace/archive?workspace=logistics",
+  "auth_source": "password_grant",
+  "ui_email": "kylee@igisam.com",
+  "checks": {
+    "current_week_is_may_week_5": true,
+    "current_week_is_not_may_week_4": true,
+    "write_header_date_and_collapse_same_line": true,
+    "archive_may_week_5_not_duplicated": true
+  },
+  "screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-023302.png",
+  "errors": [],
+  "task_header_text": "주요 TASK 관리\n26년 5월 5주",
+  "header_metrics": {
+    "hasHeader": true,
+    "hasDateLabel": true,
+    "dateText": "2026년 5월 28일 (목)",
+    "collapseText": "접기",
+    "sameLine": true,
+    "dateAndCollapseVisible": true,
+    "collapseButtonWidth": 52,
+    "dateLabelWidth": 155.75
+  },
+  "archive_may_week_5_sidebar_buttons": [
+    "26년 5월 5주 26.5.25~26.5.31\n6"
+  ]
+}

@@ -3835,19 +3835,19 @@ function filterMainTasksByPermission(tasks, permission, showCompleted) {
   });
 }
 
-function getLogisticsWeekInfo() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth() + 1;
-  const options = buildWeeklyWeekOptions(year, month);
-  const todayTime = new Date(year, month - 1, today.getDate()).getTime();
-  const matched = options.find((item) => {
-    const [start, end] = item.weekRange.split(' ~ ').map((value) => new Date(value).getTime());
-    return todayTime >= start && todayTime <= end;
-  }) || options[0];
+function getLogisticsWeekInfo(value = new Date()) {
+  const today = value instanceof Date ? value : new Date(value);
+  const safeToday = Number.isNaN(today.getTime()) ? new Date() : today;
+  const year = safeToday.getFullYear();
+  const month = safeToday.getMonth() + 1;
+  const firstDay = new Date(year, month - 1, 1);
+  const firstDayWeekday = firstDay.getDay() === 0 ? 7 : firstDay.getDay();
+  const offsetDate = safeToday.getDate() + firstDayWeekday - 1;
+  const week = Math.ceil(offsetDate / 7);
   return {
-    weekLabel: `${String(year).slice(2)}년 ${month}월 ${matched?.week || 1}주`,
-    weekId: `logistics-${year}-${month}-${matched?.week || 1}`,
+    weekLabel: `${String(year).slice(2)}년 ${month}월 ${week}주`,
+    weekId: `logistics-${year}-${month}-${week}`,
+    basisDate: dateToYmd(safeToday),
   };
 }
 
@@ -4562,6 +4562,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             action: 'work-platform/tasks/snapshots/upsert-current',
             payload: {
               workspace: 'logistics',
+              basis_date: getLogisticsWeekInfo().basisDate,
               seed_tasks: weeklyTasks,
             },
           },

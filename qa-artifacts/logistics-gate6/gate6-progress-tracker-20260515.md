@@ -1,9 +1,27 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-28T10:30:00+09:00
-- Overall: 312 / 368 (84.8%) - current deltas rebaselined for Data Update Meta field help, original Excel DB_일반/DB_히스토리 source coverage, Data Update canonical Supabase auto-write/readback/rollback, Data Update lifecycle QA, Data Update source-column coverage, Data Update UX cleanup, Data Update rent/management field semantics, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
+- Updated at: 2026-05-28T11:35:17+09:00
+- Overall: 312 / 368 (84.8%) - current deltas rebaselined for Data Update Meta field help, original Excel DB_일반/DB_히스토리 source coverage, Data Update canonical Supabase auto-write/readback/rollback, Data Update lifecycle QA, Data Update source-column coverage, Data Update UX cleanup, Data Update rent/management field semantics, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Work Platform current-week/archive/sidebar/browser smoke, Edge deploy, and gh-pages live smoke.
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
-- gh-pages deployment: current Data Update Meta field help / canonical Supabase auto-sync / rent-management semantics / UX cleanup / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-Dl3jVvGX.js`.
+- gh-pages deployment: current Data Update Meta field help / canonical Supabase auto-sync / rent-management semantics / UX cleanup / external refresh / AI / E. NOC / Company chart fix / Work Platform week and board header fix deployed; live URL returned HTTP 200 with `assets/index-CNFMD-Z_.js`.
+
+## 2026-05-28 Update - Work Platform Week / Task Archive / Board Compose Header
+
+- Work Platform `주요 TASK 관리` current-week label now uses the same calendar-month week convention as the rest of the workspace.
+  - 2026-05-28 now renders as `26년 5월 5주`, not `26년 5월 4주`.
+- `지난 Task 관리` now coalesces duplicate logistics task snapshots for the same week before rendering the archive sidebar.
+  - The live browser smoke confirms the `26년 5월 5주` sidebar entry appears once.
+- Weekly seed task deletion was hardened on the Edge Function.
+  - If a seed task does not resolve cleanly to an `ll_assets` row, users with delete/manager scope can still archive the seed task as a deleted `ll_work_items` record, so it does not reappear on reload.
+  - This path is deployed to `ll-dashboard-api`; the browser smoke verifies the task list route and archive route, while destructive live deletion was not performed in QA.
+- `협업게시판` write form header was tightened.
+  - The date and `접기` button stay on one visible line; metadata controls can scroll inside the left control lane instead of pushing the date/button off-screen.
+- Verification:
+  - `npm run build:preview`: pass.
+  - `npx supabase functions deploy ll-dashboard-api --project-ref qvegpozwrcmspdvjokiz`: pass.
+  - `npm run deploy`: pass.
+  - live URL returned HTTP 200 with `assets/index-CNFMD-Z_.js`.
+  - `npm run qa:work-platform:browser`: pass, artifact `qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-023302.json`, screenshot `qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-023302.png`.
 
 ## 2026-05-28 Update - Data Update Meta Field Help / Source Coverage
 

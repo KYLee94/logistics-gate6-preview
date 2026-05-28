@@ -566,6 +566,12 @@ function canMutateWorklog(ctx: Context, action: 'create' | 'update' | 'delete', 
   return permissionFlag(ctx.permission, permissionKey, action);
 }
 
+function canArchiveUnscopedSeedTask(ctx: Context) {
+  if (hasRole(ctx.role, 'Manager')) return true;
+  return permissionFlag(ctx.permission, 'managed_asset_permissions', 'delete')
+    || permissionFlag(ctx.permission, 'other_asset_permissions', 'delete');
+}
+
 function serverWorklogPayload(ctx: Context, rawPayload: unknown, currentPayload: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) {
   const incoming = rawPayload && typeof rawPayload === 'object' && !Array.isArray(rawPayload)
     ? rawPayload as Record<string, unknown>
@@ -4238,10 +4244,19 @@ async function deleteWorkPlatformTask(ctx: Context, payload: Record<string, unkn
 async function archiveSeedWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetResolution = await resolveWorkPlatformAssetForWrite(ctx, payload.related_asset_id, payload.related_asset_name);
-  if (assetResolution.response) return assetResolution.response;
-  const resolvedAsset = assetResolution.asset as Record<string, unknown>;
-  const relatedAssetId = safeText(resolvedAsset.asset_id);
-  if (!canMutateWorklog(ctx, 'delete', relatedAssetId)) return fail(403, 'Insufficient delete permission for this seed task asset', ctx.origin);
+  let relatedAssetId = '';
+  let relatedAssetName = safeText(payload.related_asset_name);
+  let archivedWithoutAssetMatch = false;
+  if (assetResolution.response) {
+    if (!canArchiveUnscopedSeedTask(ctx)) return assetResolution.response;
+    relatedAssetName = relatedAssetName || safeText(firstDefined(payload.assetName, payload.related_asset, payload.asset_name));
+    archivedWithoutAssetMatch = true;
+  } else {
+    const resolvedAsset = assetResolution.asset as Record<string, unknown>;
+    relatedAssetId = safeText(resolvedAsset.asset_id);
+    relatedAssetName = relatedAssetName || safeText(resolvedAsset.asset_name);
+    if (!canMutateWorklog(ctx, 'delete', relatedAssetId)) return fail(403, 'Insufficient delete permission for this seed task asset', ctx.origin);
+  }
   const now = new Date().toISOString();
   const { data, error } = await ctx.serviceClient
     .from('ll_work_items')
@@ -4249,8 +4264,8 @@ async function archiveSeedWorkPlatformTask(ctx: Context, payload: Record<string,
       item_type: 'task',
       task_name: safeText(firstDefined(payload.task_name, payload.title), 'Task'),
       company_name: safeText(payload.company_name) || null,
-      related_asset_id: relatedAssetId,
-      related_asset_name: safeText(payload.related_asset_name) || safeText(resolvedAsset.asset_name) || null,
+      related_asset_id: relatedAssetId || null,
+      related_asset_name: relatedAssetName || null,
       related_tenant_id: safeText(payload.related_tenant_id) || null,
       next_action: safeText(firstDefined(payload.next_action, payload.body)) || null,
       issue: safeText(payload.issue) || null,
@@ -4263,12 +4278,12 @@ async function archiveSeedWorkPlatformTask(ctx: Context, payload: Record<string,
       created_by_email: actorEmail(ctx),
       created_by_name: actorName(ctx),
       organization: safeText(ctx.permission?.organization) || null,
-      payload: serverWorklogPayload(ctx, payload.payload, {}, { deleted_at: now, archived_seed_task: true }),
+      payload: serverWorklogPayload(ctx, payload.payload, {}, { deleted_at: now, archived_seed_task: true, archived_without_asset_match: archivedWithoutAssetMatch }),
     }))
     .select(WORK_PLATFORM_TASK_SELECT)
     .single();
   if (error) return fail(500, 'Failed to archive seed work platform task', ctx.origin);
-  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/tasks/archive-seed', 200, { id: data.id, related_asset_id: relatedAssetId });
+  await audit(ctx.serviceClient, ctx.user.id, 'work-platform/tasks/archive-seed', 200, { id: data.id, related_asset_id: relatedAssetId || null, archived_without_asset_match: archivedWithoutAssetMatch });
   return jsonResponse({ ok: true, message: 'Seed task archived', data }, 200, ctx.origin);
 }
 

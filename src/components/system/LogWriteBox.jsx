@@ -707,7 +707,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                 {/* Header */}
                 {!editMode && (
                     <div 
-                        className={`w-full px-[20px] py-[10px] border-b border-[#333] flex items-center gap-[12px] ${!isExpanded ? 'cursor-pointer hover:bg-[#2a2a2a] transition-colors' : ''}`}
+                        className={`w-full min-w-0 px-[20px] py-[10px] border-b border-[#333] flex items-center gap-[12px] ${isExpanded ? 'flex-nowrap' : ''} ${!isExpanded ? 'cursor-pointer hover:bg-[#2a2a2a] transition-colors' : ''}`}
                         onClick={() => {
                             if (!isExpanded) setIsExpanded(true);
                         }}
@@ -733,11 +733,13 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                             </>
                         ) : (
                             <>
+                                <div className="flex min-w-0 flex-1 items-center gap-[10px]">
+                                    <div className="flex min-w-0 flex-1 items-center gap-[10px] overflow-x-auto pr-2 custom-scrollbar">
                                 <DarkDropdown
                                     value={projectId}
                                     options={normalizedProjectOptions.map((option) => ({ value: option.id, label: option.label }))}
                                     onChange={setProjectId}
-                                    buttonClassName="ml-[-2px] max-w-[340px] rounded-[16px] px-[16px] py-[8px] text-white font-semibold text-[14px]"
+                                    buttonClassName="ml-[-2px] max-w-[300px] rounded-[16px] px-[16px] py-[8px] text-white font-semibold text-[14px]"
                                     menuClassName="min-w-[240px]"
                                 />
 
@@ -784,14 +786,16 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                         menuClassName="min-w-[190px]"
                     />
 
-                    <div className="flex-1"></div>
+                                    </div>
+
+                                    <div className="ml-auto flex shrink-0 items-center gap-[10px]">
 
                     {/* Date Picker */}
                     <label 
-                        className="relative inline-flex items-center gap-[8px] cursor-pointer group"
+                        className="relative inline-flex shrink-0 items-center gap-[8px] whitespace-nowrap cursor-pointer group"
                         onClick={(e) => { const input = e.currentTarget.querySelector('input'); if (input && input.showPicker) input.showPicker(); }}
                     >
-                        <span className="text-[#E5E5E5] text-[14px] font-medium tracking-wide group-hover:text-white transition-colors">{formatDisplayDate(workDate)}</span>
+                        <span className="whitespace-nowrap text-[#E5E5E5] text-[14px] font-medium tracking-wide group-hover:text-white transition-colors">{formatDisplayDate(workDate)}</span>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-hover:stroke-white transition-colors pointer-events-none">
                             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
                             <line x1="16" y1="2" x2="16" y2="6"></line>
@@ -807,15 +811,17 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
                         />
                     </label>
                     <div className="w-px h-[14px] bg-[#333] mx-[4px]"></div>
-                            <div className="rounded-[8px] p-[1px] bg-gradient-to-br from-[#d6efe9] via-[#82afb9] to-[#4c6e86]">
+                            <div className="shrink-0 rounded-[8px] p-[1px] bg-gradient-to-br from-[#d6efe9] via-[#82afb9] to-[#4c6e86]">
                                 <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); setIsExpanded(false); }}
-                                    className="flex items-center px-[12px] py-[6px] rounded-[7px] text-[12px] font-bold cursor-pointer transition-colors bg-[#222] text-[#E5E5E5] hover:bg-[#333]"
+                                    className="flex min-w-[52px] items-center justify-center whitespace-nowrap px-[12px] py-[6px] rounded-[7px] text-[12px] font-bold cursor-pointer transition-colors bg-[#222] text-[#E5E5E5] hover:bg-[#333]"
                                 >
                                     접기
                                 </button>
                             </div>
+                                    </div>
+                                </div>
                         </>
                     )}
                 </div>

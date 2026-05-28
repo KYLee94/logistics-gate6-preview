@@ -115,20 +115,82 @@ function groupSnapshots(snapshots) {
   }, {});
 }
 
+function snapshotGroupKey(snapshot = {}) {
+  return [
+    snapshot.workspace || 'logistics',
+    snapshot.week_key || snapshot.week_label || '',
+    snapshot.week_range || '',
+  ].join('|');
+}
+
+function snapshotTaskKey(task = {}) {
+  const payload = task.payload || {};
+  return safeText(
+    task.seed_id
+      || task.seedId
+      || payload.seedId
+      || payload.seed_id
+      || task.id
+      || `${task.task_name}|${task.related_asset}|${task.company_name}|${task.due_date}`,
+    '',
+  );
+}
+
+function coalesceLogisticsTaskSnapshots(snapshots = []) {
+  const groups = new Map();
+  (snapshots || []).forEach((snapshot) => {
+    const key = snapshotGroupKey(snapshot);
+    const current = groups.get(key);
+    if (!current) {
+      groups.set(key, {
+        ...snapshot,
+        id: snapshot.week_key ? `logistics-${snapshot.week_key}` : snapshot.id,
+        snapshot_data: [...(snapshot.snapshot_data || [])],
+      });
+      return;
+    }
+
+    const currentUpdated = new Date(current.created_at || 0).getTime();
+    const nextUpdated = new Date(snapshot.created_at || 0).getTime();
+    const mergedTasks = new Map();
+    [...(current.snapshot_data || []), ...(snapshot.snapshot_data || [])].forEach((task) => {
+      const taskKey = snapshotTaskKey(task);
+      if (!taskKey) return;
+      const existing = mergedTasks.get(taskKey);
+      const existingTime = existing ? new Date(existing.updated_at || existing.created_at || 0).getTime() : -Infinity;
+      const taskTime = new Date(task.updated_at || task.created_at || 0).getTime();
+      if (!existing || taskTime >= existingTime) mergedTasks.set(taskKey, task);
+    });
+
+    groups.set(key, {
+      ...current,
+      id: current.id || snapshot.id,
+      created_at: nextUpdated > currentUpdated ? snapshot.created_at : current.created_at,
+      snapshot_data: [...mergedTasks.values()],
+      task_count: mergedTasks.size,
+    });
+  });
+
+  return [...groups.values()].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+}
+
 async function fetchLogisticsTaskSnapshots() {
   const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
     body: { action: 'work-platform/tasks/snapshots/list', payload: { limit: 500 } },
   });
   if (error || data?.ok === false) throw error || new Error(data?.message || 'Edge Function returned false');
-  return (data?.data || []).map((snapshot) => ({
+  return coalesceLogisticsTaskSnapshots((data?.data || []).map((snapshot) => ({
     id: snapshot.id,
     workspace: snapshot.workspace || 'logistics',
+    week_key: snapshot.week_key,
     week_label: snapshot.week_label,
     week_range: snapshot.week_range,
     group_label: snapshot.group_label,
+    basis_date: snapshot.basis_date,
     created_at: snapshot.updated_at || snapshot.created_at,
+    task_count: snapshot.task_count,
     snapshot_data: (snapshot.snapshot_data || []).map(normalizeTask).filter((task) => task.status !== 'deleted'),
-  }));
+  })));
 }
 
 export default function WorkspaceArchive() {
