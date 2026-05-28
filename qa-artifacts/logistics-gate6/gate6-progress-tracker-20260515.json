@@ -16,12 +16,12 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 310,
-    "total": 366,
-    "completion_rate": "84.7%",
-    "updated_at": "2026-05-28T10:06:00.000+09:00",
+    "completed": 312,
+    "total": 368,
+    "completion_rate": "84.8%",
+    "updated_at": "2026-05-28T10:30:00.000+09:00",
     "conflict_resolution": "Supabase migration/connect/restructure? ??? parent item?? ????. ??? ?? ?? ??? ???? ??, runtime ???? ?? ??, ??, audit ???? ??/????.",
-    "latest_priority_update": "Data Update canonical Supabase auto-sync completed for preview/submit: new lease create, rent-history append, archive, source-only preserve, duplicate/missing blocking, write/readback/rollback QA 23/23 pass, live browser QA pass."
+    "latest_priority_update": "Data Update Meta field help added from original Excel Meta sheet; source coverage QA confirms DB_general 82/82 and DB_history 18/18; new lease source-only attributes are preserved; live browser QA pass."
   },
   "stages": [
     {
@@ -1867,8 +1867,8 @@
     {
       "stage": 16,
       "area": "임대차계약 데이터 관리 탭 구축",
-      "completed": 16,
-      "total": 24,
+      "completed": 18,
+      "total": 26,
       "items": [
         {
           "id": "16.01",
@@ -1989,6 +1989,16 @@
           "id": "16.24",
           "status": "done",
           "text": "계약 수정 E2E QA. current update, new lease create, rent-history append, duplicate block, same-date correction block, archive, source-only preserve까지 포함한 lifecycle smoke 23/23과 live browser QA가 통과했다."
+        },
+        {
+          "id": "16.25",
+          "status": "done",
+          "text": "Data Update field help: every contract edit field has a small info button showing Meta_데이터 항목 설명 sample data, description/considerations, data type, unit, and time-series indicator where applicable. Evidence: live browser QA field_help_button_count=100."
+        },
+        {
+          "id": "16.26",
+          "status": "done",
+          "text": "Original Excel source coverage QA: DB_일반 82/82 and DB_히스토리 누적 18/18 columns match the Data Update registry; time-series rent/management fields are covered by ll_rent_history append-only management. Evidence: data-update-source-coverage-20260528-012750.json."
         }
       ]
     }

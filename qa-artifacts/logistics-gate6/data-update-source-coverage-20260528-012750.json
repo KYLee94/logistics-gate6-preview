@@ -1,0 +1,139 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-28T01:27:50.909Z",
+  "excel_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\★ 260414_물류센터 임대차계약 DB_취합본.xlsx",
+  "workspace_field_count": 100,
+  "meta_item_count": 71,
+  "sheets": {
+    "DB_일반": {
+      "ok": true,
+      "excel_column_count": 82,
+      "ui_field_count": 82,
+      "missing_in_ui": [],
+      "missing_in_excel": [],
+      "header_mismatches": []
+    },
+    "DB_히스토리 누적": {
+      "ok": true,
+      "excel_column_count": 18,
+      "ui_field_count": 18,
+      "missing_in_ui": [],
+      "missing_in_excel": [],
+      "header_mismatches": []
+    }
+  },
+  "meta_coverage": {
+    "matched_field_count": 87,
+    "unmatched_fields": [
+      {
+        "domain": "DB_일반",
+        "column": "H",
+        "label": "임차인 사업자번호",
+        "source_header": "임차인 사업자번호"
+      },
+      {
+        "domain": "DB_일반",
+        "column": "N",
+        "label": "임차 세부 구역",
+        "source_header": "임차 세부 구역"
+      },
+      {
+        "domain": "DB_일반",
+        "column": "O",
+        "label": "단일 임차인 여부",
+        "source_header": "단일 임차인 여부"
+      },
+      {
+        "domain": "DB_일반",
+        "column": "P",
+        "label": "전체 연면적",
+        "source_header": "전체 연면적"
+      },
+      {
+        "domain": "DB_히스토리 누적",
+        "column": "H",
+        "label": "히스토리 임차인 사업자번호",
+        "source_header": "임차인 사업자번호"
+      },
+      {
+        "domain": "DB_히스토리 누적",
+        "column": "K",
+        "label": "히스토리 임차 세부 구역",
+        "source_header": "임차 세부 구역"
+      },
+      {
+        "domain": "DB_히스토리 누적",
+        "column": "N",
+        "label": "기준일자",
+        "source_header": "기준일자"
+      },
+      {
+        "domain": "DB_히스토리 누적",
+        "column": "O",
+        "label": "임대료 변동 원인",
+        "source_header": "임대료 변동 원인"
+      },
+      {
+        "domain": "DB_일반",
+        "column": "AM",
+        "label": "최근 계약일 - 최초 계약일 비교",
+        "source_header": "최근 계약일 - 최초 계약일 비교"
+      },
+      {
+        "domain": "DB_일반",
+        "column": "AN",
+        "label": "최초 계약개시일-최초 계약일 비교",
+        "source_header": "최초 계약개시일-최초 계약일 비교"
+      },
+      {
+        "domain": "DB_일반",
+        "column": "AO",
+        "label": "최초 운영개시일 - 최초 계약개시일 비교",
+        "source_header": "최초 운영개시일 - 최초 계약개시일 비교"
+      },
+      {
+        "domain": "DB_일반",
+        "column": "AP",
+        "label": "최근 계약일 - 현재 계약개시일 비교",
+        "source_header": "최근 계약일 - 현재 계약개시일 비교"
+      },
+      {
+        "domain": "DB_일반",
+        "column": "AQ",
+        "label": "최초 계약만기일 - 현재 계약만기일 비교",
+        "source_header": "최초 계약만기일 - 현재 계약만기일 비교"
+      }
+    ]
+  },
+  "time_series_history_coverage": [
+    {
+      "item": "월임대료 총액",
+      "covered_by_history": true
+    },
+    {
+      "item": "월관리비 총액",
+      "covered_by_history": true
+    },
+    {
+      "item": "평당 월임대료",
+      "covered_by_history": true
+    },
+    {
+      "item": "평당 월관리비",
+      "covered_by_history": true
+    }
+  ],
+  "management_model": {
+    "current_contract_state": [
+      "ll_leases",
+      "ll_lease_spaces"
+    ],
+    "rent_management_history": [
+      "ll_rent_history append-only"
+    ],
+    "source_only_preservation": [
+      "ll_lease_attributes"
+    ],
+    "archive_strategy": "lease and lease_space archived; physical delete is not used"
+  }
+}

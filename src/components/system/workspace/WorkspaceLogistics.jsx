@@ -9167,6 +9167,100 @@ const CONTRACT_DATA_FIELD_GROUPS = [
   { id: 'rent_history', label: '임대료 변경 내역' },
 ];
 
+const CONTRACT_DATA_FIELD_META_ROWS = [
+  { item: '펀드코드', sample: 'F22005', description: 'AURUM 기반', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '펀드명', sample: '이지스부동산일반사모투자신탁1호', description: 'AURUM 상에 기록된 펀드 풀네임', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '자산명', sample: '청라 로지스틱스', description: 'AURUM 상에 기록된 자산 풀네임', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '자산코드', sample: '', description: 'AURUM 기반', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '섹터', sample: '물류센터', description: '복합, 오피스, 리테일, 호텔, 물류, 데이터센터, 시니어하우징, 리빙', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '저온 창고 여부', sample: 'N', description: 'Y(저온), N(상온). 개별 임차 계약별로 저온 여부만 O, X로 체크 / 복합 사용 시 계약 분리 가능한 수준에서 분리', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '임차인명', sample: '쿠팡(주)', description: 'DART / NICE에 등재된 공식 기업명', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '선임차 여부', sample: 'N', description: 'Y(선임차), N(일반임차)', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '3PL 여부', sample: 'Y', description: 'Y(3PL: 화주 별도 존재), N(화주 직접 사용)', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '취급 상품 유형', sample: '하중물', description: '위험물 / 의약품 / 하중물의 경우 필수 기재', dataType: 'List', unit: '', timeSeries: '' },
+  { item: '임차 층', sample: '6', description: '층별/임차인별로 최대한 나눠서 기재', dataType: 'Int', unit: '층', timeSeries: '' },
+  { item: '임대면적', sample: '13,200.00', description: '계약서 상 작성한 임대면적. 일반적으로 [창고 + 하역장 + 사무실 + 층 공용 면적(복도, 코어, 계단실, 화장실, 통로 등) + 전체 공용 면적(램프, MEP, 경비실, 방재실, 식당 등)]', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '전용면적', sample: '10,500.00', description: '= 창고면적 + 하역장 면적 + 사무실 + 기타 전용면적', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '전용률', sample: '79.5', description: '= 전용면적 / 임대면적', dataType: 'Float', unit: '%', timeSeries: '' },
+  { item: '세부면적(창고)', sample: '8,000.00', description: '전용면적 합산', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '세부면적(하역장)', sample: '2,000.00', description: '전용면적 합산', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '세부면적(사무실)', sample: '400.00', description: '전용면적 합산', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '세부면적(기타 전용면적)', sample: '100.00', description: '전용면적 합산, 세부 내용 기재', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '세부면적(통로)', sample: '1,000.00', description: '공용면적 합산', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '세부면적(램프)', sample: '800.00', description: '공용면적 합산', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '세부면적(기계전기실)', sample: '300.00', description: '공용면적 합산', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '세부면적(주차장)', sample: '300.00', description: '공용면적 합산', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '세부면적(층별 코어)', sample: '200.00', description: '공용면적 합산', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '세부면적(기타 공용면적)', sample: '100.00', description: '공용면적 합산, 화장실, 경비실, 식당, 기타 면적 합산 기재', dataType: 'Float', unit: '㎡', timeSeries: '' },
+  { item: '사무실 사용 여부', sample: 'Y', description: 'Y(사용), N(미사용)', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '전차 여부', sample: 'N', description: '임차인의 계열사를 제외한 타 임차인에게 전대차 계약 체결 여부 / Y(전차 O), N(전차 X)', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '최초 계약일', sample: '8/15/23', description: '', dataType: 'Date', unit: '', timeSeries: '' },
+  { item: '최초 계약개시일', sample: '10/1/23', description: '', dataType: 'Date', unit: '', timeSeries: '' },
+  { item: '최초 계약만기일', sample: '9/30/33', description: '', dataType: 'Date', unit: '', timeSeries: '' },
+  { item: '최초 운영개시일', sample: '4/1/24', description: 'Fit Out 등 내부 공사가 종료된 후 실제 운영 시작일', dataType: 'Date', unit: '', timeSeries: '' },
+  { item: '최근 계약일', sample: '8/15/23', description: '', dataType: 'Date', unit: '', timeSeries: '' },
+  { item: '현재 계약개시일', sample: '10/1/23', description: '', dataType: 'Date', unit: '', timeSeries: '' },
+  { item: '현재 계약만기일', sample: '9/30/33', description: '', dataType: 'Date', unit: '', timeSeries: '' },
+  { item: '현재 계약기간', sample: '10.0', description: '', dataType: 'Float', unit: '년', timeSeries: '' },
+  { item: '연장횟수', sample: '0', description: '', dataType: 'Int', unit: '회', timeSeries: '' },
+  { item: '임대보증금', sample: '8,390,496,000', description: '', dataType: 'Int', unit: '원', timeSeries: '' },
+  { item: '월임대료 총액', sample: '1,433,376,000', description: '', dataType: 'Int', unit: '원', timeSeries: 'O' },
+  { item: '월관리비 총액', sample: '107,503,000', description: '고정관리비 기준', dataType: 'Int', unit: '원', timeSeries: 'O' },
+  { item: '평당 월임대료', sample: '39,543', description: '', dataType: 'Float', unit: '원', timeSeries: 'O' },
+  { item: '평당 월관리비', sample: '2,965', description: '고정관리비 기준', dataType: 'Float', unit: '원', timeSeries: 'O' },
+  { item: 'RF', sample: '20', description: '[계약 기간 중 발생 총량 기준]', dataType: 'Float', unit: '개월', timeSeries: '' },
+  { item: 'FO', sample: '6', description: '[계약 기간 중 발생 총량 기준]', dataType: 'Float', unit: '개월', timeSeries: '' },
+  { item: 'TI', sample: '1,000,000,000', description: '[계약 기간 중 발생 총액 기준]', dataType: 'Int', unit: '원', timeSeries: '' },
+  { item: '임대료 인상률', sample: '2.50%', description: '임대료 인상률은 %로 고정돼있을 수도 있으나, CPI 연동, MIN(2.5%, CPI) 등 다양한 조건이 있을 수 있어 Str / Char 타입으로 관리', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '관리비 인상률', sample: 'CPI 연동', description: '관리비 인상률은 %로 고정돼있을 수도 있으나, CPI 연동, MIN(2.5%, CPI) 등 다양한 조건이 있을 수 있어 Str / Char 타입으로 관리', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '인상주기', sample: '12', description: '임대료, 관리비 인상 주기', dataType: 'Int', unit: '개월', timeSeries: '' },
+  { item: '차기 인상일', sample: '10/1/26', description: '차기 인상 시점', dataType: 'Date', unit: '', timeSeries: '' },
+  { item: '임차인 부담 비용', sample: '보험료, 재산세', description: '보험료, 재산세 중 임차인 부담 비용 기재', dataType: 'List', unit: '', timeSeries: '' },
+  { item: '중도해지권', sample: 'Y', description: '임차인의 요구에 의한 중도해지 가능 여부 / Y(보유), N(미보유)', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '갱신 옵션', sample: 'Y', description: '임차인의 요구에 의한 계약갱신 가능 여부 / Y(보유), N(미보유)', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '재산종합보험 한도', sample: '30억원', description: '', dataType: 'INT', unit: '억원', timeSeries: '' },
+  { item: '영업배상책임보험 한도', sample: '30억원', description: '', dataType: 'INT', unit: '억원', timeSeries: '' },
+  { item: '기업휴지보험 한도', sample: '30억원', description: '', dataType: 'INT', unit: '억원', timeSeries: '' },
+  { item: '재고자산보험 한도', sample: '30억원', description: '', dataType: 'INT', unit: '억원', timeSeries: '' },
+  { item: '구상권 포기 여부', sample: 'Y', description: 'Y(구상권 포기 합의), N(구상권 포기 미합의)', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '대위권 포기 여부', sample: 'Y', description: 'Y(대위권 포기 합의), N(대위권 포기 미합의)', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '바닥 하중', sample: '3.0', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Float', unit: 't/㎡', timeSeries: '' },
+  { item: '평활도 기준', sample: 'TR34 4th edition FM 2등급', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '마모도 등급', sample: 'AR1', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '(동시) 도크 접안 수', sample: '80', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Int', unit: '개', timeSeries: '' },
+  { item: '층고', sample: '11.0', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Float', unit: 'm', timeSeries: '' },
+  { item: '요구 전력량', sample: '3000', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Float', unit: 'kW', timeSeries: '' },
+  { item: '램프 타입', sample: '원형 회전 교행 램프', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙], 자연램프 / 원형회전 일방향 램프 / 원형회전 교행 램프 / 반원형회전 일방향 램프 / 반원형회전 교행 램프 / 이너램프 / 외곽 인공램프 / 복합', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '램프 너비', sample: '15.0', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Float', unit: 'm', timeSeries: '' },
+  { item: '차량 통로 너비', sample: '15.0', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Float', unit: 'm', timeSeries: '' },
+  { item: '조명', sample: 'LED', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '외벽자재', sample: 'THK75 우레탄판넬', description: '[임차인 요구 스펙, 별도 요구 스펙 없을 경우 현 스펙]', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '계약 상태', sample: 'Y', description: '현 시점 기준 / Y(유효), N(만료)', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '임대료 연체·미납여부', sample: 'N', description: '현 시점 기준 / Y(연체·미납 중), N(적시 납부 중)', dataType: 'Bool', unit: '', timeSeries: '' },
+  { item: '보험 관련 특수 계약 조건', sample: '없음', description: '재산종합보험, 재고자산보험, 구상권/대위권 포기 등 보험 관련 특이사항이 있는 경우 추가 기재', dataType: 'Str / Char', unit: '', timeSeries: '' },
+  { item: '기타 각종 특수 계약 조건', sample: '없음', description: '계약서에는 기재돼있지 않으나, 협의 과정에서 요구한 사항들(창고 하중, 평탄화 조건, 도크 접안 수, 층고, 요구 전력량, 램프 타입, 램프 너비, Path 너비 등)', dataType: 'Str / Char', unit: '', timeSeries: '' },
+];
+
+const normalizeContractFieldMetaKey = (value) => String(value || '')
+  .replace(/^히스토리\s*/gu, '')
+  .replace(/\s+/gu, '')
+  .replace(/[·ㆍ]/gu, '')
+  .trim()
+  .toLowerCase();
+
+const CONTRACT_DATA_FIELD_META_BY_KEY = new Map(
+  CONTRACT_DATA_FIELD_META_ROWS.flatMap((row) => {
+    const key = normalizeContractFieldMetaKey(row.item);
+    const aliases = [];
+    if (key === '저온창고여부') aliases.push('저온창고여부');
+    if (key === '월임대료총액') aliases.push('월임대료총액', '월임대료합계', '월임대료');
+    if (key === '월관리비총액') aliases.push('월관리비총액', '월관리비합계', '월관리비');
+    if (key === '평당월임대료') aliases.push('평당월임대료', '평당임대료');
+    if (key === '평당월관리비') aliases.push('평당월관리비', '평당관리비');
+    return [...new Set([key, ...aliases])].map((alias) => [alias, row]);
+  }),
+);
+
 function ContractDataManagementDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
@@ -9185,6 +9279,7 @@ function ContractDataManagementDashboard() {
   const [isSubmittingFields, setIsSubmittingFields] = useState(false);
   const [fieldSearchQuery, setFieldSearchQuery] = useState('');
   const [collapsedFieldGroups, setCollapsedFieldGroups] = useState({});
+  const [openFieldHelpKey, setOpenFieldHelpKey] = useState('');
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const [contractLedgerOpen, setContractLedgerOpen] = useState(false);
 
@@ -9255,6 +9350,7 @@ function ContractDataManagementDashboard() {
     ])));
     setFieldEditStatus(null);
     setEventStatus(null);
+    setOpenFieldHelpKey('');
   }, [dataUpdateMode, selectedLeaseRowDraftKey]);
 
   const contractRows = sortedAssetRows.map((row) => [
@@ -9320,6 +9416,30 @@ function ContractDataManagementDashboard() {
       contractFieldDbName(field),
       contractFieldCanonicalValueFromDisplay(field, fieldDrafts[contractFieldKey(field)] ?? '', ''),
     ]));
+    const addCellEdits = CONTRACT_DATA_FIELDS
+      .map((field) => {
+        const fieldKey = contractFieldKey(field);
+        const draftValue = fieldDrafts[fieldKey] ?? '';
+        if (!excelCellText(draftValue).trim()) return null;
+        return {
+          target_table: normalizeContractTargetTable(field.table),
+          primary_key_field: contractTablePrimaryKeyField(normalizeContractTargetTable(field.table)),
+          target_row_id: '',
+          field_name: contractFieldDbName(field),
+          before_value: '',
+          after_value: contractFieldCanonicalValueFromDisplay(field, draftValue, ''),
+          asset_id: activeAssetId,
+          asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+          lease_space_id: '',
+          lease_id: '',
+          tenant_id: '',
+          source_sheet: field.domain || '',
+          source_column_letter: field.sourceColumnLetter || '',
+          source_header: field.sourceHeader || field.label || '',
+          source_only: Boolean(field.sourceOnly || field.table === 'source_only'),
+        };
+      })
+      .filter(Boolean);
     const leasePayload = {
       event_type: 'new_lease',
       asset_id: activeAssetId,
@@ -9334,6 +9454,7 @@ function ContractDataManagementDashboard() {
         fields: afterFields,
         source_template: sourceColumns,
       },
+      cell_edits: addCellEdits,
       source_rows: [{
         sheet: 'DB_일반 + DB_히스토리 누적',
         action: 'new_contract_row',
@@ -9643,10 +9764,26 @@ function ContractDataManagementDashboard() {
                             const currentValue = contractFieldEditValueFromCanonical(field, contractFieldRawValue(selectedLeaseRow, field));
                             const draftValue = fieldDrafts[fieldKey] ?? '';
                             const changed = isAddMode ? excelCellText(draftValue).trim() !== '' : currentValue !== excelCellText(draftValue);
+                            const fieldLabel = contractFieldDisplayLabel(field);
+                            const fieldMeta = contractFieldMeta(field);
+                            const isFieldHelpOpen = openFieldHelpKey === fieldKey;
                             return (
-                              <div key={fieldKey} className={`grid grid-cols-[minmax(260px,1.2fr)_minmax(180px,0.8fr)_80px_minmax(220px,1fr)] border-b border-[#333333] text-[12px] last:border-b-0 ${changed ? 'bg-[#132A44]' : 'bg-[#252524]'}`}>
+                              <React.Fragment key={fieldKey}>
+                                <div className={`grid grid-cols-[minmax(260px,1.2fr)_minmax(180px,0.8fr)_80px_minmax(220px,1fr)] border-b border-[#333333] text-[12px] last:border-b-0 ${changed ? 'bg-[#132A44]' : 'bg-[#252524]'}`}>
                                 <div className="px-3 py-2 align-top">
-                                  <div className="font-semibold text-[#E5E5EA]">{contractFieldDisplayLabel(field)}</div>
+                                  <div className="flex items-start gap-2">
+                                    <div className="min-w-0 font-semibold text-[#E5E5EA]">{fieldLabel}</div>
+                                    <button
+                                      type="button"
+                                      aria-label={`${fieldLabel} 설명 보기`}
+                                      aria-expanded={isFieldHelpOpen}
+                                      title="항목 설명 보기"
+                                      onClick={() => setOpenFieldHelpKey((previous) => (previous === fieldKey ? '' : fieldKey))}
+                                      className={`mt-[1px] flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition ${isFieldHelpOpen ? 'border-[#64D2FF] bg-[#12324A] text-[#D8F3FF]' : fieldMeta.hasMeta ? 'border-[#4A5568] bg-[#1B1B1A] text-[#A1A1AA] hover:border-[#64D2FF] hover:text-white' : 'border-[#3A3A3C] bg-[#171717] text-[#6B7280] hover:text-[#A1A1AA]'}`}
+                                    >
+                                      i
+                                    </button>
+                                  </div>
                                 </div>
                                 <div className="px-3 py-2 align-top font-mono text-[#A1A1AA]">{currentDisplay.value}</div>
                                 <div className="px-3 py-2 align-top text-[#86868B]">{currentDisplay.unit || '-'}</div>
@@ -9659,6 +9796,30 @@ function ContractDataManagementDashboard() {
                                   />
                                 </div>
                               </div>
+                                {isFieldHelpOpen ? (
+                                  <div className="border-b border-[#333333] bg-[#171717] px-3 py-3">
+                                    <div className="rounded-[10px] border border-[#3A3A3C] bg-[#1D1D1C] p-3 text-[12px] leading-5 text-[#D1D5DB] shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
+                                      <div className="grid gap-3 md:grid-cols-[220px_1fr]">
+                                        <div>
+                                          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">샘플 데이터</div>
+                                          <div className="mt-1 font-mono text-[#F5F5F7]">{fieldMeta.sample || '-'}</div>
+                                        </div>
+                                        <div>
+                                          <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">항목별 설명 및 고려사항</div>
+                                          <div className="mt-1 text-[#E5E5EA]">{fieldMeta.description || '-'}</div>
+                                        </div>
+                                      </div>
+                                      {(fieldMeta.dataType || fieldMeta.unit || fieldMeta.timeSeries === 'O') ? (
+                                        <div className="mt-3 flex flex-wrap gap-1">
+                                          {fieldMeta.dataType ? <span className="rounded-full border border-[#3A3A3C] px-2 py-0.5 text-[11px] text-[#A1A1AA]">{fieldMeta.dataType}</span> : null}
+                                          {fieldMeta.unit ? <span className="rounded-full border border-[#3A3A3C] px-2 py-0.5 text-[11px] text-[#A1A1AA]">단위 {fieldMeta.unit}</span> : null}
+                                          {fieldMeta.timeSeries === 'O' ? <span className="rounded-full border border-[#2A5A3A] bg-[#12301E] px-2 py-0.5 text-[11px] text-[#B5E48C]">누적 관리</span> : null}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </React.Fragment>
                             );
                           })}
                         </div>
@@ -10026,6 +10187,15 @@ function normalizeContractTargetTable(table) {
   return table || 'public.ll_lease_spaces';
 }
 
+function contractTablePrimaryKeyField(table) {
+  if (table === 'public.ll_assets') return 'asset_id';
+  if (table === 'public.ll_tenants') return 'tenant_id';
+  if (table === 'public.ll_leases') return 'lease_id';
+  if (table === 'public.ll_rent_history') return 'rent_history_id';
+  if (table === 'source_only' || table === 'public.ll_lease_attributes') return 'id';
+  return 'lease_space_id';
+}
+
 function contractFieldKey(field) {
   return [
     field?.domain || 'source',
@@ -10066,6 +10236,26 @@ function contractFieldDisplayLabel(field) {
   return String(field?.label || field?.sourceHeader || field?.fieldName || '')
     .replace(/히스토리\s*/gu, '')
     .trim() || '-';
+}
+
+function contractFieldMeta(field) {
+  const candidates = [
+    field?.sourceHeader,
+    contractFieldDisplayLabel(field),
+    field?.label,
+    field?.fieldName,
+  ].map(normalizeContractFieldMetaKey).filter(Boolean);
+  const meta = candidates.map((candidate) => CONTRACT_DATA_FIELD_META_BY_KEY.get(candidate)).find(Boolean);
+  if (meta) return { ...meta, hasMeta: true };
+  return {
+    item: contractFieldDisplayLabel(field),
+    sample: '',
+    description: '원본 Excel 검산/보존 항목입니다. Meta 설명 시트에는 별도 설명이 없습니다.',
+    dataType: '',
+    unit: contractFieldUnit(field),
+    timeSeries: '',
+    hasMeta: false,
+  };
 }
 
 function contractFieldUnit(field) {

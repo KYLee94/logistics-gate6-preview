@@ -15,6 +15,7 @@
     "qa:logistics-primary-parity": "node scripts/qa/logistics-dashboard-primary-parity.cjs",
     "qa:data-quality-e2e": "node scripts/qa/logistics-data-quality-e2e.cjs",
     "qa:data-update:auto": "node scripts/qa/logistics-data-update-auto-smoke.cjs",
+    "qa:data-update:source-coverage": "node scripts/qa/logistics-data-update-source-coverage.cjs",
     "qa:ai-chatbot": "node scripts/qa/logistics-ai-chatbot-qa.cjs",
     "qa:ai-chatbot:browser": "node scripts/qa/logistics-ai-chatbot-browser-smoke.cjs",
     "qa:data-update:browser": "node scripts/qa/logistics-data-update-browser-smoke.cjs",

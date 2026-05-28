@@ -1,9 +1,28 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-28T10:06:00+09:00
-- Overall: 310 / 366 (84.7%) - current deltas rebaselined for Data Update canonical Supabase auto-write/readback/rollback, Data Update lifecycle QA, Data Update source-column coverage, Data Update UX cleanup, Data Update rent/management field semantics, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
+- Updated at: 2026-05-28T10:30:00+09:00
+- Overall: 312 / 368 (84.8%) - current deltas rebaselined for Data Update Meta field help, original Excel DB_일반/DB_히스토리 source coverage, Data Update canonical Supabase auto-write/readback/rollback, Data Update lifecycle QA, Data Update source-column coverage, Data Update UX cleanup, Data Update rent/management field semantics, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
-- gh-pages deployment: current Data Update canonical Supabase auto-sync / rent-management semantics / UX cleanup / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-CLinwCk8.js`.
+- gh-pages deployment: current Data Update Meta field help / canonical Supabase auto-sync / rent-management semantics / UX cleanup / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-Dl3jVvGX.js`.
+
+## 2026-05-28 Update - Data Update Meta Field Help / Source Coverage
+
+- Added a small `i` button beside every `임대차계약 데이터 수정` field label.
+  - Clicking it opens an inline explanation panel with `Meta_데이터 항목 설명` sheet values: sample data, item description / considerations, data type, unit, and time-series badge where applicable.
+  - Click-to-open was chosen over hover because the descriptions can be long and must work on touch/mobile screens.
+- Added direct original Excel coverage QA against `★ 260414_물류센터 임대차계약 DB_취합본.xlsx`.
+  - `DB_일반`: 82 / 82 columns matched.
+  - `DB_히스토리 누적`: 18 / 18 columns matched.
+  - total Data Update field registry: 100 fields.
+  - Meta item descriptions: 71 source items; 87 / 100 field rows map to Meta directly, and the remaining 13 are source-only/check or fields not described in the Meta sheet.
+  - time-series rent/management fields are covered by `DB_히스토리 누적` and `ll_rent_history` append-only management.
+- Strengthened new lease create handling so source-only Excel fields are also preserved as `ll_lease_attributes`, not only kept inside the event payload.
+- Verification:
+  - `npm run qa:data-update:source-coverage`: pass, artifact `qa-artifacts/logistics-gate6/data-update-source-coverage-20260528-012750.json`.
+  - `npx supabase functions deploy ll-dashboard-api --project-ref qvegpozwrcmspdvjokiz`: pass.
+  - `npm run qa:data-update:auto`: pass, 23 / 23, artifact `qa-artifacts/logistics-gate6/data-update-auto-smoke-20260528-012807.json`; new lease rollback confirms `source_only_count: 1`.
+  - `npm run deploy`: pass.
+  - `npm run qa:data-update:browser`: pass on live, 100 field help buttons, fund-code help and rent-history help verified, artifact `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260528-013017.json`, screenshot `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260528-013017.png`.
 
 ## 2026-05-28 Update - Data Update Canonical Supabase Auto-sync
 
@@ -228,7 +247,7 @@
 | 13 | 외부 API / AI / 외부권한 | 10 / 12 |
 | 14 | QA 계획 및 증거 | 51 / 53 |
 | 15 | 최종 완료 기준 | 9 / 15 |
-| 16 | 임대차계약 데이터 관리 탭 구축 | 16 / 24 |
+| 16 | 임대차계약 데이터 관리 탭 구축 | 18 / 26 |
 
 ## 2026-05-22 Update - Asset Tenant Table Width
 

@@ -2900,6 +2900,10 @@ async function buildLeaseEventPlan(ctx: Context, eventPayload: Record<string, un
       { operation: 'insert', table: 'll_lease_spaces', key: leaseSpaceId },
       { operation: 'append', table: 'll_rent_history', key: 'new_initial_history' },
     );
+    const sourceOnlyCells = normalizeLeaseEventCells(eventPayload)
+      .filter((cell) => leaseEventTargetForCell(cell).kind === 'source_only')
+      .filter((cell) => safeText(cell.afterValue));
+    writes.push(...sourceOnlyCells.map((cell) => ({ operation: 'preserve_detail', table: 'll_lease_attributes', field_name: canonicalLeaseEventFieldName(cell.fieldName) })));
   } else if (mode === 'archive') {
     const leaseSpaceId = safeText(eventPayload.lease_space_id);
     if (!leaseSpaceId) missing.push('lease_space_id');
@@ -3195,6 +3199,26 @@ async function applyNewLeaseEvent(ctx: Context, editRequestId: string, eventPayl
     review_note: 'Data Update canonical lease space create',
   });
   await writeRentHistoryAppend(ctx, editRequestId, applied, eventPayload, leaseSpace, null, {});
+  const sourceOnlyCells = normalizeLeaseEventCells(eventPayload)
+    .filter((cell) => leaseEventTargetForCell(cell).kind === 'source_only')
+    .filter((cell) => safeText(cell.afterValue));
+  for (const cell of sourceOnlyCells) {
+    const target = leaseEventTargetForCell(cell);
+    const sourceCell = {
+      ...cell,
+      targetTable: 'source_only',
+      sourceOnly: true,
+      fieldName: target.fieldName,
+      targetRowId: leaseSpaceId,
+      assetId: safeText(eventPayload.asset_id),
+      leaseSpaceId,
+      leaseId,
+      tenantId: existingTenant?.tenant_id || tenantId,
+      beforeValue: firstDefined(cell.beforeValue, ''),
+    } as NormalizedEditCell;
+    const result = await writeSourceOnlyContractAttribute(ctx, editRequestId, sourceCell);
+    applied.push({ operation: 'source_only', table: 'public.ll_lease_attributes', primaryKeyField: 'id', id: safeText(result.insertedId), sourceOnlyRollback: { cell: result.cell, previous: result.previous, insertedId: result.insertedId } });
+  }
   await writeLeaseEventDataAudit(ctx, editRequestId, 'lease_event_new_lease', 'public.ll_leases', safeText(leaseRow.lease_id), 'new_lease', null, leaseRow, leaseRow, 'written');
 }
 

@@ -388,8 +388,28 @@ function buildLeaseEventCases(assetRead) {
         monthly_mf_total: 200000,
         basis_date: addStartDate,
         rent_change_reason: 'QA smoke initial rent',
+        check_leased_area: `QA source-only check ${unique}`,
       },
     },
+    cell_edits: [
+      {
+        target_table: 'source_only',
+        primary_key_field: 'id',
+        target_row_id: '',
+        field_name: 'check_leased_area',
+        before_value: '',
+        after_value: `QA source-only check ${unique}`,
+        asset_id: asset.asset_id,
+        asset_name: asset.asset_name,
+        lease_space_id: '',
+        lease_id: '',
+        tenant_id: '',
+        source_sheet: 'DB_general',
+        source_column_letter: 'X',
+        source_header: '임대면적 체크',
+        source_only: true,
+      },
+    ],
     source_rows: [{ sheet: 'DB_general + DB_history', action: 'qa_new_lease' }],
   };
   const rentChangePayload = {
@@ -493,7 +513,7 @@ function buildLeaseEventCases(assetRead) {
       name: 'lease-event-submit-new-lease-rollback',
       action: 'lease-events/submit',
       payload: { ...addPayload, rollback_after_write: true },
-      ok: leaseEventRolledBack,
+      ok: (result) => leaseEventRolledBack(result) && Number(leaseEventWriteResult(result).source_only_count || 0) >= 1,
     },
     {
       name: 'lease-event-preview-missing-required-blocked',

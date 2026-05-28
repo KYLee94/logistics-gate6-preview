@@ -1,0 +1,1887 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-28T01:28:07.959Z",
+  "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
+  "origin": "https://kylee94.github.io",
+  "auth_source": "password_grant",
+  "asset_id": "asset_a120085001",
+  "asset_name": "경산 쿠팡물류센터",
+  "required_pass_count": 23,
+  "passed_count": 23,
+  "total_count": 23,
+  "results": [
+    {
+      "name": "asset-sector",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_assets",
+      "field_name": "sector",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "b2d061f8-6564-4384-b27c-409c831d55a5",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "asset-gross-area",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_assets",
+      "field_name": "gross_floor_area_sqm",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "712d811d-c7e9-444a-8e16-8aade14ae2af",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "tenant-master-name",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_tenants",
+      "field_name": "tenant_master_name",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "b5dfd41c-0ba0-41ea-a5ff-46481eefcc14",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "tenant-business-registration",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_tenants",
+      "field_name": "business_registration_no",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "349f7847-1fdd-4d50-8f3e-6107709ce7dd",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-floor",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "floor_label",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "eff13da5-6ea2-4e9a-b33c-9daf66c89e10",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-detail-area",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "detail_area_label",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "7f647428-834e-4c17-ad3e-b5497b6c4ea2",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-leased-area",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "leased_area_sqm",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "f1beaaaf-4c11-4cb0-91d5-71c25617b01e",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-exclusive-area",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "exclusive_area_sqm",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "d57b4d2b-3d24-4a7d-aa25-97341e8af00f",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-monthly-rent",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "current_monthly_rent_total",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "f1b641e7-5400-4950-b1ba-2762d22c51c8",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "lease-space-monthly-mf",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_lease_spaces",
+      "field_name": "current_monthly_mf_total",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "dd056672-f64e-4d87-aa75-b281318735d7",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "source-only-general-check",
+      "status": 200,
+      "ok": true,
+      "target_table": "source_only",
+      "field_name": "check_leased_area",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "bf07080a-1fa8-4a4f-a3b9-6b24decb5fa9",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "source-only-history-sector",
+      "status": 200,
+      "ok": true,
+      "target_table": "source_only",
+      "field_name": "history_sector",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "39c2a0af-7dc9-4a24-b81b-c71eb620879a",
+      "message": "Contract data written, read back, and audited"
+    },
+    {
+      "name": "rent-history-review-status",
+      "status": 200,
+      "ok": true,
+      "target_table": "public.ll_rent_history",
+      "field_name": "review_status",
+      "readback_count": 1,
+      "rollback_readback_count": 1,
+      "write_readback_matches_after_value": true,
+      "rollback_readback_matches_before_value": true,
+      "request_id": "4d59abcd-3899-494e-a6ba-473684b09453",
+      "message": "Contract data written, read back, and audited"
+    }
+  ],
+  "lease_event_results": [
+    {
+      "name": "lease-event-preview-new-lease-ready",
+      "action": "lease-events/preview",
+      "status": 200,
+      "ok": true,
+      "mode": "add",
+      "preview_status": "ready",
+      "write_status": null
+    },
+    {
+      "name": "lease-event-submit-new-lease-rollback",
+      "action": "lease-events/submit",
+      "status": 200,
+      "ok": true,
+      "mode": "add",
+      "preview_status": "ready",
+      "write_status": "rolled_back_after_smoke",
+      "write_result": {
+        "applied": [
+          {
+            "after": {
+              "listed_yn": null,
+              "tenant_id": "tenant_brn_99931682529",
+              "created_at": "2026-05-28T01:28:03.36795+00:00",
+              "group_name": null,
+              "updated_at": "2026-05-28T01:28:03.36795+00:00",
+              "review_note": "Data Update canonical tenant create",
+              "match_status": null,
+              "industry_code": null,
+              "review_status": "data_update_written",
+              "dart_corp_code": null,
+              "source_payload": {
+                "kind": "lease_contract_event",
+                "after": {
+                  "fields": {
+                    "basis_date": "2099-02-10",
+                    "floor_label": "QA-31682529",
+                    "leased_area_sqm": 330.58,
+                    "current_end_date": "2100-02-09",
+                    "monthly_mf_total": 200000,
+                    "check_leased_area": "QA source-only check 31682529",
+                    "detail_area_label": "Smoke Zone",
+                    "current_start_date": "2099-02-10",
+                    "exclusive_area_sqm": 300.12,
+                    "monthly_rent_total": 1000000,
+                    "rent_change_reason": "QA smoke initial rent",
+                    "tenant_master_name": "QA Smoke Tenant 31682529",
+                    "business_registration_no": "999-31-682529"
+                  }
+                },
+                "source": "Data Update new lease tenant",
+                "event_type": "new_lease",
+                "edge_action": "lease-events/submit",
+                "source_refs": [],
+                "source_rows": [
+                  {
+                    "sheet": "DB_general + DB_history",
+                    "action": "qa_new_lease"
+                  }
+                ]
+              },
+              "raw_tenant_name": "QA Smoke Tenant 31682529",
+              "tenant_master_name": "QA Smoke Tenant 31682529",
+              "source_sheet_row_id": null,
+              "headquarters_address": null,
+              "business_registration_no": "999-31-682529"
+            },
+            "before": null,
+            "operation": "insert",
+            "target_table": "public.ll_tenants",
+            "target_row_id": "tenant_brn_99931682529"
+          },
+          {
+            "after": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09",
+              "fo_months": null,
+              "rf_months": null,
+              "tenant_id": "tenant_brn_99931682529",
+              "ti_amount": null,
+              "created_at": "2026-05-28T01:28:03.391909+00:00",
+              "updated_at": "2026-05-28T01:28:03.391909+00:00",
+              "review_note": "Data Update canonical lease create",
+              "lease_status": "active",
+              "review_status": "data_update_written",
+              "special_terms": null,
+              "contract_years": null,
+              "deposit_amount": null,
+              "first_end_date": null,
+              "renewal_option": null,
+              "source_doc_ref": null,
+              "source_payload": {
+                "kind": "lease_contract_event",
+                "after": {
+                  "fields": {
+                    "basis_date": "2099-02-10",
+                    "floor_label": "QA-31682529",
+                    "leased_area_sqm": 330.58,
+                    "current_end_date": "2100-02-09",
+                    "monthly_mf_total": 200000,
+                    "check_leased_area": "QA source-only check 31682529",
+                    "detail_area_label": "Smoke Zone",
+                    "current_start_date": "2099-02-10",
+                    "exclusive_area_sqm": 300.12,
+                    "monthly_rent_total": 1000000,
+                    "rent_change_reason": "QA smoke initial rent",
+                    "tenant_master_name": "QA Smoke Tenant 31682529",
+                    "business_registration_no": "999-31-682529"
+                  }
+                },
+                "source": "Data Update new lease",
+                "event_type": "new_lease",
+                "edge_action": "lease-events/submit",
+                "source_refs": [],
+                "source_rows": [
+                  {
+                    "sheet": "DB_general + DB_history",
+                    "action": "qa_new_lease"
+                  }
+                ]
+              },
+              "extension_count": null,
+              "current_end_date": "2100-02-09",
+              "first_start_date": null,
+              "current_start_date": "2099-02-10",
+              "tenant_cost_burden": null,
+              "first_contract_date": null,
+              "source_sheet_row_id": null,
+              "first_operation_date": null,
+              "insurance_terms_json": {
+                "property_insurance_limit": null,
+                "inventory_insurance_limit": null,
+                "liability_insurance_limit": null,
+                "business_interruption_insurance_limit": null
+              },
+              "next_escalation_date": null,
+              "recent_contract_date": null,
+              "rent_escalation_rate": null,
+              "early_termination_right": null,
+              "escalation_cycle_months": null,
+              "management_fee_escalation_rate": null
+            },
+            "before": null,
+            "operation": "insert",
+            "target_table": "public.ll_leases",
+            "target_row_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09"
+          },
+          {
+            "after": {
+              "e_noc": 11999.95,
+              "is_3pl": null,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09",
+              "tenant_id": "tenant_brn_99931682529",
+              "created_at": "2026-05-28T01:28:03.42216+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-28T01:28:03.42216+00:00",
+              "floor_label": "QA-31682529",
+              "review_note": "Data Update canonical lease space create",
+              "sublease_yn": null,
+              "is_preleased": null,
+              "office_use_yn": null,
+              "review_status": "data_update_written",
+              "delinquency_yn": null,
+              "lease_space_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone",
+              "source_payload": {
+                "kind": "lease_contract_event",
+                "after": {
+                  "fields": {
+                    "basis_date": "2099-02-10",
+                    "floor_label": "QA-31682529",
+                    "leased_area_sqm": 330.58,
+                    "current_end_date": "2100-02-09",
+                    "monthly_mf_total": 200000,
+                    "check_leased_area": "QA source-only check 31682529",
+                    "detail_area_label": "Smoke Zone",
+                    "current_start_date": "2099-02-10",
+                    "exclusive_area_sqm": 300.12,
+                    "monthly_rent_total": 1000000,
+                    "rent_change_reason": "QA smoke initial rent",
+                    "tenant_master_name": "QA Smoke Tenant 31682529",
+                    "business_registration_no": "999-31-682529"
+                  }
+                },
+                "source": "Data Update new lease space",
+                "event_type": "new_lease",
+                "edge_action": "lease-events/submit",
+                "source_refs": [],
+                "source_rows": [
+                  {
+                    "sheet": "DB_general + DB_history",
+                    "action": "qa_new_lease"
+                  }
+                ]
+              },
+              "contract_status": "active",
+              "exclusive_ratio": null,
+              "formula_version": "data_update_v1",
+              "leased_area_sqm": 330.58,
+              "is_single_tenant": null,
+              "temperature_type": null,
+              "detail_area_label": "Smoke Zone",
+              "exclusive_area_sqm": 300.12,
+              "area_breakdown_json": {
+                "core_area_sqm": null,
+                "dock_area_sqm": null,
+                "ramp_area_sqm": null,
+                "office_area_sqm": null,
+                "parking_area_sqm": null,
+                "corridor_area_sqm": null,
+                "warehouse_area_sqm": null,
+                "mechanical_area_sqm": null,
+                "other_common_area_sqm": null,
+                "other_exclusive_area_sqm": null
+              },
+              "facility_specs_json": {
+                "ramp_width": null,
+                "clear_height": null,
+                "power_capacity": null,
+                "dock_door_count": null,
+                "vehicle_aisle_width": null
+              },
+              "source_sheet_row_id": null,
+              "current_monthly_mf_total": 200000,
+              "current_monthly_cost_total": 1200000,
+              "current_monthly_rent_total": 1000000
+            },
+            "before": null,
+            "operation": "insert",
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone"
+          },
+          {
+            "after": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09",
+              "is_latest": true,
+              "mf_per_py": null,
+              "tenant_id": "tenant_brn_99931682529",
+              "created_at": "2026-05-28T01:28:03.537086+00:00",
+              "updated_at": "2026-05-28T01:28:03.537086+00:00",
+              "floor_label": "QA-31682529",
+              "rent_per_py": null,
+              "review_note": "Data Update canonical rent history append",
+              "match_status": null,
+              "change_reason": "QA smoke initial rent",
+              "review_status": "data_update_written",
+              "effective_date": "2099-02-10",
+              "lease_space_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone",
+              "source_payload": {
+                "kind": "lease_contract_event",
+                "after": {
+                  "fields": {
+                    "basis_date": "2099-02-10",
+                    "floor_label": "QA-31682529",
+                    "leased_area_sqm": 330.58,
+                    "current_end_date": "2100-02-09",
+                    "monthly_mf_total": 200000,
+                    "check_leased_area": "QA source-only check 31682529",
+                    "detail_area_label": "Smoke Zone",
+                    "current_start_date": "2099-02-10",
+                    "exclusive_area_sqm": 300.12,
+                    "monthly_rent_total": 1000000,
+                    "rent_change_reason": "QA smoke initial rent",
+                    "tenant_master_name": "QA Smoke Tenant 31682529",
+                    "business_registration_no": "999-31-682529"
+                  }
+                },
+                "source": "Data Update rent history append",
+                "event_type": "new_lease",
+                "edge_action": "lease-events/submit",
+                "source_refs": [],
+                "source_rows": [
+                  {
+                    "sheet": "DB_general + DB_history",
+                    "action": "qa_new_lease"
+                  }
+                ]
+              },
+              "leased_area_sqm": 330.58,
+              "rent_history_id": "rent_evt_60522523144c1fcbd5d95658",
+              "monthly_mf_total": 200000,
+              "temperature_type": null,
+              "detail_area_label": "Smoke Zone",
+              "exclusive_area_sqm": 300.12,
+              "monthly_rent_total": 1000000,
+              "source_sheet_row_id": null,
+              "source_excel_visible_row": null,
+              "source_contract_lease_space_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone"
+            },
+            "before": null,
+            "operation": "insert",
+            "target_table": "public.ll_rent_history",
+            "target_row_id": "rent_evt_60522523144c1fcbd5d95658"
+          },
+          {
+            "after": {
+              "e_noc": 11999.95,
+              "is_3pl": null,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09",
+              "tenant_id": "tenant_brn_99931682529",
+              "created_at": "2026-05-28T01:28:03.42216+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-28T01:28:03.572+00:00",
+              "floor_label": "QA-31682529",
+              "review_note": "Data Update canonical lease space create",
+              "sublease_yn": null,
+              "is_preleased": null,
+              "office_use_yn": null,
+              "review_status": "data_update_latest_rent_applied",
+              "delinquency_yn": null,
+              "lease_space_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone",
+              "source_payload": {
+                "kind": "lease_contract_event",
+                "after": {
+                  "fields": {
+                    "basis_date": "2099-02-10",
+                    "floor_label": "QA-31682529",
+                    "leased_area_sqm": 330.58,
+                    "current_end_date": "2100-02-09",
+                    "monthly_mf_total": 200000,
+                    "check_leased_area": "QA source-only check 31682529",
+                    "detail_area_label": "Smoke Zone",
+                    "current_start_date": "2099-02-10",
+                    "exclusive_area_sqm": 300.12,
+                    "monthly_rent_total": 1000000,
+                    "rent_change_reason": "QA smoke initial rent",
+                    "tenant_master_name": "QA Smoke Tenant 31682529",
+                    "business_registration_no": "999-31-682529"
+                  }
+                },
+                "source": "Data Update new lease space",
+                "event_type": "new_lease",
+                "edge_action": "lease-events/submit",
+                "source_refs": [],
+                "source_rows": [
+                  {
+                    "sheet": "DB_general + DB_history",
+                    "action": "qa_new_lease"
+                  }
+                ]
+              },
+              "contract_status": "active",
+              "exclusive_ratio": null,
+              "formula_version": "data_update_v1",
+              "leased_area_sqm": 330.58,
+              "is_single_tenant": null,
+              "temperature_type": null,
+              "detail_area_label": "Smoke Zone",
+              "exclusive_area_sqm": 300.12,
+              "area_breakdown_json": {
+                "core_area_sqm": null,
+                "dock_area_sqm": null,
+                "ramp_area_sqm": null,
+                "office_area_sqm": null,
+                "parking_area_sqm": null,
+                "corridor_area_sqm": null,
+                "warehouse_area_sqm": null,
+                "mechanical_area_sqm": null,
+                "other_common_area_sqm": null,
+                "other_exclusive_area_sqm": null
+              },
+              "facility_specs_json": {
+                "ramp_width": null,
+                "clear_height": null,
+                "power_capacity": null,
+                "dock_door_count": null,
+                "vehicle_aisle_width": null
+              },
+              "source_sheet_row_id": null,
+              "current_monthly_mf_total": 200000,
+              "current_monthly_cost_total": 1200000,
+              "current_monthly_rent_total": 1000000
+            },
+            "before": {
+              "e_noc": 11999.95,
+              "is_3pl": null,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09",
+              "tenant_id": "tenant_brn_99931682529",
+              "created_at": "2026-05-28T01:28:03.42216+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-28T01:28:03.42216+00:00",
+              "floor_label": "QA-31682529",
+              "review_note": "Data Update canonical lease space create",
+              "sublease_yn": null,
+              "is_preleased": null,
+              "office_use_yn": null,
+              "review_status": "data_update_written",
+              "delinquency_yn": null,
+              "lease_space_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone",
+              "source_payload": {
+                "kind": "lease_contract_event",
+                "after": {
+                  "fields": {
+                    "basis_date": "2099-02-10",
+                    "floor_label": "QA-31682529",
+                    "leased_area_sqm": 330.58,
+                    "current_end_date": "2100-02-09",
+                    "monthly_mf_total": 200000,
+                    "check_leased_area": "QA source-only check 31682529",
+                    "detail_area_label": "Smoke Zone",
+                    "current_start_date": "2099-02-10",
+                    "exclusive_area_sqm": 300.12,
+                    "monthly_rent_total": 1000000,
+                    "rent_change_reason": "QA smoke initial rent",
+                    "tenant_master_name": "QA Smoke Tenant 31682529",
+                    "business_registration_no": "999-31-682529"
+                  }
+                },
+                "source": "Data Update new lease space",
+                "event_type": "new_lease",
+                "edge_action": "lease-events/submit",
+                "source_refs": [],
+                "source_rows": [
+                  {
+                    "sheet": "DB_general + DB_history",
+                    "action": "qa_new_lease"
+                  }
+                ]
+              },
+              "contract_status": "active",
+              "exclusive_ratio": null,
+              "formula_version": "data_update_v1",
+              "leased_area_sqm": 330.58,
+              "is_single_tenant": null,
+              "temperature_type": null,
+              "detail_area_label": "Smoke Zone",
+              "exclusive_area_sqm": 300.12,
+              "area_breakdown_json": {
+                "core_area_sqm": null,
+                "dock_area_sqm": null,
+                "ramp_area_sqm": null,
+                "office_area_sqm": null,
+                "parking_area_sqm": null,
+                "corridor_area_sqm": null,
+                "warehouse_area_sqm": null,
+                "mechanical_area_sqm": null,
+                "other_common_area_sqm": null,
+                "other_exclusive_area_sqm": null
+              },
+              "facility_specs_json": {
+                "ramp_width": null,
+                "clear_height": null,
+                "power_capacity": null,
+                "dock_door_count": null,
+                "vehicle_aisle_width": null
+              },
+              "source_sheet_row_id": null,
+              "current_monthly_mf_total": 200000,
+              "current_monthly_cost_total": 1200000,
+              "current_monthly_rent_total": 1000000
+            },
+            "operation": "update",
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone"
+          },
+          {
+            "after": null,
+            "before": null,
+            "operation": "source_only",
+            "target_table": "public.ll_lease_attributes",
+            "target_row_id": "8eaa01c0-4fd8-415f-a44f-5201e6b950e0"
+          }
+        ],
+        "preview": {
+          "mode": "add",
+          "status": "ready",
+          "writes": [
+            {
+              "key": "tenant_brn_99931682529",
+              "table": "ll_tenants",
+              "operation": "upsert_or_insert"
+            },
+            {
+              "key": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09",
+              "table": "ll_leases",
+              "operation": "insert"
+            },
+            {
+              "key": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone",
+              "table": "ll_lease_spaces",
+              "operation": "insert"
+            },
+            {
+              "key": "new_initial_history",
+              "table": "ll_rent_history",
+              "operation": "append"
+            },
+            {
+              "table": "ll_lease_attributes",
+              "operation": "preserve_detail",
+              "field_name": "check_leased_area"
+            }
+          ],
+          "resolved": {
+            "lease_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09",
+            "tenant_id": "tenant_brn_99931682529",
+            "lease_space_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone"
+          },
+          "warnings": [],
+          "required_missing": [],
+          "duplicate_findings": []
+        },
+        "updated_count": 1,
+        "archived_count": 0,
+        "inserted_count": 4,
+        "source_only_count": 1,
+        "rollback_readbacks": [
+          {
+            "field_name": "check_leased_area",
+            "target_table": "public.ll_lease_attributes",
+            "target_row_id": "8eaa01c0-4fd8-415f-a44f-5201e6b950e0",
+            "rollback_readback_value": null
+          },
+          {
+            "readback": {
+              "e_noc": 11999.95,
+              "is_3pl": null,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09",
+              "tenant_id": "tenant_brn_99931682529",
+              "created_at": "2026-05-28T01:28:03.42216+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-28T01:28:03.42216+00:00",
+              "floor_label": "QA-31682529",
+              "review_note": "Data Update canonical lease space create",
+              "sublease_yn": null,
+              "is_preleased": null,
+              "office_use_yn": null,
+              "review_status": "data_update_written",
+              "delinquency_yn": null,
+              "lease_space_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone",
+              "source_payload": {
+                "kind": "lease_contract_event",
+                "after": {
+                  "fields": {
+                    "basis_date": "2099-02-10",
+                    "floor_label": "QA-31682529",
+                    "leased_area_sqm": 330.58,
+                    "current_end_date": "2100-02-09",
+                    "monthly_mf_total": 200000,
+                    "check_leased_area": "QA source-only check 31682529",
+                    "detail_area_label": "Smoke Zone",
+                    "current_start_date": "2099-02-10",
+                    "exclusive_area_sqm": 300.12,
+                    "monthly_rent_total": 1000000,
+                    "rent_change_reason": "QA smoke initial rent",
+                    "tenant_master_name": "QA Smoke Tenant 31682529",
+                    "business_registration_no": "999-31-682529"
+                  }
+                },
+                "source": "Data Update new lease space",
+                "event_type": "new_lease",
+                "edge_action": "lease-events/submit",
+                "source_refs": [],
+                "source_rows": [
+                  {
+                    "sheet": "DB_general + DB_history",
+                    "action": "qa_new_lease"
+                  }
+                ]
+              },
+              "contract_status": "active",
+              "exclusive_ratio": null,
+              "formula_version": "data_update_v1",
+              "leased_area_sqm": 330.58,
+              "is_single_tenant": null,
+              "temperature_type": null,
+              "detail_area_label": "Smoke Zone",
+              "exclusive_area_sqm": 300.12,
+              "area_breakdown_json": {
+                "core_area_sqm": null,
+                "dock_area_sqm": null,
+                "ramp_area_sqm": null,
+                "office_area_sqm": null,
+                "parking_area_sqm": null,
+                "corridor_area_sqm": null,
+                "warehouse_area_sqm": null,
+                "mechanical_area_sqm": null,
+                "other_common_area_sqm": null,
+                "other_exclusive_area_sqm": null
+              },
+              "facility_specs_json": {
+                "ramp_width": null,
+                "clear_height": null,
+                "power_capacity": null,
+                "dock_door_count": null,
+                "vehicle_aisle_width": null
+              },
+              "source_sheet_row_id": null,
+              "current_monthly_mf_total": 200000,
+              "current_monthly_cost_total": 1200000,
+              "current_monthly_rent_total": 1000000
+            },
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone",
+            "rollback_action": "restored_before"
+          },
+          {
+            "target_table": "public.ll_rent_history",
+            "target_row_id": "rent_evt_60522523144c1fcbd5d95658",
+            "rollback_action": "deleted_insert"
+          },
+          {
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09|qa-31682529|smokezone",
+            "rollback_action": "deleted_insert"
+          },
+          {
+            "target_table": "public.ll_leases",
+            "target_row_id": "asset_a120085001|tenant_brn_99931682529|2099-02-10|2100-02-09",
+            "rollback_action": "deleted_insert"
+          },
+          {
+            "target_table": "public.ll_tenants",
+            "target_row_id": "tenant_brn_99931682529",
+            "rollback_action": "deleted_insert"
+          }
+        ],
+        "rollback_after_write": true,
+        "rent_history_appended_count": 1
+      }
+    },
+    {
+      "name": "lease-event-preview-missing-required-blocked",
+      "action": "lease-events/preview",
+      "status": 200,
+      "ok": true,
+      "mode": "add",
+      "preview_status": "blocked",
+      "write_status": null
+    },
+    {
+      "name": "lease-event-submit-rent-history-append-rollback",
+      "action": "lease-events/submit",
+      "status": 200,
+      "ok": true,
+      "mode": "rent_change",
+      "preview_status": "ready",
+      "write_status": "rolled_back_after_smoke",
+      "write_result": {
+        "applied": [
+          {
+            "after": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "is_latest": false,
+              "mf_per_py": 3090,
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:46:24.605862+00:00",
+              "updated_at": "2026-05-28T01:28:04.894+00:00",
+              "floor_label": "5",
+              "rent_per_py": 36050,
+              "review_note": null,
+              "match_status": "linked",
+              "change_reason": "최초 계약",
+              "review_status": "ok",
+              "effective_date": "2024-08-01",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129|129",
+                  "table": "DB_히스토리 누적",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "9a3c36934867a38a37fff5c1bd4b38902f70d0ca",
+                "source_row_number": 129
+              },
+              "leased_area_sqm": 9108,
+              "rent_history_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129",
+              "monthly_mf_total": 8513046,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8904,
+              "monthly_rent_total": 99318872,
+              "source_sheet_row_id": "sheet_db_history:r000129",
+              "source_excel_visible_row": 142,
+              "source_contract_lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na"
+            },
+            "before": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "is_latest": true,
+              "mf_per_py": 3090,
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:46:24.605862+00:00",
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "rent_per_py": 36050,
+              "review_note": null,
+              "match_status": "linked",
+              "change_reason": "최초 계약",
+              "review_status": "ok",
+              "effective_date": "2024-08-01",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129|129",
+                  "table": "DB_히스토리 누적",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "9a3c36934867a38a37fff5c1bd4b38902f70d0ca",
+                "source_row_number": 129
+              },
+              "leased_area_sqm": 9108,
+              "rent_history_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129",
+              "monthly_mf_total": 8513046,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8904,
+              "monthly_rent_total": 99318872,
+              "source_sheet_row_id": "sheet_db_history:r000129",
+              "source_excel_visible_row": 142,
+              "source_contract_lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na"
+            },
+            "operation": "update",
+            "target_table": "public.ll_rent_history",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129"
+          },
+          {
+            "after": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "is_latest": true,
+              "mf_per_py": 3090,
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-28T01:28:04.939455+00:00",
+              "updated_at": "2026-05-28T01:28:04.939455+00:00",
+              "floor_label": "5",
+              "rent_per_py": 36050,
+              "review_note": "Data Update canonical rent history append",
+              "match_status": null,
+              "change_reason": "QA smoke rent change 31682529",
+              "review_status": "data_update_written",
+              "effective_date": "2099-01-13",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "kind": "lease_contract_event",
+                "after": {
+                  "fields": {
+                    "basis_date": "2099-01-13",
+                    "monthly_mf_total": 813165,
+                    "monthly_rent_total": 9486915,
+                    "rent_change_reason": "QA smoke rent change 31682529"
+                  }
+                },
+                "source": "Data Update rent history append",
+                "event_type": "rent_change",
+                "edge_action": "lease-events/submit",
+                "source_refs": [],
+                "source_rows": []
+              },
+              "leased_area_sqm": 9108,
+              "rent_history_id": "rent_evt_9d4761ba33b3feee68979d97",
+              "monthly_mf_total": 813165,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8904,
+              "monthly_rent_total": 9486915,
+              "source_sheet_row_id": null,
+              "source_excel_visible_row": null,
+              "source_contract_lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na"
+            },
+            "before": null,
+            "operation": "insert",
+            "target_table": "public.ll_rent_history",
+            "target_row_id": "rent_evt_9d4761ba33b3feee68979d97"
+          },
+          {
+            "after": {
+              "e_noc": 3738.46,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-28T01:28:04.962+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "data_update_latest_rent_applied",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 813165,
+              "current_monthly_cost_total": 10300080,
+              "current_monthly_rent_total": 9486915
+            },
+            "before": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "linked_from_db_history",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            },
+            "operation": "update",
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na"
+          }
+        ],
+        "preview": {
+          "mode": "rent_change",
+          "status": "ready",
+          "writes": [
+            {
+              "key": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "table": "ll_rent_history",
+              "operation": "append"
+            }
+          ],
+          "resolved": {
+            "rent_input": {
+              "mfPerPy": 3090,
+              "rentPerPy": 36050,
+              "floorLabel": "5",
+              "changeReason": "QA smoke rent change 31682529",
+              "effectiveDate": "2099-01-13",
+              "leasedAreaSqm": 9108,
+              "monthlyMfTotal": 813165,
+              "detailAreaLabel": "",
+              "temperatureType": "N",
+              "exclusiveAreaSqm": 8904,
+              "monthlyRentTotal": 9486915
+            },
+            "lease_space": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "linked_from_db_history",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            },
+            "latest_rent_history": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "is_latest": true,
+              "mf_per_py": 3090,
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:46:24.605862+00:00",
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "rent_per_py": 36050,
+              "review_note": null,
+              "match_status": "linked",
+              "change_reason": "최초 계약",
+              "review_status": "ok",
+              "effective_date": "2024-08-01",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129|129",
+                  "table": "DB_히스토리 누적",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "9a3c36934867a38a37fff5c1bd4b38902f70d0ca",
+                "source_row_number": 129
+              },
+              "leased_area_sqm": 9108,
+              "rent_history_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129",
+              "monthly_mf_total": 8513046,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8904,
+              "monthly_rent_total": 99318872,
+              "source_sheet_row_id": "sheet_db_history:r000129",
+              "source_excel_visible_row": 142,
+              "source_contract_lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na"
+            }
+          },
+          "warnings": [],
+          "required_missing": [],
+          "duplicate_findings": []
+        },
+        "updated_count": 2,
+        "archived_count": 0,
+        "inserted_count": 1,
+        "source_only_count": 0,
+        "rollback_readbacks": [
+          {
+            "readback": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "linked_from_db_history",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            },
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+            "rollback_action": "restored_before"
+          },
+          {
+            "target_table": "public.ll_rent_history",
+            "target_row_id": "rent_evt_9d4761ba33b3feee68979d97",
+            "rollback_action": "deleted_insert"
+          },
+          {
+            "readback": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "is_latest": true,
+              "mf_per_py": 3090,
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:46:24.605862+00:00",
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "rent_per_py": 36050,
+              "review_note": null,
+              "match_status": "linked",
+              "change_reason": "최초 계약",
+              "review_status": "ok",
+              "effective_date": "2024-08-01",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129|129",
+                  "table": "DB_히스토리 누적",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "9a3c36934867a38a37fff5c1bd4b38902f70d0ca",
+                "source_row_number": 129
+              },
+              "leased_area_sqm": 9108,
+              "rent_history_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129",
+              "monthly_mf_total": 8513046,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8904,
+              "monthly_rent_total": 99318872,
+              "source_sheet_row_id": "sheet_db_history:r000129",
+              "source_excel_visible_row": 142,
+              "source_contract_lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na"
+            },
+            "target_table": "public.ll_rent_history",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na|20240801|129",
+            "rollback_action": "restored_before"
+          }
+        ],
+        "rollback_after_write": true,
+        "rent_history_appended_count": 1
+      }
+    },
+    {
+      "name": "lease-event-preview-rent-history-duplicate-blocked",
+      "action": "lease-events/preview",
+      "status": 200,
+      "ok": true,
+      "mode": "rent_change",
+      "preview_status": "blocked",
+      "write_status": null
+    },
+    {
+      "name": "lease-event-submit-rent-history-duplicate-blocked",
+      "action": "lease-events/submit",
+      "status": 409,
+      "ok": true,
+      "mode": null,
+      "preview_status": null,
+      "write_status": null
+    },
+    {
+      "name": "lease-event-preview-same-date-different-amount-blocked",
+      "action": "lease-events/preview",
+      "status": 200,
+      "ok": true,
+      "mode": "rent_change",
+      "preview_status": "blocked",
+      "write_status": null
+    },
+    {
+      "name": "lease-event-submit-archive-rollback",
+      "action": "lease-events/submit",
+      "status": 200,
+      "ok": true,
+      "mode": "archive",
+      "preview_status": "ready",
+      "write_status": "rolled_back_after_smoke",
+      "write_result": {
+        "applied": [
+          {
+            "after": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-28T01:28:06.648+00:00",
+              "floor_label": "5",
+              "review_note": "Data Update archived at 2026-05-28T01:28:06.630Z",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "data_update_archived",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "archived",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            },
+            "before": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "linked_from_db_history",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            },
+            "operation": "update",
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na"
+          },
+          {
+            "after": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "fo_months": 5,
+              "rf_months": 7.5,
+              "tenant_id": "tenant_brn_1208800767",
+              "ti_amount": null,
+              "created_at": "2026-05-11T08:45:37.368973+00:00",
+              "updated_at": "2026-05-28T01:28:06.692+00:00",
+              "review_note": "Data Update archived at 2026-05-28T01:28:06.630Z",
+              "lease_status": "archived",
+              "review_status": "data_update_archived",
+              "special_terms": "없음 | 1. 보증금 담보: 계좌 예금근질권 설정, \n 2. 월 5회이상 화재감지기 오류시 신규 감지기로 교체\n 3. 챔버온도: -25도 ~ 10도\n 4. 전실온도: 1도 이하\n 5. 냉동설비 설계부하 기준\n 냉동: 65kcal/h.㎡\n 냉장: 80kcal/h.㎡\n 전실: 120kcal/h.㎡\n 6. 냉동설비 고장시 48시간이내 조치",
+              "contract_years": 5.8,
+              "deposit_amount": 80790750,
+              "first_end_date": "2029-12-31",
+              "renewal_option": "Y",
+              "source_doc_ref": null,
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|12||20240801|20300501|1075.17|556.52",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|12||20240801|20300501|1075.17|556.52",
+                "source_row_number": 17
+              },
+              "extension_count": 0,
+              "current_end_date": "2030-05-01",
+              "first_start_date": "2024-08-01",
+              "current_start_date": "2024-08-01",
+              "tenant_cost_burden": "수도광열비, 주민세",
+              "first_contract_date": "2024-03-07",
+              "source_sheet_row_id": "sheet_db_general:r000017",
+              "first_operation_date": "2025-05-01",
+              "insurance_terms_json": {},
+              "next_escalation_date": "2026-12-02",
+              "recent_contract_date": "2025-06-27",
+              "rent_escalation_rate": 0.03,
+              "early_termination_right": "Y",
+              "escalation_cycle_months": 12,
+              "management_fee_escalation_rate": 0.03
+            },
+            "before": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "fo_months": 5,
+              "rf_months": 7.5,
+              "tenant_id": "tenant_brn_1208800767",
+              "ti_amount": null,
+              "created_at": "2026-05-11T08:45:37.368973+00:00",
+              "updated_at": "2026-05-12T00:35:49.201633+00:00",
+              "review_note": "날짜 또는 면적 값 검토 필요",
+              "lease_status": "Y",
+              "review_status": "suspected_error",
+              "special_terms": "없음 | 1. 보증금 담보: 계좌 예금근질권 설정, \n 2. 월 5회이상 화재감지기 오류시 신규 감지기로 교체\n 3. 챔버온도: -25도 ~ 10도\n 4. 전실온도: 1도 이하\n 5. 냉동설비 설계부하 기준\n 냉동: 65kcal/h.㎡\n 냉장: 80kcal/h.㎡\n 전실: 120kcal/h.㎡\n 6. 냉동설비 고장시 48시간이내 조치",
+              "contract_years": 5.8,
+              "deposit_amount": 80790750,
+              "first_end_date": "2029-12-31",
+              "renewal_option": "Y",
+              "source_doc_ref": null,
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|12||20240801|20300501|1075.17|556.52",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|12||20240801|20300501|1075.17|556.52",
+                "source_row_number": 17
+              },
+              "extension_count": 0,
+              "current_end_date": "2030-05-01",
+              "first_start_date": "2024-08-01",
+              "current_start_date": "2024-08-01",
+              "tenant_cost_burden": "수도광열비, 주민세",
+              "first_contract_date": "2024-03-07",
+              "source_sheet_row_id": "sheet_db_general:r000017",
+              "first_operation_date": "2025-05-01",
+              "insurance_terms_json": {},
+              "next_escalation_date": "2026-12-02",
+              "recent_contract_date": "2025-06-27",
+              "rent_escalation_rate": 0.03,
+              "early_termination_right": "Y",
+              "escalation_cycle_months": 12,
+              "management_fee_escalation_rate": 0.03
+            },
+            "operation": "update",
+            "target_table": "public.ll_leases",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501"
+          }
+        ],
+        "preview": {
+          "mode": "archive",
+          "status": "ready",
+          "writes": [
+            {
+              "key": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "table": "ll_lease_spaces",
+              "operation": "archive"
+            },
+            {
+              "key": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "table": "ll_leases",
+              "operation": "archive"
+            }
+          ],
+          "resolved": {
+            "lease_space": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "linked_from_db_history",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            }
+          },
+          "warnings": [],
+          "required_missing": [],
+          "duplicate_findings": []
+        },
+        "updated_count": 2,
+        "archived_count": 2,
+        "inserted_count": 0,
+        "source_only_count": 0,
+        "rollback_readbacks": [
+          {
+            "readback": {
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "fo_months": 5,
+              "rf_months": 7.5,
+              "tenant_id": "tenant_brn_1208800767",
+              "ti_amount": null,
+              "created_at": "2026-05-11T08:45:37.368973+00:00",
+              "updated_at": "2026-05-12T00:35:49.201633+00:00",
+              "review_note": "날짜 또는 면적 값 검토 필요",
+              "lease_status": "Y",
+              "review_status": "suspected_error",
+              "special_terms": "없음 | 1. 보증금 담보: 계좌 예금근질권 설정, \n 2. 월 5회이상 화재감지기 오류시 신규 감지기로 교체\n 3. 챔버온도: -25도 ~ 10도\n 4. 전실온도: 1도 이하\n 5. 냉동설비 설계부하 기준\n 냉동: 65kcal/h.㎡\n 냉장: 80kcal/h.㎡\n 전실: 120kcal/h.㎡\n 6. 냉동설비 고장시 48시간이내 조치",
+              "contract_years": 5.8,
+              "deposit_amount": 80790750,
+              "first_end_date": "2029-12-31",
+              "renewal_option": "Y",
+              "source_doc_ref": null,
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|12||20240801|20300501|1075.17|556.52",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|12||20240801|20300501|1075.17|556.52",
+                "source_row_number": 17
+              },
+              "extension_count": 0,
+              "current_end_date": "2030-05-01",
+              "first_start_date": "2024-08-01",
+              "current_start_date": "2024-08-01",
+              "tenant_cost_burden": "수도광열비, 주민세",
+              "first_contract_date": "2024-03-07",
+              "source_sheet_row_id": "sheet_db_general:r000017",
+              "first_operation_date": "2025-05-01",
+              "insurance_terms_json": {},
+              "next_escalation_date": "2026-12-02",
+              "recent_contract_date": "2025-06-27",
+              "rent_escalation_rate": 0.03,
+              "early_termination_right": "Y",
+              "escalation_cycle_months": 12,
+              "management_fee_escalation_rate": 0.03
+            },
+            "target_table": "public.ll_leases",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+            "rollback_action": "restored_before"
+          },
+          {
+            "readback": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "linked_from_db_history",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            },
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+            "rollback_action": "restored_before"
+          }
+        ],
+        "rollback_after_write": true,
+        "rent_history_appended_count": 0
+      }
+    },
+    {
+      "name": "lease-event-submit-current-space-update-rollback",
+      "action": "lease-events/submit",
+      "status": 200,
+      "ok": true,
+      "mode": "update",
+      "preview_status": "ready",
+      "write_status": "rolled_back_after_smoke",
+      "write_result": {
+        "applied": [
+          {
+            "after": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-28T01:28:07.249+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "linked_from_db_history",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": "detail_event QA_SMOKE_detail_event",
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            },
+            "before": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "linked_from_db_history",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            },
+            "operation": "update",
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na"
+          }
+        ],
+        "preview": {
+          "mode": "update",
+          "status": "ready",
+          "writes": [
+            {
+              "table": "ll_lease_spaces",
+              "operation": "update",
+              "field_name": "detail_area_label"
+            }
+          ],
+          "resolved": {},
+          "warnings": [],
+          "required_missing": [],
+          "duplicate_findings": []
+        },
+        "updated_count": 1,
+        "archived_count": 0,
+        "inserted_count": 0,
+        "source_only_count": 0,
+        "rollback_readbacks": [
+          {
+            "readback": {
+              "e_noc": 39140,
+              "is_3pl": false,
+              "asset_id": "asset_a120085001",
+              "lease_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501",
+              "tenant_id": "tenant_brn_1208800767",
+              "created_at": "2026-05-11T08:45:37.453226+00:00",
+              "goods_type": null,
+              "updated_at": "2026-05-19T01:19:07.424223+00:00",
+              "floor_label": "5",
+              "review_note": "날짜 또는 면적 값 검토 필요 / DB_???? ?? ?? ? ?? ??/E.NOC ???",
+              "sublease_yn": "Y",
+              "is_preleased": true,
+              "office_use_yn": "N",
+              "review_status": "linked_from_db_history",
+              "delinquency_yn": "N",
+              "lease_space_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+              "source_payload": {
+                "source": {
+                  "pk": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                  "table": "DB_일반",
+                  "system": "google_sheets"
+                },
+                "raw_asset_name": "경산 쿠팡물류센터",
+                "raw_tenant_name": "쿠팡(주)",
+                "source_row_hash": "A120085001|1208800767|5||20240801|20300501|9107.54|8903.87",
+                "source_row_number": 24
+              },
+              "contract_status": "Y",
+              "exclusive_ratio": 97.764,
+              "formula_version": "e_noc_v1_from_latest_rent_history",
+              "leased_area_sqm": 9107.54,
+              "is_single_tenant": true,
+              "temperature_type": "N",
+              "detail_area_label": null,
+              "exclusive_area_sqm": 8903.87,
+              "area_breakdown_json": {},
+              "facility_specs_json": {},
+              "source_sheet_row_id": "sheet_db_general:r000024",
+              "current_monthly_mf_total": 8513046,
+              "current_monthly_cost_total": 107831918,
+              "current_monthly_rent_total": 99318872
+            },
+            "target_table": "public.ll_lease_spaces",
+            "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+            "rollback_action": "restored_before"
+          }
+        ],
+        "rollback_after_write": true,
+        "rent_history_appended_count": 0
+      }
+    },
+    {
+      "name": "lease-event-submit-source-only-preserve-rollback",
+      "action": "lease-events/submit",
+      "status": 200,
+      "ok": true,
+      "mode": "update",
+      "preview_status": "ready",
+      "write_status": "rolled_back_after_smoke",
+      "write_result": {
+        "applied": [
+          {
+            "after": null,
+            "before": null,
+            "operation": "source_only",
+            "target_table": "public.ll_lease_attributes",
+            "target_row_id": "3bf0435d-708a-460a-a408-2a6e1eb7a159"
+          }
+        ],
+        "preview": {
+          "mode": "update",
+          "status": "ready",
+          "writes": [
+            {
+              "table": "ll_lease_attributes",
+              "operation": "preserve_detail",
+              "field_name": "check_leased_area"
+            }
+          ],
+          "resolved": {},
+          "warnings": [],
+          "required_missing": [],
+          "duplicate_findings": []
+        },
+        "updated_count": 0,
+        "archived_count": 0,
+        "inserted_count": 0,
+        "source_only_count": 1,
+        "rollback_readbacks": [
+          {
+            "field_name": "check_leased_area",
+            "target_table": "public.ll_lease_attributes",
+            "target_row_id": "3bf0435d-708a-460a-a408-2a6e1eb7a159",
+            "rollback_readback_value": null
+          }
+        ],
+        "rollback_after_write": true,
+        "rent_history_appended_count": 0
+      }
+    }
+  ]
+}
