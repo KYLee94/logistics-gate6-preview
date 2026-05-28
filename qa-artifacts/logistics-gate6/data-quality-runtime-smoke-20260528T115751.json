@@ -1,0 +1,93 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-28T11:57:51.505Z",
+  "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
+  "origin": "https://kylee94.github.io",
+  "auth_source": "password_grant",
+  "mode": "runtime_rules_plus_audit_log",
+  "returned_count": 97,
+  "runtime_count": 46,
+  "sample": [
+    {
+      "id": "runtime_latest_history_conflict_asset_a120085001|tenant_brn_1208800767|20240801|20300501|b2|na",
+      "severity": "critical",
+      "target_name": "경산 쿠팡물류센터 · 쿠팡(주)",
+      "field_name": "is_latest",
+      "reason_code": "latest_history_conflict",
+      "action": "같은 계약 구역에서 최신 임대료 이력이 여러 건입니다. 하나만 최신으로 남겨야 합니다."
+    },
+    {
+      "id": "runtime_latest_history_conflict_asset_a112299001|tenant_brn_1248159766|20210701|20260630|1|스카이박스1",
+      "severity": "critical",
+      "target_name": "스카이박스1, 스카이박스2 · (주)하나로티앤에스 · 1",
+      "field_name": "is_latest",
+      "reason_code": "latest_history_conflict",
+      "action": "같은 계약 구역에서 최신 임대료 이력이 여러 건입니다. 하나만 최신으로 남겨야 합니다."
+    },
+    {
+      "id": "runtime_latest_history_conflict_asset_a112299001|tenant_brn_1078198143|20220201|20270228|2|스카이박스1",
+      "severity": "critical",
+      "target_name": "스카이박스1, 스카이박스2 · (주)LG생활건강 · 2",
+      "field_name": "is_latest",
+      "reason_code": "latest_history_conflict",
+      "action": "같은 계약 구역에서 최신 임대료 이력이 여러 건입니다. 하나만 최신으로 남겨야 합니다."
+    },
+    {
+      "id": "runtime_latest_history_conflict_asset_a112299001|tenant_brn_1538603528|20250301|20280229|3|스카이박스1",
+      "severity": "critical",
+      "target_name": "스카이박스1, 스카이박스2 · 아이씨비로지스(주) · 3",
+      "field_name": "is_latest",
+      "reason_code": "latest_history_conflict",
+      "action": "같은 계약 구역에서 최신 임대료 이력이 여러 건입니다. 하나만 최신으로 남겨야 합니다."
+    },
+    {
+      "id": "runtime_latest_history_conflict_asset_a112299001|tenant_brn_1078180100|20250923|20280922|4|스카이박스2",
+      "severity": "critical",
+      "target_name": "스카이박스1, 스카이박스2 · ㈜싸이버로지텍 · 4",
+      "field_name": "is_latest",
+      "reason_code": "latest_history_conflict",
+      "action": "같은 계약 구역에서 최신 임대료 이력이 여러 건입니다. 하나만 최신으로 남겨야 합니다."
+    },
+    {
+      "id": "runtime_latest_history_conflict_asset_a120085001|tenant_brn_1208800767|20240801|20300501|1|na",
+      "severity": "critical",
+      "target_name": "경산 쿠팡물류센터 · 쿠팡(주) · 1",
+      "field_name": "is_latest",
+      "reason_code": "latest_history_conflict",
+      "action": "같은 계약 구역에서 최신 임대료 이력이 여러 건입니다. 하나만 최신으로 남겨야 합니다."
+    },
+    {
+      "id": "runtime_latest_history_conflict_asset_a112299001|tenant_brn_2561200547|20250806|20271231|3|스카이박스2",
+      "severity": "critical",
+      "target_name": "스카이박스1, 스카이박스2 · 봄날창고 · 3",
+      "field_name": "is_latest",
+      "reason_code": "latest_history_conflict",
+      "action": "같은 계약 구역에서 최신 임대료 이력이 여러 건입니다. 하나만 최신으로 남겨야 합니다."
+    },
+    {
+      "id": "runtime_rent_history_same_date_conflict_asset_a112299001|tenant_brn_1078198143|20220201|20270228|2|스카이박스1_2024-01-01",
+      "severity": "warning",
+      "target_name": "스카이박스1, 스카이박스2 · (주)LG생활건강 · 2024-01-01",
+      "field_name": "effective_date",
+      "reason_code": "rent_history_same_date_conflict",
+      "action": "같은 기준일자에 서로 다른 임대료/관리비 이력이 있습니다. 보정 이벤트인지 실제 변경 이력인지 구분해야 합니다."
+    },
+    {
+      "id": "runtime_rent_history_same_date_conflict_asset_a112299001|tenant_brn_1078198143|20220201|20270228|2|스카이박스1_2023-01-01",
+      "severity": "warning",
+      "target_name": "스카이박스1, 스카이박스2 · (주)LG생활건강 · 2023-01-01",
+      "field_name": "effective_date",
+      "reason_code": "rent_history_same_date_conflict",
+      "action": "같은 기준일자에 서로 다른 임대료/관리비 이력이 있습니다. 보정 이벤트인지 실제 변경 이력인지 구분해야 합니다."
+    },
+    {
+      "id": "runtime_rent_history_same_date_conflict_asset_a112299001|tenant_brn_1078198143|20220201|20270228|2|스카이박스1_2022-02-01",
+      "severity": "warning",
+      "target_name": "스카이박스1, 스카이박스2 · (주)LG생활건강 · 2022-02-01",
+      "field_name": "effective_date",
+      "reason_code": "rent_history_same_date_conflict",
+      "action": "같은 기준일자에 서로 다른 임대료/관리비 이력이 있습니다. 보정 이벤트인지 실제 변경 이력인지 구분해야 합니다."
+    }
+  ],
+  "artifact": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\data-quality-runtime-smoke-20260528T115751.json"
+}

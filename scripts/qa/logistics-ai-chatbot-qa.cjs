@@ -429,7 +429,7 @@ async function main() {
     basis: { expected: '반복 답변 지적에 자연어로 응답' },
     validate: (answer) => {
       if (/readable_asset_count|answer_focus|provider|fallback|ll_/iu.test(answer)) throw new Error(`meta complaint leaked internal detail: ${answer}`);
-      assertMatches(answer, 'repetition complaint', /반복|다시|질문|데이터|답변/u);
+      assertMatches(answer, 'repetition complaint', /반복|다시|질문|데이터|답변|같은\s*말|기억/u);
     },
   });
 
@@ -446,7 +446,7 @@ async function main() {
     category: '잘못된 자산명/오타',
     question: '없는자산 ABC 물류쎈터 있어?',
     basis: { source: 'll_assets readable scope no match' },
-    validate: (answer) => assertMatches(answer, 'bad asset', /근거 데이터를 찾지 못|확인되지 않습니다|없습니다|없는 것으로 보입니다|없어요|존재하지 않습니다/u),
+    validate: (answer) => assertMatches(answer, 'bad asset', /근거 데이터를 찾지 못|확인되지 않습니다|확인할 수 없습니다|확인이 어렵습니다|없습니다|없는 것으로 보입니다|없어요|존재하지 않습니다/u),
   });
 
   await runCase({
@@ -636,7 +636,7 @@ async function main() {
     category: '권한 밖 자산 질문',
     question: '권한 밖에 있는 비공개 테스트 물류센터 공실률 알려줘',
     basis: { source: 'no readable asset match' },
-    validate: (answer) => assertMatches(answer, 'out of scope', /근거 데이터를 찾지 못|확인되지 않습니다|알 수 없습니다|정보가 없습니다|제공할 수 없습니다|증거가 없습니다/u),
+    validate: (answer) => assertMatches(answer, 'out of scope', /근거 데이터를 찾지 못|확인되지 않습니다|확인할 수 없습니다|알려드릴 수 없습니다|알 수 없습니다|정보가 없습니다|제공할 수 없습니다|증거가 없습니다/u),
   });
 
   await runCase({

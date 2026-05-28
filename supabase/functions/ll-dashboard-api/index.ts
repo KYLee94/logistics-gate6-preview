@@ -800,6 +800,12 @@ function currentKstMonthEndDate() {
   return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 }
 
+function currentKstDate() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  return `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, '0')}-${String(kst.getUTCDate()).padStart(2, '0')}`;
+}
+
 function dashboardBasisDate(payload: Record<string, unknown>) {
   const fallbackBasisDate = currentKstMonthEndDate();
   const basisDate = safeText(firstDefined(payload.basis_date, payload.basisDate, fallbackBasisDate));
@@ -1791,6 +1797,384 @@ function canReadEditRequestRow(ctx: Context, row: Record<string, unknown>) {
   return candidates.some((candidate) => canReadRelatedAsset(ctx, candidate));
 }
 
+function qualityFindingRow(input: {
+  id: string;
+  severity: string;
+  targetType: string;
+  targetName: string;
+  fieldName: string;
+  reasonCode: string;
+  action: string;
+  sourceTable: string;
+  entityId?: string;
+  assetName?: string;
+  tenantName?: string;
+  sourceValue?: unknown;
+  supabaseValue?: unknown;
+  payload?: Record<string, unknown>;
+}) {
+  const now = new Date().toISOString();
+  return {
+    id: input.id,
+    finding_id: input.id,
+    severity: input.severity,
+    sheet_name: input.sourceTable,
+    target_type: input.targetType,
+    target_name: input.targetName,
+    entity_type: input.targetType,
+    entity_id: input.entityId || null,
+    field_name: input.fieldName,
+    reason_code: input.reasonCode,
+    action: input.action,
+    source_sheet_name: input.sourceTable,
+    source_row_id: input.entityId || null,
+    source_row_number: null,
+    source_column_number: null,
+    source_value_text: input.sourceValue === undefined ? null : normalizeText(input.sourceValue),
+    supabase_value_text: input.supabaseValue === undefined ? null : normalizeText(input.supabaseValue),
+    status: 'runtime_detected',
+    source_table: input.sourceTable,
+    table_name: clientTableName(input.sourceTable),
+    raw_event_id: input.id,
+    event_payload: stripUndefined({
+      runtime_rule: true,
+      asset_name: input.assetName,
+      tenant_name: input.tenantName,
+      target_name: input.targetName,
+      suggested_fix: input.action,
+      reason_code: input.reasonCode,
+      ...input.payload,
+    }),
+    created_at: now,
+    updated_at: now,
+  };
+}
+
+function qualityAssetName(row: Record<string, unknown>, assetById: Map<string, Record<string, unknown>>) {
+  const assetId = safeText(firstDefined(row.asset_id, row.assetId));
+  const mapped = assetId ? rowAssetName(assetById.get(assetId) || {}) : '';
+  if (mapped) return mapped;
+  const direct = rowAssetName(row);
+  return /^asset[_-]/iu.test(direct) ? '' : direct;
+}
+
+function qualityTenantName(row: Record<string, unknown>, tenantById: Map<string, Record<string, unknown>>) {
+  const direct = rowTenantName(row);
+  if (direct) return direct;
+  const tenantId = safeText(firstDefined(row.tenant_id, row.tenantId));
+  return tenantId ? rowTenantName(tenantById.get(tenantId) || {}) : '';
+}
+
+function qualityLeaseSpaceId(row: Record<string, unknown>) {
+  return safeText(firstDefined(row.lease_space_id, row.leaseSpaceId, row.source_contract_lease_space_id, row.sourceContractLeaseSpaceId));
+}
+
+function qualityRentEffectiveDate(row: Record<string, unknown>) {
+  return leaseEventDate(firstDefined(row.effective_date, row.effectiveDate, row.basis_date, row.basisDate)) || '';
+}
+
+function qualityRentSignature(row: Record<string, unknown>) {
+  return [
+    qualityLeaseSpaceId(row),
+    qualityRentEffectiveDate(row),
+    leaseEventNumber(firstDefined(row.monthly_rent_total, row.monthlyRentTotal)),
+    leaseEventNumber(firstDefined(row.monthly_mf_total, row.monthlyMfTotal)),
+    normalizeKey(firstDefined(row.change_reason, row.changeReason, row.rent_change_reason, row.rentChangeReason)),
+  ].join('|');
+}
+
+function qualityCurrentRentValues(row: Record<string, unknown>) {
+  return {
+    rent: leaseEventNumber(firstDefined(row.current_monthly_rent_total, row.currentMonthlyRentTotal, row.monthly_rent_total, row.monthlyRentTotal)),
+    mf: leaseEventNumber(firstDefined(row.current_monthly_mf_total, row.currentMonthlyMfTotal, row.monthly_mf_total, row.monthlyMfTotal)),
+  };
+}
+
+function qualityLatestRentValues(row: Record<string, unknown>) {
+  return {
+    rent: leaseEventNumber(firstDefined(row.monthly_rent_total, row.monthlyRentTotal)),
+    mf: leaseEventNumber(firstDefined(row.monthly_mf_total, row.monthlyMfTotal)),
+  };
+}
+
+async function buildRuntimeQualityFindings(ctx: Context, limit: number) {
+  const [assetsRaw, leasesRaw, rentRaw, tenantsRaw] = await Promise.all([
+    safeSelectRows(ctx, 'll_assets', 700),
+    safeSelectRows(ctx, 'll_lease_spaces', 5000),
+    safeSelectRows(ctx, 'll_rent_history', 12000),
+    safeSelectRows(ctx, 'll_tenants', 1500),
+  ]);
+  const assets = assetsRaw.filter((row) => canReadDataRow(ctx, row));
+  const assetById = new Map(assetsRaw.map((row) => [safeText(firstDefined(row.asset_id, row.assetId)), row]).filter(([key]) => key) as Array<[string, Record<string, unknown>]>);
+  const tenantById = new Map(tenantsRaw.map((row) => [safeText(firstDefined(row.tenant_id, row.tenantId)), row]).filter(([key]) => key) as Array<[string, Record<string, unknown>]>);
+  const leaseSpaces = leasesRaw.filter((row) => canReadDataRow(ctx, row));
+  const activeLeaseSpaces = currentDashboardLeaseSpaces(leaseSpaces);
+  const rentRows = rentRaw.filter((row) => {
+    const assetName = qualityAssetName(row, assetById);
+    return canReadDataRow(ctx, { ...row, asset_name: assetName || row.asset_name });
+  });
+  const findings: Record<string, unknown>[] = [];
+  const push = (row: Record<string, unknown>) => {
+    if (findings.length < limit * 2) findings.push(row);
+  };
+
+  assets.forEach((asset) => {
+    const assetId = safeText(firstDefined(asset.asset_id, asset.assetId));
+    const assetName = rowAssetName(asset) || assetId || '자산';
+    if (!rowAssetName(asset)) {
+      push(qualityFindingRow({
+        id: `runtime_asset_name_missing_${assetId || findings.length}`,
+        severity: 'warning',
+        targetType: 'asset',
+        targetName: assetName,
+        fieldName: 'asset_name',
+        reasonCode: 'asset_name_missing',
+        action: '자산 마스터의 자산명을 입력해야 화면과 계약 데이터가 안정적으로 연결됩니다.',
+        sourceTable: 'public.ll_assets',
+        entityId: assetId,
+        assetName,
+      }));
+    }
+    if (!rowGrossAreaPy(asset)) {
+      push(qualityFindingRow({
+        id: `runtime_asset_gross_area_missing_${assetId || findings.length}`,
+        severity: 'warning',
+        targetType: 'asset',
+        targetName: assetName,
+        fieldName: 'gross_floor_area_sqm',
+        reasonCode: 'asset_gross_area_missing',
+        action: '자산 연면적을 확인해 홈/자산 탭 면적 지표가 빈 값으로 계산되지 않게 해야 합니다.',
+        sourceTable: 'public.ll_assets',
+        entityId: assetId,
+        assetName,
+      }));
+    }
+  });
+
+  const latestBySpace = new Map<string, Record<string, unknown>[]>();
+  const allBySpace = new Map<string, Record<string, unknown>[]>();
+  rentRows.forEach((row) => {
+    const leaseSpaceId = qualityLeaseSpaceId(row);
+    if (!leaseSpaceId) return;
+    allBySpace.set(leaseSpaceId, [...(allBySpace.get(leaseSpaceId) || []), row]);
+    const isLatest = row.is_latest === true || safeText(row.is_latest).toLowerCase() === 'true';
+    if (isLatest) latestBySpace.set(leaseSpaceId, [...(latestBySpace.get(leaseSpaceId) || []), row]);
+  });
+
+  activeLeaseSpaces.forEach((space) => {
+    const leaseSpaceId = qualityLeaseSpaceId(space);
+    const assetName = qualityAssetName(space, assetById) || '자산';
+    const tenantName = qualityTenantName(space, tenantById) || '임차인';
+    const zoneName = safeText(firstDefined(space.floor_label, space.floorLabel, space.detail_area_label, space.detailAreaLabel));
+    const targetName = [assetName, tenantName, zoneName].filter(Boolean).join(' · ');
+    const areaPy = rowAreaPy(space);
+    const currentValues = qualityCurrentRentValues(space);
+    if (!leaseSpaceId) {
+      push(qualityFindingRow({
+        id: `runtime_lease_space_id_missing_${safeText(firstDefined(space.id, space.lease_id, findings.length))}`,
+        severity: 'critical',
+        targetType: 'lease_space',
+        targetName,
+        fieldName: 'lease_space_id',
+        reasonCode: 'lease_space_id_missing',
+        action: '계약 구역 식별값이 없어 수정/아카이빙/임대료 이력 누적 대상이 불명확합니다.',
+        sourceTable: 'public.ll_lease_spaces',
+        entityId: safeText(firstDefined(space.id, space.lease_id)),
+        assetName,
+        tenantName,
+      }));
+    }
+    if (!areaPy || areaPy <= 0) {
+      push(qualityFindingRow({
+        id: `runtime_lease_area_missing_${leaseSpaceId || findings.length}`,
+        severity: 'warning',
+        targetType: 'lease_space',
+        targetName,
+        fieldName: 'leased_area_sqm',
+        reasonCode: 'lease_area_missing',
+        action: '임대면적을 입력해야 E. NOC와 임차인별 면적 비율을 계산할 수 있습니다.',
+        sourceTable: 'public.ll_lease_spaces',
+        entityId: leaseSpaceId,
+        assetName,
+        tenantName,
+      }));
+    }
+    if (currentValues.rent === null || currentValues.mf === null) {
+      push(qualityFindingRow({
+        id: `runtime_current_rent_missing_${leaseSpaceId || findings.length}`,
+        severity: 'warning',
+        targetType: 'lease_space',
+        targetName,
+        fieldName: currentValues.rent === null ? 'current_monthly_rent_total' : 'current_monthly_mf_total',
+        reasonCode: 'current_rent_missing',
+        action: '현재 계약 원장의 월 임대료와 월 관리비를 모두 입력해야 운영 지표가 완성됩니다.',
+        sourceTable: 'public.ll_lease_spaces',
+        entityId: leaseSpaceId,
+        assetName,
+        tenantName,
+      }));
+    }
+    if (leaseSpaceId && !(allBySpace.get(leaseSpaceId) || []).length) {
+      push(qualityFindingRow({
+        id: `runtime_rent_history_missing_${leaseSpaceId}`,
+        severity: 'warning',
+        targetType: 'rent_history',
+        targetName,
+        fieldName: 'effective_date',
+        reasonCode: 'rent_history_missing',
+        action: '선택 계약 구역의 최초/최신 임대료 변경 이력을 1건 이상 누적해야 변경 추적이 가능합니다.',
+        sourceTable: 'public.ll_rent_history',
+        entityId: leaseSpaceId,
+        assetName,
+        tenantName,
+      }));
+    }
+    const latestRows = leaseSpaceId ? (latestBySpace.get(leaseSpaceId) || []) : [];
+    if (latestRows.length > 1) {
+      push(qualityFindingRow({
+        id: `runtime_latest_history_conflict_${leaseSpaceId}`,
+        severity: 'critical',
+        targetType: 'rent_history',
+        targetName,
+        fieldName: 'is_latest',
+        reasonCode: 'latest_history_conflict',
+        action: '같은 계약 구역에서 최신 임대료 이력이 여러 건입니다. 하나만 최신으로 남겨야 합니다.',
+        sourceTable: 'public.ll_rent_history',
+        entityId: leaseSpaceId,
+        assetName,
+        tenantName,
+        supabaseValue: latestRows.length,
+      }));
+    }
+    if (latestRows.length === 1) {
+      const latestValues = qualityLatestRentValues(latestRows[0]);
+      if (
+        (currentValues.rent !== null && latestValues.rent !== null && !valuesEqual(currentValues.rent, latestValues.rent))
+        || (currentValues.mf !== null && latestValues.mf !== null && !valuesEqual(currentValues.mf, latestValues.mf))
+      ) {
+        push(qualityFindingRow({
+          id: `runtime_current_latest_mismatch_${leaseSpaceId}`,
+          severity: 'warning',
+          targetType: 'rent_history',
+          targetName,
+          fieldName: 'monthly_rent_total',
+          reasonCode: 'current_vs_latest_history_mismatch',
+          action: '현재 계약 원장의 월 임대료/관리비와 최신 임대료 변경 이력이 다릅니다. 현재값 보정인지 새 변경 이력인지 구분해 반영해야 합니다.',
+          sourceTable: 'public.ll_rent_history',
+          entityId: leaseSpaceId,
+          assetName,
+          tenantName,
+          sourceValue: `현재 ${currentValues.rent ?? '-'} / ${currentValues.mf ?? '-'}`,
+          supabaseValue: `최신 이력 ${latestValues.rent ?? '-'} / ${latestValues.mf ?? '-'}`,
+        }));
+      }
+    }
+    const endDate = leaseEventDate(firstDefined(space.current_end_date, space.currentEndDate, space.latest_expiry, space.latestExpiry));
+    if (endDate && endDate < currentKstDate() && isCurrentDashboardLeaseSpace(space)) {
+      push(qualityFindingRow({
+        id: `runtime_expired_active_lease_${leaseSpaceId || findings.length}`,
+        severity: 'warning',
+        targetType: 'lease_space',
+        targetName,
+        fieldName: 'current_end_date',
+        reasonCode: 'expired_active_lease',
+        action: '계약 만기일이 지났지만 활성 계약으로 남아 있습니다. 연장 계약인지 아카이빙 대상인지 확인해야 합니다.',
+        sourceTable: 'public.ll_lease_spaces',
+        entityId: leaseSpaceId,
+        assetName,
+        tenantName,
+        supabaseValue: endDate,
+      }));
+    }
+  });
+
+  const duplicateBySignature = new Map<string, Record<string, unknown>[]>();
+  const bySpaceDate = new Map<string, Set<string>>();
+  rentRows.forEach((row) => {
+    const leaseSpaceId = qualityLeaseSpaceId(row);
+    const date = qualityRentEffectiveDate(row);
+    if (!leaseSpaceId || !date) return;
+    const signature = qualityRentSignature(row);
+    duplicateBySignature.set(signature, [...(duplicateBySignature.get(signature) || []), row]);
+    const values = [leaseEventNumber(row.monthly_rent_total), leaseEventNumber(row.monthly_mf_total), normalizeKey(firstDefined(row.change_reason, row.rent_change_reason))].join('|');
+    const dateKey = `${leaseSpaceId}|${date}`;
+    const set = bySpaceDate.get(dateKey) || new Set<string>();
+    set.add(values);
+    bySpaceDate.set(dateKey, set);
+  });
+  duplicateBySignature.forEach((rows, signature) => {
+    if (rows.length <= 1) return;
+    const row = rows[0];
+    const assetName = qualityAssetName(row, assetById) || '자산';
+    const tenantName = qualityTenantName(row, tenantById) || '임차인';
+    push(qualityFindingRow({
+      id: `runtime_rent_history_duplicate_${signature}`,
+      severity: 'warning',
+      targetType: 'rent_history',
+      targetName: [assetName, tenantName, qualityRentEffectiveDate(row)].filter(Boolean).join(' · '),
+      fieldName: 'effective_date',
+      reasonCode: 'rent_history_duplicate',
+      action: '같은 계약 구역·기준일자·임대료·관리비·변동 원인의 이력이 중복되어 있습니다. 중복 행인지 확인해야 합니다.',
+      sourceTable: 'public.ll_rent_history',
+      entityId: qualityLeaseSpaceId(row),
+      assetName,
+      tenantName,
+      supabaseValue: rows.length,
+    }));
+  });
+  bySpaceDate.forEach((valueSet, key) => {
+    if (valueSet.size <= 1) return;
+    const keyParts = key.split('|');
+    const date = keyParts.pop() || '';
+    const leaseSpaceId = keyParts.join('|');
+    const sample = rentRows.find((row) => qualityLeaseSpaceId(row) === leaseSpaceId && qualityRentEffectiveDate(row) === date) || {};
+    const assetName = qualityAssetName(sample, assetById) || '자산';
+    const tenantName = qualityTenantName(sample, tenantById) || '임차인';
+    push(qualityFindingRow({
+      id: `runtime_rent_history_same_date_conflict_${leaseSpaceId}_${date}`,
+      severity: 'warning',
+      targetType: 'rent_history',
+      targetName: [assetName, tenantName, date].filter(Boolean).join(' · '),
+      fieldName: 'effective_date',
+      reasonCode: 'rent_history_same_date_conflict',
+      action: '같은 기준일자에 서로 다른 임대료/관리비 이력이 있습니다. 보정 이벤트인지 실제 변경 이력인지 구분해야 합니다.',
+      sourceTable: 'public.ll_rent_history',
+      entityId: leaseSpaceId,
+      assetName,
+      tenantName,
+      supabaseValue: `${valueSet.size}가지 값`,
+    }));
+  });
+
+  tenantsRaw.filter((row) => {
+    const tenantName = rowTenantName(row);
+    return tenantName && (hasRole(ctx.role, 'Manager') || activeLeaseSpaces.some((space) => safeText(space.tenant_id) === safeText(row.tenant_id) || rowTenantName(space) === tenantName));
+  }).forEach((tenant) => {
+    const tenantId = safeText(firstDefined(tenant.tenant_id, tenant.tenantId));
+    const tenantName = rowTenantName(tenant) || tenantId || '임차인';
+    if (!safeText(firstDefined(tenant.business_registration_no, tenant.businessRegistrationNo))) {
+      push(qualityFindingRow({
+        id: `runtime_tenant_brn_missing_${tenantId || tenantName}`,
+        severity: 'info',
+        targetType: 'tenant',
+        targetName: tenantName,
+        fieldName: 'business_registration_no',
+        reasonCode: 'tenant_business_registration_missing',
+        action: '사업자등록번호가 없으면 OpenDART/NICE 등 외부 기업 정보 매칭 정확도가 낮아질 수 있습니다.',
+        sourceTable: 'public.ll_tenants',
+        entityId: tenantId,
+        tenantName,
+      }));
+    }
+  });
+
+  const severityRank: Record<string, number> = { critical: 0, high: 0, warning: 1, medium: 1, info: 2, low: 2 };
+  return findings
+    .filter((row, index, list) => list.findIndex((item) => item.id === row.id) === index)
+    .sort((a, b) => (severityRank[String(a.severity)] ?? 3) - (severityRank[String(b.severity)] ?? 3) || normalizeText(b.created_at).localeCompare(normalizeText(a.created_at)))
+    .slice(0, limit);
+}
+
 async function listQualityFindings(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
@@ -1805,7 +2189,7 @@ async function listQualityFindings(ctx: Context, payload: Record<string, unknown
   if (payload.severity && String(payload.severity) !== 'all') query = query.eq('severity', String(payload.severity));
   const { data, error } = await query;
   if (error) return fail(500, 'Failed to list data quality findings', ctx.origin);
-  const rows = (data || [])
+  const auditRows = (data || [])
     .map((row: Record<string, unknown>) => {
       const eventPayload = parseJsonValue(row.event_payload, {}) as Record<string, unknown>;
       return {
@@ -1836,8 +2220,26 @@ async function listQualityFindings(ctx: Context, payload: Record<string, unknown
       };
     })
     .filter((row: Record<string, unknown>) => canReadDataQualityRow(ctx, row));
-  await audit(ctx.serviceClient, ctx.user.id, 'quality/findings', 200, { limit, returned: rows.length });
-  return jsonResponse({ ok: true, data: rows }, 200, ctx.origin);
+  let runtimeRows: Record<string, unknown>[] = [];
+  try {
+    runtimeRows = await buildRuntimeQualityFindings(ctx, limit);
+  } catch (runtimeError) {
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'quality/findings/runtime_failed', 500, {
+      error: runtimeError instanceof Error ? runtimeError.message : 'runtime quality failed',
+    });
+  }
+  const severityFilter = payload.severity && String(payload.severity) !== 'all' ? String(payload.severity).toLowerCase() : '';
+  const rows = [...runtimeRows, ...auditRows]
+    .filter((row: Record<string, unknown>) => !severityFilter || String(row.severity || '').toLowerCase() === severityFilter)
+    .filter((row: Record<string, unknown>, index, list) => list.findIndex((item) => item.id === row.id) === index)
+    .slice(0, limit);
+  await audit(ctx.serviceClient, ctx.user.id, 'quality/findings', 200, {
+    limit,
+    runtime_returned: runtimeRows.length,
+    audit_returned: auditRows.length,
+    returned: rows.length,
+  });
+  return jsonResponse({ ok: true, data: rows, mode: 'runtime_rules_plus_audit_log' }, 200, ctx.origin);
 }
 
 async function listEditRequests(ctx: Context, payload: Record<string, unknown>) {
@@ -6397,6 +6799,10 @@ function isMonthlyCostQuestion(question: string) {
     && !isReadableAssetCountQuestion(question);
 }
 
+function mentionsMonthlyMoneyMetric(question: string) {
+  return /(월\s*임관리비|임관리비|월\s*임대료|월\s*관리비|관리비|임대료|금액)/iu.test(question);
+}
+
 function isTenantMonthlyCostShareQuestion(question: string) {
   return /(임차인별|임차인\s*별|tenant|테넌트|각\s*임차인|개별\s*임차인)/iu.test(question)
     && /(비율|구성|점유|share|%|퍼센트|얼마나|차지)/iu.test(question)
@@ -6890,6 +7296,10 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
   const portfolioMonthlyMf = Math.max(latestMfTotal || 0, portfolioSummary.monthlyMf || 0) || null;
   const portfolioMonthlyCost = Math.max(latestCostTotal || 0, portfolioSummary.monthlyCost || 0) || null;
   const portfolioWeightedENoc = portfolioSummary.eNoc ? Math.round(portfolioSummary.eNoc) : null;
+  const portfolioMonthlyRentDisplay = portfolioMonthlyRent === null ? null : `${formatKoreanWon(portfolioMonthlyRent)} (${formatKoreanCompactWon(portfolioMonthlyRent)})`;
+  const portfolioMonthlyMfDisplay = portfolioMonthlyMf === null ? null : `${formatKoreanWon(portfolioMonthlyMf)} (${formatKoreanCompactWon(portfolioMonthlyMf)})`;
+  const portfolioMonthlyCostDisplay = portfolioMonthlyCost === null ? null : `${formatKoreanWon(portfolioMonthlyCost)} (${formatKoreanCompactWon(portfolioMonthlyCost)})`;
+  const portfolioWeightedENocDisplay = portfolioWeightedENoc === null ? null : formatKoreanWon(portfolioWeightedENoc);
   const includePortfolio = isOverallQuestion(question) || isReadableAssetCountQuestion(question);
   const targetAssets = assetRows.length
     ? assetRows
@@ -6940,6 +7350,9 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
   const asksTenantCostShare = /비율|share|차지/iu.test(question) && /임관리비|관리비|월/iu.test(question);
   const asksLargestAreaTenant = /최대\s*면적|가장\s*많은\s*면적|최대\s*임차/iu.test(question);
   const asksAssetOperatingStatus = /운영\s*현황|임대\s*현황/iu.test(question);
+  const asksPortfolioMonthlyCost = isOverallQuestion(question) && isMonthlyCostQuestion(question);
+  const asksPortfolioENoc = isOverallQuestion(question) && isENocQuestion(question);
+  const asksComparison = isComparisonQuestion(question) && targetAssetFactsForFocus.length > 1;
   const asksTenantMetric = Boolean(firstTenantAsset && (isENocQuestion(question) || /면적|임관리비|관리비|금액|얼마/iu.test(question)));
   const asksTenantArea = asksTenantMetric && /면적|임차/iu.test(question);
   const asksTenantENoc = asksTenantMetric && isENocQuestion(question);
@@ -6950,6 +7363,14 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
     ...(asksTenantMetric && firstTenantAsset?.tenant_name ? [firstTenantAsset.tenant_name] : []),
     ...(asksTenantArea && firstTenantAsset?.leased_area_display ? [firstTenantAsset.leased_area_display] : []),
     ...(asksTenantENoc && firstTenantAsset?.weighted_e_noc_display ? [firstTenantAsset.weighted_e_noc_display] : []),
+    ...(asksTenantCostShare ? tenantMonthlyShares.flatMap((row) => [row.tenant_name, row.share_display]).filter(Boolean) : []),
+    ...(asksComparison ? targetAssetFactsForFocus.flatMap((asset) => [
+      asset.asset_name,
+      mentionsMonthlyMoneyMetric(question) ? asset.monthly_cost_total_display : null,
+      isENocQuestion(question) ? asset.weighted_e_noc_display : null,
+    ]).filter(Boolean) : []),
+    ...(asksPortfolioMonthlyCost && portfolioMonthlyCostDisplay ? [portfolioMonthlyCostDisplay, formatKoreanCompactWon(portfolioMonthlyCost || 0)] : []),
+    ...(asksPortfolioENoc && portfolioWeightedENocDisplay ? [portfolioWeightedENocDisplay] : []),
   ].filter(Boolean);
   const requiredFacts = [
     ...(asksAssetOperatingStatus ? [
@@ -6968,15 +7389,33 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
     ...(asksTenantENoc && firstTenantAsset?.weighted_e_noc_display ? [
       { label: 'E. NOC', value: firstTenantAsset.weighted_e_noc_display },
     ] : []),
+    ...(asksPortfolioMonthlyCost && portfolioMonthlyCostDisplay ? [
+      { label: '전체 자산 월 임관리비 합계', value: portfolioMonthlyCostDisplay },
+    ] : []),
+    ...(asksPortfolioENoc && portfolioWeightedENocDisplay ? [
+      { label: '전체 자산 평균 E. NOC', value: portfolioWeightedENocDisplay },
+    ] : []),
+    ...(asksTenantCostShare ? tenantMonthlyShares.flatMap((row) => [
+      { label: `${normalizeText(row.tenant_name)} 비율`, value: row.share_display },
+    ]).filter((item) => item.value) : []),
+    ...(asksComparison ? targetAssetFactsForFocus.flatMap((asset) => [
+      { label: `${normalizeText(asset.asset_name)} 월 임관리비`, value: mentionsMonthlyMoneyMetric(question) ? asset.monthly_cost_total_display : null },
+      { label: `${normalizeText(asset.asset_name)} E. NOC`, value: isENocQuestion(question) ? asset.weighted_e_noc_display : null },
+    ]).filter((item) => item.value) : []),
   ].filter((item) => item.value);
   const answerFocus = stripUndefined({
     scope: assetRows.length ? 'asset' : isOverallQuestion(question) ? 'portfolio' : tenantNames.length ? 'tenant' : undefined,
     asset_name: assetRows.length ? firstAssetFact.asset_name || undefined : undefined,
     required_display_values: requiredDisplayValues.length ? requiredDisplayValues : undefined,
     required_facts: requiredFacts.length ? requiredFacts : undefined,
-    portfolio_weighted_e_noc: isOverallQuestion(question) && isENocQuestion(question) ? {
-      value_display: portfolioWeightedENoc === null ? null : formatKoreanWon(portfolioWeightedENoc),
+    portfolio_weighted_e_noc: asksPortfolioENoc ? {
+      value_display: portfolioWeightedENocDisplay,
       formula: '임대면적 가중평균',
+    } : undefined,
+    portfolio_monthly_cost: asksPortfolioMonthlyCost ? {
+      monthly_cost_total_display: portfolioMonthlyCostDisplay,
+      monthly_rent_total_display: portfolioMonthlyRentDisplay,
+      monthly_mf_total_display: portfolioMonthlyMfDisplay,
     } : undefined,
     asset_operating_status: firstAssetFact.asset_name && asksAssetOperatingStatus ? {
       asset_name: firstAssetFact.asset_name,
@@ -7023,13 +7462,13 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
       vacancy_area_display: portfolioVacancyAreaPy === null ? null : formatKoreanPy(portfolioVacancyAreaPy),
       vacancy_rate: portfolioSummary.vacancyRate !== null ? Math.round(portfolioSummary.vacancyRate * 1000) / 10 : null,
       monthly_rent_total_krw: portfolioMonthlyRent,
-      monthly_rent_total_display: portfolioMonthlyRent === null ? null : `${formatKoreanWon(portfolioMonthlyRent)} (${formatKoreanCompactWon(portfolioMonthlyRent)})`,
+      monthly_rent_total_display: portfolioMonthlyRentDisplay,
       monthly_mf_total_krw: portfolioMonthlyMf,
-      monthly_mf_total_display: portfolioMonthlyMf === null ? null : `${formatKoreanWon(portfolioMonthlyMf)} (${formatKoreanCompactWon(portfolioMonthlyMf)})`,
+      monthly_mf_total_display: portfolioMonthlyMfDisplay,
       monthly_cost_total_krw: portfolioMonthlyCost,
-      monthly_cost_total_display: portfolioMonthlyCost === null ? null : `${formatKoreanWon(portfolioMonthlyCost)} (${formatKoreanCompactWon(portfolioMonthlyCost)})`,
+      monthly_cost_total_display: portfolioMonthlyCostDisplay,
       weighted_e_noc_krw_per_py: portfolioWeightedENoc,
-      weighted_e_noc_display: portfolioWeightedENoc === null ? null : formatKoreanWon(portfolioWeightedENoc),
+      weighted_e_noc_display: portfolioWeightedENocDisplay,
     } : undefined,
     matched_assets: matchedAssetFacts,
     matched_tenants: tenantFacts,
@@ -7098,9 +7537,53 @@ function hasAiInternalDetail(value: unknown) {
 }
 
 function publicAiFallbackAnswer(question: string, supabaseFacts?: Record<string, unknown>) {
+  const focus = supabaseFacts?.answer_focus && typeof supabaseFacts.answer_focus === 'object' && !Array.isArray(supabaseFacts.answer_focus)
+    ? supabaseFacts.answer_focus as Record<string, unknown>
+    : {};
+  const matchedAssets = Array.isArray(supabaseFacts?.matched_assets) ? supabaseFacts.matched_assets as Record<string, unknown>[] : [];
+  if (matchedAssets.length > 1 && isComparisonQuestion(question)) {
+    const rows = matchedAssets.slice(0, 4).map((asset) => {
+      const assetName = normalizeText(asset.asset_name).trim();
+      const parts = [assetName];
+      if (isVacancyQuestion(question) && asset.vacancy_rate !== undefined) parts.push(`공실률 ${normalizeText(asset.vacancy_rate)}%`);
+      if (mentionsMonthlyMoneyMetric(question) && asset.monthly_cost_total_display) parts.push(`월 임관리비 ${normalizeText(asset.monthly_cost_total_display)}`);
+      if (isENocQuestion(question) && asset.weighted_e_noc_display) parts.push(`E. NOC ${normalizeText(asset.weighted_e_noc_display)}`);
+      return parts.filter(Boolean).join(' ');
+    }).filter(Boolean);
+    if (rows.length) return `비교하면 ${rows.join(' / ')}입니다.`;
+  }
+  const shares = focus.tenant_monthly_cost_shares && typeof focus.tenant_monthly_cost_shares === 'object' && !Array.isArray(focus.tenant_monthly_cost_shares)
+    ? focus.tenant_monthly_cost_shares as Record<string, unknown>
+    : null;
+  const shareRows = Array.isArray(shares?.rows) ? shares.rows as Record<string, unknown>[] : [];
+  if (shareRows.length) {
+    const assetName = normalizeText(shares?.asset_name || focus.asset_name).trim();
+    const rows = shareRows
+      .map((row) => {
+        const tenantName = normalizeText(row.tenant_name).trim();
+        const share = normalizeText(row.share_display).trim();
+        return tenantName && share ? `${tenantName} ${share}` : '';
+      })
+      .filter(Boolean);
+    if (rows.length) return `${assetName ? `${assetName} 기준 ` : ''}임차인별 월임관리비 비율은 ${rows.join(', ')}입니다.`;
+  }
+  const largestTenant = focus.largest_area_tenant && typeof focus.largest_area_tenant === 'object' && !Array.isArray(focus.largest_area_tenant)
+    ? focus.largest_area_tenant as Record<string, unknown>
+    : null;
+  if (largestTenant) {
+    const assetName = normalizeText(focus.asset_name).trim();
+    const tenantName = normalizeText(largestTenant.tenant_name).trim();
+    const area = normalizeText(largestTenant.leased_area_display).trim();
+    if (tenantName && area) return `${assetName ? `${assetName}에서 ` : ''}최대 면적 임차인은 ${tenantName}이며, 임차 면적은 ${area}입니다.`;
+  }
+  if (supabaseFacts) {
+    const requiredFallback = requiredFactsFallbackAnswer(question, supabaseFacts);
+    if (requiredFallback) return requiredFallback;
+  }
   const lines = supabaseFacts ? buildPublicAiFactLines(supabaseFacts).slice(0, 5) : [];
   if (lines.length) {
-    return `확인 가능한 공개 데이터 기준으로는 ${lines.join(', ')}입니다.`;
+    const publicLines = lines.filter((line) => !/^basis:/iu.test(line) && !/근거값/u.test(line));
+    if (publicLines.length) return `확인 가능한 공개 데이터 기준으로는 ${publicLines.join(', ')}입니다.`;
   }
   return normalizeText(question)
     ? '질문에 대해 공개 가능한 데이터 기준으로 다시 확인했지만, 답변에 필요한 근거가 충분하지 않습니다.'
@@ -7193,6 +7676,82 @@ function buildPublicAiFactLines(value: unknown, prefix = '', lines: string[] = [
     lines.push(`${prefix ? `${prefix} / ` : ''}${label}: ${text}`);
   });
   return [...new Set(lines)].slice(0, 80);
+}
+
+function collectPublicAiContextNames(value: unknown, names: { assets: string[]; tenants: string[] } = { assets: [], tenants: [] }, depth = 0) {
+  if (depth > 5 || value == null) return names;
+  if (Array.isArray(value)) {
+    value.slice(0, 20).forEach((item) => collectPublicAiContextNames(item, names, depth + 1));
+    names.assets = [...new Set(names.assets)].slice(0, 5);
+    names.tenants = [...new Set(names.tenants)].slice(0, 8);
+    return names;
+  }
+  if (typeof value !== 'object') return names;
+  Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
+    if (/^(asset_name|assetName)$/u.test(key)) {
+      const text = normalizeText(child).trim();
+      if (text && !hasAiInternalDetail(text)) names.assets.push(text);
+      return;
+    }
+    if (/^(tenant_name|tenantName|tenant_master_name|tenantMasterName)$/u.test(key)) {
+      const text = normalizeText(child).trim();
+      if (text && !hasAiInternalDetail(text)) names.tenants.push(text);
+      return;
+    }
+    if (child && typeof child === 'object') collectPublicAiContextNames(child, names, depth + 1);
+  });
+  names.assets = [...new Set(names.assets)].slice(0, 5);
+  names.tenants = [...new Set(names.tenants)].slice(0, 8);
+  return names;
+}
+
+function normalizedAiMentionText(value: unknown) {
+  return normalizeText(value).replace(/[\s,._·()（）\[\]-]+/gu, '').toLowerCase();
+}
+
+function isAiFollowUpContextQuestion(question: string) {
+  return /(그|해당|방금|앞서|위에서|이\s*자산|그\s*자산|이\s*임차인|그\s*임차인|방금\s*말한)/iu.test(question);
+}
+
+function textMentionsName(text: string, name: unknown) {
+  const textKey = normalizedAiMentionText(text);
+  const key = normalizedAiMentionText(name);
+  if (!key) return true;
+  const shortKey = key.replace(/[0-9]+/gu, '');
+  return textKey.includes(key) || (shortKey.length >= 2 && textKey.includes(shortKey));
+}
+
+function ensureAiPublicContextMention(question: string, answer: string, supabaseFacts: Record<string, unknown>) {
+  const text = normalizeText(answer).trim();
+  if (!text) return text;
+  const focus = supabaseFacts?.answer_focus && typeof supabaseFacts.answer_focus === 'object' && !Array.isArray(supabaseFacts.answer_focus)
+    ? supabaseFacts.answer_focus as Record<string, unknown>
+    : {};
+  const shares = focus.tenant_monthly_cost_shares && typeof focus.tenant_monthly_cost_shares === 'object' && !Array.isArray(focus.tenant_monthly_cost_shares)
+    ? focus.tenant_monthly_cost_shares as Record<string, unknown>
+    : null;
+  const shareAssetName = normalizeText(shares?.asset_name || '').trim();
+  if (shareAssetName && !textMentionsName(text, shareAssetName)) {
+    return `${shareAssetName} 기준으로 말씀드리면, ${text}`;
+  }
+  if (!isAiFollowUpContextQuestion(question)) return text;
+  const contextNames = collectPublicAiContextNames(supabaseFacts);
+  const missingAssets = contextNames.assets.filter((assetName) => {
+    return !textMentionsName(text, assetName);
+  });
+  if (missingAssets.length) {
+    return `${missingAssets[0]} 기준으로 말씀드리면, ${text}`;
+  }
+  return text;
+}
+
+function ensureAiCalculationQualifiers(question: string, answer: string) {
+  const text = normalizeText(answer).trim();
+  if (!text) return text;
+  if (isENocQuestion(question) && /평균|average|전체/iu.test(question) && !/가중\s*평균|가중평균|임대면적\s*가중/iu.test(text)) {
+    return `${text} 이 값은 임대면적 가중평균 기준입니다.`;
+  }
+  return text;
 }
 
 function normalizeAiAnswerCheckText(value: unknown) {
@@ -7301,33 +7860,26 @@ async function repairAiAnswerWithRequiredFacts(question: string, answer: string,
 function buildAiSearchPrompt(question: string, history: Array<{ role: string; content: string }>, supabaseFacts: Record<string, unknown>) {
   const recentConversation = publicAiHistory(history);
   const publicFacts = buildPublicAiFactLines(supabaseFacts);
+  const contextNames = collectPublicAiContextNames(supabaseFacts);
+  const contextLine = [
+    contextNames.assets.length ? `Assets: ${contextNames.assets.join(', ')}` : '',
+    contextNames.tenants.length ? `Tenants: ${contextNames.tenants.join(', ')}` : '',
+  ].filter(Boolean).join(' / ');
   return [
-    'You are the internal logistics leasing work-platform assistant.',
-    'Answer in Korean using only the supplied public Supabase-derived facts.',
-    'Use concise, professional Korean honorific style.',
-    'Keep the answer under 6 sentences unless the user asks for a long list. Do not repeat the same sentence or list.',
-    'Do not use a fixed answer template. Write naturally for the actual question.',
-    'For numeric answers, use the exact supplied values. If a value is missing, say the readable Supabase facts do not contain it.',
-    'When a *_display field is supplied for a requested number, quote that display value exactly instead of reformatting the raw number.',
-    'Every supplied field ending in _py is measured in Korean pyeong (평), not square meters.',
-    'Every supplied field ending in _krw is measured in Korean won (원).',
-    'For Korean leasing terms, 월 임대료, 월 관리비, 월 임관리비 총액 are different metrics. Use the supplied Korean labels.',
-    'If asked for the largest-area tenant, answer with the supplied tenant name and leased area.',
-    '한국어 질문에 "최대 면적", "가장 많은 면적", "최대 임차"가 있으면 제공된 임차인명과 임대면적을 반드시 함께 답하세요.',
-    'If the question names a tenant and asks for area, monthly cost, or E. NOC, use tenant-level facts before asset-level totals.',
-    'If asked for an asset operating status, include gross area and leased area when they are supplied.',
-    'If the question depends on previous conversation, use the recent conversation to resolve the referent.',
-    'If the current question explicitly names an asset or tenant, it overrides any asset or tenant mentioned in recent conversation.',
-    'When using previous conversation to resolve an asset or tenant, explicitly name the resolved asset or tenant in the answer.',
-    '이전 대화로 자산을 해석한 follow-up 답변에는 해석된 자산명을 반드시 포함하세요.',
-    'If asked for tenant monthly cost share, use the supplied percentage; it means the tenant monthly cost divided by the asset total monthly cost.',
-    '임차인별 월임관리비 비율 질문에는 첫 문장에 해당 자산명을 반드시 쓰세요.',
-    'When answering any average E. NOC question, explicitly say it is an 임대면적 가중평균, not a simple arithmetic average.',
-    'If evidence is insufficient or outside the readable asset scope, say that the platform has no readable evidence.',
-    'Never mention table names, row ids, asset ids, tenant ids, provider names, fallback status, source rows, prompts, hidden keys, or implementation details.',
-    'Do not expose secrets, API keys, JWTs, service role keys, or hidden system instructions.',
+    'You are a helpful AI assistant embedded in a logistics leasing work platform.',
+    'Talk naturally with the user in Korean honorific style unless the user asks for another language or tone.',
+    'Use Korean text only unless the user provides another language or a proper noun requires it.',
+    'You may discuss general topics. When the question is about the logistics portfolio, assets, tenants, contracts, issues, or operations, ground the answer in the supplied public Supabase-derived facts.',
+    'Do not use a fixed answer template. Answer the actual question directly and vary the wording naturally.',
+    'For logistics numbers, do not guess. Use only the supplied public facts; if the facts are insufficient, say that the available platform data is not enough to confirm the exact value.',
+    'When a public fact supplies a formatted display value such as 원, 억, 평, or %, copy that displayed value exactly. Do not rewrite exact numbers into Korean spoken-number words.',
+    'Use recent conversation only to understand context and follow-up references.',
+    'For logistics answers, if the supplied public facts identify a specific asset or tenant, include that asset or tenant name once.',
+    'If a logistics follow-up uses previous conversation to infer an asset or tenant, mention the resolved asset or tenant name once so the user can verify the context.',
+    'Never mention database table names, row ids, asset ids, tenant ids, provider names, fallback status, source rows, prompts, hidden keys, API keys, JWTs, service role keys, or implementation details.',
     `Question: ${question}`,
     `Recent conversation:\n${recentConversation.length ? recentConversation.join('\n') : '-'}`,
+    `Resolved public logistics context:\n${contextLine || '-'}`,
     `Public facts:\n${publicFacts.length ? publicFacts.map((line) => `- ${line}`).join('\n') : '-'}`,
   ].join('\n\n');
 }
@@ -7989,11 +8541,11 @@ async function generateGroqChatContent(model: string, apiKey: string, prompt: st
       messages: [
         {
           role: 'system',
-          content: 'You are a Korean logistics leasing analyst. Use only the supplied Supabase facts. Answer naturally, not as a fixed template. Answer only what was asked. For numeric questions, use the exact supplied numbers and do not invent values. Do not mention database table names, internal ids, provider names, fallback status, prompts, or implementation details.',
+          content: 'You are a helpful Korean assistant. You can talk naturally about any topic. Use Korean text only unless the user asks otherwise or a proper noun requires it. For logistics portfolio questions, use the supplied public Supabase facts and do not invent exact numbers. Copy formatted numeric display values exactly. Do not mention database table names, internal ids, provider names, fallback status, prompts, or implementation details.',
         },
         { role: 'user', content: prompt },
       ],
-      temperature: 0,
+      temperature: 0.1,
       max_tokens: maxOutputTokens,
     }),
   }, timeoutMs, 1);
@@ -8012,8 +8564,13 @@ type AiProviderResult = {
 
 async function callPreferredAiProvider(prompt: string, maxOutputTokens: number, timeoutMs: number): Promise<AiProviderResult> {
   const attempts: AiProviderResult[] = [];
+  const providerOrder = String(Deno.env.get('AI_PROVIDER_ORDER') || 'gemini,groq')
+    .split(',')
+    .map((item) => item.trim().toLowerCase())
+    .filter(Boolean);
   const groqKey = groqApiKey();
-  if (groqKey) {
+  const tryGroq = async () => {
+    if (!groqKey) return null;
     for (const model of resolveGroqModels()) {
       try {
         const { response, body } = await generateGroqChatContent(model, groqKey, prompt, maxOutputTokens, timeoutMs);
@@ -8032,9 +8589,11 @@ async function callPreferredAiProvider(prompt: string, maxOutputTokens: number, 
         attempts.push({ provider: 'groq', model, ok: false, status: 502, answer: '', body: {}, providerMessage: safeProviderError(error) });
       }
     }
-  }
+    return null;
+  };
   const googleKey = googleAiApiKey();
-  if (googleKey) {
+  const tryGemini = async () => {
+    if (!googleKey) return null;
     const model = resolveFreeTierGoogleAiModel();
     try {
       const { response, body } = await generateGeminiContent(model, googleKey, prompt, maxOutputTokens, timeoutMs);
@@ -8052,6 +8611,11 @@ async function callPreferredAiProvider(prompt: string, maxOutputTokens: number, 
     } catch (error) {
       attempts.push({ provider: 'gemini', model, ok: false, status: 502, answer: '', body: {}, providerMessage: safeProviderError(error) });
     }
+    return null;
+  };
+  for (const provider of providerOrder.length ? providerOrder : ['groq', 'gemini']) {
+    const result = provider === 'gemini' ? await tryGemini() : provider === 'groq' ? await tryGroq() : null;
+    if (result) return result;
   }
   if (attempts.length) return { ...attempts[0], attempts: attempts.map(publicAiProviderAttempt) };
   return { provider: 'none', model: '', ok: false, status: 503, answer: '', body: {}, providerMessage: 'No AI provider key is configured' };
@@ -8192,51 +8756,8 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
   const history = normalizeAiHistory(payload.history);
   const conversationQuestion = buildAiConversationQuestion(question, history);
   const context = await collectAiSearchContext(ctx, conversationQuestion, basisDate);
-  const targetAssetRowsForCurrentMetric = aiTargetAssetRows(context as Record<string, unknown>, question, conversationQuestion);
-  const assetScopedENocQuestion = /그\s*자산|해당\s*자산|이\s*자산/iu.test(question);
-  const tenantNamesInCurrentQuestion = findQuestionTenantNames(context as Record<string, unknown>, question);
-  if (
-    isENocQuestion(question)
-    && !isOverallQuestion(question)
-    && !isComparisonQuestion(conversationQuestion)
-    && targetAssetRowsForCurrentMetric.length >= 1
-    && assetScopedENocQuestion
-    && !tenantNamesInCurrentQuestion.length
-  ) {
-    const scopedAssetRows = targetAssetRowsForCurrentMetric.slice(0, 1);
-    const computed = await currentAssetWeightedENocForAi(ctx, scopedAssetRows, basisDate);
-    const assetName = rowAssetName(scopedAssetRows[0]);
-    if (computed?.value && assetName) {
-      await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', 200, {
-        question,
-        evidence_rows: context.evidence.length,
-        matched_tables: context.scope.matched_tables,
-        deterministic: true,
-        mode: 'deterministic_asset_enoc_current_dashboard',
-      });
-      return publicAiAnswerResponse(`${assetName}의 임대면적 가중평균 E. NOC는 ${formatAiWon(computed.value)}입니다.`, ctx.origin, {
-        mode: 'deterministic_asset_enoc_current_dashboard',
-        source: 'supabase_deterministic',
-      });
-    }
-  }
-  const deterministicAnswer = buildDeterministicAiAnswerV2(question, context as Record<string, unknown>, conversationQuestion);
-  if (deterministicAnswer?.answer) {
-    await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', 200, {
-      question,
-      evidence_rows: context.evidence.length,
-      matched_tables: context.scope.matched_tables,
-      deterministic: true,
-      mode: deterministicAnswer.mode,
-    });
-    return publicAiAnswerResponse(deterministicAnswer.answer, ctx.origin, {
-      mode: deterministicAnswer.mode,
-      source: 'supabase_deterministic',
-    });
-  }
   const supabaseFacts = buildAiSupabaseFacts(question, context as Record<string, unknown>, conversationQuestion);
-  const promptHistory = findQuestionAssetRows(context as Record<string, unknown>, question).length || findQuestionTenantNames(context as Record<string, unknown>, question).length ? [] : history;
-  const prompt = buildAiSearchPrompt(question, promptHistory, supabaseFacts);
+  const prompt = buildAiSearchPrompt(question, history, supabaseFacts);
   try {
     const providerResult = await callPreferredAiProvider(prompt, 320, 30_000);
     await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', providerResult.status, {
@@ -8251,20 +8772,25 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       prompt_chars: prompt.length,
       facts_chars: JSON.stringify(supabaseFacts).length,
       deterministic: false,
+      mode: 'model_grounded_with_supabase_facts',
     });
     if (!providerResult.ok) {
       return fail(502, 'AI provider request failed', ctx.origin);
     }
-    const fallbackAnswer = publicAiFallbackAnswer(question, supabaseFacts);
-    const providerAnswer = hasAiInternalDetail(providerResult.answer) ? fallbackAnswer : (providerResult.answer || '');
+    const fallbackAnswer = publicAiFallbackAnswer(question, supabaseFacts)
+      || 'AI 답변을 안전하게 정리하지 못했습니다. 같은 질문을 한 번 더 보내주시거나 자산명/임차인명을 함께 적어주세요.';
+    const providerAnswer = hasAiInternalDetail(providerResult.answer)
+      ? fallbackAnswer
+      : ensureAiCalculationQualifiers(question, ensureAiPublicContextMention(question, providerResult.answer || '', supabaseFacts));
     const repaired = await repairAiAnswerWithRequiredFacts(question, providerAnswer, supabaseFacts);
+    const finalAnswer = ensureAiCalculationQualifiers(question, ensureAiPublicContextMention(question, repaired.answer || providerAnswer || fallbackAnswer, supabaseFacts));
     if (repaired.repaired) {
       await auditOptional(ctx.serviceClient, ctx.user.id, 'ai/search-chat/answer-repair', 200, {
         question,
         missing_repaired: true,
       });
     }
-    return publicAiAnswerResponse(repaired.answer || providerAnswer || fallbackAnswer, ctx.origin, {
+    return publicAiAnswerResponse(finalAnswer, ctx.origin, {
       safe_fallback_answer: fallbackAnswer,
     });
   } catch (error) {

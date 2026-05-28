@@ -4637,7 +4637,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     {
       id: 'ai-welcome',
       role: 'assistant',
-      content: '물류센터 자산, 임차인, 계약, 이슈에 대해 질문하시면 읽기 권한 범위 안의 데이터로 답변합니다.',
+      content: '무엇이든 자연스럽게 질문하실 수 있습니다. 물류센터 데이터가 필요한 질문에는 읽기 권한 범위 안의 Supabase 값을 참고해 답변합니다.',
       evidence: [],
     },
   ]);
@@ -5516,10 +5516,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       </div>
       <div data-testid="logistics-ai-dock" className={`fixed right-0 top-0 z-[80] flex h-screen w-[min(420px,calc(100vw-24px))] transform flex-col border-l border-[#333333] bg-[#1B1B1A] shadow-2xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isAiDockOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-full opacity-0'}`}>
         <div className="flex h-[68px] shrink-0 items-center justify-between border-b border-[#333333] px-4">
-          <div>
-            <div className="text-[15px] font-bold text-white">물류센터 AI 챗봇</div>
-            <div className="mt-1 text-[11px] font-semibold text-[#86868B]">읽기 권한 범위 내 데이터 기준</div>
-          </div>
+            <div>
+              <div className="text-[15px] font-bold text-white">물류센터 AI 챗봇</div>
+              <div className="mt-1 text-[11px] font-semibold text-[#86868B]">자연어 대화 · 데이터 질문은 Supabase 기준</div>
+            </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -9692,15 +9692,16 @@ function ContractDataManagementDashboard() {
       return;
     }
     const requestSummary = summary.trim() || `${selectedAsset.assetName || selectedLeaseRow.assetName || '선택 자산'} 신규 계약 구역 추가 요청`;
-    const sourceColumns = Object.fromEntries(CONTRACT_DATA_FIELDS.map((field) => [
+    const writableContractFields = CONTRACT_DATA_FIELDS.filter((field) => !field.derivedFromLeaseSelection);
+    const sourceColumns = Object.fromEntries(writableContractFields.map((field) => [
       `${field.sourceColumnLetter || ''}.${field.sourceHeader || field.label}`,
       fieldDrafts[contractFieldKey(field)] ?? '',
     ]));
-    const afterFields = Object.fromEntries(CONTRACT_DATA_FIELDS.map((field) => [
+    const afterFields = Object.fromEntries(writableContractFields.map((field) => [
       contractFieldDbName(field),
       contractFieldCanonicalValueFromDisplay(field, fieldDrafts[contractFieldKey(field)] ?? '', ''),
     ]));
-    const addCellEdits = CONTRACT_DATA_FIELDS
+    const addCellEdits = writableContractFields
       .map((field) => {
         const fieldKey = contractFieldKey(field);
         const draftValue = fieldDrafts[fieldKey] ?? '';
@@ -9833,6 +9834,7 @@ function ContractDataManagementDashboard() {
       return;
     }
     const changedFields = CONTRACT_DATA_FIELDS
+      .filter((field) => !field.derivedFromLeaseSelection)
       .map((field) => {
         const beforeValue = contractFieldRawValue(selectedLeaseRow, field);
         const afterDisplayValue = fieldDrafts[contractFieldKey(field)] ?? '';
@@ -10042,6 +10044,11 @@ function ContractDataManagementDashboard() {
                       </button>
                       {isOpen ? (
                         <div className="custom-scrollbar max-h-[520px] overflow-auto">
+                          {group.id === 'rent_history' ? (
+                            <div className="border-b border-[#333333] bg-[#171717] px-3 py-3 text-[12px] leading-5 text-[#C7C7CC]">
+                              이 영역은 현재 계약값을 덮어쓰지 않고, 선택한 계약 구역에 새 기준일자 행을 추가해 임대료/관리비 변경 이력을 누적합니다.
+                            </div>
+                          ) : null}
                           {group.fields.map((field) => {
                             const fieldKey = contractFieldKey(field);
                             const currentDisplay = isAddMode ? contractFieldExampleParts(field) : contractFieldDisplayParts(field, contractFieldRawValue(selectedLeaseRow, field));
@@ -10051,9 +10058,10 @@ function ContractDataManagementDashboard() {
                             const fieldLabel = contractFieldDisplayLabel(field);
                             const fieldMeta = contractFieldMeta(field);
                             const isFieldHelpOpen = openFieldHelpKey === fieldKey;
+                            const isDerivedContextField = isDerivedRentHistoryContextField(field);
                             return (
                               <React.Fragment key={fieldKey}>
-                                <div className={`grid grid-cols-[minmax(260px,1.2fr)_minmax(180px,0.8fr)_80px_minmax(220px,1fr)] border-b border-[#333333] text-[12px] last:border-b-0 ${changed ? 'bg-[#132A44]' : 'bg-[#252524]'}`}>
+                                <div className={`grid grid-cols-[minmax(260px,1.2fr)_minmax(180px,0.8fr)_80px_minmax(220px,1fr)] border-b border-[#333333] text-[12px] last:border-b-0 ${changed && !isDerivedContextField ? 'bg-[#132A44]' : 'bg-[#252524]'}`}>
                                 <div className="px-3 py-2 align-top">
                                   <div className="flex items-start gap-2">
                                     <div className="min-w-0 font-semibold text-[#E5E5EA]">{fieldLabel}</div>
@@ -10078,11 +10086,13 @@ function ContractDataManagementDashboard() {
                                 <div className="px-3 py-2 align-top text-[#86868B]">{currentDisplay.unit || '-'}</div>
                                 <div className="px-3 py-2 align-top">
                                   <input
+                                    disabled={isDerivedContextField}
                                     value={draftValue}
                                     onChange={(event) => setFieldDrafts((previous) => ({ ...previous, [fieldKey]: event.target.value }))}
-                                    className="h-9 w-full rounded-[7px] border border-[#3A3A3C] bg-[#111] px-2 text-[12px] text-white outline-none focus:border-[#2997ff]"
-                                    placeholder={isAddMode ? currentDisplay.value : ''}
+                                    className="h-9 w-full rounded-[7px] border border-[#3A3A3C] bg-[#111] px-2 text-[12px] text-white outline-none focus:border-[#2997ff] disabled:cursor-not-allowed disabled:border-[#2E2E30] disabled:bg-[#181818] disabled:text-[#86868B]"
+                                    placeholder={isDerivedContextField ? '계약 구역 선택값에서 자동 적용' : isAddMode ? currentDisplay.value : ''}
                                   />
+                                  {isDerivedContextField ? <div className="mt-1 text-[11px] text-[#86868B]">선택한 자산·임차인·구역 기준으로 자동 기록됩니다.</div> : null}
                                 </div>
                               </div>
                                 {isFieldHelpOpen ? (
@@ -10319,9 +10329,20 @@ const QUALITY_REASON_LABELS = {
   history_unmatched: '현재 계약과 임대료 변경 이력이 서로 맞지 않습니다.',
   money_missing: '임대료 또는 관리비 기준값이 비어 있습니다.',
   original_blank: '원본 입력값이 비어 있어 확인이 필요합니다.',
+  asset_name_missing: '자산명이 비어 있어 화면 표시와 계약 데이터 연결이 불안정할 수 있습니다.',
+  asset_gross_area_missing: '자산 연면적이 비어 있어 면적 지표 계산이 불완전할 수 있습니다.',
+  lease_space_id_missing: '계약 구역 식별값이 없어 수정, 아카이빙, 이력 누적 대상이 불명확합니다.',
+  lease_area_missing: '임대면적이 비어 있어 E. NOC와 면적 비율을 계산할 수 없습니다.',
+  current_rent_missing: '현재 계약 원장의 월 임대료 또는 월 관리비가 비어 있습니다.',
+  rent_history_missing: '현재 계약 구역에 연결된 임대료 변경 이력이 없습니다.',
+  current_vs_latest_history_mismatch: '현재 계약 원장 금액과 최신 임대료 변경 이력 금액이 서로 다릅니다.',
+  rent_history_same_date_conflict: '같은 기준일자에 서로 다른 임대료 변경 이력이 있습니다.',
+  expired_active_lease: '계약 만기일이 지났지만 활성 계약으로 남아 있습니다.',
+  tenant_business_registration_missing: '임차인 사업자등록번호가 없어 외부 기업 정보 매칭 정확도가 낮아질 수 있습니다.',
   unknown: '자동 점검에서 확인이 필요한 항목으로 분류했습니다.',
 };
 const QUALITY_FIELD_LABELS = {
+  asset_name: '자산명',
   assetName: '자산명',
   mainIssue: '주요 이슈',
   exposureAvailable: '임차 자산 연결',
@@ -10340,7 +10361,10 @@ const QUALITY_FIELD_LABELS = {
   current_monthly_rent_total: '현재 월 임대료 총액',
   current_monthly_mf_total: '현재 월 관리비 총액',
   current_monthly_cost_total: '현재 월 임관리비 총액',
+  effective_date: '임대료 변경 기준일자',
+  is_latest: '최신 이력 표시',
   leased_area_py: '임대면적',
+  leased_area_sqm: '임대면적',
   leased_area_total: '임대면적 합계',
   exclusive_area_py: '전용면적',
   exclusive_area_sqm: '전용면적',
@@ -10357,6 +10381,7 @@ const QUALITY_FIELD_LABELS = {
   first_end_date: '최초 계약만기일',
   first_operation_date: '최초 영업개시일',
   recent_contract_date: '최근 계약일',
+  current_end_date: '현재 계약만기일',
   rent_escalation_rate: '임대료 인상률',
   management_fee_escalation_rate: '관리비 인상률',
   change_reason: '임대료 변동 원인',
@@ -10589,6 +10614,29 @@ const QUALITY_EXCEL_COLUMNS = [
 
 const QUALITY_VISIBLE_COLUMNS = new Set(['행위', '원본시트', '원본행', '원본열', '계약/행 식별', '자산명', '자산코드', '펀드명', '임차인명', '사업자등록번호', '층/구역', '데이터영역', '원본항목명', '한글필드명', '현재값', '표시값', '수정값', '변경사유', '권한상태']);
 
+const RENT_HISTORY_APPEND_FIELD_NAMES = new Set([
+  'basisDate',
+  'rentChangeReason',
+  'monthlyRentTotal',
+  'monthlyMfTotal',
+  'currentRentPerPy',
+  'currentMfPerPy',
+]);
+
+const RENT_HISTORY_CONTEXT_FIELD_NAMES = new Set([
+  'fundCode',
+  'fundName',
+  'assetName',
+  'assetCode',
+  'tenantMasterName',
+  'businessRegistrationNo',
+  'coldStorageType',
+  'floorLabel',
+  'detailAreaLabel',
+  'leasedAreaSqm',
+  'exclusiveAreaSqm',
+]);
+
 const QUALITY_EXPORT_FIELDS = [
   { fieldName: 'fundCode', label: '펀드코드', sourceHeader: '펀드코드', sourceColumnLetter: 'B', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
   { fieldName: 'fundName', label: '펀드명', sourceHeader: '펀드명', sourceColumnLetter: 'C', domain: 'DB_일반', table: 'public.ll_leasing_contracts', valueType: 'text' },
@@ -10678,14 +10726,24 @@ const QUALITY_EXPORT_FIELDS = [
   { fieldName: 'monthlyMfTotal', label: '월관리비 총액', sourceHeader: '월관리비 총액', sourceColumnLetter: 'Q', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'currency' },
   { fieldName: 'currentRentPerPy', label: '평당 월임대료', sourceHeader: '평당 월임대료', sourceColumnLetter: 'R', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'won' },
   { fieldName: 'currentMfPerPy', label: '평당 월관리비', sourceHeader: '평당 월관리비', sourceColumnLetter: 'S', domain: 'DB_히스토리 누적', table: 'public.ll_rent_history', valueType: 'won' },
-].map((field) => ({
-  ...field,
-  table: field.table === 'public.ll_leasing_contracts'
-    ? 'public.ll_lease_spaces'
-    : field.table === 'public.ll_companies'
-      ? 'public.ll_tenants'
-      : field.table,
-}));
+].map((field) => {
+  const isHistoryContextField = field.domain === 'DB_히스토리 누적'
+    && RENT_HISTORY_CONTEXT_FIELD_NAMES.has(field.fieldName)
+    && !RENT_HISTORY_APPEND_FIELD_NAMES.has(field.fieldName);
+  return {
+    ...field,
+    table: isHistoryContextField
+      ? 'source_only'
+      : field.table === 'public.ll_leasing_contracts'
+        ? 'public.ll_lease_spaces'
+        : field.table === 'public.ll_companies'
+          ? 'public.ll_tenants'
+          : field.table,
+    sourceOnly: Boolean(field.sourceOnly || isHistoryContextField),
+    derivedFromLeaseSelection: isHistoryContextField,
+    sourceNote: isHistoryContextField ? '선택한 계약 구역에서 자동 적용되는 임대료 변경 이력 기준값' : field.sourceNote,
+  };
+});
 const CONTRACT_DATA_SOURCE_ONLY_FIELDS = [
   { fieldName: 'formulaLeasedAreaSqm', label: '임대면적', sourceHeader: '임대면적', sourceColumnLetter: 'U', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 수식/검산 컬럼' },
   { fieldName: 'formulaExclusiveAreaSqm', label: '전용면적', sourceHeader: '전용면적', sourceColumnLetter: 'V', domain: 'DB_일반', table: 'source_only', valueType: 'text', sourceOnly: true, sourceNote: '원본 수식/검산 컬럼' },
@@ -10895,13 +10953,21 @@ function contractFieldCanonicalValueFromDisplay(field, displayValue, currentCano
 
 function isRentHistoryPaymentField(field) {
   return field?.table === 'public.ll_rent_history'
-    && ['basisDate', 'rentChangeReason', 'monthlyRentTotal', 'monthlyMfTotal', 'currentRentPerPy', 'currentMfPerPy'].includes(String(field?.fieldName || ''));
+    && RENT_HISTORY_APPEND_FIELD_NAMES.has(String(field?.fieldName || ''));
+}
+
+function isDerivedRentHistoryContextField(field) {
+  return Boolean(field?.derivedFromLeaseSelection);
 }
 
 function contractFieldGroupId(field) {
   const label = contractFieldDisplayLabel(field);
   const name = `${field?.fieldName || ''} ${field?.sourceHeader || ''} ${label}`;
-  if (isRentHistoryPaymentField(field)) return 'rent';
+  if (isDerivedRentHistoryContextField(field)) {
+    if (/coldStorage|floorLabel|detailArea|leasedArea|exclusiveArea|저온|층|구역|면적/u.test(name)) return 'area';
+    return 'basic';
+  }
+  if (isRentHistoryPaymentField(field)) return 'rent_history';
   if (String(field?.domain || '').includes('히스토리') || field?.table === 'public.ll_rent_history' || /history/i.test(field?.fieldName || '')) return 'rent_history';
   if (/grossFloorArea|leasedArea|exclusiveArea|AreaSqm|floorLabel|detailArea|coldStorage|officeUse|sublease|checkLeased|checkExclusive|warehouse|dock|corridor|rampArea|mechanical|parking|core|임차 층|임차 세부 구역|면적|전용률|사무실|전차/u.test(name)) return 'area';
   if (/ContractDate|StartDate|EndDate|OperationStart|ContractPeriod|extensionCount|계약일|계약개시|계약만기|운영개시|계약기간|연장횟수/u.test(name)) return 'schedule';
