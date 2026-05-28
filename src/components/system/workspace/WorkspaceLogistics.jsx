@@ -82,6 +82,8 @@ const PRIMARY_BLUE_BUTTON_CLASS = 'border-[#3b82f6]/30 bg-[#3b82f6]/20 text-[#60
 const DARK_BUTTON_CLASS = 'border-[#333333] bg-[#222] text-[#D1D1D6] hover:border-[#555] hover:text-white';
 const DASHBOARD_READ_MODE = import.meta.env.VITE_LOGISTICS_DASHBOARD_READ_MODE || 'primary-safe';
 const DASHBOARD_READ_CACHE = new Map();
+const DASHBOARD_READ_INFLIGHT = new Map();
+const DASHBOARD_READ_CACHE_TTL_MS = 5 * 60 * 1000;
 const ASSET_PROJECT_DETAIL_CACHE = new Map();
 const ASSET_FUND_OVERVIEW_CACHE = new Map();
 const ASSET_BUILDING_REGISTER_CACHE = new Map();
@@ -248,6 +250,12 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
     const runDashboardRead = async () => {
       const requestPayload = JSON.parse(payloadKey || '{}');
       const expectedSummary = JSON.parse(summaryKey || '{}');
+      const cached = DASHBOARD_READ_CACHE.get(cacheKey);
+      const cacheAgeMs = cached?.checkedAt ? Date.now() - Date.parse(cached.checkedAt) : Number.POSITIVE_INFINITY;
+      if (primaryMode && cached?.payload && cacheAgeMs >= 0 && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS) {
+        setState({ status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
+        return;
+      }
       if (primaryMode) setState((current) => ({
         status: 'loading',
         payload: current.payload || DASHBOARD_READ_CACHE.get(cacheKey)?.payload || null,
@@ -256,9 +264,14 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
         message: '',
       }));
       try {
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action, payload: requestPayload },
-        });
+        let inflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
+        if (!inflight) {
+          inflight = supabase.functions.invoke('ll-dashboard-api', {
+            body: { action, payload: requestPayload },
+          }).finally(() => DASHBOARD_READ_INFLIGHT.delete(cacheKey));
+          DASHBOARD_READ_INFLIGHT.set(cacheKey, inflight);
+        }
+        const { data, error } = await inflight;
         if (error) throw error;
         const expectedBasisDate = String(firstDefined(requestPayload.basis_date, requestPayload.basisDate, '') || '');
         const invalidReason = dashboardReadInvalidReason(data, expectedBasisDate);
@@ -2100,16 +2113,33 @@ function PortfolioAssetTable({ rows }) {
 }
 
 function LogisticsModal({ modal, onClose }) {
+  useEffect(() => {
+    if (!modal) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [modal]);
   if (!modal) return null;
   const sizeClass = modal.size === 'wide'
     ? 'max-w-[min(1760px,96vw)]'
     : modal.size === 'fullscreen'
       ? 'max-w-none'
       : 'max-w-[1120px]';
-  const bodyHeightClass = modal.size === 'fullscreen' ? 'h-[calc(100vh-102px)]' : 'max-h-[calc(88vh-88px)]';
+  const bodyHeightClass = modal.size === 'fullscreen'
+    ? 'h-[calc(100vh-102px)]'
+    : modal.size === 'wide'
+      ? 'h-[calc(88vh-88px)]'
+      : 'max-h-[calc(88vh-88px)]';
+  const containerHeightClass = modal.size === 'fullscreen'
+    ? 'h-[calc(100vh-32px)] max-h-[calc(100vh-32px)]'
+    : modal.size === 'wide'
+      ? 'h-[88vh] max-h-[88vh]'
+      : 'max-h-[94vh]';
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-4" role="dialog" aria-modal="true">
-      <div className={`w-full ${sizeClass} ${modal.size === 'fullscreen' ? 'h-[calc(100vh-32px)] max-h-[calc(100vh-32px)]' : 'max-h-[94vh]'} overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl`}>
+    <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-4" role="dialog" aria-modal="true" onWheel={(event) => event.stopPropagation()}>
+      <div className={`w-full ${sizeClass} ${containerHeightClass} overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl`}>
         <div className="px-6 py-5 border-b border-[#333333] flex items-center justify-between gap-4">
           <div>
             <div className="text-[12px] text-[#86868B] font-semibold">DETAIL</div>
@@ -9978,7 +10008,7 @@ function ContractDataManagementDashboard() {
                                       aria-expanded={isFieldHelpOpen}
                                       title="항목 설명 보기"
                                       onClick={() => setOpenFieldHelpKey((previous) => (previous === fieldKey ? '' : fieldKey))}
-                                      className={`mt-[1px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[#64D2FF] ${isFieldHelpOpen ? 'bg-white/[0.12]' : 'bg-transparent'}`}
+                                      className={`mt-[1px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[#fbf167]/80 ${isFieldHelpOpen ? 'bg-[#fbf167]/15 ring-1 ring-[#fbf167]/60' : 'bg-transparent'}`}
                                     >
                                       <img
                                         src={infoIconUrl}
@@ -10117,17 +10147,23 @@ function buildDataQualityFindings() {
 }
 
 function normalizeRemoteQualityFinding(row, index) {
+  const eventPayload = parseJsonObject(row.event_payload);
+  const assetName = firstDefined(row.asset_name, row.target_asset_name, eventPayload.asset_name, eventPayload.target_asset_name, eventPayload.target_name, '');
+  const tenantName = firstDefined(row.tenant_master_name, eventPayload.tenant_master_name, eventPayload.tenant_name, eventPayload.company_name, '');
+  const targetName = firstDefined(row.target_name, assetName, tenantName, row.entity_id, row.row_ref, row.id, '-');
   return {
     id: row.id || row.finding_id || `remote-${index}`,
     severity: String(row.severity || row.level || row.status || 'warning').toLowerCase(),
     sheetName: row.sheet_name || row.sheetName || row.source_sheet || row.table_name || row.target_table || 'll_audit_events',
     targetType: row.target_type || row.entity_type || row.table_name || 'finding',
-    target: row.target_name || row.asset_name || row.tenant_master_name || row.entity_id || row.row_ref || row.id || '-',
+    target: targetName,
+    assetName,
+    tenantName,
     field: row.field_name || row.field || row.column_name || row.rule_name || '-',
     reason: row.reason_code || row.failure_reason || row.issue_type || row.reason || row.status || 'unknown',
     action: row.suggested_fix || row.action || row.message || row.detail || '원본 값과 정규화 결과 대조 필요',
     sourceTable: row.source_table || row.sourceTable || 'public.ll_audit_events',
-    raw: row,
+    raw: { ...row, event_payload: eventPayload },
   };
 }
 
@@ -10236,6 +10272,7 @@ const QUALITY_TARGET_TYPE_LABELS = {
   tenant: '임차인',
   weekly_asset: '주간 자산',
   finding: '점검 항목',
+  ll_audit_events: '점검 기록',
 };
 
 function readDismissedQualityFindingIds() {
@@ -10255,8 +10292,11 @@ function qualitySeverityLabel(value) {
 function qualityTargetLabel(item) {
   const targetType = QUALITY_TARGET_TYPE_LABELS[item?.targetType] || item?.targetType || '대상';
   const target = cleanDisplay(item?.target, '-');
-  const assetName = cleanDisplay(firstDefined(item?.raw?.asset_name, item?.raw?.event_payload?.asset_name, item?.raw?.target_asset_name, ''), '');
-  if (assetName && assetName !== target) return `${targetType} · ${assetName} / ${target}`;
+  const assetName = cleanDisplay(firstDefined(item?.assetName, item?.raw?.asset_name, item?.raw?.event_payload?.asset_name, item?.raw?.target_asset_name, ''), '');
+  const tenantName = cleanDisplay(firstDefined(item?.tenantName, item?.raw?.tenant_master_name, item?.raw?.event_payload?.tenant_master_name, item?.raw?.event_payload?.tenant_name, ''), '');
+  if (assetName && tenantName) return `${assetName} · ${tenantName}`;
+  if (assetName && assetName !== target) return `${assetName} · ${targetType}`;
+  if (tenantName && tenantName !== target) return `${tenantName} · ${targetType}`;
   return `${targetType} · ${target}`;
 }
 
@@ -10281,6 +10321,40 @@ function qualityActionLabel(item) {
     .replace(/DB_히스토리누적/gu, '임대료 변경 이력')
     .replace(/DB_일반/gu, '현재 계약 원장')
     .replace(/ll_[a-z_]+/giu, '정규 데이터');
+}
+
+function qualityDetailRows(item) {
+  if (!item) return [];
+  const raw = item.raw || {};
+  const payload = parseJsonObject(raw.event_payload);
+  return [
+    ['대상', qualityTargetLabel(item)],
+    ['항목', qualityFieldLabel(item.field)],
+    ['문제로 본 이유', qualityReasonLabel(item.reason)],
+    ['권장 조치', qualityActionLabel(item)],
+    ['원본 영역', qualitySheetLabel(item.sheetName)],
+    ['원본 행', cleanDisplay(firstDefined(raw.source_row_number, raw.source_row_id, payload.source_row_number, payload.source_row_id), '-')],
+    ['원본 항목명', cleanDisplay(firstDefined(raw.source_header, raw.field_name, item.field), '-')],
+    ['원본 값', cleanDisplay(firstDefined(raw.source_value_text, raw.before_value, payload.source_value_text, payload.before_value), '-')],
+    ['Supabase 값', cleanDisplay(firstDefined(raw.supabase_value_text, raw.after_value, raw.readback_value, payload.supabase_value_text), '-')],
+    ['점검 상태', qualitySeverityLabel(item.severity)],
+  ];
+}
+
+function QualityFindingDetail({ item, canEdit, onRequestEdit, onDismiss }) {
+  if (!item) return null;
+  return (
+    <div className="space-y-4">
+      <DataTable headers={['항목', '내용']} rows={qualityDetailRows(item)} compact minTableWidth={null} />
+      <div className="rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 py-3 text-[13px] leading-5 text-[#C7C7CC]">
+        이 항목은 자동 점검이 “확인 가능성”을 표시한 것입니다. 실제 문제가 아니면 문제 아님으로 숨길 수 있고, 수정이 필요하면 담당자 알림으로 요청됩니다.
+      </div>
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={() => onDismiss?.(item)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-transparent px-4 text-[13px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">문제 아님</button>
+        <button type="button" onClick={() => onRequestEdit?.(item)} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-40" disabled={!canEdit}>{canEdit ? '담당자에게 수정 요청' : '수정 권한 없음'}</button>
+      </div>
+    </div>
+  );
 }
 
 function qualitySheetLabel(value) {
@@ -11172,6 +11246,26 @@ function DataQualityDashboard() {
       window.localStorage.setItem(DATA_QUALITY_DISMISSED_CACHE_KEY, JSON.stringify(next));
       return next;
     });
+    setModal(null);
+  };
+  const requestEditForFinding = (item) => {
+    setModal(null);
+    setEditTarget(item);
+    setEditSubmitStatus(null);
+  };
+  const openFindingDetail = (item) => {
+    setModal({
+      title: `무결성 점검 상세 · ${qualityFieldLabel(item.field)}`,
+      size: 'wide',
+      content: (
+        <QualityFindingDetail
+          item={item}
+          canEdit={canEdit}
+          onRequestEdit={requestEditForFinding}
+          onDismiss={dismissFinding}
+        />
+      ),
+    });
   };
   const tableRows = visibleFindings.map((item) => [
     <span key={`${item.id}-severity`} className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-bold ${item.severity === 'critical' ? 'border-[#6F3434] bg-[#331F1F] text-[#FF9F9F]' : item.severity === 'warning' ? 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]' : 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]'}`}>
@@ -11182,8 +11276,8 @@ function DataQualityDashboard() {
     <QualityCell key={`${item.id}-reason`} value={qualityReasonLabel(item.reason)} lines={3} tone="text-[#C7C7CC]" />,
     <QualityCell key={`${item.id}-action`} value={qualityActionLabel(item)} lines={3} tone="text-[#A1A1AA]" />,
     <div key={`${item.id}-actions`} className="flex flex-wrap gap-2">
-      <button type="button" onClick={() => { setEditTarget(item); setEditSubmitStatus(null); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">{canEdit ? '담당자에게 요청' : '권한 확인'}</button>
-      <button type="button" onClick={() => dismissFinding(item)} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-transparent px-3 text-[12px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">문제 아님</button>
+      <button type="button" onClick={(event) => { event.stopPropagation(); requestEditForFinding(item); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">{canEdit ? '담당자에게 요청' : '권한 확인'}</button>
+      <button type="button" onClick={(event) => { event.stopPropagation(); dismissFinding(item); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-transparent px-3 text-[12px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">문제 아님</button>
     </div>,
   ]);
   const changedEditRows = editGridRows.filter((row) => {
@@ -11320,6 +11414,7 @@ function DataQualityDashboard() {
           compact
           columnWidths={['110px', '240px', '180px', '300px', '340px', '220px']}
           minTableWidth="1390px"
+          onRowClick={(index) => openFindingDetail(visibleFindings[index])}
         />
       </section>
       {editTarget && (

@@ -237,7 +237,10 @@ async function main() {
     const providerResult = hasProviderData ? 'data' : 'empty';
     const ok = first.status === 200
       && first.body?.ok !== false
-      && (providerResult === 'empty' || (second.status === 200 && second.body?.ok !== false && second.body?.cache?.hit === true))
+      && providerResult === 'data'
+      && second.status === 200
+      && second.body?.ok !== false
+      && second.body?.cache?.hit === true
       && !first.body?.cache?.write_error;
     buildingAssetChecks.push({
       asset_name: assetName,
@@ -255,6 +258,7 @@ async function main() {
         use_apr_day: Boolean(data.use_apr_day),
       },
       provider_result: providerResult,
+      provider_attempts: first.body?.provider_attempts || [],
       ok,
       first: summarizeExternalBody(first.body),
       second: summarizeExternalBody(second.body),

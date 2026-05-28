@@ -5896,6 +5896,54 @@ async function callOpenDartCacheUpsert(ctx: Context, payload: Record<string, unk
   }, 200, ctx.origin);
 }
 
+function buildingRegisterSummaryFromItem(first: Record<string, unknown> | null | undefined) {
+  if (!first) return {};
+  return stripUndefined({
+    mgm_bldrgst_pk: first.mgmBldrgstPk,
+    plat_plc: first.platPlc,
+    new_plat_plc: first.newPlatPlc,
+    bld_nm: first.bldNm,
+    main_purps_cd_nm: first.mainPurpsCdNm,
+    etc_purps: first.etcPurps,
+    strct_cd_nm: first.strctCdNm,
+    roof_cd_nm: first.roofCdNm,
+    grnd_flr_cnt: first.grndFlrCnt,
+    ugrnd_flr_cnt: first.ugrndFlrCnt,
+    plat_area: first.platArea,
+    arch_area: first.archArea,
+    tot_area: first.totArea,
+    vl_rat_estm_tot_area: first.vlRatEstmTotArea,
+    bc_rat: first.bcRat,
+    vl_rat: first.vlRat,
+    heit: first.heit,
+    hhld_cnt: first.hhldCnt,
+    fmly_cnt: first.fmlyCnt,
+    ho_cnt: first.hoCnt,
+    main_bld_cnt: first.mainBldCnt,
+    atch_bld_cnt: first.atchBldCnt,
+    tot_pkng_cnt: first.totPkngCnt,
+    indr_mech_utcnt: first.indrMechUtcnt,
+    oudr_mech_utcnt: first.oudrMechUtcnt,
+    indr_auto_utcnt: first.indrAutoUtcnt,
+    oudr_auto_utcnt: first.oudrAutoUtcnt,
+    use_apr_day: first.useAprDay,
+  });
+}
+
+function buildingRegisterFirstItem(body: Record<string, unknown>) {
+  const response = body?.response as Record<string, unknown> | undefined;
+  const responseBody = response?.body as Record<string, unknown> | undefined;
+  const items = responseBody?.items as Record<string, unknown> | undefined;
+  const item = items?.item;
+  return Array.isArray(item) ? item[0] as Record<string, unknown> : item as Record<string, unknown> | undefined;
+}
+
+function buildingRegisterEndpointCandidates() {
+  const titleUrl = (Deno.env.get('BUILDING_REGISTER_TITLE_URL') || 'https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo').trim();
+  const recapUrl = (Deno.env.get('BUILDING_REGISTER_RECAP_TITLE_URL') || titleUrl.replace('getBrTitleInfo', 'getBrRecapTitleInfo')).trim();
+  return [...new Set([titleUrl, recapUrl].filter(Boolean))];
+}
+
 async function callBuildingRegister(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'building-register/summary', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
@@ -5929,41 +5977,27 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
     '_type=json',
   ].join('&');
   try {
-    const buildingBaseUrl = (Deno.env.get('BUILDING_REGISTER_TITLE_URL') || 'https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo').trim();
-    const { response, body } = await fetchJsonWithTimeout(`${buildingBaseUrl}?${query}`, {}, 20_000, 2);
-    const providerOk = buildingRegisterProviderOk(response, body as Record<string, unknown>);
-    const item = body?.response?.body?.items?.item;
-    const first = Array.isArray(item) ? item[0] : item;
-    const summary = first ? stripUndefined({
-      mgm_bldrgst_pk: first.mgmBldrgstPk,
-      plat_plc: first.platPlc,
-      new_plat_plc: first.newPlatPlc,
-      bld_nm: first.bldNm,
-      main_purps_cd_nm: first.mainPurpsCdNm,
-      etc_purps: first.etcPurps,
-      strct_cd_nm: first.strctCdNm,
-      roof_cd_nm: first.roofCdNm,
-      grnd_flr_cnt: first.grndFlrCnt,
-      ugrnd_flr_cnt: first.ugrndFlrCnt,
-      plat_area: first.platArea,
-      arch_area: first.archArea,
-      tot_area: first.totArea,
-      vl_rat_estm_tot_area: first.vlRatEstmTotArea,
-      bc_rat: first.bcRat,
-      vl_rat: first.vlRat,
-      heit: first.heit,
-      hhld_cnt: first.hhldCnt,
-      fmly_cnt: first.fmlyCnt,
-      ho_cnt: first.hoCnt,
-      main_bld_cnt: first.mainBldCnt,
-      atch_bld_cnt: first.atchBldCnt,
-      tot_pkng_cnt: first.totPkngCnt,
-      indr_mech_utcnt: first.indrMechUtcnt,
-      oudr_mech_utcnt: first.oudrMechUtcnt,
-      indr_auto_utcnt: first.indrAutoUtcnt,
-      oudr_auto_utcnt: first.oudrAutoUtcnt,
-      use_apr_day: first.useAprDay,
-    }) : {};
+    let response = new Response(null, { status: 502 });
+    let body: Record<string, unknown> = {};
+    let providerOk = false;
+    let summary: Record<string, unknown> = {};
+    let providerEndpoint = '';
+    const providerAttempts: Array<Record<string, unknown>> = [];
+    for (const buildingBaseUrl of buildingRegisterEndpointCandidates()) {
+      providerEndpoint = buildingBaseUrl;
+      const result = await fetchJsonWithTimeout(`${buildingBaseUrl}?${query}`, {}, 20_000, 2);
+      response = result.response;
+      body = result.body as Record<string, unknown>;
+      providerOk = buildingRegisterProviderOk(response, body);
+      summary = buildingRegisterSummaryFromItem(buildingRegisterFirstItem(body));
+      providerAttempts.push({
+        endpoint: buildingBaseUrl.includes('getBrRecapTitleInfo') ? 'recap_title' : 'title',
+        status: response.status,
+        has_data: Object.keys(summary).length > 0,
+        message: providerMessageFromBody(body) || undefined,
+      });
+      if (!providerOk || Object.keys(summary).length > 0) break;
+    }
     let cacheWriteError = '';
     let cacheReadbackHit = false;
     const hasSummaryData = Object.keys(summary).length > 0;
@@ -5976,13 +6010,13 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
       }
     }
     const providerMessage = providerMessageFromBody(body);
-    await audit(ctx.serviceClient, ctx.user.id, 'building-register/summary', response.status, { ...cachePayload, cache_hit: false, force_refresh: forceRefresh || undefined, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined });
+    await audit(ctx.serviceClient, ctx.user.id, 'building-register/summary', response.status, { ...cachePayload, cache_hit: false, force_refresh: forceRefresh || undefined, cache_write_error: cacheWriteError || undefined, provider_message: providerMessage || undefined, provider_endpoint: providerEndpoint, provider_attempts: providerAttempts });
     if (!providerOk) {
       const stale = await readExternalApiCache(ctx, 'building-register/summary', cacheKey, true);
       if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt });
       return jsonResponse(providerFailureBody('Building-register provider returned an error', response, body as Record<string, unknown>, { cache: { hit: false, stale: false } }), 502, ctx.origin);
     }
-    return jsonResponse({ ok: true, provider_status: response.status, data: summary, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined, readback_hit: hasSummaryData ? cacheReadbackHit || undefined : false, empty_provider_result: !hasSummaryData || undefined } }, 200, ctx.origin);
+    return jsonResponse({ ok: true, provider_status: response.status, data: summary, cache: { hit: false, stale: false, write_error: cacheWriteError || undefined, readback_hit: hasSummaryData ? cacheReadbackHit || undefined : false, empty_provider_result: !hasSummaryData || undefined }, provider_attempts: providerAttempts }, 200, ctx.origin);
   } catch (error) {
     const stale = await readExternalApiCache(ctx, 'building-register/summary', cacheKey, true);
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
@@ -8552,13 +8586,20 @@ async function listLogisticsLoginCapability(ctx: Context) {
     .select('email,organization,logistics_role,updated_at')
     .order('email', { ascending: true });
   if (permissionError) return fail(500, 'Failed to read logistics permissions', ctx.origin);
-  const authUsers = await listAuthUsers(ctx.serviceClient);
+  let authUsers: Record<string, unknown>[] = [];
+  let authReadError = '';
+  try {
+    authUsers = await listAuthUsers(ctx.serviceClient);
+  } catch (error) {
+    authReadError = safeProviderError(error);
+  }
   const users = loginCapabilityRows((permissionRows || []) as Record<string, unknown>[], authUsers);
   await audit(ctx.serviceClient, ctx.user.id, 'auth/login-capability/list', 200, {
     permission_users: users.length,
     missing_auth_users: users.filter((row) => !row.has_auth_user).length,
+    auth_read_error: authReadError || undefined,
   });
-  return jsonResponse({ ok: true, data: { users } }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: { users, auth_user_read_ok: !authReadError, auth_read_error: authReadError || null } }, 200, ctx.origin);
 }
 
 async function callLogisticsAuthStatus(origin: string, payload: Record<string, unknown>) {
