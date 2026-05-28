@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-28T10:00:20.402Z",
+  "screenshot": "qa-artifacts/logistics-gate6/dart-detail-modal-local-smoke-20260528-100020.png",
+  "checks": {
+    "dialog_visible": true,
+    "dialog_in_viewport": true,
+    "background_scroll_locked": true,
+    "chart_visible": true,
+    "tooltip_has_revenue": true,
+    "tooltip_has_operating_income": true,
+    "tooltip_has_net_income": true
+  },
+  "errors": []
+}

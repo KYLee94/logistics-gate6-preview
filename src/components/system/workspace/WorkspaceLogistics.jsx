@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -12,6 +13,7 @@ import companyOptionsData from './logisticsCompanyOptionsData.json';
 import sectorData from './logisticsSectorData.json';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
 import infoIconUrl from '../../../assets/i_icon.png';
+import { avatarCandidates } from '../avatarUtils';
 
 const MotionDiv = motion.div;
 
@@ -1071,7 +1073,7 @@ function memberAvatarSource(memberInfo, fallbackName) {
   );
   if (explicit) return explicit;
   const name = String(fallbackName || memberInfo?.staff_name || memberInfo?.name || '').replace(/\s/gu, '');
-  return name ? `${import.meta.env.BASE_URL}${name}.webp` : `${import.meta.env.BASE_URL}default_avatar.svg`;
+  return avatarCandidates(memberInfo, name)[0] || `${import.meta.env.BASE_URL}default_avatar.svg`;
 }
 
 function MemberAvatar({ memberInfo, name, sizeClass = 'h-12 w-12', textClass = 'text-[15px]' }) {
@@ -1110,6 +1112,36 @@ function resolveAssetIdByName(assetName) {
     return optionName.includes(normalized) || normalized.includes(optionName);
   });
   return partial?.assetId || '';
+}
+
+function resolveAssetNameByCode(assetRef) {
+  const text = String(assetRef || '').trim();
+  if (!text) return '';
+  const direct = assetOptionsData.find((item) => (
+    String(item.assetId || '').toLowerCase() === text.toLowerCase()
+    || String(item.assetCode || '').toLowerCase() === text.toLowerCase()
+  ));
+  if (direct?.assetName) return direct.assetName;
+  const token = text.match(/asset_[a-z0-9_]+/iu)?.[0] || '';
+  if (!token) return '';
+  const matched = assetOptionsData.find((item) => (
+    String(item.assetId || '').toLowerCase() === token.toLowerCase()
+    || String(item.assetCode || '').toLowerCase() === token.toLowerCase()
+  ));
+  return matched?.assetName || '';
+}
+
+function resolveTenantNameByCode(tenantRef) {
+  const text = String(tenantRef || '').trim();
+  if (!text) return '';
+  const token = text.match(/tenant_brn_\d+/iu)?.[0] || '';
+  const brn = token.match(/\d+/u)?.[0] || text.match(/\b\d{10}\b/u)?.[0] || '';
+  const matched = companyOptionsData.find((item) => (
+    String(item.tenantId || '').toLowerCase() === token.toLowerCase()
+    || (brn && String(item.tenantId || '').includes(brn))
+    || (brn && String(item.businessRegistrationNo || item.bizNo || '').replace(/\D/gu, '') === brn)
+  ));
+  return matched?.tenantMasterName || matched?.companyName || '';
 }
 
 function navigateToAsset(assetRef) {
@@ -2137,7 +2169,7 @@ function LogisticsModal({ modal, onClose }) {
     : modal.size === 'wide'
       ? 'h-[88vh] max-h-[88vh]'
       : 'max-h-[94vh]';
-  return (
+  const overlay = (
     <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-4" role="dialog" aria-modal="true" onWheel={(event) => event.stopPropagation()}>
       <div className={`w-full ${sizeClass} ${containerHeightClass} overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl`}>
         <div className="px-6 py-5 border-b border-[#333333] flex items-center justify-between gap-4">
@@ -2155,6 +2187,7 @@ function LogisticsModal({ modal, onClose }) {
       </div>
     </div>
   );
+  return typeof document === 'undefined' ? overlay : createPortal(overlay, document.body);
 }
 
 function TenantContractFullView({ rows }) {
@@ -4112,7 +4145,14 @@ function PermissionBadge({ label, enabled }) {
 }
 
 function MainOverlay({ title, eyebrow, onClose, children }) {
-  return (
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+  const overlay = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 px-6 py-8 backdrop-blur-sm" role="dialog" aria-modal="true">
       <div className="w-full max-w-[960px] max-h-[86vh] overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl">
         <div className="flex items-center justify-between gap-4 border-b border-[#333333] px-6 py-5">
@@ -4128,6 +4168,7 @@ function MainOverlay({ title, eyebrow, onClose, children }) {
       </div>
     </div>
   );
+  return typeof document === 'undefined' ? overlay : createPortal(overlay, document.body);
 }
 
 function PermissionDetailContent({ permission }) {
@@ -8009,10 +8050,24 @@ function DartFinancialTrendChart({ rows }) {
   );
 }
 
+function dartSourceStatus(openDart = {}) {
+  const cache = openDart?.cache || {};
+  const providerStatus = Number(firstDefined(openDart.provider_status, openDart.providerStatus, cache.provider_status, 0));
+  const providerSuccess = openDart.provider_success === true || openDart.providerSuccess === true || (providerStatus >= 200 && providerStatus < 300 && !String(cache.source || '').includes('ll_tenants'));
+  if (providerSuccess) return { label: 'OpenDART 원천 조회 성공', className: 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' };
+  if (cache.stale || openDart.stale_cache) return { label: '원천 조회 실패 · 기존 저장값 표시', className: 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]' };
+  if (cache.hit || openDart.cache_success) return { label: 'Supabase 저장값 표시', className: 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' };
+  return { label: '저장값 기준 표시', className: 'border-[#3A3A3C] bg-[#1F1F1E] text-[#C7C7CC]' };
+}
+
 function CompanyDartDetailView({ profile, financials }) {
   const rows = normalizeDartFinancialRows(profile, financials);
+  const sourceStatus = dartSourceStatus(financials?.openDart || {});
   return (
     <div className="space-y-5">
+      <div className={`inline-flex rounded-full border px-3 py-1.5 text-[12px] font-semibold ${sourceStatus.className}`}>
+        {sourceStatus.label}
+      </div>
       <section>
         <h4 className="mb-3 text-[15px] font-bold text-white">기업 정보</h4>
         <DataTable headers={['항목', '값']} rows={companyDartDetailRows(profile, financials)} compact minTableWidth={null} />
@@ -9691,7 +9746,7 @@ function ContractDataManagementDashboard() {
       }],
     };
     setIsSubmitting(true);
-    setEventStatus({ type: 'pending', message: '계약 구역 추가 요청을 서버 승인 대기열에 접수하는 중입니다.' });
+    setEventStatus({ type: 'pending', message: '계약 구역 추가 내용을 검토 후 정규 DB에 반영하는 중입니다.' });
     try {
       const previewResult = await supabase.functions.invoke('ll-dashboard-api', {
         body: { action: 'lease-events/preview', payload: leasePayload },
@@ -10243,28 +10298,74 @@ const QUALITY_SEVERITY_LABELS = {
   critical: '즉시 확인',
   warning: '확인 필요',
   info: '참고',
+  high: '즉시 확인',
+  medium: '확인 필요',
+  low: '참고',
 };
 const QUALITY_REASON_LABELS = {
-  source_error: '외부 원천 또는 적재값이 비어 있습니다.',
-  relation_unmatched: '원본 값과 정규 데이터 연결 기준이 맞지 않습니다.',
-  mapping_missing: '원본 항목을 연결할 기준값이 없습니다.',
-  storage_area_missing: '면적 구성값이 부족해 비율 계산이 불완전합니다.',
-  history_unmatched: '현재 계약과 임대료 변경 이력이 연결되지 않았습니다.',
+  source_error: '원본 파일 또는 저장된 값이 비어 있어 확인이 필요합니다.',
+  relation_unmatched: '원본 행과 정규 DB 데이터가 서로 연결되지 않았습니다.',
+  mapping_missing: '원본과 연결되는 값이 없어 확인이 필요합니다.',
+  corrected_exclusive_area: '전용면적 정규화 결과가 원본 값과 달라 확인이 필요합니다.',
+  normalized_area_gap: '면적 단위 변환 또는 반올림 결과가 원본 값과 달라 확인이 필요합니다.',
+  rent_history_duplicate: '같은 기준일자의 임대료 변경 이력이 중복될 수 있습니다.',
+  latest_history_conflict: '최신 임대료 변경 이력이 둘 이상으로 표시될 수 있습니다.',
+  lease_space_id_collision: '계약 구역을 구분하는 값이 다른 행과 겹칠 수 있습니다.',
+  home_snapshot_value_diff: '홈 화면 집계값과 정규 DB 계산값이 달라 확인이 필요합니다.',
+  null_readback: 'Supabase 저장 후 다시 읽은 값이 비어 있어 확인이 필요합니다.',
+  source_sheet_coverage: '원본 Excel 항목이 정규 DB 또는 보존 로그에 빠짐없이 반영되는지 확인이 필요합니다.',
+  remaining_null_after_excel_backfill: '원본 Excel 보강 후에도 값이 비어 있어 추가 확인이 필요합니다.',
+  storage_area_missing: '면적 구성값이 부족해 공실률이나 비율 계산이 불완전할 수 있습니다.',
+  history_unmatched: '현재 계약과 임대료 변경 이력이 서로 맞지 않습니다.',
   money_missing: '임대료 또는 관리비 기준값이 비어 있습니다.',
   original_blank: '원본 입력값이 비어 있어 확인이 필요합니다.',
-  unknown: '검사 규칙이 문제 가능성을 표시했습니다.',
+  unknown: '자동 점검에서 확인이 필요한 항목으로 분류했습니다.',
 };
 const QUALITY_FIELD_LABELS = {
   assetName: '자산명',
-  mainIssue: '주간 주요 이슈',
+  mainIssue: '주요 이슈',
   exposureAvailable: '임차 자산 연결',
   latestRevenue: '최근 매출액',
   'OpenDART/latestRevenue': 'OpenDART 최근 매출액',
-  coldRatio: '저온/상온 면적 구성',
+  coldRatio: '저온 면적 구성',
   averageENoc: 'E. NOC',
   monthlyCostTotal: '월 임관리비 총액',
   monthlyRentTotal: '월 임대료 총액',
   monthlyMfTotal: '월 관리비 총액',
+  monthly_cost_total: '월 임관리비 총액',
+  monthly_rent_total: '월 임대료 총액',
+  monthly_mf_total: '월 관리비 총액',
+  monthly_total_cost: '월 임관리비 총액',
+  total_monthly_cost: '월 임관리비 총액',
+  current_monthly_rent_total: '현재 월 임대료 총액',
+  current_monthly_mf_total: '현재 월 관리비 총액',
+  current_monthly_cost_total: '현재 월 임관리비 총액',
+  leased_area_py: '임대면적',
+  leased_area_total: '임대면적 합계',
+  exclusive_area_py: '전용면적',
+  exclusive_area_sqm: '전용면적',
+  corrected_exclusive_area: '전용면적',
+  gross_floor_area_py: '연면적',
+  vacancy_rate: '공실률',
+  e_noc: 'E. NOC',
+  lease_id: '임대차계약 연결값',
+  lease_space_id: '계약 구역 연결값',
+  fund_code: '펀드 코드',
+  fund_name: '펀드명',
+  first_contract_date: '최초 계약일',
+  first_start_date: '최초 임대개시일',
+  first_end_date: '최초 계약만기일',
+  first_operation_date: '최초 영업개시일',
+  recent_contract_date: '최근 계약일',
+  rent_escalation_rate: '임대료 인상률',
+  management_fee_escalation_rate: '관리비 인상률',
+  change_reason: '임대료 변동 원인',
+  match_status: '데이터 매칭 상태',
+  headquarters_address: '본사 주소',
+  industry_code: '표준산업분류 코드',
+  business_registration_no: '사업자등록번호',
+  dart_corp_code: 'OpenDART 기업 코드',
+  listed_yn: '상장 여부',
 };
 const QUALITY_TARGET_TYPE_LABELS = {
   asset: '자산',
@@ -10272,7 +10373,15 @@ const QUALITY_TARGET_TYPE_LABELS = {
   tenant: '임차인',
   weekly_asset: '주간 자산',
   finding: '점검 항목',
+  home_kpi: '홈 집계값',
+  lease_space: '계약 구역',
   ll_audit_events: '점검 기록',
+  ll_assets: '자산',
+  ll_tenants: '임차인/회사',
+  rent_history: '임대료 변경 이력',
+  ll_rent_history: '임대료 변경 이력',
+  ll_lease_spaces: '계약 구역',
+  ll_leases: '임대차계약',
 };
 
 function readDismissedQualityFindingIds() {
@@ -10289,6 +10398,21 @@ function qualitySeverityLabel(value) {
   return QUALITY_SEVERITY_LABELS[String(value || '').toLowerCase()] || value || '확인 필요';
 }
 
+function normalizedQualityCode(value) {
+  return String(value || '')
+    .trim()
+    .replace(/[.\s-]+/gu, '_')
+    .replace(/__+/gu, '_')
+    .toLowerCase();
+}
+
+function isMachineReference(value) {
+  const text = String(value || '').trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(text)
+    || /(?:^|\|)(?:asset_|tenant_brn_|lease_|space_)/iu.test(text)
+    || /^ll_[a-z_]+$/iu.test(text);
+}
+
 function qualityTargetLabel(item) {
   const targetType = QUALITY_TARGET_TYPE_LABELS[item?.targetType] || item?.targetType || '대상';
   const target = cleanDisplay(item?.target, '-');
@@ -10297,21 +10421,43 @@ function qualityTargetLabel(item) {
   if (assetName && tenantName) return `${assetName} · ${tenantName}`;
   if (assetName && assetName !== target) return `${assetName} · ${targetType}`;
   if (tenantName && tenantName !== target) return `${tenantName} · ${targetType}`;
+  const parsedAssetName = resolveAssetNameByCode(target);
+  const parsedTenantName = resolveTenantNameByCode(target);
+  const dateTokens = [...String(target || '').matchAll(/\b(\d{8})\b/gu)]
+    .map((match) => formatCompactDate(match[1]))
+    .filter(Boolean);
+  if (parsedAssetName || parsedTenantName) {
+    return [targetType, parsedAssetName, parsedTenantName, dateTokens[0]].filter(Boolean).join(' · ');
+  }
+  if (isMachineReference(target)) {
+    return `${targetType} · 원본 행 연결값`;
+  }
+  if (/^[a-z_]+(?:\||$)/iu.test(target) || /asset_|tenant_brn_|ll_/iu.test(target)) {
+    return `${targetType} · 원본 행 연결값`;
+  }
   return `${targetType} · ${target}`;
 }
 
 function qualityFieldLabel(field) {
   const text = cleanDisplay(field, '-');
-  return QUALITY_FIELD_LABELS[text] || text
+  const normalized = normalizedQualityCode(text);
+  return QUALITY_FIELD_LABELS[text] || QUALITY_FIELD_LABELS[normalized] || text
     .replace(/_/gu, ' ')
     .replace(/\bmonthly\b/giu, '월')
     .replace(/\brent\b/giu, '임대료')
     .replace(/\bmf\b/giu, '관리비')
+    .replace(/\bmanagement fee\b/giu, '관리비')
+    .replace(/\bcost\b/giu, '임관리비')
+    .replace(/\bescalation rate\b/giu, '인상률')
     .replace(/\btotal\b/giu, '총액');
 }
 
 function qualityReasonLabel(reason) {
-  return QUALITY_REASON_LABELS[String(reason || '').trim()] || cleanDisplay(reason, '검사 규칙 확인 필요');
+  const text = String(reason || '').trim();
+  const normalized = normalizedQualityCode(text);
+  if (QUALITY_REASON_LABELS[text]) return QUALITY_REASON_LABELS[text];
+  if (QUALITY_REASON_LABELS[normalized]) return QUALITY_REASON_LABELS[normalized];
+  return cleanDisplay(text.replace(/_/gu, ' '), '검사 규칙 확인 필요');
 }
 
 function qualityActionLabel(item) {
@@ -10343,15 +10489,39 @@ function qualityDetailRows(item) {
 
 function QualityFindingDetail({ item, canEdit, onRequestEdit, onDismiss }) {
   if (!item) return null;
+  const raw = item.raw || {};
+  const payload = parseJsonObject(raw.event_payload);
+  const currentValue = cleanDisplay(firstDefined(raw.supabase_value_text, raw.after_value, raw.readback_value, payload.supabase_value_text, raw.source_value_text, raw.before_value, payload.before_value), '-');
+  const summaryRows = [
+    ['어떤 데이터', qualityTargetLabel(item)],
+    ['확인 항목', qualityFieldLabel(item.field)],
+    ['현재값', currentValue],
+    ['왜 확인이 필요한가', qualityReasonLabel(item.reason)],
+    ['다음 조치', qualityActionLabel(item)],
+  ];
+  const technicalRows = qualityDetailRows(item);
   return (
     <div className="space-y-4">
-      <DataTable headers={['항목', '내용']} rows={qualityDetailRows(item)} compact minTableWidth={null} />
-      <div className="rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 py-3 text-[13px] leading-5 text-[#C7C7CC]">
-        이 항목은 자동 점검이 “확인 가능성”을 표시한 것입니다. 실제 문제가 아니면 문제 아님으로 숨길 수 있고, 수정이 필요하면 담당자 알림으로 요청됩니다.
+      <div className="grid gap-3 md:grid-cols-2">
+        {summaryRows.map(([label, value]) => (
+          <div key={label} className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.02em] text-[#8E8E93]">{label}</div>
+            <div className="mt-2 break-keep text-[14px] font-semibold leading-6 text-white">{value}</div>
+          </div>
+        ))}
       </div>
+      <div className="rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 py-3 text-[13px] leading-5 text-[#C7C7CC]">
+        이 항목은 자동 점검 결과입니다. 실제 문제가 아니면 “문제 아님”으로 숨기고, 값 확인이 필요하면 수정 검토 기록을 남길 수 있습니다.
+      </div>
+      <details className="rounded-[12px] border border-[#333333] bg-[#171717]">
+        <summary className="cursor-pointer px-4 py-3 text-[12px] font-semibold text-[#C7C7CC]">원본/기술 정보 보기</summary>
+        <div className="custom-scrollbar max-h-[280px] overflow-auto border-t border-[#333333] p-3">
+          <DataTable headers={['항목', '내용']} rows={technicalRows} compact minTableWidth={null} />
+        </div>
+      </details>
       <div className="flex justify-end gap-2">
         <button type="button" onClick={() => onDismiss?.(item)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-transparent px-4 text-[13px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">문제 아님</button>
-        <button type="button" onClick={() => onRequestEdit?.(item)} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-40" disabled={!canEdit}>{canEdit ? '담당자에게 수정 요청' : '수정 권한 없음'}</button>
+        <button type="button" onClick={() => onRequestEdit?.(item)} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-40" disabled={!canEdit}>{canEdit ? '수정 검토 기록 작성' : '수정 권한 없음'}</button>
       </div>
     </div>
   );
@@ -10965,7 +11135,7 @@ function normalizeQualityWorkbookRows(rows, permission) {
     const beforeValue = excelCellText(row.before_value || row.현재값);
     const afterValue = excelCellText(row.수정값);
     const validationError = !QUALITY_ALLOWED_ACTIONS.has(action)
-      ? '현재 Excel 왕복 수정 파일은 수정 행위만 지원합니다. 추가/삭제는 Data Quality 전용 승인 화면에서 별도 처리합니다.'
+      ? '현재 Excel 왕복 수정 파일은 수정 행위만 지원합니다. 추가/삭제는 Data Update에서 정규 DB 반영 흐름으로 처리합니다.'
       : !targetTable.startsWith('public.ll_')
         ? 'target_table은 public.ll_* 형식이어야 합니다.'
       : !targetRowId
@@ -11136,7 +11306,7 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
         },
       });
       if (error) throw error;
-      setExcelStatus({ type: blockedRows.length ? 'warning' : 'success', message: data?.message || `${permission.name}님의 ${assetName} 수정 요청 ${formatNumber(editableRows.length)}행을 Data Quality 승인 대기열에 접수했습니다.${blockedRows.length ? ` 권한 밖 ${formatNumber(blockedRows.length)}행은 제외했습니다.` : ''}` });
+      setExcelStatus({ type: blockedRows.length ? 'warning' : 'success', message: data?.message || `${permission.name}님의 ${assetName} 수정 검토 기록 ${formatNumber(editableRows.length)}행을 저장했습니다.${blockedRows.length ? ` 권한 밖 ${formatNumber(blockedRows.length)}행은 제외했습니다.` : ''}` });
     } catch (error) {
       setExcelStatus({ type: 'error', message: `Excel 수정 요청 접수 실패: ${error.message || 'unknown error'}` });
     } finally {
@@ -11226,7 +11396,7 @@ function DataQualityDashboard() {
   }, [editTarget]);
   const findings = remoteQuality.status === 'loaded' ? remoteQuality.rows : [];
   const sourceLabel = remoteQuality.status === 'loaded'
-    ? `Supabase findings ${formatNumber(remoteQuality.rows.length)}건`
+    ? `서버 점검 결과 ${formatNumber(remoteQuality.rows.length)}건`
     : remoteQuality.message;
   const visibleFindings = findings.filter((item) => (
     !dismissedFindingIds.includes(String(item.id))
@@ -11276,7 +11446,7 @@ function DataQualityDashboard() {
     <QualityCell key={`${item.id}-reason`} value={qualityReasonLabel(item.reason)} lines={3} tone="text-[#C7C7CC]" />,
     <QualityCell key={`${item.id}-action`} value={qualityActionLabel(item)} lines={3} tone="text-[#A1A1AA]" />,
     <div key={`${item.id}-actions`} className="flex flex-wrap gap-2">
-      <button type="button" onClick={(event) => { event.stopPropagation(); requestEditForFinding(item); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">{canEdit ? '담당자에게 요청' : '권한 확인'}</button>
+      <button type="button" onClick={(event) => { event.stopPropagation(); requestEditForFinding(item); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">{canEdit ? '수정 검토' : '권한 확인'}</button>
       <button type="button" onClick={(event) => { event.stopPropagation(); dismissFinding(item); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-transparent px-3 text-[12px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">문제 아님</button>
     </div>,
   ]);
@@ -11349,7 +11519,7 @@ function DataQualityDashboard() {
         },
       });
       if (error) throw error;
-      setEditSubmitStatus({ type: 'success', message: data?.message || '수정 요청이 담당자 알림에 접수됐습니다.' });
+      setEditSubmitStatus({ type: 'success', message: data?.message || '수정 검토 기록이 저장됐습니다.' });
     } catch (error) {
       setEditSubmitStatus({ type: 'error', message: `Edge Function 연결 필요: ${error.message || 'unknown error'}` });
     }
@@ -11425,7 +11595,7 @@ function DataQualityDashboard() {
               ['항목', qualityFieldLabel(editTarget.field)],
               ['문제로 본 이유', qualityReasonLabel(editTarget.reason)],
               ['권한 상태', canEdit ? '수정 요청 가능' : '수정 권한 없음'],
-              ['처리 방식', '담당자 알림에 수정 요청을 남기고, 서버가 로그인 권한과 담당 자산 권한을 다시 확인합니다.'],
+              ['처리 방식', '수정 검토 기록을 남기고, 서버가 로그인 권한과 담당 자산 권한을 다시 확인합니다.'],
             ]} compact />
             <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E]">
               <div className="flex items-center justify-between gap-3 border-b border-[#333333] px-4 py-3">
@@ -11481,7 +11651,7 @@ function DataQualityDashboard() {
               </div>
             ) : null}
             <div className="flex justify-end">
-              <button type="button" disabled={!canEdit || !changedEditRows.length || editSubmitStatus?.type === 'pending'} onClick={submitEditRequest} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-40">담당자에게 수정 요청</button>
+              <button type="button" disabled={!canEdit || !changedEditRows.length || editSubmitStatus?.type === 'pending'} onClick={submitEditRequest} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-40">수정 검토 기록 저장</button>
             </div>
           </div>
         </MainOverlay>

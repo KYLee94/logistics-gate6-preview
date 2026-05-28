@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabaseClient';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './workspace/logisticsRoutes';
+import UserAvatar from './UserAvatar';
 
 const menuItems = [
     {
@@ -131,10 +132,11 @@ const LOGISTICS_FEATURES = [
     { key: 'opendart_refresh', label: 'OpenDART 새로고침', description: 'OpenDART API 재호출 및 Supabase 저장' },
 ];
 const FEATURE_ACCESS_DEFAULT_USERS = [
-    { staff_name: '이관용', organization: '기획추진센터', email: '' },
-    { staff_name: '전기영', organization: '기획추진센터', email: '' },
-    { staff_name: '이시정', organization: '기획추진센터', email: '' },
+    { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
+    { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
+    { staff_name: '이시정', organization: '기획추진센터', email: 'sjlee@igisam.com' },
 ];
+const FEATURE_ACCESS_DEFAULT_EMAIL_BY_NAME = new Map(FEATURE_ACCESS_DEFAULT_USERS.map((row) => [row.staff_name, row.email]));
 const LOGIN_CAPABILITY_SORT_COLUMNS = [
     { key: 'organization', label: '조직', type: 'text' },
     { key: 'staff_name', label: '이름', type: 'text' },
@@ -212,15 +214,37 @@ const parseNotificationPayload = (value) => {
         return {};
     }
 };
-const featureUserKey = (user = {}) => {
+const compactFeatureAccessUserRow = (user = {}) => {
     const row = user || {};
-    return String(row.email || row.staff_name || row.name || '').trim().toLowerCase();
+    const staffName = String(row.staff_name || row.name || '').trim();
+    return {
+        email: String(row.email || FEATURE_ACCESS_DEFAULT_EMAIL_BY_NAME.get(staffName) || '').trim().toLowerCase(),
+        staff_name: staffName,
+        organization: String(row.organization || '').trim(),
+        logistics_role: String(row.logistics_role || '').trim(),
+    };
 };
 const featureUserKeys = (user = {}) => {
-    const row = user || {};
-    return [row.email, row.staff_name, row.name]
+    const row = compactFeatureAccessUserRow(user);
+    return [
+        row.email,
+        row.staff_name,
+        row.organization && row.staff_name ? `${row.organization}|${row.staff_name}` : '',
+    ]
         .map((value) => String(value || '').trim().toLowerCase())
         .filter(Boolean);
+};
+const featureUserKey = (user = {}) => featureUserKeys(user)[0] || '';
+const mergeFeatureAccessUsers = (rows = []) => {
+    const byKey = new Map();
+    rows.map(compactFeatureAccessUserRow).forEach((row) => {
+        const keys = featureUserKeys(row);
+        if (!keys.length) return;
+        const existingKey = keys.find((key) => byKey.has(key));
+        const next = existingKey ? { ...byKey.get(existingKey), ...row, email: row.email || byKey.get(existingKey).email } : row;
+        keys.forEach((key) => byKey.set(key, next));
+    });
+    return [...new Set([...byKey.values()])];
 };
 const featureUserLabel = (user = {}) => {
     const row = user || {};
@@ -261,17 +285,10 @@ const featureAccessHasEffectiveUser = (config, featureKey, user) => (
 );
 const featureAccessGrantedUsers = (config, featureKey, users = []) => {
     const merged = [...FEATURE_ACCESS_DEFAULT_USERS, ...(config.features?.[featureKey]?.users || [])];
-    const byKey = new Map();
-    merged.forEach((row) => {
-        const key = featureUserKey(row);
-        if (key) byKey.set(key, row);
-    });
-    users.forEach((row) => {
-        if (!featureAccessHasEffectiveUser(config, featureKey, row)) return;
-        const key = featureUserKey(row);
-        if (key) byKey.set(key, row);
-    });
-    return [...byKey.values()];
+    return mergeFeatureAccessUsers([
+        ...merged,
+        ...users.filter((row) => featureAccessHasEffectiveUser(config, featureKey, row)),
+    ]);
 };
 const memberHasFeatureAccess = (config, featureKey, memberInfo = {}) => {
     const member = memberInfo || {};
@@ -502,6 +519,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const isLogisticsPath = normalizedCurrentPath.startsWith(LOGISTICS_INTERNAL_BASE);
     const isLogisticsAdmin = LOGISTICS_ADMIN_NAMES.has(memberInfo?.staff_name || memberInfo?.name);
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
+    const recentLoginHistoryRows = loginHistoryRows.slice(0, 5);
     const loginCapabilityUsers = Array.isArray(loginHistoryData?.users) ? loginHistoryData.users : [];
     const [loginCapabilitySort, setLoginCapabilitySort] = useState({ key: 'last_sign_in_at', direction: 'desc' });
     const sortedLoginCapabilityUsers = useMemo(() => (
@@ -514,14 +532,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             ...(featureAccessUsers.length ? featureAccessUsers : loginCapabilityUsers),
             ...configuredUsers,
         ];
-        const seen = new Set();
-        return rows
-            .filter((row) => {
-                const key = featureUserKey(row);
-                if (!key || seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            })
+        return mergeFeatureAccessUsers(rows)
             .sort((left, right) => String(left.organization || '').localeCompare(String(right.organization || ''), 'ko-KR')
                 || String(left.staff_name || '').localeCompare(String(right.staff_name || ''), 'ko-KR'));
     }, [featureAccessData.features, featureAccessUsers, loginCapabilityUsers]);
@@ -644,7 +655,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setShowFeatureAccessModal(true);
         await loadFeatureAccess();
     };
-    const persistFeatureAccessConfig = async (nextConfig) => {
+    const persistFeatureAccessConfig = async (nextConfig, rollbackConfig = null) => {
         setFeatureAccessSaving(true);
         setFeatureAccessError('');
         try {
@@ -657,23 +668,23 @@ export default function IotaLeftNav({ currentPath = '' }) {
             window.dispatchEvent(new CustomEvent('logistics-feature-access-updated', { detail: saved }));
             setFeatureAccessSavedAt(new Date().toISOString());
         } catch (error) {
+            if (rollbackConfig) {
+                setFeatureAccessData(rollbackConfig);
+                localStorage.setItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY, JSON.stringify(rollbackConfig));
+            }
             setFeatureAccessError(error?.message || '기능 권한 저장 실패');
         } finally {
             setFeatureAccessSaving(false);
         }
     };
     const toggleFeatureAccessUser = (featureKey, userRow) => {
+        if (featureAccessSaving) return;
         if (isDefaultFeatureAccessUser(userRow)) return;
         const current = normalizeFeatureAccessConfig(featureAccessData);
         const users = current.features[featureKey]?.users || [];
-        const userKey = featureUserKey(userRow);
-        const enabled = users.some((row) => featureUserKey(row) === userKey);
-        const compactUser = {
-            email: userRow.email || '',
-            staff_name: userRow.staff_name || userRow.name || '',
-            organization: userRow.organization || '',
-            logistics_role: userRow.logistics_role || '',
-        };
+        const userKeys = new Set(featureUserKeys(userRow));
+        const enabled = users.some((row) => featureUserKeys(row).some((key) => userKeys.has(key)));
+        const compactUser = compactFeatureAccessUserRow(userRow);
         const next = {
             ...current,
             features: {
@@ -681,13 +692,13 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 [featureKey]: {
                     ...(current.features[featureKey] || {}),
                     users: enabled
-                        ? users.filter((row) => featureUserKey(row) !== userKey)
-                        : [...users, compactUser],
+                        ? users.filter((row) => !featureUserKeys(row).some((key) => userKeys.has(key)))
+                        : mergeFeatureAccessUsers([...users, compactUser]),
                 },
             },
         };
         setFeatureAccessData(next);
-        persistFeatureAccessConfig(next);
+        persistFeatureAccessConfig(next, current);
     };
     const toggleFeatureAccessSection = (featureKey) => {
         setOpenFeatureAccessKeys((current) => (
@@ -700,7 +711,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setLoginHistoryLoading(true);
         setLoginHistoryError('');
         try {
-            const { data, error } = await invokeWithTimeout('auth/login-history/list', { limit: 120 }, 15000);
+            const { data, error } = await invokeWithTimeout('auth/login-history/list', { limit: 5 }, 15000);
             if (error || data?.ok === false) {
                 throw new Error(data?.message || error?.message || '로그인 이력을 불러오지 못했습니다.');
             }
@@ -819,15 +830,15 @@ export default function IotaLeftNav({ currentPath = '' }) {
                     </div>
                 </div>
 
-                <div className="relative border-t border-[#2C2C2E] p-3">
+                <div className={`relative border-t border-[#2C2C2E] ${isCollapsed ? 'p-2' : 'p-3'}`}>
                     {isLogisticsAdmin ? (
-                        <div className="mb-2 space-y-2">
+                        <div className={isCollapsed ? 'mb-2 flex flex-col items-center gap-2' : 'mb-2 space-y-2'}>
                             <button
                                 type="button"
                                 data-testid="logistics-feature-access-button"
                                 onClick={openFeatureAccessModal}
                                 title="기능 권한 관리"
-                                className={`flex h-9 w-full items-center ${isCollapsed ? 'justify-center px-2' : 'justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                                className={`flex h-9 items-center ${isCollapsed ? 'w-9 justify-center px-0' : 'w-full justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
                             >
                                 <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 16v-2m8-6h-2M6 12H4m12.95-4.95l-1.42 1.42M8.47 15.53l-1.42 1.42m9.9 0l-1.42-1.42M8.47 8.47 7.05 7.05M12 15a3 3 0 100-6 3 3 0 000 6z" />
@@ -839,7 +850,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 data-testid="logistics-login-history-button"
                                 onClick={openLoginHistoryModal}
                                 title="로그인 이력"
-                                className={`flex h-9 w-full items-center ${isCollapsed ? 'justify-center px-2' : 'justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                                className={`flex h-9 items-center ${isCollapsed ? 'w-9 justify-center px-0' : 'w-full justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
                             >
                                 <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -892,11 +903,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
                         </>
                     ) : null}
                     <div className="relative">
-                        <div className={`flex items-center gap-2 ${isCollapsed ? 'flex-col' : ''}`}>
-                            <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`min-w-0 flex items-center ${isCollapsed ? 'order-2 justify-center' : 'flex-1 justify-start'} rounded-xl px-2 py-2 hover:bg-[#151515]`}>
-                                <div className="w-8 h-8 rounded-full bg-[#3c3c3c] overflow-hidden shrink-0">
-                                    <img src={`${import.meta.env.BASE_URL}${(memberInfo?.staff_name || '').replace(/\s/g, '')}.webp`} alt={memberInfo?.staff_name || '사용자'} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
-                                </div>
+                        <div className={`flex items-center ${isCollapsed ? 'flex-col gap-2' : 'gap-2'}`}>
+                            <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`min-w-0 flex items-center ${isCollapsed ? 'order-2 h-9 w-9 justify-center px-0 py-0' : 'flex-1 justify-start px-2 py-2'} rounded-xl hover:bg-[#151515]`}>
+                                <UserAvatar memberInfo={memberInfo} name={memberInfo?.staff_name || memberInfo?.name} sizeClass="h-8 w-8" textClass="text-[11px]" className="bg-[#3c3c3c]" />
                                 <div className={`ml-3 min-w-0 overflow-hidden text-left transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[156px] translate-x-0 opacity-100'}`}>
                                         <div className="truncate text-[13px] font-semibold text-white">{memberInfo?.staff_name || '로그인 사용자'}</div>
                                         <div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div>
@@ -908,7 +917,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 onClick={openNotificationsPanel}
                                 title="알림"
                                 aria-label={unreadNotificationCount ? `알림, 안 읽은 알림 ${unreadNotificationCount}건` : '알림'}
-                                className={`relative flex h-9 ${isCollapsed ? 'order-1 w-full' : 'w-9'} shrink-0 items-center justify-center rounded-xl border border-[#333333] bg-[#151515] text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                                className={`relative flex h-9 ${isCollapsed ? 'order-1 w-9' : 'w-9'} shrink-0 items-center justify-center rounded-xl border border-[#333333] bg-[#151515] text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
                             >
                                 <svg className="h-4 w-4 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 01-6 0m6 0H9" />
@@ -967,7 +976,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                     <h3 className="text-[14px] font-bold text-white">최근 로그인</h3>
                                                     <p className="mt-1 text-[12px] text-[#8E8E93]">테스트 및 smoke 기록은 제외했습니다.</p>
                                                 </div>
-                                                <div className="text-[12px] text-[#A1A1AA]">총 {loginHistoryRows.length.toLocaleString('ko-KR')}건</div>
+                                                <div className="text-[12px] text-[#A1A1AA]">최근 {recentLoginHistoryRows.length.toLocaleString('ko-KR')}건</div>
                                             </div>
                                             <div className="overflow-hidden rounded-[12px] border border-[#303033]">
                                                 <table className="w-full min-w-[760px] border-collapse text-left text-[12px]">
@@ -981,11 +990,16 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-[#2C2C2E] text-[#E5E5E5]">
-                                                        {loginHistoryRows.length ? loginHistoryRows.map((row, index) => (
+                                                        {recentLoginHistoryRows.length ? recentLoginHistoryRows.map((row, index) => (
                                                             <tr key={`${row.email || 'login'}-${row.logged_at || index}`} className="hover:bg-white/[0.03]">
                                                                 <td className="whitespace-nowrap px-4 py-3 text-[#C7C7CC]">{formatLoginHistoryTime(row.logged_at)}</td>
                                                                 <td className="px-4 py-3">{row.organization || '-'}</td>
-                                                                <td className="px-4 py-3 font-semibold">{row.staff_name || '-'}</td>
+                                                                <td className="px-4 py-3 font-semibold">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <UserAvatar memberInfo={row} name={row.staff_name} sizeClass="h-7 w-7" textClass="text-[10px]" />
+                                                                        <span>{row.staff_name || '-'}</span>
+                                                                    </div>
+                                                                </td>
                                                                 <td className="px-4 py-3 text-[#C7C7CC]">{row.email || '-'}</td>
                                                                 <td className="px-4 py-3"><span className="rounded-full bg-[#203524] px-2 py-1 text-[11px] font-semibold text-[#8EE59A]">성공</span></td>
                                                             </tr>
@@ -1025,7 +1039,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                             return (
                                                                 <tr key={`${row.email || 'user'}-${index}`} className="hover:bg-white/[0.03]">
                                                                     <td className="px-4 py-3">{row.organization || '-'}</td>
-                                                                    <td className="px-4 py-3 font-semibold">{row.staff_name || '-'}</td>
+                                                                    <td className="px-4 py-3 font-semibold">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <UserAvatar memberInfo={row} name={row.staff_name} sizeClass="h-7 w-7" textClass="text-[10px]" />
+                                                                            <span>{row.staff_name || '-'}</span>
+                                                                        </div>
+                                                                    </td>
                                                                     <td className="px-4 py-3 text-[#C7C7CC]">{row.email || '-'}</td>
                                                                     <td className="px-4 py-3 text-[#C7C7CC]">{row.logistics_role || '-'}</td>
                                                                     <td className="px-4 py-3">
@@ -1109,12 +1128,15 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                                         type="button"
                                                                         key={`${feature.key}-${featureUserKey(userRow)}`}
                                                                         onClick={() => toggleFeatureAccessUser(feature.key, userRow)}
-                                                                        disabled={locked}
+                                                                        disabled={locked || featureAccessSaving}
                                                                         className={`flex min-h-11 items-center justify-between gap-3 rounded-[10px] border px-3 py-2 text-left transition-colors ${checked ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#303033] bg-[#151515] text-[#C7C7CC] hover:border-[#4A4A4A]'} ${locked ? 'cursor-default opacity-90' : ''}`}
                                                                     >
-                                                                        <span className="min-w-0">
-                                                                            <span className="block truncate text-[12px] font-bold">{userRow.staff_name || '-'}</span>
-                                                                            <span className="block truncate text-[11px] opacity-75">{userRow.organization || '-'} · {locked ? '기본 허용' : (userRow.logistics_role || '-')}</span>
+                                                                        <span className="flex min-w-0 items-center gap-2">
+                                                                            <UserAvatar memberInfo={userRow} name={userRow.staff_name} sizeClass="h-7 w-7" textClass="text-[10px]" />
+                                                                            <span className="min-w-0">
+                                                                                <span className="block truncate text-[12px] font-bold">{userRow.staff_name || '-'}</span>
+                                                                                <span className="block truncate text-[11px] opacity-75">{userRow.organization || '-'} · {locked ? '기본 허용' : (userRow.logistics_role || '-')}</span>
+                                                                            </span>
                                                                         </span>
                                                                         <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${checked ? 'border-[#B5E48C] bg-[#B5E48C]' : 'border-[#5F5F64]'}`}>
                                                                             {checked ? <span className="h-1.5 w-1.5 rounded-full bg-[#173522]" /> : null}

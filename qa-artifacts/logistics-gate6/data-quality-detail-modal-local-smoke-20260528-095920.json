@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "generated_at": "2026-05-28T09:59:20.168Z",
+  "screenshot": "qa-artifacts/logistics-gate6/data-quality-detail-modal-local-smoke-20260528-095920.png",
+  "checks": {
+    "table_has_human_headers": true,
+    "table_visible_text_hides_raw_codes": true,
+    "dialog_visible": true,
+    "dialog_in_viewport": true,
+    "background_scroll_locked": true,
+    "dialog_summary_hides_raw_codes": true
+  },
+  "errors": []
+}
