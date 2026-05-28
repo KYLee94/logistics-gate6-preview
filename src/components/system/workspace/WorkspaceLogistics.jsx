@@ -86,6 +86,21 @@ const ASSET_PROJECT_DETAIL_CACHE = new Map();
 const ASSET_FUND_OVERVIEW_CACHE = new Map();
 const ASSET_BUILDING_REGISTER_CACHE = new Map();
 const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
+const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
+const LOGISTICS_FEATURE_KEYS = {
+  aiChat: 'ai_chat',
+  dataQuality: 'data_quality',
+  analysisTools: 'analysis_tools',
+  dataPlayground: 'data_playground',
+  loginHistory: 'login_history',
+  buildingRegisterRefresh: 'building_register_refresh',
+  openDartRefresh: 'opendart_refresh',
+};
+const LOGISTICS_FEATURE_GATED_MODULES = {
+  tools: LOGISTICS_FEATURE_KEYS.analysisTools,
+  playground: LOGISTICS_FEATURE_KEYS.dataPlayground,
+  quality: LOGISTICS_FEATURE_KEYS.dataQuality,
+};
 const DASHBOARD_BASIS_DATE = currentKstMonthEndDate();
 const DASHBOARD_BASIS_LABEL = dashboardBasisLabel(DASHBOARD_BASIS_DATE);
 const USE_CATEGORY_COLORS = {
@@ -3782,8 +3797,78 @@ function canViewDataQuality(memberInfo, permission) {
   return organization === '기획추진센터' && DATA_QUALITY_ALLOWED_NAMES.has(name);
 }
 
+function readLogisticsFeatureAccessConfig() {
+  if (typeof window === 'undefined') return {};
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY) || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function normalizeFeatureGrantText(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function featureAccessUserMatches(memberInfo, permission, user) {
+  const email = normalizeFeatureGrantText(memberInfo?.email || permission?.email);
+  const name = normalizeFeatureGrantText(memberInfo?.staff_name || memberInfo?.name || permission?.name);
+  const candidateEmail = normalizeFeatureGrantText(user?.email);
+  const candidateName = normalizeFeatureGrantText(user?.staff_name || user?.name);
+  return Boolean((email && candidateEmail && email === candidateEmail) || (name && candidateName && name === candidateName));
+}
+
+function hasConfiguredFeatureAccess(memberInfo, permission, featureKey, config = readLogisticsFeatureAccessConfig()) {
+  const features = config?.features && typeof config.features === 'object' ? config.features : {};
+  const feature = features[featureKey] && typeof features[featureKey] === 'object' ? features[featureKey] : {};
+  const users = Array.isArray(feature.users) ? feature.users : [];
+  return users.some((user) => featureAccessUserMatches(memberInfo, permission, user));
+}
+
+function canUseLogisticsFeature(memberInfo, permission, featureKey, config = readLogisticsFeatureAccessConfig()) {
+  if (canViewDataQuality(memberInfo, permission)) return true;
+  return hasConfiguredFeatureAccess(memberInfo, permission, featureKey, config);
+}
+
+function useLogisticsFeatureAccess(memberInfo, permission) {
+  const [config, setConfig] = useState(() => readLogisticsFeatureAccessConfig());
+  useEffect(() => {
+    let cancelled = false;
+    supabase.functions.invoke('ll-dashboard-api', {
+      body: { action: 'feature-access/get', payload: {} },
+    }).then(({ data, error }) => {
+      if (cancelled || error || data?.ok === false) return;
+      const next = data?.data || {};
+      window.localStorage.setItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY, JSON.stringify(next));
+      setConfig(next);
+    }).catch(() => {});
+    const handleUpdate = (event) => {
+      const next = event?.detail && typeof event.detail === 'object' ? event.detail : readLogisticsFeatureAccessConfig();
+      setConfig(next);
+    };
+    window.addEventListener('logistics-feature-access-updated', handleUpdate);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('logistics-feature-access-updated', handleUpdate);
+    };
+  }, []);
+  return useMemo(() => ({
+    aiChat: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.aiChat, config),
+    dataQuality: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataQuality, config),
+    analysisTools: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.analysisTools, config),
+    dataPlayground: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataPlayground, config),
+    loginHistory: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.loginHistory, config),
+    buildingRegisterRefresh: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.buildingRegisterRefresh, config),
+    openDartRefresh: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.openDartRefresh, config),
+  }), [config, memberInfo, permission]);
+}
+
 function canViewAdvancedLogisticsTools(memberInfo, permission) {
-  return canViewDataQuality(memberInfo, permission);
+  return canViewDataQuality(memberInfo, permission)
+    || hasConfiguredFeatureAccess(memberInfo, permission, LOGISTICS_FEATURE_KEYS.analysisTools)
+    || hasConfiguredFeatureAccess(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataPlayground)
+    || hasConfiguredFeatureAccess(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataQuality);
 }
 
 function buildMainWeeklyTasks(report, permission) {
@@ -4501,13 +4586,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const requestedModule = currentPath.split('/').pop() || 'home';
   const activeModule = requestedModule === 'sector' || requestedModule === 'weekly' ? 'home' : requestedModule;
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
+  const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
   const weeklyTasks = useMemo(() => buildMainWeeklyTasks(weeklyReportData, permission), [permission]);
   const canRegisterTask = Boolean(permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.update);
-  const canUseAdvancedTools = canViewAdvancedLogisticsTools(memberInfo, permission);
+  const canUseAiChat = featureAccess.aiChat;
 
   useEffect(() => {
-    if (!canUseAdvancedTools && isAiDockOpen) setIsAiDockOpen(false);
-  }, [canUseAdvancedTools, isAiDockOpen]);
+    if (!canUseAiChat && isAiDockOpen) setIsAiDockOpen(false);
+  }, [canUseAiChat, isAiDockOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -5340,7 +5426,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           {aiToast.message}
         </div>
       ) : null}
-      {canUseAdvancedTools ? (
+      {canUseAiChat ? (
       <>
       <div className={`fixed right-0 top-1/2 z-[70] -translate-y-1/2 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isAiDockOpen ? 'translate-x-full' : 'translate-x-0'}`}>
           <button
@@ -7606,6 +7692,12 @@ function companyDartRows(profile = {}, financials = {}) {
   ];
 }
 
+function companyDartSummaryRows(profile = {}, financials = {}) {
+  const rows = companyDartRows(profile, financials);
+  const keep = new Set(['표준기업명', '대표자명', '설립일자', '종업원수', '최근 재무제표 연도', '매출액', '영업이익', '당기순이익']);
+  return rows.filter((row) => keep.has(row[0]));
+}
+
 function normalizeFinancialYear(value) {
   const text = cleanDisplay(value, '');
   const match = text.match(/20\d{2}/u);
@@ -8376,7 +8468,8 @@ function SectorDashboard() {
 function CompanyDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
-  const canUseExternalApiRefresh = canViewAdvancedLogisticsTools(memberInfo, permission);
+  const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
+  const canUseExternalApiRefresh = featureAccess.openDartRefresh;
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo);
   const readableCompanyOptions = useMemo(() => (
     dashboardDataset.companyOptions
@@ -8619,6 +8712,22 @@ function CompanyDashboard() {
         <DataTable headers={leasedAssetHeaders} rows={leasedAssetRows} onRowClick={(index) => openAssetExposureDetail(leasedAssets[index])} compact />
       </section>
 
+      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
+        <SectionHeader
+          eyebrow="EXPOSURE"
+          title="자산별 노출도"
+          right={(
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setExposureMode('cost')} className={`h-9 px-3 rounded-[8px] text-[13px] font-semibold ${effectiveExposureMode === 'cost' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}>임관리비 총합 기준</button>
+              <button type="button" onClick={() => setExposureMode('area')} className={`h-9 px-3 rounded-[8px] text-[13px] font-semibold ${effectiveExposureMode === 'area' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}>임대면적 기준</button>
+              <button type="button" onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '비율'], exposureTableRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>
+            </div>
+          )}
+        />
+        <RichBarChart rows={exposureChartRows} labelKey="label" valueKey="value" barValueKey="shareValue" barMaxValue={1} valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} valueLabel={effectiveExposureMode === 'area' ? '자산별 임대면적(평)' : '자산별 월 임관리비'} showXAxisLabels={false} onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '비율'], exposureTableRows)} />
+        {!hasCostExposure && exposureMode === 'cost' ? <div className="mt-2 text-[12px] text-[#86868B]">월 임관리비 값이 비어 있어 임대면적 기준으로 표시했습니다.</div> : null}
+      </section>
+
       <section className="grid grid-cols-1 xl:grid-cols-[3.5fr_6.5fr] gap-5">
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader
@@ -8639,10 +8748,7 @@ function CompanyDashboard() {
               </div>
             )}
           />
-          <DataTable headers={['항목', '값']} rows={companyDartRows(profile, { ...financials, openDart: dartApiSummary })} compact />
-          <div className="mt-4">
-            <DartFinancialTrendChart rows={normalizeDartFinancialRows(profile, { ...financials, openDart: dartApiSummary })} />
-          </div>
+          <DataTable headers={['항목', '값']} rows={companyDartSummaryRows(profile, { ...financials, openDart: dartApiSummary })} compact minTableWidth={null} />
           {dartApiStatus ? (
             <div className={`mt-4 rounded-[12px] border px-4 py-3 text-[12px] leading-5 ${dartApiStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : dartApiStatus.type === 'loading' ? 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]' : 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]'}`}>
               {dartApiStatus.message}
@@ -8656,21 +8762,6 @@ function CompanyDashboard() {
         </div>
       </section>
 
-      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-        <SectionHeader
-          eyebrow="EXPOSURE"
-          title="자산별 노출도"
-          right={(
-            <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setExposureMode('cost')} className={`h-9 px-3 rounded-[8px] text-[13px] font-semibold ${effectiveExposureMode === 'cost' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}>임관리비 총합 기준</button>
-              <button type="button" onClick={() => setExposureMode('area')} className={`h-9 px-3 rounded-[8px] text-[13px] font-semibold ${effectiveExposureMode === 'area' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}>임대면적 기준</button>
-              <button type="button" onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '비율'], exposureTableRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>
-            </div>
-          )}
-        />
-        <RichBarChart rows={exposureChartRows} labelKey="label" valueKey="value" barValueKey="shareValue" barMaxValue={1} valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} valueLabel={effectiveExposureMode === 'area' ? '자산별 임대면적(평)' : '자산별 월 임관리비'} showXAxisLabels={false} onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '비율'], exposureTableRows)} />
-        {!hasCostExposure && exposureMode === 'cost' ? <div className="mt-2 text-[12px] text-[#86868B]">월 임관리비 값이 비어 있어 임대면적 기준으로 표시했습니다.</div> : null}
-      </section>
     </div>
   );
 }
@@ -9402,7 +9493,7 @@ function ContractDataManagementDashboard() {
   )).join('|');
   const canCreate = Boolean(permission.permissions?.managedAsset?.create || permission.role === 'Admin' || permission.role === 'Manager');
   const canUpdate = Boolean(permission.permissions?.managedAsset?.update || permission.role === 'Admin' || permission.role === 'Manager');
-  const canArchive = Boolean(permission.permissions?.managedAsset?.delete || permission.permissions?.managedAsset?.update || permission.role === 'Admin' || permission.role === 'Manager');
+  const canArchive = Boolean(permission.permissions?.managedAsset?.delete || permission.role === 'Admin' || permission.role === 'Manager');
   const canSubmit = dataUpdateMode === 'add' ? canCreate : dataUpdateMode === 'archive' ? canArchive : canUpdate;
   const isAddMode = dataUpdateMode === 'add';
   const isEditMode = dataUpdateMode === 'edit';
@@ -10111,28 +10202,113 @@ function buildDataQualityEditGridRows(finding) {
   }];
 }
 
-const DATA_QUALITY_REBASE_PLAN = [
-  {
-    title: '정규 계약 테이블',
-    body: 'll_leases, ll_lease_spaces 기준으로 현재 계약, 면적, 임대료 스냅샷의 필수값과 관계값을 점검합니다.',
-  },
-  {
-    title: '임대료 이력',
-    body: 'll_rent_history는 덮어쓰기보다 append 기준으로 중복, 같은 기준일자 보정, 누락 이력을 분리합니다.',
-  },
-  {
-    title: '원본 추적성',
-    body: '원본 Excel 전용 항목은 정규 테이블에 억지로 쓰지 않고 원본 보존/감사 로그와 연결 상태를 확인합니다.',
-  },
-  {
-    title: '계산값 검산',
-    body: '자산·임차인·포트폴리오 지표가 정규 테이블과 임대면적 가중 E.NOC 기준으로 재계산되는지 비교합니다.',
-  },
-  {
-    title: 'Data Update 연동',
-    body: 'lease-events preview/submit 결과, readback, rollback, 알림까지 한 흐름으로 검증하도록 재정비합니다.',
-  },
-];
+const DATA_QUALITY_DISMISSED_CACHE_KEY = 'logisticsDataQualityDismissedFindings';
+const QUALITY_SEVERITY_LABELS = {
+  critical: '즉시 확인',
+  warning: '확인 필요',
+  info: '참고',
+};
+const QUALITY_REASON_LABELS = {
+  source_error: '외부 원천 또는 적재값이 비어 있습니다.',
+  relation_unmatched: '원본 값과 정규 데이터 연결 기준이 맞지 않습니다.',
+  mapping_missing: '원본 항목을 연결할 기준값이 없습니다.',
+  storage_area_missing: '면적 구성값이 부족해 비율 계산이 불완전합니다.',
+  history_unmatched: '현재 계약과 임대료 변경 이력이 연결되지 않았습니다.',
+  money_missing: '임대료 또는 관리비 기준값이 비어 있습니다.',
+  original_blank: '원본 입력값이 비어 있어 확인이 필요합니다.',
+  unknown: '검사 규칙이 문제 가능성을 표시했습니다.',
+};
+const QUALITY_FIELD_LABELS = {
+  assetName: '자산명',
+  mainIssue: '주간 주요 이슈',
+  exposureAvailable: '임차 자산 연결',
+  latestRevenue: '최근 매출액',
+  'OpenDART/latestRevenue': 'OpenDART 최근 매출액',
+  coldRatio: '저온/상온 면적 구성',
+  averageENoc: 'E. NOC',
+  monthlyCostTotal: '월 임관리비 총액',
+  monthlyRentTotal: '월 임대료 총액',
+  monthlyMfTotal: '월 관리비 총액',
+};
+const QUALITY_TARGET_TYPE_LABELS = {
+  asset: '자산',
+  company: '회사/임차인',
+  tenant: '임차인',
+  weekly_asset: '주간 자산',
+  finding: '점검 항목',
+};
+
+function readDismissedQualityFindingIds() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(DATA_QUALITY_DISMISSED_CACHE_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function qualitySeverityLabel(value) {
+  return QUALITY_SEVERITY_LABELS[String(value || '').toLowerCase()] || value || '확인 필요';
+}
+
+function qualityTargetLabel(item) {
+  const targetType = QUALITY_TARGET_TYPE_LABELS[item?.targetType] || item?.targetType || '대상';
+  const target = cleanDisplay(item?.target, '-');
+  const assetName = cleanDisplay(firstDefined(item?.raw?.asset_name, item?.raw?.event_payload?.asset_name, item?.raw?.target_asset_name, ''), '');
+  if (assetName && assetName !== target) return `${targetType} · ${assetName} / ${target}`;
+  return `${targetType} · ${target}`;
+}
+
+function qualityFieldLabel(field) {
+  const text = cleanDisplay(field, '-');
+  return QUALITY_FIELD_LABELS[text] || text
+    .replace(/_/gu, ' ')
+    .replace(/\bmonthly\b/giu, '월')
+    .replace(/\brent\b/giu, '임대료')
+    .replace(/\bmf\b/giu, '관리비')
+    .replace(/\btotal\b/giu, '총액');
+}
+
+function qualityReasonLabel(reason) {
+  return QUALITY_REASON_LABELS[String(reason || '').trim()] || cleanDisplay(reason, '검사 규칙 확인 필요');
+}
+
+function qualityActionLabel(item) {
+  const text = cleanDisplay(item?.action, '');
+  if (!text) return '담당자가 원본 값과 정규 DB 값을 대조해야 합니다.';
+  return text
+    .replace(/DB_히스토리누적/gu, '임대료 변경 이력')
+    .replace(/DB_일반/gu, '현재 계약 원장')
+    .replace(/ll_[a-z_]+/giu, '정규 데이터');
+}
+
+function qualitySheetLabel(value) {
+  const text = cleanDisplay(value, '-');
+  if (/히스토리|rent_history|history/iu.test(text)) return '임대료 변경 이력';
+  if (/DB_일반|lease|contract/iu.test(text)) return '현재 계약 원장';
+  if (/기업|tenant|company/iu.test(text)) return '회사/임차인 정보';
+  if (/weekly/iu.test(text)) return '주간 자산 기록';
+  if (/audit/iu.test(text)) return '무결성 점검 기록';
+  return text;
+}
+
+function QualityCell({ value, lines = 2, tone = 'text-[#E5E5E5]' }) {
+  const text = cleanDisplay(value, '-');
+  return (
+    <span
+      className={`block overflow-hidden ${tone}`}
+      title={text}
+      style={{
+        display: '-webkit-box',
+        WebkitLineClamp: lines,
+        WebkitBoxOrient: 'vertical',
+      }}
+    >
+      {text}
+    </span>
+  );
+}
 
 const QUALITY_EXCEL_COLUMNS = [
   '행위',
@@ -10959,6 +11135,7 @@ function DataQualityDashboard() {
   const [editGridRows, setEditGridRows] = useState([]);
   const [editSubmitStatus, setEditSubmitStatus] = useState(null);
   const [remoteQuality, setRemoteQuality] = useState({ status: 'loading', rows: [], message: 'Supabase readback 확인 중' });
+  const [dismissedFindingIds, setDismissedFindingIds] = useState(() => readDismissedQualityFindingIds());
   useEffect(() => {
     const controller = new AbortController();
     fetchRemoteQualityFindings(controller.signal)
@@ -10978,6 +11155,8 @@ function DataQualityDashboard() {
     ? `Supabase findings ${formatNumber(remoteQuality.rows.length)}건`
     : remoteQuality.message;
   const visibleFindings = findings.filter((item) => (
+    !dismissedFindingIds.includes(String(item.id))
+    &&
     (severity === 'all' || item.severity === severity)
     && (sheetFilter === 'all' || item.sheetName === sheetFilter)
     && (fieldFilter === 'all' || item.field === fieldFilter)
@@ -10985,15 +11164,27 @@ function DataQualityDashboard() {
   const severityCounts = ['critical', 'warning', 'info'].map((key) => [key, findings.filter((item) => item.severity === key).length]);
   const sheetGroups = [...new Set(findings.map((item) => item.sheetName))].filter(Boolean);
   const fieldGroups = [...new Set(findings.map((item) => item.field))].filter(Boolean);
+  const dismissFinding = (item) => {
+    const id = String(item?.id || '');
+    if (!id) return;
+    setDismissedFindingIds((current) => {
+      const next = [...new Set([...current, id])];
+      window.localStorage.setItem(DATA_QUALITY_DISMISSED_CACHE_KEY, JSON.stringify(next));
+      return next;
+    });
+  };
   const tableRows = visibleFindings.map((item) => [
-    item.severity,
-    item.sheetName,
-    item.targetType,
-    item.target,
-    item.field,
-    item.reason,
-    item.action,
-    <button key={`${item.target}-${item.field}`} type="button" onClick={() => { setEditTarget(item); setEditSubmitStatus(null); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">{canEdit ? '수정 요청' : '권한 확인'}</button>,
+    <span key={`${item.id}-severity`} className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-bold ${item.severity === 'critical' ? 'border-[#6F3434] bg-[#331F1F] text-[#FF9F9F]' : item.severity === 'warning' ? 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]' : 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]'}`}>
+      {qualitySeverityLabel(item.severity)}
+    </span>,
+    <QualityCell key={`${item.id}-target`} value={qualityTargetLabel(item)} />,
+    <QualityCell key={`${item.id}-field`} value={qualityFieldLabel(item.field)} />,
+    <QualityCell key={`${item.id}-reason`} value={qualityReasonLabel(item.reason)} lines={3} tone="text-[#C7C7CC]" />,
+    <QualityCell key={`${item.id}-action`} value={qualityActionLabel(item)} lines={3} tone="text-[#A1A1AA]" />,
+    <div key={`${item.id}-actions`} className="flex flex-wrap gap-2">
+      <button type="button" onClick={() => { setEditTarget(item); setEditSubmitStatus(null); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">{canEdit ? '담당자에게 요청' : '권한 확인'}</button>
+      <button type="button" onClick={() => dismissFinding(item)} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-transparent px-3 text-[12px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">문제 아님</button>
+    </div>,
   ]);
   const changedEditRows = editGridRows.filter((row) => {
     const afterValue = String(row.afterValue || '').trim();
@@ -11051,12 +11242,20 @@ function DataQualityDashboard() {
               finding: editTarget.raw || editTarget,
               cell_edits: changedEditRows,
               permission_source: logisticsPermissionData.sourceFile,
+              notification: {
+                type: 'data_quality_owner_request',
+                target_label: qualityTargetLabel(editTarget),
+                field_label: qualityFieldLabel(editTarget.field),
+                reason_label: qualityReasonLabel(editTarget.reason),
+                action_label: qualityActionLabel(editTarget),
+                asset_name: editGridRows.find((row) => row.assetName)?.assetName || editTarget.target || null,
+              },
             },
           },
         },
       });
       if (error) throw error;
-      setEditSubmitStatus({ type: 'success', message: data?.message || '수정 요청이 서버로 접수됐습니다.' });
+      setEditSubmitStatus({ type: 'success', message: data?.message || '수정 요청이 담당자 알림에 접수됐습니다.' });
     } catch (error) {
       setEditSubmitStatus({ type: 'error', message: `Edge Function 연결 필요: ${error.message || 'unknown error'}` });
     }
@@ -11075,7 +11274,8 @@ function DataQualityDashboard() {
             </div>
           )}
         />
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="custom-scrollbar overflow-x-auto">
+        <div className="grid min-w-[940px] grid-cols-5 gap-3">
           <button type="button" onClick={() => setSeverity('all')} className={`rounded-[14px] border px-4 py-4 text-left ${severity === 'all' ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#333333] bg-[#1F1F1E] text-white hover:bg-[#2A2A29]'}`}>
             <div className="text-[12px] font-semibold opacity-70">총 점검 항목</div>
             <div className="mt-2 text-[24px] font-semibold">{formatNumber(findings.length)}건</div>
@@ -11091,17 +11291,6 @@ function DataQualityDashboard() {
             <div className="mt-2 text-[18px] font-semibold">담당자별 권한표</div>
           </button>
         </div>
-      </section>
-      <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-        <SectionHeader eyebrow="REBASE PLAN" title="Data Quality 정비 계획" />
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
-          {DATA_QUALITY_REBASE_PLAN.map((item, index) => (
-            <div key={item.title} className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#86868B]">STEP {index + 1}</div>
-              <div className="mt-2 text-[14px] font-semibold text-white">{item.title}</div>
-              <div className="mt-2 text-[12px] leading-5 text-[#A1A1AA]">{item.body}</div>
-            </div>
-          ))}
         </div>
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
@@ -11111,37 +11300,43 @@ function DataQualityDashboard() {
             <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">시트</span>
             <select value={sheetFilter} onChange={(event) => setSheetFilter(event.target.value)} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white">
               <option value="all">전체</option>
-              {sheetGroups.map((item) => <option key={item} value={item}>{item}</option>)}
+              {sheetGroups.map((item) => <option key={item} value={item}>{qualitySheetLabel(item)}</option>)}
             </select>
           </label>
           <label className="block">
             <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">필드</span>
             <select value={fieldFilter} onChange={(event) => setFieldFilter(event.target.value)} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[13px] text-white">
               <option value="all">전체</option>
-              {fieldGroups.map((item) => <option key={item} value={item}>{item}</option>)}
+              {fieldGroups.map((item) => <option key={item} value={item}>{qualityFieldLabel(item)}</option>)}
             </select>
           </label>
         </div>
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="FINDINGS" title="무결성 점검 결과" />
-        <DataTable headers={['등급', '시트', '대상', '이름', '필드', '원인', '조치', '수정']} rows={tableRows} compact />
+        <DataTable
+          headers={['등급', '자산·대상', '항목', '문제로 본 이유', '권장 조치', '처리']}
+          rows={tableRows}
+          compact
+          columnWidths={['110px', '240px', '180px', '300px', '340px', '220px']}
+          minTableWidth="1390px"
+        />
       </section>
       {editTarget && (
         <MainOverlay title={`데이터 수정 요청 · ${editTarget.target}`} eyebrow="EDIT REQUEST" onClose={() => setEditTarget(null)}>
           <div className="space-y-4">
             <DataTable headers={['항목', '내용']} rows={[
-              ['대상', editTarget.target],
-              ['필드', editTarget.field],
-              ['원인 분류', editTarget.reason],
+              ['대상', qualityTargetLabel(editTarget)],
+              ['항목', qualityFieldLabel(editTarget.field)],
+              ['문제로 본 이유', qualityReasonLabel(editTarget.reason)],
               ['권한 상태', canEdit ? '수정 요청 가능' : '수정 권한 없음'],
-              ['처리 방식', '프론트 직접 수정 금지. /edits/submit Edge Function에서 JWT와 public.ll_* 권한 재검증 후 반영'],
+              ['처리 방식', '담당자 알림에 수정 요청을 남기고, 서버가 로그인 권한과 담당 자산 권한을 다시 확인합니다.'],
             ]} compact />
             <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E]">
               <div className="flex items-center justify-between gap-3 border-b border-[#333333] px-4 py-3">
                 <div>
                   <div className="text-[12px] font-semibold text-[#86868B]">Excel-like edit grid</div>
-                  <div className="mt-1 text-[14px] font-semibold text-white">셀 단위 before/after 수정 요청</div>
+                  <div className="mt-1 text-[14px] font-semibold text-white">셀 단위 현재값/수정값 입력</div>
                 </div>
                 <button type="button" disabled={!canEdit} onClick={addEditGridRow} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F] disabled:cursor-not-allowed disabled:opacity-40">행 추가</button>
               </div>
@@ -11191,7 +11386,7 @@ function DataQualityDashboard() {
               </div>
             ) : null}
             <div className="flex justify-end">
-              <button type="button" disabled={!canEdit || !changedEditRows.length || editSubmitStatus?.type === 'pending'} onClick={submitEditRequest} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-40">수정 요청 저장</button>
+              <button type="button" disabled={!canEdit || !changedEditRows.length || editSubmitStatus?.type === 'pending'} onClick={submitEditRequest} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-40">담당자에게 수정 요청</button>
             </div>
           </div>
         </MainOverlay>
@@ -12195,8 +12390,9 @@ function ExternalRefreshResultView({ summary, headers, rows, note }) {
   );
 }
 
-function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal }) {
+function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal, featureAccess }) {
   const [running, setRunning] = useState('');
+  const [progress, setProgress] = useState(null);
   const sourceRows = useMemo(() => filterAssetsByPermission(dashboardDataset.generalRows || [], permission), [dashboardDataset.generalRows, permission]);
   const readableAssets = useMemo(() => filterAssetsByPermission(dashboardDataset.assetOptions || [], permission), [dashboardDataset.assetOptions, permission]);
   const readableCompanies = useMemo(() => companyOptionsFromDashboardRows(sourceRows, dashboardDataset.companyOptions || companyOptionsData), [dashboardDataset.companyOptions, sourceRows]);
@@ -12205,11 +12401,14 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
 
   const runBuildingRefresh = async () => {
     setRunning('building');
+    setProgress({ type: 'building', done: 0, total: buildingTargets.length, label: '건축물대장 새로고침 준비 중' });
     const rows = [];
     try {
-      for (const target of buildingTargets) {
+      for (const [index, target] of buildingTargets.entries()) {
+        setProgress({ type: 'building', done: index, total: buildingTargets.length, label: target.assetName || '자산 확인 중' });
         if (!target.ready) {
           rows.push([target.assetName, target.address || '-', '파라미터 부족', `${target.payload.sigungu_cd || '-'} / ${target.payload.bjdong_cd || '-'} / ${target.payload.bun || '-'}-${target.payload.ji || '-'}`, '-', '미반영']);
+          setProgress({ type: 'building', done: index + 1, total: buildingTargets.length, label: target.assetName || '자산 확인 완료' });
           continue;
         }
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
@@ -12227,9 +12426,11 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
           providerAddress || '건축물대장 원천에 해당 위치 결과 없음',
           outcome.stored ? 'Supabase 반영' : outcome.message,
         ]);
+        setProgress({ type: 'building', done: index + 1, total: buildingTargets.length, label: target.assetName || '자산 확인 완료' });
       }
     } finally {
       setRunning('');
+      setProgress(null);
     }
     const successCount = rows.filter((row) => row[2] === '새로고침 완료').length;
     const emptyCount = rows.filter((row) => row[2] === '원천 빈 응답').length;
@@ -12255,11 +12456,14 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
 
   const runOpenDartRefresh = async () => {
     setRunning('opendart');
+    setProgress({ type: 'opendart', done: 0, total: openDartTargets.length, label: 'OpenDART 새로고침 준비 중' });
     const rows = [];
     try {
-      for (const target of openDartTargets) {
+      for (const [index, target] of openDartTargets.entries()) {
+        setProgress({ type: 'opendart', done: index, total: openDartTargets.length, label: target.tenantName || '기업 확인 중' });
         if (!target.ready) {
           rows.push([target.tenantName, '-', 'corp code 없음', '-', '-', '미반영']);
+          setProgress({ type: 'opendart', done: index + 1, total: openDartTargets.length, label: target.tenantName || '기업 확인 완료' });
           continue;
         }
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
@@ -12292,9 +12496,11 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
           financialRowCount ? `${formatNumber(financialRowCount)}개` : '-',
           finalOutcome.stored ? 'Supabase 확인' : finalOutcome.message,
         ]);
+        setProgress({ type: 'opendart', done: index + 1, total: openDartTargets.length, label: target.tenantName || '기업 확인 완료' });
       }
     } finally {
       setRunning('');
+      setProgress(null);
     }
     const directSuccessCount = rows.filter((row) => row[2] === '원천 갱신 완료').length;
     const storedSuccessCount = rows.filter((row) => ['새로고침 완료', '저장값 확인', '월간 저장값 확인'].includes(row[3])).length;
@@ -12319,26 +12525,46 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
     });
   };
 
+  const progressPercent = progress?.total ? Math.round((progress.done / progress.total) * 100) : 0;
+
   return (
+    <div className="flex flex-col items-end gap-2">
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <button
-        type="button"
-        data-testid="building-register-refresh"
-        disabled={Boolean(running)}
-        onClick={runBuildingRefresh}
-        className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}
-      >
-        {running === 'building' ? '건축물대장 새로고침 중' : '건축물대장 새로고침'}
-      </button>
-      <button
-        type="button"
-        data-testid="opendart-refresh"
-        disabled={Boolean(running)}
-        onClick={runOpenDartRefresh}
-        className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}
-      >
-        {running === 'opendart' ? 'OpenDART 새로고침 중' : 'OpenDART 새로고침'}
-      </button>
+      {featureAccess?.buildingRegisterRefresh ? (
+        <button
+          type="button"
+          data-testid="building-register-refresh"
+          disabled={Boolean(running)}
+          onClick={runBuildingRefresh}
+          className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}
+        >
+          {running === 'building' ? '건축물대장 새로고침 중' : '건축물대장 새로고침'}
+        </button>
+      ) : null}
+      {featureAccess?.openDartRefresh ? (
+        <button
+          type="button"
+          data-testid="opendart-refresh"
+          disabled={Boolean(running)}
+          onClick={runOpenDartRefresh}
+          className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}
+        >
+          {running === 'opendart' ? 'OpenDART 새로고침 중' : 'OpenDART 새로고침'}
+        </button>
+      ) : null}
+    </div>
+      {progress ? (
+        <div className="w-[min(360px,calc(100vw-32px))] rounded-[10px] border border-[#34537A] bg-[#202C3D] px-3 py-2 text-[11px] font-semibold text-[#9AD7FF] shadow-xl">
+          <div className="flex items-center justify-between gap-3">
+            <span className="truncate">{progress.label}</span>
+            <span className="shrink-0 tabular-nums">{progressPercent}%</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#111827]">
+            <div className="h-full rounded-full bg-[#60A5FA] transition-[width] duration-200" style={{ width: `${progressPercent}%` }} />
+          </div>
+          <div className="mt-1 text-right text-[#7EBEFF]">{formatNumber(progress.done)} / {formatNumber(progress.total)}</div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -12346,13 +12572,17 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal 
 function DashboardShell({ activeModule }) {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
+  const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission));
   const [modal, setModal] = useState(null);
   const visibleModules = useMemo(() => (
-    MODULES.filter((item) => !ADMIN_ONLY_MODULE_IDS.has(item.id) || canViewAdvancedLogisticsTools(memberInfo, permission))
-  ), [memberInfo, permission]);
+    MODULES.filter((item) => {
+      const featureKey = LOGISTICS_FEATURE_GATED_MODULES[item.id];
+      return !featureKey || featureAccess[item.id === 'tools' ? 'analysisTools' : item.id === 'playground' ? 'dataPlayground' : 'dataQuality'];
+    })
+  ), [featureAccess]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
-  const canUseExternalApiRefresh = canViewAdvancedLogisticsTools(memberInfo, permission);
+  const canUseExternalApiRefresh = featureAccess.buildingRegisterRefresh || featureAccess.openDartRefresh;
   const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
   useEffect(() => {
     if (!selected?.id) return undefined;
@@ -12386,13 +12616,13 @@ function DashboardShell({ activeModule }) {
       <SectionHeader
         title={selected.label}
         right={canUseExternalApiRefresh ? (
-          <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} />
+          <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={featureAccess} />
         ) : null}
       />
 
-      <div className="relative">
+      <div className="relative min-h-[540px]">
         {visibleModules.filter((item) => mountedIds.has(item.id)).map((item) => (
-          <div key={item.id} className={selected.id === item.id ? 'block' : 'hidden'} aria-hidden={selected.id !== item.id}>
+          <div key={item.id} className={`transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${selected.id === item.id ? 'relative z-10 block translate-y-0 opacity-100' : 'pointer-events-none absolute inset-x-0 top-0 -z-10 translate-y-1 opacity-0'}`} aria-hidden={selected.id !== item.id}>
             {renderDashboardModule(item.id)}
           </div>
         ))}

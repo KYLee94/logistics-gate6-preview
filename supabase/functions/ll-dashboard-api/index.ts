@@ -238,6 +238,17 @@ const FREE_TIER_GOOGLE_AI_MODELS = new Set([
 ]);
 const SENSITIVE_KEY_PATTERN = /(authorization|password|secret|service[_-]?role|token|api[_-]?key|apikey|crtfc[_-]?key|client[_-]?secret|serviceKey|x-ncp)/iu;
 const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
+const LOGISTICS_FEATURE_ACCESS_CACHE_TYPE = 'logistics_feature_access';
+const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'active';
+const LOGISTICS_FEATURE_KEYS = new Set([
+  'ai_chat',
+  'data_quality',
+  'analysis_tools',
+  'data_playground',
+  'login_history',
+  'building_register_refresh',
+  'opendart_refresh',
+]);
 
 function allowedOrigins() {
   return [
@@ -557,6 +568,19 @@ function canWriteRelatedAsset(ctx: Context, relatedAssetId: unknown, relatedAsse
     : permissionFlag(ctx.permission, 'other_asset_permissions', 'update');
 }
 
+function canMutateRelatedAsset(ctx: Context, action: 'create' | 'update' | 'delete', relatedAssetId: unknown, relatedAssetName?: unknown) {
+  if (hasRole(ctx.role, 'Admin')) return true;
+  const assetId = String(relatedAssetId || '').trim();
+  const assetName = String(relatedAssetName || '').trim();
+  if (!assetId && !assetName) return false;
+  const managed = managedAssetCodes(ctx.permission).some((item) => (
+    item === assetId || (!!assetName && item === assetName)
+  ));
+  return managed
+    ? permissionFlag(ctx.permission, 'managed_asset_permissions', action)
+    : permissionFlag(ctx.permission, 'other_asset_permissions', action);
+}
+
 function canMutateWorklog(ctx: Context, action: 'create' | 'update' | 'delete', relatedAssetId: unknown) {
   if (hasRole(ctx.role, 'Admin')) return true;
   const assetId = String(relatedAssetId || '').trim();
@@ -622,6 +646,100 @@ function canUseDataQuality(ctx: Context) {
   return organization === '기획추진센터'
     || DATA_QUALITY_ALLOWED_NAMES.has(name)
     || allowedDataQualityEmails().includes(email);
+}
+
+function compactFeatureAccessUser(row: Record<string, unknown>) {
+  return {
+    email: String(row.email || '').trim().toLowerCase(),
+    staff_name: safeText(firstDefined(row.staff_name, row.name)),
+    organization: safeText(row.organization),
+    logistics_role: safeText(row.logistics_role),
+  };
+}
+
+function normalizeFeatureAccessConfig(value: unknown) {
+  const config = value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const featuresInput = config.features && typeof config.features === 'object' && !Array.isArray(config.features)
+    ? config.features as Record<string, unknown>
+    : {};
+  const features: Record<string, unknown> = {};
+  for (const key of LOGISTICS_FEATURE_KEYS) {
+    const row = featuresInput[key] && typeof featuresInput[key] === 'object' && !Array.isArray(featuresInput[key])
+      ? featuresInput[key] as Record<string, unknown>
+      : {};
+    const users = Array.isArray(row.users)
+      ? (row.users as Record<string, unknown>[]).map(compactFeatureAccessUser).filter((user) => user.email || user.staff_name).slice(0, 200)
+      : [];
+    features[key] = {
+      key,
+      label: safeText(row.label || key),
+      users,
+    };
+  }
+  return {
+    features,
+    updatedAt: safeText(config.updatedAt || new Date().toISOString()),
+  };
+}
+
+function featureAccessUserMatches(ctx: Context, row: Record<string, unknown>) {
+  const email = String(ctx.permission?.email || actorEmail(ctx) || '').trim().toLowerCase();
+  const name = safeText(firstDefined(ctx.permission?.staff_name, ctx.permission?.name, ctx.permission?.display_name, actorName(ctx))).toLowerCase();
+  const user = compactFeatureAccessUser(row);
+  return Boolean((email && user.email && email === user.email) || (name && user.staff_name && name === user.staff_name.toLowerCase()));
+}
+
+async function readFeatureAccessConfig(ctx: Context) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_cache_entries')
+    .select('payload,response_payload,updated_at')
+    .eq('cache_type', LOGISTICS_FEATURE_ACCESS_CACHE_TYPE)
+    .eq('cache_key', LOGISTICS_FEATURE_ACCESS_CACHE_KEY)
+    .maybeSingle();
+  if (error) return normalizeFeatureAccessConfig({});
+  return normalizeFeatureAccessConfig(data?.payload || data?.response_payload || {});
+}
+
+async function canUseServerFeature(ctx: Context, featureKey: string) {
+  if (canUseDataQuality(ctx)) return true;
+  if (!LOGISTICS_FEATURE_KEYS.has(featureKey)) return false;
+  const config = await readFeatureAccessConfig(ctx);
+  const feature = (config.features as Record<string, unknown>)?.[featureKey] as Record<string, unknown> | undefined;
+  const users = Array.isArray(feature?.users) ? feature.users as Record<string, unknown>[] : [];
+  return users.some((row) => featureAccessUserMatches(ctx, row));
+}
+
+async function callFeatureAccessGet(ctx: Context) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const config = await readFeatureAccessConfig(ctx);
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'feature-access/get', 200, {});
+  return jsonResponse({ ok: true, data: config }, 200, ctx.origin);
+}
+
+async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unknown>) {
+  if (!canUseDataQuality(ctx)) return fail(403, 'Feature access management is limited to Planning Center users', ctx.origin);
+  const config = normalizeFeatureAccessConfig(payload.config || payload);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_cache_entries')
+    .upsert({
+      cache_type: LOGISTICS_FEATURE_ACCESS_CACHE_TYPE,
+      cache_key: LOGISTICS_FEATURE_ACCESS_CACHE_KEY,
+      entity_type: 'workspace_feature_access',
+      entity_id: 'logistics',
+      provider: 'supabase',
+      provider_status: 200,
+      payload: config,
+      response_payload: config,
+      user_safe: true,
+      fetched_at: new Date().toISOString(),
+      computed_at: new Date().toISOString(),
+      created_by: ctx.user.id,
+    }, { onConflict: 'cache_type,cache_key' })
+    .select('payload')
+    .single();
+  if (error) return fail(500, 'Failed to save feature access config', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'feature-access/update', 200, { features: Object.keys(config.features as Record<string, unknown>) });
+  return jsonResponse({ ok: true, data: normalizeFeatureAccessConfig(data?.payload || config) }, 200, ctx.origin);
 }
 
 function filterWorkPlatformTaskRows(ctx: Context, rows: Record<string, unknown>[]) {
@@ -1649,9 +1767,27 @@ function canReadDataQualityRow(ctx: Context, row: Record<string, unknown>) {
   return canReadRelatedAsset(ctx, assetId || assetName);
 }
 
+function canReadEditRequestRow(ctx: Context, row: Record<string, unknown>) {
+  if (hasRole(ctx.role, 'Manager')) return true;
+  const payload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
+  const notification = payload.notification && typeof payload.notification === 'object' && !Array.isArray(payload.notification)
+    ? payload.notification as Record<string, unknown>
+    : {};
+  const cells = normalizeEditCells(row);
+  const candidates = [
+    row.target_asset_id,
+    row.target_name,
+    notification.asset_name,
+    notification.target_label,
+    ...cells.flatMap((cell) => [cell.assetId, cell.assetName]),
+  ].map((item) => String(item || '').trim()).filter(Boolean);
+  if (!candidates.length) return row.requested_by === ctx.user.id;
+  return candidates.some((candidate) => canReadRelatedAsset(ctx, candidate));
+}
+
 async function listQualityFindings(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!canUseDataQuality(ctx)) return fail(403, 'Data Quality permission is limited to Planning Center users', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'quality/findings', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 200), 1), 500);
   let query = ctx.serviceClient
@@ -1700,7 +1836,7 @@ async function listQualityFindings(ctx: Context, payload: Record<string, unknown
 
 async function listEditRequests(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!canUseDataQuality(ctx)) return fail(403, 'Data Quality permission is limited to Planning Center users', ctx.origin);
+  const canUseQuality = await canUseServerFeature(ctx, 'data_quality');
   if (!checkRateLimit(ctx.user.id, 'edits/list', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const status = String(payload.status || 'submitted');
   const limit = Math.min(Math.max(Number(payload.limit || 80), 1), 200);
@@ -1710,16 +1846,20 @@ async function listEditRequests(ctx: Context, payload: Record<string, unknown>) 
     .order('created_at', { ascending: false })
     .limit(limit);
   if (status !== 'all') query = query.eq('status', status);
-  if (!hasRole(ctx.role, 'Manager')) query = query.eq('requested_by', ctx.user.id);
   const { data, error } = await query;
   if (error) return fail(500, 'Failed to list edit requests', ctx.origin);
-  await audit(ctx.serviceClient, ctx.user.id, 'edits/list', 200, { status, limit, returned: data?.length || 0 });
-  return jsonResponse({ ok: true, data: data || [] }, 200, ctx.origin);
+  const rows = (data || []).filter((row: Record<string, unknown>) => (
+    canUseQuality
+    || row.requested_by === ctx.user.id
+    || canReadEditRequestRow(ctx, row)
+  ));
+  await audit(ctx.serviceClient, ctx.user.id, 'edits/list', 200, { status, limit, returned: rows.length });
+  return jsonResponse({ ok: true, data: rows }, 200, ctx.origin);
 }
 
 async function readbackEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Manager')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!canUseDataQuality(ctx)) return fail(403, 'Data Quality permission is limited to Planning Center users', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/readback', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const id = String(payload.id || '');
   if (!id) return fail(400, 'id is required', ctx.origin);
@@ -1763,7 +1903,7 @@ async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
   const isContractDataRequest = payload.target_type === 'contract_data'
     || rawRequestPayload.kind === 'contract_data_edit'
     || rawRequestPayload.kind === 'lease_contract_event';
-  if (!isContractDataRequest && !canUseDataQuality(ctx)) return fail(403, 'Data Quality permission is limited to Planning Center users', ctx.origin);
+  if (!isContractDataRequest && !await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   const sanitizedRequestPayload = redactSensitivePayload(rawRequestPayload) as Record<string, unknown>;
   const draftRecord = {
     ...payload,
@@ -3330,7 +3470,9 @@ async function submitLeaseEvent(ctx: Context, payload: Record<string, unknown>) 
   const eventPayload = normalizeLeaseEventPayload(payload);
   if (!eventPayload.asset_id && !eventPayload.asset_name) return fail(400, 'asset_id or asset_name is required', ctx.origin);
   if (!eventPayload.summary) return fail(400, 'summary is required', ctx.origin);
-  if (!canWriteRelatedAsset(ctx, eventPayload.asset_id || eventPayload.asset_name, eventPayload.asset_name)) return fail(403, 'Insufficient asset write permission for lease event', ctx.origin);
+  const mode = leaseEventMode(eventPayload);
+  const requiredAction = mode === 'add' ? 'create' : mode === 'archive' ? 'delete' : 'update';
+  if (!canMutateRelatedAsset(ctx, requiredAction, eventPayload.asset_id || eventPayload.asset_name, eventPayload.asset_name)) return fail(403, `Insufficient asset ${requiredAction} permission for lease event`, ctx.origin);
   const plan = await buildLeaseEventPlan(ctx, eventPayload);
   if (plan.required_missing.length) return fail(400, 'Lease event has missing required fields', ctx.origin, { required_missing: plan.required_missing, preview: plan });
   if (plan.duplicate_findings.length) return fail(409, 'Lease event was blocked by duplicate or correction rules', ctx.origin, { duplicate_findings: plan.duplicate_findings, preview: plan });
@@ -3647,7 +3789,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
 
 async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Manager')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!canUseDataQuality(ctx)) return fail(403, 'Data Quality permission is limited to Planning Center users', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/approve', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const id = String(payload.id || '');
   if (!id) return fail(400, 'id is required', ctx.origin);
@@ -3779,7 +3921,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
 
 async function rejectEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Manager')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!canUseDataQuality(ctx)) return fail(403, 'Data Quality permission is limited to Planning Center users', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/reject', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const id = String(payload.id || '');
   if (!id) return fail(400, 'id is required', ctx.origin);
@@ -6086,10 +6228,10 @@ function rowTenantId(row: Record<string, unknown>) {
 }
 
 function rowAreaPy(row: Record<string, unknown>) {
-  const directPy = numberValue(firstDefined(row.leased_area_py, row.leasedAreaPy, row.area_py, row.areaPy));
-  if (directPy && directPy > 0) return directPy;
   const sqm = numberValue(firstDefined(row.leased_area_sqm, row.leasedAreaSqm, row.exclusive_area_sqm, row.exclusiveAreaSqm, row.area_sqm, row.areaSqm));
-  return sqm && sqm > 0 ? sqm * 0.3025 : null;
+  if (sqm && sqm > 0) return sqm * 0.3025;
+  const directPy = numberValue(firstDefined(row.leased_area_py, row.leasedAreaPy, row.area_py, row.areaPy));
+  return directPy && directPy > 0 ? directPy : null;
 }
 
 function rowGrossAreaPy(row: Record<string, unknown>) {
@@ -6882,11 +7024,12 @@ function publicAiScope(scope: Record<string, unknown>) {
   };
 }
 
-function publicAiAnswerResponse(answer: string, origin: string) {
+function publicAiAnswerResponse(answer: string, origin: string, meta: Record<string, unknown> = {}) {
   return jsonResponse({
     ok: true,
     answer,
     evidence: [],
+    ...meta,
   }, 200, origin);
 }
 
@@ -7171,16 +7314,16 @@ function buildDeterministicAiAnswer(question: string, context: Record<string, un
     const leaseRows = rowsForAssets((context.leaseRows as Record<string, unknown>[] | undefined) || [], assetRows);
     const rentRows = rowsForAssets((context.rentRows as Record<string, unknown>[] | undefined) || [], assetRows);
     const computed = weightedENoc(leaseRows.length ? leaseRows : rentRows);
-    if (computed) {
-      return {
-        mode: 'deterministic_computed_metric',
-        answer: `${assetName}의 E. NOC는 ${formatKoreanWon(computed.value)}입니다.`,
-      };
-    }
     if (storedMetric) {
       return {
         mode: 'deterministic_metric_snapshot',
-        answer: `${assetName}의 E. NOC는 ${formatKoreanWon(storedMetric)}입니다.`,
+        answer: `${assetName}의 임대면적 가중평균 E. NOC는 ${formatKoreanWon(storedMetric)}입니다.`,
+      };
+    }
+    if (computed) {
+      return {
+        mode: 'deterministic_computed_metric',
+        answer: `${assetName}의 임대면적 가중평균 E. NOC는 ${formatKoreanWon(computed.value)}입니다.`,
       };
     }
     const assetStored = assetRows
@@ -7189,7 +7332,7 @@ function buildDeterministicAiAnswer(question: string, context: Record<string, un
     if (assetStored) {
       return {
         mode: 'deterministic_asset_metric',
-        answer: `${assetName}의 E. NOC는 ${formatKoreanWon(displayAssetStored)}입니다.`,
+        answer: `${assetName}의 임대면적 가중평균 E. NOC는 ${formatKoreanWon(assetStored)}입니다.`,
       };
     }
     return {
@@ -7263,6 +7406,13 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
   const assetRows = aiTargetAssetRows(context, question, lookupQuestion);
   const assetName = rowAssetName(assetRows[0] || {});
   const leaseRowsAll = (context.leaseRows as Record<string, unknown>[] | undefined) || [];
+  if (/연결|접속|작동|준비|잘\s*되|잘\s*돼|응답|테스트/iu.test(question) && !/임대|관리|면적|공실|NOC|임차|만기|자산\s*수/iu.test(question)) {
+    const count = numberValue(context.scope && (context.scope as Record<string, unknown>).readable_asset_count);
+    return {
+      mode: 'deterministic_connection_status_v2',
+      answer: `현재 로그인 권한으로 Supabase 데이터를 조회하고 있습니다.${count !== null ? ` 읽을 수 있는 자산은 ${new Intl.NumberFormat('ko-KR').format(count)}개입니다.` : ''} 자산, 임차인, 계약, 임대료, 공실, E. NOC 같은 질문을 주시면 권한 범위 안의 값으로 답변하겠습니다.`,
+    };
+  }
   if (isReadableAssetCountQuestion(question)) {
     const count = numberValue(context.scope && (context.scope as Record<string, unknown>).readable_asset_count);
     if (count !== null) return { mode: 'deterministic_asset_count_v2', answer: `현재 읽기 권한 범위에서 조회 가능한 자산은 ${new Intl.NumberFormat('ko-KR').format(count)}개입니다.` };
@@ -7338,7 +7488,7 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
     if (summary.leasedAreaPy > 0) pieces.push(`임대면적은 ${formatAiPy(summary.leasedAreaPy)}입니다.`);
     if (summary.vacancyRate !== null) pieces.push(`공실면적은 ${formatAiPy(summary.vacancyAreaPy)}이고 공실률은 ${formatAiPercent(summary.vacancyRate)}입니다.`);
     if (summary.monthlyCost > 0) pieces.push(`월 임관리비는 ${compactAiValue(summary.monthlyCost)}입니다.`);
-    if (summary.eNoc) pieces.push(`E. NOC는 ${formatAiWon(summary.eNoc)}입니다.`);
+    if (summary.eNoc) pieces.push(`임대면적 가중평균 E. NOC는 ${formatAiWon(summary.eNoc)}입니다.`);
     pieces.push(topTenants.length ? `주요 임차인은 ${topTenants.join(', ')}입니다.` : '현재 권한 범위에서 확인되는 임차인 계약은 없습니다.');
     return { mode: 'deterministic_asset_operations_summary_v2', answer: pieces.join(' ') };
   }
@@ -7385,8 +7535,8 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
         .find((value) => value !== null && value > 0);
       const assetStored = assetRows.map((row) => rowENoc(row)).find((value) => value !== null && value > 0);
       const computed = weightedENoc(targetLeaseRows);
-      const value = computed?.value || metric || assetStored;
-      if (value && assetName) return { mode: 'deterministic_asset_enoc_v2', answer: `${assetName}의 E. NOC는 ${formatAiWon(value)}입니다.` };
+      const value = computed?.value || assetStored || metric;
+      if (value && assetName) return { mode: 'deterministic_asset_enoc_v2', answer: `${assetName}의 임대면적 가중평균 E. NOC는 ${formatAiWon(value)}입니다.` };
       if (assetName) return { mode: 'deterministic_asset_enoc_missing_v2', answer: `${assetName}의 E. NOC를 계산할 임대면적과 월 임관리비 근거가 부족합니다.` };
     }
     const computed = weightedENoc(targetLeaseRows);
@@ -7415,6 +7565,19 @@ function buildDeterministicAiAnswerV2(question: string, context: Record<string, 
     return { mode: 'deterministic_asset_lookup_v2', answer: `${assetName}은 읽기 권한 범위에서 확인됩니다.${fund ? ` 펀드는 ${fund}입니다.` : ''}${address ? ` 주소는 ${address}입니다.` : ''}` };
   }
   return null;
+}
+
+async function currentAssetWeightedENocForAi(ctx: Context, assetRows: Record<string, unknown>[], basisDate: string) {
+  const assetIds = assetRows
+    .map((row) => safeText(row.asset_id))
+    .filter(Boolean);
+  if (!assetIds.length) return null;
+  const spacesResult = await listLeaseSpacesForAssets(ctx, assetIds);
+  if (spacesResult.errorResponse) return null;
+  const historyResult = await listRentHistoryForAssets(ctx, assetIds);
+  if (historyResult.errorResponse) return null;
+  const leaseSpaces = applyLatestRentHistoryAmountsToLeaseSpaces(spacesResult.rows, historyResult.rows, basisDate);
+  return weightedENoc(leaseSpaces);
 }
 
 function buildProviderFallbackAnswerV2(question: string, context: { evidence: Record<string, unknown>[]; scope: Record<string, unknown> }) {
@@ -7855,6 +8018,48 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
   const history = normalizeAiHistory(payload.history);
   const conversationQuestion = buildAiConversationQuestion(question, history);
   const context = await collectAiSearchContext(ctx, conversationQuestion, basisDate);
+  const targetAssetRowsForCurrentMetric = aiTargetAssetRows(context as Record<string, unknown>, question, conversationQuestion);
+  const assetScopedENocQuestion = /그\s*자산|해당\s*자산|이\s*자산/iu.test(question);
+  const tenantNamesInCurrentQuestion = findQuestionTenantNames(context as Record<string, unknown>, question);
+  if (
+    isENocQuestion(question)
+    && !isOverallQuestion(question)
+    && !isComparisonQuestion(conversationQuestion)
+    && targetAssetRowsForCurrentMetric.length >= 1
+    && assetScopedENocQuestion
+    && !tenantNamesInCurrentQuestion.length
+  ) {
+    const scopedAssetRows = targetAssetRowsForCurrentMetric.slice(0, 1);
+    const computed = await currentAssetWeightedENocForAi(ctx, scopedAssetRows, basisDate);
+    const assetName = rowAssetName(scopedAssetRows[0]);
+    if (computed?.value && assetName) {
+      await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', 200, {
+        question,
+        evidence_rows: context.evidence.length,
+        matched_tables: context.scope.matched_tables,
+        deterministic: true,
+        mode: 'deterministic_asset_enoc_current_dashboard',
+      });
+      return publicAiAnswerResponse(`${assetName}의 임대면적 가중평균 E. NOC는 ${formatAiWon(computed.value)}입니다.`, ctx.origin, {
+        mode: 'deterministic_asset_enoc_current_dashboard',
+        source: 'supabase_deterministic',
+      });
+    }
+  }
+  const deterministicAnswer = buildDeterministicAiAnswerV2(question, context as Record<string, unknown>, conversationQuestion);
+  if (deterministicAnswer?.answer) {
+    await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', 200, {
+      question,
+      evidence_rows: context.evidence.length,
+      matched_tables: context.scope.matched_tables,
+      deterministic: true,
+      mode: deterministicAnswer.mode,
+    });
+    return publicAiAnswerResponse(deterministicAnswer.answer, ctx.origin, {
+      mode: deterministicAnswer.mode,
+      source: 'supabase_deterministic',
+    });
+  }
   const supabaseFacts = buildAiSupabaseFacts(question, context as Record<string, unknown>, conversationQuestion);
   const promptHistory = findQuestionAssetRows(context as Record<string, unknown>, question).length || findQuestionTenantNames(context as Record<string, unknown>, question).length ? [] : history;
   const prompt = buildAiSearchPrompt(question, promptHistory, supabaseFacts);
@@ -8286,7 +8491,7 @@ async function recordLogisticsLoginHistory(ctx: Context, payload: Record<string,
 }
 
 async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, unknown>) {
-  if (!canUseDataQuality(ctx)) return fail(403, 'Login history permission is limited to Planning Center users', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'login_history')) return fail(403, 'Login history permission is limited to selected users', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 100), 1), 300);
   const { data: rawRows, error: historyError } = await ctx.serviceClient
     .from('ll_audit_events')
@@ -8341,7 +8546,7 @@ async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, u
 }
 
 async function listLogisticsLoginCapability(ctx: Context) {
-  if (!canUseDataQuality(ctx)) return fail(403, 'Login capability permission is limited to Planning Center users', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'login_history')) return fail(403, 'Login capability permission is limited to selected users', ctx.origin);
   const { data: permissionRows, error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
     .select('email,organization,logistics_role,updated_at')
@@ -8460,6 +8665,8 @@ Deno.serve(async (request) => {
   if (action === 'auth/login-history/record') return recordLogisticsLoginHistory(ctx, payload);
   if (action === 'auth/login-history/list') return listLogisticsLoginHistory(ctx, payload);
   if (action === 'auth/login-capability/list') return listLogisticsLoginCapability(ctx);
+  if (action === 'feature-access/get') return callFeatureAccessGet(ctx);
+  if (action === 'feature-access/update') return callFeatureAccessUpdate(ctx, payload);
   if (action === 'quality/findings') return listQualityFindings(ctx, payload);
   if (action === 'contract-data/apply') return applyContractData(ctx, payload);
   if (action === 'edits/submit') return submitEdit(ctx, payload);

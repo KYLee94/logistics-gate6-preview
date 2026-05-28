@@ -149,7 +149,14 @@ async function main() {
     await notificationButton.waitFor({ state: 'visible', timeout: 20000 });
     const notificationBox = await notificationButton.boundingBox();
     report.checks.notification_button_visible = true;
-    report.checks.notification_button_aligned = Boolean(buttonBox && notificationBox && Math.abs(buttonBox.y - notificationBox.y) <= 2 && notificationBox.x > buttonBox.x);
+    report.checks.notification_button_aligned = Boolean(
+      buttonBox
+      && notificationBox
+      && profileBox
+      && Math.abs((buttonBox.x + buttonBox.width) - (notificationBox.x + notificationBox.width)) <= 3
+      && notificationBox.y > buttonBox.y
+      && Math.abs(notificationBox.y - profileBox.y) <= 12,
+    );
     await notificationButton.click();
     await page.getByTestId('logistics-notification-panel').waitFor({ state: 'visible', timeout: 20000 });
     const notificationPanelText = await page.getByTestId('logistics-notification-panel').innerText({ timeout: 10000 });

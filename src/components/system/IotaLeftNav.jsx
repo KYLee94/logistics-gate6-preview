@@ -120,6 +120,16 @@ const workspaceItems = [
 ];
 
 const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용']);
+const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
+const LOGISTICS_FEATURES = [
+    { key: 'ai_chat', label: 'AI 챗봇', description: '워크 플랫폼 우측 AI 챗봇 열기 및 질문' },
+    { key: 'data_quality', label: 'Data Quality 탭', description: '무결성 점검 결과 조회 및 수정 요청' },
+    { key: 'analysis_tools', label: 'Analysis Tools 탭', description: '자산·기업 비교 분석' },
+    { key: 'data_playground', label: 'Pivot Table 탭', description: '권한 범위 데이터 피벗 분석' },
+    { key: 'login_history', label: '로그인 이력', description: '권한자 로그인 이력 및 상태 조회' },
+    { key: 'building_register_refresh', label: '건축물대장 새로고침', description: '건축물대장 API 재호출 및 Supabase 저장' },
+    { key: 'opendart_refresh', label: 'OpenDART 새로고침', description: 'OpenDART API 재호출 및 Supabase 저장' },
+];
 const LOGIN_CAPABILITY_SORT_COLUMNS = [
     { key: 'organization', label: '조직', type: 'text' },
     { key: 'staff_name', label: '이름', type: 'text' },
@@ -197,6 +207,46 @@ const parseNotificationPayload = (value) => {
         return {};
     }
 };
+const featureUserKey = (user = {}) => {
+    const row = user || {};
+    return String(row.email || row.staff_name || row.name || '').trim().toLowerCase();
+};
+const featureUserLabel = (user = {}) => {
+    const row = user || {};
+    return [row.organization, row.staff_name || row.name, row.email].filter(Boolean).join(' · ') || '사용자';
+};
+const readFeatureAccessConfig = () => {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY) || '{}');
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : { features: {} };
+    } catch {
+        return { features: {} };
+    }
+};
+const normalizeFeatureAccessConfig = (config = {}) => ({
+    ...config,
+    features: LOGISTICS_FEATURES.reduce((acc, feature) => {
+        const row = config.features?.[feature.key] && typeof config.features[feature.key] === 'object' ? config.features[feature.key] : {};
+        acc[feature.key] = {
+            key: feature.key,
+            label: feature.label,
+            users: Array.isArray(row.users) ? row.users : [],
+        };
+        return acc;
+    }, {}),
+});
+const featureAccessHasUser = (config, featureKey, user) => {
+    const targetKey = featureUserKey(user);
+    return Boolean(targetKey && (config.features?.[featureKey]?.users || []).some((row) => featureUserKey(row) === targetKey));
+};
+const memberHasFeatureAccess = (config, featureKey, memberInfo = {}) => {
+    const member = memberInfo || {};
+    return featureAccessHasUser(config, featureKey, {
+    email: member.email,
+    staff_name: member.staff_name || member.name,
+    organization: member.organization || member.department,
+});
+};
 const isSmokeNotificationSource = (row = {}) => {
     const payload = parseNotificationPayload(row.request_payload);
     const text = [
@@ -232,13 +282,15 @@ const buildLeaseEventNotification = (row = {}) => {
 };
 const buildEditRequestNotification = (row = {}) => {
     const payload = parseNotificationPayload(row.request_payload);
-    const target = row.target_name || payload.finding?.target || '-';
-    const field = row.field_name || payload.finding?.field || '-';
+    const notification = payload.notification || {};
+    const target = notification.target_label || row.target_name || payload.finding?.target || '-';
+    const field = notification.field_label || row.field_name || payload.finding?.field || '-';
+    const reason = notification.reason_label || row.reason_code || payload.finding?.reason || '';
     return {
         id: `edit:${row.id || `${target}:${field}:${row.created_at}`}`,
-        tag: '승인 필요',
-        title: '수정 요청 승인 대기',
-        body: [target, field, row.requested_by].filter(Boolean).join(' · '),
+        tag: '수정 요청',
+        title: '담당자 수정 요청',
+        body: [target, field, reason].filter(Boolean).join(' · '),
         createdAt: row.created_at || row.updated_at || '',
         tone: 'warning',
     };
@@ -285,6 +337,11 @@ const logisticsDashboardItems = [
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-2.8 8.2-7 9-4.2-.8-7-4.5-7-9V7l7-4z" /></svg>,
     },
 ];
+const LOGISTICS_DASHBOARD_FEATURE_BY_PATH = {
+    [`${LOGISTICS_INTERNAL_BASE}/dashboard/tools`]: 'analysis_tools',
+    [`${LOGISTICS_INTERNAL_BASE}/dashboard/playground`]: 'data_playground',
+    [`${LOGISTICS_INTERNAL_BASE}/dashboard/quality`]: 'data_quality',
+};
 const logisticsStandaloneItems = [
     {
         label: 'Data Update',
@@ -303,15 +360,23 @@ export default function IotaLeftNav({ currentPath = '' }) {
     
     const handleNavigation = (path) => {
         const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL.slice(0, -1) : import.meta.env.BASE_URL;
-        window.location.href = normalizeLogisticsPath(path).startsWith(LOGISTICS_INTERNAL_BASE)
+        const nextUrl = normalizeLogisticsPath(path).startsWith(LOGISTICS_INTERNAL_BASE)
             ? pathForLogisticsUrl(import.meta.env.BASE_URL, path)
             : `${base}/${path}`;
+        window.history.pushState(null, '', nextUrl);
+        window.dispatchEvent(new PopStateEvent('popstate'));
     };
     const { user, memberInfo, signOut } = useAuth();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [showLoginHistoryModal, setShowLoginHistoryModal] = useState(false);
+    const [showFeatureAccessModal, setShowFeatureAccessModal] = useState(false);
+    const [featureAccessLoading, setFeatureAccessLoading] = useState(false);
+    const [featureAccessError, setFeatureAccessError] = useState('');
+    const [featureAccessData, setFeatureAccessData] = useState(() => normalizeFeatureAccessConfig(readFeatureAccessConfig()));
+    const [featureAccessUsers, setFeatureAccessUsers] = useState([]);
+    const [featureAccessSaving, setFeatureAccessSaving] = useState(false);
     const [loginHistoryLoading, setLoginHistoryLoading] = useState(false);
     const [loginHistoryError, setLoginHistoryError] = useState('');
     const [loginHistoryData, setLoginHistoryData] = useState({ rows: [], users: [], summary: null });
@@ -390,6 +455,19 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const sortedLoginCapabilityUsers = useMemo(() => (
         [...loginCapabilityUsers].sort((left, right) => compareLoginRows(left, right, loginCapabilitySort))
     ), [loginCapabilityUsers, loginCapabilitySort]);
+    const selectableFeatureUsers = useMemo(() => {
+        const rows = featureAccessUsers.length ? featureAccessUsers : loginCapabilityUsers;
+        const seen = new Set();
+        return rows
+            .filter((row) => {
+                const key = featureUserKey(row);
+                if (!key || seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            })
+            .sort((left, right) => String(left.organization || '').localeCompare(String(right.organization || ''), 'ko-KR')
+                || String(left.staff_name || '').localeCompare(String(right.staff_name || ''), 'ko-KR'));
+    }, [featureAccessUsers, loginCapabilityUsers]);
     const notificationStorageKey = useMemo(() => {
         const owner = user?.id || user?.email || memberInfo?.email || memberInfo?.staff_name || 'anonymous';
         return `logistics-notifications-read:${owner}`;
@@ -411,7 +489,6 @@ export default function IotaLeftNav({ currentPath = '' }) {
         });
     };
     const loadNotifications = async ({ markRead = false } = {}) => {
-        if (!isLogisticsAdmin) return [];
         setNotificationsLoading(true);
         setNotificationsError('');
         try {
@@ -469,9 +546,102 @@ export default function IotaLeftNav({ currentPath = '' }) {
         }
     }, [notificationStorageKey]);
     useEffect(() => {
-        if (!isLogisticsPath || !isLogisticsAdmin) return;
+        if (!isLogisticsPath) return;
         loadNotifications();
-    }, [isLogisticsPath, isLogisticsAdmin]);
+    }, [isLogisticsPath]);
+    useEffect(() => {
+        if (!isLogisticsPath) return;
+        let cancelled = false;
+        supabase.functions.invoke('ll-dashboard-api', {
+            body: { action: 'feature-access/get', payload: {} },
+        }).then(({ data, error }) => {
+            if (cancelled || error || data?.ok === false) return;
+            const next = normalizeFeatureAccessConfig(data?.data || {});
+            setFeatureAccessData(next);
+            localStorage.setItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY, JSON.stringify(next));
+            window.dispatchEvent(new CustomEvent('logistics-feature-access-updated', { detail: next }));
+        }).catch(() => {});
+        return () => {
+            cancelled = true;
+        };
+    }, [isLogisticsPath]);
+    const loadFeatureAccess = async () => {
+        setFeatureAccessLoading(true);
+        setFeatureAccessError('');
+        try {
+            const [configResult, usersResult] = await Promise.all([
+                supabase.functions.invoke('ll-dashboard-api', {
+                    body: { action: 'feature-access/get', payload: {} },
+                }),
+                supabase.functions.invoke('ll-dashboard-api', {
+                    body: { action: 'auth/login-capability/list', payload: {} },
+                }),
+            ]);
+            if (configResult.error || configResult.data?.ok === false) {
+                throw new Error(configResult.data?.message || configResult.error?.message || '기능 권한 목록을 불러오지 못했습니다.');
+            }
+            const nextConfig = normalizeFeatureAccessConfig(configResult.data?.data || {});
+            setFeatureAccessData(nextConfig);
+            localStorage.setItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY, JSON.stringify(nextConfig));
+            const users = Array.isArray(usersResult.data?.data?.users) ? usersResult.data.data.users : [];
+            setFeatureAccessUsers(users);
+        } catch (error) {
+            setFeatureAccessError(error?.message || '기능 권한 목록을 불러오지 못했습니다.');
+        } finally {
+            setFeatureAccessLoading(false);
+        }
+    };
+    const openFeatureAccessModal = async (event) => {
+        event?.stopPropagation();
+        setShowProfileMenu(false);
+        setShowFeatureAccessModal(true);
+        await loadFeatureAccess();
+    };
+    const persistFeatureAccessConfig = async (nextConfig) => {
+        setFeatureAccessSaving(true);
+        setFeatureAccessError('');
+        try {
+            const normalized = normalizeFeatureAccessConfig({ ...nextConfig, updatedAt: new Date().toISOString() });
+            const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+                body: { action: 'feature-access/update', payload: { config: normalized } },
+            });
+            if (error || data?.ok === false) throw new Error(data?.message || error?.message || '기능 권한 저장 실패');
+            const saved = normalizeFeatureAccessConfig(data?.data || normalized);
+            setFeatureAccessData(saved);
+            localStorage.setItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY, JSON.stringify(saved));
+            window.dispatchEvent(new CustomEvent('logistics-feature-access-updated', { detail: saved }));
+        } catch (error) {
+            setFeatureAccessError(error?.message || '기능 권한 저장 실패');
+        } finally {
+            setFeatureAccessSaving(false);
+        }
+    };
+    const toggleFeatureAccessUser = (featureKey, userRow) => {
+        const current = normalizeFeatureAccessConfig(featureAccessData);
+        const users = current.features[featureKey]?.users || [];
+        const userKey = featureUserKey(userRow);
+        const enabled = users.some((row) => featureUserKey(row) === userKey);
+        const compactUser = {
+            email: userRow.email || '',
+            staff_name: userRow.staff_name || userRow.name || '',
+            organization: userRow.organization || '',
+            logistics_role: userRow.logistics_role || '',
+        };
+        const next = {
+            ...current,
+            features: {
+                ...current.features,
+                [featureKey]: {
+                    ...(current.features[featureKey] || {}),
+                    users: enabled
+                        ? users.filter((row) => featureUserKey(row) !== userKey)
+                        : [...users, compactUser],
+                },
+            },
+        };
+        setFeatureAccessData(next);
+        persistFeatureAccessConfig(next);
+    };
     const loadLoginHistory = async () => {
         setLoginHistoryLoading(true);
         setLoginHistoryError('');
@@ -507,7 +677,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
     );
 
     if (isLogisticsPath) {
-        const visibleDashboardItems = logisticsDashboardItems.filter((item) => !item.adminOnly || isLogisticsAdmin);
+        const visibleDashboardItems = logisticsDashboardItems.filter((item) => {
+            if (!item.adminOnly) return true;
+            if (isLogisticsAdmin) return true;
+            const featureKey = LOGISTICS_DASHBOARD_FEATURE_BY_PATH[item.path];
+            return featureKey ? memberHasFeatureAccess(featureAccessData, featureKey, memberInfo) : false;
+        });
         const visibleStandaloneItems = logisticsStandaloneItems;
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
         const isDashboardActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard`);
@@ -597,38 +772,32 @@ export default function IotaLeftNav({ currentPath = '' }) {
 
                 <div className="relative border-t border-[#2C2C2E] p-3">
                     {isLogisticsAdmin ? (
-                        <div className={`mb-2 flex items-center gap-2 ${isCollapsed ? 'flex-col' : ''}`}>
+                        <div className="mb-2 space-y-2">
+                            <button
+                                type="button"
+                                onClick={openFeatureAccessModal}
+                                title="기능 권한 관리"
+                                className={`flex h-9 w-full items-center ${isCollapsed ? 'justify-center px-2' : 'justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                            >
+                                <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 16v-2m8-6h-2M6 12H4m12.95-4.95l-1.42 1.42M8.47 15.53l-1.42 1.42m9.9 0l-1.42-1.42M8.47 8.47 7.05 7.05M12 15a3 3 0 100-6 3 3 0 000 6z" />
+                                </svg>
+                                {!isCollapsed ? <span>기능 권한 관리</span> : null}
+                            </button>
                             <button
                                 type="button"
                                 onClick={openLoginHistoryModal}
                                 title="로그인 이력"
-                                className={`flex h-9 items-center ${isCollapsed ? 'w-full justify-center px-2' : 'flex-1 justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                                className={`flex h-9 w-full items-center ${isCollapsed ? 'justify-center px-2' : 'justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
                             >
                                 <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 {!isCollapsed ? <span>로그인 이력</span> : null}
                             </button>
-                            <button
-                                type="button"
-                                data-testid="logistics-notification-button"
-                                onClick={openNotificationsPanel}
-                                title="알림"
-                                aria-label={unreadNotificationCount ? `알림, 안 읽은 알림 ${unreadNotificationCount}건` : '알림'}
-                                className={`relative flex h-9 ${isCollapsed ? 'w-full' : 'w-9'} items-center justify-center rounded-xl border border-[#333333] bg-[#151515] text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
-                            >
-                                <svg className="h-4 w-4 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 01-6 0m6 0H9" />
-                                </svg>
-                                {unreadNotificationCount ? (
-                                    <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border border-[#151515] bg-[#FF9F0A]">
-                                        <span className="sr-only">안 읽은 알림 {unreadNotificationCount}건</span>
-                                    </span>
-                                ) : null}
-                            </button>
                         </div>
                     ) : null}
-                    {isLogisticsAdmin && showNotificationsPanel ? (
+                    {showNotificationsPanel ? (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsPanel(false)} />
                             <div data-testid="logistics-notification-panel" className={`absolute bottom-[78px] z-50 rounded-[16px] border border-[#3A3A3C] bg-[#202020] shadow-2xl ${isCollapsed ? 'left-3 w-[340px]' : 'left-3 right-3'}`}>
@@ -672,15 +841,34 @@ export default function IotaLeftNav({ currentPath = '' }) {
                         </>
                     ) : null}
                     <div className="relative">
-                        <button type="button" onClick={() => setShowProfileMenu((value) => !value)} className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} rounded-xl px-2 py-2 hover:bg-[#151515]`}>
-                            <div className="w-8 h-8 rounded-full bg-[#3c3c3c] overflow-hidden shrink-0">
-                                <img src={`${import.meta.env.BASE_URL}${(memberInfo?.staff_name || '').replace(/\s/g, '')}.webp`} alt={memberInfo?.staff_name || '사용자'} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
-                            </div>
-                            <div className={`ml-3 min-w-0 overflow-hidden text-left transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[170px] translate-x-0 opacity-100'}`}>
-                                    <div className="truncate text-[13px] font-semibold text-white">{memberInfo?.staff_name || '로그인 사용자'}</div>
-                                    <div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div>
-                            </div>
-                        </button>
+                        <div className={`flex items-center gap-2 ${isCollapsed ? 'flex-col' : ''}`}>
+                            <button type="button" onClick={() => setShowProfileMenu((value) => !value)} className={`min-w-0 flex-1 flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} rounded-xl px-2 py-2 hover:bg-[#151515]`}>
+                                <div className="w-8 h-8 rounded-full bg-[#3c3c3c] overflow-hidden shrink-0">
+                                    <img src={`${import.meta.env.BASE_URL}${(memberInfo?.staff_name || '').replace(/\s/g, '')}.webp`} alt={memberInfo?.staff_name || '사용자'} className="w-full h-full object-cover" onError={(e) => { e.currentTarget.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
+                                </div>
+                                <div className={`ml-3 min-w-0 overflow-hidden text-left transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[156px] translate-x-0 opacity-100'}`}>
+                                        <div className="truncate text-[13px] font-semibold text-white">{memberInfo?.staff_name || '로그인 사용자'}</div>
+                                        <div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div>
+                                </div>
+                            </button>
+                            <button
+                                type="button"
+                                data-testid="logistics-notification-button"
+                                onClick={openNotificationsPanel}
+                                title="알림"
+                                aria-label={unreadNotificationCount ? `알림, 안 읽은 알림 ${unreadNotificationCount}건` : '알림'}
+                                className={`relative flex h-9 ${isCollapsed ? 'w-full' : 'w-9'} shrink-0 items-center justify-center rounded-xl border border-[#333333] bg-[#151515] text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                            >
+                                <svg className="h-4 w-4 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 01-6 0m6 0H9" />
+                                </svg>
+                                {unreadNotificationCount ? (
+                                    <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border border-[#151515] bg-[#FF9F0A]">
+                                        <span className="sr-only">안 읽은 알림 {unreadNotificationCount}건</span>
+                                    </span>
+                                ) : null}
+                            </button>
+                        </div>
                     {showProfileMenu ? (
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
@@ -797,6 +985,74 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                 </table>
                                             </div>
                                         </section>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                ) : null}
+                {showFeatureAccessModal ? (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
+                        <div className="flex h-[84vh] w-full max-w-[1180px] flex-col overflow-hidden rounded-[18px] border border-[#333333] bg-[#171717] shadow-2xl">
+                            <div className="flex items-center justify-between border-b border-[#2C2C2E] px-6 py-4">
+                                <div>
+                                    <div className="text-[18px] font-bold text-white">기능 권한 관리</div>
+                                    <div className="mt-1 text-[12px] text-[#8E8E93]">AI 챗봇, Data Quality, 로그인 이력, 외부 API 새로고침 등 기획추진센터 전용 기능의 이용자를 지정합니다.</div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button type="button" onClick={loadFeatureAccess} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                        새로고침
+                                    </button>
+                                    <button type="button" onClick={() => setShowFeatureAccessModal(false)} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                        닫기
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="custom-scrollbar flex-1 overflow-auto px-6 py-5">
+                                {featureAccessLoading ? (
+                                    <div className="flex h-full items-center justify-center text-[14px] text-[#A1A1AA]">불러오는 중...</div>
+                                ) : featureAccessError ? (
+                                    <div className="rounded-[14px] border border-[#5A2A2A] bg-[#2A1717] p-4 text-[13px] text-[#FFB4A9]">{featureAccessError}</div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {featureAccessSaving ? (
+                                            <div className="rounded-[12px] border border-[#34537A] bg-[#202C3D] px-4 py-3 text-[12px] font-semibold text-[#9AD7FF]">기능 권한을 저장하는 중입니다.</div>
+                                        ) : null}
+                                        <div className="grid gap-3">
+                                            {LOGISTICS_FEATURES.map((feature) => {
+                                                const grantedUsers = featureAccessData.features?.[feature.key]?.users || [];
+                                                return (
+                                                    <section key={feature.key} className="rounded-[14px] border border-[#303033] bg-[#1F1F1E] p-4">
+                                                        <div className="flex flex-col gap-1 md:flex-row md:items-start md:justify-between">
+                                                            <div>
+                                                                <div className="text-[14px] font-bold text-white">{feature.label}</div>
+                                                                <div className="mt-1 text-[12px] text-[#8E8E93]">{feature.description}</div>
+                                                            </div>
+                                                            <div className="text-[12px] font-semibold text-[#A1A1AA]">허용 {grantedUsers.length.toLocaleString('ko-KR')}명</div>
+                                                        </div>
+                                                        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
+                                                            {selectableFeatureUsers.map((userRow) => {
+                                                                const checked = featureAccessHasUser(featureAccessData, feature.key, userRow);
+                                                                return (
+                                                                    <button
+                                                                        type="button"
+                                                                        key={`${feature.key}-${featureUserKey(userRow)}`}
+                                                                        onClick={() => toggleFeatureAccessUser(feature.key, userRow)}
+                                                                        className={`flex min-h-11 items-center justify-between gap-3 rounded-[10px] border px-3 py-2 text-left transition-colors ${checked ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#303033] bg-[#151515] text-[#C7C7CC] hover:border-[#4A4A4A]'}`}
+                                                                    >
+                                                                        <span className="min-w-0">
+                                                                            <span className="block truncate text-[12px] font-bold">{userRow.staff_name || '-'}</span>
+                                                                            <span className="block truncate text-[11px] opacity-75">{userRow.organization || '-'} · {userRow.logistics_role || '-'}</span>
+                                                                        </span>
+                                                                        <span className={`h-4 w-4 shrink-0 rounded-full border ${checked ? 'border-[#B5E48C] bg-[#B5E48C]' : 'border-[#5F5F64]'}`} />
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </section>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>

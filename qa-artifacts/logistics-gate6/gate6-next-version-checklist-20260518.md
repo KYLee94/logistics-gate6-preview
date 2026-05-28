@@ -1,39 +1,68 @@
-# Gate 6 Next Version Checklist - 2026-05-18
+# Gate 6 Current Checklist - 2026-05-28
 
-## Baseline Saved
-- Current branch: `codex/logistics-leasing-work-platform`
-- Baseline commit: `445c9c0`
-- Baseline tag: `logistics-gate6-ai-grounding-20260518`
-- Purpose: Keep a restorable version before the login/navigation/workspace restructuring work.
+Scope: 사용자 2026-05-28 요청 0~8번만 유지한다. 이전 체크리스트 항목은 이번 기준에서 삭제했다.
 
-## 1. Chatbot Dashboard-Number Coverage - Pending For Next Phase
-- 2026-05-26 correction: Direct Edge QA passing is not enough. The live/browser chatbot must also answer the exact regression question `안성 성은 물류센터 임대 현황 알려줘` and remove `답변 생성 중...`; this is tracked in `gate6-progress-tracker-20260515.md` and `npm run qa:ai-chatbot:browser`. Latest browser smoke passed on the live `work-platform` route.
-- [ ] 모든 Dashboard 탭의 KPI, 표, 차트 숫자를 `ll_dashboard_metric_snapshots` 또는 대응되는 Supabase 계산 테이블에 사전 계산해 저장한다.
-- [ ] Home 탭 숫자 질문: 운영 자산 수, 총 연면적, 총 임대면적, 공실면적, 공실률, 월 임관리비, 도넛/차트/표 숫자 전부 답변 가능하게 한다.
-- [ ] Asset 탭 숫자 질문: 총 연면적, 임대율, 임대면적, 공실면적, 월 임관리비, E.NOC, 임차인 수, 층/구역별 계약 상세를 답변 가능하게 한다.
-- [ ] Company 탭 숫자 질문: 임차 자산 수, 총 임차면적, 월 임대료, 월 관리비, 월 임관리비, 자산별 비중, DART 요약값을 답변 가능하게 한다.
-- [ ] Analysis Tools/Data Playground/Data Quality 관련 계산 결과도 권한 범위 내에서 답변 가능하게 한다.
-- [ ] “공실면적”, “공실률”, “연면적”, “E.NOC”처럼 같은 자산 안에서 다른 화면과 AI 답변이 다르게 나오는 경우를 전수 대조한다.
-- [ ] 챗봇 답변은 LLM 추론보다 DB deterministic answer를 우선하고, 없을 때만 provider fallback을 쓴다.
-- [ ] AI 답변에 관련 DB chip/source chip을 기본 노출하지 않고, 필요 시 상세 근거 버튼으로 분리한다.
+## 0. Data Quality 정리
+- [x] 데이터 무결성 카드 5개를 한 줄 레이아웃으로 조정
+- [x] `Data Quality 정비 계획` 섹션 제거
+- [x] 무결성 점검 결과 테이블 긴 셀 truncate/line-clamp 적용
+- [x] 코드성 필드명을 자산/항목/문제 사유/권장 조치 중심의 사용자 문구로 표시
+- [x] `문제 아님` 로컬 숨김 처리 추가
+- [x] `담당자에게 수정 요청` 플로우와 알림 payload 연결
+- Evidence: `npm run build:preview` pass, `npm run qa:data-quality-e2e` pass
 
-## 2. Immediate UI/Auth/Workspace Restructure - This Session
-- [x] 현재 버전을 GitHub commit/push/tag로 저장한다.
-- [x] 로그인 화면을 물류센터 워크 플랫폼용으로 정리하고, 권한부여 Excel 기반 이메일만 통과시킨다.
-- [x] 미로그인 상태에서 demo 자동 진입을 막고 로그인 화면으로 이동시킨다.
-- [x] 좌측 사이드바를 물류 전용 탭으로 분리한다.
-- [x] 좌측 탭 순서를 워크 플랫폼, Dashboard Home, Asset, Company, Analysis Tools, Data Playground, Data Quality로 맞춘다.
-- [x] Weekly 탭을 제거한다.
-- [x] 주간업무보고자료 업로드 버튼과 모달 진입점을 제거한다.
-- [x] Analysis Tools, Data Playground, Data Quality, AI 챗봇 버튼은 기획추진센터 인원만 보이게 한다.
-- [x] 워크 플랫폼 메인에서 검색/담당자산 아래에 Weekly 자산현황 원문 전체 보기 테이블을 배치한다.
-- [x] 자산현황 테이블 아래에 물류센터 주요 Task 관리 컴포넌트를 배치한다.
-- [x] 물류센터 워크 플랫폼 협업 게시판은 가장 아래로 이동한다.
-- [x] Analysis Tools의 선택 자산·기업 비교를 좌측 자산 비교, 우측 기업 비교 2단으로 분리한다.
-- [x] Asset 탭 상단 KPI에서 임대율 왼쪽에 총 연면적 블록을 추가한다.
-- [x] 경산 쿠팡물류센터 공실면적, 부산송정물류센터 임차인 데이터, 아레나스양지물류센터 층/섹터 누락 원인을 확인하고, 즉시 가능한 프론트 보정과 DB 수정 필요 항목을 분리한다.
+## 1. AI 챗봇
+- [x] canned template 우선 응답이 아니라 Supabase readback 기반 deterministic answer 우선 처리
+- [x] 연결 확인 질문에서 `drivers` 같은 내부 단어 노출 방지
+- [x] 자산/임차인/포트폴리오 E. NOC는 임대면적 가중평균 기준으로 답변
+- [x] 자산 follow-up E. NOC는 대시보드 asset read와 같은 자산 단독 readback 기준으로 계산
+- [x] 내부 table/provider/fallback/source row/asset id 노출 차단 QA
+- Evidence: `qa-artifacts/logistics-gate6/ai-chatbot-qa-20260528-062617.json` (`npm run qa:ai-chatbot`, 24/24 pass)
 
-### Stage 2 Evidence
-- Build passed: `npm run build -- --base=/logistics-gate6-preview/`
-- Secret scan: no literal secret values in changed files. Only environment variable names were detected.
-- Data note: 경산/부산송정/아레나스양지 보정은 current UI snapshot 기준 immediate fallback이며, Supabase canonical readback/rebuild는 Phase 1 chatbot dashboard-number coverage와 함께 추가 처리한다.
+## 2. Data Update 추가/수정/삭제
+- [x] Data Update 화면 smoke: 필드 100/100 노출, 추가/수정/삭제 모드, 원장 모달, 단일 반영 버튼 확인
+- [x] 정규 Supabase 자동 반영 smoke: 수정/readback/rollback, 신규 계약 생성 rollback, 계약 종료 아카이빙 rollback, 임대료 이력 append 중복 차단 등 23/23 pass
+- [x] 삭제는 물리 삭제가 아니라 archive 흐름으로 유지
+- Evidence: `qa-artifacts/logistics-gate6/data-update-auto-smoke-20260528-062823.json`
+
+## 3. 권한 분기 전체 점검
+- [x] 서버 기능 권한: feature access config를 Edge Function에 추가
+- [x] Data Quality/Login History/Edit Request list 권한을 hard-coded 3명에서 기능 권한 설정 기반으로 확장 가능하게 변경
+- [x] Data Update lease-events submit은 add/create, update/update, archive/delete 권한으로 분리
+- [x] 배포 후 실제 live browser에서 탭/컴포넌트별 visibility/use 권한 재검증
+- Evidence: `qa-artifacts/logistics-gate6/login-history-browser-smoke-20260528-065324.json`, `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260528-064122.json`
+
+## 4. 기능 권한 관리 팝업
+- [x] 좌측 사이드바 로그인 이력 위에 `기능 권한 관리` 버튼 추가
+- [x] 기획추진센터 3명만 기능 권한 관리 버튼 표시
+- [x] AI 챗봇, Data Quality, Analysis Tools, Pivot Table, 로그인 이력, 건축물대장 새로고침, OpenDART 새로고침 대상자를 팝업에서 설정
+- [x] 설정 저장 시 Edge Function `feature-access/update` 및 localStorage 동기화
+- [x] 배포 후 live browser에서 노출/팝업 smoke
+- Evidence: `qa-artifacts/logistics-gate6/login-history-browser-smoke-20260528-065324.json`
+
+## 5. 건축물대장/OpenDART 새로고침 진행률
+- [x] 각 새로고침 버튼별 진행 중 percent, 완료/전체 건수, progress bar 표시
+- [x] 기능 권한 설정에 따라 버튼 표시 분리
+- [x] 배포 후 live browser에서 버튼 표시 smoke
+- Evidence: `qa-artifacts/logistics-gate6/external-refresh-buttons-browser-smoke-20260528-065456.png`, `qa-artifacts/logistics-gate6/external-api-smoke-20260528-070149.json`
+
+## 6. Company DART UI
+- [x] DART 상세 정보 본문은 핵심 row만 노출
+- [x] 전체 상세 row와 3개년 주요 지표 차트는 상세보기 팝업으로 이동
+- [x] 자산별 노출도를 임차 자산 현황 바로 아래로 이동
+- [x] 배포 후 live browser에서 DART 상세보기 팝업/차트 hover smoke
+- Evidence: `qa-artifacts/logistics-gate6/dart-chart-browser-smoke-20260528-065743.png`
+
+## 7. 탭 전환 깜빡임
+- [x] 좌측 네비게이션에서 `window.location.href` reload를 `history.pushState`로 교체
+- [x] Dashboard 모듈 전환은 display 제거 대신 opacity/transform transition 적용
+- [x] 배포 후 live browser에서 Work Platform/Home/게시판/만기 차트 smoke
+- Evidence: `qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-065901.json`
+
+## 8. 배포 및 live smoke
+- [x] Edge Function deploy: `ll-dashboard-api` to `qvegpozwrcmspdvjokiz`
+- [x] Build: `npm run build:preview`
+- [x] GitHub Pages deploy
+- [x] Live URL 200 및 주요 화면 smoke
+- [x] 로그인 전 blank page 회귀 수정 및 live `/auth-setup` 렌더링 확인
+- Evidence: `qa-artifacts/logistics-gate6/live-root-unauth-after-fix.png`

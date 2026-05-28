@@ -6,7 +6,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const DEFAULT_ROUTE = '?p=contract-data';
-const DATA_QUALITY_PLAN_TEXTS = ['정규 계약 테이블', '임대료 이력', '원본 추적성', '계산값 검산', 'Data Update 연동'];
+const DATA_QUALITY_REMOVED_PLAN_TEXTS = ['Data Quality 정비 계획', '정규 계약 테이블', '임대료 이력', '원본 추적성', '계산값 검산', 'Data Update 연동'];
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -366,15 +366,27 @@ async function main() {
     await page.goto(qualityUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => document.body.innerText.includes('Data Quality'), null, { timeout: 45000 });
     const qualityText = await page.locator('body').innerText({ timeout: 10000 });
+    const qualityCardsOneRow = await page.evaluate(() => {
+      const section = [...document.querySelectorAll('section')]
+        .find((item) => item.textContent?.includes('데이터 무결성 검사 및 수정 요청'));
+      if (!section) return false;
+      const grid = [...section.querySelectorAll('.grid')]
+        .find((item) => ['총 점검 항목', 'critical', 'warning', 'info', '권한 기준'].every((label) => item.textContent?.includes(label)));
+      if (!grid) return false;
+      const children = [...grid.children].filter((item) => item.getBoundingClientRect().width > 0);
+      if (children.length < 5) return false;
+      const firstTop = Math.round(children[0].getBoundingClientRect().top);
+      return children.slice(0, 5).every((item) => Math.abs(Math.round(item.getBoundingClientRect().top) - firstTop) <= 2);
+    });
     result.mode_checks.data_quality = {
       ok: qualityText.includes('데이터 무결성 검사 및 수정 요청')
-        && qualityText.includes('Data Quality 정비 계획')
-        && DATA_QUALITY_PLAN_TEXTS.every((text) => qualityText.includes(text))
+        && qualityCardsOneRow
+        && DATA_QUALITY_REMOVED_PLAN_TEXTS.every((text) => !qualityText.includes(text))
         && !qualityText.includes('수정 요청 승인 대기')
         && !qualityText.includes('APPROVAL QUEUE'),
       removed_approval_queue: !qualityText.includes('수정 요청 승인 대기') && !qualityText.includes('APPROVAL QUEUE'),
-      has_rebase_plan: qualityText.includes('Data Quality 정비 계획'),
-      has_five_plan_steps: DATA_QUALITY_PLAN_TEXTS.filter((text) => qualityText.includes(text)).length,
+      removed_rebase_plan: DATA_QUALITY_REMOVED_PLAN_TEXTS.every((text) => !qualityText.includes(text)),
+      quality_cards_one_row: qualityCardsOneRow,
     };
     await page.screenshot({ path: screenshotPath, fullPage: true });
     result.body_excerpt = bodyText.slice(0, 1200);

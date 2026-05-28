@@ -138,6 +138,10 @@ async function main() {
     page.on('pageerror', (error) => errors.push(error.message));
     await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => document.body.innerText.includes('DART 상세 정보'), null, { timeout: 45000 });
+    const detailButton = page.getByRole('button', { name: /상세\s*보기/u }).first();
+    await detailButton.waitFor({ state: 'visible', timeout: 15000 });
+    await detailButton.click();
+    await page.getByRole('dialog').or(page.locator('[role="dialog"], .fixed.inset-0')).first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {});
     const chart = page.locator('svg[aria-label="OpenDART 3개년 재무 차트"]').first();
     await chart.waitFor({ state: 'visible', timeout: 15000 });
     const axisCheck = await chart.evaluate((svg) => {
