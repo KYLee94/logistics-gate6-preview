@@ -11,6 +11,7 @@ import rawAssetOptionsData from './logisticsAssetOptionsData.json';
 import companyOptionsData from './logisticsCompanyOptionsData.json';
 import sectorData from './logisticsSectorData.json';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
+import infoIconUrl from '../../../assets/i_icon.png';
 
 const MotionDiv = motion.div;
 
@@ -9779,9 +9780,14 @@ function ContractDataManagementDashboard() {
                                       aria-expanded={isFieldHelpOpen}
                                       title="항목 설명 보기"
                                       onClick={() => setOpenFieldHelpKey((previous) => (previous === fieldKey ? '' : fieldKey))}
-                                      className={`mt-[1px] flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold transition ${isFieldHelpOpen ? 'border-[#64D2FF] bg-[#12324A] text-[#D8F3FF]' : fieldMeta.hasMeta ? 'border-[#4A5568] bg-[#1B1B1A] text-[#A1A1AA] hover:border-[#64D2FF] hover:text-white' : 'border-[#3A3A3C] bg-[#171717] text-[#6B7280] hover:text-[#A1A1AA]'}`}
+                                      className={`mt-[1px] flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] transition hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-[#64D2FF] ${isFieldHelpOpen ? 'bg-white/[0.12]' : 'bg-transparent'}`}
                                     >
-                                      i
+                                      <img
+                                        src={infoIconUrl}
+                                        alt=""
+                                        className="h-[13px] w-[13px] object-contain opacity-85"
+                                        style={{ filter: 'brightness(0) invert(1)' }}
+                                      />
                                     </button>
                                   </div>
                                 </div>

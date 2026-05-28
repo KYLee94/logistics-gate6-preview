@@ -284,6 +284,7 @@ async function main() {
     await rentHistoryToggle.click();
     const expandedToggleText = await rentHistoryToggle.innerText({ timeout: 10000 });
     const fieldHelpButtonCount = await page.getByRole('button', { name: /설명 보기/u }).count();
+    const fieldHelpIconCount = await page.locator('button[title="항목 설명 보기"] img').count();
     await page.getByRole('button', { name: '펀드코드 설명 보기' }).first().click();
     let fieldHelpText = await page.locator('body').innerText({ timeout: 10000 });
     const fundCodeHelpOk = fieldHelpText.includes('샘플 데이터')
@@ -320,6 +321,7 @@ async function main() {
         && collapsedToggleText.includes('펼치기')
         && expandedToggleText.includes('접기')
         && fieldHelpButtonCount >= 100
+        && fieldHelpIconCount >= 100
         && fundCodeHelpOk
         && rentHistoryHelpOk
         && customScrollbarCount > 0,
@@ -332,6 +334,7 @@ async function main() {
       rent_group_rf_fo_unit_ok: rfFoUnitOk,
       has_group_accordion: collapsedToggleText.includes('펼치기') && expandedToggleText.includes('접기'),
       field_help_button_count: fieldHelpButtonCount,
+      field_help_icon_count: fieldHelpIconCount,
       field_help_fund_code_ok: fundCodeHelpOk,
       field_help_rent_history_ok: rentHistoryHelpOk,
       removed_db_column: !fieldHeaderHasDbColumn,

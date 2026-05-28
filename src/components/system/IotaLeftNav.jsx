@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabaseClient';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './workspace/logisticsRoutes';
@@ -120,6 +120,13 @@ const workspaceItems = [
 ];
 
 const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용']);
+const LOGIN_CAPABILITY_SORT_COLUMNS = [
+    { key: 'organization', label: '조직', type: 'text' },
+    { key: 'staff_name', label: '이름', type: 'text' },
+    { key: 'logistics_role', label: '권한', type: 'text' },
+    { key: 'login_status', label: '상태', type: 'text' },
+    { key: 'last_sign_in_at', label: '최근 로그인', type: 'date' },
+];
 const formatLoginHistoryTime = (value) => {
     if (!value) return '-';
     const date = new Date(value);
@@ -132,6 +139,42 @@ const formatLoginHistoryTime = (value) => {
         hour: '2-digit',
         minute: '2-digit',
     });
+};
+const loginSortCellValue = (row, column) => {
+    if (column.type === 'date') {
+        const time = Date.parse(row?.[column.key] || '');
+        return Number.isNaN(time) ? null : time;
+    }
+    return String(row?.[column.key] || '').trim().toLocaleLowerCase('ko-KR');
+};
+const compareLoginRows = (left, right, sortConfig) => {
+    const column = LOGIN_CAPABILITY_SORT_COLUMNS.find((item) => item.key === sortConfig.key) || LOGIN_CAPABILITY_SORT_COLUMNS[0];
+    const leftValue = loginSortCellValue(left, column);
+    const rightValue = loginSortCellValue(right, column);
+    if (leftValue == null || leftValue === '') return rightValue == null || rightValue === '' ? 0 : 1;
+    if (rightValue == null || rightValue === '') return -1;
+    const result = column.type === 'date'
+        ? Number(leftValue) - Number(rightValue)
+        : String(leftValue).localeCompare(String(rightValue), 'ko-KR', { numeric: true, sensitivity: 'base' });
+    return sortConfig.direction === 'asc' ? result : -result;
+};
+const LoginSortableHeader = ({ column, sortConfig, onSort }) => {
+    const active = sortConfig.key === column.key;
+    return (
+        <th className="px-4 py-3 font-semibold">
+            <button
+                type="button"
+                aria-label={`${column.label} 정렬`}
+                onClick={() => onSort(column.key)}
+                className="flex items-center gap-1 rounded-[6px] text-left font-semibold transition-colors hover:text-white focus:outline-none focus:ring-2 focus:ring-[#5E9EFF]"
+            >
+                <span>{column.label}</span>
+                <span className={`text-[10px] leading-none ${active ? 'text-white' : 'text-[#5F5F64]'}`} aria-hidden="true">
+                    {active ? (sortConfig.direction === 'asc' ? '▲' : '▼') : '↕'}
+                </span>
+            </button>
+        </th>
+    );
 };
 const logisticsNavIconClass = 'w-4.5 h-4.5 mr-[10px]';
 const logisticsRootItem = {
@@ -270,6 +313,16 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const isLogisticsAdmin = LOGISTICS_ADMIN_NAMES.has(memberInfo?.staff_name || memberInfo?.name);
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
     const loginCapabilityUsers = Array.isArray(loginHistoryData?.users) ? loginHistoryData.users : [];
+    const [loginCapabilitySort, setLoginCapabilitySort] = useState({ key: 'last_sign_in_at', direction: 'desc' });
+    const sortedLoginCapabilityUsers = useMemo(() => (
+        [...loginCapabilityUsers].sort((left, right) => compareLoginRows(left, right, loginCapabilitySort))
+    ), [loginCapabilityUsers, loginCapabilitySort]);
+    const toggleLoginCapabilitySort = (key) => {
+        setLoginCapabilitySort((current) => ({
+            key,
+            direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
+        }));
+    };
     const loadLoginHistory = async () => {
         setLoginHistoryLoading(true);
         setLoginHistoryError('');
@@ -503,16 +556,16 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                 <table className="w-full min-w-[860px] border-collapse text-left text-[12px]">
                                                     <thead className="bg-[#202020] text-[#A1A1AA]">
                                                         <tr>
-                                                            <th className="px-4 py-3 font-semibold">조직</th>
-                                                            <th className="px-4 py-3 font-semibold">이름</th>
+                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[0]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
+                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[1]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
                                                             <th className="px-4 py-3 font-semibold">이메일</th>
-                                                            <th className="px-4 py-3 font-semibold">권한</th>
-                                                            <th className="px-4 py-3 font-semibold">상태</th>
-                                                            <th className="px-4 py-3 font-semibold">최근 로그인</th>
+                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[2]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
+                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[3]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
+                                                            <LoginSortableHeader column={LOGIN_CAPABILITY_SORT_COLUMNS[4]} sortConfig={loginCapabilitySort} onSort={toggleLoginCapabilitySort} />
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-[#2C2C2E] text-[#E5E5E5]">
-                                                        {loginCapabilityUsers.map((row, index) => {
+                                                        {sortedLoginCapabilityUsers.map((row, index) => {
                                                             const ok = row.login_status === '로그인 가능';
                                                             return (
                                                                 <tr key={`${row.email || 'user'}-${index}`} className="hover:bg-white/[0.03]">

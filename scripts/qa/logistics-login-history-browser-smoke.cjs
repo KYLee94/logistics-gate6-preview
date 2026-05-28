@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
-const DEFAULT_ROUTE = '?p=dashboard/home';
+const DEFAULT_ROUTE = '?p=platform/iotaseoul/workspace/logistics/dashboard/home';
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -151,8 +151,18 @@ async function main() {
     await page.getByText(/총\s*34명/u).waitFor({ state: 'visible', timeout: 20000 });
     report.checks.modal_visible = true;
     report.checks.capability_count_34 = true;
-    report.checks.has_organization_column = await page.getByRole('columnheader', { name: '조직' }).count() >= 1;
-    report.checks.has_name_column = await page.getByRole('columnheader', { name: '이름' }).count() >= 1;
+    report.checks.has_organization_column = await page.getByRole('columnheader', { name: /조직/u }).count() >= 1;
+    report.checks.has_name_column = await page.getByRole('columnheader', { name: /이름/u }).count() >= 1;
+    const sortableLabels = ['조직', '이름', '권한', '상태', '최근 로그인'];
+    const sortButtonCounts = {};
+    for (const label of sortableLabels) {
+      sortButtonCounts[label] = await page.getByRole('button', { name: `${label} 정렬` }).count();
+    }
+    report.checks.sort_buttons_present = Object.values(sortButtonCounts).every((count) => count >= 1);
+    report.sort_button_counts = sortButtonCounts;
+    await page.getByRole('button', { name: '최근 로그인 정렬' }).first().click();
+    await page.getByRole('button', { name: '조직 정렬' }).first().click();
+    report.checks.sort_buttons_clickable = true;
     await page.screenshot({ path: screenshotPath, fullPage: false });
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
   } catch (error) {
