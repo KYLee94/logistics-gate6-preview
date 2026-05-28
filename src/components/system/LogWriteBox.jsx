@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../../utils/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import logisticsPermissionData from './workspace/logisticsPermissionData.json';
@@ -109,9 +110,81 @@ function DarkDropdown({
     menuClassName = '',
 }) {
     const [open, setOpen] = useState(false);
+    const [menuPosition, setMenuPosition] = useState(null);
+    const buttonRef = useRef(null);
     const normalizedOptions = useMemo(() => normalizeDropdownOptions(options), [options]);
     const selectedOption = normalizedOptions.find((option) => option.value === value);
     const displayLabel = selectedOption?.label || placeholder;
+    const updateMenuPosition = () => {
+        if (typeof window === 'undefined' || !buttonRef.current) return;
+        const rect = buttonRef.current.getBoundingClientRect();
+        const menuWidth = Math.max(rect.width, 160);
+        const margin = 12;
+        setMenuPosition({
+            left: Math.max(margin, Math.min(rect.left, window.innerWidth - menuWidth - margin)),
+            top: Math.min(rect.bottom + 8, window.innerHeight - margin),
+            minWidth: menuWidth,
+        });
+    };
+
+    useEffect(() => {
+        if (!open) return undefined;
+        updateMenuPosition();
+        const handleLayoutChange = () => updateMenuPosition();
+        window.addEventListener('resize', handleLayoutChange);
+        window.addEventListener('scroll', handleLayoutChange, true);
+        return () => {
+            window.removeEventListener('resize', handleLayoutChange);
+            window.removeEventListener('scroll', handleLayoutChange, true);
+        };
+    }, [open]);
+
+    const dropdownLayer = open && typeof document !== 'undefined'
+        ? createPortal(
+            <AnimatePresence>
+                <button
+                    type="button"
+                    aria-label="드롭다운 닫기"
+                    className="fixed inset-0 z-[80] cursor-default bg-transparent"
+                    onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setOpen(false);
+                    }}
+                />
+                <MotionDiv
+                    data-testid="log-write-dropdown-menu"
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.12 }}
+                    style={{
+                        left: menuPosition?.left ?? 12,
+                        top: menuPosition?.top ?? 12,
+                        minWidth: menuPosition?.minWidth ?? 160,
+                    }}
+                    className={`fixed z-[90] max-h-[320px] overflow-y-auto rounded-[10px] border border-[#3A3A3C] bg-[#1A1A1A] shadow-2xl custom-scrollbar ${menuClassName}`}
+                >
+                    {normalizedOptions.map((option) => (
+                        <button
+                            key={`${option.value}-${option.label}`}
+                            type="button"
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                onChange(option.value);
+                                setOpen(false);
+                            }}
+                            className={`block w-full px-[12px] py-[9px] text-left text-[13px] transition-colors cursor-pointer ${option.value === value ? 'bg-[#2A3444] text-white font-bold' : 'text-[#E5E5E5] hover:bg-[#2A2A2A]'}`}
+                        >
+                            {option.label}
+                        </button>
+                    ))}
+                </MotionDiv>
+            </AnimatePresence>,
+            document.body,
+        )
+        : null;
 
     return (
         <div className={`relative flex items-center gap-[8px] group ${className}`}>
@@ -121,10 +194,13 @@ function DarkDropdown({
                 </span>
             )}
             <button
+                ref={buttonRef}
                 type="button"
+                data-testid="log-write-dropdown-toggle"
                 onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
+                    updateMenuPosition();
                     setOpen((current) => !current);
                 }}
                 className={`inline-flex items-center justify-between gap-[8px] rounded-[10px] border border-[#333] bg-transparent px-[10px] py-[6px] text-left outline-none cursor-pointer hover:border-[#4a4a4a] focus:border-[#2997ff] transition-colors ${buttonClassName}`}
@@ -134,45 +210,7 @@ function DarkDropdown({
                     <path d="M6 9l6 6 6-6" />
                 </svg>
             </button>
-            <AnimatePresence>
-                {open && (
-                    <>
-                        <button
-                            type="button"
-                            aria-label="드롭다운 닫기"
-                            className="fixed inset-0 z-[80] cursor-default bg-transparent"
-                            onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                setOpen(false);
-                            }}
-                        />
-                        <MotionDiv
-                            initial={{ opacity: 0, y: -4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0, y: -4 }}
-                            transition={{ duration: 0.12 }}
-                            className={`absolute left-0 top-[calc(100%+8px)] z-[90] min-w-[160px] overflow-hidden rounded-[10px] border border-[#3A3A3C] bg-[#1A1A1A] shadow-2xl ${menuClassName}`}
-                        >
-                            {normalizedOptions.map((option) => (
-                                <button
-                                    key={`${option.value}-${option.label}`}
-                                    type="button"
-                                    onClick={(event) => {
-                                        event.preventDefault();
-                                        event.stopPropagation();
-                                        onChange(option.value);
-                                        setOpen(false);
-                                    }}
-                                    className={`block w-full px-[12px] py-[9px] text-left text-[13px] transition-colors cursor-pointer ${option.value === value ? 'bg-[#2A3444] text-white font-bold' : 'text-[#E5E5E5] hover:bg-[#2A2A2A]'}`}
-                                >
-                                    {option.label}
-                                </button>
-                            ))}
-                        </MotionDiv>
-                    </>
-                )}
-            </AnimatePresence>
+            {dropdownLayer}
         </div>
     );
 }

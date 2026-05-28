@@ -1,9 +1,9 @@
 {
   "ok": true,
-  "generated_at": "2026-05-28T04:14:45.211Z",
-  "url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics",
-  "home_url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics/dashboard/home",
-  "archive_url": "https://kylee94.github.io/logistics-gate6-preview/platform/iotaseoul/workspace/archive?workspace=logistics",
+  "generated_at": "2026-05-28T04:11:50.253Z",
+  "url": "http://127.0.0.1:5173/?p=platform/iotaseoul/workspace/logistics",
+  "home_url": "http://127.0.0.1:5173/?p=platform/iotaseoul/workspace/logistics/dashboard/home",
+  "archive_url": "http://127.0.0.1:5173/platform/iotaseoul/workspace/archive?workspace=logistics",
   "auth_source": "password_grant",
   "ui_email": "kylee@igisam.com",
   "checks": {
@@ -16,7 +16,7 @@
     "home_expiry_tooltip_has_area_count_and_details": true,
     "archive_may_week_5_not_duplicated": true
   },
-  "screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-041444.png",
+  "screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-041149.png",
   "errors": [],
   "task_header_text": "주요 TASK 관리\n26년 5월 5주",
   "header_metrics": {

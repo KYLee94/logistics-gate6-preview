@@ -102,6 +102,7 @@ async function main() {
   const screenshotPath = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}.png`);
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
   const targetUrl = joinUrl(baseUrl, argsValue('route', DEFAULT_ROUTE));
+  const homeUrl = joinUrl(baseUrl, '?p=platform/iotaseoul/workspace/logistics/dashboard/home');
   const archiveUrl = joinUrl(baseUrl, 'platform/iotaseoul/workspace/archive?workspace=logistics');
   const auth = await signInSession();
   const uiEmail = argsValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com');
@@ -116,6 +117,7 @@ async function main() {
     ok: false,
     generated_at: new Date().toISOString(),
     url: targetUrl,
+    home_url: homeUrl,
     archive_url: archiveUrl,
     auth_source: auth.source,
     ui_email: uiEmail,
@@ -184,7 +186,62 @@ async function main() {
       && headerMetrics.sameLine
       && headerMetrics.dateAndCollapseVisible
       && headerMetrics.collapseButtonWidth >= 48;
+
+    const dropdownToggles = page.getByTestId('log-write-dropdown-toggle');
+    const dropdownCount = await dropdownToggles.count();
+    const dropdownResults = [];
+    for (let index = 0; index < Math.min(dropdownCount, 5); index += 1) {
+      const toggle = dropdownToggles.nth(index);
+      await toggle.scrollIntoViewIfNeeded();
+      const toggleText = (await toggle.innerText()).trim();
+      await toggle.click();
+      const menu = page.getByTestId('log-write-dropdown-menu');
+      await menu.waitFor({ state: 'visible', timeout: 5000 });
+      const optionButtons = menu.locator('button');
+      const optionCount = await optionButtons.count();
+      if (optionCount > 0) {
+        await optionButtons.nth(Math.min(1, optionCount - 1)).click();
+        await menu.waitFor({ state: 'detached', timeout: 5000 }).catch(() => null);
+      }
+      dropdownResults.push({ index, toggle_text: toggleText, option_count: optionCount });
+    }
+    report.board_dropdown_results = dropdownResults;
+    report.checks.board_dropdowns_open_and_select = dropdownResults.length >= 5
+      && dropdownResults.every((item) => item.option_count > 0);
+
+    const visibilityButton = page.getByRole('button', { name: /^열람권한$/u }).first();
+    await visibilityButton.click();
+    await page.getByText('열람 권한 설정').waitFor({ state: 'visible', timeout: 5000 });
+    const visibilityModalText = await page.locator('body').innerText();
+    report.checks.board_visibility_modal_opens = visibilityModalText.includes('그룹 선택')
+      && visibilityModalText.includes('특정 인원 추가');
+    await page.getByRole('button', { name: /^확인$/u }).last().click();
+
     await page.screenshot({ path: screenshotPath, fullPage: false });
+
+    await page.goto(homeUrl, { waitUntil: 'networkidle', timeout: 60000 });
+    const expiryTitle = page.getByText('만기 집중도').last();
+    await expiryTitle.waitFor({ state: 'visible', timeout: 30000 });
+    const expirySection = expiryTitle.locator('xpath=ancestor::section[1]');
+    const expirySectionText = await expirySection.innerText();
+    report.home_expiry_section_text_excerpt = expirySectionText.slice(0, 1200);
+    report.checks.home_expiry_axis_labels = expirySectionText.includes('LHS 만기 임대면적(평)')
+      && expirySectionText.includes('RHS 만기 임차인 수');
+    const hoverTargets = expirySection.locator('rect.cursor-pointer');
+    const hoverTargetCount = await hoverTargets.count();
+    report.home_expiry_hover_target_count = hoverTargetCount;
+    if (hoverTargetCount > 0) {
+      await hoverTargets.nth(Math.floor(hoverTargetCount / 2)).hover({ force: true });
+    }
+    const tooltip = page.getByTestId('chart-tooltip');
+    await tooltip.waitFor({ state: 'visible', timeout: 5000 });
+    const tooltipText = await tooltip.innerText();
+    report.home_expiry_tooltip_text = tooltipText;
+    report.checks.home_expiry_tooltip_has_area_count_and_details = tooltipText.includes('만기 임대면적')
+      && tooltipText.includes('만기 임차인 수')
+      && tooltipText.includes('만기 자산 / 임차인')
+      && tooltipText.includes('/')
+      && tooltipText.includes('평');
 
     await page.goto(archiveUrl, { waitUntil: 'networkidle', timeout: 60000 });
     await page.getByText(/Task/u).first().waitFor({ state: 'visible', timeout: 30000 });

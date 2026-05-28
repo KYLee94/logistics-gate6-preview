@@ -5552,6 +5552,10 @@ function RichTrendChart({
   chartHeightClass = 'h-[390px]',
   onClick,
   extraTooltipRows,
+  leftAxisLabel = null,
+  rightAxisLabel = null,
+  tooltipWidth = 360,
+  tooltipHeight = 190,
 }) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
   const chartRef = useRef(null);
@@ -5588,6 +5592,8 @@ function RichTrendChart({
   };
   const primaryName = leftSeries.map((item) => item.label || chartMetricLabel(item.key, item.valueType)).join(' / ');
   const secondaryName = rightSeries.map((item) => item.label || chartMetricLabel(item.key, item.valueType)).join(' / ');
+  const resolvedLeftAxisLabel = leftAxisLabel || `왼쪽 Y축: ${primaryValueType === 'area' ? '면적(평)' : primaryName}`;
+  const resolvedRightAxisLabel = rightAxisLabel || `오른쪽 Y축: ${secondaryName}`;
   const xLabelStep = Math.max(1, Math.ceil(points.length / 7));
   const shouldRotateXLabels = points.length > 7 || points.some((row) => chartLabel(row, labelKey).length > 7);
   const seriesCoords = activeSeries.map((item, seriesIndex) => ({
@@ -5611,7 +5617,7 @@ function RichTrendChart({
     <Container ref={chartRef} type={onClick ? 'button' : undefined} onClick={onClick} onMouseLeave={() => setHoveredPoint(null)} className="relative w-full overflow-visible rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4 text-left hover:bg-[#242423]">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="text-[12px] text-[#86868B]">
-          X축: 월별 기간 · 왼쪽 Y축: {primaryName}{rightSeries.length ? ` · 오른쪽 Y축: ${secondaryName}` : ''}
+          X축: 월별 기간 · {resolvedLeftAxisLabel}{rightSeries.length ? ` · ${resolvedRightAxisLabel}` : ''}
         </div>
         <div className="flex flex-wrap items-center gap-4 text-[12px] text-[#D1D1D6]">
           {seriesCoords.map((item) => (
@@ -5620,8 +5626,8 @@ function RichTrendChart({
         </div>
       </div>
       <svg viewBox={`0 0 ${width} ${height}`} className={`${chartHeightClass} w-full overflow-visible`} role="img" aria-label={`${primaryName} 추이 차트`}>
-        <text x={paddingLeft} y="24" fill="#D1D1D6" fontSize="13" fontWeight="700">왼쪽 Y축: {primaryValueType === 'area' ? '면적(평)' : primaryName}</text>
-        {rightSeries.length > 0 && <text x={width - paddingRight} y="24" textAnchor="end" fill={rightAxisColor} fontSize="13" fontWeight="700">오른쪽 Y축: {secondaryName}</text>}
+        <text x={paddingLeft} y="24" fill="#D1D1D6" fontSize="13" fontWeight="700">{resolvedLeftAxisLabel}</text>
+        {rightSeries.length > 0 && <text x={width - paddingRight} y="24" textAnchor="end" fill={rightAxisColor} fontSize="13" fontWeight="700">{resolvedRightAxisLabel}</text>}
         {yTicks.map((tickValue, tickIndex) => {
           const y = yForValue(tickValue, 'left');
           const rightTickValue = rightAxis.ticks[tickIndex] ?? 0;
@@ -5677,8 +5683,13 @@ function RichTrendChart({
             value: formatMetric(row[item.tooltipKey || item.key], item.tooltipValueType || item.valueType || primaryValueType),
             color: item.color,
           }));
+          const rowTooltipRows = Array.isArray(row.tooltipLines)
+            ? row.tooltipLines.map((item) => (Array.isArray(item)
+              ? { label: item[0], value: item[1], block: item[2]?.block }
+              : item))
+            : [];
           const extraRows = typeof extraTooltipRows === 'function' ? extraTooltipRows(row) : [];
-          const detailRows = [...metricRows, ...(Array.isArray(extraRows) ? extraRows : [])];
+          const detailRows = [...metricRows, ...rowTooltipRows, ...(Array.isArray(extraRows) ? extraRows : [])];
           return (
             <g key={`${label}-${index}`} className="group">
               <line x1={xForIndex(index)} y1={paddingTop + plotHeight} x2={xForIndex(index)} y2={paddingTop + plotHeight + 5} stroke="#4A4A4D" />
@@ -5705,8 +5716,8 @@ function RichTrendChart({
                 y={paddingTop}
                 width="20"
                 height={plotHeight + 16}
-                onMouseEnter={(event) => setHoveredPoint({ label, detailRows, ...getTooltipPoint(event, chartRef.current, 360, 190) })}
-                onMouseMove={(event) => setHoveredPoint({ label, detailRows, ...getTooltipPoint(event, chartRef.current, 360, 190) })}
+                onMouseEnter={(event) => setHoveredPoint({ label, detailRows, ...getTooltipPoint(event, chartRef.current, tooltipWidth, tooltipHeight) })}
+                onMouseMove={(event) => setHoveredPoint({ label, detailRows, ...getTooltipPoint(event, chartRef.current, tooltipWidth, tooltipHeight) })}
                 onFocus={() => setHoveredPoint({ label, detailRows, x: 220, y: 64 })}
                 onBlur={() => setHoveredPoint(null)}
                 tabIndex={0}
@@ -5716,15 +5727,23 @@ function RichTrendChart({
         })}
       </svg>
       {hoveredPoint && (
-        <div data-testid="chart-tooltip" className="pointer-events-none fixed z-50 w-[360px] rounded-[10px] border border-[#4A4A4D] bg-[#101010]/95 px-3 py-2.5 text-[12px] text-white shadow-2xl" style={{ left: hoveredPoint.x, top: hoveredPoint.y }}>
+        <div data-testid="chart-tooltip" className="pointer-events-none fixed z-50 rounded-[10px] border border-[#4A4A4D] bg-[#101010]/95 px-3 py-2.5 text-[12px] text-white shadow-2xl" style={{ left: hoveredPoint.x, top: hoveredPoint.y, width: tooltipWidth }}>
           <div className="mb-2 font-semibold">{hoveredPoint.label}</div>
           <div className="space-y-1">
-            {hoveredPoint.detailRows.map((item) => (
-              <div key={item.label} className="flex items-center justify-between gap-3 text-[#D1D1D6]">
-                <span className="min-w-0 truncate">{item.color ? <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} /> : null}{item.label}</span>
-                <span className="shrink-0 max-w-[245px] whitespace-normal break-keep text-right font-semibold text-white" title={typeof item.value === 'string' ? item.value : undefined}>{item.value}</span>
-              </div>
-            ))}
+            {hoveredPoint.detailRows.map((item) => {
+              const isBlock = item.block || String(item.value || '').includes('\n');
+              return isBlock ? (
+                <div key={item.label} className="rounded-[8px] border border-white/10 bg-white/[0.03] px-2 py-1.5 text-[#D1D1D6]">
+                  <div className="mb-1 font-semibold text-[#A1A1AA]">{item.color ? <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} /> : null}{item.label}</div>
+                  <div className="whitespace-pre-line break-keep text-white">{item.value}</div>
+                </div>
+              ) : (
+                <div key={item.label} className="flex items-center justify-between gap-3 text-[#D1D1D6]">
+                  <span className="min-w-0 truncate">{item.color ? <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ backgroundColor: item.color }} /> : null}{item.label}</span>
+                  <span className="shrink-0 max-w-[245px] whitespace-normal break-keep text-right font-semibold text-white" title={typeof item.value === 'string' ? item.value : undefined}>{item.value}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -6315,6 +6334,44 @@ function HomeDashboard() {
       item.detailAreaLabel || item.floorLabel || '-',
     ])
   ));
+  const expiryChartRows = (data.monthlyExpiryRows || []).map((monthRow) => {
+    const items = Array.isArray(monthRow.items) ? monthRow.items : [];
+    const detailItems = items.map((item) => ({
+      assetName: cleanDisplay(item.assetName, '-'),
+      tenantName: cleanDisplay(firstDefined(item.tenantMasterName, item.tenantName, item.companyName), '-'),
+      leasedAreaSqm: Number(firstDefined(item.leasedAreaSqm, item.currentLeasedAreaSqm, 0) || 0),
+      spaceLabel: cleanDisplay(firstDefined(item.detailAreaLabel, item.floorLabel, item.spaceLabel), ''),
+    })).sort((a, b) => (
+      String(a.assetName).localeCompare(String(b.assetName), 'ko-KR')
+      || String(a.tenantName).localeCompare(String(b.tenantName), 'ko-KR')
+      || Number(b.leasedAreaSqm || 0) - Number(a.leasedAreaSqm || 0)
+    ));
+    const itemAreaSqm = sumRows(detailItems, (item) => item.leasedAreaSqm);
+    const itemTenantCount = new Set(detailItems.map((item) => item.tenantName).filter((name) => name && name !== '-')).size;
+    const expiringAreaSqm = Number((detailItems.length ? itemAreaSqm : firstDefined(monthRow.expiringAreaSqm, 0)) || 0);
+    const uniqueTenantCount = Number((detailItems.length ? itemTenantCount : firstDefined(monthRow.uniqueTenantCount, 0)) || 0);
+    const visibleItems = detailItems.slice(0, 8);
+    const hiddenCount = Math.max(0, detailItems.length - visibleItems.length);
+    const expiryDetailText = visibleItems.length
+      ? [
+        ...visibleItems.map((item) => {
+          const suffix = item.spaceLabel ? ` · ${item.spaceLabel}` : '';
+          return `${item.assetName} / ${item.tenantName} · ${formatArea(item.leasedAreaSqm)}${suffix}`;
+        }),
+        ...(hiddenCount ? [`외 ${formatNumber(hiddenCount)}건`] : []),
+      ].join('\n')
+      : '-';
+    return {
+      ...monthRow,
+      expiringAreaSqm,
+      uniqueTenantCount,
+      expiryLeaseItemCount: detailItems.length,
+      tooltipLines: [
+        ['만기 계약/구역 수', `${formatNumber(detailItems.length)}건`],
+        ['만기 자산 / 임차인', expiryDetailText, { block: true }],
+      ],
+    };
+  });
   const tenantContractGroups = useMemo(() => buildTenantContractGroups(generalRows), [generalRows]);
   const tenantContractRows = tenantContractGroups.map((row) => [
     <span key={`${row.key}-tenant`} title={row.tenantMasterName} className="whitespace-nowrap">{row.tenantMasterName}</span>,
@@ -6719,11 +6776,15 @@ function HomeDashboard() {
             right={<button type="button" onClick={() => openTableModal('만기 집중도 월별 상세', ['만기월', '임차인', '자산', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', 'E.NOC', '공간'], expiryDetailRows, { size: 'fullscreen' })} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">월별 상세 보기</button>}
           />
           <RichTrendChart
-            rows={data.monthlyExpiryRows}
+            rows={expiryChartRows}
             labelKey="month"
             leftValueType="area"
             rightValueType="count"
             rightAxisColor="#FFD166"
+            leftAxisLabel="LHS 만기 임대면적(평)"
+            rightAxisLabel="RHS 만기 임차인 수"
+            tooltipWidth={520}
+            tooltipHeight={320}
             chartHeight={460}
             chartHeightClass="h-[440px]"
             onClick={() => openTableModal('만기 집중도 월별 상세', ['만기월', '임차인', '자산', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', 'E.NOC', '공간'], expiryDetailRows, { size: 'fullscreen' })}

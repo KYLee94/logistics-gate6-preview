@@ -1,9 +1,26 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-28T11:35:17+09:00
-- Overall: 312 / 368 (84.8%) - current deltas rebaselined for Data Update Meta field help, original Excel DB_일반/DB_히스토리 source coverage, Data Update canonical Supabase auto-write/readback/rollback, Data Update lifecycle QA, Data Update source-column coverage, Data Update UX cleanup, Data Update rent/management field semantics, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Work Platform current-week/archive/sidebar/browser smoke, Edge deploy, and gh-pages live smoke.
+- Updated at: 2026-05-28T13:15:00+09:00
+- Overall: 315 / 368 (85.6%) - current deltas rebaselined for Data Update Meta field help, original Excel DB_일반/DB_히스토리 source coverage, Data Update canonical Supabase auto-write/readback/rollback, Data Update lifecycle QA, Data Update source-column coverage, Data Update UX cleanup, Data Update rent/management field semantics, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Home expiry chart hover/axis verification, Work Platform current-week/archive/sidebar/browser smoke, Work Platform board dropdown smoke, Edge deploy, and gh-pages live smoke.
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
-- gh-pages deployment: current Data Update Meta field help / canonical Supabase auto-sync / rent-management semantics / UX cleanup / external refresh / AI / E. NOC / Company chart fix / Work Platform week and board header fix deployed; live URL returned HTTP 200 with `assets/index-CNFMD-Z_.js`.
+- gh-pages deployment: current Data Update Meta field help / canonical Supabase auto-sync / rent-management semantics / UX cleanup / external refresh / AI / E. NOC / Company chart fix / Home expiry chart fix / Work Platform week, board header, and dropdown fix deployed; live URL returned HTTP 200 with `assets/index-C4OoENib.js`.
+
+## 2026-05-28 Update - Home Expiry Chart / Work Platform Board Dropdowns
+
+- Home `만기 집중도` chart now keeps the plotted values tied to the row-level expiry items:
+  - `만기 임대면적` is recomputed from the expiring lease rows when detail rows exist.
+  - `만기 임차인 수` is recomputed from the expiring tenant names when detail rows exist.
+  - LHS/RHS labels are explicit: `LHS 만기 임대면적(평)`, `RHS 만기 임차인 수`.
+  - Hover tooltip now shows expiring leased area, expiring tenant count, contract/space count, and the asset / tenant / area / space list for the selected month.
+- Work Platform `협업게시판` dropdown menus now render through a top-level portal layer.
+  - This prevents the dropdown menu from being clipped or made unclickable by the compose-header horizontal scroll lane.
+  - The browser smoke opens and selects options from all 5 top compose dropdowns and opens the `열람권한` modal.
+- Verification:
+  - `npm run build:preview`: pass.
+  - local browser smoke: `qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-041149.json`.
+  - `npm run deploy`: pass.
+  - live URL returned HTTP 200 with `assets/index-C4OoENib.js`.
+  - live browser smoke: `qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-041444.json`, checks passed for current week, board header line, dropdown open/select, visibility modal, Home expiry axis labels, Home expiry hover details, and archive sidebar de-duplication.
 
 ## 2026-05-28 Update - Work Platform Week / Task Archive / Board Compose Header
 
@@ -252,10 +269,10 @@
 | Stage | Area | Done / Total |
 |---:|---|---:|
 | 2 | 공통 데이터 기준 | 19 / 24 |
-| 3 | 업무 로그 메인 페이지 | 32 / 42 |
+| 3 | 업무 로그 메인 페이지 | 33 / 42 |
 | 4 | Dashboard 공통 | 13 / 19 |
 | 5 | Weekly 탭 | 3 / 4 |
-| 6 | Home 탭 | 39 / 44 |
+| 6 | Home 탭 | 40 / 44 |
 | 7 | Asset 탭 | 31 / 33 |
 | 8 | Company 탭 | 15 / 17 |
 | 9 | Pivot Table | 13 / 14 |
@@ -263,7 +280,7 @@
 | 11 | Analysis Tools | 8 / 11 |
 | 12 | Supabase / Edge / 배포 | 33 / 33 |
 | 13 | 외부 API / AI / 외부권한 | 10 / 12 |
-| 14 | QA 계획 및 증거 | 51 / 53 |
+| 14 | QA 계획 및 증거 | 52 / 53 |
 | 15 | 최종 완료 기준 | 9 / 15 |
 | 16 | 임대차계약 데이터 관리 탭 구축 | 18 / 26 |
 
