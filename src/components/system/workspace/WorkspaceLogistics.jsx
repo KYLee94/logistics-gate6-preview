@@ -9343,6 +9343,31 @@ const CONTRACT_DATA_FIELD_META_BY_KEY = new Map(
   }),
 );
 
+function isSmokeLeaseEvent(row = {}) {
+  const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload : {};
+  const text = [
+    row.status,
+    row.summary,
+    row.requested_value,
+    row.reason_code,
+    payload.summary,
+    payload.reason,
+  ].map((value) => String(value || '').toLowerCase()).join(' ');
+  return text.includes('smoke_rolled_back')
+    || text.includes('qa smoke')
+    || String(row.status || '').toLowerCase().startsWith('smoke')
+    || payload.rollback_after_write === true;
+}
+
+function formatLeaseEventStatus(status) {
+  const value = String(status || '').toLowerCase();
+  if (value === 'written') return '정규 DB 반영 완료';
+  if (value === 'auto_write_running') return '정규 DB 반영 중';
+  if (value === 'submitted') return '접수';
+  if (value.includes('failed') || value.includes('error')) return '반영 실패';
+  return status || '-';
+}
+
 function ContractDataManagementDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
@@ -9448,12 +9473,13 @@ function ContractDataManagementDashboard() {
     formatDate(firstDefined(row.currentEndDate, row.latestExpiry)),
   ]);
 
-  const eventRows = submittedEvents.map((row) => [
+  const visibleSubmittedEvents = submittedEvents.filter((row) => !isSmokeLeaseEvent(row));
+  const eventRows = visibleSubmittedEvents.map((row) => [
     CONTRACT_EVENT_TYPES.find(([value]) => value === row.event_type)?.[1] || row.event_type || '-',
     row.asset_name || '-',
     row.tenant_name || '-',
     row.summary || '-',
-    row.status || '-',
+    formatLeaseEventStatus(row.status),
     row.created_at ? formatDate(row.created_at) : '-',
   ]);
 
@@ -9934,15 +9960,15 @@ function ContractDataManagementDashboard() {
       </section>
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-        <SectionHeader eyebrow="APPROVAL QUEUE" title="계약 변경 승인 대기" />
+        <SectionHeader eyebrow="CHANGE LOG" title="계약 변경 반영 이력" />
         {eventsLoading ? (
-          <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[13px] text-[#A1A1AA]">계약 변경 요청 목록을 불러오는 중입니다.</div>
+          <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[13px] text-[#A1A1AA]">계약 변경 반영 이력을 불러오는 중입니다.</div>
         ) : eventsError ? (
           <div className="rounded-[12px] border border-[#7A2E2E] bg-[#2A1414] px-4 py-3 text-[13px] text-[#FFB4B4]">{eventsError}</div>
         ) : eventRows.length ? (
-          <DataTable headers={['유형', '자산', '임차인', '요약', '상태', '요청일']} rows={eventRows} compact />
+          <DataTable headers={['유형', '자산', '임차인', '요약', '상태', '반영일']} rows={eventRows} compact />
         ) : (
-          <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[13px] text-[#A1A1AA]">접수된 계약 변경 요청이 없습니다.</div>
+          <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[13px] text-[#A1A1AA]">운영 반영 이력이 없습니다. 테스트 검증 로그는 운영 화면에서 숨깁니다.</div>
         )}
       </section>
     </div>
@@ -10084,6 +10110,29 @@ function buildDataQualityEditGridRows(finding) {
     assetName: String(firstDefined(raw.asset_name, raw.target_asset_name, finding.target, '')),
   }];
 }
+
+const DATA_QUALITY_REBASE_PLAN = [
+  {
+    title: '정규 계약 테이블',
+    body: 'll_leases, ll_lease_spaces 기준으로 현재 계약, 면적, 임대료 스냅샷의 필수값과 관계값을 점검합니다.',
+  },
+  {
+    title: '임대료 이력',
+    body: 'll_rent_history는 덮어쓰기보다 append 기준으로 중복, 같은 기준일자 보정, 누락 이력을 분리합니다.',
+  },
+  {
+    title: '원본 추적성',
+    body: '원본 Excel 전용 항목은 정규 테이블에 억지로 쓰지 않고 원본 보존/감사 로그와 연결 상태를 확인합니다.',
+  },
+  {
+    title: '계산값 검산',
+    body: '자산·임차인·포트폴리오 지표가 정규 테이블과 임대면적 가중 E.NOC 기준으로 재계산되는지 비교합니다.',
+  },
+  {
+    title: 'Data Update 연동',
+    body: 'lease-events preview/submit 결과, readback, rollback, 알림까지 한 흐름으로 검증하도록 재정비합니다.',
+  },
+];
 
 const QUALITY_EXCEL_COLUMNS = [
   '행위',
@@ -10902,7 +10951,6 @@ function DataQualityDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const canEdit = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create);
-  const canApproveEdits = canViewDataQuality(memberInfo, permission) && hasLogisticsRole(permission, 'Manager');
   const [severity, setSeverity] = useState('all');
   const [sheetFilter, setSheetFilter] = useState('all');
   const [fieldFilter, setFieldFilter] = useState('all');
@@ -10911,8 +10959,6 @@ function DataQualityDashboard() {
   const [editGridRows, setEditGridRows] = useState([]);
   const [editSubmitStatus, setEditSubmitStatus] = useState(null);
   const [remoteQuality, setRemoteQuality] = useState({ status: 'loading', rows: [], message: 'Supabase readback 확인 중' });
-  const [editQueue, setEditQueue] = useState({ status: 'loading', rows: [], message: '승인 대기 목록 확인 중' });
-  const [editQueueStatus, setEditQueueStatus] = useState(null);
   useEffect(() => {
     const controller = new AbortController();
     fetchRemoteQualityFindings(controller.signal)
@@ -10923,22 +10969,6 @@ function DataQualityDashboard() {
         }
       });
     return () => controller.abort();
-  }, []);
-  const refreshEditQueue = async () => {
-    setEditQueue((current) => ({ ...current, status: 'loading', message: '승인 대기 목록 확인 중' }));
-    try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'edits/list', payload: { status: 'submitted', limit: 100 } },
-      });
-      if (error) throw error;
-      const rows = Array.isArray(data?.data) ? data.data.map(normalizeRemoteEditRequest) : [];
-      setEditQueue({ status: 'loaded', rows, message: `승인 대기 ${rows.length}건` });
-    } catch (error) {
-      setEditQueue({ status: 'blocked', rows: [], message: `Edge Function 승인 목록 확인 필요: ${error.message || 'unknown error'}` });
-    }
-  };
-  useEffect(() => {
-    refreshEditQueue();
   }, []);
   useEffect(() => {
     setEditGridRows(buildDataQualityEditGridRows(editTarget));
@@ -10965,9 +10995,6 @@ function DataQualityDashboard() {
     item.action,
     <button key={`${item.target}-${item.field}`} type="button" onClick={() => { setEditTarget(item); setEditSubmitStatus(null); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">{canEdit ? '수정 요청' : '권한 확인'}</button>,
   ]);
-  const excelUploadRequests = editQueue.rows
-    .filter((request) => request.uploadSource === 'quality_excel_roundtrip' || request.reason === 'excel_roundtrip_upload')
-    .slice(0, 5);
   const changedEditRows = editGridRows.filter((row) => {
     const afterValue = String(row.afterValue || '').trim();
     return afterValue !== '' && afterValue !== String(row.beforeValue || '');
@@ -11030,93 +11057,13 @@ function DataQualityDashboard() {
       });
       if (error) throw error;
       setEditSubmitStatus({ type: 'success', message: data?.message || '수정 요청이 서버로 접수됐습니다.' });
-      refreshEditQueue();
     } catch (error) {
       setEditSubmitStatus({ type: 'error', message: `Edge Function 연결 필요: ${error.message || 'unknown error'}` });
-    }
-  };
-  const readbackEditRequest = async (request) => {
-    if (!canApproveEdits) return;
-    setEditQueueStatus({ type: 'pending', message: '승인 전 현재 DB 값 readback 확인 중입니다.' });
-    try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'edits/readback', payload: { id: request.id } },
-      });
-      if (error) throw error;
-      const readbacks = data?.data?.readbacks || [];
-      const staleCount = readbacks.filter((row) => row.stale).length;
-      setModal({
-        title: `승인 전 readback · ${request.targetName}`,
-        headers: ['table', 'row', 'field', '요청 당시 값', '현재 DB 값', '요청 값', '상태'],
-        rows: readbacks.map((row) => [
-          row.target_table,
-          row.target_row_id,
-          row.field_name,
-          cleanDisplay(row.before_value),
-          cleanDisplay(row.current_value),
-          cleanDisplay(row.requested_value),
-          row.stale ? 'stale 차단 대상' : '승인 가능',
-        ]),
-      });
-      setEditQueueStatus({ type: staleCount ? 'warning' : 'success', message: staleCount ? `현재 DB 값이 바뀐 셀 ${staleCount}건이 있어 승인 시 차단됩니다.` : '현재 DB 값이 요청 당시 before 값과 일치합니다.' });
-    } catch (error) {
-      setEditQueueStatus({ type: 'error', message: `readback 실패: ${error.message || 'unknown error'}` });
-    }
-  };
-  const approveEditRequest = async (request) => {
-    if (!canApproveEdits) return;
-    setEditQueueStatus({ type: 'pending', message: '승인, write, readback, audit 기록 중입니다.' });
-    try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'edits/approve', payload: { id: request.id } },
-      });
-      if (error) throw error;
-      setEditQueueStatus({ type: 'success', message: data?.message || '승인 및 DB 반영이 완료되었습니다.' });
-      refreshEditQueue();
-    } catch (error) {
-      setEditQueueStatus({ type: 'error', message: `승인 실패: ${error.message || 'unknown error'}` });
-      refreshEditQueue();
-    }
-  };
-  const rejectEditRequest = async (request) => {
-    if (!canApproveEdits) return;
-    setEditQueueStatus({ type: 'pending', message: '반려 처리 중입니다.' });
-    try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'edits/reject', payload: { id: request.id, rejection_note: 'Data Quality 화면 반려' } },
-      });
-      if (error) throw error;
-      setEditQueueStatus({ type: 'success', message: data?.message || '수정 요청이 반려되었습니다.' });
-      refreshEditQueue();
-    } catch (error) {
-      setEditQueueStatus({ type: 'error', message: `반려 실패: ${error.message || 'unknown error'}` });
     }
   };
   return (
     <div className="space-y-6">
       <LogisticsModal modal={modal} onClose={() => setModal(null)} />
-      {excelUploadRequests.length ? (
-        <section className="rounded-[20px] border border-[#7A6425] bg-[#2B2613] p-5">
-          <SectionHeader
-            eyebrow="UPLOAD ALERT"
-            title="원본 데이터 수정 업로드 알림"
-            right={<StatusPill className="border-[#7A6425] bg-[#1F1A10] text-[#FFD166]">관리자 확인 후 최종 반영</StatusPill>}
-          />
-          <DataTable
-            headers={['업로드한 사람', '자산 범위', '업로드 시각', '수정 행', '제외 행', '파일', '상태']}
-            rows={excelUploadRequests.map((request) => [
-              request.uploaderName || request.requestedBy,
-              request.uploadAssetScope,
-              formatDate(request.uploadAt),
-              `${formatNumber(request.acceptedRows)}행`,
-              `${formatNumber(request.blockedRows)}행`,
-              trimMainText(request.uploadFileName || '-', 32),
-              request.status,
-            ])}
-            compact
-          />
-        </section>
-      ) : null}
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader
           eyebrow="DATA QUALITY"
@@ -11128,7 +11075,7 @@ function DataQualityDashboard() {
             </div>
           )}
         />
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <button type="button" onClick={() => setSeverity('all')} className={`rounded-[14px] border px-4 py-4 text-left ${severity === 'all' ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#333333] bg-[#1F1F1E] text-white hover:bg-[#2A2A29]'}`}>
             <div className="text-[12px] font-semibold opacity-70">총 점검 항목</div>
             <div className="mt-2 text-[24px] font-semibold">{formatNumber(findings.length)}건</div>
@@ -11146,39 +11093,16 @@ function DataQualityDashboard() {
         </div>
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-        <SectionHeader
-          eyebrow="APPROVAL QUEUE"
-          title="수정 요청 승인 대기"
-          right={(
-            <div className="flex flex-wrap justify-end gap-2">
-              <StatusPill className={editQueue.status === 'loaded' ? 'bg-[#173522] text-[#B5E48C] border-[#2E6B45]' : 'bg-[#2B2613] text-[#FFD166] border-[#7A6425]'}>{editQueue.message}</StatusPill>
-              <button type="button" onClick={refreshEditQueue} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">새로고침</button>
+        <SectionHeader eyebrow="REBASE PLAN" title="Data Quality 정비 계획" />
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-5">
+          {DATA_QUALITY_REBASE_PLAN.map((item, index) => (
+            <div key={item.title} className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#86868B]">STEP {index + 1}</div>
+              <div className="mt-2 text-[14px] font-semibold text-white">{item.title}</div>
+              <div className="mt-2 text-[12px] leading-5 text-[#A1A1AA]">{item.body}</div>
             </div>
-          )}
-        />
-        {editQueueStatus ? (
-          <div className={`mb-3 rounded-[10px] border px-4 py-3 text-[12px] leading-5 ${editQueueStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : editQueueStatus.type === 'error' ? 'border-[#6F3434] bg-[#331F1F] text-[#FF9F9F]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
-            {editQueueStatus.message}
-          </div>
-        ) : null}
-        <DataTable
-          headers={['상태', '대상', '필드', '요청값', '요청자', '요청일', 'readback', '승인', '반려']}
-          rows={editQueue.rows.map((request) => [
-            request.status,
-            `${request.targetType} · ${request.targetName}`,
-            request.fieldName,
-            trimMainText(cleanDisplay(request.displayRequestedValue || request.requestedValue), 52),
-            request.requestedBy,
-            formatDate(request.requestedAt),
-            <button key={`${request.id}-readback`} type="button" disabled={!canApproveEdits} onClick={() => readbackEditRequest(request)} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F] disabled:cursor-not-allowed disabled:opacity-40">확인</button>,
-            <button key={`${request.id}-approve`} type="button" disabled={!canApproveEdits} onClick={() => approveEditRequest(request)} className="h-8 rounded-[8px] border border-[#3b82f6]/30 bg-[#3b82f6]/20 px-3 text-[12px] font-semibold text-[#60a5fa] hover:bg-[#3b82f6]/30 disabled:cursor-not-allowed disabled:opacity-40">승인</button>,
-            <button key={`${request.id}-reject`} type="button" disabled={!canApproveEdits} onClick={() => rejectEditRequest(request)} className="h-8 rounded-[8px] border border-[#6F3434] bg-[#331F1F] px-3 text-[12px] font-semibold text-[#FF9F9F] hover:bg-[#432424] disabled:cursor-not-allowed disabled:opacity-40">반려</button>,
-          ])}
-          compact
-        />
-        {!editQueue.rows.length ? (
-          <div className="mt-3 rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-5 text-[13px] text-[#86868B]">현재 승인 대기 중인 수정 요청이 없습니다.</div>
-        ) : null}
+          ))}
+        </div>
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="GROUPS" title="시트·필드별 필터" />

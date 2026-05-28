@@ -176,6 +176,74 @@ const LoginSortableHeader = ({ column, sortConfig, onSort }) => {
         </th>
     );
 };
+const NOTIFICATION_STATUS_LABELS = {
+    written: '정규 DB 반영 완료',
+    submitted: '승인 확인 필요',
+    auto_write_running: '정규 DB 반영 중',
+    rejected: '반려',
+};
+const NOTIFICATION_EVENT_TYPE_LABELS = {
+    new_lease: '신규 계약',
+    rent_change: '임대료/관리비 변경',
+    archive: '만료/공실 전환',
+    correction: '오입력 정정',
+};
+const parseNotificationPayload = (value) => {
+    if (!value || typeof value !== 'string') return value && typeof value === 'object' ? value : {};
+    try {
+        const parsed = JSON.parse(value);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+};
+const isSmokeNotificationSource = (row = {}) => {
+    const payload = parseNotificationPayload(row.request_payload);
+    const text = [
+        row.status,
+        row.summary,
+        row.requested_value,
+        row.reason_code,
+        payload.summary,
+        payload.reason,
+    ].map((item) => String(item || '').toLowerCase()).join(' ');
+    return text.includes('smoke_rolled_back')
+        || text.includes('qa smoke')
+        || String(row.status || '').toLowerCase().startsWith('smoke')
+        || payload.rollback_after_write === true;
+};
+const buildLeaseEventNotification = (row = {}) => {
+    if (isSmokeNotificationSource(row)) return null;
+    const payload = parseNotificationPayload(row.request_payload);
+    const eventType = row.event_type || payload.event_type || 'correction';
+    const status = row.status || 'written';
+    const title = `${NOTIFICATION_EVENT_TYPE_LABELS[eventType] || eventType} · ${NOTIFICATION_STATUS_LABELS[status] || status}`;
+    const asset = row.asset_name || payload.asset_name || '-';
+    const tenant = row.tenant_name || payload.tenant_name || '-';
+    const summary = row.summary || payload.summary || '';
+    return {
+        id: `lease:${row.id || `${eventType}:${row.created_at || summary}`}`,
+        tag: 'Data Update',
+        title,
+        body: [asset, tenant, summary].filter((item) => item && item !== '-').join(' · ') || '계약 변경 반영 이력이 있습니다.',
+        createdAt: row.created_at || row.updated_at || '',
+        tone: String(status).includes('failed') ? 'error' : status === 'submitted' ? 'warning' : 'success',
+    };
+};
+const buildEditRequestNotification = (row = {}) => {
+    const payload = parseNotificationPayload(row.request_payload);
+    const target = row.target_name || payload.finding?.target || '-';
+    const field = row.field_name || payload.finding?.field || '-';
+    return {
+        id: `edit:${row.id || `${target}:${field}:${row.created_at}`}`,
+        tag: '승인 필요',
+        title: '수정 요청 승인 대기',
+        body: [target, field, row.requested_by].filter(Boolean).join(' · '),
+        createdAt: row.created_at || row.updated_at || '',
+        tone: 'warning',
+    };
+};
+const sortNotifications = (rows) => [...rows].sort((left, right) => Date.parse(right.createdAt || '') - Date.parse(left.createdAt || ''));
 const logisticsNavIconClass = 'w-4.5 h-4.5 mr-[10px]';
 const logisticsRootItem = {
     label: 'Work Platform',
@@ -247,6 +315,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const [loginHistoryLoading, setLoginHistoryLoading] = useState(false);
     const [loginHistoryError, setLoginHistoryError] = useState('');
     const [loginHistoryData, setLoginHistoryData] = useState({ rows: [], users: [], summary: null });
+    const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
+    const [notificationsLoading, setNotificationsLoading] = useState(false);
+    const [notificationsError, setNotificationsError] = useState('');
+    const [notifications, setNotifications] = useState([]);
+    const [readNotificationIds, setReadNotificationIds] = useState([]);
     const [newPassword, setNewPassword] = useState('');
     const [isCollapsed, setIsCollapsed] = useState(() => {
         const saved = sessionStorage.getItem('iotaLeftNavCollapsed');
@@ -317,12 +390,88 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const sortedLoginCapabilityUsers = useMemo(() => (
         [...loginCapabilityUsers].sort((left, right) => compareLoginRows(left, right, loginCapabilitySort))
     ), [loginCapabilityUsers, loginCapabilitySort]);
+    const notificationStorageKey = useMemo(() => {
+        const owner = user?.id || user?.email || memberInfo?.email || memberInfo?.staff_name || 'anonymous';
+        return `logistics-notifications-read:${owner}`;
+    }, [memberInfo?.email, memberInfo?.staff_name, user?.email, user?.id]);
+    const unreadNotificationCount = notifications.filter((item) => !readNotificationIds.includes(item.id)).length;
     const toggleLoginCapabilitySort = (key) => {
         setLoginCapabilitySort((current) => ({
             key,
             direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
         }));
     };
+    const markNotificationsRead = (rows = notifications) => {
+        const ids = rows.map((item) => item.id).filter(Boolean);
+        if (!ids.length) return;
+        setReadNotificationIds((current) => {
+            const next = [...new Set([...current, ...ids])].slice(-300);
+            localStorage.setItem(notificationStorageKey, JSON.stringify(next));
+            return next;
+        });
+    };
+    const loadNotifications = async ({ markRead = false } = {}) => {
+        if (!isLogisticsAdmin) return [];
+        setNotificationsLoading(true);
+        setNotificationsError('');
+        try {
+            const rows = [];
+            const leaseResult = await supabase.functions.invoke('ll-dashboard-api', {
+                body: { action: 'lease-events/list', payload: { limit: 80, include_smoke: false } },
+            });
+            if (leaseResult.error || leaseResult.data?.ok === false) {
+                throw new Error(leaseResult.data?.message || leaseResult.error?.message || '계약 변경 알림을 불러오지 못했습니다.');
+            }
+            (Array.isArray(leaseResult.data?.data) ? leaseResult.data.data : [])
+                .map(buildLeaseEventNotification)
+                .filter(Boolean)
+                .forEach((item) => rows.push(item));
+
+            const approvalResult = await supabase.functions.invoke('ll-dashboard-api', {
+                body: { action: 'edits/list', payload: { status: 'submitted', limit: 30 } },
+            });
+            if (!approvalResult.error && approvalResult.data?.ok !== false) {
+                (Array.isArray(approvalResult.data?.data) ? approvalResult.data.data : [])
+                    .filter((row) => !isSmokeNotificationSource(row))
+                    .map(buildEditRequestNotification)
+                    .filter(Boolean)
+                    .forEach((item) => rows.push(item));
+            }
+
+            const next = sortNotifications(rows).slice(0, 80);
+            setNotifications(next);
+            if (markRead) markNotificationsRead(next);
+            return next;
+        } catch (error) {
+            setNotificationsError(error?.message || '알림을 불러오지 못했습니다.');
+            setNotifications([]);
+            return [];
+        } finally {
+            setNotificationsLoading(false);
+        }
+    };
+    const openNotificationsPanel = async (event) => {
+        event?.stopPropagation();
+        setShowProfileMenu(false);
+        const willOpen = !showNotificationsPanel;
+        setShowNotificationsPanel(willOpen);
+        if (willOpen) {
+            const rows = await loadNotifications({ markRead: false });
+            markNotificationsRead(rows);
+        }
+    };
+    useEffect(() => {
+        try {
+            const saved = JSON.parse(localStorage.getItem(notificationStorageKey) || '[]');
+            setReadNotificationIds(Array.isArray(saved) ? saved : []);
+        } catch {
+            setReadNotificationIds([]);
+        }
+    }, [notificationStorageKey]);
+    useEffect(() => {
+        if (!isLogisticsPath || !isLogisticsAdmin) return;
+        loadNotifications();
+    }, [isLogisticsPath, isLogisticsAdmin]);
     const loadLoginHistory = async () => {
         setLoginHistoryLoading(true);
         setLoginHistoryError('');
@@ -448,17 +597,79 @@ export default function IotaLeftNav({ currentPath = '' }) {
 
                 <div className="relative border-t border-[#2C2C2E] p-3">
                     {isLogisticsAdmin ? (
-                        <button
-                            type="button"
-                            onClick={openLoginHistoryModal}
-                            title="로그인 이력"
-                            className={`mb-2 flex w-full items-center ${isCollapsed ? 'justify-center px-2' : 'justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] py-2 text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
-                        >
-                            <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {!isCollapsed ? <span>로그인 이력</span> : null}
-                        </button>
+                        <div className={`mb-2 flex items-center gap-2 ${isCollapsed ? 'flex-col' : ''}`}>
+                            <button
+                                type="button"
+                                onClick={openLoginHistoryModal}
+                                title="로그인 이력"
+                                className={`flex h-9 items-center ${isCollapsed ? 'w-full justify-center px-2' : 'flex-1 justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                            >
+                                <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {!isCollapsed ? <span>로그인 이력</span> : null}
+                            </button>
+                            <button
+                                type="button"
+                                data-testid="logistics-notification-button"
+                                onClick={openNotificationsPanel}
+                                title="알림"
+                                aria-label={unreadNotificationCount ? `알림, 안 읽은 알림 ${unreadNotificationCount}건` : '알림'}
+                                className={`relative flex h-9 ${isCollapsed ? 'w-full' : 'w-9'} items-center justify-center rounded-xl border border-[#333333] bg-[#151515] text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                            >
+                                <svg className="h-4 w-4 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 01-6 0m6 0H9" />
+                                </svg>
+                                {unreadNotificationCount ? (
+                                    <span className="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border border-[#151515] bg-[#FF9F0A]">
+                                        <span className="sr-only">안 읽은 알림 {unreadNotificationCount}건</span>
+                                    </span>
+                                ) : null}
+                            </button>
+                        </div>
+                    ) : null}
+                    {isLogisticsAdmin && showNotificationsPanel ? (
+                        <>
+                            <div className="fixed inset-0 z-40" onClick={() => setShowNotificationsPanel(false)} />
+                            <div data-testid="logistics-notification-panel" className={`absolute bottom-[78px] z-50 rounded-[16px] border border-[#3A3A3C] bg-[#202020] shadow-2xl ${isCollapsed ? 'left-3 w-[340px]' : 'left-3 right-3'}`}>
+                                <div className="flex items-center justify-between gap-3 border-b border-[#303033] px-4 py-3">
+                                    <div>
+                                        <div className="text-[14px] font-bold text-white">알림</div>
+                                        <div className="mt-0.5 text-[11px] text-[#8E8E93]">Data Update · 승인 요청 연동</div>
+                                    </div>
+                                    <button type="button" onClick={() => loadNotifications({ markRead: true })} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                        새로고침
+                                    </button>
+                                </div>
+                                <div className="custom-scrollbar max-h-[360px] overflow-auto p-3">
+                                    {notificationsLoading ? (
+                                        <div className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-5 text-center text-[12px] text-[#A1A1AA]">불러오는 중입니다.</div>
+                                    ) : notificationsError ? (
+                                        <div className="rounded-[12px] border border-[#5A2A2A] bg-[#2A1717] px-3 py-4 text-[12px] text-[#FFB4A9]">{notificationsError}</div>
+                                    ) : notifications.length ? (
+                                        <div className="space-y-2">
+                                            {notifications.map((item) => (
+                                                <div key={item.id} className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-3">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`h-1.5 w-1.5 rounded-full ${item.tone === 'warning' ? 'bg-[#FF9F0A]' : item.tone === 'error' ? 'bg-[#FF453A]' : 'bg-[#34C759]'}`} />
+                                                                <span className="text-[11px] font-semibold text-[#8E8E93]">{item.tag}</span>
+                                                            </div>
+                                                            <div className="mt-1 text-[13px] font-semibold text-white">{item.title}</div>
+                                                            <div className="mt-1 text-[12px] leading-5 text-[#A1A1AA]">{item.body}</div>
+                                                        </div>
+                                                        <div className="shrink-0 text-[11px] text-[#6E6E73]">{formatLoginHistoryTime(item.createdAt)}</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-5 text-center text-[12px] text-[#8E8E93]">새 알림이 없습니다.</div>
+                                    )}
+                                </div>
+                            </div>
+                        </>
                     ) : null}
                     <div className="relative">
                         <button type="button" onClick={() => setShowProfileMenu((value) => !value)} className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} rounded-xl px-2 py-2 hover:bg-[#151515]`}>

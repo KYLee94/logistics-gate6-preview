@@ -145,6 +145,17 @@ async function main() {
     const profileBox = await profileText.boundingBox();
     report.checks.button_visible = true;
     report.checks.button_above_profile = Boolean(buttonBox && profileBox && buttonBox.y < profileBox.y);
+    const notificationButton = page.getByTestId('logistics-notification-button');
+    await notificationButton.waitFor({ state: 'visible', timeout: 20000 });
+    const notificationBox = await notificationButton.boundingBox();
+    report.checks.notification_button_visible = true;
+    report.checks.notification_button_aligned = Boolean(buttonBox && notificationBox && Math.abs(buttonBox.y - notificationBox.y) <= 2 && notificationBox.x > buttonBox.x);
+    await notificationButton.click();
+    await page.getByTestId('logistics-notification-panel').waitFor({ state: 'visible', timeout: 20000 });
+    const notificationPanelText = await page.getByTestId('logistics-notification-panel').innerText({ timeout: 10000 });
+    report.checks.notification_panel_visible = notificationPanelText.includes('알림') && notificationPanelText.includes('Data Update');
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.mouse.click(20, 20);
     await button.click();
     await page.getByText('기획추진센터 전용 조회 화면').waitFor({ state: 'visible', timeout: 20000 });
     await page.getByText('권한자 로그인 상태').waitFor({ state: 'visible', timeout: 20000 });

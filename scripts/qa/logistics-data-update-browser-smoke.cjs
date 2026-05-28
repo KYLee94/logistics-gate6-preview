@@ -6,6 +6,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const DEFAULT_ROUTE = '?p=contract-data';
+const DATA_QUALITY_PLAN_TEXTS = ['정규 계약 테이블', '임대료 이력', '원본 추적성', '계산값 검산', 'Data Update 연동'];
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -194,8 +195,8 @@ async function main() {
     url: targetUrl,
     auth_source: auth.source,
     ui_email: uiEmail,
-    required_text: ['Data Update', '임대차계약 데이터 관리', '현재 계약 원장', '임대차계약 데이터 수정', '단위', '기본 정보', '임차 구역 및 면적', '계약 일정', '임대료/관리비', '권리·보험·특약', '시설 사양', '임대료 변경 내역', '평당 임대료', '평당 관리비', '월 임대료 총액', '월 관리비 총액', '기준일자', '임대료 변동 원인'],
-    forbidden_text: ['Contract Data', '원본 데이터 수정', 'Supabase 자동 반영', '원본 컬럼', '원본 EXCEL 전체 필드 수정 요청', '원본 EXCEL 전체 필드 추가 요청', 'DB_일반', 'DB_히스토리', '히스토리'],
+    required_text: ['Data Update', '임대차계약 데이터 관리', '현재 계약 원장', '임대차계약 데이터 수정', '단위', '기본 정보', '임차 구역 및 면적', '계약 일정', '임대료/관리비', '권리·보험·특약', '시설 사양', '임대료 변경 내역', '평당 임대료', '평당 관리비', '월 임대료 총액', '월 관리비 총액', '기준일자', '임대료 변동 원인', '계약 변경 반영 이력'],
+    forbidden_text: ['Contract Data', '원본 데이터 수정', 'Supabase 자동 반영', '원본 컬럼', '원본 EXCEL 전체 필드 수정 요청', '원본 EXCEL 전체 필드 추가 요청', 'DB_일반', 'DB_히스토리', '히스토리', '계약 변경 승인 대기', 'QA smoke', 'smoke_rolled_back'],
     missing_text: [],
     forbidden_found: [],
     page_errors: errors,
@@ -233,6 +234,10 @@ async function main() {
     let bodyText = await page.locator('body').innerText({ timeout: 10000 });
     result.missing_text = result.required_text.filter((text) => !bodyText.includes(text));
     result.forbidden_found = result.forbidden_text.filter((text) => bodyText.includes(text));
+    result.forbidden_contexts = Object.fromEntries(result.forbidden_found.map((text) => {
+      const index = bodyText.indexOf(text);
+      return [text, index >= 0 ? bodyText.slice(Math.max(0, index - 160), index + text.length + 160) : ''];
+    }));
 
     const leaseOptions = await page.locator('label', { hasText: '계약 구역' }).locator('option').allTextContents();
     const leaseFloorValues = leaseOptions
@@ -305,6 +310,14 @@ async function main() {
     const requiredRentFieldResults = Object.fromEntries(requiredRentFields.map((text) => [text, rentGroupText.includes(text)]));
     const rfFoUnitOk = /RF\s+[\s\S]*?개월/u.test(rentGroupText) && /FO\s+[\s\S]*?개월/u.test(rentGroupText);
     const fieldHeaderHasDbColumn = /항목\s+(현재값|예시)\s+DB 반영\s+(수정값|입력값)/u.test(bodyText);
+    result.mode_checks.event_log = {
+      ok: bodyText.includes('계약 변경 반영 이력')
+        && !bodyText.includes('계약 변경 승인 대기')
+        && !bodyText.includes('QA smoke')
+        && !bodyText.includes('smoke_rolled_back'),
+      has_change_log_title: bodyText.includes('계약 변경 반영 이력'),
+      hides_smoke_rows: !bodyText.includes('QA smoke') && !bodyText.includes('smoke_rolled_back'),
+    };
     result.mode_checks.field_table = {
       ok: bodyText.includes('항목')
         && bodyText.includes('단위')
@@ -344,6 +357,25 @@ async function main() {
       custom_scrollbar_count: customScrollbarCount,
     };
     result.forbidden_found = result.forbidden_text.filter((text) => bodyText.includes(text));
+    result.forbidden_contexts = Object.fromEntries(result.forbidden_found.map((text) => {
+      const index = bodyText.indexOf(text);
+      return [text, index >= 0 ? bodyText.slice(Math.max(0, index - 160), index + text.length + 160) : ''];
+    }));
+
+    const qualityUrl = joinUrl(baseUrl, '?p=data-quality');
+    await page.goto(qualityUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.waitForFunction(() => document.body.innerText.includes('Data Quality'), null, { timeout: 45000 });
+    const qualityText = await page.locator('body').innerText({ timeout: 10000 });
+    result.mode_checks.data_quality = {
+      ok: qualityText.includes('데이터 무결성 검사 및 수정 요청')
+        && qualityText.includes('Data Quality 정비 계획')
+        && DATA_QUALITY_PLAN_TEXTS.every((text) => qualityText.includes(text))
+        && !qualityText.includes('수정 요청 승인 대기')
+        && !qualityText.includes('APPROVAL QUEUE'),
+      removed_approval_queue: !qualityText.includes('수정 요청 승인 대기') && !qualityText.includes('APPROVAL QUEUE'),
+      has_rebase_plan: qualityText.includes('Data Quality 정비 계획'),
+      has_five_plan_steps: DATA_QUALITY_PLAN_TEXTS.filter((text) => qualityText.includes(text)).length,
+    };
     await page.screenshot({ path: screenshotPath, fullPage: true });
     result.body_excerpt = bodyText.slice(0, 1200);
     result.ok = result.missing_text.length === 0
@@ -354,7 +386,9 @@ async function main() {
       && result.mode_checks.ledger_modal.ok
       && result.mode_checks.add_mode.ok
       && result.mode_checks.delete_modal.ok
-      && result.mode_checks.field_table.ok;
+      && result.mode_checks.event_log.ok
+      && result.mode_checks.field_table.ok
+      && result.mode_checks.data_quality.ok;
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);
     if (page) {

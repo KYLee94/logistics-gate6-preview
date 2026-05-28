@@ -2258,10 +2258,25 @@ function normalizeLeaseEventRow(row: Record<string, unknown>) {
   };
 }
 
+function isSmokeLeaseEventRow(row: Record<string, unknown>) {
+  const requestPayload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
+  const status = safeText(row.status).toLowerCase();
+  const reason = safeText(row.reason_code).toLowerCase();
+  const requested = safeText(row.requested_value).toLowerCase();
+  const summary = safeText(requestPayload.summary || requestPayload.reason || '').toLowerCase();
+  return status.startsWith('smoke')
+    || status.includes('smoke_rolled_back')
+    || reason.includes('qa smoke')
+    || requested.includes('qa smoke')
+    || summary.includes('qa smoke')
+    || requestPayload.rollback_after_write === true;
+}
+
 async function listLeaseEvents(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'lease-events/list', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 100), 1), 300);
+  const includeSmoke = payload.include_smoke === true;
   const { data, error } = await ctx.serviceClient
     .from('ll_edit_requests')
     .select('*')
@@ -2270,6 +2285,7 @@ async function listLeaseEvents(ctx: Context, payload: Record<string, unknown>) {
   if (error) return fail(500, 'Failed to list lease events', ctx.origin);
   const rows = (data || [])
     .filter((row: Record<string, unknown>) => leaseEventKind(row) === 'lease_contract_event')
+    .filter((row: Record<string, unknown>) => includeSmoke || !isSmokeLeaseEventRow(row))
     .map((row: Record<string, unknown>) => normalizeLeaseEventRow(row))
     .filter((row: Record<string, unknown>) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
   await auditOptional(ctx.serviceClient, ctx.user.id, 'lease-events/list', 200, { returned: rows.length });
