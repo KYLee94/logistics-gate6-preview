@@ -100,6 +100,7 @@ async function main() {
   const outJson = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}.json`);
   const latestJson = path.join(OUT_DIR, 'work-platform-browser-smoke-latest.json');
   const screenshotPath = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}.png`);
+  const homeExpiryScreenshotPath = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}-home-expiry.png`);
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
   const targetUrl = joinUrl(baseUrl, argsValue('route', DEFAULT_ROUTE));
   const homeUrl = joinUrl(baseUrl, '?p=platform/iotaseoul/workspace/logistics/dashboard/home');
@@ -123,6 +124,7 @@ async function main() {
     ui_email: uiEmail,
     checks: {},
     screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
+    home_expiry_screenshot: path.relative(ROOT, homeExpiryScreenshotPath).replace(/\\/gu, '/'),
     errors: [],
   };
   let browser;
@@ -227,6 +229,34 @@ async function main() {
     report.home_expiry_section_text_excerpt = expirySectionText.slice(0, 1200);
     report.checks.home_expiry_axis_labels = expirySectionText.includes('LHS 만기 임대면적(평)')
       && expirySectionText.includes('RHS 만기 임차인 수');
+    const rightCountAxis = await expirySection.locator('svg').evaluate((svg) => {
+      const labels = [...svg.querySelectorAll('text')]
+        .map((node) => ({
+          text: (node.textContent || '').trim(),
+          y: Number(node.getAttribute('y')),
+        }))
+        .filter((item) => /^\d+개$/u.test(item.text));
+      const tickYs = labels.map((item) => item.y - 5).filter((value) => Number.isFinite(value));
+      const countCircleYs = [...svg.querySelectorAll('circle')]
+        .filter((node) => String(node.getAttribute('fill') || '').toLowerCase() === '#ffd166')
+        .map((node) => Number(node.getAttribute('cy')))
+        .filter((value) => Number.isFinite(value));
+      return {
+        labels: labels.map((item) => item.text),
+        zero_count: labels.filter((item) => item.text === '0개').length,
+        unique_count: new Set(labels.map((item) => item.text)).size,
+        count_circle_count: countCircleYs.length,
+        count_circles_align_to_ticks: countCircleYs.length > 0 && countCircleYs.every((cy) => (
+          tickYs.some((tickY) => Math.abs(tickY - cy) <= 1.5)
+        )),
+      };
+    });
+    report.home_expiry_right_count_axis = rightCountAxis;
+    report.checks.home_expiry_right_count_axis_integer_unique = rightCountAxis.labels.length >= 2
+      && rightCountAxis.unique_count === rightCountAxis.labels.length
+      && rightCountAxis.zero_count === 1;
+    report.checks.home_expiry_count_points_align_to_integer_axis = rightCountAxis.count_circles_align_to_ticks;
+    await expirySection.screenshot({ path: homeExpiryScreenshotPath });
     const hoverTargets = expirySection.locator('rect.cursor-pointer');
     const hoverTargetCount = await hoverTargets.count();
     report.home_expiry_hover_target_count = hoverTargetCount;

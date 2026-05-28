@@ -5509,6 +5509,15 @@ function niceAxisStep(value) {
 function buildAxisSpec(value, valueType = 'number', tickCount = 5) {
   const numeric = Number(value || 0);
   const safeValue = Number.isFinite(numeric) && numeric > 0 ? numeric : 1;
+  if (valueType === 'count') {
+    const maxInt = Math.max(1, Math.ceil(safeValue));
+    const step = Math.max(1, Math.ceil(maxInt / Math.max(tickCount - 1, 1)));
+    const displayMax = Math.max(step, Math.ceil(maxInt / step) * step);
+    const ticks = [];
+    for (let tick = displayMax; tick >= 0; tick -= step) ticks.push(tick);
+    if (ticks.at(-1) !== 0) ticks.push(0);
+    return { max: displayMax, ticks };
+  }
   const displayValue = valueType === 'area' ? safeValue * 0.3025 : safeValue;
   const step = niceAxisStep(displayValue / Math.max(tickCount - 1, 1));
   const displayMax = Math.max(step, Math.ceil(displayValue / step) * step);
@@ -5630,12 +5639,22 @@ function RichTrendChart({
         {rightSeries.length > 0 && <text x={width - paddingRight} y="24" textAnchor="end" fill={rightAxisColor} fontSize="13" fontWeight="700">{resolvedRightAxisLabel}</text>}
         {yTicks.map((tickValue, tickIndex) => {
           const y = yForValue(tickValue, 'left');
-          const rightTickValue = rightAxis.ticks[tickIndex] ?? 0;
           return (
             <g key={`${tickValue}-${tickIndex}`}>
               <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke="#3C3C40" strokeDasharray="3 5" />
               <text x={paddingLeft - 14} y={y + 5} textAnchor="end" fill="#FFFFFF" fontSize="15" fontWeight="800">{shortChartValue(tickValue, primaryValueType)}</text>
-              {rightSeries.length > 0 && <text x={width - paddingRight + 14} y={y + 5} fill={rightAxisColor} fontSize="15" fontWeight="800">{shortChartValue(rightTickValue, secondaryValueType)}</text>}
+            </g>
+          );
+        })}
+        {rightSeries.length > 0 && rightAxis.ticks.map((tickValue, tickIndex) => {
+          const y = yForValue(tickValue, 'right');
+          return (
+            <g key={`right-${tickValue}-${tickIndex}`}>
+              {secondaryValueType === 'count' && (
+                <line x1={paddingLeft} y1={y} x2={width - paddingRight} y2={y} stroke={rightAxisColor} strokeDasharray="2 6" opacity="0.16" />
+              )}
+              <line x1={width - paddingRight - 7} y1={y} x2={width - paddingRight} y2={y} stroke={rightAxisColor} strokeWidth="1.2" opacity="0.8" />
+              <text x={width - paddingRight + 14} y={y + 5} fill={rightAxisColor} fontSize="15" fontWeight="800">{shortChartValue(tickValue, secondaryValueType)}</text>
             </g>
           );
         })}
