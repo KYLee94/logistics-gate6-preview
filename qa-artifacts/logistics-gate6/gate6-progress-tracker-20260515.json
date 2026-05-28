@@ -16,12 +16,12 @@
     "new_user_requests": "Add new requests to the best matching stage, update the denominator, and report the new total in the same session."
   },
   "summary": {
-    "completed": 305,
+    "completed": 310,
     "total": 366,
-    "completion_rate": "83.3%",
-    "updated_at": "2026-05-27T18:02:00.000+09:00",
+    "completion_rate": "84.7%",
+    "updated_at": "2026-05-28T10:06:00.000+09:00",
     "conflict_resolution": "Supabase migration/connect/restructure? ??? parent item?? ????. ??? ?? ?? ??? ???? ??, runtime ???? ?? ??, ??, audit ???? ??/????.",
-    "latest_priority_update": "Data Update rent/management field semantics updated: rent-history payment fields are grouped under 임대료/관리비, RF/FO units are months, browser QA passed locally and live. Rent-history append writer remains Stage 16 residual work."
+    "latest_priority_update": "Data Update canonical Supabase auto-sync completed for preview/submit: new lease create, rent-history append, archive, source-only preserve, duplicate/missing blocking, write/readback/rollback QA 23/23 pass, live browser QA pass."
   },
   "stages": [
     {
@@ -1867,7 +1867,7 @@
     {
       "stage": 16,
       "area": "임대차계약 데이터 관리 탭 구축",
-      "completed": 11,
+      "completed": 16,
       "total": 24,
       "items": [
         {
@@ -1897,8 +1897,8 @@
         },
         {
           "id": "16.06",
-          "status": "partial",
-          "text": "DB_히스토리 누적 기준 임대료/관리비 이력 표시. 현재 원본 이력 필드 노출과 임대료/관리비 그룹 재분류는 완료됐고, 신규 임대료 변경을 ll_rent_history 새 행으로 append하는 자동 writer는 남아 있다."
+          "status": "done",
+          "text": "DB_히스토리 누적 기준 임대료/관리비 이력 표시. 임대료/관리비 필드 재분류와 신규 임대료 변경 ll_rent_history append writer가 구현됐고, write/readback/rollback QA로 검증했다."
         },
         {
           "id": "16.07",
@@ -1907,8 +1907,8 @@
         },
         {
           "id": "16.08",
-          "status": "partial",
-          "text": "신규 계약 등록 wizard. 현재 UI와 lease-events/submit 요청 접수는 가능하나 ll_leases/ll_lease_spaces/ll_rent_history 신규 row 자동 생성은 남아 있다."
+          "status": "done",
+          "text": "신규 계약 등록 wizard. lease-events preview/submit이 tenant, ll_leases, ll_lease_spaces, initial ll_rent_history row를 생성하고 readback/rollback QA로 검증했다."
         },
         {
           "id": "16.09",
@@ -1917,13 +1917,13 @@
         },
         {
           "id": "16.10",
-          "status": "partial",
-          "text": "임대료/관리비/RF/FO/TI 변경 wizard. 임대료/관리비 필드 재분류와 RF/FO 단위 수정은 완료됐고, 변경 이력 append와 dashboard current 재계산 자동화는 남아 있다."
+          "status": "done",
+          "text": "임대료/관리비/RF/FO/TI 변경 wizard. 임대료/관리비 변경은 과거 이력을 덮어쓰지 않고 ll_rent_history에 append하며, latest rent snapshot update와 rollback QA를 통과했다."
         },
         {
           "id": "16.11",
-          "status": "partial",
-          "text": "만료/공실 전환 wizard. 현재 삭제/아카이빙 확인 UI와 요청 접수는 가능하나 live contract row archive write는 남아 있다."
+          "status": "done",
+          "text": "만료/공실 전환 wizard. 삭제는 물리 삭제가 아니라 lease/lease-space archive write로 처리하며, 기존 이력 보존과 rollback QA를 통과했다."
         },
         {
           "id": "16.12",
@@ -1987,8 +1987,8 @@
         },
         {
           "id": "16.24",
-          "status": "partial",
-          "text": "계약 수정 E2E QA. Browser QA와 rollback_after_write smoke는 통과했고, 신규/아카이빙/임대료 변경 append까지 포함한 전체 lifecycle E2E는 남아 있다."
+          "status": "done",
+          "text": "계약 수정 E2E QA. current update, new lease create, rent-history append, duplicate block, same-date correction block, archive, source-only preserve까지 포함한 lifecycle smoke 23/23과 live browser QA가 통과했다."
         }
       ]
     }

@@ -111,6 +111,10 @@ const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_work_items',
   'public.ll_board_posts',
   'public.ll_weekly_records',
+  'public.ll_tenants',
+  'public.ll_leases',
+  'public.ll_lease_spaces',
+  'public.ll_rent_history',
   'public.ll_funds',
   'public.ll_fund_capital_tranches',
   'public.ll_lease_attributes',
@@ -2287,29 +2291,989 @@ function normalizeLeaseEventPayload(payload: Record<string, unknown>) {
   };
 }
 
+type LeaseEventWritePlan = {
+  mode: string;
+  status: 'ready' | 'blocked';
+  required_missing: string[];
+  duplicate_findings: Record<string, unknown>[];
+  warnings: string[];
+  writes: Record<string, unknown>[];
+  resolved: Record<string, unknown>;
+};
+
+type LeaseEventAppliedWrite = {
+  operation: 'insert' | 'update' | 'source_only';
+  table: string;
+  primaryKeyField: string;
+  id: string;
+  before?: Record<string, unknown> | null;
+  after?: Record<string, unknown> | null;
+  sourceOnlyRollback?: { cell: NormalizedEditCell; previous: Record<string, unknown> | null; insertedId: unknown };
+};
+
+const LEASE_EVENT_FIELD_ALIASES: Record<string, string> = {
+  asset_code: 'asset_code',
+  asset_name: 'asset_name',
+  tenant_master_name: 'tenant_master_name',
+  tenant_name: 'tenant_master_name',
+  business_registration_no: 'business_registration_no',
+  cold_storage_type: 'temperature_type',
+  pre_lease_yn: 'is_preleased',
+  third_party_logistics_yn: 'is_3pl',
+  single_tenant_yn: 'is_single_tenant',
+  exclusive_rate: 'exclusive_ratio',
+  first_operation_start_date: 'first_operation_date',
+  latest_contract_date: 'recent_contract_date',
+  deposit: 'deposit_amount',
+  rf: 'rf_months',
+  fo: 'fo_months',
+  ti: 'ti_amount',
+  mf_escalation_rate: 'management_fee_escalation_rate',
+  early_termination_right_yn: 'early_termination_right',
+  renewal_option_yn: 'renewal_option',
+  rent_arrears_yn: 'delinquency_yn',
+  basis_date: 'effective_date',
+  rent_change_reason: 'change_reason',
+  current_rent_per_py: 'rent_per_py',
+  current_mf_per_py: 'mf_per_py',
+};
+
+const LEASE_EVENT_ASSET_FIELDS = new Set(['asset_name', 'asset_code', 'sector', 'gross_floor_area_sqm']);
+const LEASE_EVENT_TENANT_FIELDS = new Set(['tenant_master_name', 'business_registration_no']);
+const LEASE_EVENT_LEASE_FIELDS = new Set([
+  'lease_status',
+  'first_contract_date',
+  'first_start_date',
+  'first_end_date',
+  'first_operation_date',
+  'recent_contract_date',
+  'current_start_date',
+  'current_end_date',
+  'contract_years',
+  'extension_count',
+  'deposit_amount',
+  'rf_months',
+  'fo_months',
+  'ti_amount',
+  'rent_escalation_rate',
+  'management_fee_escalation_rate',
+  'escalation_cycle_months',
+  'next_escalation_date',
+  'tenant_cost_burden',
+  'early_termination_right',
+  'renewal_option',
+  'special_terms',
+]);
+const LEASE_EVENT_SPACE_FIELDS = new Set([
+  'floor_label',
+  'detail_area_label',
+  'temperature_type',
+  'is_single_tenant',
+  'is_preleased',
+  'is_3pl',
+  'goods_type',
+  'leased_area_sqm',
+  'exclusive_area_sqm',
+  'exclusive_ratio',
+  'current_monthly_rent_total',
+  'current_monthly_mf_total',
+  'current_monthly_cost_total',
+  'e_noc',
+  'office_use_yn',
+  'sublease_yn',
+  'contract_status',
+  'delinquency_yn',
+]);
+const LEASE_EVENT_RENT_HISTORY_FIELDS = new Set([
+  'effective_date',
+  'change_reason',
+  'leased_area_sqm',
+  'exclusive_area_sqm',
+  'monthly_rent_total',
+  'monthly_mf_total',
+  'rent_per_py',
+  'mf_per_py',
+  'floor_label',
+  'detail_area_label',
+  'temperature_type',
+]);
+const LEASE_EVENT_BOOLEAN_FIELDS = new Set(['is_single_tenant', 'is_preleased', 'is_3pl']);
+const LEASE_EVENT_DATE_FIELDS = new Set([
+  'first_contract_date',
+  'first_start_date',
+  'first_end_date',
+  'first_operation_date',
+  'recent_contract_date',
+  'current_start_date',
+  'current_end_date',
+  'next_escalation_date',
+  'effective_date',
+]);
+const LEASE_EVENT_NUMBER_FIELDS = new Set([
+  'gross_floor_area_sqm',
+  'leased_area_sqm',
+  'exclusive_area_sqm',
+  'exclusive_ratio',
+  'current_monthly_rent_total',
+  'current_monthly_mf_total',
+  'current_monthly_cost_total',
+  'e_noc',
+  'contract_years',
+  'extension_count',
+  'deposit_amount',
+  'rf_months',
+  'fo_months',
+  'ti_amount',
+  'rent_escalation_rate',
+  'management_fee_escalation_rate',
+  'escalation_cycle_months',
+  'monthly_rent_total',
+  'monthly_mf_total',
+  'rent_per_py',
+  'mf_per_py',
+]);
+
+function snakeCaseName(value: unknown) {
+  return safeText(value)
+    .replace(/[A-Z]/gu, (match) => `_${match.toLowerCase()}`)
+    .replace(/[^a-zA-Z0-9_]+/gu, '_')
+    .replace(/^_+|_+$/gu, '')
+    .toLowerCase();
+}
+
+function canonicalLeaseEventFieldName(value: unknown) {
+  const snake = snakeCaseName(value);
+  return LEASE_EVENT_FIELD_ALIASES[snake] || snake;
+}
+
+function leaseEventPayloadFields(eventPayload: Record<string, unknown>) {
+  const after = (eventPayload.after && typeof eventPayload.after === 'object' && !Array.isArray(eventPayload.after))
+    ? eventPayload.after as Record<string, unknown>
+    : {};
+  const nestedFields = after.fields && typeof after.fields === 'object' && !Array.isArray(after.fields)
+    ? after.fields as Record<string, unknown>
+    : {};
+  return { ...after, ...nestedFields };
+}
+
+function leaseEventFieldValue(fields: Record<string, unknown>, ...keys: string[]) {
+  for (const key of keys) {
+    const candidates = [key, canonicalLeaseEventFieldName(key), snakeCaseName(key)];
+    for (const candidate of candidates) {
+      if (Object.prototype.hasOwnProperty.call(fields, candidate) && fields[candidate] !== '') return fields[candidate];
+    }
+  }
+  return undefined;
+}
+
+function leaseEventNumber(value: unknown) {
+  const numeric = numberValue(value);
+  return numeric === null ? null : numeric;
+}
+
+function leaseEventDate(value: unknown) {
+  const text = safeText(value);
+  if (!text) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(text)) return text;
+  const parsed = Date.parse(text);
+  if (!Number.isFinite(parsed)) return null;
+  return new Date(parsed).toISOString().slice(0, 10);
+}
+
+function leaseEventBoolean(value: unknown) {
+  const text = safeText(value).toLowerCase();
+  if (!text) return null;
+  if (['true', '1', 'y', 'yes', 'o', 'ok', 'active'].includes(text)) return true;
+  if (['false', '0', 'n', 'no', 'x', 'inactive'].includes(text)) return false;
+  if (/^y|yes|true|해당|예|사용|단일|선임차|3pl$/iu.test(text)) return true;
+  if (/^n|no|false|미해당|아니|없음$/iu.test(text)) return false;
+  return null;
+}
+
+function coerceLeaseEventValue(fieldName: string, value: unknown) {
+  if (LEASE_EVENT_DATE_FIELDS.has(fieldName)) return leaseEventDate(value);
+  if (LEASE_EVENT_BOOLEAN_FIELDS.has(fieldName)) return leaseEventBoolean(value);
+  if (LEASE_EVENT_NUMBER_FIELDS.has(fieldName)) return leaseEventNumber(value);
+  return value === undefined ? null : value;
+}
+
+function leaseEventMode(eventPayload: Record<string, unknown>) {
+  const eventType = safeText(eventPayload.event_type);
+  if (eventType === 'new_lease') return 'add';
+  if (['expiry_vacancy', 'partial_vacancy'].includes(eventType)) return 'archive';
+  const cells = Array.isArray(eventPayload.cell_edits) ? eventPayload.cell_edits as Record<string, unknown>[] : [];
+  const hasRentHistoryCell = cells.some((cell) => {
+    const targetTable = normalizePublicLlTable(firstDefined(cell.target_table, cell.source_table, ''));
+    const sourceSheet = normalizeKey(firstDefined(cell.source_sheet, cell.sourceSheet, ''));
+    return targetTable === 'public.ll_rent_history' || sourceSheet.includes('history') || sourceSheet.includes('히스토리');
+  });
+  return hasRentHistoryCell || eventType === 'rent_change' ? 'rent_change' : 'update';
+}
+
+function normalizeLeaseEventCells(eventPayload: Record<string, unknown>) {
+  return normalizeEditCells({
+    source_table: 'public.ll_lease_spaces',
+    target_row_id: eventPayload.lease_space_id || null,
+    field_name: 'lease_contract_event',
+    request_payload: {
+      ...eventPayload,
+      cell_edits: Array.isArray(eventPayload.cell_edits) ? eventPayload.cell_edits : [],
+    },
+  });
+}
+
+function isLeaseEventRentHistoryCell(cell: NormalizedEditCell) {
+  const sourceSheet = normalizeKey(cell.sourceSheet);
+  return cell.targetTable === 'public.ll_rent_history'
+    || sourceSheet.includes('history')
+    || sourceSheet.includes('히스토리');
+}
+
+function leaseEventTargetForCell(cell: NormalizedEditCell) {
+  if (cell.sourceOnly || cell.targetTable === 'source_only') return { kind: 'source_only', table: 'public.ll_lease_attributes', fieldName: canonicalLeaseEventFieldName(cell.fieldName) };
+  if (isLeaseEventRentHistoryCell(cell)) return { kind: 'rent_history_append', table: 'public.ll_rent_history', fieldName: canonicalLeaseEventFieldName(cell.fieldName) };
+  const fieldName = canonicalLeaseEventFieldName(cell.fieldName);
+  if (LEASE_EVENT_ASSET_FIELDS.has(fieldName)) return { kind: 'direct', table: 'public.ll_assets', fieldName };
+  if (LEASE_EVENT_TENANT_FIELDS.has(fieldName)) return { kind: 'direct', table: 'public.ll_tenants', fieldName };
+  if (LEASE_EVENT_LEASE_FIELDS.has(fieldName)) return { kind: 'direct', table: 'public.ll_leases', fieldName };
+  if (LEASE_EVENT_SPACE_FIELDS.has(fieldName)) return { kind: 'direct', table: 'public.ll_lease_spaces', fieldName };
+  if (LEASE_EVENT_RENT_HISTORY_FIELDS.has(fieldName)) return { kind: 'rent_history_append', table: 'public.ll_rent_history', fieldName };
+  return { kind: 'source_only', table: 'public.ll_lease_attributes', fieldName };
+}
+
+function leaseEventPrimaryKeyField(table: string) {
+  if (table === 'public.ll_assets') return 'asset_id';
+  if (table === 'public.ll_tenants') return 'tenant_id';
+  if (table === 'public.ll_leases') return 'lease_id';
+  if (table === 'public.ll_lease_spaces') return 'lease_space_id';
+  if (table === 'public.ll_rent_history') return 'rent_history_id';
+  return 'id';
+}
+
+function leaseEventTargetRowId(cell: NormalizedEditCell, table: string, eventPayload: Record<string, unknown>) {
+  if (table === 'public.ll_assets') return safeText(firstDefined(cell.assetId, eventPayload.asset_id));
+  if (table === 'public.ll_tenants') return safeText(cell.tenantId);
+  if (table === 'public.ll_leases') return safeText(cell.leaseId);
+  if (table === 'public.ll_lease_spaces') return safeText(firstDefined(cell.leaseSpaceId, eventPayload.lease_space_id, cell.targetRowId));
+  return safeText(cell.targetRowId);
+}
+
+function leaseEventIsArchivedStatus(value: unknown) {
+  const status = safeText(value).toLowerCase();
+  return status.includes('archiv')
+    || status.includes('terminated')
+    || status.includes('expired')
+    || status.includes('inactive')
+    || status.includes('cancelled')
+    || status.includes('종료')
+    || status.includes('만료');
+}
+
+function safeIdSegment(value: unknown, fallback = 'na') {
+  const normalized = safeText(value)
+    .toLowerCase()
+    .replace(/\s+/gu, '')
+    .replace(/[^a-z0-9가-힣_-]+/giu, '-')
+    .replace(/^-+|-+$/gu, '');
+  return normalized || fallback;
+}
+
+async function deterministicLeaseEventId(prefix: string, parts: unknown[]) {
+  const hash = await sha256Text(parts.map((part) => safeText(part)).join('|'));
+  return `${prefix}_${hash.slice(0, 24)}`;
+}
+
+function leaseEventSourcePayload(eventPayload: Record<string, unknown>, extra: Record<string, unknown> = {}) {
+  return redactSensitivePayload({
+    edge_action: 'lease-events/submit',
+    kind: eventPayload.kind,
+    event_type: eventPayload.event_type,
+    source_rows: eventPayload.source_rows || [],
+    source_refs: eventPayload.source_refs || [],
+    after: eventPayload.after || {},
+    ...extra,
+  });
+}
+
+async function readLeaseEventRow(ctx: Context, table: string, primaryKeyField: string, id: unknown) {
+  const rowId = safeText(id);
+  if (!rowId) return null;
+  const { data, error } = await ctx.serviceClient
+    .from(clientTableName(table))
+    .select('*')
+    .eq(primaryKeyField, rowId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`${table} read failed: ${error.message}`);
+  return data as Record<string, unknown> | null;
+}
+
+async function writeLeaseEventDataAudit(
+  ctx: Context,
+  editRequestId: string,
+  action: string,
+  table: string,
+  rowId: string,
+  fieldName: string,
+  beforeValue: unknown,
+  afterValue: unknown,
+  readbackValue: unknown,
+  status: string,
+) {
+  const { error } = await ctx.serviceClient.from('ll_audit_events').insert({
+    event_type: 'data_change',
+    edit_request_id: /^[0-9a-f-]{36}$/iu.test(editRequestId) ? editRequestId : null,
+    action,
+    target_table: table,
+    target_row_id: rowId || null,
+    field_name: fieldName,
+    before_value: normalizeText(beforeValue),
+    after_value: normalizeText(afterValue),
+    readback_value: normalizeText(readbackValue),
+    actor_id: ctx.user.id,
+    approver_id: ctx.user.id,
+    approval_status: status,
+    legacy_table: 'public.ll_audit_events',
+    event_status: status,
+    metadata: redactSensitivePayload({ edge_action: 'lease-events/submit' }),
+  });
+  if (error) throw new Error(`Failed to write lease event audit log: ${error.message}`);
+}
+
+async function insertLeaseEventRow(
+  ctx: Context,
+  applied: LeaseEventAppliedWrite[],
+  table: string,
+  primaryKeyField: string,
+  row: Record<string, unknown>,
+) {
+  const { data, error } = await ctx.serviceClient
+    .from(clientTableName(table))
+    .insert(stripUndefined(row) as Record<string, unknown>)
+    .select('*')
+    .single();
+  if (error) throw new Error(`${table} insert failed: ${error.message}`);
+  const id = safeText(data?.[primaryKeyField] || row[primaryKeyField]);
+  applied.push({ operation: 'insert', table, primaryKeyField, id, after: data as Record<string, unknown> });
+  return data as Record<string, unknown>;
+}
+
+async function updateLeaseEventRow(
+  ctx: Context,
+  applied: LeaseEventAppliedWrite[],
+  table: string,
+  primaryKeyField: string,
+  id: string,
+  patch: Record<string, unknown>,
+) {
+  const before = await readLeaseEventRow(ctx, table, primaryKeyField, id);
+  if (!before) throw new Error(`${table} target row was not found`);
+  const { data, error } = await ctx.serviceClient
+    .from(clientTableName(table))
+    .update(stripUndefined({ ...patch, updated_at: new Date().toISOString() }) as Record<string, unknown>)
+    .eq(primaryKeyField, id)
+    .select('*')
+    .single();
+  if (error) throw new Error(`${table} update failed: ${error.message}`);
+  applied.push({ operation: 'update', table, primaryKeyField, id, before, after: data as Record<string, unknown> });
+  return data as Record<string, unknown>;
+}
+
+async function rollbackLeaseEventWrites(ctx: Context, applied: LeaseEventAppliedWrite[]) {
+  const readbacks: Record<string, unknown>[] = [];
+  for (const item of [...applied].reverse()) {
+    if (item.operation === 'source_only' && item.sourceOnlyRollback) {
+      const sourceReadbacks = await rollbackSourceOnlyContractAttributes(ctx, 'lease-event-rollback', [item.sourceOnlyRollback]);
+      readbacks.push(...sourceReadbacks);
+      continue;
+    }
+    if (item.operation === 'insert') {
+      const { error } = await ctx.serviceClient
+        .from(clientTableName(item.table))
+        .delete()
+        .eq(item.primaryKeyField, item.id);
+      if (error) throw new Error(`${item.table} inserted row cleanup failed: ${error.message}`);
+      readbacks.push({ target_table: item.table, target_row_id: item.id, rollback_action: 'deleted_insert' });
+      continue;
+    }
+    if (item.operation === 'update' && item.before) {
+      const { data, error } = await ctx.serviceClient
+        .from(clientTableName(item.table))
+        .update(stripUndefined(item.before) as Record<string, unknown>)
+        .eq(item.primaryKeyField, item.id)
+        .select('*')
+        .single();
+      if (error) throw new Error(`${item.table} rollback update failed: ${error.message}`);
+      readbacks.push({ target_table: item.table, target_row_id: item.id, rollback_action: 'restored_before', readback: data });
+    }
+  }
+  return readbacks;
+}
+
+function rentHistoryComparable(row: Record<string, unknown>) {
+  return {
+    effective_date: leaseEventDate(firstDefined(row.effective_date, row.basis_date)),
+    monthly_rent_total: leaseEventNumber(row.monthly_rent_total),
+    monthly_mf_total: leaseEventNumber(row.monthly_mf_total),
+    change_reason: safeText(firstDefined(row.change_reason, row.rent_change_reason)),
+  };
+}
+
+async function findRentHistoryDuplicate(
+  ctx: Context,
+  leaseSpaceId: string,
+  effectiveDate: string,
+  monthlyRentTotal: number | null,
+  monthlyMfTotal: number | null,
+  changeReason: string,
+) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_rent_history')
+    .select('*')
+    .or(`lease_space_id.eq.${leaseSpaceId},source_contract_lease_space_id.eq.${leaseSpaceId}`)
+    .eq('effective_date', effectiveDate)
+    .limit(50);
+  if (error) throw new Error(`ll_rent_history duplicate check failed: ${error.message}`);
+  const exact = (data || []).find((row: Record<string, unknown>) => {
+    const comparable = rentHistoryComparable(row);
+    return valuesEqual(comparable.monthly_rent_total, monthlyRentTotal)
+      && valuesEqual(comparable.monthly_mf_total, monthlyMfTotal)
+      && normalizeKey(comparable.change_reason) === normalizeKey(changeReason);
+  });
+  const sameDateDifferentValue = (data || []).find((row: Record<string, unknown>) => {
+    const comparable = rentHistoryComparable(row);
+    return !valuesEqual(comparable.monthly_rent_total, monthlyRentTotal)
+      || !valuesEqual(comparable.monthly_mf_total, monthlyMfTotal)
+      || normalizeKey(comparable.change_reason) !== normalizeKey(changeReason);
+  });
+  return { exact: exact || null, sameDateDifferentValue: sameDateDifferentValue || null };
+}
+
+async function latestRentHistoryForSpace(ctx: Context, leaseSpaceId: string) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_rent_history')
+    .select('*')
+    .or(`lease_space_id.eq.${leaseSpaceId},source_contract_lease_space_id.eq.${leaseSpaceId}`)
+    .order('effective_date', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`ll_rent_history latest read failed: ${error.message}`);
+  return data as Record<string, unknown> | null;
+}
+
+function rentHistoryPatchFromCells(cells: NormalizedEditCell[]) {
+  const patch: Record<string, unknown> = {};
+  for (const cell of cells.filter(isLeaseEventRentHistoryCell)) {
+    const fieldName = canonicalLeaseEventFieldName(cell.fieldName);
+    if (LEASE_EVENT_RENT_HISTORY_FIELDS.has(fieldName)) {
+      patch[fieldName] = coerceLeaseEventValue(fieldName, cell.afterValue);
+    }
+  }
+  return patch;
+}
+
+function rentHistoryInput(
+  eventPayload: Record<string, unknown>,
+  leaseSpace: Record<string, unknown>,
+  latestRent: Record<string, unknown> | null,
+  patch: Record<string, unknown>,
+) {
+  const fields = leaseEventPayloadFields(eventPayload);
+  const effectiveDate = leaseEventDate(firstDefined(
+    patch.effective_date,
+    leaseEventFieldValue(fields, 'basis_date', 'effective_date'),
+    eventPayload.effective_date,
+    latestRent?.effective_date,
+    currentKstMonthEndDate(),
+  ));
+  const monthlyRentTotal = leaseEventNumber(firstDefined(
+    patch.monthly_rent_total,
+    leaseEventFieldValue(fields, 'monthly_rent_total', 'current_monthly_rent_total'),
+    latestRent?.monthly_rent_total,
+    leaseSpace.current_monthly_rent_total,
+  ));
+  const monthlyMfTotal = leaseEventNumber(firstDefined(
+    patch.monthly_mf_total,
+    leaseEventFieldValue(fields, 'monthly_mf_total', 'current_monthly_mf_total'),
+    latestRent?.monthly_mf_total,
+    leaseSpace.current_monthly_mf_total,
+  ));
+  const leasedAreaSqm = leaseEventNumber(firstDefined(
+    patch.leased_area_sqm,
+    leaseEventFieldValue(fields, 'leased_area_sqm'),
+    latestRent?.leased_area_sqm,
+    leaseSpace.leased_area_sqm,
+  ));
+  const exclusiveAreaSqm = leaseEventNumber(firstDefined(
+    patch.exclusive_area_sqm,
+    leaseEventFieldValue(fields, 'exclusive_area_sqm'),
+    latestRent?.exclusive_area_sqm,
+    leaseSpace.exclusive_area_sqm,
+  ));
+  const rentPerPy = leaseEventNumber(firstDefined(
+    patch.rent_per_py,
+    leaseEventFieldValue(fields, 'current_rent_per_py', 'rent_per_py'),
+    latestRent?.rent_per_py,
+  ));
+  const mfPerPy = leaseEventNumber(firstDefined(
+    patch.mf_per_py,
+    leaseEventFieldValue(fields, 'current_mf_per_py', 'mf_per_py'),
+    latestRent?.mf_per_py,
+  ));
+  const changeReason = safeText(firstDefined(
+    patch.change_reason,
+    leaseEventFieldValue(fields, 'rent_change_reason', 'change_reason'),
+    eventPayload.summary,
+    'Data Update rent change',
+  ));
+  return {
+    effectiveDate,
+    monthlyRentTotal,
+    monthlyMfTotal,
+    leasedAreaSqm,
+    exclusiveAreaSqm,
+    rentPerPy,
+    mfPerPy,
+    changeReason,
+    floorLabel: safeText(firstDefined(patch.floor_label, leaseEventFieldValue(fields, 'floor_label'), leaseSpace.floor_label, latestRent?.floor_label)),
+    detailAreaLabel: safeText(firstDefined(patch.detail_area_label, leaseEventFieldValue(fields, 'detail_area_label'), leaseSpace.detail_area_label, latestRent?.detail_area_label)),
+    temperatureType: safeText(firstDefined(patch.temperature_type, leaseEventFieldValue(fields, 'temperature_type', 'cold_storage_type'), leaseSpace.temperature_type, latestRent?.temperature_type)),
+  };
+}
+
+async function buildLeaseEventPlan(ctx: Context, eventPayload: Record<string, unknown>): Promise<LeaseEventWritePlan> {
+  const mode = leaseEventMode(eventPayload);
+  const missing: string[] = [];
+  const duplicateFindings: Record<string, unknown>[] = [];
+  const warnings: string[] = [];
+  const writes: Record<string, unknown>[] = [];
+  const resolved: Record<string, unknown> = {};
+  const assetId = safeText(eventPayload.asset_id);
+  const assetName = safeText(eventPayload.asset_name);
+  if (!assetId && !assetName) missing.push('asset_id');
+
+  if (mode === 'add') {
+    const fields = leaseEventPayloadFields(eventPayload);
+    const tenantName = safeText(firstDefined(leaseEventFieldValue(fields, 'tenant_master_name', 'tenant_name'), eventPayload.tenant_name));
+    const businessRegistrationNo = safeText(leaseEventFieldValue(fields, 'business_registration_no'));
+    const floorLabel = safeText(leaseEventFieldValue(fields, 'floor_label'));
+    const detailAreaLabel = safeText(leaseEventFieldValue(fields, 'detail_area_label'));
+    const currentStartDate = leaseEventDate(leaseEventFieldValue(fields, 'current_start_date', 'first_start_date'));
+    const currentEndDate = leaseEventDate(leaseEventFieldValue(fields, 'current_end_date', 'first_end_date'));
+    const leasedAreaSqm = leaseEventNumber(leaseEventFieldValue(fields, 'leased_area_sqm'));
+    const monthlyRentTotal = leaseEventNumber(leaseEventFieldValue(fields, 'monthly_rent_total', 'current_monthly_rent_total'));
+    const monthlyMfTotal = leaseEventNumber(leaseEventFieldValue(fields, 'monthly_mf_total', 'current_monthly_mf_total'));
+    const effectiveDate = leaseEventDate(firstDefined(leaseEventFieldValue(fields, 'basis_date', 'effective_date'), eventPayload.effective_date));
+    if (!tenantName) missing.push('tenant_master_name');
+    if (!floorLabel && !detailAreaLabel) missing.push('floor_or_detail_area');
+    if (!currentStartDate) missing.push('current_start_date');
+    if (!currentEndDate) missing.push('current_end_date');
+    if (leasedAreaSqm === null) missing.push('leased_area_sqm');
+    if (monthlyRentTotal === null) missing.push('monthly_rent_total');
+    if (monthlyMfTotal === null) missing.push('monthly_mf_total');
+    if (!effectiveDate) missing.push('basis_date');
+
+    const tenantId = businessRegistrationNo
+      ? `tenant_brn_${businessRegistrationNo.replace(/\D+/gu, '')}`
+      : await deterministicLeaseEventId('tenant', [tenantName]);
+    const leaseId = [
+      safeIdSegment(assetId || assetName, 'asset'),
+      safeIdSegment(tenantId, 'tenant'),
+      safeIdSegment(currentStartDate, 'start'),
+      safeIdSegment(currentEndDate, 'end'),
+    ].join('|');
+    const leaseSpaceId = [
+      leaseId,
+      safeIdSegment(floorLabel || 'floor'),
+      safeIdSegment(detailAreaLabel || 'na'),
+    ].join('|');
+    resolved.tenant_id = tenantId;
+    resolved.lease_id = leaseId;
+    resolved.lease_space_id = leaseSpaceId;
+    if (!missing.length) {
+      const existingSpace = await readLeaseEventRow(ctx, 'public.ll_lease_spaces', 'lease_space_id', leaseSpaceId);
+      if (existingSpace) duplicateFindings.push({ type: 'new_lease_duplicate', lease_space_id: leaseSpaceId });
+    }
+    writes.push(
+      { operation: 'upsert_or_insert', table: 'll_tenants', key: tenantId },
+      { operation: 'insert', table: 'll_leases', key: leaseId },
+      { operation: 'insert', table: 'll_lease_spaces', key: leaseSpaceId },
+      { operation: 'append', table: 'll_rent_history', key: 'new_initial_history' },
+    );
+  } else if (mode === 'archive') {
+    const leaseSpaceId = safeText(eventPayload.lease_space_id);
+    if (!leaseSpaceId) missing.push('lease_space_id');
+    const leaseSpace = leaseSpaceId ? await readLeaseEventRow(ctx, 'public.ll_lease_spaces', 'lease_space_id', leaseSpaceId) : null;
+    if (leaseSpaceId && !leaseSpace) missing.push('existing_lease_space');
+    if (leaseSpace && leaseEventIsArchivedStatus(leaseSpace.contract_status)) {
+      duplicateFindings.push({ type: 'already_archived', lease_space_id: leaseSpaceId, contract_status: leaseSpace.contract_status });
+    }
+    resolved.lease_space = leaseSpace || null;
+    writes.push({ operation: 'archive', table: 'll_lease_spaces', key: leaseSpaceId });
+    if (leaseSpace?.lease_id) writes.push({ operation: 'archive', table: 'll_leases', key: leaseSpace.lease_id });
+  } else {
+    const cells = normalizeLeaseEventCells(eventPayload);
+    const rentCells = cells.filter(isLeaseEventRentHistoryCell);
+    const directCells = cells.filter((cell) => leaseEventTargetForCell(cell).kind === 'direct');
+    const sourceOnlyCells = cells.filter((cell) => leaseEventTargetForCell(cell).kind === 'source_only');
+    writes.push(
+      ...directCells.map((cell) => {
+        const target = leaseEventTargetForCell(cell);
+        return { operation: 'update', table: clientTableName(target.table), field_name: target.fieldName };
+      }),
+      ...sourceOnlyCells.map((cell) => ({ operation: 'preserve_detail', table: 'll_lease_attributes', field_name: canonicalLeaseEventFieldName(cell.fieldName) })),
+    );
+    if (rentCells.length || mode === 'rent_change') {
+      const leaseSpaceId = safeText(firstDefined(eventPayload.lease_space_id, rentCells[0]?.leaseSpaceId));
+      if (!leaseSpaceId) missing.push('lease_space_id');
+      const leaseSpace = leaseSpaceId ? await readLeaseEventRow(ctx, 'public.ll_lease_spaces', 'lease_space_id', leaseSpaceId) : null;
+      if (leaseSpaceId && !leaseSpace) missing.push('existing_lease_space');
+      if (leaseSpace) {
+        const latestRent = await latestRentHistoryForSpace(ctx, leaseSpaceId);
+        const patch = rentHistoryPatchFromCells(rentCells);
+        const rentInput = rentHistoryInput(eventPayload, leaseSpace, latestRent, patch);
+        if (!rentInput.effectiveDate) missing.push('basis_date');
+        if (rentInput.monthlyRentTotal === null) missing.push('monthly_rent_total');
+        if (rentInput.monthlyMfTotal === null) missing.push('monthly_mf_total');
+        if (rentInput.effectiveDate && rentInput.monthlyRentTotal !== null && rentInput.monthlyMfTotal !== null) {
+          const duplicate = await findRentHistoryDuplicate(ctx, leaseSpaceId, rentInput.effectiveDate, rentInput.monthlyRentTotal, rentInput.monthlyMfTotal, rentInput.changeReason);
+          if (duplicate.exact) duplicateFindings.push({ type: 'rent_history_exact_duplicate', rent_history_id: duplicate.exact.rent_history_id });
+          if (duplicate.sameDateDifferentValue) duplicateFindings.push({ type: 'rent_history_same_date_requires_correction', rent_history_id: duplicate.sameDateDifferentValue.rent_history_id });
+        }
+        resolved.rent_input = rentInput;
+        resolved.lease_space = leaseSpace;
+        resolved.latest_rent_history = latestRent;
+        writes.push({ operation: 'append', table: 'll_rent_history', key: leaseSpaceId });
+      }
+    }
+  }
+
+  return {
+    mode,
+    status: missing.length || duplicateFindings.length ? 'blocked' : 'ready',
+    required_missing: [...new Set(missing)],
+    duplicate_findings: duplicateFindings,
+    warnings,
+    writes,
+    resolved,
+  };
+}
+
+function leaseEventReadbackSummary(applied: LeaseEventAppliedWrite[]) {
+  return applied.map((item) => ({
+    operation: item.operation,
+    target_table: item.table,
+    target_row_id: item.id,
+    before: item.before ? stableComparable(item.before) : null,
+    after: item.after ? stableComparable(item.after) : null,
+  }));
+}
+
+async function resolveExistingTenant(ctx: Context, tenantId: string, tenantName: string, businessRegistrationNo: string) {
+  if (businessRegistrationNo) {
+    const { data, error } = await ctx.serviceClient
+      .from('ll_tenants')
+      .select('*')
+      .eq('business_registration_no', businessRegistrationNo)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(`ll_tenants business registration lookup failed: ${error.message}`);
+    if (data) return data as Record<string, unknown>;
+  }
+  if (tenantName) {
+    const { data, error } = await ctx.serviceClient
+      .from('ll_tenants')
+      .select('*')
+      .eq('tenant_master_name', tenantName)
+      .limit(1)
+      .maybeSingle();
+    if (error) throw new Error(`ll_tenants name lookup failed: ${error.message}`);
+    if (data) return data as Record<string, unknown>;
+  }
+  return readLeaseEventRow(ctx, 'public.ll_tenants', 'tenant_id', tenantId);
+}
+
+function leaseEventPatchFromFields(fields: Record<string, unknown>, allowed: Set<string>, aliases: Record<string, string> = {}) {
+  const patch: Record<string, unknown> = {};
+  for (const [rawKey, rawValue] of Object.entries(fields)) {
+    const fieldName = aliases[canonicalLeaseEventFieldName(rawKey)] || canonicalLeaseEventFieldName(rawKey);
+    if (!allowed.has(fieldName)) continue;
+    const value = coerceLeaseEventValue(fieldName, rawValue);
+    if (value !== null && value !== undefined && value !== '') patch[fieldName] = value;
+  }
+  return patch;
+}
+
+function leaseEventInsuranceTerms(fields: Record<string, unknown>) {
+  return stripUndefined({
+    property_insurance_limit: leaseEventNumber(leaseEventFieldValue(fields, 'property_insurance_limit')),
+    liability_insurance_limit: leaseEventNumber(leaseEventFieldValue(fields, 'liability_insurance_limit')),
+    business_interruption_insurance_limit: leaseEventNumber(leaseEventFieldValue(fields, 'business_interruption_insurance_limit')),
+    inventory_insurance_limit: leaseEventNumber(leaseEventFieldValue(fields, 'inventory_insurance_limit')),
+    waiver_recourse_yn: leaseEventFieldValue(fields, 'waiver_recourse_yn'),
+    waiver_subrogation_yn: leaseEventFieldValue(fields, 'waiver_subrogation_yn'),
+  }) as Record<string, unknown>;
+}
+
+function leaseEventFacilitySpecs(fields: Record<string, unknown>) {
+  return stripUndefined({
+    floor_load: leaseEventFieldValue(fields, 'floor_load'),
+    flatness_standard: leaseEventFieldValue(fields, 'flatness_standard'),
+    abrasion_class: leaseEventFieldValue(fields, 'abrasion_class'),
+    dock_door_count: leaseEventNumber(leaseEventFieldValue(fields, 'dock_door_count')),
+    clear_height: leaseEventNumber(leaseEventFieldValue(fields, 'clear_height')),
+    power_capacity: leaseEventNumber(leaseEventFieldValue(fields, 'power_capacity')),
+    ramp_type: leaseEventFieldValue(fields, 'ramp_type'),
+    ramp_width: leaseEventNumber(leaseEventFieldValue(fields, 'ramp_width')),
+    vehicle_aisle_width: leaseEventNumber(leaseEventFieldValue(fields, 'vehicle_aisle_width')),
+    lighting: leaseEventFieldValue(fields, 'lighting'),
+    exterior_material: leaseEventFieldValue(fields, 'exterior_material'),
+  }) as Record<string, unknown>;
+}
+
+function leaseEventAreaBreakdown(fields: Record<string, unknown>) {
+  return stripUndefined({
+    warehouse_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'warehouse_area_sqm')),
+    dock_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'dock_area_sqm')),
+    office_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'office_area_sqm')),
+    other_exclusive_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'other_exclusive_area_sqm')),
+    corridor_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'corridor_area_sqm')),
+    ramp_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'ramp_area_sqm')),
+    mechanical_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'mechanical_area_sqm')),
+    parking_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'parking_area_sqm')),
+    core_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'core_area_sqm')),
+    other_common_area_sqm: leaseEventNumber(leaseEventFieldValue(fields, 'other_common_area_sqm')),
+  }) as Record<string, unknown>;
+}
+
+async function writeRentHistoryAppend(
+  ctx: Context,
+  editRequestId: string,
+  applied: LeaseEventAppliedWrite[],
+  eventPayload: Record<string, unknown>,
+  leaseSpace: Record<string, unknown>,
+  latestRent: Record<string, unknown> | null,
+  patch: Record<string, unknown>,
+) {
+  const leaseSpaceId = safeText(leaseSpace.lease_space_id);
+  const rentInput = rentHistoryInput(eventPayload, leaseSpace, latestRent, patch);
+  if (!rentInput.effectiveDate || rentInput.monthlyRentTotal === null || rentInput.monthlyMfTotal === null) {
+    throw new Error('Rent history append requires basis date, monthly rent total, and monthly management fee total');
+  }
+  const duplicate = await findRentHistoryDuplicate(
+    ctx,
+    leaseSpaceId,
+    rentInput.effectiveDate,
+    rentInput.monthlyRentTotal,
+    rentInput.monthlyMfTotal,
+    rentInput.changeReason,
+  );
+  if (duplicate.exact) {
+    const error = new Error('Duplicate rent history row was blocked') as Error & { status?: number; detail?: unknown };
+    error.status = 409;
+    error.detail = { rent_history_id: duplicate.exact.rent_history_id };
+    throw error;
+  }
+  if (duplicate.sameDateDifferentValue) {
+    const error = new Error('Same basis date with different rent values requires a correction workflow') as Error & { status?: number; detail?: unknown };
+    error.status = 409;
+    error.detail = { rent_history_id: duplicate.sameDateDifferentValue.rent_history_id };
+    throw error;
+  }
+
+  const previousLatestRows = (await safeSelectRows(ctx, 'll_rent_history', 10000))
+    .filter((row) => (
+      safeText(firstDefined(row.source_contract_lease_space_id, row.lease_space_id)) === leaseSpaceId
+      && (row.is_latest === true || safeText(row.is_latest).toLowerCase() === 'true')
+    ));
+  for (const row of previousLatestRows) {
+    await updateLeaseEventRow(ctx, applied, 'public.ll_rent_history', 'rent_history_id', safeText(row.rent_history_id), { is_latest: false });
+  }
+
+  const monthlyCostTotal = Number(rentInput.monthlyRentTotal || 0) + Number(rentInput.monthlyMfTotal || 0);
+  const leasedAreaPy = Number(rentInput.leasedAreaSqm || leaseSpace.leased_area_sqm || 0) * 0.3025;
+  const rentHistoryId = await deterministicLeaseEventId('rent_evt', [
+    leaseSpaceId,
+    rentInput.effectiveDate,
+    rentInput.monthlyRentTotal,
+    rentInput.monthlyMfTotal,
+    rentInput.changeReason,
+  ]);
+  const rentRow = await insertLeaseEventRow(ctx, applied, 'public.ll_rent_history', 'rent_history_id', {
+    rent_history_id: rentHistoryId,
+    lease_space_id: leaseSpaceId,
+    source_contract_lease_space_id: leaseSpaceId,
+    lease_id: leaseSpace.lease_id || null,
+    asset_id: leaseSpace.asset_id || eventPayload.asset_id || null,
+    tenant_id: leaseSpace.tenant_id || null,
+    effective_date: rentInput.effectiveDate,
+    change_reason: rentInput.changeReason,
+    leased_area_sqm: rentInput.leasedAreaSqm,
+    exclusive_area_sqm: rentInput.exclusiveAreaSqm,
+    monthly_rent_total: rentInput.monthlyRentTotal,
+    monthly_mf_total: rentInput.monthlyMfTotal,
+    rent_per_py: rentInput.rentPerPy,
+    mf_per_py: rentInput.mfPerPy,
+    is_latest: true,
+    floor_label: rentInput.floorLabel || null,
+    detail_area_label: rentInput.detailAreaLabel || null,
+    temperature_type: rentInput.temperatureType || null,
+    source_payload: leaseEventSourcePayload(eventPayload, { source: 'Data Update rent history append' }),
+    review_status: 'data_update_written',
+    review_note: 'Data Update canonical rent history append',
+  });
+  const spacePatch = {
+    current_monthly_rent_total: rentInput.monthlyRentTotal,
+    current_monthly_mf_total: rentInput.monthlyMfTotal,
+    current_monthly_cost_total: monthlyCostTotal,
+    e_noc: leasedAreaPy > 0 ? Math.round((monthlyCostTotal / leasedAreaPy) * 100) / 100 : leaseSpace.e_noc,
+    review_status: 'data_update_latest_rent_applied',
+  };
+  await updateLeaseEventRow(ctx, applied, 'public.ll_lease_spaces', 'lease_space_id', leaseSpaceId, spacePatch);
+  await writeLeaseEventDataAudit(ctx, editRequestId, 'lease_event_rent_history_append', 'public.ll_rent_history', rentHistoryId, 'rent_history', latestRent, rentRow, rentRow, 'written');
+  return rentRow;
+}
+
+async function applyNewLeaseEvent(ctx: Context, editRequestId: string, eventPayload: Record<string, unknown>, plan: LeaseEventWritePlan, applied: LeaseEventAppliedWrite[]) {
+  const fields = leaseEventPayloadFields(eventPayload);
+  const tenantId = safeText(plan.resolved.tenant_id);
+  const leaseId = safeText(plan.resolved.lease_id);
+  const leaseSpaceId = safeText(plan.resolved.lease_space_id);
+  const tenantName = safeText(firstDefined(leaseEventFieldValue(fields, 'tenant_master_name', 'tenant_name'), eventPayload.tenant_name));
+  const businessRegistrationNo = safeText(leaseEventFieldValue(fields, 'business_registration_no'));
+  const existingTenant = await resolveExistingTenant(ctx, tenantId, tenantName, businessRegistrationNo);
+  if (!existingTenant) {
+    await insertLeaseEventRow(ctx, applied, 'public.ll_tenants', 'tenant_id', {
+      tenant_id: tenantId,
+      tenant_master_name: tenantName,
+      raw_tenant_name: tenantName,
+      business_registration_no: businessRegistrationNo || null,
+      source_payload: leaseEventSourcePayload(eventPayload, { source: 'Data Update new lease tenant' }),
+      review_status: 'data_update_written',
+      review_note: 'Data Update canonical tenant create',
+    });
+  }
+
+  const leasePatch = leaseEventPatchFromFields(fields, LEASE_EVENT_LEASE_FIELDS);
+  const insuranceTerms = leaseEventInsuranceTerms(fields);
+  const leaseRow = await insertLeaseEventRow(ctx, applied, 'public.ll_leases', 'lease_id', {
+    lease_id: leaseId,
+    asset_id: eventPayload.asset_id || null,
+    tenant_id: existingTenant?.tenant_id || tenantId,
+    lease_status: 'active',
+    ...leasePatch,
+    insurance_terms_json: insuranceTerms,
+    special_terms: safeText(firstDefined(leaseEventFieldValue(fields, 'other_special_terms'), leaseEventFieldValue(fields, 'insurance_special_terms'), leasePatch.special_terms)) || null,
+    source_payload: leaseEventSourcePayload(eventPayload, { source: 'Data Update new lease' }),
+    review_status: 'data_update_written',
+    review_note: 'Data Update canonical lease create',
+  });
+
+  const spacePatch = leaseEventPatchFromFields(fields, LEASE_EVENT_SPACE_FIELDS);
+  const currentMonthlyRentTotal = leaseEventNumber(firstDefined(leaseEventFieldValue(fields, 'current_monthly_rent_total'), leaseEventFieldValue(fields, 'monthly_rent_total')));
+  const currentMonthlyMfTotal = leaseEventNumber(firstDefined(leaseEventFieldValue(fields, 'current_monthly_mf_total'), leaseEventFieldValue(fields, 'monthly_mf_total')));
+  const leasedAreaSqm = leaseEventNumber(firstDefined(spacePatch.leased_area_sqm, leaseEventFieldValue(fields, 'leased_area_sqm')));
+  const monthlyCostTotal = Number(currentMonthlyRentTotal || 0) + Number(currentMonthlyMfTotal || 0);
+  const leasedAreaPy = Number(leasedAreaSqm || 0) * 0.3025;
+  const leaseSpace = await insertLeaseEventRow(ctx, applied, 'public.ll_lease_spaces', 'lease_space_id', {
+    lease_space_id: leaseSpaceId,
+    lease_id: leaseId,
+    asset_id: eventPayload.asset_id || null,
+    tenant_id: existingTenant?.tenant_id || tenantId,
+    ...spacePatch,
+    leased_area_sqm: leasedAreaSqm,
+    current_monthly_rent_total: currentMonthlyRentTotal,
+    current_monthly_mf_total: currentMonthlyMfTotal,
+    current_monthly_cost_total: monthlyCostTotal,
+    e_noc: leasedAreaPy > 0 ? Math.round((monthlyCostTotal / leasedAreaPy) * 100) / 100 : null,
+    area_breakdown_json: leaseEventAreaBreakdown(fields),
+    facility_specs_json: leaseEventFacilitySpecs(fields),
+    contract_status: 'active',
+    formula_version: 'data_update_v1',
+    source_payload: leaseEventSourcePayload(eventPayload, { source: 'Data Update new lease space' }),
+    review_status: 'data_update_written',
+    review_note: 'Data Update canonical lease space create',
+  });
+  await writeRentHistoryAppend(ctx, editRequestId, applied, eventPayload, leaseSpace, null, {});
+  await writeLeaseEventDataAudit(ctx, editRequestId, 'lease_event_new_lease', 'public.ll_leases', safeText(leaseRow.lease_id), 'new_lease', null, leaseRow, leaseRow, 'written');
+}
+
+async function applyArchiveLeaseEvent(ctx: Context, editRequestId: string, eventPayload: Record<string, unknown>, plan: LeaseEventWritePlan, applied: LeaseEventAppliedWrite[]) {
+  const leaseSpace = plan.resolved.lease_space as Record<string, unknown> | null;
+  if (!leaseSpace) throw new Error('Archive target lease space was not found');
+  const leaseSpaceId = safeText(leaseSpace.lease_space_id);
+  const archivedAt = new Date().toISOString();
+  const updatedSpace = await updateLeaseEventRow(ctx, applied, 'public.ll_lease_spaces', 'lease_space_id', leaseSpaceId, {
+    contract_status: 'archived',
+    review_status: 'data_update_archived',
+    review_note: `Data Update archived at ${archivedAt}`,
+  });
+  if (leaseSpace.lease_id) {
+    await updateLeaseEventRow(ctx, applied, 'public.ll_leases', 'lease_id', safeText(leaseSpace.lease_id), {
+      lease_status: 'archived',
+      review_status: 'data_update_archived',
+      review_note: `Data Update archived at ${archivedAt}`,
+    });
+  }
+  await writeLeaseEventDataAudit(ctx, editRequestId, 'lease_event_archive', 'public.ll_lease_spaces', leaseSpaceId, 'contract_status', leaseSpace.contract_status, 'archived', updatedSpace.contract_status, 'written');
+}
+
+async function applyUpdateLeaseEvent(ctx: Context, editRequestId: string, eventPayload: Record<string, unknown>, plan: LeaseEventWritePlan, applied: LeaseEventAppliedWrite[]) {
+  const cells = normalizeLeaseEventCells(eventPayload);
+  const rentCells = cells.filter(isLeaseEventRentHistoryCell);
+  for (const cell of cells) {
+    const target = leaseEventTargetForCell(cell);
+    if (target.kind === 'rent_history_append') continue;
+    if (target.kind === 'source_only') {
+      const sourceCell = { ...cell, targetTable: 'source_only', sourceOnly: true, fieldName: target.fieldName } as NormalizedEditCell;
+      const result = await writeSourceOnlyContractAttribute(ctx, editRequestId, sourceCell);
+      applied.push({ operation: 'source_only', table: 'public.ll_lease_attributes', primaryKeyField: 'id', id: safeText(result.insertedId), sourceOnlyRollback: { cell: result.cell, previous: result.previous, insertedId: result.insertedId } });
+      continue;
+    }
+    const targetRowId = leaseEventTargetRowId(cell, target.table, eventPayload);
+    const primaryKeyField = leaseEventPrimaryKeyField(target.table);
+    if (!targetRowId) throw new Error(`${target.table} target row id is required for ${target.fieldName}`);
+    const writeCell = {
+      ...cell,
+      targetTable: target.table,
+      primaryKeyField,
+      targetRowId,
+      fieldName: target.fieldName,
+      sourceOnly: false,
+    } as NormalizedEditCell;
+    const beforeReadback = await readTargetCell(ctx, writeCell);
+    if (!valuesEqual(beforeReadback, cell.beforeValue)) {
+      const error = new Error('Stale value blocked before write') as Error & { status?: number; detail?: unknown };
+      error.status = 409;
+      error.detail = { cell: publicEditCell(writeCell), readback: beforeReadback };
+      throw error;
+    }
+    const nextValue = coerceLeaseEventValue(target.fieldName, cell.afterValue);
+    const updated = await updateLeaseEventRow(ctx, applied, target.table, primaryKeyField, targetRowId, { [target.fieldName]: nextValue });
+    await writeLeaseEventDataAudit(ctx, editRequestId, 'lease_event_field_update', target.table, targetRowId, target.fieldName, beforeReadback, nextValue, updated[target.fieldName], 'written');
+  }
+
+  if (rentCells.length || plan.mode === 'rent_change') {
+    const leaseSpace = (plan.resolved.lease_space || null) as Record<string, unknown> | null;
+    const latestRent = (plan.resolved.latest_rent_history || null) as Record<string, unknown> | null;
+    if (!leaseSpace) throw new Error('Rent history target lease space was not found');
+    await writeRentHistoryAppend(ctx, editRequestId, applied, eventPayload, leaseSpace, latestRent, rentHistoryPatchFromCells(rentCells));
+  }
+}
+
 async function previewLeaseEvent(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'lease-events/preview', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const eventPayload = normalizeLeaseEventPayload(payload);
   if (!eventPayload.asset_id && !eventPayload.asset_name) return fail(400, 'asset_id or asset_name is required', ctx.origin);
   if (!canReadRelatedAsset(ctx, eventPayload.asset_id || eventPayload.asset_name)) return fail(403, 'Asset is not readable for this user', ctx.origin);
-  const leaseSpaces = await safeSelectRows(ctx, 'll_lease_spaces', 2000);
-  const targetRows = leaseSpaces.filter((row) => {
-    const matchesAsset = normalizeKey(row.asset_id) === normalizeKey(eventPayload.asset_id)
-      || normalizeKey(row.asset_name) === normalizeKey(eventPayload.asset_name);
-    const matchesLeaseSpace = !eventPayload.lease_space_id || normalizeKey(row.lease_space_id) === normalizeKey(eventPayload.lease_space_id);
-    return matchesAsset && matchesLeaseSpace;
-  }).slice(0, 50);
+  const plan = await buildLeaseEventPlan(ctx, eventPayload);
   return jsonResponse({
     ok: true,
     data: {
       event: eventPayload,
-      target_row_count: targetRows.length,
-      preview: {
-        write_mode: 'approval_required',
-        direct_browser_write: false,
-        expected_tables: ['ll_leases', 'll_lease_spaces', 'll_rent_history', 'll_lease_attributes'],
-      },
+      target_row_count: plan.writes.length,
+      preview: plan,
     },
   }, 200, ctx.origin);
 }
@@ -2321,6 +3285,11 @@ async function submitLeaseEvent(ctx: Context, payload: Record<string, unknown>) 
   if (!eventPayload.asset_id && !eventPayload.asset_name) return fail(400, 'asset_id or asset_name is required', ctx.origin);
   if (!eventPayload.summary) return fail(400, 'summary is required', ctx.origin);
   if (!canWriteRelatedAsset(ctx, eventPayload.asset_id || eventPayload.asset_name, eventPayload.asset_name)) return fail(403, 'Insufficient asset write permission for lease event', ctx.origin);
+  const plan = await buildLeaseEventPlan(ctx, eventPayload);
+  if (plan.required_missing.length) return fail(400, 'Lease event has missing required fields', ctx.origin, { required_missing: plan.required_missing, preview: plan });
+  if (plan.duplicate_findings.length) return fail(409, 'Lease event was blocked by duplicate or correction rules', ctx.origin, { duplicate_findings: plan.duplicate_findings, preview: plan });
+
+  const startedAt = new Date().toISOString();
   const { data, error } = await ctx.serviceClient
     .from('ll_edit_requests')
     .insert({
@@ -2332,15 +3301,100 @@ async function submitLeaseEvent(ctx: Context, payload: Record<string, unknown>) 
       reason_code: eventPayload.event_type,
       before_value: JSON.stringify(eventPayload.before || {}),
       requested_value: eventPayload.summary,
-      request_payload: eventPayload,
+      request_payload: redactSensitivePayload({ ...eventPayload, preview: plan }),
       requested_by: ctx.user.id,
-      status: 'submitted',
+      approved_by: ctx.user.id,
+      approved_at: startedAt,
+      status: 'auto_write_running',
+      write_started_at: startedAt,
     })
     .select('id, status, created_at')
     .single();
   if (error) return fail(500, 'Failed to submit lease event', ctx.origin);
-  const auditWarning = await auditOptional(ctx.serviceClient, ctx.user.id, 'lease-events/submit', 200, { id: data.id, event_type: eventPayload.event_type, asset_id: eventPayload.asset_id, asset_name: eventPayload.asset_name });
-  return jsonResponse({ ok: true, message: 'Lease event submitted', data: { ...data, request_payload: eventPayload }, audit_warning: auditWarning || undefined }, 200, ctx.origin);
+  const editRequestId = safeText(data.id);
+  const applied: LeaseEventAppliedWrite[] = [];
+  const rollbackAfterWrite = payload.rollback_after_write === true;
+  try {
+    if (plan.mode === 'add') {
+      await applyNewLeaseEvent(ctx, editRequestId, eventPayload, plan, applied);
+    } else if (plan.mode === 'archive') {
+      await applyArchiveLeaseEvent(ctx, editRequestId, eventPayload, plan, applied);
+    } else {
+      await applyUpdateLeaseEvent(ctx, editRequestId, eventPayload, plan, applied);
+    }
+
+    let rollbackReadbacks: Record<string, unknown>[] = [];
+    if (rollbackAfterWrite) {
+      rollbackReadbacks = await rollbackLeaseEventWrites(ctx, applied);
+    }
+    const writtenAt = new Date().toISOString();
+    const finalStatus = rollbackAfterWrite ? 'smoke_rolled_back' : 'written';
+    const writeResult = {
+      preview: plan,
+      applied: leaseEventReadbackSummary(applied),
+      rollback_after_write: rollbackAfterWrite,
+      rollback_readbacks: rollbackReadbacks,
+      inserted_count: applied.filter((item) => item.operation === 'insert').length,
+      updated_count: applied.filter((item) => item.operation === 'update').length,
+      source_only_count: applied.filter((item) => item.operation === 'source_only').length,
+      rent_history_appended_count: applied.filter((item) => item.table === 'public.ll_rent_history' && item.operation === 'insert').length,
+      archived_count: plan.mode === 'archive' ? applied.filter((item) => item.operation === 'update').length : 0,
+    };
+    const { data: written, error: updateError } = await ctx.serviceClient
+      .from('ll_edit_requests')
+      .update({
+        status: finalStatus,
+        readback_value: normalizeText(writeResult.applied),
+        write_status: rollbackAfterWrite ? 'rolled_back_after_smoke' : 'readback_confirmed',
+        write_result: redactSensitivePayload(writeResult),
+        written_at: writtenAt,
+        updated_at: writtenAt,
+      })
+      .eq('id', editRequestId)
+      .select('id, status, created_at, write_status, write_result')
+      .single();
+    if (updateError) throw new Error(`Failed to finalize lease event request: ${updateError.message}`);
+    const auditWarning = await auditOptional(ctx.serviceClient, ctx.user.id, 'lease-events/submit', 200, {
+      id: data.id,
+      mode: plan.mode,
+      event_type: eventPayload.event_type,
+      asset_id: eventPayload.asset_id,
+      asset_name: eventPayload.asset_name,
+      rollback_after_write: rollbackAfterWrite,
+    });
+    return jsonResponse({ ok: true, message: 'Lease event written, read back, and audited', data: { ...written, request_payload: eventPayload }, audit_warning: auditWarning || undefined }, 200, ctx.origin);
+  } catch (writeError) {
+    const typedError = writeError as Error & { status?: number; detail?: unknown };
+    try {
+      await rollbackLeaseEventWrites(ctx, applied);
+    } catch (rollbackError) {
+      await ctx.serviceClient.from('ll_edit_requests').update({
+        status: 'write_failed_rollback_failed',
+        write_error: typedError.message || 'unknown write error',
+        write_result: redactSensitivePayload({
+          preview: plan,
+          applied_count_before_rollback: applied.length,
+          rollback_error: rollbackError instanceof Error ? rollbackError.message : 'unknown rollback error',
+        }),
+        updated_at: new Date().toISOString(),
+      }).eq('id', editRequestId);
+      await auditOptional(ctx.serviceClient, ctx.user.id, 'lease-events/submit/rollback_failed', 500, { id: editRequestId, error: typedError.message });
+      return fail(500, 'Lease event write failed and rollback also failed', ctx.origin);
+    }
+    const status = typedError.status || 500;
+    await ctx.serviceClient.from('ll_edit_requests').update({
+      status: status === 409 ? 'stale_or_duplicate_blocked' : 'write_failed_rolled_back',
+      write_error: typedError.message || 'unknown write error',
+      write_result: redactSensitivePayload({
+        preview: plan,
+        detail: typedError.detail,
+        applied_count_before_rollback: applied.length,
+      }),
+      updated_at: new Date().toISOString(),
+    }).eq('id', editRequestId);
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'lease-events/submit/write_failed_rolled_back', status, { id: editRequestId, error: typedError.message });
+    return fail(status, status === 409 ? typedError.message : 'Lease event write failed and rollback was attempted', ctx.origin, typedError.detail);
+  }
 }
 
 function fundOverviewComparable(value: unknown) {

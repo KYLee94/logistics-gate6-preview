@@ -9279,6 +9279,25 @@ function ContractDataManagementDashboard() {
     row.created_at ? formatDate(row.created_at) : '-',
   ]);
 
+  const leaseEventResultMessage = (writeResult = {}) => {
+    const inserted = Number(writeResult.inserted_count || 0);
+    const updated = Number(writeResult.updated_count || 0);
+    const sourceOnly = Number(writeResult.source_only_count || 0);
+    const rentHistory = Number(writeResult.rent_history_appended_count || 0);
+    const archived = Number(writeResult.archived_count || 0);
+    return `정규 DB 반영 완료: 생성 ${formatNumber(inserted)}건, 수정 ${formatNumber(updated)}건, 아카이빙 ${formatNumber(archived)}건, 임대료 이력 추가 ${formatNumber(rentHistory)}건, 원본 보존 ${formatNumber(sourceOnly)}건`;
+  };
+
+  const assertLeaseEventPreviewReady = (previewResponse) => {
+    const preview = previewResponse?.data?.preview || previewResponse?.preview || {};
+    if (preview.status === 'blocked') {
+      const missing = Array.isArray(preview.required_missing) && preview.required_missing.length ? `누락: ${preview.required_missing.join(', ')}` : '';
+      const duplicates = Array.isArray(preview.duplicate_findings) && preview.duplicate_findings.length ? `중복/보정 필요: ${preview.duplicate_findings.map((item) => item.type || 'blocked').join(', ')}` : '';
+      throw new Error([missing, duplicates].filter(Boolean).join(' / ') || '정규 DB 반영 전 검토에서 차단됐습니다.');
+    }
+    return preview;
+  };
+
   const submitLeaseEvent = async () => {
     if (!canSubmit) {
       setEventStatus({ type: 'error', message: '현재 계정에는 계약 구역 추가 권한이 없습니다.' });
@@ -9301,32 +9320,39 @@ function ContractDataManagementDashboard() {
       contractFieldDbName(field),
       contractFieldCanonicalValueFromDisplay(field, fieldDrafts[contractFieldKey(field)] ?? '', ''),
     ]));
+    const leasePayload = {
+      event_type: 'new_lease',
+      asset_id: activeAssetId,
+      asset_name: selectedAsset.assetName || selectedLeaseRow.assetName,
+      tenant_name: afterFields.tenant_master_name || afterFields.tenant_name || '',
+      lease_space_id: '',
+      effective_date: currentKstMonthEndDate(),
+      summary: requestSummary,
+      before: {},
+      after: {
+        summary: requestSummary,
+        fields: afterFields,
+        source_template: sourceColumns,
+      },
+      source_rows: [{
+        sheet: 'DB_일반 + DB_히스토리 누적',
+        action: 'new_contract_row',
+        columns: sourceColumns,
+      }],
+    };
     setIsSubmitting(true);
     setEventStatus({ type: 'pending', message: '계약 구역 추가 요청을 서버 승인 대기열에 접수하는 중입니다.' });
     try {
+      const previewResult = await supabase.functions.invoke('ll-dashboard-api', {
+        body: { action: 'lease-events/preview', payload: leasePayload },
+      });
+      if (previewResult.error) throw previewResult.error;
+      if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '정규 DB 반영 전 검토 실패');
+      assertLeaseEventPreviewReady(previewResult.data);
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
         body: {
           action: 'lease-events/submit',
-          payload: {
-            event_type: 'new_lease',
-            asset_id: activeAssetId,
-            asset_name: selectedAsset.assetName || selectedLeaseRow.assetName,
-            tenant_name: afterFields.tenant_master_name || afterFields.tenant_name || '',
-            lease_space_id: '',
-            effective_date: currentKstMonthEndDate(),
-            summary: requestSummary,
-            before: {},
-            after: {
-              summary: requestSummary,
-              fields: afterFields,
-              source_template: sourceColumns,
-            },
-            source_rows: [{
-              sheet: 'DB_일반 + DB_히스토리 누적',
-              action: 'new_contract_row',
-              columns: sourceColumns,
-            }],
-          },
+          payload: leasePayload,
         },
       });
       if (error) throw error;
@@ -9342,7 +9368,7 @@ function ContractDataManagementDashboard() {
       } : null;
       if (saved) setSubmittedEvents((rows) => [saved, ...rows]);
       setSummary('');
-      setEventStatus({ type: 'success', message: '계약 구역 추가 요청이 승인 대기열에 접수되었습니다. 입력값은 원본 Excel 필드 단위로 함께 보관됩니다.' });
+      setEventStatus({ type: 'success', message: `${leaseEventResultMessage(data?.data?.write_result || {})} / 요청 ID: ${data?.data?.id || '-'}` });
     } catch (error) {
       setEventStatus({ type: 'error', message: error?.message || '계약 구역 추가 요청 중 오류가 발생했습니다.' });
     } finally {
@@ -9355,29 +9381,36 @@ function ContractDataManagementDashboard() {
       setEventStatus({ type: 'error', message: '아카이빙할 계약 구역을 먼저 선택해주세요.' });
       return;
     }
+    const leasePayload = {
+      event_type: 'expiry_vacancy',
+      asset_id: activeAssetId,
+      asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+      tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
+      lease_space_id: selectedLeaseRow.leaseSpaceId || '',
+      effective_date: currentKstMonthEndDate(),
+      summary: `${selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '-'} 계약 종료 및 원장 아카이빙`,
+      before: selectedLeaseRow,
+      after: { contract_status: 'archived', archived_at: new Date().toISOString() },
+    };
     setIsSubmitting(true);
     setEventStatus({ type: 'pending', message: '계약 종료/아카이빙 요청을 접수하는 중입니다.' });
     try {
+      const previewResult = await supabase.functions.invoke('ll-dashboard-api', {
+        body: { action: 'lease-events/preview', payload: leasePayload },
+      });
+      if (previewResult.error) throw previewResult.error;
+      if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '아카이빙 전 검토 실패');
+      assertLeaseEventPreviewReady(previewResult.data);
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
         body: {
           action: 'lease-events/submit',
-          payload: {
-            event_type: 'expiry_vacancy',
-            asset_id: activeAssetId,
-            asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
-            tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
-            lease_space_id: selectedLeaseRow.leaseSpaceId || '',
-            effective_date: currentKstMonthEndDate(),
-            summary: `${selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '-'} 계약 종료 및 원장 아카이빙 요청`,
-            before: selectedLeaseRow,
-            after: { contract_status: 'archived', archived_at: new Date().toISOString() },
-          },
+          payload: leasePayload,
         },
       });
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '계약 아카이빙 요청 실패');
       setArchiveConfirmOpen(false);
-      setEventStatus({ type: 'success', message: `계약 종료/아카이빙 요청이 접수됐습니다. 요청 ID: ${data?.data?.id || '-'}` });
+      setEventStatus({ type: 'success', message: `${leaseEventResultMessage(data?.data?.write_result || {})} / 요청 ID: ${data?.data?.id || '-'}` });
     } catch (error) {
       setEventStatus({ type: 'error', message: error?.message || '계약 아카이빙 요청 중 오류가 발생했습니다.' });
     } finally {
@@ -9435,27 +9468,37 @@ function ContractDataManagementDashboard() {
     try {
       const directCount = changedFields.filter((row) => !row.source_only).length;
       const sourceOnlyCount = changedFields.length - directCount;
+      const hasRentHistoryChange = changedFields.some((row) => row.target_table === 'public.ll_rent_history' || String(row.source_sheet || '').includes('히스토리'));
+      const afterFields = Object.fromEntries(changedFields.map((row) => [row.field_name, row.after_value]));
+      const leasePayload = {
+        event_type: hasRentHistoryChange ? 'rent_change' : 'correction',
+        asset_id: activeAssetId,
+        asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
+        tenant_name: selectedLeaseRow.tenantMasterName || selectedLeaseRow.companyName || '',
+        lease_space_id: selectedLeaseRow.leaseSpaceId || '',
+        effective_date: currentKstMonthEndDate(),
+        summary: `${selectedAsset.assetName || selectedLeaseRow.assetName || ''} 계약 데이터 수정`,
+        before: selectedLeaseRow,
+        after: { fields: afterFields },
+        cell_edits: changedFields,
+        source_rows: [{
+          sheet: 'DB_일반 + DB_히스토리 누적',
+          action: hasRentHistoryChange ? 'rent_history_append' : 'current_contract_update',
+          changed_field_count: changedFields.length,
+        }],
+      };
+      const previewResult = await supabase.functions.invoke('ll-dashboard-api', {
+        body: { action: 'lease-events/preview', payload: leasePayload },
+      });
+      if (previewResult.error) throw previewResult.error;
+      if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '정규 DB 반영 전 검토 실패');
+      assertLeaseEventPreviewReady(previewResult.data);
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'contract-data/apply',
-          payload: {
-            source_table: changedFields.find((row) => !row.source_only)?.target_table || 'public.ll_lease_attributes',
-            target_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
-            target_row_id: selectedLeaseRow.leaseSpaceId || selectedLeaseRow.id || '',
-            asset_id: activeAssetId,
-            asset_name: selectedAsset.assetName || selectedLeaseRow.assetName || '',
-            lease_space_id: selectedLeaseRow.leaseSpaceId || '',
-            lease_id: selectedLeaseRow.leaseId || '',
-            tenant_id: selectedLeaseRow.tenantId || '',
-            reason_code: 'contract_data_user_auto_apply',
-            source: 'Data Update',
-            cell_edits: changedFields,
-          },
-        },
+        body: { action: 'lease-events/submit', payload: leasePayload },
       });
       if (error) throw error;
-      if (data?.ok === false) throw new Error(data.message || '계약 원본 필드 수정값 반영 실패');
-      setFieldEditStatus({ type: 'success', message: `수정값 반영이 완료됐습니다. 반영 필드 ${formatNumber(directCount)}개, 원본 보존 필드 ${formatNumber(sourceOnlyCount)}개입니다. 요청 ID: ${data?.data?.id || '-'}` });
+      if (data?.ok === false) throw new Error(data.message || '계약 데이터 정규 DB 반영 실패');
+      setFieldEditStatus({ type: 'success', message: `${leaseEventResultMessage(data?.data?.write_result || {})} / 대상 필드 ${formatNumber(directCount)}개, 원본 보존 ${formatNumber(sourceOnlyCount)}개 / 요청 ID: ${data?.data?.id || '-'}` });
     } catch (error) {
       setFieldEditStatus({ type: 'error', message: error?.message || '계약 원본 필드 수정값 반영 중 오류가 발생했습니다.' });
     } finally {
@@ -9514,7 +9557,7 @@ function ContractDataManagementDashboard() {
             ) : null}
             {dataUpdateMode === 'archive' ? (
               <div className="mt-3 flex justify-end">
-                <button type="button" disabled={isSubmitting || !canArchive} onClick={() => setArchiveConfirmOpen(true)} className={`h-10 rounded-[8px] border px-4 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}>삭제 요청 확인</button>
+                <button type="button" disabled={isSubmitting || !canArchive} onClick={() => setArchiveConfirmOpen(true)} className={`h-10 rounded-[8px] border px-4 text-[13px] font-semibold ${DARK_BUTTON_CLASS} disabled:opacity-50`}>아카이빙 검토 후 반영</button>
               </div>
             ) : null}
             {eventStatus ? <div className={`mt-3 rounded-[10px] border px-3 py-2 text-[12px] ${eventStatus.type === 'error' ? 'border-[#7A2E2E] bg-[#2A1414] text-[#FFB4B4]' : eventStatus.type === 'success' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#4C4329] bg-[#2A240E] text-[#FFD166]'}`}>{eventStatus.message}</div> : null}
@@ -9568,7 +9611,7 @@ function ContractDataManagementDashboard() {
         />
         {dataUpdateMode === 'archive' ? (
           <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-5 text-[13px] text-[#C7C7CC]">
-            선택 계약 구역을 삭제하려면 상단의 삭제 요청 확인을 누르세요. 원본값은 삭제하지 않고 별도 아카이빙 요청에 `before` 값으로 보관됩니다.
+            선택 계약 구역을 아카이빙하려면 상단의 아카이빙 검토 후 반영 버튼을 누르세요. 원본값은 삭제하지 않고 별도 아카이빙 이력에 보관됩니다.
           </div>
         ) : (
           <>
@@ -9632,9 +9675,9 @@ function ContractDataManagementDashboard() {
                 {isAddMode ? '입력된 항목' : '변경된 항목'} <span className="font-semibold text-white">{formatNumber(changedFieldCount)}개</span>
               </div>
               {isAddMode ? (
-                <button type="button" disabled={isSubmitting || !canCreate || changedFieldCount <= 0} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>추가 요청 접수</button>
+                <button type="button" disabled={isSubmitting || !canCreate || changedFieldCount <= 0} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>검토 후 정규 DB 반영</button>
               ) : (
-                <button type="button" disabled={isSubmittingFields || !canUpdate || changedFieldCount <= 0} onClick={submitContractFieldEdits} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>수정값 반영 요청</button>
+                <button type="button" disabled={isSubmittingFields || !canUpdate || changedFieldCount <= 0} onClick={submitContractFieldEdits} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>검토 후 정규 DB 반영</button>
               )}
             </div>
           </>

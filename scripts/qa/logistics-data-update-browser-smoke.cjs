@@ -195,7 +195,7 @@ async function main() {
     auth_source: auth.source,
     ui_email: uiEmail,
     required_text: ['Data Update', '임대차계약 데이터 관리', '현재 계약 원장', '임대차계약 데이터 수정', '단위', '기본 정보', '임차 구역 및 면적', '계약 일정', '임대료/관리비', '권리·보험·특약', '시설 사양', '임대료 변경 내역', '평당 임대료', '평당 관리비', '월 임대료 총액', '월 관리비 총액', '기준일자', '임대료 변동 원인'],
-    forbidden_text: ['Contract Data', '원본 데이터 수정', 'Supabase 자동 반영', 'DB 반영', '원본 컬럼', '원본 EXCEL 전체 필드 수정 요청', '원본 EXCEL 전체 필드 추가 요청', 'DB_일반', 'DB_히스토리', '히스토리'],
+    forbidden_text: ['Contract Data', '원본 데이터 수정', 'Supabase 자동 반영', '원본 컬럼', '원본 EXCEL 전체 필드 수정 요청', '원본 EXCEL 전체 필드 추가 요청', 'DB_일반', 'DB_히스토리', '히스토리'],
     missing_text: [],
     forbidden_found: [],
     page_errors: errors,
@@ -256,7 +256,7 @@ async function main() {
     await page.getByRole('button', { name: /^추가$/u }).first().click();
     await page.waitForFunction(() => document.body.innerText.includes('임대차계약 데이터 수정'), null, { timeout: 10000 });
     const addModeText = await page.locator('body').innerText({ timeout: 10000 });
-    const addRequestButtonCount = await page.getByRole('button', { name: '추가 요청 접수' }).count();
+    const addRequestButtonCount = await page.getByRole('button', { name: '검토 후 정규 DB 반영' }).count();
     result.mode_checks.add_mode = {
       ok: addModeText.includes('임대차계약 데이터 수정') && addModeText.includes('예시') && addModeText.includes('입력값') && addRequestButtonCount === 1,
       has_example_column: addModeText.includes('예시'),
@@ -285,13 +285,14 @@ async function main() {
     const expandedToggleText = await rentHistoryToggle.innerText({ timeout: 10000 });
     bodyText = await page.locator('body').innerText({ timeout: 10000 });
     const customScrollbarCount = await page.locator('.custom-scrollbar').count();
-    const editSubmitButtonCount = await page.getByRole('button', { name: '수정값 반영 요청' }).count();
+    const editSubmitButtonCount = await page.getByRole('button', { name: '검토 후 정규 DB 반영' }).count();
     const rentGroupStart = bodyText.indexOf('임대료/관리비');
     const rentGroupEnd = rentGroupStart >= 0 ? bodyText.indexOf('권리·보험·특약', rentGroupStart) : -1;
     const rentGroupText = rentGroupStart >= 0 && rentGroupEnd > rentGroupStart ? bodyText.slice(rentGroupStart, rentGroupEnd) : '';
     const requiredRentFields = ['평당 임대료', '평당 관리비', '월 임대료 총액', '월 관리비 총액', '기준일자', '임대료 변동 원인'];
     const requiredRentFieldResults = Object.fromEntries(requiredRentFields.map((text) => [text, rentGroupText.includes(text)]));
     const rfFoUnitOk = /RF\s+[\s\S]*?개월/u.test(rentGroupText) && /FO\s+[\s\S]*?개월/u.test(rentGroupText);
+    const fieldHeaderHasDbColumn = /항목\s+(현재값|예시)\s+DB 반영\s+(수정값|입력값)/u.test(bodyText);
     result.mode_checks.field_table = {
       ok: bodyText.includes('항목')
         && bodyText.includes('단위')
@@ -300,7 +301,7 @@ async function main() {
         && ['기본 정보', '임차 구역 및 면적', '계약 일정', '임대료/관리비', '권리·보험·특약', '시설 사양', '임대료 변경 내역'].every((text) => bodyText.includes(text))
         && Object.values(requiredRentFieldResults).every(Boolean)
         && rfFoUnitOk
-        && !bodyText.includes('DB 반영')
+        && !fieldHeaderHasDbColumn
         && !bodyText.includes('원본 컬럼')
         && !/[A-Z]{2}\.\s/u.test(bodyText)
         && !bodyText.includes('히스토리')
@@ -316,7 +317,7 @@ async function main() {
       rent_group_required_fields: requiredRentFieldResults,
       rent_group_rf_fo_unit_ok: rfFoUnitOk,
       has_group_accordion: collapsedToggleText.includes('펼치기') && expandedToggleText.includes('접기'),
-      removed_db_column: !bodyText.includes('DB 반영'),
+      removed_db_column: !fieldHeaderHasDbColumn,
       removed_column_index_prefix: !/[A-Z]{2}\.\s/u.test(bodyText),
       removed_sheet_prefix: !bodyText.includes('DB_일반') && !bodyText.includes('DB_히스토리'),
       removed_history_label: !bodyText.includes('히스토리'),

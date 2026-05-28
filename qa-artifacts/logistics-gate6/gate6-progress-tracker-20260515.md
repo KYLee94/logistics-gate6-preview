@@ -1,9 +1,33 @@
 ﻿# Gate 6 Progress Tracker - Logistics Work Platform
 
-- Updated at: 2026-05-27T18:02:00+09:00
-- Overall: 305 / 366 (83.3%) - current deltas rebaselined for Data Update source-column coverage, Data Update UX cleanup, Data Update rent/management field semantics, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
+- Updated at: 2026-05-28T10:06:00+09:00
+- Overall: 310 / 366 (84.7%) - current deltas rebaselined for Data Update canonical Supabase auto-write/readback/rollback, Data Update lifecycle QA, Data Update source-column coverage, Data Update UX cleanup, Data Update rent/management field semantics, AI chatbot direct/browser QA, weighted E. NOC recalculation, OpenDART monthly cache/readback separation, building-register readback classification, Company chart integration, Edge deploy, and gh-pages live smoke.
 - Active work branch: `codex/logistics-gate6-post-deploy-updates`
-- gh-pages deployment: current Data Update rent/management field semantics / UX cleanup / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-CHhFVH1w.js`.
+- gh-pages deployment: current Data Update canonical Supabase auto-sync / rent-management semantics / UX cleanup / external refresh / AI / E. NOC / Company chart fix deployed; live URL returned HTTP 200 with `assets/index-CLinwCk8.js`.
+
+## 2026-05-28 Update - Data Update Canonical Supabase Auto-sync
+
+- `lease-events/preview` now calculates the actual write plan before saving:
+  - required missing fields.
+  - duplicate new-lease / duplicate rent-history blocks.
+  - same-date different-amount rent-history correction block.
+  - target write split for current contract, lease space, rent history, archive, and source-only preservation.
+- `lease-events/submit` now writes to regular Supabase tables, not only to request intake:
+  - current lease fields: `ll_leases`.
+  - current lease space / area / current rent-management snapshot: `ll_lease_spaces`.
+  - rent-management change history: append-only `ll_rent_history`.
+  - Excel-only validation/check fields: preserved as source-only detail instead of being forced into a regular table.
+- Data Update UI now sends add/update/archive through preview first, then submit:
+  - 신규 계약: tenant / lease / lease space / initial rent history are created and read back.
+  - 임대료 변경: `ll_rent_history` gets a new row; old history rows are not overwritten.
+  - 계약 종료: physical delete is not used; lease/lease-space rows are archived and existing history is preserved.
+  - current contract updates still support write -> readback -> rollback smoke.
+- Verification:
+  - `npx supabase functions deploy ll-dashboard-api --project-ref qvegpozwrcmspdvjokiz`: pass.
+  - `npm run build:preview`: pass through `npm run deploy` predeploy.
+  - `npm run qa:data-update:auto`: pass, 23 / 23, artifact `qa-artifacts/logistics-gate6/data-update-auto-smoke-20260528-010426.json`.
+  - `npm run qa:data-update:browser`: pass on live, artifact `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260528-010537.json`, screenshot `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260528-010537.png`.
+  - live URL returned HTTP 200 with `assets/index-CLinwCk8.js`.
 
 ## 2026-05-27 Update - Data Update Rent / History Semantics
 
@@ -12,7 +36,7 @@
 - `RF`와 `FO`의 화면 단위를 `개월`로 수정했습니다.
 - `임대료 변경 내역`은 원본 Excel의 중복 컬럼을 그대로 반복 표시하는 목적이 아니라, 최초 조사 이후 임대료 상승 조건 발동 시 변경 금액을 누적 관리하기 위한 레이어로 재정의했습니다.
   - 현재 화면/QA는 기존 원본 전체 컬럼 노출과 기존 계약 필드 수정 readback까지 확인합니다.
-  - 신규 임대료 변경을 `ll_rent_history` 새 행으로 append하고 dashboard current 값을 재계산하는 자동 writer는 Stage 16 잔여 항목으로 유지합니다.
+  - 당시에는 신규 임대료 변경 append writer가 Stage 16 잔여 항목이었고, 이 잔여 항목은 2026-05-28 정규 DB 자동 반영 작업으로 해소됐습니다.
 - Verification:
   - `npm run build:preview`: pass.
   - Supabase write/readback/rollback smoke: `qa-artifacts/logistics-gate6/data-update-auto-smoke-20260527-090146.json`, 13 / 13 pass.
@@ -42,7 +66,7 @@
   - `DB_일반`: 82 / 82 source columns exposed in the edit-request field registry.
   - `DB_히스토리 누적`: 18 / 18 source columns exposed in the edit-request field registry.
   - live browser smoke: `qa-artifacts/logistics-gate6/data-update-browser-smoke-20260527-023811.json`.
-  - current implementation supports source-field edit requests, new lease event requests, current/future history change requests, and lease-end archive requests. Approval/writeback automation after request submission remains tracked in Stage 16 and is not counted as complete.
+  - current implementation supports source-field edit requests, new lease event requests, current/future history change requests, and lease-end archive requests. The approval/writeback automation residual noted here was superseded by the 2026-05-28 canonical auto-sync implementation.
 - E. NOC average handling was corrected and re-audited:
   - all direct asset/tenant/portfolio E. NOC QA uses leased-area weighted average, not arithmetic average.
   - Analysis benchmark average and Pivot `average E. NOC` aggregation now route through the same weighted-average helper.
@@ -204,7 +228,7 @@
 | 13 | 외부 API / AI / 외부권한 | 10 / 12 |
 | 14 | QA 계획 및 증거 | 51 / 53 |
 | 15 | 최종 완료 기준 | 9 / 15 |
-| 16 | 임대차계약 데이터 관리 탭 구축 | 11 / 24 |
+| 16 | 임대차계약 데이터 관리 탭 구축 | 16 / 24 |
 
 ## 2026-05-22 Update - Asset Tenant Table Width
 

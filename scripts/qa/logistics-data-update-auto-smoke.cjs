@@ -145,6 +145,34 @@ function cell(base, overrides) {
   };
 }
 
+function currentKstMonthEndDate() {
+  const now = new Date();
+  const kst = new Date(now.getTime() + (9 * 60 * 60 * 1000));
+  const year = kst.getUTCFullYear();
+  const month = kst.getUTCMonth() + 1;
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
+
+function futureSmokeDate(offsetDays = 0) {
+  const date = new Date(Date.UTC(2099, 0, 1 + offsetDays));
+  return date.toISOString().slice(0, 10);
+}
+
+function leaseEventWriteResult(result) {
+  return result.body?.data?.write_result || {};
+}
+
+function leaseEventRolledBack(result) {
+  const writeResult = leaseEventWriteResult(result);
+  return result.status === 200
+    && result.body?.ok === true
+    && result.body?.data?.write_status === 'rolled_back_after_smoke'
+    && writeResult.rollback_after_write === true
+    && Array.isArray(writeResult.rollback_readbacks)
+    && writeResult.rollback_readbacks.length >= 1;
+}
+
 function buildCases(assetRead) {
   const data = assetRead.body?.data || {};
   const asset = data.asset || {};
@@ -316,6 +344,264 @@ function buildCases(assetRead) {
   ].filter((item) => item && item.cell.target_row_id);
 }
 
+function buildLeaseEventCases(assetRead) {
+  const data = assetRead.body?.data || {};
+  const asset = data.asset || {};
+  const leaseSpaces = data.lease_spaces || [];
+  const tenants = data.tenants || [];
+  const rentHistory = data.rent_history || [];
+  const lease = leaseSpaces[0] || {};
+  const tenant = tenants.find((row) => normalizeText(row.tenant_id) === normalizeText(lease.tenant_id)) || tenants[0] || {};
+  const latestRent = rentHistory.find((row) => row.is_latest === true || String(row.is_latest).toLowerCase() === 'true') || rentHistory[0] || {};
+  const base = {
+    asset_id: asset.asset_id,
+    asset_name: asset.asset_name,
+    lease_space_id: lease.lease_space_id,
+    lease_id: lease.lease_id,
+    tenant_id: firstDefined(lease.tenant_id, tenant.tenant_id),
+  };
+  const unique = String(Date.now()).slice(-8);
+  const rentFutureDate = futureSmokeDate(12);
+  const addStartDate = futureSmokeDate(40);
+  const addEndDate = futureSmokeDate(404);
+  const addTenantName = `QA Smoke Tenant ${unique}`;
+  const addPayload = {
+    event_type: 'new_lease',
+    asset_id: asset.asset_id,
+    asset_name: asset.asset_name,
+    tenant_name: addTenantName,
+    lease_space_id: '',
+    effective_date: addStartDate,
+    summary: `QA smoke new lease ${unique}`,
+    before: {},
+    after: {
+      fields: {
+        tenant_master_name: addTenantName,
+        business_registration_no: `999-${unique.slice(0, 2)}-${unique.slice(2)}`,
+        floor_label: `QA-${unique}`,
+        detail_area_label: 'Smoke Zone',
+        current_start_date: addStartDate,
+        current_end_date: addEndDate,
+        leased_area_sqm: 330.58,
+        exclusive_area_sqm: 300.12,
+        monthly_rent_total: 1000000,
+        monthly_mf_total: 200000,
+        basis_date: addStartDate,
+        rent_change_reason: 'QA smoke initial rent',
+      },
+    },
+    source_rows: [{ sheet: 'DB_general + DB_history', action: 'qa_new_lease' }],
+  };
+  const rentChangePayload = {
+    event_type: 'rent_change',
+    asset_id: asset.asset_id,
+    asset_name: asset.asset_name,
+    tenant_name: firstDefined(tenant.tenant_master_name, lease.tenant_master_name, ''),
+    lease_space_id: lease.lease_space_id,
+    effective_date: rentFutureDate,
+    summary: `QA smoke rent change ${unique}`,
+    before: lease,
+    after: {
+      fields: {
+        basis_date: rentFutureDate,
+        monthly_rent_total: nextNumberValue(firstDefined(latestRent.monthly_rent_total, lease.current_monthly_rent_total)),
+        monthly_mf_total: nextNumberValue(firstDefined(latestRent.monthly_mf_total, lease.current_monthly_mf_total)),
+        rent_change_reason: `QA smoke rent change ${unique}`,
+      },
+    },
+    cell_edits: [
+      cell(base, {
+        target_table: 'public.ll_rent_history',
+        primary_key_field: 'rent_history_id',
+        target_row_id: latestRent.rent_history_id,
+        field_name: 'basis_date',
+        before_value: firstDefined(latestRent.effective_date, ''),
+        after_value: rentFutureDate,
+        source_sheet: 'DB_history',
+        source_column_letter: 'N',
+        source_header: 'basis_date',
+      }),
+      cell(base, {
+        target_table: 'public.ll_rent_history',
+        primary_key_field: 'rent_history_id',
+        target_row_id: latestRent.rent_history_id,
+        field_name: 'monthly_rent_total',
+        before_value: firstDefined(latestRent.monthly_rent_total, ''),
+        after_value: nextNumberValue(firstDefined(latestRent.monthly_rent_total, lease.current_monthly_rent_total)),
+        source_sheet: 'DB_history',
+        source_column_letter: 'P',
+        source_header: 'monthly_rent_total',
+      }),
+      cell(base, {
+        target_table: 'public.ll_rent_history',
+        primary_key_field: 'rent_history_id',
+        target_row_id: latestRent.rent_history_id,
+        field_name: 'monthly_mf_total',
+        before_value: firstDefined(latestRent.monthly_mf_total, ''),
+        after_value: nextNumberValue(firstDefined(latestRent.monthly_mf_total, lease.current_monthly_mf_total)),
+        source_sheet: 'DB_history',
+        source_column_letter: 'Q',
+        source_header: 'monthly_mf_total',
+      }),
+    ],
+  };
+  const duplicateRentPayload = {
+    ...rentChangePayload,
+    effective_date: firstDefined(latestRent.effective_date, currentKstMonthEndDate()),
+    summary: firstDefined(latestRent.change_reason, 'QA duplicate rent check'),
+    after: {
+      fields: {
+        basis_date: firstDefined(latestRent.effective_date, currentKstMonthEndDate()),
+        monthly_rent_total: firstDefined(latestRent.monthly_rent_total, lease.current_monthly_rent_total),
+        monthly_mf_total: firstDefined(latestRent.monthly_mf_total, lease.current_monthly_mf_total),
+        rent_change_reason: firstDefined(latestRent.change_reason, 'QA duplicate rent check'),
+      },
+    },
+    cell_edits: rentChangePayload.cell_edits.map((item) => ({
+      ...item,
+      after_value: item.field_name === 'basis_date'
+        ? firstDefined(latestRent.effective_date, currentKstMonthEndDate())
+        : item.field_name === 'monthly_rent_total'
+          ? firstDefined(latestRent.monthly_rent_total, lease.current_monthly_rent_total)
+          : firstDefined(latestRent.monthly_mf_total, lease.current_monthly_mf_total),
+    })),
+  };
+  const sameDateDifferentAmountPayload = {
+    ...duplicateRentPayload,
+    summary: 'QA same basis date different amount',
+    after: {
+      fields: {
+        ...duplicateRentPayload.after.fields,
+        monthly_rent_total: nextNumberValue(firstDefined(latestRent.monthly_rent_total, lease.current_monthly_rent_total)),
+      },
+    },
+    cell_edits: duplicateRentPayload.cell_edits.map((item) => ({
+      ...item,
+      after_value: item.field_name === 'monthly_rent_total'
+        ? nextNumberValue(firstDefined(latestRent.monthly_rent_total, lease.current_monthly_rent_total))
+        : item.after_value,
+    })),
+  };
+  return [
+    {
+      name: 'lease-event-preview-new-lease-ready',
+      action: 'lease-events/preview',
+      payload: addPayload,
+      ok: (result) => result.status === 200 && result.body?.data?.preview?.status === 'ready',
+    },
+    {
+      name: 'lease-event-submit-new-lease-rollback',
+      action: 'lease-events/submit',
+      payload: { ...addPayload, rollback_after_write: true },
+      ok: leaseEventRolledBack,
+    },
+    {
+      name: 'lease-event-preview-missing-required-blocked',
+      action: 'lease-events/preview',
+      payload: { event_type: 'new_lease', asset_id: asset.asset_id, asset_name: asset.asset_name, summary: 'QA missing required' },
+      ok: (result) => result.status === 200 && result.body?.data?.preview?.status === 'blocked' && result.body.data.preview.required_missing.length >= 1,
+    },
+    {
+      name: 'lease-event-submit-rent-history-append-rollback',
+      action: 'lease-events/submit',
+      payload: { ...rentChangePayload, rollback_after_write: true },
+      ok: (result) => leaseEventRolledBack(result) && Number(leaseEventWriteResult(result).rent_history_appended_count || 0) >= 1,
+    },
+    {
+      name: 'lease-event-preview-rent-history-duplicate-blocked',
+      action: 'lease-events/preview',
+      payload: duplicateRentPayload,
+      ok: (result) => result.status === 200 && result.body?.data?.preview?.status === 'blocked',
+    },
+    {
+      name: 'lease-event-submit-rent-history-duplicate-blocked',
+      action: 'lease-events/submit',
+      payload: duplicateRentPayload,
+      ok: (result) => result.status === 409 && result.body?.ok === false,
+    },
+    {
+      name: 'lease-event-preview-same-date-different-amount-blocked',
+      action: 'lease-events/preview',
+      payload: sameDateDifferentAmountPayload,
+      ok: (result) => result.status === 200 && result.body?.data?.preview?.status === 'blocked',
+    },
+    {
+      name: 'lease-event-submit-archive-rollback',
+      action: 'lease-events/submit',
+      payload: {
+        event_type: 'expiry_vacancy',
+        asset_id: asset.asset_id,
+        asset_name: asset.asset_name,
+        tenant_name: firstDefined(tenant.tenant_master_name, lease.tenant_master_name, ''),
+        lease_space_id: lease.lease_space_id,
+        effective_date: currentKstMonthEndDate(),
+        summary: 'QA smoke archive rollback',
+        before: lease,
+        after: { contract_status: 'archived' },
+        rollback_after_write: true,
+      },
+      ok: (result) => leaseEventRolledBack(result) && Number(leaseEventWriteResult(result).archived_count || 0) >= 1,
+    },
+    {
+      name: 'lease-event-submit-current-space-update-rollback',
+      action: 'lease-events/submit',
+      payload: {
+        event_type: 'correction',
+        asset_id: asset.asset_id,
+        asset_name: asset.asset_name,
+        tenant_name: firstDefined(tenant.tenant_master_name, lease.tenant_master_name, ''),
+        lease_space_id: lease.lease_space_id,
+        effective_date: currentKstMonthEndDate(),
+        summary: 'QA smoke current space update',
+        before: lease,
+        after: { fields: { detail_area_label: nextTextValue(lease.detail_area_label, 'detail_event') } },
+        rollback_after_write: true,
+        cell_edits: [cell(base, {
+          target_table: 'public.ll_lease_spaces',
+          primary_key_field: 'lease_space_id',
+          target_row_id: lease.lease_space_id,
+          field_name: 'detail_area_label',
+          before_value: firstDefined(lease.detail_area_label, ''),
+          after_value: nextTextValue(lease.detail_area_label, 'detail_event'),
+          source_sheet: 'DB_general',
+          source_column_letter: 'N',
+          source_header: 'detail_area_label',
+        })],
+      },
+      ok: leaseEventRolledBack,
+    },
+    {
+      name: 'lease-event-submit-source-only-preserve-rollback',
+      action: 'lease-events/submit',
+      payload: {
+        event_type: 'correction',
+        asset_id: asset.asset_id,
+        asset_name: asset.asset_name,
+        tenant_name: firstDefined(tenant.tenant_master_name, lease.tenant_master_name, ''),
+        lease_space_id: lease.lease_space_id,
+        effective_date: currentKstMonthEndDate(),
+        summary: 'QA smoke source-only preserve',
+        before: lease,
+        after: { fields: { check_leased_area: `QA source preserve ${unique}` } },
+        rollback_after_write: true,
+        cell_edits: [cell(base, {
+          target_table: 'source_only',
+          source_only: true,
+          primary_key_field: 'id',
+          target_row_id: lease.lease_space_id,
+          field_name: 'check_leased_area',
+          before_value: '',
+          after_value: `QA source preserve ${unique}`,
+          source_sheet: 'DB_general',
+          source_column_letter: 'X',
+          source_header: 'check_leased_area',
+        })],
+      },
+      ok: (result) => leaseEventRolledBack(result) && Number(leaseEventWriteResult(result).source_only_count || 0) >= 1,
+    },
+  ].filter((item) => item.payload);
+}
+
 async function main() {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
@@ -366,25 +652,52 @@ async function main() {
     });
   }
 
+  const leaseEventCases = buildLeaseEventCases(assetRead);
+  const leaseEventResults = [];
+  for (const testCase of leaseEventCases) {
+    const result = await invoke(endpoint, anonKey, origin, auth.token, testCase.action, testCase.payload);
+    let ok = false;
+    let validationError = '';
+    try {
+      ok = Boolean(testCase.ok(result));
+    } catch (error) {
+      validationError = error instanceof Error ? error.message : String(error);
+    }
+    leaseEventResults.push({
+      name: testCase.name,
+      action: testCase.action,
+      status: result.status,
+      ok,
+      mode: result.body?.data?.write_result?.preview?.mode || result.body?.data?.preview?.mode || null,
+      preview_status: result.body?.data?.preview?.status || result.body?.data?.write_result?.preview?.status || null,
+      write_status: result.body?.data?.write_status || null,
+      write_result: result.body?.data?.write_result || undefined,
+      validation_error: validationError || undefined,
+      detail: ok ? undefined : result.body,
+    });
+  }
+
   const passed = results.filter((row) => row.ok);
+  const leaseEventPassed = leaseEventResults.filter((row) => row.ok);
   const output = {
-    ok: results.length >= 10 && passed.length === results.length,
+    ok: results.length >= 10 && passed.length === results.length && leaseEventResults.length >= 10 && leaseEventPassed.length === leaseEventResults.length,
     generated_at: new Date().toISOString(),
     endpoint: endpoint.replace(/https:\/\/([^./]+)\./u, 'https://$1.redacted.'),
     origin,
     auth_source: auth.source,
     asset_id: asset.asset_id,
     asset_name: asset.asset_name,
-    required_pass_count: results.length,
-    passed_count: passed.length,
-    total_count: results.length,
+    required_pass_count: results.length + leaseEventResults.length,
+    passed_count: passed.length + leaseEventPassed.length,
+    total_count: results.length + leaseEventResults.length,
     results,
+    lease_event_results: leaseEventResults,
   };
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const outPath = path.join(OUT_DIR, `data-update-auto-smoke-${timestampForFile()}.json`);
   fs.writeFileSync(outPath, JSON.stringify(output, null, 2), 'utf8');
   console.log(JSON.stringify({ ...output, artifact: outPath }, null, 2));
-  if (!output.ok) throw new Error(`Data Update auto smoke passed ${passed.length}/${results.length} required cases.`);
+  if (!output.ok) throw new Error(`Data Update auto smoke passed ${passed.length + leaseEventPassed.length}/${results.length + leaseEventResults.length} required cases.`);
 }
 
 main().catch((error) => {
