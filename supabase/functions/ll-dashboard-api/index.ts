@@ -2825,9 +2825,11 @@ async function listLeaseEvents(ctx: Context, payload: Record<string, unknown>) {
   if (!checkRateLimit(ctx.user.id, 'lease-events/list', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 100), 1), 300);
   const includeSmoke = payload.include_smoke === true;
+  const selectColumns = 'id, status, write_status, target_type, target_name, target_row_id, field_name, reason_code, before_value, requested_value, request_payload, requested_by, approved_by, created_at, updated_at';
   const { data, error } = await ctx.serviceClient
     .from('ll_edit_requests')
-    .select('*')
+    .select(selectColumns)
+    .eq('target_type', 'lease_contract_event')
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) return fail(500, 'Failed to list lease events', ctx.origin);

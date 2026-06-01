@@ -214,6 +214,24 @@ const parseNotificationPayload = (value) => {
         return {};
     }
 };
+const LOGISTICS_NOTIFICATION_CACHE_KEY = 'logistics-notifications-cache:v1';
+const readCachedNotifications = () => {
+    try {
+        if (typeof localStorage === 'undefined') return [];
+        const rows = JSON.parse(localStorage.getItem(LOGISTICS_NOTIFICATION_CACHE_KEY) || '[]');
+        return Array.isArray(rows) ? rows : [];
+    } catch {
+        return [];
+    }
+};
+const writeCachedNotifications = (rows = []) => {
+    try {
+        if (typeof localStorage === 'undefined') return;
+        localStorage.setItem(LOGISTICS_NOTIFICATION_CACHE_KEY, JSON.stringify(rows.slice(0, 80)));
+    } catch {
+        // Cache write failure should not block the notification panel.
+    }
+};
 const compactFeatureAccessUserRow = (user = {}) => {
     const row = user || {};
     const staffName = String(row.staff_name || row.name || '').trim();
@@ -452,7 +470,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [notificationsError, setNotificationsError] = useState('');
-    const [notifications, setNotifications] = useState([]);
+    const [notifications, setNotifications] = useState(() => readCachedNotifications());
     const [readNotificationIds, setReadNotificationIds] = useState([]);
     const [newPassword, setNewPassword] = useState('');
     const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -556,37 +574,52 @@ export default function IotaLeftNav({ currentPath = '' }) {
             return next;
         });
     };
-    const loadNotifications = async ({ markRead = false } = {}) => {
-        setNotificationsLoading(true);
+    const loadNotifications = async ({ markRead = false, silent = false } = {}) => {
+        const cachedRows = notifications;
+        if (!silent || !cachedRows.length) setNotificationsLoading(true);
         setNotificationsError('');
         try {
             const rows = [];
-            const leaseResult = await invokeWithTimeout('lease-events/list', { limit: 80, include_smoke: false }, 12000);
-            if (leaseResult.error || leaseResult.data?.ok === false) {
-                throw new Error(leaseResult.data?.message || leaseResult.error?.message || '계약 변경 알림을 불러오지 못했습니다.');
+            const [leaseResult, approvalResult] = await Promise.allSettled([
+                invokeWithTimeout('lease-events/list', { limit: 40, include_smoke: false }, 18000),
+                invokeWithTimeout('edits/list', { status: 'submitted', limit: 20 }, 18000),
+            ]);
+            const leaseValue = leaseResult.status === 'fulfilled' ? leaseResult.value : null;
+            const approvalValue = approvalResult.status === 'fulfilled' ? approvalResult.value : null;
+            let successCount = 0;
+            if (leaseValue && !leaseValue.error && leaseValue.data?.ok !== false) {
+                successCount += 1;
+                (Array.isArray(leaseValue.data?.data) ? leaseValue.data.data : [])
+                    .map(buildLeaseEventNotification)
+                    .filter(Boolean)
+                    .forEach((item) => rows.push(item));
             }
-            (Array.isArray(leaseResult.data?.data) ? leaseResult.data.data : [])
-                .map(buildLeaseEventNotification)
-                .filter(Boolean)
-                .forEach((item) => rows.push(item));
-
-            const approvalResult = await invokeWithTimeout('edits/list', { status: 'submitted', limit: 30 }, 12000);
-            if (!approvalResult.error && approvalResult.data?.ok !== false) {
-                (Array.isArray(approvalResult.data?.data) ? approvalResult.data.data : [])
+            if (approvalValue && !approvalValue.error && approvalValue.data?.ok !== false) {
+                successCount += 1;
+                (Array.isArray(approvalValue.data?.data) ? approvalValue.data.data : [])
                     .filter((row) => !isSmokeNotificationSource(row))
                     .map(buildEditRequestNotification)
                     .filter(Boolean)
                     .forEach((item) => rows.push(item));
             }
+            if (!successCount) {
+                throw new Error('notification timeout');
+            }
 
             const next = sortNotifications(rows).slice(0, 80);
             setNotifications(next);
+            writeCachedNotifications(next);
             if (markRead) markNotificationsRead(next);
             return next;
         } catch (error) {
-            setNotificationsError(error?.message || '알림을 불러오지 못했습니다.');
-            setNotifications([]);
-            return [];
+            const fallbackRows = cachedRows.length ? cachedRows : readCachedNotifications();
+            if (fallbackRows.length) {
+                setNotifications(fallbackRows);
+                setNotificationsError('새 알림 조회가 늦어져 기존 알림을 표시하고 있습니다. 잠시 후 새로고침을 눌러 주세요.');
+                return fallbackRows;
+            }
+            setNotificationsError('알림 조회가 늦어지고 있습니다. 잠시 후 새로고침을 눌러 주세요.');
+            return fallbackRows;
         } finally {
             setNotificationsLoading(false);
         }
@@ -597,8 +630,13 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const willOpen = !showNotificationsPanel;
         setShowNotificationsPanel(willOpen);
         if (willOpen) {
-            const rows = await loadNotifications({ markRead: false });
-            markNotificationsRead(rows);
+            if (notifications.length) {
+                markNotificationsRead(notifications);
+                loadNotifications({ markRead: true, silent: true });
+            } else {
+                const rows = await loadNotifications({ markRead: false });
+                markNotificationsRead(rows);
+            }
         }
     };
     useEffect(() => {
@@ -611,7 +649,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     }, [notificationStorageKey]);
     useEffect(() => {
         if (!isLogisticsPath) return;
-        loadNotifications();
+        loadNotifications({ silent: true });
     }, [isLogisticsPath]);
     useEffect(() => {
         if (!isLogisticsPath) return;
@@ -830,15 +868,15 @@ export default function IotaLeftNav({ currentPath = '' }) {
                     </div>
                 </div>
 
-                <div className={`relative border-t border-[#2C2C2E] ${isCollapsed ? 'p-2' : 'p-3'}`}>
+                <div className={`relative border-t border-[#2C2C2E] ${isCollapsed ? 'flex flex-col items-center px-0 py-2' : 'p-3'}`}>
                     {isLogisticsAdmin ? (
-                        <div className={isCollapsed ? 'mb-2 flex flex-col items-center gap-2' : 'mb-2 space-y-2'}>
+                        <div className={isCollapsed ? 'mb-2 flex w-full flex-col items-center gap-2' : 'mb-2 space-y-2'}>
                             <button
                                 type="button"
                                 data-testid="logistics-feature-access-button"
                                 onClick={openFeatureAccessModal}
                                 title="기능 권한 관리"
-                                className={`flex h-9 items-center ${isCollapsed ? 'w-9 justify-center px-0' : 'w-full justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                                className={`flex h-9 items-center ${isCollapsed ? 'mx-auto w-9 justify-center px-0' : 'w-full justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
                             >
                                 <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 16v-2m8-6h-2M6 12H4m12.95-4.95l-1.42 1.42M8.47 15.53l-1.42 1.42m9.9 0l-1.42-1.42M8.47 8.47 7.05 7.05M12 15a3 3 0 100-6 3 3 0 000 6z" />
@@ -850,7 +888,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 data-testid="logistics-login-history-button"
                                 onClick={openLoginHistoryModal}
                                 title="로그인 이력"
-                                className={`flex h-9 items-center ${isCollapsed ? 'w-9 justify-center px-0' : 'w-full justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                                className={`flex h-9 items-center ${isCollapsed ? 'mx-auto w-9 justify-center px-0' : 'w-full justify-start gap-2 px-3'} rounded-xl border border-[#333333] bg-[#151515] text-[12px] font-semibold text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
                             >
                                 <svg className="h-4 w-4 shrink-0 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -873,10 +911,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     </button>
                                 </div>
                                 <div className="custom-scrollbar max-h-[360px] overflow-auto p-3">
-                                    {notificationsLoading ? (
-                                        <div className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-5 text-center text-[12px] text-[#A1A1AA]">불러오는 중입니다.</div>
-                                    ) : notificationsError ? (
-                                        <div className="rounded-[12px] border border-[#5A2A2A] bg-[#2A1717] px-3 py-4 text-[12px] text-[#FFB4A9]">{notificationsError}</div>
+                                    {notificationsError ? (
+                                        <div className="mb-2 rounded-[12px] border border-[#5A2A2A] bg-[#2A1717] px-3 py-3 text-[12px] text-[#FFB4A9]">{notificationsError}</div>
+                                    ) : null}
+                                    {notificationsLoading && !notifications.length ? (
+                                        <div className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-5 text-center text-[12px] text-[#A1A1AA]">알림을 확인하고 있습니다.</div>
                                     ) : notifications.length ? (
                                         <div className="space-y-2">
                                             {notifications.map((item) => (
@@ -895,16 +934,16 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                 </div>
                                             ))}
                                         </div>
-                                    ) : (
+                                    ) : !notificationsError ? (
                                         <div className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-5 text-center text-[12px] text-[#8E8E93]">새 알림이 없습니다.</div>
-                                    )}
+                                    ) : null}
                                 </div>
                             </div>
                         </>
                     ) : null}
-                    <div className="relative">
-                        <div className={`flex items-center ${isCollapsed ? 'flex-col gap-2' : 'gap-2'}`}>
-                            <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`min-w-0 flex items-center ${isCollapsed ? 'order-2 h-9 w-9 justify-center px-0 py-0' : 'flex-1 justify-start px-2 py-2'} rounded-xl hover:bg-[#151515]`}>
+                    <div className={isCollapsed ? 'relative flex w-full justify-center' : 'relative'}>
+                        <div className={`flex items-center ${isCollapsed ? 'w-full flex-col gap-2' : 'gap-2'}`}>
+                            <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`min-w-0 flex items-center ${isCollapsed ? 'order-2 mx-auto h-10 w-10 justify-center px-0 py-0' : 'flex-1 justify-start px-2 py-2'} rounded-xl hover:bg-[#151515]`}>
                                 <UserAvatar memberInfo={memberInfo} name={memberInfo?.staff_name || memberInfo?.name} sizeClass="h-8 w-8" textClass="text-[11px]" className="bg-[#3c3c3c]" />
                                 <div className={`ml-3 min-w-0 overflow-hidden text-left transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[156px] translate-x-0 opacity-100'}`}>
                                         <div className="truncate text-[13px] font-semibold text-white">{memberInfo?.staff_name || '로그인 사용자'}</div>
@@ -917,7 +956,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 onClick={openNotificationsPanel}
                                 title="알림"
                                 aria-label={unreadNotificationCount ? `알림, 안 읽은 알림 ${unreadNotificationCount}건` : '알림'}
-                                className={`relative flex h-9 ${isCollapsed ? 'order-1 w-9' : 'w-9'} shrink-0 items-center justify-center rounded-xl border border-[#333333] bg-[#151515] text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
+                                className={`relative flex h-9 ${isCollapsed ? 'order-1 mx-auto w-9' : 'w-9'} shrink-0 items-center justify-center rounded-xl border border-[#333333] bg-[#151515] text-[#E5E5E5] transition-colors hover:border-[#4A4A4A] hover:bg-[#1F1F1F]`}
                             >
                                 <svg className="h-4 w-4 text-[#A1A1AA]" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.7">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.4-1.4A2 2 0 0118 14.2V11a6 6 0 10-12 0v3.2c0 .5-.2 1-.6 1.4L4 17h5m6 0a3 3 0 01-6 0m6 0H9" />
