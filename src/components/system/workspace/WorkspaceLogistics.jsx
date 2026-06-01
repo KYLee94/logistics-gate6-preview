@@ -4619,6 +4619,10 @@ function TaskStakeholderSearchInput({ value, onChange, options }) {
   );
 }
 
+function sanitizeLogisticsAiDisplayText(value) {
+  return cleanDisplay(value, '').replace(/supabase/giu, '데이터베이스');
+}
+
 export default function WorkspaceLogistics({ currentPath = '' }) {
   const { user, memberInfo } = useAuth();
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -4637,7 +4641,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     {
       id: 'ai-welcome',
       role: 'assistant',
-      content: '무엇이든 자연스럽게 질문하실 수 있습니다. 물류센터 데이터가 필요한 질문에는 읽기 권한 범위 안의 Supabase 값을 참고해 답변합니다.',
+      content: '무엇이든 자연스럽게 질문하실 수 있습니다. 물류센터 데이터가 필요한 질문에는 읽기 권한 범위 안의 데이터베이스 값을 참고해 답변합니다.',
       evidence: [],
     },
   ]);
@@ -4654,6 +4658,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const isContractData = normalizeLogisticsPath(currentPath) === pathFor('contract-data');
   const isDashboard = currentPath.startsWith(pathFor('dashboard'));
   const isPdfReport = currentPath.startsWith(pathFor('pdf-report'));
+  const shouldLoadWorkPlatformData = !isDashboard && !isContractData && !isPdfReport;
   const requestedModule = currentPath.split('/').pop() || 'home';
   const activeModule = requestedModule === 'sector' || requestedModule === 'weekly' ? 'home' : requestedModule;
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
@@ -4669,6 +4674,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   useEffect(() => {
     let cancelled = false;
     const fetchLogisticsTasks = async () => {
+      if (!shouldLoadWorkPlatformData) {
+        setIsLoadingTasks(false);
+        return;
+      }
       setIsLoadingTasks(true);
       try {
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
@@ -4699,10 +4708,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     return () => {
       cancelled = true;
     };
-  }, [permission, weeklyTasks]);
+  }, [permission, shouldLoadWorkPlatformData, weeklyTasks]);
 
   useEffect(() => {
-    if (isLoadingTasks || !permission.email) return undefined;
+    if (!shouldLoadWorkPlatformData || isLoadingTasks || !permission.email) return undefined;
     const activeTaskSignature = taskRecords
       .filter((task) => !isDeletedTask(task))
       .map((task) => `${task.id}:${task.status}:${task.createdAt || ''}:${task.updatedAt || ''}`)
@@ -4732,9 +4741,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     return () => {
       cancelled = true;
     };
-  }, [isLoadingTasks, permission.email, taskRecords, weeklyTasks]);
+  }, [isLoadingTasks, permission.email, shouldLoadWorkPlatformData, taskRecords, weeklyTasks]);
 
   useEffect(() => {
+    if (!shouldLoadWorkPlatformData) return undefined;
     let cancelled = false;
     const fetchStakeholderMasterRows = async () => {
       try {
@@ -4751,7 +4761,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [shouldLoadWorkPlatformData]);
 
   useEffect(() => {
     aiChatScrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -5079,7 +5089,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       setAiChatMessages((messages) => [...messages, {
         id: `ai-assistant-${Date.now()}`,
         role: 'assistant',
-        content: responseData?.answer || responseData?.message || '권한 범위 안에서 답변할 수 있는 근거를 찾지 못했습니다.',
+        content: sanitizeLogisticsAiDisplayText(responseData?.answer || responseData?.message || '권한 범위 안에서 답변할 수 있는 근거를 찾지 못했습니다.'),
         evidence: [],
         scope: responseData?.scope || null,
         mode: responseData?.mode || null,
@@ -5518,7 +5528,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         <div className="flex h-[68px] shrink-0 items-center justify-between border-b border-[#333333] px-4">
             <div>
               <div className="text-[15px] font-bold text-white">물류센터 AI 챗봇</div>
-              <div className="mt-1 text-[11px] font-semibold text-[#86868B]">자연어 대화 · 데이터 질문은 Supabase 기준</div>
+              <div className="mt-1 text-[11px] font-semibold text-[#86868B]">자연어 대화 · 데이터 질문은 데이터베이스 기준</div>
             </div>
           <div className="flex items-center gap-2">
             <button
@@ -10579,6 +10589,221 @@ function QualityCell({ value, lines = 2, tone = 'text-[#E5E5E5]' }) {
   );
 }
 
+const QUALITY_READABLE_FIELD_LABELS = {
+  asset_name: '자산명',
+  assetName: '자산명',
+  mainIssue: '주요 이슈',
+  exposureAvailable: '임차 자산 연결',
+  latestRevenue: '최근 매출액',
+  'OpenDART/latestRevenue': 'OpenDART 최근 매출액',
+  coldRatio: '저온 면적 구성',
+  averageENoc: 'E. NOC',
+  monthlyCostTotal: '월 임관리비 총액',
+  monthlyRentTotal: '월 임대료 총액',
+  monthlyMfTotal: '월 관리비 총액',
+  monthly_cost_total: '월 임관리비 총액',
+  monthly_rent_total: '월 임대료 총액',
+  monthly_mf_total: '월 관리비 총액',
+  current_monthly_rent_total: '현재 월 임대료 총액',
+  current_monthly_mf_total: '현재 월 관리비 총액',
+  current_monthly_cost_total: '현재 월 임관리비 총액',
+  effective_date: '임대료 변경 기준일자',
+  is_latest: '최신 이력 표시',
+  leased_area_py: '임대면적',
+  leased_area_sqm: '임대면적',
+  exclusive_area_py: '전용면적',
+  exclusive_area_sqm: '전용면적',
+  gross_floor_area_py: '연면적',
+  vacancy_rate: '공실률',
+  e_noc: 'E. NOC',
+  lease_id: '임대차계약 연결값',
+  lease_space_id: '계약 구역 연결값',
+  current_end_date: '현재 계약 만기일',
+  rent_escalation_rate: '임대료 인상률',
+  management_fee_escalation_rate: '관리비 인상률',
+  change_reason: '임대료 변경 원인',
+  match_status: '데이터 연결 상태',
+  headquarters_address: '본사 주소',
+  industry_code: '표준산업분류 코드',
+  business_registration_no: '사업자등록번호',
+  dart_corp_code: 'OpenDART 기업 코드',
+  listed_yn: '상장 여부',
+};
+
+const QUALITY_READABLE_REASON_LABELS = {
+  source_error: '원본 또는 저장된 값이 비어 있습니다.',
+  relation_unmatched: '원본 행과 정규 데이터가 서로 연결되지 않았습니다.',
+  mapping_missing: '원본과 연결되는 값이 없어 확인이 필요합니다.',
+  corrected_exclusive_area: '전용면적 보정 결과가 원본 값과 다릅니다.',
+  normalized_area_gap: '면적 단위 변환 또는 반올림 결과가 원본 값과 다릅니다.',
+  rent_history_duplicate: '같은 기준일자의 임대료 변경 이력이 중복되어 있습니다.',
+  latest_history_conflict: '최신 임대료 변경 이력이 둘 이상으로 표시되어 있습니다.',
+  lease_space_id_collision: '계약 구역을 구분하는 값이 다른 행과 겹칩니다.',
+  home_snapshot_value_diff: '홈 화면 집계값과 정규 데이터 계산값이 다릅니다.',
+  null_readback: '데이터베이스 저장 후 다시 읽은 값이 비어 있습니다.',
+  source_sheet_coverage: '원본 Excel 항목이 정규 데이터 또는 보존 로그에 빠짐없이 반영되는지 확인이 필요합니다.',
+  remaining_null_after_excel_backfill: '원본 Excel 보강 후에도 값이 비어 있습니다.',
+  storage_area_missing: '면적 구성값이 부족해 공실률 또는 비율 계산이 불완전할 수 있습니다.',
+  history_unmatched: '현재 계약과 임대료 변경 이력이 서로 맞지 않습니다.',
+  money_missing: '임대료 또는 관리비 기준값이 비어 있습니다.',
+  original_blank: '원본 입력값이 비어 있습니다.',
+  asset_name_missing: '자산명이 비어 있어 화면 표시와 계약 데이터 연결이 불안정할 수 있습니다.',
+  asset_gross_area_missing: '자산 연면적이 비어 있어 면적 지표 계산이 불완전할 수 있습니다.',
+  lease_space_id_missing: '계약 구역 식별값이 없어 수정, 아카이빙, 이력 누적 대상이 불명확합니다.',
+  lease_area_missing: '임대면적이 비어 있어 E. NOC와 면적 비율을 계산할 수 없습니다.',
+  current_rent_missing: '현재 계약 원장에 월 임대료 또는 월 관리비가 비어 있습니다.',
+  rent_history_missing: '현재 계약 구역에 연결된 임대료 변경 이력이 없습니다.',
+  current_vs_latest_history_mismatch: '현재 계약 원장 금액과 최신 임대료 변경 이력 금액이 서로 다릅니다.',
+  rent_history_same_date_conflict: '같은 기준일자에 서로 다른 임대료 변경 이력이 있습니다.',
+  expired_active_lease: '계약 만기일이 지났지만 활성 계약으로 남아 있습니다.',
+  tenant_business_registration_missing: '임차인 사업자등록번호가 없어 외부 기업정보 매칭 정확도가 낮아질 수 있습니다.',
+  unknown: '자동 점검에서 확인이 필요한 항목으로 분류되었습니다.',
+};
+
+function qualityReadableValue(value, fallback = '-') {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'number' && Number.isFinite(value)) return formatNumber(value);
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value).replace(/supabase/giu, '데이터베이스');
+    } catch {
+      return fallback;
+    }
+  }
+  const text = String(value).trim();
+  if (!text) return fallback;
+  if (/^-?\d+(?:\.\d+)?$/u.test(text)) return formatNumber(Number(text));
+  return text
+    .replace(/supabase/giu, '데이터베이스')
+    .replace(/ll_[a-z_]+/giu, '정규 데이터')
+    .replace(/_/gu, ' ');
+}
+
+function qualityReadablePayload(item) {
+  return parseJsonObject(item?.raw?.event_payload);
+}
+
+function qualityReadableFieldLabel(field) {
+  const text = cleanDisplay(field, '-');
+  const normalized = normalizedQualityCode(text);
+  return QUALITY_READABLE_FIELD_LABELS[text] || QUALITY_READABLE_FIELD_LABELS[normalized] || qualityReadableValue(text)
+    .replace(/\bmonthly\b/giu, '월')
+    .replace(/\brent\b/giu, '임대료')
+    .replace(/\bmf\b/giu, '관리비')
+    .replace(/\bmanagement fee\b/giu, '관리비')
+    .replace(/\bcost\b/giu, '비용')
+    .replace(/\bescalation rate\b/giu, '인상률')
+    .replace(/\btotal\b/giu, '총액');
+}
+
+function qualityReadableReasonLabel(reason) {
+  const text = String(reason || '').trim();
+  const normalized = normalizedQualityCode(text);
+  return QUALITY_READABLE_REASON_LABELS[text] || QUALITY_READABLE_REASON_LABELS[normalized] || qualityReadableValue(text, '점검 규칙 확인이 필요합니다.');
+}
+
+function qualityReadableTargetLabel(item) {
+  const raw = item?.raw || {};
+  const payload = qualityReadablePayload(item);
+  const assetName = qualityReadableValue(firstDefined(item?.assetName, raw.asset_name, raw.target_asset_name, payload.asset_name, payload.target_asset_name), '');
+  const tenantName = qualityReadableValue(firstDefined(item?.tenantName, raw.tenant_master_name, raw.tenant_name, payload.tenant_master_name, payload.tenant_name, payload.company_name), '');
+  const floorLabel = qualityReadableValue(firstDefined(raw.floor_label, raw.floor, payload.floor_label, payload.floor), '');
+  const areaLabel = qualityReadableValue(firstDefined(raw.detail_area_label, raw.area_label, payload.detail_area_label, payload.area_label), '');
+  const pieces = [assetName, tenantName, [floorLabel, areaLabel].filter(Boolean).join(' ')].filter(Boolean);
+  if (pieces.length) return pieces.join(' / ');
+  return qualityReadableValue(item?.target || qualityTargetLabel(item), '대상 확인 필요');
+}
+
+function qualityProblemValueLabel(item) {
+  const raw = item?.raw || {};
+  const payload = qualityReadablePayload(item);
+  const dbValue = qualityReadableValue(firstDefined(raw.supabase_value_text, raw.after_value, raw.readback_value, payload.supabase_value_text, payload.after_value, payload.readback_value), '');
+  const sourceValue = qualityReadableValue(firstDefined(raw.source_value_text, raw.before_value, payload.source_value_text, payload.before_value), '');
+  if (dbValue && sourceValue && dbValue !== sourceValue) return `데이터베이스 ${dbValue} / 원본 ${sourceValue}`;
+  return dbValue || sourceValue || '-';
+}
+
+function qualityRecommendedActionLabel(item) {
+  const reason = normalizedQualityCode(item?.reason);
+  if (reason === 'latest_history_conflict') return '최신으로 표시할 임대료 변경 이력을 1건만 남기세요.';
+  if (reason === 'rent_history_same_date_conflict') return '같은 기준일자의 금액이 맞는지 확인한 뒤 보정 이력으로 정리하세요.';
+  if (reason === 'current_vs_latest_history_mismatch') return '현재 계약 원장과 최신 임대료 이력 중 어느 값이 맞는지 확인하세요.';
+  if (reason === 'rent_history_missing') return '해당 계약 구역의 최초 또는 최신 임대료 변경 이력을 추가하세요.';
+  if (reason === 'current_rent_missing' || reason === 'money_missing') return '월 임대료와 월 관리비 기준값을 입력하거나 원본을 확인하세요.';
+  if (reason === 'lease_area_missing') return '임대면적을 입력해야 면적 비율과 E. NOC 계산이 가능합니다.';
+  if (reason === 'tenant_business_registration_missing') return '임차인의 사업자등록번호를 입력해 기업정보 매칭을 보강하세요.';
+  const action = qualityActionLabel(item);
+  return action && action !== '-' ? qualityReadableValue(action) : '담당자가 원본 값과 현재 저장값을 대조해 주세요.';
+}
+
+function qualityDetailedExplanation(item) {
+  const target = qualityReadableTargetLabel(item);
+  const field = qualityReadableFieldLabel(item?.field);
+  const value = qualityProblemValueLabel(item);
+  const reason = normalizedQualityCode(item?.reason);
+  const prefix = `${target}의 ${field} 항목에서 현재 확인된 값은 ${value}입니다.`;
+  if (reason === 'latest_history_conflict') return `${prefix} 최신 이력이 여러 건이면 대시보드가 어느 금액을 최신 기준으로 계산해야 하는지 알 수 없어 월 임관리비와 E. NOC가 흔들릴 수 있습니다.`;
+  if (reason === 'rent_history_same_date_conflict') return `${prefix} 같은 기준일자에 다른 금액이 있으면 단순 수정인지, 임대료 변경 이력 추가인지 구분해야 합니다.`;
+  if (reason === 'current_vs_latest_history_mismatch') return `${prefix} 현재 계약 원장과 최신 변경 이력의 금액이 다르면 화면 집계와 시계열 이력이 서로 다른 값을 보여줄 수 있습니다.`;
+  if (reason === 'rent_history_missing') return `${prefix} 임대료 변경 이력이 없으면 앞으로 임대료 상승이나 변경 내역을 누적해서 추적하기 어렵습니다.`;
+  if (reason === 'current_rent_missing' || reason === 'money_missing') return `${prefix} 금액 기준값이 비어 있으면 월 임관리비, 임대료 비중, E. NOC 계산에 직접 영향을 줍니다.`;
+  if (reason === 'lease_area_missing') return `${prefix} 임대면적은 가중평균 E. NOC와 임차 비율 계산의 기준값이라 비어 있으면 계산 신뢰도가 떨어집니다.`;
+  if (reason === 'tenant_business_registration_missing') return `${prefix} 사업자등록번호가 없으면 OpenDART 등 외부 기업정보와 임차인을 안정적으로 연결하기 어렵습니다.`;
+  return `${prefix} ${qualityReadableReasonLabel(item?.reason)}`;
+}
+
+function qualityFindingSummary(item) {
+  return `${qualityReadableTargetLabel(item)} · ${qualityReadableFieldLabel(item?.field)} · ${qualityProblemValueLabel(item)}`;
+}
+
+function QualityFindingReadableDetail({ item, canEdit, onRequestEdit, onDismiss }) {
+  if (!item) return null;
+  const raw = item.raw || {};
+  const payload = qualityReadablePayload(item);
+  const summaryRows = [
+    ['자산/대상', qualityReadableTargetLabel(item)],
+    ['점검 항목', qualityReadableFieldLabel(item.field)],
+    ['문제가 된 값', qualityProblemValueLabel(item)],
+    ['문제로 본 이유', qualityReadableReasonLabel(item.reason)],
+    ['권장 조치', qualityRecommendedActionLabel(item)],
+  ];
+  const technicalRows = [
+    ['원본 영역', qualitySheetLabel(item.sheetName)],
+    ['원본 행', qualityReadableValue(firstDefined(raw.source_row_number, raw.source_row_id, payload.source_row_number, payload.source_row_id))],
+    ['원본 항목명', qualityReadableValue(firstDefined(raw.source_header, raw.field_name, item.field))],
+    ['원본 값', qualityReadableValue(firstDefined(raw.source_value_text, raw.before_value, payload.source_value_text, payload.before_value))],
+    ['데이터베이스 값', qualityReadableValue(firstDefined(raw.supabase_value_text, raw.after_value, raw.readback_value, payload.supabase_value_text))],
+    ['점검 상태', qualitySeverityLabel(item.severity)],
+  ];
+  return (
+    <div className="space-y-4">
+      <div className="rounded-[14px] border border-[#4A3B1A] bg-[#241F12] px-4 py-3">
+        <div className="text-[12px] font-semibold text-[#FFD166]">점검 요약</div>
+        <div className="mt-2 break-keep text-[15px] font-bold leading-6 text-white">{qualityFindingSummary(item)}</div>
+        <div className="mt-2 break-keep text-[13px] leading-6 text-[#DADADA]">{qualityDetailedExplanation(item)}</div>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {summaryRows.map(([label, value]) => (
+          <div key={label} className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4">
+            <div className="text-[11px] font-semibold text-[#8E8E93]">{label}</div>
+            <div className="mt-2 break-keep text-[14px] font-semibold leading-6 text-white">{value}</div>
+          </div>
+        ))}
+      </div>
+      <details className="rounded-[12px] border border-[#333333] bg-[#171717]">
+        <summary className="cursor-pointer px-4 py-3 text-[12px] font-semibold text-[#C7C7CC]">원본/저장값 상세 보기</summary>
+        <div className="custom-scrollbar max-h-[280px] overflow-auto border-t border-[#333333] p-3">
+          <DataTable headers={['항목', '내용']} rows={technicalRows} compact minTableWidth={null} />
+        </div>
+      </details>
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={() => onDismiss?.(item)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-transparent px-4 text-[13px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">문제 아님</button>
+        <button type="button" onClick={() => onRequestEdit?.(item)} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-40" disabled={!canEdit}>{canEdit ? '수정 검토 기록 작성' : '수정 권한 없음'}</button>
+      </div>
+    </div>
+  );
+}
+
 const QUALITY_EXCEL_COLUMNS = [
   '행위',
   '원본시트',
@@ -11423,7 +11648,7 @@ async function fetchRemoteQualityFindings(signal) {
   if (error) throw error;
   if (data?.ok === false) {
     const status = dashboardReadResponseStatus(data);
-    throw new Error(`${status ? `${status} ` : ''}${data?.error || data?.message || 'Supabase quality readback failed'}`);
+    throw new Error(`${status ? `${status} ` : ''}${data?.error || data?.message || '데이터베이스 무결성 점검값을 불러오지 못했습니다.'}`);
   }
   const rows = Array.isArray(data?.data) ? data.data : [];
   return {
@@ -11444,7 +11669,7 @@ function DataQualityDashboard() {
   const [editTarget, setEditTarget] = useState(null);
   const [editGridRows, setEditGridRows] = useState([]);
   const [editSubmitStatus, setEditSubmitStatus] = useState(null);
-  const [remoteQuality, setRemoteQuality] = useState({ status: 'loading', rows: [], message: 'Supabase readback 확인 중' });
+  const [remoteQuality, setRemoteQuality] = useState({ status: 'loading', rows: [], message: '데이터베이스 점검값 확인 중' });
   const [dismissedFindingIds, setDismissedFindingIds] = useState(() => readDismissedQualityFindingIds());
   useEffect(() => {
     const controller = new AbortController();
@@ -11452,7 +11677,7 @@ function DataQualityDashboard() {
       .then((result) => setRemoteQuality(result))
       .catch((error) => {
         if (error.name !== 'AbortError') {
-          setRemoteQuality({ status: 'blocked', rows: [], message: error.message || 'Supabase readback 실패' });
+          setRemoteQuality({ status: 'blocked', rows: [], message: error.message || '데이터베이스 점검값 확인 실패' });
         }
       });
     return () => controller.abort();
@@ -11491,10 +11716,10 @@ function DataQualityDashboard() {
   };
   const openFindingDetail = (item) => {
     setModal({
-      title: `무결성 점검 상세 · ${qualityFieldLabel(item.field)}`,
+      title: `무결성 점검 상세 · ${qualityReadableFieldLabel(item.field)}`,
       size: 'wide',
       content: (
-        <QualityFindingDetail
+        <QualityFindingReadableDetail
           item={item}
           canEdit={canEdit}
           onRequestEdit={requestEditForFinding}
@@ -11507,10 +11732,11 @@ function DataQualityDashboard() {
     <span key={`${item.id}-severity`} className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-bold ${item.severity === 'critical' ? 'border-[#6F3434] bg-[#331F1F] text-[#FF9F9F]' : item.severity === 'warning' ? 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]' : 'border-[#34537A] bg-[#202C3D] text-[#9AD7FF]'}`}>
       {qualitySeverityLabel(item.severity)}
     </span>,
-    <QualityCell key={`${item.id}-target`} value={qualityTargetLabel(item)} />,
-    <QualityCell key={`${item.id}-field`} value={qualityFieldLabel(item.field)} />,
-    <QualityCell key={`${item.id}-reason`} value={qualityReasonLabel(item.reason)} lines={3} tone="text-[#C7C7CC]" />,
-    <QualityCell key={`${item.id}-action`} value={qualityActionLabel(item)} lines={3} tone="text-[#A1A1AA]" />,
+    <QualityCell key={`${item.id}-target`} value={qualityReadableTargetLabel(item)} lines={3} />,
+    <QualityCell key={`${item.id}-field`} value={qualityReadableFieldLabel(item.field)} lines={2} />,
+    <QualityCell key={`${item.id}-value`} value={qualityProblemValueLabel(item)} lines={2} tone="text-[#FFD166]" />,
+    <QualityCell key={`${item.id}-reason`} value={qualityReadableReasonLabel(item.reason)} lines={3} tone="text-[#C7C7CC]" />,
+    <QualityCell key={`${item.id}-action`} value={qualityRecommendedActionLabel(item)} lines={3} tone="text-[#A1A1AA]" />,
     <div key={`${item.id}-actions`} className="flex flex-wrap gap-2">
       <button type="button" onClick={(event) => { event.stopPropagation(); requestEditForFinding(item); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F]">{canEdit ? '수정 검토' : '권한 확인'}</button>
       <button type="button" onClick={(event) => { event.stopPropagation(); dismissFinding(item); }} className="h-8 rounded-[8px] border border-[#3A3A3C] bg-transparent px-3 text-[12px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">문제 아님</button>
@@ -11645,11 +11871,11 @@ function DataQualityDashboard() {
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="FINDINGS" title="무결성 점검 결과" />
         <DataTable
-          headers={['등급', '자산·대상', '항목', '문제로 본 이유', '권장 조치', '처리']}
+          headers={['등급', '자산/대상', '점검 항목', '문제가 된 값', '문제로 본 이유', '권장 조치', '처리']}
           rows={tableRows}
           compact
-          columnWidths={['110px', '240px', '180px', '300px', '340px', '220px']}
-          minTableWidth="1390px"
+          columnWidths={['110px', '260px', '180px', '230px', '310px', '320px', '220px']}
+          minTableWidth="1630px"
           onRowClick={(index) => openFindingDetail(visibleFindings[index])}
         />
       </section>

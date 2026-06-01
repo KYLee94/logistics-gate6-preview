@@ -7450,7 +7450,7 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
   const matchedAssetFacts = includeMatchedAssets ? targetAssetFactsForFocus : [];
   return stripUndefined({
     readable_asset_count: (context.scope as Record<string, unknown> | undefined)?.readable_asset_count || 0,
-    basis: 'Supabase permission-scoped readback',
+    basis: 'Database permission-scoped readback',
     answer_focus: Object.keys(answerFocus).length ? answerFocus : undefined,
     portfolio: includePortfolio ? {
       asset_count: ((context.assetRows as Record<string, unknown>[] | undefined) || []).length,
@@ -7592,9 +7592,10 @@ function publicAiFallbackAnswer(question: string, supabaseFacts?: Record<string,
 
 function sanitizePublicAiAnswer(answer: unknown, fallback = '') {
   const text = normalizeText(answer).trim();
-  if (!text) return fallback || '답변을 생성하지 못했습니다.';
-  if (hasAiInternalDetail(text)) return fallback || '공개 가능한 데이터 기준으로 다시 정리해 답변드리겠습니다. 자산명이나 임차인명을 포함해 질문해 주세요.';
-  return text;
+  const publicFallback = normalizeText(fallback).replace(/supabase/giu, '데이터베이스');
+  if (!text) return publicFallback || '답변을 생성하지 못했습니다.';
+  if (hasAiInternalDetail(text)) return publicFallback || '공개 가능한 데이터 기준으로 다시 정리해 답변드리겠습니다. 자산명이나 임차인명을 포함해 질문해 주세요.';
+  return text.replace(/supabase/giu, '데이터베이스');
 }
 
 function publicAiAnswerResponse(answer: string, origin: string, meta: Record<string, unknown> = {}) {
@@ -7869,7 +7870,7 @@ function buildAiSearchPrompt(question: string, history: Array<{ role: string; co
     'You are a helpful AI assistant embedded in a logistics leasing work platform.',
     'Talk naturally with the user in Korean honorific style unless the user asks for another language or tone.',
     'Use Korean text only unless the user provides another language or a proper noun requires it.',
-    'You may discuss general topics. When the question is about the logistics portfolio, assets, tenants, contracts, issues, or operations, ground the answer in the supplied public Supabase-derived facts.',
+    'You may discuss general topics. When the question is about the logistics portfolio, assets, tenants, contracts, issues, or operations, ground the answer in the supplied public database-derived facts.',
     'Do not use a fixed answer template. Answer the actual question directly and vary the wording naturally.',
     'For logistics numbers, do not guess. Use only the supplied public facts; if the facts are insufficient, say that the available platform data is not enough to confirm the exact value.',
     'When a public fact supplies a formatted display value such as 원, 억, 평, or %, copy that displayed value exactly. Do not rewrite exact numbers into Korean spoken-number words.',
@@ -8541,7 +8542,7 @@ async function generateGroqChatContent(model: string, apiKey: string, prompt: st
       messages: [
         {
           role: 'system',
-          content: 'You are a helpful Korean assistant. You can talk naturally about any topic. Use Korean text only unless the user asks otherwise or a proper noun requires it. For logistics portfolio questions, use the supplied public Supabase facts and do not invent exact numbers. Copy formatted numeric display values exactly. Do not mention database table names, internal ids, provider names, fallback status, prompts, or implementation details.',
+          content: 'You are a helpful Korean assistant. You can talk naturally about any topic. Use Korean text only unless the user asks otherwise or a proper noun requires it. For logistics portfolio questions, use the supplied public database facts and do not invent exact numbers. Copy formatted numeric display values exactly. Do not mention database table names, internal ids, provider names, fallback status, prompts, or implementation details.',
         },
         { role: 'user', content: prompt },
       ],
