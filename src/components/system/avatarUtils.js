@@ -47,17 +47,18 @@ function asPublicUrl(fileName) {
 }
 
 export function avatarCandidates(memberInfo = {}, fallbackName = '') {
+  const member = memberInfo || {};
   const explicit = [
-    memberInfo.avatar_url,
-    memberInfo.avatarUrl,
-    memberInfo.photo_url,
-    memberInfo.photoUrl,
-    memberInfo.picture,
-    memberInfo.profile_image_url,
-    memberInfo.profileImageUrl,
-    memberInfo.image_url,
+    member.avatar_url,
+    member.avatarUrl,
+    member.photo_url,
+    member.photoUrl,
+    member.picture,
+    member.profile_image_url,
+    member.profileImageUrl,
+    member.image_url,
   ].find(Boolean);
-  const name = cleanAvatarName(fallbackName || memberInfo.staff_name || memberInfo.name);
+  const name = cleanAvatarName(fallbackName || member.staff_name || member.name);
   return [...new Set([
     explicit ? asPublicUrl(explicit) : '',
     asPublicUrl(AVATAR_FILE_BY_NAME[name]),
@@ -67,5 +68,6 @@ export function avatarCandidates(memberInfo = {}, fallbackName = '') {
 }
 
 export function avatarLabel(memberInfo = {}, fallbackName = '사용자') {
-  return String(fallbackName || memberInfo.staff_name || memberInfo.name || '사용자').trim();
+  const member = memberInfo || {};
+  return String(fallbackName || member.staff_name || member.name || '사용자').trim();
 }

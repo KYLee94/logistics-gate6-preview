@@ -90,6 +90,12 @@ export default function App() {
 
   const { lang } = useLanguage();
   const { user, loading, recoveryMode } = useAuth();
+  const shouldShowAuthSetup = currentPage === 'auth-setup'
+      || (!loading && !user && currentPage.startsWith('platform/iotaseoul') && !recoveryMode);
+  const renderedPage = shouldShowAuthSetup ? 'auth-setup' : currentPage;
+  const isFullscreenPage = ['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform', 'auth-setup', 'workspace/archive'].includes(renderedPage)
+      || renderedPage.startsWith('platform/iotaseoul');
+  const hideMobileBlocker = renderedPage === 'auth-setup' || renderedPage.startsWith('platform/iotaseoul');
 
   // Protect platform routes
   React.useEffect(() => {
@@ -145,7 +151,7 @@ export default function App() {
   return (
     <>
       {/* Global Mobile Blocker */}
-      <div className={`fixed inset-0 z-[99999] bg-white items-center justify-center p-6 text-center ${currentPage.startsWith('platform/iotaseoul') ? 'hidden' : 'flex lg:hidden'}`}>
+      <div className={`fixed inset-0 z-[99999] bg-white items-center justify-center p-6 text-center ${hideMobileBlocker ? 'hidden' : 'flex lg:hidden'}`}>
         <div className="flex flex-col items-center opacity-80">
             <svg className="w-12 h-12 mb-5 text-[#1d1d1f]" fill="none" strokeWidth="1.5" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
@@ -156,36 +162,36 @@ export default function App() {
         </div>
       </div>
 
-      <div className={(['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform', 'auth-setup', 'workspace/archive'].includes(currentPage) || currentPage.startsWith('platform/iotaseoul')) ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
-        {!(['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform', 'auth-setup', 'workspace/archive'].includes(currentPage) || currentPage.startsWith('platform/iotaseoul')) && (
+      <div className={isFullscreenPage ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
+        {!isFullscreenPage && (
             <Header
               onNavigateToHome={() => setCurrentPage('home')}
-              currentPage={currentPage}
+              currentPage={renderedPage}
             />
         )}
 
-        {currentPage === 'home' && <MainLayout />}
-        {currentPage === 'action-plan' && <Notes />}
+        {renderedPage === 'home' && <MainLayout />}
+        {renderedPage === 'action-plan' && <Notes />}
         
         {/* Navigation Handlers overriding the inline SystemPlan internal stage logic */}
-        {currentPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo(window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_WORKSPACE_PATH)} />}
-        {currentPage === 'system-plan' && <SystemLogin onLogin={() => navigateTo('system-bridge')} />}
-        {['system-bridge', 'system-chat', 'system-detail'].includes(currentPage) && (
+        {renderedPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo(window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_WORKSPACE_PATH)} />}
+        {renderedPage === 'system-plan' && <SystemLogin onLogin={() => navigateTo('system-bridge')} />}
+        {['system-bridge', 'system-chat', 'system-detail'].includes(renderedPage) && (
             <SystemPlan 
                 externalStage={
-                    currentPage === 'system-bridge' ? 0 : 
-                    currentPage === 'system-chat' ? 1 : 2
+                    renderedPage === 'system-bridge' ? 0 :
+                    renderedPage === 'system-chat' ? 1 : 2
                 } 
                 onNext={() => {
-                    if (currentPage === 'system-bridge') navigateTo('system-chat');
-                    if (currentPage === 'system-chat') navigateTo('system-detail');
+                    if (renderedPage === 'system-bridge') navigateTo('system-chat');
+                    if (renderedPage === 'system-chat') navigateTo('system-detail');
                 }} 
             />
         )}
-        {currentPage === 'system-core' && <SystemCore isPlatform={false} />}
-        {currentPage === 'platform' && <PlatformCore isPlatform={true} />}
-        {currentPage.startsWith('platform/iotaseoul') && !currentPage.includes('/archive') && <PlatformCore isPlatform={true} isIotaWorkspaceOverride={true} currentPath={currentPage} />}
-        {(currentPage.includes('workspace/archive') || currentPage.endsWith('/archive')) && <WorkspaceArchive />}
+        {renderedPage === 'system-core' && <SystemCore isPlatform={false} />}
+        {renderedPage === 'platform' && <PlatformCore isPlatform={true} />}
+        {renderedPage.startsWith('platform/iotaseoul') && !renderedPage.includes('/archive') && <PlatformCore isPlatform={true} isIotaWorkspaceOverride={true} currentPath={renderedPage} />}
+        {(renderedPage.includes('workspace/archive') || renderedPage.endsWith('/archive')) && <WorkspaceArchive />}
       </div>
     </>
   );

@@ -1,0 +1,41 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-01T01:34:55.122Z",
+  "status": 200,
+  "response_error": null,
+  "url": "https://kylee94.github.io/logistics-gate6-preview/?blank_check=20260601T013442",
+  "info": {
+    "title": "IGIS Logistics Work Platform",
+    "bodyText": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n다음",
+    "bodyHtmlLength": 3531,
+    "rootHtmlLength": 3500,
+    "rootText": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n다음",
+    "url": "https://kylee94.github.io/logistics-gate6-preview/auth-setup",
+    "visibleText": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n다음\n---\nLogistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n다음\n---\nLogistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n다음\n---\nLogistics\n물류센터 워크 플랫폼\n---\nLogistics\n---\n물류센터 워크 플랫폼\n---\n물류센터 워크 플랫폼\n---\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n다음",
+    "scripts": [
+      "https://www.googletagmanager.com/gtag/js?id=G-QNHPD2C1K4",
+      "https://kylee94.github.io/logistics-gate6-preview/assets/index-Rp6QVMtR.js"
+    ]
+  },
+  "fatal_logs": [],
+  "unauthorized_logs": [],
+  "logs": [
+    {
+      "type": "warning",
+      "text": "The resource https://kylee94.github.io/logistics-gate6-preview/assets/logo_white-BmKhrYM7.png was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally."
+    },
+    {
+      "type": "warning",
+      "text": "The resource https://kylee94.github.io/logistics-gate6-preview/assets/foster_partners-BTPj8RJt.jpg was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally."
+    },
+    {
+      "type": "warning",
+      "text": "The resource https://kylee94.github.io/logistics-gate6-preview/assets/iota_full-Dtt_ddfJ.jpg was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally."
+    },
+    {
+      "type": "warning",
+      "text": "The resource https://kylee94.github.io/logistics-gate6-preview/assets/iota_full_3-B0LWY6Jf.jpg was preloaded using link preload but not used within a few seconds from the window's load event. Please make sure it has an appropriate `as` value and it is preloaded intentionally."
+    }
+  ],
+  "screenshot": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\live-login-blank-check-20260601T013442.png"
+}
