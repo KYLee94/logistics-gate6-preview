@@ -5,7 +5,6 @@ import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
 import weeklyReportData from './logisticsWeeklyReportData.json';
-import logisticsPermissionData from './logisticsPermissionData.json';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
 import homeData from './logisticsHomeData.json';
 import rawAssetOptionsData from './logisticsAssetOptionsData.json';
@@ -16,6 +15,7 @@ import infoIconUrl from '../../../assets/i_icon.png';
 import { avatarCandidates } from '../avatarUtils';
 
 const MotionDiv = motion.div;
+const logisticsPermissionData = { sourceFile: 'Supabase ll_user_permissions', users: [] };
 
 const assetPayloadModules = import.meta.glob('./logisticsAssetData/*.json', { eager: true });
 const ASSET_PAYLOADS = Object.fromEntries(Object.values(assetPayloadModules)
@@ -3856,7 +3856,16 @@ function hasLogisticsRole(permission, minimum) {
 
 function canViewDataQuality(memberInfo, permission) {
   const name = String(memberInfo?.staff_name || memberInfo?.name || permission?.name || '').trim();
-  return DATA_QUALITY_ALLOWED_NAMES.has(name);
+  if (DATA_QUALITY_ALLOWED_NAMES.has(name)) return true;
+  const featurePermissions = {
+    ...(memberInfo?.feature_permissions || {}),
+    ...(memberInfo?.featurePermissions || {}),
+    ...(permission?.feature_permissions || {}),
+    ...(permission?.featurePermissions || {}),
+  };
+  return permission?.role === 'System Admin'
+    || permission?.logisticsRole === 'System Admin'
+    || featurePermissions.data_quality === true;
 }
 
 function readLogisticsFeatureAccessConfig() {
@@ -3889,6 +3898,13 @@ function hasConfiguredFeatureAccess(memberInfo, permission, featureKey, config =
 }
 
 function canUseLogisticsFeature(memberInfo, permission, featureKey, config = readLogisticsFeatureAccessConfig()) {
+  const featurePermissions = {
+    ...(memberInfo?.feature_permissions || {}),
+    ...(memberInfo?.featurePermissions || {}),
+    ...(permission?.feature_permissions || {}),
+    ...(permission?.featurePermissions || {}),
+  };
+  if (featurePermissions[featureKey] === true || featurePermissions[featureKey] === 'true') return true;
   if (canViewDataQuality(memberInfo, permission)) return true;
   return hasConfiguredFeatureAccess(memberInfo, permission, featureKey, config);
 }
@@ -3928,9 +3944,9 @@ function useLogisticsFeatureAccess(memberInfo, permission) {
 
 function canViewAdvancedLogisticsTools(memberInfo, permission) {
   return canViewDataQuality(memberInfo, permission)
-    || hasConfiguredFeatureAccess(memberInfo, permission, LOGISTICS_FEATURE_KEYS.analysisTools)
-    || hasConfiguredFeatureAccess(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataPlayground)
-    || hasConfiguredFeatureAccess(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataQuality);
+    || canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.analysisTools)
+    || canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataPlayground)
+    || canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataQuality);
 }
 
 function buildMainWeeklyTasks(report, permission) {
@@ -4100,11 +4116,11 @@ function normalizeIdentity(value) {
   return String(value || '').trim().replace(/\t/g, '').toLowerCase();
 }
 
-function resolveLogisticsPermission(memberInfo) {
+function resolveLogisticsPermissionLegacy(memberInfo) {
   const email = normalizeIdentity(memberInfo?.email || memberInfo?.user_email || memberInfo?.login_id || memberInfo?.id);
   const name = String(memberInfo?.staff_name || memberInfo?.name || '').trim();
   const organization = String(memberInfo?.organization || memberInfo?.department || memberInfo?.team_name || '').trim();
-  const users = logisticsPermissionData.users || [];
+  const users = [];
   const matched = users.find((user) => normalizeIdentity(user.email) === email)
     || users.find((user) => name && user.name === name)
     || users.find((user) => organization && user.organization === organization);
@@ -4120,7 +4136,7 @@ function resolveLogisticsPermission(memberInfo) {
     },
   };
   const current = matched || fallback;
-  const teamMembers = (logisticsPermissionData.users || []).filter((user) => user.organization && user.organization === current.organization);
+  const teamMembers = [];
   return {
     ...current,
     matched: Boolean(matched),
@@ -4128,6 +4144,54 @@ function resolveLogisticsPermission(memberInfo) {
     managedAssets: current.managedAssets || [],
     managedFunds: current.managedFunds || [],
     permissions: current.permissions || fallback.permissions,
+  };
+}
+
+function resolveLogisticsPermission(memberInfo) {
+  const raw = memberInfo?.logistics_permission || memberInfo || {};
+  const email = normalizeIdentity(raw.email || memberInfo?.email || raw.user_email || memberInfo?.user_email || raw.login_id || memberInfo?.login_id || raw.id || memberInfo?.id);
+  const name = String(raw.staff_name || raw.name || memberInfo?.staff_name || memberInfo?.name || '').trim();
+  const organization = String(raw.organization || raw.department || raw.team_name || memberInfo?.organization || memberInfo?.department || memberInfo?.team_name || '').trim();
+  const role = raw.logistics_role || raw.logisticsRole || raw.role || 'Reader';
+  const managedAssetCodes = [
+    ...(Array.isArray(raw.managedAssetCodes) ? raw.managedAssetCodes : []),
+    ...(Array.isArray(raw.managed_asset_codes) ? raw.managed_asset_codes : []),
+  ].map((item) => String(item || '').trim()).filter(Boolean);
+  const managedAssets = Array.isArray(raw.managedAssets)
+    ? raw.managedAssets
+    : managedAssetCodes.map((assetCode) => ({ assetCode, assetId: assetCode, assetName: assetCode }));
+  const managedFunds = raw.managedFunds || raw.profile_payload?.managed_funds || raw.profilePayload?.managed_funds || [];
+  const managedAssetPermissions = raw.permissions?.managedAsset || raw.managed_asset_permissions || raw.managedAssetPermissions || {};
+  const otherAssetPermissions = raw.permissions?.otherAsset || raw.other_asset_permissions || raw.otherAssetPermissions || {};
+  const permissions = {
+    managedAsset: {
+      read: managedAssetPermissions.read === true || managedAssets.length > 0,
+      create: managedAssetPermissions.create === true,
+      update: managedAssetPermissions.update === true,
+      delete: managedAssetPermissions.delete === true,
+    },
+    otherAsset: {
+      read: otherAssetPermissions.read === true,
+      create: otherAssetPermissions.create === true,
+      update: otherAssetPermissions.update === true,
+      delete: otherAssetPermissions.delete === true,
+    },
+  };
+
+  return {
+    ...raw,
+    matched: Boolean(raw.email || raw.staff_name || raw.name),
+    name: name || '로그인 사용자',
+    email: email || '',
+    organization: organization || '조직 미확인',
+    role,
+    logisticsRole: role,
+    teamMembers: Array.isArray(raw.teamMembers) ? raw.teamMembers : [],
+    managedAssets,
+    managedFunds,
+    permissions,
+    feature_permissions: raw.feature_permissions || raw.featurePermissions || {},
+    featurePermissions: raw.featurePermissions || raw.feature_permissions || {},
   };
 }
 
@@ -11589,7 +11653,7 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
               acceptedRows: editableRows.length,
               blockedRows: blockedRows.length,
               selectedQualityAssetId: qualityAssetId,
-              permission_source: logisticsPermissionData.sourceFile,
+              permission_source: 'Supabase ll_user_permissions',
               cell_edits: cellEdits,
             },
           },
@@ -11796,7 +11860,7 @@ function DataQualityDashboard() {
             request_payload: {
               finding: editTarget.raw || editTarget,
               cell_edits: changedEditRows,
-              permission_source: logisticsPermissionData.sourceFile,
+              permission_source: 'Supabase ll_user_permissions',
               notification: {
                 type: 'data_quality_owner_request',
                 target_label: qualityTargetLabel(editTarget),

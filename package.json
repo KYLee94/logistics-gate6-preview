@@ -25,6 +25,8 @@
     "qa:external-refresh-buttons:browser": "node scripts/qa/logistics-external-refresh-buttons-browser-smoke.cjs",
     "qa:login-history": "node scripts/qa/logistics-login-history-smoke.cjs",
     "qa:login-history:browser": "node scripts/qa/logistics-login-history-browser-smoke.cjs",
+    "qa:auth-permission-matrix": "node scripts/qa/logistics-auth-permission-matrix.cjs",
+    "ops:backfill-logistics-users": "node scripts/ops/backfill-logistics-user-permissions.cjs",
     "qa:work-platform:browser": "node scripts/qa/logistics-work-platform-browser-smoke.cjs",
     "qa:enoc-weighted": "node scripts/qa/logistics-enoc-weighted-audit.cjs",
     "opendart:monthly-ingest": "node scripts/integrations/opendart-monthly-ingest.cjs",

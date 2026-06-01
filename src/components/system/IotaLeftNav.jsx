@@ -131,12 +131,12 @@ const LOGISTICS_FEATURES = [
     { key: 'building_register_refresh', label: '건축물대장 새로고침', description: '건축물대장 API 재호출 및 Supabase 저장' },
     { key: 'opendart_refresh', label: 'OpenDART 새로고침', description: 'OpenDART API 재호출 및 Supabase 저장' },
 ];
-const FEATURE_ACCESS_DEFAULT_USERS = [
+const FEATURE_ACCESS_DEFAULT_USERS = []; /*
     { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
     { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
     { staff_name: '이시정', organization: '기획추진센터', email: 'sjlee@igisam.com' },
     { staff_name: '\uC815\uD558\uC724', organization: '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81', email: 'hayun.jeong@igisam.com' },
-];
+*/
 const FEATURE_ACCESS_DEFAULT_EMAIL_BY_NAME = new Map(FEATURE_ACCESS_DEFAULT_USERS.map((row) => [row.staff_name, row.email]));
 const LOGIN_CAPABILITY_SORT_COLUMNS = [
     { key: 'organization', label: '조직', type: 'text' },
@@ -311,6 +311,8 @@ const featureAccessGrantedUsers = (config, featureKey, users = []) => {
 };
 const memberHasFeatureAccess = (config, featureKey, memberInfo = {}) => {
     const member = memberInfo || {};
+    const featurePermissions = member.feature_permissions || member.featurePermissions || member.logistics_permission?.feature_permissions || {};
+    if (featurePermissions[featureKey] === true || featurePermissions[featureKey] === 'true') return true;
     return featureAccessHasUser(config, featureKey, {
     email: member.email,
     staff_name: member.staff_name || member.name,
@@ -536,7 +538,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
 
     const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
     const isLogisticsPath = normalizedCurrentPath.startsWith(LOGISTICS_INTERNAL_BASE);
-    const isLogisticsAdmin = LOGISTICS_ADMIN_NAMES.has(memberInfo?.staff_name || memberInfo?.name);
+    const memberFeaturePermissions = memberInfo?.feature_permissions || memberInfo?.featurePermissions || memberInfo?.logistics_permission?.feature_permissions || {};
+    const memberRole = memberInfo?.logistics_role || memberInfo?.logisticsRole || memberInfo?.role || memberInfo?.logistics_permission?.logistics_role;
+    const isLogisticsAdmin = memberRole === 'System Admin'
+        || memberFeaturePermissions.login_history === true
+        || memberFeaturePermissions.data_quality === true
+        || LOGISTICS_ADMIN_NAMES.has(memberInfo?.staff_name || memberInfo?.name);
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
     const recentLoginHistoryRows = loginHistoryRows.slice(0, 5);
     const loginCapabilityUsers = Array.isArray(loginHistoryData?.users) ? loginHistoryData.users : [];

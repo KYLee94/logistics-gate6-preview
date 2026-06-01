@@ -3,19 +3,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import { useAuth } from '../../context/AuthContext';
-import logisticsPermissionData from './workspace/logisticsPermissionData.json';
 import UserAvatar from './UserAvatar';
 
-const LOGISTICS_PERMISSION_USERS = logisticsPermissionData.users || [];
 const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
 const canonicalLogisticsEmail = (email) => LOGISTICS_EMAIL_ALIASES[String(email || '').trim().toLowerCase()] || String(email || '').trim().toLowerCase();
-const LOGISTICS_ALLOWED_EMAILS = new Set([
-    ...LOGISTICS_PERMISSION_USERS.map((user) => String(user.email || '').trim().toLowerCase()).filter(Boolean),
-    ...Object.keys(LOGISTICS_EMAIL_ALIASES),
-]);
 const LOGISTICS_LOCAL_AUTH_KEY = 'logistics_preview_auth';
 const LOGISTICS_ENROLLED_EMAILS_KEY = 'logistics_enrolled_emails';
-const logisticsUserByEmail = (email) => LOGISTICS_PERMISSION_USERS.find((user) => String(user.email || '').trim().toLowerCase() === canonicalLogisticsEmail(email));
+const LOGISTICS_LAST_EMAIL_KEY = 'logistics_last_login_email';
+const LOGISTICS_REMEMBER_EMAIL_KEY = 'logistics_remember_login_email';
 const readEnrolledLogisticsEmails = () => {
     try {
         const parsed = JSON.parse(localStorage.getItem(LOGISTICS_ENROLLED_EMAILS_KEY) || '[]');
@@ -52,15 +47,14 @@ const buildAuthRedirectUrl = (path = 'auth-setup') => {
     const normalizedPath = String(path || '').replace(/^\/+/, '');
     return new URL(`${normalizedBase}${normalizedPath}`, window.location.origin).toString();
 };
-const activateLocalLogisticsSession = (email, userId) => {
+const activateLocalLogisticsSession = (email, userId, memberInfo = {}) => {
     const normalizedEmail = String(email || '').trim().toLowerCase();
-    const logisticsUser = logisticsUserByEmail(normalizedEmail);
-    if (!logisticsUser) return false;
+    if (!normalizedEmail) return false;
     sessionStorage.setItem(LOGISTICS_LOCAL_AUTH_KEY, JSON.stringify({
         email: normalizedEmail,
         user_id: userId || `local-logistics-${normalizedEmail}`,
-        staff_name: logisticsUser.name,
-        organization: logisticsUser.organization,
+        staff_name: memberInfo.staff_name || memberInfo.name || normalizedEmail,
+        organization: memberInfo.organization || '',
         created_at: new Date().toISOString(),
     }));
     localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
@@ -88,12 +82,56 @@ const recordLogisticsLoginHistory = async (email, authEmail, source = 'web_app')
     }
 };
 
+const readRememberLoginInfo = () => {
+    try {
+        return localStorage.getItem(LOGISTICS_REMEMBER_EMAIL_KEY) !== 'false';
+    } catch {
+        return true;
+    }
+};
+
+const readLastLoginEmail = () => {
+    try {
+        return localStorage.getItem(LOGISTICS_LAST_EMAIL_KEY) || '';
+    } catch {
+        return '';
+    }
+};
+
+const persistLoginHints = async ({ email, password, rememberLoginInfo, staffName }) => {
+    try {
+        if (rememberLoginInfo && email) {
+            localStorage.setItem(LOGISTICS_LAST_EMAIL_KEY, email);
+        } else {
+            localStorage.removeItem(LOGISTICS_LAST_EMAIL_KEY);
+        }
+        localStorage.setItem(LOGISTICS_REMEMBER_EMAIL_KEY, rememberLoginInfo ? 'true' : 'false');
+    } catch {
+        // localStorage can be blocked by browser settings. Login should still work.
+    }
+
+    // 비밀번호는 앱에 저장하지 않습니다. 브라우저/OS 비밀번호 관리자에게만 저장 기회를 넘깁니다.
+    if (rememberLoginInfo && email && password && window.PasswordCredential && navigator.credentials?.store) {
+        try {
+            await navigator.credentials.store(new PasswordCredential({
+                id: email,
+                name: staffName || email,
+                password,
+            }));
+        } catch {
+            // Browser may not support or may reject credential storage. Autocomplete attributes still work.
+        }
+    }
+};
+
 export default function AuthSetup({ onLogin }) {
     const { recoveryMode, setRecoveryMode } = useAuth();
     const [step, setStep] = useState(recoveryMode ? 5 : 1);
-    const [email, setEmail] = useState('');
+    const [email, setEmail] = useState(() => readLastLoginEmail());
     const [resolvedAuthEmail, setResolvedAuthEmail] = useState('');
     const [staffName, setStaffName] = useState('');
+    const [selectedMemberInfo, setSelectedMemberInfo] = useState(null);
+    const [rememberLoginInfo, setRememberLoginInfo] = useState(() => readRememberLoginInfo());
     const [isFirstTime, setIsFirstTime] = useState(true);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -113,13 +151,7 @@ export default function AuthSetup({ onLogin }) {
     
     const passwordInputRef = useRef(null);
     const currentAuthEmail = () => (resolvedAuthEmail || email).trim().toLowerCase();
-    const selectedLogisticsUser = logisticsUserByEmail(email.trim().toLowerCase());
-    const selectedMemberInfo = selectedLogisticsUser ? {
-        ...selectedLogisticsUser,
-        staff_name: selectedLogisticsUser.name,
-        email: currentAuthEmail() || selectedLogisticsUser.email,
-        avatar_url: selectedLogisticsUser.image_url || selectedLogisticsUser.avatar_url || selectedLogisticsUser.profile_image_url,
-    } : { staff_name: staffName, name: staffName, email: currentAuthEmail() };
+    const selectedAvatarInfo = selectedMemberInfo || { staff_name: staffName, name: staffName, email: currentAuthEmail() };
 
     useEffect(() => {
         if (step === 2 && passwordInputRef.current) {
@@ -156,15 +188,15 @@ export default function AuthSetup({ onLogin }) {
         setIsCheckingEmail(true);
         try {
             const normalizedEmail = email.trim().toLowerCase();
-            const logisticsUser = logisticsUserByEmail(normalizedEmail);
+            const permissionEmail = canonicalLogisticsEmail(normalizedEmail);
+            const remoteAuthStatus = await fetchLogisticsAuthStatus(permissionEmail);
 
-            if (!LOGISTICS_ALLOWED_EMAILS.has(normalizedEmail) || !logisticsUser) {
-                triggerError('물류센터 권한부여 목록에 등록되지 않은 이메일입니다.');
+            if (!remoteAuthStatus?.allowed || remoteAuthStatus?.account_status === 'disabled') {
+                triggerError('물류센터 워크플랫폼 로그인 권한이 등록되지 않은 이메일입니다.');
                 return;
             }
 
             let memberData = null;
-            const remoteAuthStatus = await fetchLogisticsAuthStatus(normalizedEmail);
             try {
                 const { data } = await fetchWithRetry(() => supabase
                     .from('iota_seoul_pilot_members')
@@ -178,7 +210,16 @@ export default function AuthSetup({ onLogin }) {
 
             const authEmail = String(remoteAuthStatus?.auth_email || normalizedEmail).trim().toLowerCase();
             const remoteFirstAccessComplete = Boolean(remoteAuthStatus?.first_login_completed);
-            setStaffName(logisticsUser.name || memberData?.staff_name || normalizedEmail);
+            const remoteStaffName = remoteAuthStatus?.staff_name || remoteAuthStatus?.name || memberData?.staff_name || normalizedEmail;
+            setStaffName(remoteStaffName);
+            setSelectedMemberInfo({
+                ...remoteAuthStatus,
+                staff_name: remoteStaffName,
+                name: remoteStaffName,
+                email: normalizedEmail,
+                permission_email: permissionEmail,
+                avatar_url: remoteAuthStatus?.image_url || remoteAuthStatus?.avatar_url || remoteAuthStatus?.profile_image_url,
+            });
             setResolvedAuthEmail(authEmail);
             setIsFirstTime(!remoteFirstAccessComplete && !memberData?.auth_id && !hasCompletedFirstAccess(normalizedEmail) && !hasCompletedFirstAccess(authEmail));
             setStep(2);
@@ -331,6 +372,12 @@ export default function AuthSetup({ onLogin }) {
         try {
             const normalizedEmail = email.trim().toLowerCase();
             const authEmail = currentAuthEmail() || normalizedEmail;
+            await persistLoginHints({
+                email: normalizedEmail,
+                password,
+                rememberLoginInfo,
+                staffName,
+            });
 
             if (isFirstTime) {
                 // Sign up new user
@@ -352,7 +399,7 @@ export default function AuthSetup({ onLogin }) {
                         
                         if (signInRes.error) {
                             if (/confirm/i.test(signInRes.error.message || '')) {
-                                activateLocalLogisticsSession(normalizedEmail);
+                                activateLocalLogisticsSession(normalizedEmail, null, selectedAvatarInfo);
                                 data = { user: { id: `local-logistics-${normalizedEmail}` } };
                             } else {
                                 triggerError('이미 가입된 이메일입니다. 기존 패스워드를 입력하거나 "비밀번호 찾기"를 이용하세요.');
@@ -380,12 +427,12 @@ export default function AuthSetup({ onLogin }) {
                     }
                     markFirstAccessComplete(normalizedEmail);
                     markFirstAccessComplete(authEmail);
-                    activateLocalLogisticsSession(normalizedEmail, data.user.id);
+                    activateLocalLogisticsSession(normalizedEmail, data.user.id, selectedAvatarInfo);
                     await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
                 } else {
                     markFirstAccessComplete(normalizedEmail);
                     markFirstAccessComplete(authEmail);
-                    activateLocalLogisticsSession(normalizedEmail);
+                    activateLocalLogisticsSession(normalizedEmail, null, selectedAvatarInfo);
                 }
             } else {
                 // Sign in existing user
@@ -408,7 +455,7 @@ export default function AuthSetup({ onLogin }) {
                             email: authEmail,
                         },
                     });
-                    activateLocalLogisticsSession(normalizedEmail, data.user.id);
+                    activateLocalLogisticsSession(normalizedEmail, data.user.id, selectedAvatarInfo);
                     await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
                 }
             }
@@ -469,6 +516,10 @@ export default function AuthSetup({ onLogin }) {
                                 <div className="w-full mb-2">
                                     <input 
                                         type="email" 
+                                        id="logistics-login-email"
+                                        name="username"
+                                        autoComplete="username"
+                                        inputMode="email"
                                         placeholder="이메일을 입력하세요."
                                         value={email}
                                         disabled={isCheckingEmail}
@@ -476,6 +527,15 @@ export default function AuthSetup({ onLogin }) {
                                         className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'} ${isCheckingEmail ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     />
                                 </div>
+                                <label className="mb-3 flex items-center gap-2 px-1 text-[13px] font-medium text-[#86868B] dark:text-[#A1A1AA]">
+                                    <input
+                                        type="checkbox"
+                                        checked={rememberLoginInfo}
+                                        onChange={(event) => setRememberLoginInfo(event.target.checked)}
+                                        className="h-4 w-4 rounded border-black/20 accent-[#E2B84B] dark:border-white/20"
+                                    />
+                                    로그인 정보 기억
+                                </label>
                                 <div className="w-full h-[8px] mb-0 flex items-center px-1">
                                     {errorMessage && (
                                         <span className="text-red-500 dark:text-[#FF453A] text-[13px] font-medium animate-pulse">
@@ -503,7 +563,7 @@ export default function AuthSetup({ onLogin }) {
                         <>
                             <div className="flex items-center justify-between w-full mt-1 mb-6">
                                 <div className="flex items-center">
-                                    <UserAvatar memberInfo={selectedMemberInfo} name={staffName} sizeClass="h-[36px] w-[36px]" textClass="text-[12px]" className="mr-3 bg-[#3c3c3c] shadow-sm" />
+                                    <UserAvatar memberInfo={selectedAvatarInfo} name={staffName} sizeClass="h-[36px] w-[36px]" textClass="text-[12px]" className="mr-3 bg-[#3c3c3c] shadow-sm" />
                                     <span className="text-[#333] dark:text-[#E5E5E5] text-[16px] font-semibold tracking-tight transition-colors duration-300">
                                         {staffName}님 반갑습니다. 패스워드를 {isFirstTime ? '설정' : '입력'}해주세요.
                                     </span>
@@ -515,9 +575,13 @@ export default function AuthSetup({ onLogin }) {
                             </div>
 
                             <form onSubmit={handlePasswordSubmit} className="w-full">
+                                <input type="hidden" name="username" autoComplete="username" value={currentAuthEmail()} readOnly />
                                 <div className="w-full mb-2">
                                     <input 
                                         type="password" 
+                                        id="logistics-login-password"
+                                        name="password"
+                                        autoComplete={isFirstTime ? 'new-password' : 'current-password'}
                                         ref={passwordInputRef}
                                         placeholder={isFirstTime ? "패스워드를 설정하세요." : "패스워드를 입력하세요."}
                                         value={password}
@@ -533,6 +597,9 @@ export default function AuthSetup({ onLogin }) {
                                                 type="password" 
                                                 placeholder="패스워드를 재확인하세요."
                                                 value={confirmPassword}
+                                                id="logistics-login-confirm-password"
+                                                name="new-password-confirm"
+                                                autoComplete="new-password"
                                                 onChange={(e) => {
                                                     setConfirmPassword(e.target.value);
                                                     if (errorMessage) setErrorMessage('');
@@ -545,6 +612,8 @@ export default function AuthSetup({ onLogin }) {
                                                 type="text" 
                                                 placeholder="최초 접속 코드"
                                                 value={accessCode}
+                                                name="logistics-access-code"
+                                                autoComplete="off"
                                                 onChange={(e) => {
                                                     setAccessCode(e.target.value);
                                                     if (errorMessage) setErrorMessage('');
@@ -609,6 +678,9 @@ export default function AuthSetup({ onLogin }) {
                                         type="password" 
                                         placeholder="기존 패스워드"
                                         value={oldPassword}
+                                        id="logistics-current-password"
+                                        name="current-password"
+                                        autoComplete="current-password"
                                         onChange={(e) => { setOldPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
                                         className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
@@ -618,6 +690,9 @@ export default function AuthSetup({ onLogin }) {
                                         type="password" 
                                         placeholder="새 패스워드"
                                         value={newPassword}
+                                        id="logistics-new-password"
+                                        name="new-password"
+                                        autoComplete="new-password"
                                         onChange={(e) => { setNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
                                         className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
@@ -627,6 +702,9 @@ export default function AuthSetup({ onLogin }) {
                                         type="password" 
                                         placeholder="새 패스워드 확인"
                                         value={confirmNewPassword}
+                                        id="logistics-confirm-new-password"
+                                        name="new-password-confirm"
+                                        autoComplete="new-password"
                                         onChange={(e) => { setConfirmNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
                                         className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
@@ -668,6 +746,10 @@ export default function AuthSetup({ onLogin }) {
                                 <div className="w-full mb-2">
                                     <input 
                                         type="email" 
+                                        id="logistics-reset-email"
+                                        name="username"
+                                        autoComplete="username"
+                                        inputMode="email"
                                         placeholder="이메일을 입력하세요."
                                         value={email}
                                         onChange={(e) => { setEmail(e.target.value); if(errorMessage) setErrorMessage(''); }}
@@ -700,11 +782,15 @@ export default function AuthSetup({ onLogin }) {
                             </div>
 
                             <form onSubmit={handleRecoveryPasswordSubmit} className="w-full">
+                                <input type="hidden" name="username" autoComplete="username" value={currentAuthEmail()} readOnly />
                                 <div className="w-full mb-2">
                                     <input 
                                         type="password" 
                                         placeholder="새 패스워드"
                                         value={newPassword}
+                                        id="logistics-recovery-new-password"
+                                        name="new-password"
+                                        autoComplete="new-password"
                                         onChange={(e) => { setNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
                                         className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
@@ -714,6 +800,9 @@ export default function AuthSetup({ onLogin }) {
                                         type="password" 
                                         placeholder="새 패스워드 확인"
                                         value={confirmNewPassword}
+                                        id="logistics-recovery-confirm-password"
+                                        name="new-password-confirm"
+                                        autoComplete="new-password"
                                         onChange={(e) => { setConfirmNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
                                         className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />

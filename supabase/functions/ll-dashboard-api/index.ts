@@ -257,6 +257,20 @@ const LOGISTICS_FEATURE_KEYS = new Set([
   'building_register_refresh',
   'opendart_refresh',
 ]);
+const LOGISTICS_ADMIN_EMAILS = new Set([
+  'kylee@igisam.com',
+  'sjlee@igisam.com',
+  'jk.jeon@igisam.com',
+  'hayun.jeong@igisam.com',
+]);
+
+function allLogisticsFeaturePermissions(enabled = true) {
+  const out: Record<string, boolean> = {};
+  LOGISTICS_FEATURE_KEYS.forEach((key) => {
+    out[key] = enabled;
+  });
+  return out;
+}
 
 function allowedOrigins() {
   return [
@@ -541,6 +555,30 @@ function managedAssetCodes(permission: Record<string, unknown> | null) {
   return Array.isArray(permission?.managed_asset_codes) ? permission.managed_asset_codes.map((item) => String(item)) : [];
 }
 
+function permissionAccountStatus(permission: Record<string, unknown> | null) {
+  return String(permission?.account_status || 'active').trim().toLowerCase();
+}
+
+function isActivePermission(permission: Record<string, unknown> | null) {
+  return Boolean(permission && !['inactive', 'disabled', 'blocked', 'deleted', 'archived'].includes(permissionAccountStatus(permission)));
+}
+
+function userFeaturePermissions(permission: Record<string, unknown> | null) {
+  const explicit = permission?.feature_permissions;
+  const base = explicit && typeof explicit === 'object' && !Array.isArray(explicit)
+    ? { ...(explicit as Record<string, unknown>) }
+    : {};
+  const email = String(permission?.email || '').trim().toLowerCase();
+  if (String(permission?.logistics_role || '') === 'System Admin' || LOGISTICS_ADMIN_EMAILS.has(email)) {
+    return { ...base, ...allLogisticsFeaturePermissions(true) };
+  }
+  return base;
+}
+
+function hasUserFeaturePermission(permission: Record<string, unknown> | null, featureKey: string) {
+  return userFeaturePermissions(permission)?.[featureKey] === true;
+}
+
 function assetRefVariants(value: unknown) {
   const raw = String(value || '').trim();
   if (!raw) return [];
@@ -648,6 +686,7 @@ function allowedDataQualityEmails() {
 
 function canUseDataQuality(ctx: Context) {
   if (hasRole(ctx.role, 'System Admin')) return true;
+  if (hasUserFeaturePermission(ctx.permission, 'data_quality')) return true;
   const organization = String(ctx.permission?.organization || ctx.permission?.department || '').trim();
   const name = String(ctx.permission?.staff_name || ctx.permission?.name || ctx.permission?.display_name || '').trim();
   const email = String(ctx.permission?.email || '').trim().toLowerCase();
@@ -666,6 +705,17 @@ function compactFeatureAccessUser(row: Record<string, unknown>) {
     organization: safeText(row.organization),
     logistics_role: safeText(row.logistics_role),
   };
+}
+
+function featureUserKeys(row: Record<string, unknown>) {
+  const user = compactFeatureAccessUser(row);
+  return [
+    user.email,
+    user.staff_name,
+    user.organization && user.staff_name ? `${user.organization}|${user.staff_name}` : '',
+  ]
+    .map((value) => String(value || '').trim().toLowerCase())
+    .filter(Boolean);
 }
 
 function normalizeFeatureAccessConfig(value: unknown) {
@@ -701,6 +751,28 @@ function featureAccessUserMatches(ctx: Context, row: Record<string, unknown>) {
 }
 
 async function readFeatureAccessConfig(ctx: Context) {
+  const { data: permissionRows } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('email,staff_name,organization,logistics_role,feature_permissions,account_status')
+    .order('organization', { ascending: true })
+    .order('staff_name', { ascending: true });
+  const rows = ((permissionRows || []) as Record<string, unknown>[]).filter(isActivePermission);
+  if (rows.length) {
+    const features: Record<string, unknown> = {};
+    LOGISTICS_FEATURE_KEYS.forEach((key) => {
+      const users = rows
+        .filter((row) => hasUserFeaturePermission(row, key))
+        .map((row) => compactFeatureAccessUser({
+          email: row.email,
+          staff_name: firstDefined(row.staff_name, staffNameForEmail(row.email)),
+          organization: row.organization,
+          logistics_role: row.logistics_role,
+        }))
+        .filter((row) => row.email || row.staff_name);
+      features[key] = { key, label: key, users };
+    });
+    return normalizeFeatureAccessConfig({ features, updatedAt: new Date().toISOString() });
+  }
   const { data, error } = await ctx.serviceClient
     .from('ll_cache_entries')
     .select('payload,response_payload,updated_at')
@@ -714,6 +786,7 @@ async function readFeatureAccessConfig(ctx: Context) {
 async function canUseServerFeature(ctx: Context, featureKey: string) {
   if (canUseDataQuality(ctx)) return true;
   if (!LOGISTICS_FEATURE_KEYS.has(featureKey)) return false;
+  if (hasUserFeaturePermission(ctx.permission, featureKey)) return true;
   const config = await readFeatureAccessConfig(ctx);
   const feature = (config.features as Record<string, unknown>)?.[featureKey] as Record<string, unknown> | undefined;
   const users = Array.isArray(feature?.users) ? feature.users as Record<string, unknown>[] : [];
@@ -730,27 +803,41 @@ async function callFeatureAccessGet(ctx: Context) {
 async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unknown>) {
   if (!canUseDataQuality(ctx)) return fail(403, 'Feature access management is limited to Planning Center users', ctx.origin);
   const config = normalizeFeatureAccessConfig(payload.config || payload);
-  const { data, error } = await ctx.serviceClient
-    .from('ll_cache_entries')
-    .upsert({
-      cache_type: LOGISTICS_FEATURE_ACCESS_CACHE_TYPE,
-      cache_key: LOGISTICS_FEATURE_ACCESS_CACHE_KEY,
-      entity_type: 'workspace_feature_access',
-      entity_id: 'logistics',
-      provider: 'supabase',
-      provider_status: 200,
-      payload: config,
-      response_payload: config,
-      user_safe: true,
-      fetched_at: new Date().toISOString(),
-      computed_at: new Date().toISOString(),
-      created_by: ctx.user.id,
-    }, { onConflict: 'cache_type,cache_key' })
-    .select('payload')
-    .single();
-  if (error) return fail(500, 'Failed to save feature access config', ctx.origin);
+  const { data: permissionRows, error: permissionError } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('email,staff_name,organization,logistics_role,feature_permissions,account_status');
+  if (permissionError) return fail(500, 'Failed to read logistics permissions', ctx.origin);
+
+  const desiredByFeature = new Map<string, Set<string>>();
+  LOGISTICS_FEATURE_KEYS.forEach((key) => {
+    const feature = (config.features as Record<string, unknown>)?.[key] as Record<string, unknown> | undefined;
+    const users = Array.isArray(feature?.users) ? feature.users as Record<string, unknown>[] : [];
+    const keys = new Set<string>();
+    users.forEach((row) => featureUserKeys(compactFeatureAccessUser(row)).forEach((item) => keys.add(item)));
+    desiredByFeature.set(key, keys);
+  });
+
+  for (const row of ((permissionRows || []) as Record<string, unknown>[]).filter(isActivePermission)) {
+    const userKeys = featureUserKeys(compactFeatureAccessUser({
+      email: row.email,
+      staff_name: firstDefined(row.staff_name, staffNameForEmail(row.email)),
+      organization: row.organization,
+    }));
+    const nextFeatures = { ...(row.feature_permissions as Record<string, unknown> || {}) };
+    LOGISTICS_FEATURE_KEYS.forEach((key) => {
+      nextFeatures[key] = String(row.logistics_role || '') === 'System Admin'
+        || userKeys.some((item) => desiredByFeature.get(key)?.has(item));
+    });
+    const { error: updateError } = await ctx.serviceClient
+      .from('ll_user_permissions')
+      .update({ feature_permissions: nextFeatures, updated_at: new Date().toISOString() })
+      .eq('email', row.email);
+    if (updateError) return fail(500, 'Failed to save feature permissions', ctx.origin);
+  }
+
+  const saved = await readFeatureAccessConfig(ctx);
   await audit(ctx.serviceClient, ctx.user.id, 'feature-access/update', 200, { features: Object.keys(config.features as Record<string, unknown>) });
-  return jsonResponse({ ok: true, data: normalizeFeatureAccessConfig(data?.payload || config) }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: saved }, 200, ctx.origin);
 }
 
 function filterWorkPlatformTaskRows(ctx: Context, rows: Record<string, unknown>[]) {
@@ -767,7 +854,7 @@ function filterWorkPlatformBoardRows(ctx: Context, rows: Record<string, unknown>
 }
 
 function hasPermissionRow(ctx: Context) {
-  return Boolean(ctx.permission?.user_id || ctx.permission?.email);
+  return isActivePermission(ctx.permission);
 }
 
 function allReadableAssetsAllowed(ctx: Context) {
@@ -9115,13 +9202,16 @@ function publicLoginCapabilityRow(permission: Record<string, unknown>, authUsers
   return stripUndefined({
     email,
     organization: String(permission.organization || '').trim() || organizationForEmail(email) || '-',
-    staff_name: staffNameForEmail(email),
+    staff_name: String(firstDefined(permission.staff_name, permission.name, staffNameForEmail(email)) || '').trim(),
+    image_url: permission.image_url || null,
     logistics_role: permission.logistics_role || 'Reader',
+    account_status: permission.account_status || 'active',
+    feature_permissions: userFeaturePermissions(permission),
     has_permission: true,
     has_auth_user: Boolean(authUser),
     email_confirmed: Boolean(authUser?.email_confirmed_at || authUser?.confirmed_at),
     login_status: loginCapabilityStatus(authUser),
-    last_sign_in_at: authUser?.last_sign_in_at || null,
+    last_sign_in_at: permission.last_login_at || authUser?.last_sign_in_at || null,
   }) as Record<string, unknown>;
 }
 
@@ -9145,10 +9235,9 @@ function loginCapabilityRows(permissionRows: Record<string, unknown>[], authUser
   const permissionByEmail = new Map<string, Record<string, unknown>>();
   permissionRows.forEach((row) => {
     const email = canonicalPermissionEmail(row);
-    if (email) permissionByEmail.set(email, row);
+    if (email && isActivePermission(row)) permissionByEmail.set(email, row);
   });
   const emails = new Set([
-    ...Object.keys(LOGISTICS_STAFF_NAME_BY_EMAIL),
     ...permissionByEmail.keys(),
   ]);
   return [...emails]
@@ -9161,6 +9250,145 @@ function loginCapabilityRows(permissionRows: Record<string, unknown>[], authUser
     .sort((a, b) => String(a.organization || '').localeCompare(String(b.organization || ''), 'ko')
       || String(a.staff_name || '').localeCompare(String(b.staff_name || ''), 'ko')
       || String(a.email || '').localeCompare(String(b.email || ''), 'ko'));
+}
+
+function publicPermissionUser(permission: Record<string, unknown>) {
+  const email = canonicalPermissionEmail(permission);
+  return stripUndefined({
+    id: permission.user_id || email,
+    auth_id: permission.user_id || null,
+    email,
+    staff_name: firstDefined(permission.staff_name, permission.name, staffNameForEmail(email)),
+    name: firstDefined(permission.staff_name, permission.name, staffNameForEmail(email)),
+    organization: firstDefined(permission.organization, organizationForEmail(email)),
+    department: firstDefined(permission.organization, organizationForEmail(email)),
+    team_name: firstDefined(permission.organization, organizationForEmail(email)),
+    image_url: permission.image_url || null,
+    avatar_url: permission.image_url || null,
+    logistics_role: permission.logistics_role || 'Reader',
+    role: permission.logistics_role || 'Reader',
+    account_status: permission.account_status || 'active',
+    managed_asset_codes: managedAssetCodes(permission),
+    managed_asset_permissions: permission.managed_asset_permissions || {},
+    other_asset_permissions: permission.other_asset_permissions || {},
+    feature_permissions: userFeaturePermissions(permission),
+    can_ingest_weekly: permission.can_ingest_weekly === true,
+    last_login_at: permission.last_login_at || null,
+    profile_payload: permission.profile_payload || {},
+  }) as Record<string, unknown>;
+}
+
+async function permissionAssetRows(ctx: Context, permission: Record<string, unknown> | null) {
+  const refs = [...new Set(managedAssetCodes(permission).flatMap(assetRefVariants).map((item) => String(item).toLowerCase()))];
+  if (!refs.length) return [];
+  const { data, error } = await ctx.serviceClient
+    .from('ll_assets')
+    .select('asset_id,asset_code,asset_name,fund_code,fund_name,current_manager_name,current_manager_email')
+    .limit(500);
+  if (error) return [];
+  return ((data || []) as Record<string, unknown>[])
+    .filter((asset) => {
+      const candidates = [asset.asset_id, asset.asset_code, asset.asset_name].flatMap(assetRefVariants).map((item) => String(item).toLowerCase());
+      return candidates.some((item) => refs.includes(item));
+    })
+    .map((asset) => ({
+      assetId: asset.asset_id,
+      assetCode: asset.asset_code,
+      assetName: asset.asset_name,
+      fundCode: asset.fund_code,
+      fundName: asset.fund_name,
+      assetManagerName: asset.current_manager_name,
+      assetManagerEmail: asset.current_manager_email,
+    }));
+}
+
+async function permissionFundRows(ctx: Context, assets: Record<string, unknown>[]) {
+  const unique = new Map<string, Record<string, unknown>>();
+  assets.forEach((asset) => {
+    const code = String(asset.fundCode || '').trim();
+    if (code && !unique.has(code)) unique.set(code, { fundCode: code, fundName: asset.fundName || '' });
+  });
+  return [...unique.values()].sort((a, b) => String(a.fundCode || '').localeCompare(String(b.fundCode || ''), 'ko-KR'));
+}
+
+async function callAuthMe(ctx: Context) {
+  if (!hasPermissionRow(ctx)) return fail(403, 'No active logistics permission found', ctx.origin);
+  const profile = publicPermissionUser(ctx.permission || {});
+  const managedAssets = await permissionAssetRows(ctx, ctx.permission);
+  const managedFunds = await permissionFundRows(ctx, managedAssets);
+  const teamMembers = await listPermissionUsers(ctx, { organization: profile.organization });
+  return jsonResponse({
+    ok: true,
+    data: {
+      ...profile,
+      managedAssets,
+      managedFunds,
+      teamMembers,
+      permissions: {
+        managedAsset: profile.managed_asset_permissions || {},
+        otherAsset: profile.other_asset_permissions || {},
+      },
+    },
+  }, 200, ctx.origin);
+}
+
+async function listPermissionUsers(ctx: Context, filters: Record<string, unknown> = {}) {
+  let query = ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('*')
+    .order('organization', { ascending: true })
+    .order('staff_name', { ascending: true });
+  if (filters.organization) query = query.eq('organization', filters.organization);
+  const { data, error } = await query.limit(500);
+  if (error) throw new Error(`Failed to read user permissions: ${error.message}`);
+  return ((data || []) as Record<string, unknown>[])
+    .filter(isActivePermission)
+    .map(publicPermissionUser);
+}
+
+async function callAuthUsersList(ctx: Context) {
+  if (!await canUseServerFeature(ctx, 'login_history')) return fail(403, 'User permission management is limited to selected users', ctx.origin);
+  const users = await listPermissionUsers(ctx);
+  await audit(ctx.serviceClient, ctx.user.id, 'auth/users/list', 200, { users: users.length });
+  return jsonResponse({ ok: true, data: { users } }, 200, ctx.origin);
+}
+
+async function callAuthUserPermissionsUpdate(ctx: Context, payload: Record<string, unknown>) {
+  if (!canUseDataQuality(ctx)) return fail(403, 'User permission updates are limited to Planning Center users', ctx.origin);
+  const email = normalizeAuthEmail(payload.email);
+  if (!email || !email.endsWith('@igisam.com')) return fail(400, 'Valid company email is required', ctx.origin);
+  const next: Record<string, unknown> = stripUndefined({
+    staff_name: shortClientText(payload.staff_name || payload.name, 80),
+    organization: shortClientText(payload.organization, 120),
+    image_url: shortClientText(payload.image_url, 500),
+    logistics_role: shortClientText(payload.logistics_role || payload.role || 'Reader', 40),
+    managed_asset_codes: Array.isArray(payload.managed_asset_codes) ? payload.managed_asset_codes.map(String) : undefined,
+    managed_asset_permissions: payload.managed_asset_permissions && typeof payload.managed_asset_permissions === 'object' ? payload.managed_asset_permissions : undefined,
+    other_asset_permissions: payload.other_asset_permissions && typeof payload.other_asset_permissions === 'object' ? payload.other_asset_permissions : undefined,
+    feature_permissions: payload.feature_permissions && typeof payload.feature_permissions === 'object' ? payload.feature_permissions : undefined,
+    account_status: shortClientText(payload.account_status || 'active', 40),
+    can_ingest_weekly: typeof payload.can_ingest_weekly === 'boolean' ? payload.can_ingest_weekly : undefined,
+    profile_payload: payload.profile_payload && typeof payload.profile_payload === 'object' ? payload.profile_payload : undefined,
+    updated_at: new Date().toISOString(),
+  }) as Record<string, unknown>;
+  const { data: existing } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('user_id,email')
+    .eq('email', email)
+    .maybeSingle();
+  const row = {
+    user_id: existing?.user_id || crypto.randomUUID(),
+    email,
+    ...next,
+  };
+  const { error } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .upsert(row, { onConflict: 'email' })
+    .select('email')
+    .single();
+  if (error) return fail(500, 'Failed to save user permissions', ctx.origin);
+  await audit(ctx.serviceClient, ctx.user.id, 'auth/user-permissions/update', 200, { email });
+  return jsonResponse({ ok: true, data: { email } }, 200, ctx.origin);
 }
 
 async function recordLogisticsLoginHistory(ctx: Context, payload: Record<string, unknown>) {
@@ -9199,6 +9427,10 @@ async function recordLogisticsLoginHistory(ctx: Context, payload: Record<string,
     event_status: 'success',
   });
   if (error) return fail(500, 'Failed to write login history', ctx.origin);
+  await ctx.serviceClient
+    .from('ll_user_permissions')
+    .update({ last_login_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq('email', permissionEmail);
   return jsonResponse({ ok: true, stored: true }, 200, ctx.origin);
 }
 
@@ -9216,7 +9448,7 @@ async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, u
 
   const { data: permissionRows, error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
-    .select('email,organization,logistics_role,updated_at')
+    .select('email,staff_name,organization,image_url,logistics_role,account_status,feature_permissions,last_login_at,updated_at')
     .order('organization', { ascending: true })
     .order('email', { ascending: true });
   if (permissionError) return fail(500, 'Failed to read logistics permissions', ctx.origin);
@@ -9262,7 +9494,7 @@ async function listLogisticsLoginCapability(ctx: Context) {
   if (!await canUseServerFeature(ctx, 'login_history')) return fail(403, 'Login capability permission is limited to selected users', ctx.origin);
   const { data: permissionRows, error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
-    .select('email,organization,logistics_role,updated_at')
+    .select('email,staff_name,organization,image_url,logistics_role,account_status,feature_permissions,last_login_at,updated_at')
     .order('email', { ascending: true });
   if (permissionError) return fail(500, 'Failed to read logistics permissions', ctx.origin);
   let authUsers: Record<string, unknown>[] = [];
@@ -9296,17 +9528,24 @@ async function callLogisticsAuthStatus(origin: string, payload: Record<string, u
   if (authEmail && authEmail !== email) permissionFilters.push(`email.eq.${authEmail}`);
   const { data: permissionRows } = await serviceClient
     .from('ll_user_permissions')
-    .select('user_id,email,updated_at')
+    .select('*')
     .or(permissionFilters.join(','))
     .limit(1);
+  const permission = (permissionRows || [])[0] as Record<string, unknown> | undefined;
+  const allowed = isActivePermission(permission || null);
   const registered = Boolean(authUser);
   return jsonResponse({
     ok: true,
+    allowed,
     registered,
     first_login_completed: registered,
     auth_email: authEmail,
     has_auth_user: Boolean(authUser),
     has_permission_row: Boolean(permissionRows?.length),
+    account_status: permission?.account_status || null,
+    staff_name: permission?.staff_name || staffNameForEmail(email),
+    organization: permission?.organization || organizationForEmail(email),
+    image_url: permission?.image_url || null,
   }, 200, origin);
 }
 
@@ -9382,6 +9621,9 @@ Deno.serve(async (request) => {
   }
 
   if (action === 'health') return jsonResponse({ ok: true, role: ctx.role }, 200, origin);
+  if (action === 'auth/me') return callAuthMe(ctx);
+  if (action === 'auth/users/list') return callAuthUsersList(ctx);
+  if (action === 'auth/users/upsert' || action === 'auth/user-permissions/update') return callAuthUserPermissionsUpdate(ctx, payload);
   if (action === 'auth/login-history/record') return recordLogisticsLoginHistory(ctx, payload);
   if (action === 'auth/login-history/list') return listLogisticsLoginHistory(ctx, payload);
   if (action === 'auth/login-capability/list') return listLogisticsLoginCapability(ctx);

@@ -1,75 +1,52 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import logisticsPermissionData from '../components/system/workspace/logisticsPermissionData.json';
 
 const AuthContext = createContext();
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
-const LOGISTICS_PERMISSION_USERS = logisticsPermissionData.users || [];
 const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
-const canonicalLogisticsEmail = (email) => LOGISTICS_EMAIL_ALIASES[String(email || '').trim().toLowerCase()] || String(email || '').trim().toLowerCase();
-const LOGISTICS_ALLOWED_EMAILS = new Set([
-    ...LOGISTICS_PERMISSION_USERS.map((user) => String(user.email || '').trim().toLowerCase()).filter(Boolean),
-    ...Object.keys(LOGISTICS_EMAIL_ALIASES),
-]);
 const LOGISTICS_LOCAL_AUTH_KEY = 'logistics_preview_auth';
 
-function logisticsMemberFromPermission(email) {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    const permissionEmail = canonicalLogisticsEmail(normalizedEmail);
-    const user = LOGISTICS_PERMISSION_USERS.find((item) => String(item.email || '').trim().toLowerCase() === permissionEmail);
-    if (!user) return null;
+const canonicalLogisticsEmail = (email) => {
+    const normalized = String(email || '').trim().toLowerCase();
+    return LOGISTICS_EMAIL_ALIASES[normalized] || normalized;
+};
+
+const clearSupabaseAuthStorage = () => {
+    [localStorage, sessionStorage].forEach((storage) => {
+        const keysToRemove = [];
+        for (let i = 0; i < storage.length; i += 1) {
+            const key = storage.key(i);
+            if (key && (key.startsWith('sb-') || key === LOGISTICS_LOCAL_AUTH_KEY || key === 'iota_last_activity')) {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach((key) => storage.removeItem(key));
+    });
+};
+
+const normalizeMemberInfo = (remoteUser, sessionEmail) => {
+    const normalizedEmail = String(sessionEmail || remoteUser?.email || '').trim().toLowerCase();
+    const permissionEmail = canonicalLogisticsEmail(remoteUser?.email || normalizedEmail);
+    const displayName = remoteUser?.staff_name || remoteUser?.name || normalizedEmail;
+    const organization = remoteUser?.organization || remoteUser?.department || remoteUser?.team_name || '';
+
     return {
-        id: `logistics-permission-${normalizedEmail}`,
-        auth_id: null,
+        ...remoteUser,
+        id: remoteUser?.id || remoteUser?.user_id || `logistics-permission-${permissionEmail}`,
         email: normalizedEmail,
         permission_email: permissionEmail,
-        staff_name: user.name,
-        name: user.name,
-        organization: user.organization,
-        department: user.organization,
-        team_name: user.organization,
-        image_url: user.image_url || user.avatar_url || user.profile_image_url || null,
-        avatar_url: user.image_url || user.avatar_url || user.profile_image_url || null,
-        role_code: user.role === 'System Admin' || user.logisticsRole === 'System Admin' || user.organization === '기획추진센터' ? 'master' : 'member',
+        staff_name: displayName,
+        name: remoteUser?.name || displayName,
+        organization,
+        department: remoteUser?.department || organization,
+        team_name: remoteUser?.team_name || organization,
+        image_url: remoteUser?.image_url || remoteUser?.avatar_url || remoteUser?.profile_image_url || null,
+        avatar_url: remoteUser?.avatar_url || remoteUser?.image_url || remoteUser?.profile_image_url || null,
+        logistics_permission: remoteUser,
     };
-}
-
-function readLocalLogisticsSession() {
-    try {
-        localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
-        const raw = sessionStorage.getItem(LOGISTICS_LOCAL_AUTH_KEY);
-        if (!raw) return null;
-        const parsed = JSON.parse(raw);
-        const email = String(parsed?.email || '').trim().toLowerCase();
-        if (!email || !LOGISTICS_ALLOWED_EMAILS.has(email)) {
-            sessionStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
-            return null;
-        }
-        const member = logisticsMemberFromPermission(email);
-        if (!member) {
-            sessionStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
-            return null;
-        }
-        return {
-            user: {
-                id: parsed.user_id || `local-logistics-${email}`,
-                email,
-                app_metadata: { provider: 'logistics-preview' },
-                user_metadata: {
-                    staff_name: member.staff_name,
-                    organization: member.organization,
-                },
-            },
-            member,
-        };
-    } catch {
-        localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
-        sessionStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
-        return null;
-    }
-}
+};
 
 export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
@@ -77,107 +54,106 @@ export function AuthProvider({ children }) {
     const [loading, setLoading] = useState(true);
     const [recoveryMode, setRecoveryMode] = useState(false);
 
-    // Shared signout logic to avoid dependency issues in useEffect
     const handleSignOut = async () => {
         try {
             await supabase.auth.signOut();
         } catch (error) {
-            console.error("Error during sign out:", error);
+            console.error('Error during sign out:', error);
         } finally {
-            const keysToRemove = [];
-            for (let i = 0; i < localStorage.length; i++) {
-                const key = localStorage.key(i);
-                if (key && key.startsWith('sb-')) {
-                    keysToRemove.push(key);
-                }
-            }
-            keysToRemove.forEach(k => localStorage.removeItem(k));
-            localStorage.removeItem('iota_last_activity');
-            sessionStorage.removeItem('iota_last_activity');
-            localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
-            sessionStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
+            clearSupabaseAuthStorage();
             setUser(null);
             setMemberInfo(null);
-            window.location.href = import.meta.env.BASE_URL + 'auth-setup';
+            window.location.href = `${import.meta.env.BASE_URL}auth-setup`;
         }
     };
 
-    // Activity tracking for session timeout
+    const fetchMemberInfo = async (sessionEmail) => {
+        const normalizedEmail = String(sessionEmail || '').trim().toLowerCase();
+        if (!normalizedEmail) {
+            setMemberInfo(null);
+            return false;
+        }
+
+        try {
+            const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
+                body: {
+                    action: 'auth/me',
+                    payload: {},
+                },
+            });
+
+            const remoteUser = data?.data || data?.user || null;
+            if (error || data?.ok === false || !remoteUser) {
+                console.warn('Logistics auth profile unavailable:', error?.message || data?.error || 'empty profile');
+                setMemberInfo(null);
+                return false;
+            }
+
+            setMemberInfo(normalizeMemberInfo(remoteUser, normalizedEmail));
+            return true;
+        } catch (error) {
+            console.warn('Failed to fetch logistics auth profile:', error?.message || error);
+            setMemberInfo(null);
+            return false;
+        }
+    };
+
     useEffect(() => {
-        // Update activity immediately
         sessionStorage.setItem('iota_last_activity', Date.now().toString());
 
-        // Continuously update activity every 1 minute as long as the app is open.
-        // This ensures the user is NEVER logged out while the browser tab is open.
         const activityIntervalId = setInterval(() => {
             sessionStorage.setItem('iota_last_activity', Date.now().toString());
         }, 60000);
 
-        return () => {
-            clearInterval(activityIntervalId);
-        };
+        return () => clearInterval(activityIntervalId);
     }, []);
 
     useEffect(() => {
-        // Fetch current session and setup listener
         let subscription;
-        let localAuthHandler;
+        let mounted = true;
 
         const initializeAuth = async () => {
             let timeoutId;
+
             try {
-                // Check timeout before attempting to load session
                 const lastActivityStr = sessionStorage.getItem('iota_last_activity');
                 if (lastActivityStr) {
                     const lastActivity = parseInt(lastActivityStr, 10);
                     if (Date.now() - lastActivity > TIMEOUT_MS) {
                         sessionStorage.removeItem('iota_last_activity');
                         await handleSignOut();
-                        return; // Stop initialization
+                        return;
                     }
                 }
 
                 timeoutId = setTimeout(() => {
-                    console.error("Auth initialization timed out! Forcing load.");
-                    setLoading(false);
+                    console.error('Auth initialization timed out. Rendering fallback state.');
+                    if (mounted) setLoading(false);
                 }, 5000);
 
                 const { data: { session } } = await supabase.auth.getSession();
                 clearTimeout(timeoutId);
 
+                if (!mounted) return;
+
                 if (session?.user) {
-                    const sessionEmail = String(session.user.email || '').trim().toLowerCase();
-                    if (!LOGISTICS_ALLOWED_EMAILS.has(sessionEmail)) {
+                    setUser(session.user);
+                    const ok = await fetchMemberInfo(session.user.email);
+                    if (!ok) {
                         await handleSignOut();
                         return;
                     }
-                    setUser(session.user);
-                    await fetchMemberInfo(sessionEmail);
                 } else {
-                    const localSession = readLocalLogisticsSession();
-                    if (localSession) {
-                        setUser(localSession.user);
-                        setMemberInfo(localSession.member);
-                    } else {
-                        setUser(null);
-                        setMemberInfo(null);
-                    }
+                    setUser(null);
+                    setMemberInfo(null);
                 }
-            } catch (err) {
-                console.error("Auth initialization error:", err);
+            } catch (error) {
+                console.error('Auth initialization error:', error);
+                setUser(null);
+                setMemberInfo(null);
             } finally {
                 clearTimeout(timeoutId);
-                setLoading(false);
-                
-                // Only subscribe AFTER initial session is loaded to prevent concurrent lock conflicts
-                const applyLocalSession = () => {
-                    const localSession = readLocalLogisticsSession();
-                    if (localSession) {
-                        setUser(localSession.user);
-                        setMemberInfo(localSession.member);
-                    }
-                    return Boolean(localSession);
-                };
+                if (mounted) setLoading(false);
 
                 const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
                     if (event === 'PASSWORD_RECOVERY') {
@@ -185,80 +161,39 @@ export function AuthProvider({ children }) {
                     }
 
                     if (session?.user) {
-                        const sessionEmail = String(session.user.email || '').trim().toLowerCase();
-                        if (!LOGISTICS_ALLOWED_EMAILS.has(sessionEmail)) {
+                        setUser(session.user);
+                        const ok = await fetchMemberInfo(session.user.email);
+                        if (!ok) {
                             await handleSignOut();
                             return;
                         }
-                        setUser(session.user);
-                        await fetchMemberInfo(sessionEmail);
                     } else {
-                        if (!applyLocalSession()) {
-                            setUser(null);
-                            setMemberInfo(null);
-                        }
+                        setUser(null);
+                        setMemberInfo(null);
                     }
                     setLoading(false);
                 });
-                subscription = data.subscription;
 
-                localAuthHandler = applyLocalSession;
-                window.addEventListener('logistics-local-auth-changed', localAuthHandler);
+                subscription = data.subscription;
             }
         };
 
         initializeAuth();
 
         return () => {
+            mounted = false;
             subscription?.unsubscribe();
-            if (localAuthHandler) {
-                window.removeEventListener('logistics-local-auth-changed', localAuthHandler);
-            }
         };
     }, []);
-
-    const fetchMemberInfo = async (email) => {
-        const normalizedEmail = String(email || '').trim().toLowerCase();
-        try {
-            const permissionMember = logisticsMemberFromPermission(normalizedEmail);
-            if (!permissionMember) {
-                setMemberInfo(null);
-                return;
-            }
-            const { data, error } = await supabase
-                .from('iota_seoul_pilot_members')
-                .select('*')
-                .eq('email', normalizedEmail)
-                .single();
-                
-            if (data && !error) {
-                setMemberInfo({
-                    ...permissionMember,
-                    ...data,
-                    email: normalizedEmail,
-                    staff_name: permissionMember.staff_name,
-                    name: permissionMember.name,
-                    organization: permissionMember.organization,
-                    department: permissionMember.organization,
-                    team_name: permissionMember.organization,
-                });
-            } else {
-                setMemberInfo(permissionMember);
-            }
-        } catch (err) {
-            console.error("Failed to fetch member info", err);
-            setMemberInfo(logisticsMemberFromPermission(normalizedEmail));
-        }
-    };
 
     return (
         <AuthContext.Provider value={{ user, memberInfo, loading, signOut: handleSignOut, recoveryMode, setRecoveryMode }}>
             {loading ? (
-                <div className="fixed inset-0 w-full h-full flex flex-col items-center justify-center bg-[#FDFDFD] dark:bg-[#111111] z-[99999]">
-                    <div className="w-6 h-6 relative mb-5 animate-spin">
-                        <div className="absolute top-0 left-1/2 -ml-[3px] w-[6px] h-[6px] bg-[#111] dark:bg-white rounded-full"></div>
+                <div className="fixed inset-0 z-[99999] flex h-full w-full flex-col items-center justify-center bg-[#FDFDFD] dark:bg-[#111111]">
+                    <div className="relative mb-5 h-6 w-6 animate-spin">
+                        <div className="absolute left-1/2 top-0 -ml-[3px] h-[6px] w-[6px] rounded-full bg-[#111] dark:bg-white" />
                     </div>
-                    <span className="text-[#86868B] dark:text-[#A1A1AA] text-[14px] font-medium tracking-tight">데이터를 불러오고 있습니다...</span>
+                    <span className="text-[14px] font-medium tracking-tight text-[#86868B] dark:text-[#A1A1AA]">로그인 정보를 확인하고 있습니다...</span>
                 </div>
             ) : children}
         </AuthContext.Provider>

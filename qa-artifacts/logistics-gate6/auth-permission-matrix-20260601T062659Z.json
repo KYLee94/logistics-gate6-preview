@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-01T06:26:59.636Z",
+  "source_json": "src\\components\\system\\workspace\\logisticsPermissionData.json",
+  "db": {
+    "active_permission_user_count": 41,
+    "admin_feature_gap_count": 0,
+    "admin_feature_gaps": [],
+    "admin_user_count": 4,
+    "duplicate_email_count": 0,
+    "duplicate_emails": [],
+    "missing_source_count": 0,
+    "missing_source_emails": [],
+    "permission_user_count": 41,
+    "recent_login_rows": 12,
+    "source_user_count": 35
+  },
+  "static_findings": [],
+  "failures": []
+}
