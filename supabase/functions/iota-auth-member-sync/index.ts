@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !anonKey) return json(500, { error: 'server_not_configured' }, origin);
 
   const authHeader = req.headers.get('authorization') || '';
@@ -60,9 +61,37 @@ Deno.serve(async (req) => {
     return json(400, { error: 'unknown_action' }, origin);
   }
 
-  return json(202, {
+  let permissionSynced = false;
+  let syncError = '';
+  if (serviceRoleKey) {
+    const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: permissionRow, error: readError } = await serviceClient
+      .from('ll_user_permissions')
+      .select('user_id,email')
+      .eq('email', email)
+      .maybeSingle();
+    if (readError) {
+      syncError = readError.message;
+    } else if (permissionRow) {
+      const { error: updateError } = await serviceClient
+        .from('ll_user_permissions')
+        .update({
+          user_id: userData.user.id,
+          email,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('email', email);
+      if (updateError) syncError = updateError.message;
+      else permissionSynced = true;
+    }
+  }
+
+  return json(syncError ? 500 : 200, {
     ok: true,
-    mode: 'read_only_noop',
-    message: 'IOTA member sync is disabled for the logistics gate because non-ll_* writes are not allowed.',
+    mode: permissionSynced ? 'll_user_permissions_synced' : 'll_user_permissions_unchanged',
+    permission_synced: permissionSynced,
+    sync_error: syncError || null,
   }, origin);
 });

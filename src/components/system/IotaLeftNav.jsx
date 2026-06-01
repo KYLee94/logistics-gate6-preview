@@ -120,7 +120,7 @@ const workspaceItems = [
     }
 ];
 
-const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용']);
+const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용', '\uC815\uD558\uC724']);
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURES = [
     { key: 'ai_chat', label: 'AI 챗봇', description: '워크 플랫폼 우측 AI 챗봇 열기 및 질문' },
@@ -135,6 +135,7 @@ const FEATURE_ACCESS_DEFAULT_USERS = [
     { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
     { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
     { staff_name: '이시정', organization: '기획추진센터', email: 'sjlee@igisam.com' },
+    { staff_name: '\uC815\uD558\uC724', organization: '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81', email: 'hayun.jeong@igisam.com' },
 ];
 const FEATURE_ACCESS_DEFAULT_EMAIL_BY_NAME = new Map(FEATURE_ACCESS_DEFAULT_USERS.map((row) => [row.staff_name, row.email]));
 const LOGIN_CAPABILITY_SORT_COLUMNS = [

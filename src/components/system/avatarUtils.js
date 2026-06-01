@@ -36,6 +36,10 @@ const AVATAR_FILE_BY_NAME = {
   한원석: '한원석.jpg',
 };
 
+const AVATAR_URL_BY_EMAIL = {
+  'hayun.jeong@igisam.com': 'https://gw.igisam.com/ekp/upload/body/profile/image/2026/06/01/2025072801.jpg',
+};
+
 export function cleanAvatarName(value) {
   return String(value || '').replace(/\s/gu, '').trim();
 }
@@ -57,6 +61,7 @@ export function avatarCandidates(memberInfo = {}, fallbackName = '') {
     member.profile_image_url,
     member.profileImageUrl,
     member.image_url,
+    AVATAR_URL_BY_EMAIL[String(member.email || member.user_email || '').trim().toLowerCase()],
   ].find(Boolean);
   const name = cleanAvatarName(fallbackName || member.staff_name || member.name);
   return [...new Set([

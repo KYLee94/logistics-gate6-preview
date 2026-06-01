@@ -4,6 +4,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import { useAuth } from '../../context/AuthContext';
 import logisticsPermissionData from './workspace/logisticsPermissionData.json';
+import UserAvatar from './UserAvatar';
 
 const LOGISTICS_PERMISSION_USERS = logisticsPermissionData.users || [];
 const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
@@ -112,6 +113,13 @@ export default function AuthSetup({ onLogin }) {
     
     const passwordInputRef = useRef(null);
     const currentAuthEmail = () => (resolvedAuthEmail || email).trim().toLowerCase();
+    const selectedLogisticsUser = logisticsUserByEmail(email.trim().toLowerCase());
+    const selectedMemberInfo = selectedLogisticsUser ? {
+        ...selectedLogisticsUser,
+        staff_name: selectedLogisticsUser.name,
+        email: currentAuthEmail() || selectedLogisticsUser.email,
+        avatar_url: selectedLogisticsUser.image_url || selectedLogisticsUser.avatar_url || selectedLogisticsUser.profile_image_url,
+    } : { staff_name: staffName, name: staffName, email: currentAuthEmail() };
 
     useEffect(() => {
         if (step === 2 && passwordInputRef.current) {
@@ -169,7 +177,7 @@ export default function AuthSetup({ onLogin }) {
             }
 
             const authEmail = String(remoteAuthStatus?.auth_email || normalizedEmail).trim().toLowerCase();
-            const remoteFirstAccessComplete = Boolean(remoteAuthStatus?.registered || remoteAuthStatus?.first_login_completed);
+            const remoteFirstAccessComplete = Boolean(remoteAuthStatus?.first_login_completed);
             setStaffName(logisticsUser.name || memberData?.staff_name || normalizedEmail);
             setResolvedAuthEmail(authEmail);
             setIsFirstTime(!remoteFirstAccessComplete && !memberData?.auth_id && !hasCompletedFirstAccess(normalizedEmail) && !hasCompletedFirstAccess(authEmail));
@@ -495,10 +503,7 @@ export default function AuthSetup({ onLogin }) {
                         <>
                             <div className="flex items-center justify-between w-full mt-1 mb-6">
                                 <div className="flex items-center">
-                                    <div className="w-[36px] h-[36px] shrink-0 rounded-full bg-[#3c3c3c] overflow-hidden relative shadow-sm mr-3">
-                                        <img src={`${import.meta.env.BASE_URL}${(staffName || '').replace(/\\s/g, '')}.webp`} alt={staffName} className="w-full h-full object-cover" onError={(e) => { e.target.src = `${import.meta.env.BASE_URL}default_avatar.svg`; }} />
-                                        <div className="absolute inset-0 rounded-full border border-black/10 dark:border-white/10 pointer-events-none"></div>
-                                    </div>
+                                    <UserAvatar memberInfo={selectedMemberInfo} name={staffName} sizeClass="h-[36px] w-[36px]" textClass="text-[12px]" className="mr-3 bg-[#3c3c3c] shadow-sm" />
                                     <span className="text-[#333] dark:text-[#E5E5E5] text-[16px] font-semibold tracking-tight transition-colors duration-300">
                                         {staffName}님 반갑습니다. 패스워드를 {isFirstTime ? '설정' : '입력'}해주세요.
                                     </span>

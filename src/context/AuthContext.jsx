@@ -30,7 +30,9 @@ function logisticsMemberFromPermission(email) {
         organization: user.organization,
         department: user.organization,
         team_name: user.organization,
-        role_code: user.organization === '기획추진센터' ? 'master' : 'member',
+        image_url: user.image_url || user.avatar_url || user.profile_image_url || null,
+        avatar_url: user.image_url || user.avatar_url || user.profile_image_url || null,
+        role_code: user.role === 'System Admin' || user.logisticsRole === 'System Admin' || user.organization === '기획추진센터' ? 'master' : 'member',
     };
 }
 

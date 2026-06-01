@@ -89,7 +89,7 @@ const DASHBOARD_READ_CACHE_TTL_MS = 5 * 60 * 1000;
 const ASSET_PROJECT_DETAIL_CACHE = new Map();
 const ASSET_FUND_OVERVIEW_CACHE = new Map();
 const ASSET_BUILDING_REGISTER_CACHE = new Map();
-const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
+const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용', '\uC815\uD558\uC724']);
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_KEYS = {
   aiChat: 'ai_chat',
@@ -3856,8 +3856,7 @@ function hasLogisticsRole(permission, minimum) {
 
 function canViewDataQuality(memberInfo, permission) {
   const name = String(memberInfo?.staff_name || memberInfo?.name || permission?.name || '').trim();
-  const organization = String(memberInfo?.organization || memberInfo?.department || permission?.organization || '').trim();
-  return organization === '기획추진센터' && DATA_QUALITY_ALLOWED_NAMES.has(name);
+  return DATA_QUALITY_ALLOWED_NAMES.has(name);
 }
 
 function readLogisticsFeatureAccessConfig() {

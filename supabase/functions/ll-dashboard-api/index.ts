@@ -68,6 +68,7 @@ const LOGISTICS_STAFF_NAME_BY_EMAIL: Record<string, string> = {
   'hayoung.lee@igisam.com': '이하영',
   'sh.han@igisam.com': '한상후',
   'double0507@igisam.com': '윤재진',
+  'hayun.jeong@igisam.com': '\uC815\uD558\uC724',
 };
 const LOGISTICS_ORGANIZATION_BY_EMAIL: Record<string, string> = {
   'ethan.lee@igisam.com': '리얼에셋부문',
@@ -104,6 +105,7 @@ const LOGISTICS_ORGANIZATION_BY_EMAIL: Record<string, string> = {
   'hayoung.lee@igisam.com': '투자1그룹4파트',
   'sh.han@igisam.com': '투자1그룹4파트',
   'double0507@igisam.com': '투자1그룹4파트',
+  'hayun.jeong@igisam.com': '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81',
 };
 
 const WRITE_TABLE_ALLOWLIST = new Set([
@@ -237,11 +239,12 @@ const FREE_TIER_GOOGLE_AI_MODELS = new Set([
   'gemini-2.5-flash-lite',
 ]);
 const SENSITIVE_KEY_PATTERN = /(authorization|password|secret|service[_-]?role|token|api[_-]?key|apikey|crtfc[_-]?key|client[_-]?secret|serviceKey|x-ncp)/iu;
-const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
+const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용', '\uC815\uD558\uC724']);
 const DEFAULT_FEATURE_ACCESS_EMAIL_BY_NAME: Record<string, string> = {
   '이관용': 'kylee@igisam.com',
   '이시정': 'sjlee@igisam.com',
   '전기영': 'jk.jeon@igisam.com',
+  '\uC815\uD558\uC724': 'hayun.jeong@igisam.com',
 };
 const LOGISTICS_FEATURE_ACCESS_CACHE_TYPE = 'logistics_feature_access';
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'active';
@@ -648,8 +651,10 @@ function canUseDataQuality(ctx: Context) {
   const organization = String(ctx.permission?.organization || ctx.permission?.department || '').trim();
   const name = String(ctx.permission?.staff_name || ctx.permission?.name || ctx.permission?.display_name || '').trim();
   const email = String(ctx.permission?.email || '').trim().toLowerCase();
+  const mappedName = staffNameForEmail(email);
   return organization === '기획추진센터'
     || DATA_QUALITY_ALLOWED_NAMES.has(name)
+    || DATA_QUALITY_ALLOWED_NAMES.has(mappedName)
     || allowedDataQualityEmails().includes(email);
 }
 
@@ -9294,7 +9299,7 @@ async function callLogisticsAuthStatus(origin: string, payload: Record<string, u
     .select('user_id,email,updated_at')
     .or(permissionFilters.join(','))
     .limit(1);
-  const registered = Boolean(authUser || permissionRows?.length);
+  const registered = Boolean(authUser);
   return jsonResponse({
     ok: true,
     registered,
