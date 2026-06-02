@@ -5842,18 +5842,18 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
               </div>
             </div>
           ) : null}
-          <div className="flex items-end gap-2">
-            <div className="relative flex-1">
+          <div className="flex items-stretch gap-2">
+            <div className="relative min-h-[56px] flex-1 rounded-[14px] border border-[#3A3A3C] bg-[#111]/85 focus-within:border-[#8E8E93]">
               <div
                 ref={aiInputOverlayRef}
                 data-testid="logistics-ai-input-highlight"
                 aria-hidden="true"
-                className="pointer-events-none absolute inset-0 max-h-[120px] min-h-[46px] overflow-hidden whitespace-pre-wrap break-words rounded-[14px] px-3 py-3 text-[13px] font-semibold leading-5 text-white"
+                className="pointer-events-none absolute inset-0 z-0 max-h-[120px] min-h-[56px] overflow-hidden whitespace-pre-wrap break-words rounded-[14px] px-3.5 py-3.5 text-[13px] font-semibold leading-5 text-white"
               >
                 {aiChatInput ? aiMentionSegments.map((segment) => (
                   <span
                     key={segment.key}
-                    className={segment.highlighted ? 'text-[#60A5FA]' : 'text-white'}
+                    className={segment.highlighted ? 'text-[#60A5FA]' : 'text-[#F2F7FF]'}
                   >
                     {segment.text}
                   </span>
@@ -5898,14 +5898,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                 }}
                 rows={2}
                 placeholder="물류센터 데이터에 대해 질문하세요"
-                className="relative max-h-[120px] min-h-[46px] w-full resize-none rounded-[14px] border border-[#3A3A3C] bg-[#111]/70 px-3 py-3 text-[13px] font-semibold leading-5 text-transparent caret-white outline-none placeholder:text-[#6E6E73] focus:border-[#8E8E93]"
+                className="relative z-10 max-h-[120px] min-h-[56px] w-full resize-none rounded-[14px] border-0 bg-transparent px-3.5 py-3.5 text-[13px] font-semibold leading-5 text-transparent caret-white outline-none placeholder:text-[#8E8E93]"
               />
             </div>
             <button
               type="submit"
               data-testid="logistics-ai-submit"
               disabled={aiChatLoading || aiChatInput.trim().length < 2}
-              className={`h-[46px] rounded-[14px] border px-4 text-[13px] font-bold transition-colors ${aiChatLoading || aiChatInput.trim().length < 2 ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : PRIMARY_BLUE_BUTTON_CLASS}`}
+              className={`min-h-[56px] self-stretch rounded-[14px] border px-4 text-[13px] font-bold transition-colors ${aiChatLoading || aiChatInput.trim().length < 2 ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : PRIMARY_BLUE_BUTTON_CLASS}`}
             >
               전송
             </button>

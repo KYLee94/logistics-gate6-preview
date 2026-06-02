@@ -107,6 +107,9 @@ const LOGISTICS_ORGANIZATION_BY_EMAIL: Record<string, string> = {
   'double0507@igisam.com': '투자1그룹4파트',
   'hayun.jeong@igisam.com': '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81',
 };
+const LOGISTICS_IMAGE_URL_BY_EMAIL: Record<string, string> = {
+  'hayun.jeong@igisam.com': 'https://gw.igisam.com/ekp/upload/body/profile/image/2026/06/01/2025072801.jpg',
+};
 
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_edit_requests',
@@ -700,11 +703,15 @@ function canUseDataQuality(ctx: Context) {
 
 function compactFeatureAccessUser(row: Record<string, unknown>) {
   const staffName = safeText(firstDefined(row.staff_name, row.name));
+  const email = String(row.email || DEFAULT_FEATURE_ACCESS_EMAIL_BY_NAME[staffName] || '').trim().toLowerCase();
+  const imageUrl = safeText(firstDefined(row.image_url, row.avatar_url, LOGISTICS_IMAGE_URL_BY_EMAIL[email]));
   return {
-    email: String(row.email || DEFAULT_FEATURE_ACCESS_EMAIL_BY_NAME[staffName] || '').trim().toLowerCase(),
+    email,
     staff_name: staffName,
     organization: safeText(row.organization),
     logistics_role: safeText(row.logistics_role),
+    image_url: imageUrl,
+    avatar_url: imageUrl,
   };
 }
 
@@ -754,7 +761,7 @@ function featureAccessUserMatches(ctx: Context, row: Record<string, unknown>) {
 async function readFeatureAccessConfig(ctx: Context) {
   const { data: permissionRows } = await ctx.serviceClient
     .from('ll_user_permissions')
-    .select('email,staff_name,organization,logistics_role,feature_permissions,account_status')
+    .select('email,staff_name,organization,image_url,logistics_role,feature_permissions,account_status')
     .order('organization', { ascending: true })
     .order('staff_name', { ascending: true });
   const rows = ((permissionRows || []) as Record<string, unknown>[]).filter(isActivePermission);
@@ -767,6 +774,7 @@ async function readFeatureAccessConfig(ctx: Context) {
           email: row.email,
           staff_name: firstDefined(row.staff_name, staffNameForEmail(row.email)),
           organization: row.organization,
+          image_url: firstDefined(row.image_url, LOGISTICS_IMAGE_URL_BY_EMAIL[normalizeAuthEmail(row.email)]),
           logistics_role: row.logistics_role,
         }))
         .filter((row) => row.email || row.staff_name);
@@ -6695,6 +6703,39 @@ function assetNameMatchScore(assetName: unknown, question: string) {
   return score;
 }
 
+function isStrongAssetNameMention(assetName: unknown, question: string) {
+  const assetKey = normalizeAiLookupKey(assetName);
+  const questionKey = normalizeAiLookupKey(question);
+  if (!assetKey || !questionKey) return false;
+  const coreKey = assetKey.replace(/물류센터|물류|센터|자산/giu, '');
+  return questionKey.includes(assetKey)
+    || (coreKey.length >= 3 && questionKey.includes(coreKey))
+    || (assetKey.length <= 4 && questionKey.includes(assetKey));
+}
+
+function latestCorrectedAssetSegment(question: string) {
+  const text = normalizeText(question).trim();
+  if (!/(말고|아니|정정|최종|결론|다시)/iu.test(text)) return '';
+  const segments = text
+    .split(/(?:말고|아니+|정정하면|정정|최종적으로|결론적으로)/iu)
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  return segments[segments.length - 1] || '';
+}
+
+function latestCorrectedAssetRows(rows: Record<string, unknown>[], question: string) {
+  const segment = latestCorrectedAssetSegment(question);
+  if (!segment) return [];
+  const matches = rows
+    .map((row) => ({ row, score: assetNameMatchScore(rowAssetName(row), segment) }))
+    .filter((item) => item.score >= 4 && isStrongAssetNameMention(rowAssetName(item.row), segment))
+    .sort((a, b) => b.score - a.score);
+  const topScore = matches[0]?.score;
+  return matches
+    .filter((item) => item.score === topScore)
+    .map((item) => item.row);
+}
+
 function canReadDataRow(ctx: Context, row: Record<string, unknown>) {
   if (hasRole(ctx.role, 'Manager')) return true;
   const otherPermissions = ctx.permission?.other_asset_permissions as Record<string, unknown> | undefined;
@@ -6942,6 +6983,31 @@ function currentAiModelIdentityAnswer() {
   return '현재 연결된 AI 모델 정보를 확인할 수 없습니다.';
 }
 
+function generalChatFallbackAnswer(question: string) {
+  const text = normalizeText(question).trim();
+  const arithmetic = text.match(/(-?\d+(?:\.\d+)?)\s*([+\-x×*\/÷])\s*(-?\d+(?:\.\d+)?)/u);
+  if (arithmetic) {
+    const left = Number(arithmetic[1]);
+    const operator = arithmetic[2];
+    const right = Number(arithmetic[3]);
+    let value: number | null = null;
+    if (Number.isFinite(left) && Number.isFinite(right)) {
+      if (operator === '+') value = left + right;
+      if (operator === '-') value = left - right;
+      if (operator === 'x' || operator === '×' || operator === '*') value = left * right;
+      if ((operator === '/' || operator === '÷') && right !== 0) value = left / right;
+    }
+    if (value !== null && Number.isFinite(value)) {
+      const display = Number.isInteger(value) ? String(value) : value.toFixed(4).replace(/0+$/u, '').replace(/\.$/u, '');
+      return `${arithmetic[1]}${operator}${arithmetic[3]}는 ${display}입니다.`;
+    }
+  }
+  if (/(반복|똑같|답변.*같|말만|사전\s*답변)/iu.test(text)) {
+    return '말씀하신 부분 이해했습니다. 같은 문장으로 반복하지 않고 질문 의도에 맞춰 자연스럽게 답변드리겠습니다.';
+  }
+  return '일반 대화로 이어가겠습니다. 편하게 말씀해 주세요.';
+}
+
 function isLargestTenantAreaQuestion(question: string) {
   return /(가장|제일|최대).{0,18}(많|큰|넓).{0,18}(면적|임차)|(가장|제일|최대).{0,18}면적.{0,18}(많|큰|넓|차지)|(가장|제일|최대).{0,12}면적.{0,12}임차|면적.{0,18}(가장|제일|최대).{0,18}(많|큰|넓|임차|차지)/iu.test(question);
 }
@@ -6969,6 +7035,39 @@ function isMonthlyCostQuestion(question: string) {
     && !isVacancyQuestion(question)
     && !isAreaSummaryQuestion(question)
     && !isReadableAssetCountQuestion(question);
+}
+
+function hasAiDataMetricIntent(question: string) {
+  return isENocQuestion(question)
+    || isVacancyQuestion(question)
+    || isAreaSummaryQuestion(question)
+    || isMonthlyCostQuestion(question)
+    || isTenantMonthlyCostShareQuestion(question)
+    || isLargestTenantAreaQuestion(question)
+    || isAssetOperationsSummaryQuestion(question)
+    || isComparisonQuestion(question)
+    || isReadableAssetCountQuestion(question)
+    || /만기|계약|RF|FO|임대료\s*변경|변경\s*이력|운영\s*현황|현황|요약/iu.test(question);
+}
+
+function hasAiExplicitMetricIntent(question: string) {
+  return isENocQuestion(question)
+    || isVacancyQuestion(question)
+    || isAreaSummaryQuestion(question)
+    || isMonthlyCostQuestion(question)
+    || isTenantMonthlyCostShareQuestion(question)
+    || isLargestTenantAreaQuestion(question)
+    || isComparisonQuestion(question)
+    || isReadableAssetCountQuestion(question)
+    || /만기|계약|RF|FO|임대료\s*변경|변경\s*이력|운영\s*현황|임대\s*현황|현황\s*요약|요약해/iu.test(question);
+}
+
+function isMetricOnlyFollowUpQuestion(question: string) {
+  const text = normalizeText(question).trim();
+  if (!text || text.length > 80) return false;
+  return hasAiDataMetricIntent(text)
+    && !/(전체|전\s*자산|포트폴리오|모든\s*자산)/iu.test(text)
+    && !/(물류센터|센터|자산|펀드|임차인|회사|쿠팡|CJ|씨제이|대한통운)/iu.test(text);
 }
 
 function mentionsMonthlyMoneyMetric(question: string) {
@@ -7011,12 +7110,18 @@ function metricSnapshotKey(metricScope: string, metricKey: string, assetId: stri
 
 function findQuestionAssetRows(context: Record<string, unknown>, question: string) {
   const rows = (context.assetRows as Record<string, unknown>[] | undefined) || [];
+  const correctedRows = latestCorrectedAssetRows(rows, question);
+  if (correctedRows.length && !isComparisonQuestion(question)) return correctedRows;
   const directNameMatches = rows
     .map((row) => ({ row, score: assetNameMatchScore(rowAssetName(row), question) }))
     .filter((item) => item.score >= 4)
     .sort((a, b) => b.score - a.score);
   if (directNameMatches.length) {
-    if (isComparisonQuestion(question)) return directNameMatches.slice(0, 4).map((item) => item.row);
+    if (isComparisonQuestion(question)) {
+      const strongMatches = directNameMatches.filter((item) => isStrongAssetNameMention(rowAssetName(item.row), question));
+      if (strongMatches.length >= 2) return strongMatches.slice(0, 4).map((item) => item.row);
+      return directNameMatches.slice(0, 4).map((item) => item.row);
+    }
     const topScore = directNameMatches[0].score;
     const topMatches = directNameMatches.filter((item) => item.score === topScore);
     if (topMatches.length > 1) {
@@ -7050,11 +7155,17 @@ function findQuestionAssetRows(context: Record<string, unknown>, question: strin
 
 function findQuestionAssetRowsByName(context: Record<string, unknown>, question: string) {
   const rows = (context.assetRows as Record<string, unknown>[] | undefined) || [];
+  const correctedRows = latestCorrectedAssetRows(rows, question);
+  if (correctedRows.length && !isComparisonQuestion(question)) return correctedRows;
   const directMatches = rows
     .map((row) => ({ row, score: assetNameMatchScore(rowAssetName(row), question) }))
     .filter((item) => item.score >= 4)
     .sort((a, b) => b.score - a.score);
-  if (isComparisonQuestion(question)) return directMatches.slice(0, 4).map((item) => item.row);
+  if (isComparisonQuestion(question)) {
+    const strongMatches = directMatches.filter((item) => isStrongAssetNameMention(rowAssetName(item.row), question));
+    if (strongMatches.length >= 2) return strongMatches.slice(0, 4).map((item) => item.row);
+    return directMatches.slice(0, 4).map((item) => item.row);
+  }
   const topScore = directMatches[0]?.score;
   const topMatches = directMatches.filter((item) => item.score === topScore);
   if (topMatches.length > 1) {
@@ -7430,6 +7541,8 @@ function isTenantMetricFollowUpQuestion(question: string) {
 function inferAiTenantName(context: Record<string, unknown>, question: string, lookupQuestion: string, assetRows: Record<string, unknown>[]) {
   const currentTenant = findQuestionTenantNames(context, question)[0];
   if (currentTenant) return currentTenant;
+  const followUpTenantName = normalizeText(context.followUpTenantName).trim();
+  if (followUpTenantName && isTenantMetricFollowUpQuestion(question)) return followUpTenantName;
   const directAssetRows = findQuestionAssetRowsByName(context, question);
   if (!directAssetRows.length && lookupQuestion !== question) {
     const historyTenant = findQuestionTenantNames(context, lookupQuestion)[0];
@@ -7716,6 +7829,7 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
       ? leaseRowsAll
       : [];
   const directTenantNames = findQuestionTenantNames(context, question);
+  const followUpTenantName = normalizeText(context.followUpTenantName).trim();
   const hasFollowUpAssetScope = lookupQuestion !== question
     && directAssetRows.length > 0
     && !directTenantNames.length
@@ -7725,7 +7839,9 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
     ? directTenantNames
     : hasFollowUpAssetScope
       ? []
-      : findQuestionTenantNames(context, lookupQuestion);
+      : followUpTenantName && isTenantMetricFollowUpQuestion(question)
+        ? [followUpTenantName]
+        : findQuestionTenantNames(context, lookupQuestion);
   const primaryTenantName = tenantNames[0] || '';
   const portfolioTenantAreas = groupTenantArea(leaseRowsAll);
   const portfolioLargestAreaTenant = aiTenantAreaFact(portfolioTenantAreas[0]);
@@ -8224,9 +8340,42 @@ function normalizeAiHistory(value: unknown) {
 
 function buildAiConversationQuestion(question: string, history: Array<{ role: string; content: string }>) {
   const previousMessages = history
+    .filter((item) => item.role === 'user')
     .map((item) => item.content)
     .slice(-6);
   return [...previousMessages, question].join('\n');
+}
+
+function latestUserQuestionWithDirectAsset(context: Record<string, unknown>, history: Array<{ role: string; content: string }>) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const item = history[index];
+    if (item.role !== 'user') continue;
+    const assetRows = findQuestionAssetRowsByName(context, item.content);
+    if (assetRows.length) return { question: item.content, assetRows };
+  }
+  return { question: '', assetRows: [] as Record<string, unknown>[] };
+}
+
+function latestUserQuestionWithMetricIntent(history: Array<{ role: string; content: string }>) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const item = history[index];
+    if (item.role !== 'user') continue;
+    if (hasAiDataMetricIntent(item.content)) return item.content;
+  }
+  return '';
+}
+
+function latestHistoryTenantName(context: Record<string, unknown>, history: Array<{ role: string; content: string }>) {
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const item = history[index];
+    const tenantName = findQuestionTenantNames(context, item.content)[0];
+    if (tenantName) return tenantName;
+  }
+  return '';
+}
+
+function isAiCorrectionFollowUpQuestion(question: string) {
+  return /(아니|그게\s*아니|틀렸|틀린|잘못|다시|재검산|정정|말해줘야지|말해야지|왜\s*.*말)/iu.test(question);
 }
 
 function publicAiScope(scope: Record<string, unknown>) {
@@ -8505,7 +8654,9 @@ function normalizedAiMentionText(value: unknown) {
 }
 
 function isAiFollowUpContextQuestion(question: string) {
-  return /(그|해당|방금|앞서|위에서|이\s*자산|그\s*자산|이\s*임차인|그\s*임차인|방금\s*말한)/iu.test(question);
+  return /(그|해당|방금|앞서|위에서|이\s*자산|그\s*자산|이\s*임차인|그\s*임차인|방금\s*말한)/iu.test(question)
+    || isMetricOnlyFollowUpQuestion(question)
+    || isAiCorrectionFollowUpQuestion(question);
 }
 
 function textMentionsName(text: string, name: unknown) {
@@ -8871,6 +9022,60 @@ function parseAiToolPlannerJson(answer: string) {
   return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
 }
 
+function normalizeAiIntentPlan(raw: unknown, question: string) {
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+  const rawIntent = normalizeText(source.intent || source.kind || '').toLowerCase();
+  const confidence = numberValue(source.confidence);
+  const clearLogisticsSignal = hasClearLogisticsDomainSignal(question);
+  const intent = rawIntent === 'general_chat' || rawIntent === 'general' || rawIntent === 'chat'
+    ? 'general_chat'
+    : rawIntent === 'logistics_query' || rawIntent === 'logistics' || rawIntent === 'data_query'
+      ? (confidence !== null && confidence < 0.7 && !clearLogisticsSignal ? 'general_chat' : 'logistics_query')
+      : isGeneralAiSmallTalkQuestion(question) || isGeneralAiMetaConversationQuestion(question)
+        ? 'general_chat'
+        : clearLogisticsSignal
+          ? 'logistics_query'
+          : 'general_chat';
+  return stripUndefined({
+    intent,
+    confidence: confidence === null ? null : Math.max(0, Math.min(1, confidence)),
+    reason: normalizeText(source.reason).slice(0, 160) || undefined,
+  }) as Record<string, unknown>;
+}
+
+function hasClearLogisticsDomainSignal(question: string) {
+  const text = normalizeText(question).trim();
+  if (!text) return false;
+  if (/(물류|센터|자산|데이터)\s*말고/iu.test(text)) return false;
+  return /(물류센터|자산|임차|임대|관리비|임관리비|공실|연면적|임대면적|펀드|계약|만기|tenant|e\.?\s*noc|noc|포트폴리오|운영\s*현황|임대\s*현황|월\s*임대료|월\s*관리비|월\s*임관리비|쿠팡|cj|씨제이|대한통운|부산\s*송정|화성\s*석포|아레나스|인천\s*석남|스카이박스|부국)/iu.test(text);
+}
+
+async function classifyAiQuestionIntent(question: string, history: Array<{ role: string; content: string }>, modelOverride = '') {
+  const heuristic = normalizeAiIntentPlan({}, question);
+  const googleKey = googleAiApiKey();
+  if (!googleKey) return { plan: heuristic, source: 'heuristic_no_google' };
+  const prompt = [
+    'Classify the raw Korean user message for a logistics leasing work platform.',
+    'Return only compact JSON. Do not answer the user.',
+    'Use intent "logistics_query" only when the user is asking for platform data, analysis, or actions about logistics assets, tenants, contracts, rent, management fee, vacancy, portfolio, funds, work tasks, or board contents.',
+    'Use intent "general_chat" when the user is chatting, complaining, asking a general question, or explicitly says the question is not about logistics/platform data.',
+    'Default to "general_chat" unless the message clearly requires logistics platform data.',
+    'Do not rely on keyword matching alone. Read the sentence meaning and recent conversation.',
+    `Recent conversation: ${publicAiHistory(history).join(' / ') || '-'}`,
+    `User message: ${question}`,
+    'JSON schema: {"intent":"general_chat","confidence":0.9,"reason":"short plain-language reason"}',
+  ].join('\n');
+  try {
+    const model = modelOverride && FREE_TIER_GOOGLE_AI_MODELS.has(modelOverride) ? modelOverride : resolveFreeTierGoogleAiModel();
+    const { response, body } = await generateGeminiContent(model, googleKey, prompt, 120, 12_000);
+    if (!response.ok) return { plan: heuristic, source: 'heuristic_intent_http_error', model, status: response.status };
+    const parsed = parseAiToolPlannerJson(extractGoogleAiText(body as Record<string, unknown>));
+    return { plan: normalizeAiIntentPlan(parsed || {}, question), source: parsed ? 'gemini_intent_classifier' : 'heuristic_intent_parse_fail', model, status: response.status };
+  } catch (error) {
+    return { plan: heuristic, source: 'heuristic_intent_error', error: safeProviderError(error) };
+  }
+}
+
 async function planAiSafeTool(question: string, history: Array<{ role: string; content: string }>, context: Record<string, unknown>, modelOverride = '') {
   const googleKey = googleAiApiKey();
   const heuristic = normalizeAiToolPlan({}, question);
@@ -8917,13 +9122,24 @@ function dedupeAssetRows(rows: Record<string, unknown>[]) {
 
 function findToolAssetRows(context: Record<string, unknown>, question: string, lookupQuestion: string, entities: unknown[]) {
   const allRows = (context.assetRows as Record<string, unknown>[] | undefined) || [];
-  const searchText = [question, lookupQuestion, ...entities.map(normalizeText)].join(' ');
-  const searchKey = normalizeAiLookupKey(searchText);
-  const rows = [
+  const correctedRows = latestCorrectedAssetRows(allRows, question);
+  if (correctedRows.length && !isComparisonQuestion(question)) return dedupeAssetRows(correctedRows).slice(0, 3);
+  const directRows = [
     ...findQuestionAssetRowsByName(context, question),
-    ...findQuestionAssetRowsByName(context, lookupQuestion),
     ...entities.flatMap((entity) => findQuestionAssetRowsByName(context, normalizeText(entity))),
   ];
+  if (isComparisonQuestion(question) && dedupeAssetRows(directRows).length >= 2) {
+    return dedupeAssetRows(directRows).slice(0, 6);
+  }
+  const followUpRows = (context.followUpAssetRows as Record<string, unknown>[] | undefined) || [];
+  const shouldUseFollowUpRows = !directRows.length && followUpRows.length && !isComparisonQuestion(question);
+  const searchText = shouldUseFollowUpRows
+    ? [question, ...followUpRows.map(rowAssetName), ...entities.map(normalizeText)].join(' ')
+    : [question, lookupQuestion, ...entities.map(normalizeText)].join(' ');
+  const searchKey = normalizeAiLookupKey(searchText);
+  const rows = shouldUseFollowUpRows
+    ? [...followUpRows]
+    : [...directRows, ...findQuestionAssetRowsByName(context, lookupQuestion)];
   allRows.forEach((row) => {
     const assetName = rowAssetName(row);
     const fullKey = normalizeAiLookupKey(assetName);
@@ -8952,7 +9168,12 @@ function aiMetricForAssetRows(assetRows: Record<string, unknown>[], leaseRowsAll
 }
 
 function wantsLowerMetric(question: string) {
-  return /(작은|작아|작냐|낮은|낮아|낮냐|적은|적게|저렴|싼|덜|최소)/iu.test(question) && !/(크|커|큰|높|많|최대)/iu.test(question);
+  const text = normalizeText(question);
+  if (/(높은|큰|많은)\s*거\s*말고\s*(낮|작|적|싼|저렴)/iu.test(text)) return true;
+  if (/(더\s*)?(작은|작아|작냐|낮은|낮아|낮냐|적은|적게|저렴|싼|덜)|최소|가장\s*(작|낮|적|싼|저렴)/iu.test(text)) {
+    return !/(더\s*)?(크|커|큰|높|많|최대)|가장\s*(크|높|많)/iu.test(text);
+  }
+  return false;
 }
 
 function buildAiComparisonToolFacts(question: string, context: Record<string, unknown>, lookupQuestion: string, plan: Record<string, unknown>) {
@@ -9126,9 +9347,11 @@ function buildAiAssetMetricToolFacts(question: string, context: Record<string, u
 function buildAiTenantToolFacts(question: string, context: Record<string, unknown>, lookupQuestion: string, plan: Record<string, unknown>) {
   const metric = aiServerPreferredMetric(plan.metric, question);
   const leaseRowsAll = (context.leaseRows as Record<string, unknown>[] | undefined) || [];
-  const assetRows = findToolAssetRows(context, question, lookupQuestion, plan.entities as unknown[] || []);
+  const tenantWideScope = /(자산명|자산|센터)\s*말고|임차인.{0,12}기준|회사.{0,12}기준|tenant.{0,12}basis/iu.test(question);
+  const assetRows = tenantWideScope ? [] : findToolAssetRows(context, question, lookupQuestion, plan.entities as unknown[] || []);
   const scopedLeaseRows = assetRows.length ? rowsForAssets(leaseRowsAll, assetRows) : leaseRowsAll;
   const tenantName = findQuestionTenantNames(context, `${question} ${(plan.entities as unknown[] || []).join(' ')}`)[0]
+    || (isTenantMetricFollowUpQuestion(question) ? normalizeText(context.followUpTenantName).trim() : '')
     || findQuestionTenantNames(context, lookupQuestion)[0];
   if (!tenantName) return null;
   const tenantRows = rowsForTenant(scopedLeaseRows, tenantName);
@@ -9195,7 +9418,8 @@ function buildAiSafeToolFacts(question: string, context: Record<string, unknown>
   if (isAssetOperationsSummaryQuestion(question) && !isComparisonQuestion(question)) return null;
   if (tool === 'compare_assets' || isComparisonQuestion(question)) return buildAiComparisonToolFacts(question, context, lookupQuestion, plan);
   const hasTenantMention = findQuestionTenantNames(context, `${question} ${((plan.entities as unknown[] | undefined) || []).join(' ')}`).length > 0;
-  if (tool === 'get_tenant_assets' || tool === 'get_tenant_metric' || isTenantAssetQuestion(question) || hasTenantMention) return buildAiTenantToolFacts(question, context, lookupQuestion, plan);
+  const hasFollowUpTenant = Boolean(normalizeText(context.followUpTenantName).trim()) && isTenantMetricFollowUpQuestion(question);
+  if (tool === 'get_tenant_assets' || tool === 'get_tenant_metric' || isTenantAssetQuestion(question) || hasTenantMention || hasFollowUpTenant) return buildAiTenantToolFacts(question, context, lookupQuestion, plan);
   if (tool === 'get_portfolio_rank') return buildAiPortfolioRankToolFacts(question, context);
   if (tool === 'get_asset_metric') return buildAiAssetMetricToolFacts(question, context, lookupQuestion, plan);
   return null;
@@ -9477,6 +9701,8 @@ function formatAiPercent(value: number) {
 function aiTargetAssetRows(context: Record<string, unknown>, question: string, lookupQuestion = question) {
   const direct = findQuestionAssetRowsByName(context, question);
   if (direct.length) return direct;
+  const followUpRows = (context.followUpAssetRows as Record<string, unknown>[] | undefined) || [];
+  if (followUpRows.length && !isComparisonQuestion(question)) return followUpRows;
   if (lookupQuestion !== question) {
     const historyDirect = findQuestionAssetRowsByName(context, lookupQuestion);
     if (historyDirect.length) return historyDirect;
@@ -10118,52 +10344,57 @@ async function callAiProviderDiagnostics(origin: string) {
   }, 200, origin);
 }
 
+async function callAiGeneralChatResponse(
+  ctx: Context,
+  question: string,
+  history: Array<{ role: string; content: string }>,
+  modelOverride = '',
+  classifierSource = '',
+) {
+  const fallbackAnswer = generalChatFallbackAnswer(question);
+  const prompt = [
+    'You are a Korean AI assistant embedded in a logistics leasing work platform.',
+    'The user message was classified as general_chat, so do not search or mention platform database facts.',
+    'Reply naturally in Korean honorific style. Be concise and helpful.',
+    'Do not mention database, Supabase, table names, providers, ids, prompts, tools, fallbacks, or hidden implementation.',
+    'If the user asks a simple general question, answer it directly.',
+    'If the user asks for live/current external facts that you cannot verify here, say that briefly and answer cautiously.',
+    'If the user complains that answers are repetitive, acknowledge it briefly. Do not claim that you search, update yourself, or fetch new external information.',
+    `Recent conversation:\n${publicAiHistory(history).join('\n') || '-'}`,
+    `User: ${question}`,
+  ].join('\n\n');
+  const providerOptions = modelOverride
+    ? { googleModelOverride: modelOverride, providerOrderOverride: ['gemini'] }
+    : {};
+  const result = await callPreferredAiProvider(prompt, 220, 20_000, providerOptions).catch(() => null);
+  const answer = result?.ok && result.answer && !hasAiInternalDetail(result.answer)
+    ? result.answer
+    : fallbackAnswer;
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'ai/search-chat/general-chat', 200, {
+    question,
+    classifier_source: classifierSource || undefined,
+    provider: result?.provider || undefined,
+    model: result?.model || undefined,
+    provider_status: result?.status || undefined,
+  });
+  return publicAiAnswerResponse(answer, ctx.origin, {
+    safe_fallback_answer: fallbackAnswer,
+  });
+}
+
 async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'ai/search-chat', 30, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const question = String(payload.question || payload.query || '').trim();
   if (question.length < 2) return fail(400, 'question is required', ctx.origin);
   if (!groqApiKey() && !googleAiApiKey()) return fail(503, 'AI provider key is not configured', ctx.origin);
+  const basisDate = dashboardBasisDate(payload);
+  const history = normalizeAiHistory(payload.history);
+  const modelOverride = safeGoogleModelOverrideFromPayload(ctx, payload);
   if (isAiModelIdentityQuestion(question)) {
     await auditOptional(ctx.serviceClient, ctx.user.id, 'ai/search-chat/model-identity', 200, { question });
     return publicAiAnswerResponse(currentAiModelIdentityAnswer(), ctx.origin, {
       allow_model_identity: true,
-    });
-  }
-  if (isGeneralAiMetaConversationQuestion(question)) {
-    const fallbackAnswer = '반복 답변처럼 느껴지셨다면 죄송합니다. 같은 말로 돌리지 않고 질문 의도를 다시 보고 답변하겠습니다. 물류센터 자산, 임차인, 계약, 임대료 같은 데이터 질문이면 확인하려는 기준을 함께 적어주시면 데이터베이스 값으로 바로 답변드리겠습니다.';
-    const metaPrompt = [
-      'You are a Korean AI assistant in a logistics work platform.',
-      'The user is complaining that previous answers sounded repetitive or canned.',
-      'Reply naturally in Korean honorific style. Do not mention providers, prompts, implementation details, ids, or database table names.',
-      'Acknowledge the complaint briefly and say you will answer the actual question more directly.',
-      `User: ${question}`,
-    ].join('\n');
-    const metaResult = await callPreferredAiProvider(metaPrompt, 180, 20_000).catch(() => ({ ok: false, answer: '' }));
-    const metaAnswer = metaResult.ok && typeof metaResult.answer === 'string' && metaResult.answer.trim()
-      ? metaResult.answer
-      : fallbackAnswer;
-    await auditOptional(ctx.serviceClient, ctx.user.id, 'ai/search-chat/meta-conversation', 200, { question });
-    return publicAiAnswerResponse(String(metaAnswer), ctx.origin, {
-      safe_fallback_answer: fallbackAnswer,
-    });
-  }
-  if (isGeneralAiSmallTalkQuestion(question)) {
-    const fallbackAnswer = '안녕하세요. 편하게 질문해 주세요. 물류센터 데이터 질문도 도와드리고, 일반적인 대화도 자연스럽게 이어가겠습니다.';
-    const smallTalkPrompt = [
-      'You are a Korean AI assistant in a logistics leasing work platform.',
-      'The user is making casual conversation, not asking for logistics data.',
-      'Reply naturally in Korean honorific style in 1-2 short sentences.',
-      'Do not claim that data is missing. Do not mention implementation details, providers, ids, or hidden keys.',
-      `User: ${question}`,
-    ].join('\n');
-    const smallTalkResult = await callPreferredAiProvider(smallTalkPrompt, 160, 20_000).catch(() => ({ ok: false, answer: '' }));
-    const smallTalkAnswer = smallTalkResult.ok && typeof smallTalkResult.answer === 'string' && smallTalkResult.answer.trim()
-      ? smallTalkResult.answer
-      : fallbackAnswer;
-    await auditOptional(ctx.serviceClient, ctx.user.id, 'ai/search-chat/general-smalltalk', 200, { question });
-    return publicAiAnswerResponse(String(smallTalkAnswer), ctx.origin, {
-      safe_fallback_answer: fallbackAnswer,
     });
   }
   if (/ll_|table|provider|fallback|asset[_\s-]*id|tenant[_\s-]*id|lease[_\s-]*space[_\s-]*id|source[_\s-]*(row|cell)|구현\s*정보|내부\s*정보/iu.test(question)) {
@@ -10174,15 +10405,37 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
     await auditOptional(ctx.serviceClient, ctx.user.id, 'ai/search-chat/no-readable-asset-hint', 200, { question });
     return publicAiAnswerResponse('읽기 권한 범위 안에서 해당 자산의 근거 데이터를 찾지 못했습니다. 자산명을 다시 확인해 주세요.', ctx.origin);
   }
-  const basisDate = dashboardBasisDate(payload);
-  const history = normalizeAiHistory(payload.history);
-  const conversationQuestion = buildAiConversationQuestion(question, history);
+  const intentResult = await classifyAiQuestionIntent(question, history, modelOverride);
+  if (normalizeText((intentResult.plan as Record<string, unknown>).intent) === 'general_chat') {
+    return callAiGeneralChatResponse(ctx, question, history, modelOverride, intentResult.source);
+  }
+  const latestMetricQuestion = latestUserQuestionWithMetricIntent(history);
+  const intentQuestion = !hasAiExplicitMetricIntent(question) && isAiCorrectionFollowUpQuestion(question) && latestMetricQuestion
+    ? `${question}\n이전 질문 지표: ${latestMetricQuestion}`
+    : question;
+  const conversationQuestion = buildAiConversationQuestion(intentQuestion, history);
   const context = await collectAiSearchContext(ctx, conversationQuestion, basisDate);
-  const modelOverride = safeGoogleModelOverrideFromPayload(ctx, payload);
-  const toolPlanResult = await planAiSafeTool(question, history, context as Record<string, unknown>, modelOverride);
+  const contextRecord = context as Record<string, unknown>;
+  const directCurrentAssetRows = findQuestionAssetRowsByName(contextRecord, question);
+  const latestUserAssetContext = latestUserQuestionWithDirectAsset(contextRecord, history);
+  if (
+    !directCurrentAssetRows.length
+    && latestUserAssetContext.assetRows.length
+    && !isOverallQuestion(question)
+    && (isAiFollowUpContextQuestion(question) || hasAiDataMetricIntent(intentQuestion))
+  ) {
+    contextRecord.followUpAssetRows = latestUserAssetContext.assetRows;
+    contextRecord.followUpAssetQuestion = latestUserAssetContext.question;
+  }
+  const directCurrentTenantName = findQuestionTenantNames(contextRecord, question)[0];
+  const latestTenantName = latestHistoryTenantName(contextRecord, history);
+  if (!directCurrentTenantName && latestTenantName && isTenantMetricFollowUpQuestion(intentQuestion)) {
+    contextRecord.followUpTenantName = latestTenantName;
+  }
+  const toolPlanResult = await planAiSafeTool(intentQuestion, history, contextRecord, modelOverride);
   let toolFacts: Record<string, unknown> | null = null;
   try {
-    toolFacts = buildAiSafeToolFacts(question, context as Record<string, unknown>, conversationQuestion, toolPlanResult.plan as Record<string, unknown>);
+    toolFacts = buildAiSafeToolFacts(intentQuestion, contextRecord, conversationQuestion, toolPlanResult.plan as Record<string, unknown>);
   } catch (error) {
     toolFacts = null;
     await auditOptional(ctx.serviceClient, ctx.user.id, 'ai/search-chat/tool-execution-error', 200, {
@@ -10190,8 +10443,8 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       error: error instanceof Error ? error.message : 'tool execution error',
     });
   }
-  const supabaseFacts = toolFacts || buildAiSupabaseFacts(question, context as Record<string, unknown>, conversationQuestion);
-  const directComparisonAnswer = comparisonFallbackAnswer(question, supabaseFacts);
+  const supabaseFacts = toolFacts || buildAiSupabaseFacts(intentQuestion, contextRecord, conversationQuestion);
+  const directComparisonAnswer = comparisonFallbackAnswer(intentQuestion, supabaseFacts);
   if (directComparisonAnswer && /중\s*(어느|어떤)|어느\s*(쪽|게|것)|어떤\s*(쪽|게|것)|더\s*(크|높|많|작|낮)/iu.test(question)) {
     await audit(ctx.serviceClient, ctx.user.id, 'ai/search-chat', 200, {
       question,
@@ -10230,8 +10483,8 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       tool_plan_source: toolPlanResult.source,
       tool_plan: toolPlanResult.plan,
     });
-    const fallbackAnswer = comparisonFallbackAnswer(question, supabaseFacts)
-      || publicAiFallbackAnswer(question, supabaseFacts)
+    const fallbackAnswer = comparisonFallbackAnswer(intentQuestion, supabaseFacts)
+      || publicAiFallbackAnswer(intentQuestion, supabaseFacts)
       || 'AI 답변을 안전하게 정리하지 못했습니다. 같은 질문을 한 번 더 보내주시거나 자산명/임차인명을 함께 적어주세요.';
     if (!providerResult.ok) {
       const completedFallback = ensureAiAssetIdentityCompleteness(question, fallbackAnswer, supabaseFacts);
@@ -10241,15 +10494,15 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
     }
     const providerAnswer = hasAiInternalDetail(providerResult.answer)
       ? fallbackAnswer
-      : ensureAiCalculationQualifiers(question, ensureAiPublicContextMention(question, providerResult.answer || '', supabaseFacts));
+      : ensureAiCalculationQualifiers(intentQuestion, ensureAiPublicContextMention(intentQuestion, providerResult.answer || '', supabaseFacts));
     if (isComparisonAnswerInconsistent(providerAnswer, supabaseFacts)) {
       return publicAiAnswerResponse(fallbackAnswer, ctx.origin, {
         safe_fallback_answer: fallbackAnswer,
       });
     }
-    const repaired = await repairAiAnswerWithRequiredFacts(question, providerAnswer, supabaseFacts);
+    const repaired = await repairAiAnswerWithRequiredFacts(intentQuestion, providerAnswer, supabaseFacts);
     const completedAnswer = ensureAiAssetIdentityCompleteness(question, repaired.answer || providerAnswer || fallbackAnswer, supabaseFacts);
-    const finalAnswer = ensureAiCalculationQualifiers(question, ensureAiPublicContextMention(question, completedAnswer, supabaseFacts));
+    const finalAnswer = ensureAiCalculationQualifiers(intentQuestion, ensureAiPublicContextMention(intentQuestion, completedAnswer, supabaseFacts));
     if (isComparisonAnswerInconsistent(finalAnswer, supabaseFacts)) {
       return publicAiAnswerResponse(fallbackAnswer, ctx.origin, {
         safe_fallback_answer: fallbackAnswer,
@@ -10270,8 +10523,8 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       evidence_rows: context.evidence.length,
       error: error instanceof Error ? error.message : 'provider error',
     });
-    const fallbackAnswer = comparisonFallbackAnswer(question, supabaseFacts)
-      || publicAiFallbackAnswer(question, supabaseFacts)
+    const fallbackAnswer = comparisonFallbackAnswer(intentQuestion, supabaseFacts)
+      || publicAiFallbackAnswer(intentQuestion, supabaseFacts)
       || 'AI 응답이 지연되어 데이터베이스에서 확인 가능한 범위로 답변을 정리하지 못했습니다. 같은 질문을 다시 보내주세요.';
     return publicAiAnswerResponse(fallbackAnswer, ctx.origin, {
       safe_fallback_answer: fallbackAnswer,
@@ -10535,6 +10788,18 @@ async function listAuthUsers(serviceClient: SupabaseClient) {
   return users;
 }
 
+async function listAuthUsersWithTimeout(serviceClient: SupabaseClient, timeoutMs = 4500) {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<Record<string, unknown>[]>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error('Auth user lookup timed out')), timeoutMs);
+  });
+  try {
+    return await Promise.race([listAuthUsers(serviceClient), timeout]);
+  } finally {
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+  }
+}
+
 function shortClientText(value: unknown, max = 180) {
   return String(value || '').replace(/\s+/gu, ' ').trim().slice(0, max);
 }
@@ -10580,11 +10845,13 @@ function loginCapabilityStatus(authUser: Record<string, unknown> | null) {
 function publicLoginCapabilityRow(permission: Record<string, unknown>, authUsers: Record<string, unknown>[]) {
   const email = canonicalPermissionEmail(permission);
   const authUser = authUserByEmail(authUsers, email);
+  const imageUrl = firstDefined(permission.image_url, LOGISTICS_IMAGE_URL_BY_EMAIL[email]);
   return stripUndefined({
     email,
     organization: String(permission.organization || '').trim() || organizationForEmail(email) || '-',
     staff_name: String(firstDefined(permission.staff_name, permission.name, staffNameForEmail(email)) || '').trim(),
-    image_url: permission.image_url || null,
+    image_url: imageUrl || null,
+    avatar_url: imageUrl || null,
     logistics_role: permission.logistics_role || 'Reader',
     account_status: permission.account_status || 'active',
     feature_permissions: userFeaturePermissions(permission),
@@ -10635,6 +10902,7 @@ function loginCapabilityRows(permissionRows: Record<string, unknown>[], authUser
 
 function publicPermissionUser(permission: Record<string, unknown>) {
   const email = canonicalPermissionEmail(permission);
+  const imageUrl = firstDefined(permission.image_url, LOGISTICS_IMAGE_URL_BY_EMAIL[email]);
   return stripUndefined({
     id: permission.user_id || email,
     auth_id: permission.user_id || null,
@@ -10644,8 +10912,8 @@ function publicPermissionUser(permission: Record<string, unknown>) {
     organization: firstDefined(permission.organization, organizationForEmail(email)),
     department: firstDefined(permission.organization, organizationForEmail(email)),
     team_name: firstDefined(permission.organization, organizationForEmail(email)),
-    image_url: permission.image_url || null,
-    avatar_url: permission.image_url || null,
+    image_url: imageUrl || null,
+    avatar_url: imageUrl || null,
     logistics_role: permission.logistics_role || 'Reader',
     role: permission.logistics_role || 'Reader',
     account_status: permission.account_status || 'active',
@@ -10837,7 +11105,7 @@ async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, u
   let authUsers: Record<string, unknown>[] = [];
   let authReadError = '';
   try {
-    authUsers = await listAuthUsers(ctx.serviceClient);
+    authUsers = await listAuthUsersWithTimeout(ctx.serviceClient);
   } catch (error) {
     authReadError = safeProviderError(error);
   }
@@ -10881,7 +11149,7 @@ async function listLogisticsLoginCapability(ctx: Context) {
   let authUsers: Record<string, unknown>[] = [];
   let authReadError = '';
   try {
-    authUsers = await listAuthUsers(ctx.serviceClient);
+    authUsers = await listAuthUsersWithTimeout(ctx.serviceClient);
   } catch (error) {
     authReadError = safeProviderError(error);
   }
@@ -10926,7 +11194,7 @@ async function callLogisticsAuthStatus(origin: string, payload: Record<string, u
     account_status: permission?.account_status || null,
     staff_name: permission?.staff_name || staffNameForEmail(email),
     organization: permission?.organization || organizationForEmail(email),
-    image_url: permission?.image_url || null,
+    image_url: firstDefined(permission?.image_url, LOGISTICS_IMAGE_URL_BY_EMAIL[email]) || null,
   }, 200, origin);
 }
 

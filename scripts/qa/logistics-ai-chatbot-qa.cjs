@@ -341,9 +341,10 @@ async function main() {
   const bukuk = findAsset(assets, '부국');
   const arenaAnseong = findAsset(assets, '아레나스', '안성');
   const anseongSeongeun = findAsset(assets, '안성', '성은');
+  const hwasungSeokpo = findAsset(assets, '화성', '석포');
 
   const assetReads = {};
-  for (const asset of [busan, arenaYangji, incheonSeoknam, skybox, bukuk, arenaAnseong, anseongSeongeun]) {
+  for (const asset of [busan, arenaYangji, incheonSeoknam, skybox, bukuk, arenaAnseong, anseongSeongeun, hwasungSeokpo]) {
     assetReads[asset.asset_id] = await invoke(endpoint, anonKey, origin, auth.token, 'dashboard/asset/read', { basis_date: basisDate, asset_id: asset.asset_id });
     assertStatus(assetReads[asset.asset_id], 200, `dashboard/asset/read ${asset.asset_name}`);
   }
@@ -376,6 +377,7 @@ async function main() {
   const bukukRows = leaseRowsFromAssetRead(assetReads[bukuk.asset_id]);
   const incheonRows = leaseRowsFromAssetRead(assetReads[incheonSeoknam.asset_id]);
   const skyboxRows = leaseRowsFromAssetRead(assetReads[skybox.asset_id]);
+  const hwasungRows = leaseRowsFromAssetRead(assetReads[hwasungSeokpo.asset_id]);
   const skyboxRowsForQa = skyboxRows.length
     ? skyboxRows
     : rowsForAsset(assetReads[skybox.asset_id].body?.data?.rent_history || [], skybox).length
@@ -392,6 +394,8 @@ async function main() {
   if (!skyboxCostShares.length) throw new Error('Could not derive Skybox tenant monthly cost shares from Supabase readback');
   const bukukENoc = weightedENoc(bukukRows) || assetStoredENoc(assetReads[bukuk.asset_id]);
   const incheonENoc = weightedENoc(incheonRows) || assetStoredENoc(assetReads[incheonSeoknam.asset_id]);
+  const hwasungENoc = weightedENoc(hwasungRows) || assetStoredENoc(assetReads[hwasungSeokpo.asset_id]);
+  if (!hwasungENoc) throw new Error('Could not derive Hwasung Seokpo E.NOC from Supabase readback');
   const arenaGrossPy = (numberValue(firstDefined(arenaSummary.gross_floor_area_sqm, arenaSummary.grossFloorAreaSqm, arenaYangji.gross_floor_area_sqm)) || 0) * PY_PER_SQM;
   const arenaLeasedPy = arenaRows.reduce((sum, row) => sum + rowAreaPy(row), 0);
   const arenaAnseongGrossPy = (numberValue(firstDefined(arenaAnseongSummary.gross_floor_area_sqm, arenaAnseongSummary.grossFloorAreaSqm, arenaAnseong.gross_floor_area_sqm)) || 0) * PY_PER_SQM;
@@ -458,7 +462,10 @@ async function main() {
     basis: { expected: '반복 답변 지적에 자연어로 응답' },
     validate: (answer) => {
       if (/readable_asset_count|answer_focus|provider|fallback|ll_/iu.test(answer)) throw new Error(`meta complaint leaked internal detail: ${answer}`);
-      assertMatches(answer, 'repetition complaint', /반복|다시|질문|데이터|답변|같은\s*말|기억/u);
+      assertMatches(answer, 'repetition complaint', /반복|다시|질문|데이터|답변|대답|같은\s*말|말한\s*것|이해|고치|개선/u);
+      if (/새로운\s*정보를\s*찾|업데이트\s*하기\s*위해|실시간으로\s*찾/iu.test(answer)) {
+        throw new Error(`meta complaint should not claim external refresh/search ability: ${answer}`);
+      }
     },
   });
 
@@ -471,6 +478,33 @@ async function main() {
     validate: (answer) => {
       assertMatches(answer, 'model identity', /Gemini|Groq|gemini|groq/u);
       if (/근거|필수 값|찾지 못/iu.test(answer)) throw new Error(`model identity should not be treated as missing logistics facts: ${answer}`);
+    },
+  });
+
+  await runCase({
+    id: 'weird_non_logistics_lunch_question',
+    category: '생뚱맞은 일반 질문',
+    question: '갑자기 배고픈데 점심 메뉴 아무거나 추천해줘',
+    basis: { expected: '물류 데이터 검색 실패로 처리하지 않고 일반 대화로 응답' },
+    validate: (answer) => {
+      if (/readable_asset_count|answer_focus|provider|fallback|ll_|Supabase|데이터베이스/iu.test(answer)) throw new Error(`lunch question leaked implementation/detail: ${answer}`);
+      if (/확인할 수 없습니다|찾지 못|근거 데이터|제공 데이터|정보가 없습니다|답변에 필요한 근거/iu.test(answer)) {
+        throw new Error(`lunch question should not be treated as missing logistics facts: ${answer}`);
+      }
+    },
+  });
+
+  await runCase({
+    id: 'weird_non_logistics_arithmetic_question',
+    category: '생뚱맞은 일반 질문',
+    question: '물류센터 말고 그냥 산수야. 2+2는 뭐야?',
+    basis: { expected: '간단한 일반 질문은 DB 근거 없음으로 오답 처리하지 않음' },
+    validate: (answer) => {
+      assertMatches(answer, 'arithmetic answer', /4|사/u);
+      if (/readable_asset_count|answer_focus|provider|fallback|ll_|Supabase|데이터베이스/iu.test(answer)) throw new Error(`arithmetic question leaked implementation/detail: ${answer}`);
+      if (/확인할 수 없습니다|찾지 못|근거 데이터|제공 데이터|정보가 없습니다|답변에 필요한 근거/iu.test(answer)) {
+        throw new Error(`arithmetic question should not be treated as missing logistics facts: ${answer}`);
+      }
     },
   });
 
@@ -546,6 +580,19 @@ async function main() {
     validate: (answer) => assertIncludes(answer, 'busan area', formatPy(busanGrossPy), formatPy(busanLeasedPy)),
   });
 
+  const hwasungOperationsAnswer = await runCase({
+    id: 'hwasung_operations_summary_context_seed',
+    category: '자산 운영현황',
+    question: '화성 석포리 물류센터 운영 현황 알려줘',
+    basis: { asset_name: hwasungSeokpo.asset_name, source: 'dashboard/asset/read' },
+    validate: (answer) => {
+      assertIncludes(answer, 'hwasung operations summary', '화성', '석포');
+      if (/확인할 수 없습니다|찾지 못|근거 데이터가 없습니다/u.test(answer)) {
+        throw new Error(`hwasung operations summary should be answerable: ${answer}`);
+      }
+    },
+  });
+
   await runCase({
     id: 'arena_vacancy',
     category: '공실률',
@@ -585,6 +632,34 @@ async function main() {
       assertIncludes(answer, 'bukuk e.noc', '부국');
       assertApproxWon(answer, 'bukuk e.noc', bukukENoc);
       if (/아레나스안성/u.test(answer)) throw new Error(`bukuk e.noc mixed previous asset: ${answer}`);
+    },
+  });
+
+  await runCase({
+    id: 'confusing_asset_switch_to_bukuk_enoc',
+    category: '헷갈리는 질문',
+    question: '인천 석남 말고 아니 부국물류센터 e noc만 다시 봐줘',
+    basis: { asset_name: bukuk.asset_name, e_noc: formatWon(bukukENoc) },
+    validate: (answer) => {
+      assertIncludes(answer, 'confusing asset switch bukuk e.noc', '부국');
+      assertApproxWon(answer, 'confusing asset switch bukuk e.noc', bukukENoc);
+      if (/인천.{0,16}E\.?\s*NOC|석남.{0,16}E\.?\s*NOC/u.test(answer)) {
+        throw new Error(`confusing asset switch still used previous mentioned asset: ${answer}`);
+      }
+    },
+  });
+
+  await runCase({
+    id: 'confusing_noise_hwasung_enoc',
+    category: '헷갈리는 질문',
+    question: '아레나스... 아니 아니 화성 석포리 물류센터 e. noc만 말해줘',
+    basis: { asset_name: hwasungSeokpo.asset_name, e_noc: formatWon(hwasungENoc) },
+    validate: (answer) => {
+      assertIncludes(answer, 'confusing noise hwasung e.noc', '화성', '석포');
+      assertApproxWon(answer, 'confusing noise hwasung e.noc', hwasungENoc);
+      if (/아레나스.{0,24}(기준|E\.?\s*NOC|29,980|32,613|33,305)/u.test(answer)) {
+        throw new Error(`confusing noise hwasung mixed arena asset: ${answer}`);
+      }
     },
   });
 
@@ -669,6 +744,42 @@ async function main() {
   });
 
   await runCase({
+    id: 'hwasung_metric_only_follow_up_enoc',
+    category: '이전 대화 맥락 follow-up',
+    question: 'e. noc는?',
+    history: [
+      { role: 'user', content: '화성 석포리 물류센터 운영 현황 알려줘' },
+      { role: 'assistant', content: hwasungOperationsAnswer },
+    ],
+    basis: { asset_name: hwasungSeokpo.asset_name, e_noc: formatWon(hwasungENoc) },
+    validate: (answer) => {
+      assertIncludes(answer, 'hwasung metric-only follow-up e.noc', '화성', '석포');
+      assertApproxWon(answer, 'hwasung metric-only follow-up e.noc', hwasungENoc);
+      if (/아레나스|양지|안성/u.test(answer)) throw new Error(`hwasung follow-up mixed unrelated asset: ${answer}`);
+    },
+  });
+
+  await runCase({
+    id: 'hwasung_correction_follow_up_enoc',
+    category: '이전 대화 맥락 follow-up',
+    question: '아니 화성 석포리 물류센터 말해줘야지',
+    history: [
+      { role: 'user', content: '화성 석포리 물류센터 운영 현황 알려줘' },
+      { role: 'assistant', content: hwasungOperationsAnswer },
+      { role: 'user', content: 'e. noc는?' },
+      { role: 'assistant', content: '아레나스양지물류센터은 임대면적 가중평균 E. NOC 32,613원으로 보시면 됩니다.' },
+    ],
+    basis: { asset_name: hwasungSeokpo.asset_name, e_noc: formatWon(hwasungENoc) },
+    validate: (answer) => {
+      assertIncludes(answer, 'hwasung correction follow-up e.noc', '화성', '석포');
+      assertApproxWon(answer, 'hwasung correction follow-up e.noc', hwasungENoc);
+      if (/아레나스.{0,24}(기준|E\.?\s*NOC|32,613)/u.test(answer)) {
+        throw new Error(`hwasung correction still used unrelated asset: ${answer}`);
+      }
+    },
+  });
+
+  await runCase({
     id: 'context_tenant_follow_up_area_enoc',
     category: '이전 대화 맥락 follow-up',
     question: '면적 얼마나 임차하고 있고, e. noc는 얼마야?',
@@ -712,11 +823,50 @@ async function main() {
   });
 
   await runCase({
+    id: 'confusing_tenant_vs_asset_coupang_scope',
+    category: '헷갈리는 질문',
+    question: '경산 쿠팡물류센터라는 자산명 말고, 임차인 쿠팡 기준으로 들어가 있는 센터들만 알려줘',
+    basis: { tenant_alias: '쿠팡', asset_names: coupangAssetNames },
+    validate: (answer) => {
+      assertIncludes(answer, 'confusing coupang tenant scope', '쿠팡');
+      coupangAssetNames.slice(0, 3).forEach((name) => assertIncludes(answer, `confusing coupang asset ${name}`, name));
+      if (/경산 쿠팡물류센터.{0,24}(만|뿐|하나|1개)/u.test(answer)) {
+        throw new Error(`confusing coupang scope collapsed to one asset: ${answer}`);
+      }
+    },
+  });
+
+  await runCase({
     id: 'asset_comparison_vacancy',
     category: '복수 자산 비교 질문',
     question: '아레나스 양지와 부산 송정 공실률 비교해줘',
     basis: { arena_vacancy_rate: formatPercent(arenaVacancyRate), busan_vacancy_rate: formatPercent(busanVacancyRate) },
-    validate: (answer) => assertIncludes(answer, 'vacancy comparison', '아레나스', '양지', '부산', '송정', formatPercent(arenaVacancyRate), formatPercent(busanVacancyRate)),
+    validate: (answer) => {
+      assertIncludes(answer, 'vacancy comparison', '아레나스', '양지', '부산', '송정', formatPercent(arenaVacancyRate), formatPercent(busanVacancyRate));
+      if (/아레나스안성|안성.{0,16}공실률/u.test(answer)) {
+        throw new Error(`vacancy comparison included unrelated asset: ${answer}`);
+      }
+    },
+  });
+
+  await runCase({
+    id: 'confusing_lower_vacancy_comparison',
+    category: '헷갈리는 질문',
+    question: '아레나스 양지랑 부산 송정 중에 공실률 더 낮은 쪽이 뭐야? 높은 거 말고 낮은 거',
+    basis: { expected_winner: busan.asset_name, arena_vacancy_rate: formatPercent(arenaVacancyRate), busan_vacancy_rate: formatPercent(busanVacancyRate) },
+    validate: (answer) => {
+      assertIncludes(answer, 'confusing lower vacancy comparison', '아레나스', '양지', '부산', '송정', formatPercent(arenaVacancyRate), formatPercent(busanVacancyRate));
+      if (!/부산|송정/u.test(answer)) throw new Error(`lower vacancy comparison missing expected lower asset: ${answer}`);
+      if (!/(부산|송정).{0,36}(낮|작|적|최소|더\s*낮)|낮은\s*쪽.{0,36}(부산|송정)/u.test(answer)) {
+        throw new Error(`lower vacancy comparison does not state expected lower direction: ${answer}`);
+      }
+      if (/아레나스.{0,24}(낮|작|적|더\s*낮)/u.test(answer)) {
+        throw new Error(`lower vacancy comparison has wrong direction: ${answer}`);
+      }
+      if (/아레나스안성|안성.{0,16}공실률/u.test(answer)) {
+        throw new Error(`lower vacancy comparison included unrelated asset: ${answer}`);
+      }
+    },
   });
 
   await runCase({
