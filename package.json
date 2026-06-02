@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build --configLoader runner",
     "build:preview": "npm run build -- --base=/logistics-gate6-preview/ && node scripts/build/write-github-pages-fallback.cjs",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -18,6 +18,8 @@
     "qa:data-update:auto": "node scripts/qa/logistics-data-update-auto-smoke.cjs",
     "qa:data-update:source-coverage": "node scripts/qa/logistics-data-update-source-coverage.cjs",
     "qa:ai-chatbot": "node scripts/qa/logistics-ai-chatbot-qa.cjs",
+    "qa:ai-chatbot:100": "node scripts/qa/logistics-ai-chatbot-qa-100.cjs",
+    "qa:ai-chatbot:risk": "node scripts/qa/logistics-ai-chatbot-risk-qa.cjs",
     "qa:ai-chatbot:browser": "node scripts/qa/logistics-ai-chatbot-browser-smoke.cjs",
     "qa:data-update:browser": "node scripts/qa/logistics-data-update-browser-smoke.cjs",
     "qa:dart-chart:browser": "node scripts/qa/logistics-dart-chart-browser-smoke.cjs",

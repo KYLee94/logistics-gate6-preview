@@ -1,0 +1,3014 @@
+{
+  "ok": true,
+  "complete": true,
+  "generated_at": "2026-06-02T03:33:48.472Z",
+  "origin": "https://kylee94.github.io",
+  "basis_date": "2026-06-30",
+  "auth_source": "password_grant",
+  "question_count": 100,
+  "total_question_count": 100,
+  "start_index": 0,
+  "max_cases": null,
+  "tested_count": 100,
+  "passed_count": 100,
+  "failed_count": 0,
+  "by_category": {
+    "자산 존재/기본정보": {
+      "total": 12,
+      "passed": 12,
+      "failed": 0
+    },
+    "자산 면적": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "공실률": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "공실면적": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "월 임관리비": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "월 임대료/관리비": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "E. NOC": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "임차인/회사 질문": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "특정 임차인의 임차 면적": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "특정 임차인의 월 임관리비": {
+      "total": 6,
+      "passed": 6,
+      "failed": 0
+    },
+    "전체 포트폴리오 값/순위": {
+      "total": 12,
+      "passed": 12,
+      "failed": 0
+    },
+    "계약 기간/만기": {
+      "total": 15,
+      "passed": 15,
+      "failed": 0
+    },
+    "계약 조건": {
+      "total": 7,
+      "passed": 7,
+      "failed": 0
+    }
+  },
+  "questions": [
+    {
+      "id": "asset_exists_0",
+      "category": "자산 존재/기본정보",
+      "question": "인천석남물류센터 있어?",
+      "expected": [
+        "인천석남물류센터"
+      ]
+    },
+    {
+      "id": "asset_fund_address_0",
+      "category": "자산 존재/기본정보",
+      "question": "인천석남물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "인천석남물류센터",
+        "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+        "인천광역시 서구 봉수대로 370"
+      ]
+    },
+    {
+      "id": "asset_exists_1",
+      "category": "자산 존재/기본정보",
+      "question": "아레나스양지물류센터 있어?",
+      "expected": [
+        "아레나스양지물류센터"
+      ]
+    },
+    {
+      "id": "asset_fund_address_1",
+      "category": "자산 존재/기본정보",
+      "question": "아레나스양지물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        "이지스일반사모부동산모투자신탁116호",
+        "경기도 용인시 처인구 양지면 남평로 111-73"
+      ]
+    },
+    {
+      "id": "asset_exists_2",
+      "category": "자산 존재/기본정보",
+      "question": "화성 석포리 물류센터 있어?",
+      "expected": [
+        "화성 석포리 물류센터"
+      ]
+    },
+    {
+      "id": "asset_fund_address_2",
+      "category": "자산 존재/기본정보",
+      "question": "화성 석포리 물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        "이지스일반사모부동산투자신탁제451호(운용)",
+        "경기도 화성시 장안면 북부마을길 42"
+      ]
+    },
+    {
+      "id": "asset_exists_3",
+      "category": "자산 존재/기본정보",
+      "question": "경산 쿠팡물류센터 있어?",
+      "expected": [
+        "경산 쿠팡물류센터"
+      ]
+    },
+    {
+      "id": "asset_fund_address_3",
+      "category": "자산 존재/기본정보",
+      "question": "경산 쿠팡물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "경산 쿠팡물류센터",
+        "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+        "경상북도 경산시 진량읍 공단12로 213-18"
+      ]
+    },
+    {
+      "id": "asset_exists_4",
+      "category": "자산 존재/기본정보",
+      "question": "여주 본두리 물류센터 있어?",
+      "expected": [
+        "여주 본두리 물류센터"
+      ]
+    },
+    {
+      "id": "asset_fund_address_4",
+      "category": "자산 존재/기본정보",
+      "question": "여주 본두리 물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        "이지스제440호부동산일반사모투자회사",
+        "경기도 여주시 가남읍 여주남로 536"
+      ]
+    },
+    {
+      "id": "asset_exists_5",
+      "category": "자산 존재/기본정보",
+      "question": "아레나스안성 있어?",
+      "expected": [
+        "아레나스안성"
+      ]
+    },
+    {
+      "id": "asset_fund_address_5",
+      "category": "자산 존재/기본정보",
+      "question": "아레나스안성 펀드랑 주소 알려줘",
+      "expected": [
+        "아레나스안성",
+        "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+        "경기도 안성시 양성면 양성로 301"
+      ]
+    },
+    {
+      "id": "asset_area_0",
+      "category": "자산 면적",
+      "question": "인천석남물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 90540.76074999999
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 90522.52
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_rate_0",
+      "category": "공실률",
+      "question": "인천석남물류센터 공실률 얼마야?",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.00020146451000504386
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_area_0",
+      "category": "공실면적",
+      "question": "인천석남물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 18.240749999982654
+        }
+      ]
+    },
+    {
+      "id": "asset_area_1",
+      "category": "자산 면적",
+      "question": "아레나스양지물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 105790.905
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 82346.038775
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_rate_1",
+      "category": "공실률",
+      "question": "아레나스양지물류센터 공실률 얼마야?",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.22161514002550603
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_area_1",
+      "category": "공실면적",
+      "question": "아레나스양지물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 23444.866225000005
+        }
+      ]
+    },
+    {
+      "id": "asset_area_2",
+      "category": "자산 면적",
+      "question": "화성 석포리 물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 32370.3919
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 32370.3919
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_rate_2",
+      "category": "공실률",
+      "question": "화성 석포리 물류센터 공실률 얼마야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_area_2",
+      "category": "공실면적",
+      "question": "화성 석포리 물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": "asset_area_3",
+      "category": "자산 면적",
+      "question": "경산 쿠팡물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 29848.7761
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 22331.0582
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_rate_3",
+      "category": "공실률",
+      "question": "경산 쿠팡물류센터 공실률 얼마야?",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.25186017258509974
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_area_3",
+      "category": "공실면적",
+      "question": "경산 쿠팡물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 7517.7179
+        }
+      ]
+    },
+    {
+      "id": "asset_area_4",
+      "category": "자산 면적",
+      "question": "여주 본두리 물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 32904.965664999996
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 31750.04305
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_rate_4",
+      "category": "공실률",
+      "question": "여주 본두리 물류센터 공실률 얼마야?",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.03509873332669822
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_area_4",
+      "category": "공실면적",
+      "question": "여주 본두리 물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 1154.9226149999959
+        }
+      ]
+    },
+    {
+      "id": "asset_area_5",
+      "category": "자산 면적",
+      "question": "아레나스안성 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 37660.926325
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 6164.0425
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_rate_5",
+      "category": "공실률",
+      "question": "아레나스안성 공실률 얼마야?",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.8363279106093522
+        }
+      ]
+    },
+    {
+      "id": "asset_vacancy_area_5",
+      "category": "공실면적",
+      "question": "아레나스안성 공실면적은 몇 평이야?",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 31496.883825
+        }
+      ]
+    },
+    {
+      "id": "asset_monthly_cost_0",
+      "category": "월 임관리비",
+      "question": "인천석남물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 2863471002
+        }
+      ]
+    },
+    {
+      "id": "asset_rent_mf_split_0",
+      "category": "월 임대료/관리비",
+      "question": "인천석남물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 2863471002
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": "asset_enoc_0",
+      "category": "E. NOC",
+      "question": "인천석남물류센터 E. NOC 얼마야?",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 31632.692085903043
+        }
+      ]
+    },
+    {
+      "id": "asset_monthly_cost_1",
+      "category": "월 임관리비",
+      "question": "아레나스양지물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 2468703091
+        }
+      ]
+    },
+    {
+      "id": "asset_rent_mf_split_1",
+      "category": "월 임대료/관리비",
+      "question": "아레나스양지물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 2353348846
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 115354245
+        }
+      ]
+    },
+    {
+      "id": "asset_enoc_1",
+      "category": "E. NOC",
+      "question": "아레나스양지물류센터 E. NOC 얼마야?",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 29979.621700388227
+        }
+      ]
+    },
+    {
+      "id": "asset_monthly_cost_2",
+      "category": "월 임관리비",
+      "question": "화성 석포리 물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 1272556102
+        }
+      ]
+    },
+    {
+      "id": "asset_rent_mf_split_2",
+      "category": "월 임대료/관리비",
+      "question": "화성 석포리 물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 1173395886
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 99160216
+        }
+      ]
+    },
+    {
+      "id": "asset_enoc_2",
+      "category": "E. NOC",
+      "question": "화성 석포리 물류센터 E. NOC 얼마야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 39312.34771365249
+        }
+      ]
+    },
+    {
+      "id": "asset_monthly_cost_3",
+      "category": "월 임관리비",
+      "question": "경산 쿠팡물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 1060724933
+        }
+      ]
+    },
+    {
+      "id": "asset_rent_mf_split_3",
+      "category": "월 임대료/관리비",
+      "question": "경산 쿠팡물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 983384975
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 77339958
+        }
+      ]
+    },
+    {
+      "id": "asset_enoc_3",
+      "category": "E. NOC",
+      "question": "경산 쿠팡물류센터 E. NOC 얼마야?",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 47499.98515520416
+        }
+      ]
+    },
+    {
+      "id": "asset_monthly_cost_4",
+      "category": "월 임관리비",
+      "question": "여주 본두리 물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 1028369423
+        }
+      ]
+    },
+    {
+      "id": "asset_rent_mf_split_4",
+      "category": "월 임대료/관리비",
+      "question": "여주 본두리 물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 939260683
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 89108740
+        }
+      ]
+    },
+    {
+      "id": "asset_enoc_4",
+      "category": "E. NOC",
+      "question": "여주 본두리 물류센터 E. NOC 얼마야?",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 32389.544208822736
+        }
+      ]
+    },
+    {
+      "id": "asset_monthly_cost_5",
+      "category": "월 임관리비",
+      "question": "아레나스안성 월 임관리비 총액 얼마야?",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": "asset_rent_mf_split_5",
+      "category": "월 임대료/관리비",
+      "question": "아레나스안성 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 0
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": "asset_enoc_5",
+      "category": "E. NOC",
+      "question": "아레나스안성 E. NOC 얼마야?",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 0
+        }
+      ]
+    },
+    {
+      "id": "tenant_assets_0",
+      "category": "임차인/회사 질문",
+      "question": "쿠팡(주)이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "쿠팡(주)",
+        "경산 쿠팡물류센터",
+        "인천석남물류센터"
+      ]
+    },
+    {
+      "id": "tenant_area_0",
+      "category": "특정 임차인의 임차 면적",
+      "question": "쿠팡(주) 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "쿠팡(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 131433.59404999999
+        }
+      ]
+    },
+    {
+      "id": "tenant_monthly_cost_0",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "쿠팡(주) 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "쿠팡(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 4596681041
+        }
+      ]
+    },
+    {
+      "id": "tenant_assets_1",
+      "category": "임차인/회사 질문",
+      "question": "씨제이대한통운(주)이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "씨제이대한통운(주)",
+        "아레나스양지물류센터"
+      ]
+    },
+    {
+      "id": "tenant_area_1",
+      "category": "특정 임차인의 임차 면적",
+      "question": "씨제이대한통운(주) 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "씨제이대한통운(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 77448.829975
+        }
+      ]
+    },
+    {
+      "id": "tenant_monthly_cost_1",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "씨제이대한통운(주) 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "씨제이대한통운(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 2279069163
+        }
+      ]
+    },
+    {
+      "id": "tenant_assets_2",
+      "category": "임차인/회사 질문",
+      "question": "삼성전자로지텍(주)이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "삼성전자로지텍(주)",
+        "화성 석포리 물류센터"
+      ]
+    },
+    {
+      "id": "tenant_area_2",
+      "category": "특정 임차인의 임차 면적",
+      "question": "삼성전자로지텍(주) 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "삼성전자로지텍(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 32370.3919
+        }
+      ]
+    },
+    {
+      "id": "tenant_monthly_cost_2",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "삼성전자로지텍(주) 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "삼성전자로지텍(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 1272556102
+        }
+      ]
+    },
+    {
+      "id": "tenant_assets_3",
+      "category": "임차인/회사 질문",
+      "question": "아디다스코리아유한책임회사이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "아디다스코리아유한책임회사",
+        "안성 성은지구 물류센터",
+        "평택아디다스물류센터"
+      ]
+    },
+    {
+      "id": "tenant_area_3",
+      "category": "특정 임차인의 임차 면적",
+      "question": "아디다스코리아유한책임회사 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "아디다스코리아유한책임회사",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 23327.157425
+        }
+      ]
+    },
+    {
+      "id": "tenant_monthly_cost_3",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "아디다스코리아유한책임회사 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "아디다스코리아유한책임회사",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 713551000
+        }
+      ]
+    },
+    {
+      "id": "tenant_assets_4",
+      "category": "임차인/회사 질문",
+      "question": "LG전자(주), ㈜엘엑스판토스이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "LG전자(주), ㈜엘엑스판토스",
+        "두동 LG전자 통합물류센터"
+      ]
+    },
+    {
+      "id": "tenant_area_4",
+      "category": "특정 임차인의 임차 면적",
+      "question": "LG전자(주), ㈜엘엑스판토스 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "LG전자(주), ㈜엘엑스판토스",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 16506.278524999998
+        }
+      ]
+    },
+    {
+      "id": "tenant_monthly_cost_4",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "LG전자(주), ㈜엘엑스판토스 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "LG전자(주), ㈜엘엑스판토스",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 630228000
+        }
+      ]
+    },
+    {
+      "id": "tenant_assets_5",
+      "category": "임차인/회사 질문",
+      "question": "한국머스크물류서비스(주)이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "한국머스크물류서비스(주)",
+        "여주 본두리 물류센터"
+      ]
+    },
+    {
+      "id": "tenant_area_5",
+      "category": "특정 임차인의 임차 면적",
+      "question": "한국머스크물류서비스(주) 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "한국머스크물류서비스(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 15187.063924999999
+        }
+      ]
+    },
+    {
+      "id": "tenant_monthly_cost_5",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "한국머스크물류서비스(주) 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "한국머스크물류서비스(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 496872603
+        }
+      ]
+    },
+    {
+      "id": "portfolio_asset_count",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 읽기 가능한 자산 수는 몇 개야?",
+      "expected": [
+        "17"
+      ]
+    },
+    {
+      "id": "portfolio_gross_area",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 총 연면적은 몇 평이야?",
+      "expected": [
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 493364.76807749993
+        }
+      ]
+    },
+    {
+      "id": "portfolio_leased_area",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 임대면적 합계는 몇 평이야?",
+      "expected": [
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 408665.31529999996
+        }
+      ]
+    },
+    {
+      "id": "portfolio_vacancy_rate",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 평균 공실률은 얼마야?",
+      "expected": [
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.17167714084560454
+        }
+      ]
+    },
+    {
+      "id": "portfolio_monthly_cost",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 월 임관리비 합계는 얼마야?",
+      "expected": [
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 13184443796
+        }
+      ]
+    },
+    {
+      "id": "portfolio_rent_mf",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 월 임대료와 관리비를 나눠서 알려줘",
+      "expected": [
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 12581460525
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 602983271
+        }
+      ]
+    },
+    {
+      "id": "portfolio_enoc",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 평균 E. NOC는 얼마야?",
+      "expected": [
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 34208.829853150666
+        }
+      ]
+    },
+    {
+      "id": "portfolio_top_tenant_area",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 다 합쳐서 임차인 중에 누가 제일 면적 많이 차지하고 있어?",
+      "expected": [
+        "쿠팡(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 131433.59404999999
+        }
+      ]
+    },
+    {
+      "id": "portfolio_top_tenant_cost",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터에서 월 임관리비를 가장 많이 내는 임차인은 누구야?",
+      "expected": [
+        "쿠팡(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 4596681041
+        }
+      ]
+    },
+    {
+      "id": "portfolio_top_asset_area",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 자산 중 임대면적이 제일 큰 물류센터는 어디야?",
+      "expected": [
+        "인천석남물류센터"
+      ]
+    },
+    {
+      "id": "portfolio_top_asset_cost",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 자산 중 월 임관리비가 제일 큰 물류센터는 어디야?",
+      "expected": [
+        "인천석남물류센터"
+      ]
+    },
+    {
+      "id": "portfolio_top_asset_vacancy",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 자산 중 공실률이 제일 높은 물류센터는 어디야?",
+      "expected": [
+        "아레나스안성"
+      ]
+    },
+    {
+      "id": "lease_end_date_0",
+      "category": "계약 기간/만기",
+      "question": "아레나스양지물류센터 씨제이대한통운(주) 계약 만기일 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        "씨제이대한통운(주)",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2028-01-08"
+        }
+      ]
+    },
+    {
+      "id": "lease_start_date_0",
+      "category": "계약 기간/만기",
+      "question": "아레나스양지물류센터 씨제이대한통운(주) 계약 시작일 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        "씨제이대한통운(주)",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2023-01-09"
+        }
+      ]
+    },
+    {
+      "id": "lease_start_date_1",
+      "category": "계약 기간/만기",
+      "question": "화성 석포리 물류센터 삼성전자로지텍(주) 계약 시작일 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        "삼성전자로지텍(주)",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2024-01-01"
+        }
+      ]
+    },
+    {
+      "id": "lease_end_date_2",
+      "category": "계약 기간/만기",
+      "question": "스카이박스1, 스카이박스2 쿠팡(주) 계약 만기일 알려줘",
+      "expected": [
+        "스카이박스1, 스카이박스2",
+        "쿠팡(주)",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2029-04-01"
+        }
+      ]
+    },
+    {
+      "id": "lease_start_date_2",
+      "category": "계약 기간/만기",
+      "question": "스카이박스1, 스카이박스2 쿠팡(주) 계약 시작일 알려줘",
+      "expected": [
+        "스카이박스1, 스카이박스2",
+        "쿠팡(주)",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2025-03-01"
+        }
+      ]
+    },
+    {
+      "id": "lease_end_date_3",
+      "category": "계약 기간/만기",
+      "question": "동산물류센터 (주)우진글로벌 계약 만기일 알려줘",
+      "expected": [
+        "동산물류센터",
+        "(주)우진글로벌",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2029-01-11"
+        }
+      ]
+    },
+    {
+      "id": "lease_start_date_3",
+      "category": "계약 기간/만기",
+      "question": "동산물류센터 (주)우진글로벌 계약 시작일 알려줘",
+      "expected": [
+        "동산물류센터",
+        "(주)우진글로벌",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2026-01-12"
+        }
+      ]
+    },
+    {
+      "id": "lease_end_date_4",
+      "category": "계약 기간/만기",
+      "question": "여주 본두리 물류센터 굿앤파트너스(주) 계약 만기일 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        "굿앤파트너스(주)",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2028-11-30"
+        }
+      ]
+    },
+    {
+      "id": "lease_start_date_4",
+      "category": "계약 기간/만기",
+      "question": "여주 본두리 물류센터 굿앤파트너스(주) 계약 시작일 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        "굿앤파트너스(주)",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2025-07-15"
+        }
+      ]
+    },
+    {
+      "id": "lease_end_date_5",
+      "category": "계약 기간/만기",
+      "question": "두동 LG전자 통합물류센터 LG전자(주), ㈜엘엑스판토스 계약 만기일 알려줘",
+      "expected": [
+        "두동 LG전자 통합물류센터",
+        "LG전자(주), ㈜엘엑스판토스",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2026-12-15"
+        }
+      ]
+    },
+    {
+      "id": "lease_start_date_5",
+      "category": "계약 기간/만기",
+      "question": "두동 LG전자 통합물류센터 LG전자(주), ㈜엘엑스판토스 계약 시작일 알려줘",
+      "expected": [
+        "두동 LG전자 통합물류센터",
+        "LG전자(주), ㈜엘엑스판토스",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2023-12-16"
+        }
+      ]
+    },
+    {
+      "id": "lease_end_date_6",
+      "category": "계약 기간/만기",
+      "question": "아레나스안성 INPNP 계약 만기일 알려줘",
+      "expected": [
+        "아레나스안성",
+        "INPNP",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2032-01-31"
+        }
+      ]
+    },
+    {
+      "id": "lease_start_date_6",
+      "category": "계약 기간/만기",
+      "question": "아레나스안성 INPNP 계약 시작일 알려줘",
+      "expected": [
+        "아레나스안성",
+        "INPNP",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2025-12-11"
+        }
+      ]
+    },
+    {
+      "id": "lease_end_date_7",
+      "category": "계약 기간/만기",
+      "question": "아레나스안성 JM 로지스 계약 만기일 알려줘",
+      "expected": [
+        "아레나스안성",
+        "JM 로지스",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2031-11-30"
+        }
+      ]
+    },
+    {
+      "id": "lease_start_date_7",
+      "category": "계약 기간/만기",
+      "question": "아레나스안성 JM 로지스 계약 시작일 알려줘",
+      "expected": [
+        "아레나스안성",
+        "JM 로지스",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2025-11-01"
+        }
+      ]
+    },
+    {
+      "id": "lease_terms_rf_fo_0",
+      "category": "계약 조건",
+      "question": "아레나스양지물류센터 씨제이대한통운(주) RF랑 FO 몇 개월이야?",
+      "expected": [
+        "아레나스양지물류센터",
+        "씨제이대한통운(주)",
+        "6",
+        "1"
+      ]
+    },
+    {
+      "id": "lease_escalation_0",
+      "category": "계약 조건",
+      "question": "아레나스양지물류센터 씨제이대한통운(주) 임대료 상승률이랑 상승 주기 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        "씨제이대한통운(주)",
+        "0.03",
+        "12"
+      ]
+    },
+    {
+      "id": "lease_terms_rf_fo_1",
+      "category": "계약 조건",
+      "question": "화성 석포리 물류센터 삼성전자로지텍(주) RF랑 FO 몇 개월이야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        "삼성전자로지텍(주)",
+        "2"
+      ]
+    },
+    {
+      "id": "lease_escalation_1",
+      "category": "계약 조건",
+      "question": "화성 석포리 물류센터 삼성전자로지텍(주) 임대료 상승률이랑 상승 주기 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        "삼성전자로지텍(주)"
+      ]
+    },
+    {
+      "id": "lease_terms_rf_fo_2",
+      "category": "계약 조건",
+      "question": "스카이박스1, 스카이박스2 쿠팡(주) RF랑 FO 몇 개월이야?",
+      "expected": [
+        "스카이박스1, 스카이박스2",
+        "쿠팡(주)"
+      ]
+    },
+    {
+      "id": "lease_escalation_2",
+      "category": "계약 조건",
+      "question": "스카이박스1, 스카이박스2 쿠팡(주) 임대료 상승률이랑 상승 주기 알려줘",
+      "expected": [
+        "스카이박스1, 스카이박스2",
+        "쿠팡(주)",
+        "0.025",
+        "12"
+      ]
+    },
+    {
+      "id": "lease_terms_rf_fo_3",
+      "category": "계약 조건",
+      "question": "동산물류센터 (주)우진글로벌 RF랑 FO 몇 개월이야?",
+      "expected": [
+        "동산물류센터",
+        "(주)우진글로벌",
+        "1"
+      ]
+    }
+  ],
+  "results": [
+    {
+      "id": "asset_exists_0",
+      "category": "자산 존재/기본정보",
+      "question": "인천석남물류센터 있어?",
+      "expected": [
+        "인천석남물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 인천석남물류센터 기준 자산명 인천석남물류센터입니다."
+    },
+    {
+      "id": "asset_fund_address_0",
+      "category": "자산 존재/기본정보",
+      "question": "인천석남물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "인천석남물류센터",
+        "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+        "인천광역시 서구 봉수대로 370"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "인천석남물류센터 관련해서는 주소 인천광역시 서구 봉수대로 370입니다. 펀드는 이지스인컴앤그로스제2의4호일반사모부동산모투자회사로 보시면 됩니다."
+    },
+    {
+      "id": "asset_exists_1",
+      "category": "자산 존재/기본정보",
+      "question": "아레나스양지물류센터 있어?",
+      "expected": [
+        "아레나스양지물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 아레나스양지물류센터 기준 자산명 아레나스양지물류센터입니다."
+    },
+    {
+      "id": "asset_fund_address_1",
+      "category": "자산 존재/기본정보",
+      "question": "아레나스양지물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        "이지스일반사모부동산모투자신탁116호",
+        "경기도 용인시 처인구 양지면 남평로 111-73"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스양지물류센터 관련해서는 주소 경기도 용인시 처인구 양지면 남평로 111-73입니다. 펀드는 이지스일반사모부동산모투자신탁116호로 확인됩니다."
+    },
+    {
+      "id": "asset_exists_2",
+      "category": "자산 존재/기본정보",
+      "question": "화성 석포리 물류센터 있어?",
+      "expected": [
+        "화성 석포리 물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 화성 석포리 물류센터 기준 자산명 화성 석포리 물류센터입니다."
+    },
+    {
+      "id": "asset_fund_address_2",
+      "category": "자산 존재/기본정보",
+      "question": "화성 석포리 물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        "이지스일반사모부동산투자신탁제451호(운용)",
+        "경기도 화성시 장안면 북부마을길 42"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "화성 석포리 물류센터 관련해서는 주소 경기도 화성시 장안면 북부마을길 42입니다. 펀드는 이지스일반사모부동산투자신탁제451호(운용)입니다."
+    },
+    {
+      "id": "asset_exists_3",
+      "category": "자산 존재/기본정보",
+      "question": "경산 쿠팡물류센터 있어?",
+      "expected": [
+        "경산 쿠팡물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "경산 쿠팡물류센터 관련해서는 자산명 경산 쿠팡물류센터입니다."
+    },
+    {
+      "id": "asset_fund_address_3",
+      "category": "자산 존재/기본정보",
+      "question": "경산 쿠팡물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "경산 쿠팡물류센터",
+        "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+        "경상북도 경산시 진량읍 공단12로 213-18"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 경산 쿠팡물류센터 기준 주소 경상북도 경산시 진량읍 공단12로 213-18입니다. 펀드는 이지스경산로지스제1호일반사모부동산투자회사(운용)입니다."
+    },
+    {
+      "id": "asset_exists_4",
+      "category": "자산 존재/기본정보",
+      "question": "여주 본두리 물류센터 있어?",
+      "expected": [
+        "여주 본두리 물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "여주 본두리 물류센터 관련해서는 자산명 여주 본두리 물류센터입니다."
+    },
+    {
+      "id": "asset_fund_address_4",
+      "category": "자산 존재/기본정보",
+      "question": "여주 본두리 물류센터 펀드랑 주소 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        "이지스제440호부동산일반사모투자회사",
+        "경기도 여주시 가남읍 여주남로 536"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 여주 본두리 물류센터 기준 주소 경기도 여주시 가남읍 여주남로 536입니다. 펀드는 이지스제440호부동산일반사모투자회사입니다."
+    },
+    {
+      "id": "asset_exists_5",
+      "category": "자산 존재/기본정보",
+      "question": "아레나스안성 있어?",
+      "expected": [
+        "아레나스안성"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성 관련해서는 자산명 아레나스안성입니다."
+    },
+    {
+      "id": "asset_fund_address_5",
+      "category": "자산 존재/기본정보",
+      "question": "아레나스안성 펀드랑 주소 알려줘",
+      "expected": [
+        "아레나스안성",
+        "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+        "경기도 안성시 양성면 양성로 301"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성 관련해서는 주소 경기도 안성시 양성면 양성로 301입니다. 펀드는 이지스아레나스케이엘아이피1의2사모부동산모투자회사입니다."
+    },
+    {
+      "id": "asset_area_0",
+      "category": "자산 면적",
+      "question": "인천석남물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 90540.76074999999
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 90522.52
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "인천석남물류센터 관련해서는 총 연면적 90,540.8평, 임대면적 90,522.5평입니다."
+    },
+    {
+      "id": "asset_vacancy_rate_0",
+      "category": "공실률",
+      "question": "인천석남물류센터 공실률 얼마야?",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.00020146451000504386
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 인천석남물류센터 기준 공실률 0%입니다."
+    },
+    {
+      "id": "asset_vacancy_area_0",
+      "category": "공실면적",
+      "question": "인천석남물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 18.240749999982654
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "인천석남물류센터 기준으로는 총 연면적 90,540.8평, 임대면적 90,522.5평, 공실률 0%, 공실면적 18.2평입니다."
+    },
+    {
+      "id": "asset_area_1",
+      "category": "자산 면적",
+      "question": "아레나스양지물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 105790.905
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 82346.038775
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스양지물류센터 기준으로는 총 연면적 105,790.9평, 임대면적 82,346평입니다."
+    },
+    {
+      "id": "asset_vacancy_rate_1",
+      "category": "공실률",
+      "question": "아레나스양지물류센터 공실률 얼마야?",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.22161514002550603
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스양지물류센터의 공실률은 22.2%입니다."
+    },
+    {
+      "id": "asset_vacancy_area_1",
+      "category": "공실면적",
+      "question": "아레나스양지물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 23444.866225000005
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스양지물류센터 관련해서는 총 연면적 105,790.9평, 임대면적 82,346평, 공실률 22.2%, 공실면적 23,444.9평입니다."
+    },
+    {
+      "id": "asset_area_2",
+      "category": "자산 면적",
+      "question": "화성 석포리 물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 32370.3919
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 32370.3919
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "화성 석포리 물류센터 관련해서는 총 연면적 32,370.4평, 임대면적 32,370.4평입니다."
+    },
+    {
+      "id": "asset_vacancy_rate_2",
+      "category": "공실률",
+      "question": "화성 석포리 물류센터 공실률 얼마야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "화성 석포리 물류센터 관련해서는 공실률 0%입니다."
+    },
+    {
+      "id": "asset_vacancy_area_2",
+      "category": "공실면적",
+      "question": "화성 석포리 물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 0
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 화성 석포리 물류센터 기준 총 연면적 32,370.4평, 임대면적 32,370.4평, 공실률 0%, 공실면적 0평입니다."
+    },
+    {
+      "id": "asset_area_3",
+      "category": "자산 면적",
+      "question": "경산 쿠팡물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 29848.7761
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 22331.0582
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "경산 쿠팡물류센터 / 쿠팡(주) 관련해서는 총 연면적 29,848.8평, 임대면적 22,331.1평, 전체 임차면적 131,433.6평, 임차면적 22,331.1평입니다."
+    },
+    {
+      "id": "asset_vacancy_rate_3",
+      "category": "공실률",
+      "question": "경산 쿠팡물류센터 공실률 얼마야?",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.25186017258509974
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 경산 쿠팡물류센터 / 쿠팡(주) 기준 공실률 25.2%, 월 임관리비 합계 4,596,681,041원 (46억원)입니다."
+    },
+    {
+      "id": "asset_vacancy_area_3",
+      "category": "공실면적",
+      "question": "경산 쿠팡물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 7517.7179
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 경산 쿠팡물류센터 / 쿠팡(주) 기준 총 연면적 29,848.8평, 임대면적 22,331.1평, 공실률 25.2%, 공실면적 7,517.7평, 전체 임차면적 131,433.6평, 임차면적 22,331.1평입니다."
+    },
+    {
+      "id": "asset_area_4",
+      "category": "자산 면적",
+      "question": "여주 본두리 물류센터 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 32904.965664999996
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 31750.04305
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 여주 본두리 물류센터 기준 총 연면적 32,905평, 임대면적 31,750평입니다."
+    },
+    {
+      "id": "asset_vacancy_rate_4",
+      "category": "공실률",
+      "question": "여주 본두리 물류센터 공실률 얼마야?",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.03509873332669822
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 여주 본두리 물류센터 기준 공실률 3.5%입니다."
+    },
+    {
+      "id": "asset_vacancy_area_4",
+      "category": "공실면적",
+      "question": "여주 본두리 물류센터 공실면적은 몇 평이야?",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 1154.9226149999959
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "여주 본두리 물류센터 기준으로는 총 연면적 32,905평, 임대면적 31,750평, 공실률 3.5%, 공실면적 1,154.9평입니다."
+    },
+    {
+      "id": "asset_area_5",
+      "category": "자산 면적",
+      "question": "아레나스안성 총 연면적과 임대면적 알려줘",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 37660.926325
+        },
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 6164.0425
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성은 총 연면적 37,660.9평, 임대면적 6,164평로 보시면 됩니다."
+    },
+    {
+      "id": "asset_vacancy_rate_5",
+      "category": "공실률",
+      "question": "아레나스안성 공실률 얼마야?",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.8363279106093522
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성은 공실률 83.6%로 보시면 됩니다."
+    },
+    {
+      "id": "asset_vacancy_area_5",
+      "category": "공실면적",
+      "question": "아레나스안성 공실면적은 몇 평이야?",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "공실면적",
+          "kind": "area",
+          "number": 31496.883825
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성 관련해서는 총 연면적 37,660.9평, 임대면적 6,164평, 공실률 83.6%, 공실면적 31,496.9평입니다."
+    },
+    {
+      "id": "asset_monthly_cost_0",
+      "category": "월 임관리비",
+      "question": "인천석남물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 2863471002
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "인천석남물류센터 기준으로는 월 임관리비 합계 2,863,471,002원 (28.6억원)입니다."
+    },
+    {
+      "id": "asset_rent_mf_split_0",
+      "category": "월 임대료/관리비",
+      "question": "인천석남물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 2863471002
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 0
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 인천석남물류센터 기준 월 임대료 2,863,471,002원 (28.6억원), 월 관리비 0원 (0원)입니다."
+    },
+    {
+      "id": "asset_enoc_0",
+      "category": "E. NOC",
+      "question": "인천석남물류센터 E. NOC 얼마야?",
+      "expected": [
+        "인천석남물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 31632.692085903043
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "인천석남물류센터 기준으로는 E. NOC 31,633원입니다."
+    },
+    {
+      "id": "asset_monthly_cost_1",
+      "category": "월 임관리비",
+      "question": "아레나스양지물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 2468703091
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 아레나스양지물류센터 기준 월 임관리비 합계 2,468,703,091원 (24.7억원)입니다."
+    },
+    {
+      "id": "asset_rent_mf_split_1",
+      "category": "월 임대료/관리비",
+      "question": "아레나스양지물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 2353348846
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 115354245
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스양지물류센터은 월 임대료 2,353,348,846원 (23.5억원), 월 관리비 115,354,245원 (1.2억원)로 보시면 됩니다."
+    },
+    {
+      "id": "asset_enoc_1",
+      "category": "E. NOC",
+      "question": "아레나스양지물류센터 E. NOC 얼마야?",
+      "expected": [
+        "아레나스양지물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 29979.621700388227
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 아레나스양지물류센터 기준 E. NOC 29,980원입니다."
+    },
+    {
+      "id": "asset_monthly_cost_2",
+      "category": "월 임관리비",
+      "question": "화성 석포리 물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 1272556102
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "화성 석포리 물류센터 관련해서는 월 임관리비 합계 1,272,556,102원 (12.7억원)입니다."
+    },
+    {
+      "id": "asset_rent_mf_split_2",
+      "category": "월 임대료/관리비",
+      "question": "화성 석포리 물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 1173395886
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 99160216
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 화성 석포리 물류센터 기준 월 임대료 1,173,395,886원 (11.7억원), 월 관리비 99,160,216원 (99,160,216원)입니다."
+    },
+    {
+      "id": "asset_enoc_2",
+      "category": "E. NOC",
+      "question": "화성 석포리 물류센터 E. NOC 얼마야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 39312.34771365249
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "화성 석포리 물류센터은 E. NOC 39,312원로 보시면 됩니다."
+    },
+    {
+      "id": "asset_monthly_cost_3",
+      "category": "월 임관리비",
+      "question": "경산 쿠팡물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 1060724933
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 경산 쿠팡물류센터 / 쿠팡(주) 기준 월 임관리비 합계 1,060,724,933원 (10.6억원), 월 임관리비 합계 4,596,681,041원 (46억원)입니다."
+    },
+    {
+      "id": "asset_rent_mf_split_3",
+      "category": "월 임대료/관리비",
+      "question": "경산 쿠팡물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 983384975
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 77339958
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 경산 쿠팡물류센터 / 쿠팡(주) 기준 월 임대료 983,384,975원 (9.8억원), 월 관리비 77,339,958원 (77,339,958원), 월 임관리비 합계 4,596,681,041원 (46억원), 월 임대료 합계 4,472,975,333원 (44.7억원), 월 관리비 합계 123,705,708원 (1.2억원)입니다."
+    },
+    {
+      "id": "asset_enoc_3",
+      "category": "E. NOC",
+      "question": "경산 쿠팡물류센터 E. NOC 얼마야?",
+      "expected": [
+        "경산 쿠팡물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 47499.98515520416
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "경산 쿠팡물류센터 / 쿠팡(주) 기준으로는 E. NOC 47,500원, 월 임관리비 합계 4,596,681,041원 (46억원), 임차인 전체 임대면적 가중평균 E. NOC 34,973원입니다."
+    },
+    {
+      "id": "asset_monthly_cost_4",
+      "category": "월 임관리비",
+      "question": "여주 본두리 물류센터 월 임관리비 총액 얼마야?",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 1028369423
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "여주 본두리 물류센터은 월 임관리비 합계 1,028,369,423원 (10.3억원)로 보시면 됩니다."
+    },
+    {
+      "id": "asset_rent_mf_split_4",
+      "category": "월 임대료/관리비",
+      "question": "여주 본두리 물류센터 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 939260683
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 89108740
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "여주 본두리 물류센터 관련해서는 월 임대료 939,260,683원 (9.4억원), 월 관리비 89,108,740원 (89,108,740원)입니다."
+    },
+    {
+      "id": "asset_enoc_4",
+      "category": "E. NOC",
+      "question": "여주 본두리 물류센터 E. NOC 얼마야?",
+      "expected": [
+        "여주 본두리 물류센터",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 32389.544208822736
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 여주 본두리 물류센터 기준 E. NOC 32,390원입니다."
+    },
+    {
+      "id": "asset_monthly_cost_5",
+      "category": "월 임관리비",
+      "question": "아레나스안성 월 임관리비 총액 얼마야?",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 0
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성 기준으로는 월 임관리비 합계 0원 (0원)입니다."
+    },
+    {
+      "id": "asset_rent_mf_split_5",
+      "category": "월 임대료/관리비",
+      "question": "아레나스안성 월 임대료랑 월 관리비 각각 알려줘",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 0
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 0
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성 기준으로는 월 임대료 0원 (0원), 월 관리비 0원 (0원)입니다."
+    },
+    {
+      "id": "asset_enoc_5",
+      "category": "E. NOC",
+      "question": "아레나스안성 E. NOC 얼마야?",
+      "expected": [
+        "아레나스안성",
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 0
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 아레나스안성 기준 E. NOC 0원입니다."
+    },
+    {
+      "id": "tenant_assets_0",
+      "category": "임차인/회사 질문",
+      "question": "쿠팡(주)이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "쿠팡(주)",
+        "경산 쿠팡물류센터",
+        "인천석남물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 전체 임차면적 131,433.6평, 쿠팡(주) 임차 자산 경산 쿠팡물류센터, 인천석남물류센터, 스카이박스1, 스카이박스2, 동산물류센터, 임차면적 22,331.1평입니다."
+    },
+    {
+      "id": "tenant_area_0",
+      "category": "특정 임차인의 임차 면적",
+      "question": "쿠팡(주) 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "쿠팡(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 131433.59404999999
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 쿠팡(주) 기준 전체 임차면적 131,433.6평, 쿠팡(주) 임차 자산 경산 쿠팡물류센터, 인천석남물류센터, 스카이박스1, 스카이박스2, 동산물류센터, 전체 물류센터 임대면적 합계 408,665.3평, 임차면적 22,331.1평입니다."
+    },
+    {
+      "id": "tenant_monthly_cost_0",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "쿠팡(주) 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "쿠팡(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 4596681041
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "쿠팡(주)은 월 임관리비 합계 4,596,681,041원 (46억원), 전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)로 보시면 됩니다."
+    },
+    {
+      "id": "tenant_assets_1",
+      "category": "임차인/회사 질문",
+      "question": "씨제이대한통운(주)이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "씨제이대한통운(주)",
+        "아레나스양지물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 임차면적 77,448.8평, 씨제이대한통운(주) 임차 자산 아레나스양지물류센터, 임차면적 77,448.8평입니다."
+    },
+    {
+      "id": "tenant_area_1",
+      "category": "특정 임차인의 임차 면적",
+      "question": "씨제이대한통운(주) 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "씨제이대한통운(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 77448.829975
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "씨제이대한통운(주) 관련해서는 전체 임차면적 77,448.8평, 씨제이대한통운(주) 임차 자산 아레나스양지물류센터, 전체 물류센터 임대면적 합계 408,665.3평, 임차면적 77,448.8평입니다."
+    },
+    {
+      "id": "tenant_monthly_cost_1",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "씨제이대한통운(주) 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "씨제이대한통운(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 2279069163
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "씨제이대한통운(주) 기준으로는 월 임관리비 합계 2,279,069,163원 (22.8억원), 전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)입니다."
+    },
+    {
+      "id": "tenant_assets_2",
+      "category": "임차인/회사 질문",
+      "question": "삼성전자로지텍(주)이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "삼성전자로지텍(주)",
+        "화성 석포리 물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 임차면적 32,370.4평, 삼성전자로지텍(주) 임차 자산 화성 석포리 물류센터, 임차면적 32,370.4평입니다."
+    },
+    {
+      "id": "tenant_area_2",
+      "category": "특정 임차인의 임차 면적",
+      "question": "삼성전자로지텍(주) 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "삼성전자로지텍(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 32370.3919
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "삼성전자로지텍(주) 관련해서는 전체 임차면적 32,370.4평, 삼성전자로지텍(주) 임차 자산 화성 석포리 물류센터, 전체 물류센터 임대면적 합계 408,665.3평, 임차면적 32,370.4평입니다."
+    },
+    {
+      "id": "tenant_monthly_cost_2",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "삼성전자로지텍(주) 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "삼성전자로지텍(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 1272556102
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 삼성전자로지텍(주) 기준 월 임관리비 합계 1,272,556,102원 (12.7억원), 전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)입니다."
+    },
+    {
+      "id": "tenant_assets_3",
+      "category": "임차인/회사 질문",
+      "question": "아디다스코리아유한책임회사이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "아디다스코리아유한책임회사",
+        "안성 성은지구 물류센터",
+        "평택아디다스물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 임차면적 23,327.2평, 아디다스코리아유한책임회사 임차 자산 안성 성은지구 물류센터, 평택아디다스물류센터, 임차면적 7,230.5평입니다."
+    },
+    {
+      "id": "tenant_area_3",
+      "category": "특정 임차인의 임차 면적",
+      "question": "아디다스코리아유한책임회사 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "아디다스코리아유한책임회사",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 23327.157425
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아디다스코리아유한책임회사 관련해서는 전체 임차면적 23,327.2평, 아디다스코리아유한책임회사 임차 자산 안성 성은지구 물류센터, 평택아디다스물류센터, 전체 물류센터 임대면적 합계 408,665.3평, 임차면적 7,230.5평입니다."
+    },
+    {
+      "id": "tenant_monthly_cost_3",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "아디다스코리아유한책임회사 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "아디다스코리아유한책임회사",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 713551000
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아디다스코리아유한책임회사 기준으로는 월 임관리비 합계 713,551,000원 (7.1억원), 아디다스코리아유한책임회사 임차 자산 안성 성은지구 물류센터, 평택아디다스물류센터, 전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)입니다."
+    },
+    {
+      "id": "tenant_assets_4",
+      "category": "임차인/회사 질문",
+      "question": "LG전자(주), ㈜엘엑스판토스이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "LG전자(주), ㈜엘엑스판토스",
+        "두동 LG전자 통합물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 임차면적 16,506.3평, LG전자(주), ㈜엘엑스판토스 임차 자산 두동 LG전자 통합물류센터, 임차면적 16,506.3평로 보시면 됩니다."
+    },
+    {
+      "id": "tenant_area_4",
+      "category": "특정 임차인의 임차 면적",
+      "question": "LG전자(주), ㈜엘엑스판토스 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "LG전자(주), ㈜엘엑스판토스",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 16506.278524999998
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "LG전자(주), ㈜엘엑스판토스 관련해서는 전체 임차면적 16,506.3평, LG전자(주), ㈜엘엑스판토스 임차 자산 두동 LG전자 통합물류센터, 전체 물류센터 임대면적 합계 408,665.3평, 임차면적 16,506.3평입니다."
+    },
+    {
+      "id": "tenant_monthly_cost_4",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "LG전자(주), ㈜엘엑스판토스 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "LG전자(주), ㈜엘엑스판토스",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 630228000
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "두동 LG전자 통합물류센터 / LG전자(주), ㈜엘엑스판토스 기준으로는 월 임관리비 합계 630,228,000원 (6.3억원), 전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)입니다."
+    },
+    {
+      "id": "tenant_assets_5",
+      "category": "임차인/회사 질문",
+      "question": "한국머스크물류서비스(주)이 임차하고 있는 물류센터는 뭐뭐야?",
+      "expected": [
+        "한국머스크물류서비스(주)",
+        "여주 본두리 물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 임차면적 15,187.1평, 한국머스크물류서비스(주) 임차 자산 여주 본두리 물류센터, 임차면적 15,187.1평입니다."
+    },
+    {
+      "id": "tenant_area_5",
+      "category": "특정 임차인의 임차 면적",
+      "question": "한국머스크물류서비스(주) 전체 임차 면적은 몇 평이야?",
+      "expected": [
+        "한국머스크물류서비스(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 15187.063924999999
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "한국머스크물류서비스(주) 관련해서는 전체 임차면적 15,187.1평, 한국머스크물류서비스(주) 임차 자산 여주 본두리 물류센터, 전체 물류센터 임대면적 합계 408,665.3평, 임차면적 15,187.1평입니다."
+    },
+    {
+      "id": "tenant_monthly_cost_5",
+      "category": "특정 임차인의 월 임관리비",
+      "question": "한국머스크물류서비스(주) 월 임관리비 합계는 얼마야?",
+      "expected": [
+        "한국머스크물류서비스(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 496872603
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "한국머스크물류서비스(주) 기준으로는 월 임관리비 합계 496,872,603원 (5억원), 전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)입니다."
+    },
+    {
+      "id": "portfolio_asset_count",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 읽기 가능한 자산 수는 몇 개야?",
+      "expected": [
+        "17"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "읽기 가능한 전체 자산 수 17개로 보시면 됩니다."
+    },
+    {
+      "id": "portfolio_gross_area",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 총 연면적은 몇 평이야?",
+      "expected": [
+        {
+          "label": "총 연면적",
+          "kind": "area",
+          "number": 493364.76807749993
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 전체 물류센터 총 연면적 493,364.8평입니다."
+    },
+    {
+      "id": "portfolio_leased_area",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 임대면적 합계는 몇 평이야?",
+      "expected": [
+        {
+          "label": "임대면적",
+          "kind": "area",
+          "number": 408665.31529999996
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 물류센터 임대면적 합계 408,665.3평로 보시면 됩니다."
+    },
+    {
+      "id": "portfolio_vacancy_rate",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 평균 공실률은 얼마야?",
+      "expected": [
+        {
+          "label": "공실률",
+          "kind": "percent",
+          "number": 0.17167714084560454
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 물류센터 평균 공실률 17.2%입니다."
+    },
+    {
+      "id": "portfolio_monthly_cost",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 월 임관리비 합계는 얼마야?",
+      "expected": [
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 13184443796
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)입니다."
+    },
+    {
+      "id": "portfolio_rent_mf",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 월 임대료와 관리비를 나눠서 알려줘",
+      "expected": [
+        {
+          "label": "월 임대료",
+          "kind": "money",
+          "number": 12581460525
+        },
+        {
+          "label": "월 관리비",
+          "kind": "money",
+          "number": 602983271
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 월 임대료 12,581,460,525원 (125.8억원), 전체 월 관리비 602,983,271원 (6억원), 전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)입니다."
+    },
+    {
+      "id": "portfolio_enoc",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 평균 E. NOC는 얼마야?",
+      "expected": [
+        {
+          "label": "E. NOC",
+          "kind": "money",
+          "number": 34208.829853150666
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 전체 자산 임대면적 가중평균 E. NOC 34,209원입니다."
+    },
+    {
+      "id": "portfolio_top_tenant_area",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터 다 합쳐서 임차인 중에 누가 제일 면적 많이 차지하고 있어?",
+      "expected": [
+        "쿠팡(주)",
+        {
+          "label": "임차면적",
+          "kind": "area",
+          "number": 131433.59404999999
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "전체 물류센터 최대 면적 임차인 쿠팡(주), 임차면적 131,433.6평입니다."
+    },
+    {
+      "id": "portfolio_top_tenant_cost",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 물류센터에서 월 임관리비를 가장 많이 내는 임차인은 누구야?",
+      "expected": [
+        "쿠팡(주)",
+        {
+          "label": "월 임관리비",
+          "kind": "money",
+          "number": 4596681041
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "월 임관리비 최대 임차인 쿠팡(주), 월 임관리비 4,596,681,041원 (46억원), 전체 물류센터 최대 면적 임차인 쿠팡(주), 임차면적 131,433.6평, 전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)입니다."
+    },
+    {
+      "id": "portfolio_top_asset_area",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 자산 중 임대면적이 제일 큰 물류센터는 어디야?",
+      "expected": [
+        "인천석남물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "주소 인천광역시 서구 갑문1로 20, 인천광역시 서구 갑문3로 34, 임대면적 최대 자산 인천석남물류센터, 전체 물류센터 최대 면적 임차인 쿠팡(주), 임차면적 131,433.6평, 전체 자산 최대 면적 임차인 쿠팡(주)입니다."
+    },
+    {
+      "id": "portfolio_top_asset_cost",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 자산 중 월 임관리비가 제일 큰 물류센터는 어디야?",
+      "expected": [
+        "인천석남물류센터"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "주소 인천광역시 서구 갑문1로 20, 인천광역시 서구 갑문3로 34, 월 임관리비 최대 자산 인천석남물류센터, 전체 자산 월 임관리비 합계 13,184,443,796원 (131.8억원)입니다."
+    },
+    {
+      "id": "portfolio_top_asset_vacancy",
+      "category": "전체 포트폴리오 값/순위",
+      "question": "전체 자산 중 공실률이 제일 높은 물류센터는 어디야?",
+      "expected": [
+        "아레나스안성"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "주소 인천광역시 서구 갑문1로 20, 인천광역시 서구 갑문3로 34, 공실률 최대 자산 아레나스안성, 전체 물류센터 평균 공실률 17.2%입니다."
+    },
+    {
+      "id": "lease_end_date_0",
+      "category": "계약 기간/만기",
+      "question": "아레나스양지물류센터 씨제이대한통운(주) 계약 만기일 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        "씨제이대한통운(주)",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2028-01-08"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스양지물류센터 관련해서는 임차인 씨제이대한통운(주), 계약 만기일 2028-01-08, 2034-02-28, 2028-01-31입니다."
+    },
+    {
+      "id": "lease_start_date_0",
+      "category": "계약 기간/만기",
+      "question": "아레나스양지물류센터 씨제이대한통운(주) 계약 시작일 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        "씨제이대한통운(주)",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2023-01-09"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스양지물류센터은 임차인 씨제이대한통운(주), 계약 시작일 2023-01-09, 2019-03-01, 2025-05-01, 2024-02-01, 2026-02-01로 보시면 됩니다."
+    },
+    {
+      "id": "lease_start_date_1",
+      "category": "계약 기간/만기",
+      "question": "화성 석포리 물류센터 삼성전자로지텍(주) 계약 시작일 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        "삼성전자로지텍(주)",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2024-01-01"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 화성 석포리 물류센터 기준 임차인 삼성전자로지텍(주), 계약 시작일 2024-01-01입니다."
+    },
+    {
+      "id": "lease_end_date_2",
+      "category": "계약 기간/만기",
+      "question": "스카이박스1, 스카이박스2 쿠팡(주) 계약 만기일 알려줘",
+      "expected": [
+        "스카이박스1, 스카이박스2",
+        "쿠팡(주)",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2029-04-01"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 스카이박스1, 스카이박스2 기준 임차인 쿠팡(주), 봄날창고, (주)하나로티앤에스, (주)LG생활건강, 계약 만기일 2029-04-01, 2027-12-31, 2026-06-30, 2027-02-28, 2028-02-29, 2028-09-22입니다."
+    },
+    {
+      "id": "lease_start_date_2",
+      "category": "계약 기간/만기",
+      "question": "스카이박스1, 스카이박스2 쿠팡(주) 계약 시작일 알려줘",
+      "expected": [
+        "스카이박스1, 스카이박스2",
+        "쿠팡(주)",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2025-03-01"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 스카이박스1, 스카이박스2 기준 임차인 쿠팡(주), 봄날창고, (주)하나로티앤에스, (주)LG생활건강, 계약 시작일 2025-03-01, 2025-04-02, 2025-08-06, 2021-07-01, 2022-02-01, 2025-09-23입니다."
+    },
+    {
+      "id": "lease_end_date_3",
+      "category": "계약 기간/만기",
+      "question": "동산물류센터 (주)우진글로벌 계약 만기일 알려줘",
+      "expected": [
+        "동산물류센터",
+        "(주)우진글로벌",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2029-01-11"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "동산물류센터 기준으로는 임차인 (주)우진글로벌, 계약 만기일 2029-01-11입니다."
+    },
+    {
+      "id": "lease_start_date_3",
+      "category": "계약 기간/만기",
+      "question": "동산물류센터 (주)우진글로벌 계약 시작일 알려줘",
+      "expected": [
+        "동산물류센터",
+        "(주)우진글로벌",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2026-01-12"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "동산물류센터 관련해서는 임차인 (주)우진글로벌, 계약 시작일 2026-01-12입니다."
+    },
+    {
+      "id": "lease_end_date_4",
+      "category": "계약 기간/만기",
+      "question": "여주 본두리 물류센터 굿앤파트너스(주) 계약 만기일 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        "굿앤파트너스(주)",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2028-11-30"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 여주 본두리 물류센터 기준 임차인 굿앤파트너스(주), 한국머스크물류서비스(주), (주)버킷플레이스, 계약 만기일 2028-11-30, 2029-07-31, 2030-02-28, 2029-05-31입니다."
+    },
+    {
+      "id": "lease_start_date_4",
+      "category": "계약 기간/만기",
+      "question": "여주 본두리 물류센터 굿앤파트너스(주) 계약 시작일 알려줘",
+      "expected": [
+        "여주 본두리 물류센터",
+        "굿앤파트너스(주)",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2025-07-15"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "여주 본두리 물류센터 기준으로는 임차인 굿앤파트너스(주), 한국머스크물류서비스(주), (주)버킷플레이스, 계약 시작일 2025-07-15, 2024-06-01, 2024-11-01입니다."
+    },
+    {
+      "id": "lease_end_date_5",
+      "category": "계약 기간/만기",
+      "question": "두동 LG전자 통합물류센터 LG전자(주), ㈜엘엑스판토스 계약 만기일 알려줘",
+      "expected": [
+        "두동 LG전자 통합물류센터",
+        "LG전자(주), ㈜엘엑스판토스",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2026-12-15"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "두동 LG전자 통합물류센터 기준으로는 임차인 LG전자(주), ㈜엘엑스판토스, 계약 만기일 2026-12-15입니다."
+    },
+    {
+      "id": "lease_start_date_5",
+      "category": "계약 기간/만기",
+      "question": "두동 LG전자 통합물류센터 LG전자(주), ㈜엘엑스판토스 계약 시작일 알려줘",
+      "expected": [
+        "두동 LG전자 통합물류센터",
+        "LG전자(주), ㈜엘엑스판토스",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2023-12-16"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "두동 LG전자 통합물류센터 기준으로는 임차인 LG전자(주), ㈜엘엑스판토스, 계약 시작일 2023-12-16입니다."
+    },
+    {
+      "id": "lease_end_date_6",
+      "category": "계약 기간/만기",
+      "question": "아레나스안성 INPNP 계약 만기일 알려줘",
+      "expected": [
+        "아레나스안성",
+        "INPNP",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2032-01-31"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성 기준으로는 임차인 INPNP, JM 로지스, 계약 만기일 2032-01-31, 2031-11-30입니다."
+    },
+    {
+      "id": "lease_start_date_6",
+      "category": "계약 기간/만기",
+      "question": "아레나스안성 INPNP 계약 시작일 알려줘",
+      "expected": [
+        "아레나스안성",
+        "INPNP",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2025-12-11"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성은 임차인 INPNP, JM 로지스, 계약 시작일 2025-12-11, 2025-11-01로 보시면 됩니다."
+    },
+    {
+      "id": "lease_end_date_7",
+      "category": "계약 기간/만기",
+      "question": "아레나스안성 JM 로지스 계약 만기일 알려줘",
+      "expected": [
+        "아레나스안성",
+        "JM 로지스",
+        {
+          "label": "계약 만기",
+          "kind": "date",
+          "value": "2031-11-30"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성 기준으로는 임차인 JM 로지스, INPNP, 계약 만기일 2031-11-30, 2032-01-31입니다."
+    },
+    {
+      "id": "lease_start_date_7",
+      "category": "계약 기간/만기",
+      "question": "아레나스안성 JM 로지스 계약 시작일 알려줘",
+      "expected": [
+        "아레나스안성",
+        "JM 로지스",
+        {
+          "label": "계약 시작",
+          "kind": "date",
+          "value": "2025-11-01"
+        }
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스안성은 임차인 JM 로지스, INPNP, 계약 시작일 2025-11-01, 2025-12-11로 보시면 됩니다."
+    },
+    {
+      "id": "lease_terms_rf_fo_0",
+      "category": "계약 조건",
+      "question": "아레나스양지물류센터 씨제이대한통운(주) RF랑 FO 몇 개월이야?",
+      "expected": [
+        "아레나스양지물류센터",
+        "씨제이대한통운(주)",
+        "6",
+        "1"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 아레나스양지물류센터 기준 임차인 씨제이대한통운(주), 용마로지스(주), RF 6개월, 6.5개월, 2개월, 28개월, 4개월, FO 1개월, 0.5개월입니다."
+    },
+    {
+      "id": "lease_escalation_0",
+      "category": "계약 조건",
+      "question": "아레나스양지물류센터 씨제이대한통운(주) 임대료 상승률이랑 상승 주기 알려줘",
+      "expected": [
+        "아레나스양지물류센터",
+        "씨제이대한통운(주)",
+        "0.03",
+        "12"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "아레나스양지물류센터 관련해서는 임차인 씨제이대한통운(주), 임대료 상승률 0.03 (3%), 상승 주기 12개월, 28개월입니다."
+    },
+    {
+      "id": "lease_terms_rf_fo_1",
+      "category": "계약 조건",
+      "question": "화성 석포리 물류센터 삼성전자로지텍(주) RF랑 FO 몇 개월이야?",
+      "expected": [
+        "화성 석포리 물류센터",
+        "삼성전자로지텍(주)",
+        "2"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "확인된 값은 화성 석포리 물류센터 기준 임차인 삼성전자로지텍(주), RF 2개월입니다."
+    },
+    {
+      "id": "lease_escalation_1",
+      "category": "계약 조건",
+      "question": "화성 석포리 물류센터 삼성전자로지텍(주) 임대료 상승률이랑 상승 주기 알려줘",
+      "expected": [
+        "화성 석포리 물류센터",
+        "삼성전자로지텍(주)"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "화성 석포리 물류센터 관련해서는 임차인 삼성전자로지텍(주)입니다."
+    },
+    {
+      "id": "lease_terms_rf_fo_2",
+      "category": "계약 조건",
+      "question": "스카이박스1, 스카이박스2 쿠팡(주) RF랑 FO 몇 개월이야?",
+      "expected": [
+        "스카이박스1, 스카이박스2",
+        "쿠팡(주)"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "스카이박스1, 스카이박스2 관련해서는 임차인 쿠팡(주), (주)LG생활건강, ㈜싸이버로지텍, 봄날창고, RF 6개월, 3개월, 7.5개월, 2개월, 5개월, 6.3개월, FO 4.5개월, 2개월, 5개월, 3개월입니다."
+    },
+    {
+      "id": "lease_escalation_2",
+      "category": "계약 조건",
+      "question": "스카이박스1, 스카이박스2 쿠팡(주) 임대료 상승률이랑 상승 주기 알려줘",
+      "expected": [
+        "스카이박스1, 스카이박스2",
+        "쿠팡(주)",
+        "0.025",
+        "12"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "스카이박스1, 스카이박스2 기준으로는 임차인 쿠팡(주), 봄날창고, (주)하나로티앤에스, (주)LG생활건강, 임대료 상승률 0.025 (2.5%), 0.02 (2%), 0.03 (3%), 상승 주기 12개월입니다."
+    },
+    {
+      "id": "lease_terms_rf_fo_3",
+      "category": "계약 조건",
+      "question": "동산물류센터 (주)우진글로벌 RF랑 FO 몇 개월이야?",
+      "expected": [
+        "동산물류센터",
+        "(주)우진글로벌",
+        "1"
+      ],
+      "status": 200,
+      "ok": true,
+      "failures": [],
+      "answer": "동산물류센터 관련해서는 임차인 (주)우진글로벌, 송림물류(주), 쿠팡(주), 뉴성진에이원(주), RF 1개월입니다."
+    }
+  ]
+}

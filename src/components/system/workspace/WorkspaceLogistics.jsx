@@ -28,6 +28,7 @@ const assetOptionsData = rawAssetOptionsData.map((option) => {
   return {
     ...option,
     assetName: option.assetName || overview.assetName,
+    fundName: firstDefined(option.fundName, overview.fundName),
     uniqueTenantCount: firstDefined(overview.uniqueTenantCount, overview.tenantCount, option.uniqueTenantCount),
     averageENoc: firstDefined(overview.averageENoc, option.averageENoc),
     vacancyRate: firstDefined(overview.vacancyRate, option.vacancyRate),
@@ -4686,6 +4687,91 @@ function sanitizeLogisticsAiDisplayText(value) {
   return cleanDisplay(value, '').replace(/supabase/giu, '데이터베이스');
 }
 
+function normalizeAiMentionText(value) {
+  return cleanDisplay(value, '')
+    .toLowerCase()
+    .replace(/\s+/gu, '')
+    .replace(/[.,·ㆍ_()[\]{}]/gu, '')
+    .replace(/물류센터|주식회사|유한책임회사|유한회사|\(주\)|㈜/gu, '');
+}
+
+function addAiMentionOption(map, option) {
+  const label = cleanDisplay(option.label, '');
+  if (!label) return;
+  const key = `${option.type}:${normalizeAiMentionText(label)}`;
+  if (!normalizeAiMentionText(label) || map.has(key)) return;
+  const aliases = [...new Set([label, option.detail, ...(option.aliases || [])]
+    .map((item) => cleanDisplay(item, ''))
+    .filter(Boolean))];
+  map.set(key, {
+    ...option,
+    label,
+    insertText: cleanDisplay(option.insertText || label, label),
+    searchText: aliases.map(normalizeAiMentionText).join(' '),
+  });
+}
+
+function buildLogisticsAiMentionOptions(permission) {
+  const options = new Map();
+  const readableAssets = filterAssetsByPermission(assetOptionsData, permission);
+  readableAssets.forEach((asset) => {
+    const assetName = cleanDisplay(asset.assetName, '');
+    const fundName = cleanDisplay(asset.fundName, '');
+    addAiMentionOption(options, {
+      type: 'asset',
+      typeLabel: '자산',
+      label: assetName,
+      detail: fundName,
+      insertText: assetName,
+      aliases: [asset.assetId, asset.assetCode],
+    });
+    if (fundName) {
+      addAiMentionOption(options, {
+        type: 'fund',
+        typeLabel: '펀드',
+        label: fundName,
+        detail: assetName,
+        insertText: fundName,
+        aliases: [assetName],
+      });
+    }
+  });
+  companyOptionsData.forEach((company) => {
+    const tenantName = cleanDisplay(firstDefined(company.tenantMasterName, company.companyName, company.displayName), '');
+    if (!tenantName || isInternalTenantCode(tenantName)) return;
+    addAiMentionOption(options, {
+      type: 'tenant',
+      typeLabel: '임차인',
+      label: tenantName,
+      detail: cleanDisplay(company.latestExpiry ? `만기 ${company.latestExpiry}` : company.businessRegistrationNo, ''),
+      insertText: tenantName,
+      aliases: [company.companyName, company.rawTenantName, company.tenantId],
+    });
+  });
+  const typeRank = { asset: 0, tenant: 1, fund: 2 };
+  return [...options.values()].sort((a, b) => (
+    (typeRank[a.type] ?? 9) - (typeRank[b.type] ?? 9)
+    || a.label.localeCompare(b.label, 'ko-KR')
+  ));
+}
+
+function currentAiMentionToken(value) {
+  const text = String(value || '');
+  const match = text.match(/(?:^|\s)([@#/]?[\p{L}\p{N}().,&·ㆍ-]{2,})$/u);
+  if (!match) return null;
+  const raw = match[1] || '';
+  const query = raw.replace(/^[@#/]/u, '');
+  const normalized = normalizeAiMentionText(query);
+  if (normalized.length < 2) return null;
+  return {
+    raw,
+    query,
+    normalized,
+    start: text.length - raw.length,
+    end: text.length,
+  };
+}
+
 export default function WorkspaceLogistics({ currentPath = '' }) {
   const { user, memberInfo } = useAuth();
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -4729,6 +4815,32 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const weeklyTasks = useMemo(() => buildMainWeeklyTasks(weeklyReportData, permission), [permission]);
   const canRegisterTask = Boolean(permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.update);
   const canUseAiChat = featureAccess.aiChat;
+  const aiInputRef = useRef(null);
+  const [aiMentionActiveIndex, setAiMentionActiveIndex] = useState(0);
+  const [aiMentionDismissedToken, setAiMentionDismissedToken] = useState('');
+  const aiMentionOptions = useMemo(() => buildLogisticsAiMentionOptions(permission), [permission]);
+  const aiMentionToken = useMemo(() => currentAiMentionToken(aiChatInput), [aiChatInput]);
+  const aiMentionSuggestions = useMemo(() => {
+    if (!aiMentionToken) return [];
+    if (aiMentionDismissedToken === aiMentionToken.normalized) return [];
+    return aiMentionOptions
+      .filter((option) => option.searchText.includes(aiMentionToken.normalized))
+      .slice(0, 8);
+  }, [aiMentionDismissedToken, aiMentionOptions, aiMentionToken]);
+
+  useEffect(() => {
+    setAiMentionActiveIndex(0);
+    setAiMentionDismissedToken('');
+  }, [aiMentionToken?.normalized]);
+
+  const insertAiMentionOption = (option) => {
+    if (!option || !aiMentionToken) return;
+    const nextText = `${aiChatInput.slice(0, aiMentionToken.start)}${option.insertText} ${aiChatInput.slice(aiMentionToken.end)}`;
+    setAiChatInput(nextText.replace(/\s{2,}/gu, ' '));
+    window.requestAnimationFrame(() => {
+      aiInputRef.current?.focus();
+    });
+  };
 
   useEffect(() => {
     if (!canUseAiChat && isAiDockOpen) setIsAiDockOpen(false);
@@ -5634,18 +5746,70 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           <div ref={aiChatScrollRef} />
         </div>
         <form
-          className="shrink-0 border-t border-[#333333] p-4"
+          className="relative shrink-0 border-t border-[#333333] p-4"
           onSubmit={(event) => {
             event.preventDefault();
             submitAiChatQuestion();
           }}
         >
+          {aiMentionSuggestions.length ? (
+            <div
+              data-testid="logistics-ai-mention-suggestions"
+              className="absolute bottom-[78px] left-4 right-4 z-[2] overflow-hidden rounded-[14px] border border-[#3A3A3C] bg-[#20201F] shadow-2xl"
+            >
+              <div className="border-b border-[#333333] px-3 py-2 text-[11px] font-bold text-[#A1A1AA]">
+                정확한 대상 선택
+              </div>
+              <div className="max-h-[248px] overflow-y-auto custom-scrollbar py-1">
+                {aiMentionSuggestions.map((option, index) => (
+                  <button
+                    key={`${option.type}-${option.label}`}
+                    type="button"
+                    onMouseEnter={() => setAiMentionActiveIndex(index)}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      insertAiMentionOption(option);
+                    }}
+                    className={`grid w-full grid-cols-[52px_minmax(0,1fr)] gap-3 px-3 py-2.5 text-left transition-colors ${index === aiMentionActiveIndex ? 'bg-[#2F2F2D]' : 'hover:bg-[#292928]'}`}
+                  >
+                    <span className={`mt-0.5 inline-flex h-6 items-center justify-center rounded-[7px] border px-2 text-[11px] font-bold ${option.type === 'asset' ? 'border-[#60A5FA]/40 bg-[#1D3557] text-[#BFDBFE]' : option.type === 'tenant' ? 'border-[#B5E48C]/35 bg-[#1E3425] text-[#D9F99D]' : 'border-[#FBBF24]/35 bg-[#3B2E14] text-[#FDE68A]'}`}>
+                      {option.typeLabel}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block truncate text-[13px] font-bold text-white">{option.label}</span>
+                      {option.detail ? <span className="mt-0.5 block truncate text-[11px] font-semibold text-[#8E8E93]">{option.detail}</span> : null}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-end gap-2">
             <textarea
+              ref={aiInputRef}
               data-testid="logistics-ai-input"
               value={aiChatInput}
               onChange={(event) => setAiChatInput(event.target.value)}
               onKeyDown={(event) => {
+                if (aiMentionSuggestions.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                  event.preventDefault();
+                  setAiMentionActiveIndex((index) => {
+                    const delta = event.key === 'ArrowDown' ? 1 : -1;
+                    return (index + delta + aiMentionSuggestions.length) % aiMentionSuggestions.length;
+                  });
+                  return;
+                }
+                if (aiMentionSuggestions.length && (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey))) {
+                  event.preventDefault();
+                  insertAiMentionOption(aiMentionSuggestions[aiMentionActiveIndex] || aiMentionSuggestions[0]);
+                  return;
+                }
+                if (event.key === 'Escape' && aiMentionSuggestions.length) {
+                  event.preventDefault();
+                  setAiMentionActiveIndex(0);
+                  setAiMentionDismissedToken(aiMentionToken?.normalized || '');
+                  return;
+                }
                 if (event.key === 'Enter' && !event.shiftKey) {
                   event.preventDefault();
                   submitAiChatQuestion();

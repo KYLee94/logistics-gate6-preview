@@ -167,7 +167,8 @@ function weightedENoc(rows) {
 }
 
 function assetName(row = {}) {
-  return String(firstDefined(row.asset_name, row.assetName, row.asset, '')).trim();
+  const text = String(firstDefined(row.asset_name, row.assetName, row.asset, '')).trim();
+  return /^(undefined|null)$/iu.test(text) ? '' : text;
 }
 
 function tenantName(row = {}) {
@@ -188,6 +189,18 @@ function rowsForTenant(rows, name) {
 function leaseRowsFromAssetRead(assetRead) {
   const data = assetRead.body?.data || {};
   return data.lease_spaces || data.leases || data.rows || data.normalized_rows || [];
+}
+
+function decorateRows(rows, assetMap, tenantMap) {
+  return rows.map((row) => {
+    const asset = assetMap.get(String(row.asset_id || row.assetId || '').trim());
+    const tenant = tenantMap.get(String(row.tenant_id || row.tenantId || '').trim());
+    return {
+      ...row,
+      asset_name: assetName(row) || assetName(asset),
+      tenant_master_name: tenantName(row) || tenantName(tenant),
+    };
+  });
 }
 
 function summaryFromAssetRead(assetRead) {
@@ -255,13 +268,15 @@ function assertStatus(result, expected, label) {
   }
 }
 
-function assertPublicAiResponse(result, label) {
+function assertPublicAiResponse(result, label, options = {}) {
   assertStatus(result, 200, label);
   if (result.body?.ok !== true) throw new Error(`${label} returned ok=false`);
   const answer = String(result.body?.answer || '');
   if (!answer.trim()) throw new Error(`${label} returned empty answer`);
   const serialized = JSON.stringify(result.body);
-  const forbidden = /\bll_[a-z0-9_]+\b|public\.|asset_id|tenant_id|lease_space_id|source[_ -]?cell|source[_ -]?row|provider|fallback|answer_focus|required_facts|required_display_values|readable_asset_count|_readable_asset_count|matched_tables|dashboard-metrics|Edge Function|service role|JWT|GROQ|Gemini/iu;
+  const forbidden = options.allowModelIdentity
+    ? /\bll_[a-z0-9_]+\b|public\.|asset_id|tenant_id|lease_space_id|source[_ -]?cell|source[_ -]?row|provider|fallback|answer_focus|required_facts|required_display_values|readable_asset_count|_readable_asset_count|matched_tables|dashboard-metrics|Edge Function|service role|JWT/iu
+    : /\bll_[a-z0-9_]+\b|public\.|asset_id|tenant_id|lease_space_id|source[_ -]?cell|source[_ -]?row|provider|fallback|answer_focus|required_facts|required_display_values|readable_asset_count|_readable_asset_count|matched_tables|dashboard-metrics|Edge Function|service role|JWT|GROQ|Gemini/iu;
   if (forbidden.test(serialized)) throw new Error(`${label} exposed implementation detail: ${serialized}`);
   if (Array.isArray(result.body?.evidence) && result.body.evidence.length > 0) throw new Error(`${label} returned raw evidence rows.`);
   return answer;
@@ -314,6 +329,9 @@ async function main() {
   const homeRead = await invoke(endpoint, anonKey, origin, auth.token, 'dashboard/home/read', { basis_date: basisDate });
   assertStatus(homeRead, 200, 'dashboard/home/read');
   const assets = homeRead.body?.data?.assets || [];
+  const tenants = homeRead.body?.data?.tenants || [];
+  const assetMap = new Map(assets.map((row) => [String(row.asset_id || row.assetId || '').trim(), row]));
+  const tenantMap = new Map(tenants.map((row) => [String(row.tenant_id || row.tenantId || '').trim(), row]));
   if (assets.length < 17) throw new Error(`Expected at least 17 readable assets, got ${assets.length}`);
 
   const busan = findAsset(assets, '부산', '송정');
@@ -334,6 +352,12 @@ async function main() {
   const busanRows = leaseRowsFromAssetRead(assetReads[busan.asset_id]);
   const anseongSeongeunRows = leaseRowsFromAssetRead(assetReads[anseongSeongeun.asset_id]);
   const allLeaseRows = Object.values(assetReads).flatMap(leaseRowsFromAssetRead);
+  const readableLeaseRows = decorateRows(homeRead.body?.data?.lease_spaces || [], assetMap, tenantMap);
+  const portfolioTopTenant = topTenantByArea(readableLeaseRows.length ? readableLeaseRows : allLeaseRows);
+  if (!portfolioTopTenant) throw new Error('Could not derive portfolio top tenant by leased area from Supabase readback');
+  const coupangRows = readableLeaseRows.filter((row) => /쿠팡/u.test(tenantName(row)) || /쿠팡/u.test(assetName(row)));
+  const coupangAssetNames = [...new Set(coupangRows.map(assetName).filter(Boolean))];
+  if (!coupangAssetNames.length) throw new Error('Could not derive Coupang leased assets from Supabase readback');
   const arenaTopTenant = topTenantByArea(arenaRows);
   if (!arenaTopTenant) throw new Error('Could not derive Arena Yangji top tenant from dashboard/asset/read');
   let arenaTopTenantName = arenaTopTenant.tenantName || arenaTopTenant.tenant_name || tenantName(arenaTopTenant.rows?.[0]);
@@ -397,7 +421,7 @@ async function main() {
       if (![429, 502, 503].includes(result.status)) break;
       if (attempt < 5) await sleep(5000 * attempt);
     }
-    const answer = assertPublicAiResponse(result, testCase.id);
+    const answer = assertPublicAiResponse(result, testCase.id, { allowModelIdentity: testCase.allowModelIdentity });
     testCase.validate(answer, result.body);
     checks.push({
       id: testCase.id,
@@ -419,6 +443,9 @@ async function main() {
     validate: (answer) => {
       if (/readable_asset_count|asset_count|provider|fallback|ll_/iu.test(answer)) throw new Error(`greeting leaked internal detail: ${answer}`);
       if (/17\s*개/iu.test(answer)) throw new Error(`greeting should not force asset count: ${answer}`);
+      if (/확인할 수 없습니다|찾지 못|근거 데이터|제공 데이터|정보가 없습니다|답변에 필요한 근거/iu.test(answer)) {
+        throw new Error(`greeting should be handled as natural small talk: ${answer}`);
+      }
     },
   });
 
@@ -430,6 +457,18 @@ async function main() {
     validate: (answer) => {
       if (/readable_asset_count|answer_focus|provider|fallback|ll_/iu.test(answer)) throw new Error(`meta complaint leaked internal detail: ${answer}`);
       assertMatches(answer, 'repetition complaint', /반복|다시|질문|데이터|답변|같은\s*말|기억/u);
+    },
+  });
+
+  await runCase({
+    id: 'model_identity_allowed',
+    category: '일반 대화',
+    question: '아니 GEMINI냐고 GROQ이냐고',
+    allowModelIdentity: true,
+    basis: { expected: '현재 연결 모델명을 사용자 질문에 한해 공개' },
+    validate: (answer) => {
+      assertMatches(answer, 'model identity', /Gemini|Groq|gemini|groq/u);
+      if (/근거|필수 값|찾지 못/iu.test(answer)) throw new Error(`model identity should not be treated as missing logistics facts: ${answer}`);
     },
   });
 
@@ -602,6 +641,17 @@ async function main() {
   });
 
   await runCase({
+    id: 'portfolio_largest_tenant_by_area',
+    category: '전체 포트폴리오 값',
+    question: '전체 물류센터 다 합쳐서 임차인 중에 누가 제일 면적 많이 차지하고 있어?',
+    basis: { tenant_name: portfolioTopTenant.tenantName, area_py: formatPy(portfolioTopTenant.areaPy), formula: 'sum leased_area_py by tenant over readable lease rows' },
+    validate: (answer) => {
+      assertIncludes(answer, 'portfolio largest tenant by area', portfolioTopTenant.tenantName, formatPy(portfolioTopTenant.areaPy));
+      if (/확인할 수 없습니다|찾지 못|충분하지/u.test(answer)) throw new Error(`portfolio largest tenant should be answerable: ${answer}`);
+    },
+  });
+
+  await runCase({
     id: 'context_asset_follow_up_enoc',
     category: '이전 대화 맥락 follow-up',
     question: '그 자산 E. NOC는?',
@@ -645,6 +695,18 @@ async function main() {
     question: `${arenaTopTenantName}은 어느 자산에 입주해 있어?`,
     basis: { tenant_name: arenaTopTenantName, asset_name: arenaYangji.asset_name },
     validate: (answer) => assertIncludes(answer, 'tenant asset lookup', arenaTopTenantName, '아레나스', '양지'),
+  });
+
+  await runCase({
+    id: 'tenant_asset_lookup_short_company_alias_coupang',
+    category: '회사/임차인 질문',
+    question: '쿠팡이 임차하고 있는 물류센터는 뭐뭐야?',
+    basis: { tenant_alias: '쿠팡', asset_names: coupangAssetNames },
+    validate: (answer) => {
+      assertIncludes(answer, 'coupang tenant asset lookup', '쿠팡');
+      coupangAssetNames.slice(0, 3).forEach((name) => assertIncludes(answer, `coupang asset ${name}`, name));
+      if (/확인할 수 없습니다|찾지 못|충분하지/u.test(answer)) throw new Error(`coupang tenant asset lookup should be answerable: ${answer}`);
+    },
   });
 
   await runCase({
