@@ -124,7 +124,7 @@ const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용', '\
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_ACCESS_USERS_CACHE_KEY = 'logisticsFeatureAccessUsers:v1';
 const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v1';
-const HAYUN_PROFILE_IMAGE_URL = 'https://gw.igisam.com/ekp/upload/body/profile/image/2026/06/01/2025072801.jpg';
+const HAYUN_PROFILE_IMAGE_URL = 'hayun-jeong.jpg';
 const LOGISTICS_FEATURES = [
     { key: 'ai_chat', label: 'AI 챗봇', description: '워크 플랫폼 우측 AI 챗봇 열기 및 질문' },
     { key: 'data_quality', label: 'Data Quality 탭', description: '무결성 점검 결과 조회 및 수정 요청' },
@@ -134,12 +134,12 @@ const LOGISTICS_FEATURES = [
     { key: 'building_register_refresh', label: '건축물대장 새로고침', description: '건축물대장 API 재호출 및 Supabase 저장' },
     { key: 'opendart_refresh', label: 'OpenDART 새로고침', description: 'OpenDART API 재호출 및 Supabase 저장' },
 ];
-const FEATURE_ACCESS_DEFAULT_USERS = []; /*
+const FEATURE_ACCESS_DEFAULT_USERS = [
     { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
     { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
     { staff_name: '이시정', organization: '기획추진센터', email: 'sjlee@igisam.com' },
-    { staff_name: '\uC815\uD558\uC724', organization: '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81', email: 'hayun.jeong@igisam.com' },
-*/
+    { staff_name: '\uC815\uD558\uC724', organization: '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81', email: 'hayun.jeong@igisam.com', image_url: HAYUN_PROFILE_IMAGE_URL },
+];
 const FEATURE_ACCESS_FALLBACK_USERS = [
     { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
     { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
@@ -246,7 +246,9 @@ const compactFeatureAccessUserRow = (user = {}) => {
     const row = user || {};
     const staffName = String(row.staff_name || row.name || '').trim();
     const email = String(row.email || FEATURE_ACCESS_DEFAULT_EMAIL_BY_NAME.get(staffName) || '').trim().toLowerCase();
-    const imageUrl = row.image_url || row.avatar_url || row.photo_url || row.picture || (email === 'hayun.jeong@igisam.com' ? HAYUN_PROFILE_IMAGE_URL : '');
+    const imageUrl = email === 'hayun.jeong@igisam.com'
+        ? HAYUN_PROFILE_IMAGE_URL
+        : row.image_url || row.avatar_url || row.photo_url || row.picture || '';
     return {
         email,
         staff_name: staffName,
@@ -811,7 +813,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         persistFeatureAccessConfig(featureAccessDraft);
     };
     const toggleFeatureAccessUser = (featureKey, userRow) => {
-        if (featureAccessSaving) return;
+        if (featureAccessSaving || featureAccessLoading) return;
         if (isDefaultFeatureAccessUser(userRow)) return;
         const current = normalizeFeatureAccessConfig(featureAccessDraft || featureAccessData);
         const users = current.features[featureKey]?.users || [];
@@ -1053,10 +1055,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
                         <div className={`flex items-center ${isCollapsed ? 'w-full flex-col items-center gap-2' : 'gap-2'}`}>
                             <button type="button" data-testid="logistics-profile-button" onClick={() => setShowProfileMenu((value) => !value)} className={`min-w-0 flex items-center ${isCollapsed ? 'order-2 h-10 w-10 justify-center px-0 py-0' : 'flex-1 justify-start px-2 py-2'} rounded-xl hover:bg-[#151515]`}>
                                 <UserAvatar memberInfo={memberInfo} name={memberInfo?.staff_name || memberInfo?.name} sizeClass="h-8 w-8" textClass="text-[11px]" className="bg-[#3c3c3c]" />
-                                <div className={`ml-3 min-w-0 overflow-hidden text-left transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[156px] translate-x-0 opacity-100'}`}>
+                                {!isCollapsed ? <div className="ml-3 min-w-0 max-w-[156px] translate-x-0 overflow-hidden text-left opacity-100 transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]">
                                         <div className="truncate text-[13px] font-semibold text-white">{memberInfo?.staff_name || '로그인 사용자'}</div>
                                         <div className="truncate text-[11px] text-[#86868B]">{memberInfo?.organization || memberInfo?.department || '조직 미확인'}</div>
-                                </div>
+                                </div> : null}
                             </button>
                             <button
                                 type="button"
@@ -1227,18 +1229,22 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     <div className="mt-1 text-[12px] text-[#8E8E93]">AI 챗봇, Data Quality, 로그인 이력, 외부 API 새로고침 등 기획추진센터 전용 기능의 이용자를 지정합니다.</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button type="button" onClick={loadFeatureAccess} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                    <button type="button" data-testid="logistics-feature-access-refresh" onClick={loadFeatureAccess} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
                                         새로고침
                                     </button>
                                     <button
                                         type="button"
+                                        data-testid="logistics-feature-access-save"
+                                        data-saving={featureAccessSaving ? 'true' : 'false'}
+                                        data-dirty={featureAccessDirty ? 'true' : 'false'}
+                                        data-loading={featureAccessLoading ? 'true' : 'false'}
                                         onClick={saveFeatureAccessDraft}
                                         disabled={featureAccessSaving || featureAccessLoading || !featureAccessDirty}
                                         className={`rounded-[10px] border px-3 py-2 text-[12px] font-bold transition-colors ${featureAccessSaving || featureAccessLoading || !featureAccessDirty ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : 'border-[#3b82f6] bg-[#3b82f6] text-white hover:bg-[#2563eb]'}`}
                                     >
                                         {featureAccessSaving ? '저장 중' : '저장'}
                                     </button>
-                                    <button type="button" onClick={() => setShowFeatureAccessModal(false)} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                    <button type="button" data-testid="logistics-feature-access-close" onClick={() => setShowFeatureAccessModal(false)} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
                                         닫기
                                     </button>
                                 </div>
@@ -1301,10 +1307,16 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                                 return (
                                                                     <button
                                                                         type="button"
+                                                                        data-testid="logistics-feature-access-user"
+                                                                        data-feature-key={feature.key}
+                                                                        data-user-email={userRow.email || ''}
+                                                                        data-user-name={userRow.staff_name || ''}
+                                                                        data-locked={locked ? 'true' : 'false'}
+                                                                        aria-pressed={checked}
                                                                         key={`${feature.key}-${featureUserKey(userRow)}`}
                                                                         onClick={() => toggleFeatureAccessUser(feature.key, userRow)}
-                                                                        disabled={locked || featureAccessSaving}
-                                                                        className={`flex min-h-11 items-center justify-between gap-3 rounded-[10px] border px-3 py-2 text-left transition-colors ${checked ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#303033] bg-[#151515] text-[#C7C7CC] hover:border-[#4A4A4A]'} ${locked ? 'cursor-default opacity-90' : ''}`}
+                                                                        disabled={locked || featureAccessSaving || featureAccessLoading}
+                                                                        className={`flex min-h-11 items-center justify-between gap-3 rounded-[10px] border px-3 py-2 text-left transition-colors ${checked ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#303033] bg-[#151515] text-[#C7C7CC] hover:border-[#4A4A4A]'} ${locked ? 'cursor-default opacity-90' : ''} ${featureAccessLoading && !locked ? 'cursor-wait opacity-60' : ''}`}
                                                                     >
                                                                         <span className="flex min-w-0 items-center gap-2">
                                                                             <UserAvatar memberInfo={userRow} name={userRow.staff_name} sizeClass="h-7 w-7" textClass="text-[10px]" />
@@ -1572,30 +1584,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
                     </>
                 )}
 
-                <div 
+                <div
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
                     className={`${isCollapsed ? 'justify-center px-[10px]' : 'justify-between pl-[15px] pr-[17px]'} pt-[10px] pb-3 border-t border-[#3A3A3C] w-full flex items-center transition-colors duration-300 cursor-pointer hover:bg-white/5`}
                 >
-                    <div className={`flex items-center gap-3 p-1.5 rounded-lg transition-colors duration-300 ${isCollapsed ? '' : '-ml-1.5'}`}>
-                        <div className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center bg-[#2C2C2E] -ml-[2px] border border-white/10">
-                            {memberInfo?.staff_name ? (
-                                <img 
-                                    src={`${import.meta.env.BASE_URL}${memberInfo.staff_name}.webp`} 
-                                    alt={`${memberInfo.staff_name} 프로필`} 
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => { 
-                                        const target = e.currentTarget;
-                                        const avatar = target.parentElement;
-                                        target.style.display = 'none';
-                                        if (!avatar) return;
-                                        avatar.textContent = memberInfo.staff_name.substring(0, 2);
-                                        avatar.className = 'w-10 h-10 rounded-full bg-[#c3c2b7] text-[#1F1F1E] flex items-center justify-center text-[15px] font-bold tracking-tighter -ml-[2px]';
-                                    }}
-                                />
-                            ) : (
-                                <span className="text-[#1F1F1E] font-bold">U</span>
-                            )}
-                        </div>
+                    <div className={`flex items-center gap-3 rounded-lg p-1.5 transition-colors duration-300 ${isCollapsed ? 'justify-center' : '-ml-1.5'}`}>
+                        <UserAvatar memberInfo={memberInfo} name={memberInfo?.staff_name || memberInfo?.name} sizeClass="h-10 w-10" textClass="text-[15px]" className="bg-[#c3c2b7]" />
                         {!isCollapsed ? <div className="flex flex-col max-w-[130px]">
                             <span className="font-semibold text-[14px] leading-tight mb-0.5 text-white tracking-tight truncate">
                                 {memberInfo?.staff_name ? `${memberInfo.staff_name} ${memberInfo.role_code === 'master' ? '마스터' : memberInfo.role_code === 'director' ? '책임' : '매니저'}` : '로그인 필요'}

@@ -28,6 +28,7 @@ const AVATAR_FILE_BY_NAME = {
   임주우: '임주우.jpg',
   전기영: '전기영.webp',
   정승우: '정승우.jpg',
+  정하윤: 'hayun-jeong.jpg',
   정조민: '정조민.webp',
   조청원: '조청원.jpg',
   최성현: '최성현.jpg',
@@ -37,7 +38,7 @@ const AVATAR_FILE_BY_NAME = {
 };
 
 const AVATAR_URL_BY_EMAIL = {
-  'hayun.jeong@igisam.com': 'https://gw.igisam.com/ekp/upload/body/profile/image/2026/06/01/2025072801.jpg',
+  'hayun.jeong@igisam.com': 'hayun-jeong.jpg',
 };
 
 export function cleanAvatarName(value) {
@@ -52,6 +53,8 @@ function asPublicUrl(fileName) {
 
 export function avatarCandidates(memberInfo = {}, fallbackName = '') {
   const member = memberInfo || {};
+  const email = String(member.email || member.user_email || '').trim().toLowerCase();
+  const emailMapped = AVATAR_URL_BY_EMAIL[email];
   const explicit = [
     member.avatar_url,
     member.avatarUrl,
@@ -61,10 +64,10 @@ export function avatarCandidates(memberInfo = {}, fallbackName = '') {
     member.profile_image_url,
     member.profileImageUrl,
     member.image_url,
-    AVATAR_URL_BY_EMAIL[String(member.email || member.user_email || '').trim().toLowerCase()],
   ].find(Boolean);
   const name = cleanAvatarName(fallbackName || member.staff_name || member.name);
   return [...new Set([
+    emailMapped ? asPublicUrl(emailMapped) : '',
     explicit ? asPublicUrl(explicit) : '',
     asPublicUrl(AVATAR_FILE_BY_NAME[name]),
     name ? asPublicUrl(`${name}.webp`) : '',

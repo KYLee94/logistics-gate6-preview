@@ -108,8 +108,14 @@ const LOGISTICS_ORGANIZATION_BY_EMAIL: Record<string, string> = {
   'hayun.jeong@igisam.com': '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81',
 };
 const LOGISTICS_IMAGE_URL_BY_EMAIL: Record<string, string> = {
-  'hayun.jeong@igisam.com': 'https://gw.igisam.com/ekp/upload/body/profile/image/2026/06/01/2025072801.jpg',
+  'hayun.jeong@igisam.com': 'hayun-jeong.jpg',
 };
+
+function logisticsProfileImageUrl(email: unknown, rawImageUrl?: unknown) {
+  const normalized = normalizeAuthEmail(email);
+  if (LOGISTICS_IMAGE_URL_BY_EMAIL[normalized]) return LOGISTICS_IMAGE_URL_BY_EMAIL[normalized];
+  return safeText(rawImageUrl);
+}
 
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_edit_requests',
@@ -704,7 +710,7 @@ function canUseDataQuality(ctx: Context) {
 function compactFeatureAccessUser(row: Record<string, unknown>) {
   const staffName = safeText(firstDefined(row.staff_name, row.name));
   const email = String(row.email || DEFAULT_FEATURE_ACCESS_EMAIL_BY_NAME[staffName] || '').trim().toLowerCase();
-  const imageUrl = safeText(firstDefined(row.image_url, row.avatar_url, LOGISTICS_IMAGE_URL_BY_EMAIL[email]));
+  const imageUrl = logisticsProfileImageUrl(email, firstDefined(row.image_url, row.avatar_url));
   return {
     email,
     staff_name: staffName,
@@ -8536,7 +8542,59 @@ function sanitizePublicAiAnswer(answer: unknown, fallback = '', options: { allow
   const publicFallback = normalizeText(fallback).replace(/supabase/giu, '데이터베이스');
   if (!text) return publicFallback || '답변을 생성하지 못했습니다.';
   if (!options.allowModelIdentity && hasAiInternalDetail(text)) return publicFallback || '공개 가능한 데이터 기준으로 다시 정리해 답변드리겠습니다. 자산명이나 임차인명을 포함해 질문해 주세요.';
-  return text.replace(/supabase/giu, '데이터베이스');
+  return polishPublicAiAnswerText(text.replace(/supabase/giu, '데이터베이스'));
+}
+
+function publicAiSentenceDedupeKey(sentence: string) {
+  const text = normalizeText(sentence).trim();
+  const metric = /월\s*임관리비/iu.test(text)
+    ? 'monthly_cost'
+    : /E\.\s*NOC|이엔오씨|e\s*noc/iu.test(text)
+      ? 'e_noc'
+      : /공실률/iu.test(text)
+        ? 'vacancy'
+        : /연면적|임대면적|면적/iu.test(text)
+          ? 'area'
+          : '';
+  const values = [...text.matchAll(/\d[\d,]*(?:\.\d+)?\s*(?:원|억원|억|평|%)/gu)]
+    .map((match) => match[0].replace(/\s+/gu, ''));
+  if (metric && values.length) {
+    const subject = (text.match(/^(.{1,34}?)(?:의|은|는| 기준| 관련)/u)?.[1] || '').replace(/\s+/gu, '');
+    return `${subject}:${metric}:${values.join('|')}`;
+  }
+  return text
+    .replace(/\s+/gu, '')
+    .replace(/[,.!?。]+$/gu, '')
+    .toLowerCase();
+}
+
+function polishPublicAiAnswerText(answer: string) {
+  const normalized = normalizeText(answer)
+    .replace(/([가-힣A-Za-z0-9㈜()]+)\s*씨는\s+/gu, '$1은 ')
+    .replace(/입주해\s*계시다\.?/gu, '입주해 있습니다.')
+    .replace(/물류센터은/gu, '물류센터는')
+    .replace(/물류센터이(?=\s|$|[.,])/gu, '물류센터가')
+    .replace(/E\.\s*NOC은/giu, 'E. NOC는')
+    .replace(/그들의\s+임차면적은/gu, '임차면적은')
+    .replace(/원로\s*보시면/gu, '원으로 보시면')
+    .replace(/평로\s*보시면/gu, '평으로 보시면')
+    .replace(/\s+/gu, ' ')
+    .trim();
+  if (!normalized) return normalized;
+  const sentences = normalized
+    .split(/(?<=[.!?。])\s+/u)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  if (sentences.length <= 1) return normalized;
+  const seen = new Set<string>();
+  const kept: string[] = [];
+  for (const sentence of sentences) {
+    const key = publicAiSentenceDedupeKey(sentence);
+    if (key && seen.has(key)) continue;
+    seen.add(key);
+    kept.push(sentence);
+  }
+  return kept.join(' ');
 }
 
 function publicAiAnswerResponse(answer: string, origin: string, meta: Record<string, unknown> = {}) {
@@ -10845,7 +10903,7 @@ function loginCapabilityStatus(authUser: Record<string, unknown> | null) {
 function publicLoginCapabilityRow(permission: Record<string, unknown>, authUsers: Record<string, unknown>[]) {
   const email = canonicalPermissionEmail(permission);
   const authUser = authUserByEmail(authUsers, email);
-  const imageUrl = firstDefined(permission.image_url, LOGISTICS_IMAGE_URL_BY_EMAIL[email]);
+  const imageUrl = logisticsProfileImageUrl(email, permission.image_url);
   return stripUndefined({
     email,
     organization: String(permission.organization || '').trim() || organizationForEmail(email) || '-',
@@ -10902,7 +10960,7 @@ function loginCapabilityRows(permissionRows: Record<string, unknown>[], authUser
 
 function publicPermissionUser(permission: Record<string, unknown>) {
   const email = canonicalPermissionEmail(permission);
-  const imageUrl = firstDefined(permission.image_url, LOGISTICS_IMAGE_URL_BY_EMAIL[email]);
+  const imageUrl = logisticsProfileImageUrl(email, permission.image_url);
   return stripUndefined({
     id: permission.user_id || email,
     auth_id: permission.user_id || null,
@@ -11194,7 +11252,7 @@ async function callLogisticsAuthStatus(origin: string, payload: Record<string, u
     account_status: permission?.account_status || null,
     staff_name: permission?.staff_name || staffNameForEmail(email),
     organization: permission?.organization || organizationForEmail(email),
-    image_url: firstDefined(permission?.image_url, LOGISTICS_IMAGE_URL_BY_EMAIL[email]) || null,
+    image_url: logisticsProfileImageUrl(email, permission?.image_url) || null,
   }, 200, origin);
 }
 

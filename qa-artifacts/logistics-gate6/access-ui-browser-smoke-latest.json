@@ -1,0 +1,55 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-02T10:11:35.322Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/?p=/platform/iotaseoul/workspace/logistics/dashboard/home",
+  "auth_source": "password_grant",
+  "ui_email": "hayun.jeong@igisam.com",
+  "checks": {
+    "sidebar_center_aligned": true,
+    "sidebar_vertical_gap_aligned": true,
+    "hayun_photo_loaded": true,
+    "hayun_photo_has_pixels": true,
+    "hayun_locked_default": true,
+    "permission_toggle_changes_draft": true,
+    "permission_save_enabled_after_change": true,
+    "permission_save_persists_after_refresh": true,
+    "permission_restore_persists_after_refresh": true,
+    "chat_dock_absence_does_not_block_access_ui": true
+  },
+  "screenshots": {
+    "sidebar": "qa-artifacts/logistics-gate6/access-ui-sidebar-20260602-101133.png",
+    "feature_modal": "qa-artifacts/logistics-gate6/access-ui-feature-modal-20260602-101133.png"
+  },
+  "metrics": {
+    "sidebar_centers": [
+      35.5,
+      35.5,
+      35.5,
+      35.5,
+      35.5
+    ],
+    "sidebar_gaps": [
+      8,
+      8,
+      8
+    ],
+    "hayun_image": {
+      "src": "https://kylee94.github.io/logistics-gate6-preview/hayun-jeong.jpg",
+      "naturalWidth": 413,
+      "naturalHeight": 531
+    },
+    "editable_row": {
+      "feature_key": "ai_chat",
+      "email": "hkim@igisam.com",
+      "before_pressed": "true",
+      "disabled": false,
+      "text": "김행단 관리&운영 · Reader"
+    }
+  },
+  "errors": [],
+  "warnings": [
+    "AI chat dock button was not rendered in this access UI auth context; chatbot quality is covered by qa:ai-chatbot."
+  ],
+  "final_url": "https://kylee94.github.io/logistics-gate6-preview/home",
+  "root_child_count": 2
+}
