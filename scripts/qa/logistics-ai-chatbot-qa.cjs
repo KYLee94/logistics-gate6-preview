@@ -370,6 +370,7 @@ async function main() {
   const arenaTopTenantENoc = weightedENoc(arenaTopTenant.rows);
   const portfolioENoc = weightedENoc(homeRead.body?.data?.lease_spaces || []);
   const arenaSummary = summaryFromAssetRead(assetReads[arenaYangji.asset_id]);
+  const arenaAnseongSummary = summaryFromAssetRead(assetReads[arenaAnseong.asset_id]);
   const busanSummary = summaryFromAssetRead(assetReads[busan.asset_id]);
   const anseongSeongeunSummary = summaryFromAssetRead(assetReads[anseongSeongeun.asset_id]);
   const bukukRows = leaseRowsFromAssetRead(assetReads[bukuk.asset_id]);
@@ -393,6 +394,7 @@ async function main() {
   const incheonENoc = weightedENoc(incheonRows) || assetStoredENoc(assetReads[incheonSeoknam.asset_id]);
   const arenaGrossPy = (numberValue(firstDefined(arenaSummary.gross_floor_area_sqm, arenaSummary.grossFloorAreaSqm, arenaYangji.gross_floor_area_sqm)) || 0) * PY_PER_SQM;
   const arenaLeasedPy = arenaRows.reduce((sum, row) => sum + rowAreaPy(row), 0);
+  const arenaAnseongGrossPy = (numberValue(firstDefined(arenaAnseongSummary.gross_floor_area_sqm, arenaAnseongSummary.grossFloorAreaSqm, arenaAnseong.gross_floor_area_sqm)) || 0) * PY_PER_SQM;
   const arenaVacancyRate = arenaGrossPy > 0 ? Math.max(0, arenaGrossPy - arenaLeasedPy) / arenaGrossPy : 0;
   const busanGrossPy = (numberValue(firstDefined(busanSummary.gross_floor_area_sqm, busanSummary.grossFloorAreaSqm, busan.gross_floor_area_sqm)) || 0) * PY_PER_SQM;
   const busanLeasedPy = busanRows.reduce((sum, row) => sum + rowAreaPy(row), 0);
@@ -715,6 +717,47 @@ async function main() {
     question: '아레나스 양지와 부산 송정 공실률 비교해줘',
     basis: { arena_vacancy_rate: formatPercent(arenaVacancyRate), busan_vacancy_rate: formatPercent(busanVacancyRate) },
     validate: (answer) => assertIncludes(answer, 'vacancy comparison', '아레나스', '양지', '부산', '송정', formatPercent(arenaVacancyRate), formatPercent(busanVacancyRate)),
+  });
+
+  await runCase({
+    id: 'asset_comparison_gross_area_arena_yangji_vs_anseong',
+    category: '복수 자산 비교 질문',
+    question: '아레나스양지물류센터와 아레나스안성 중 어떤 게 연면적이 더 커?',
+    basis: {
+      arena_yangji_gross_area: formatPy(arenaGrossPy),
+      arena_anseong_gross_area: formatPy(arenaAnseongGrossPy),
+      expected_winner: arenaGrossPy >= arenaAnseongGrossPy ? arenaYangji.asset_name : arenaAnseong.asset_name,
+    },
+    validate: (answer) => {
+      assertIncludes(answer, 'gross area comparison names', '아레나스', '양지', '안성', formatPy(arenaGrossPy), formatPy(arenaAnseongGrossPy));
+      const expectedWinner = arenaGrossPy >= arenaAnseongGrossPy ? '양지' : '안성';
+      const unexpectedWinner = expectedWinner === '양지' ? '안성' : '양지';
+      if (!new RegExp(expectedWinner, 'u').test(answer)) throw new Error(`gross area comparison missing winner ${expectedWinner}: ${answer}`);
+      if (new RegExp(`${unexpectedWinner}.{0,24}(더\\s*크|큼|큽|큰\\s*것|제일|가장|최대)`, 'u').test(answer)) {
+        throw new Error(`gross area comparison has wrong direction: ${answer}`);
+      }
+    },
+  });
+
+  await runCase({
+    id: 'asset_comparison_gross_area_correction_followup',
+    category: '이전 대화 맥락 follow-up',
+    question: '근데 어떻게 아레나스안성이 연면적이 더 크다고 하는 거야? 재검산해봐',
+    history: [
+      { role: 'user', content: '아레나스양지물류센터와 아레나스안성 중 어떤 게 연면적이 더 커?' },
+      { role: 'assistant', content: '아레나스안성이 더 큽니다.' },
+    ],
+    basis: {
+      arena_yangji_gross_area: formatPy(arenaGrossPy),
+      arena_anseong_gross_area: formatPy(arenaAnseongGrossPy),
+      expected_winner: arenaGrossPy >= arenaAnseongGrossPy ? arenaYangji.asset_name : arenaAnseong.asset_name,
+    },
+    validate: (answer) => {
+      assertIncludes(answer, 'gross area correction names', '아레나스', '양지', '안성', formatPy(arenaGrossPy), formatPy(arenaAnseongGrossPy));
+      if (arenaGrossPy >= arenaAnseongGrossPy && /안성.{0,24}(더\s*크|큼|큽|큰\s*것|제일|가장|최대)/u.test(answer)) {
+        throw new Error(`gross area correction still wrong: ${answer}`);
+      }
+    },
   });
 
   await runCase({

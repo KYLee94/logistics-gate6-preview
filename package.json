@@ -20,6 +20,7 @@
     "qa:ai-chatbot": "node scripts/qa/logistics-ai-chatbot-qa.cjs",
     "qa:ai-chatbot:100": "node scripts/qa/logistics-ai-chatbot-qa-100.cjs",
     "qa:ai-chatbot:risk": "node scripts/qa/logistics-ai-chatbot-risk-qa.cjs",
+    "qa:ai-chatbot:model-sample": "node scripts/qa/logistics-ai-chatbot-model-sample.cjs",
     "qa:ai-chatbot:browser": "node scripts/qa/logistics-ai-chatbot-browser-smoke.cjs",
     "qa:data-update:browser": "node scripts/qa/logistics-data-update-browser-smoke.cjs",
     "qa:dart-chart:browser": "node scripts/qa/logistics-dart-chart-browser-smoke.cjs",

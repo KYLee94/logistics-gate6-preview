@@ -1,0 +1,27 @@
+{
+  "generated_at": "2026-06-02T05:45:47.796Z",
+  "model": "gemini-3.1-flash-lite",
+  "sample_rate": 0.1,
+  "seed": 20260602,
+  "basis_date": "2026-06-30",
+  "auth_source": "password_grant",
+  "diagnostics": {
+    "ok": false,
+    "edge_reached": true,
+    "origin": "https://kylee94.github.io",
+    "origin_allowed": true,
+    "demo_origin_allowed": false,
+    "model": "gemini-3.1-flash-lite",
+    "requested_model": "gemini-3.1-flash-lite",
+    "requested_model_allowed": true,
+    "key_configured": true,
+    "key_length": 39,
+    "key_hash": "59eff6b58ab2",
+    "gemini_ok": false,
+    "provider_status": 429,
+    "provider_message": "Your project has exceeded its monthly spending cap. Please go to AI Studio at https://ai.studio/spend to manage your project spend cap. Learn more at https://ai.google.dev/gemini-api/docs/billing#project-spend-caps. "
+  },
+  "status": "model_unavailable",
+  "checks": [],
+  "failures": []
+}

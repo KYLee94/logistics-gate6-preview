@@ -4772,6 +4772,45 @@ function currentAiMentionToken(value) {
   };
 }
 
+function reconcileAiMentionSelections(text, selections) {
+  const source = String(text || '');
+  const usedRanges = [];
+  return (selections || [])
+    .map((selection) => {
+      const label = String(selection.label || '');
+      if (!label) return null;
+      let start = Number(selection.start);
+      let end = Number(selection.end);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || source.slice(start, end) !== label) {
+        start = source.indexOf(label);
+        end = start + label.length;
+      }
+      if (start < 0 || source.slice(start, end) !== label) return null;
+      const overlaps = usedRanges.some((range) => start < range.end && end > range.start);
+      if (overlaps) return null;
+      usedRanges.push({ start, end });
+      return { ...selection, start, end };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start);
+}
+
+function aiMentionHighlightSegments(text, selections) {
+  const source = String(text || '');
+  const resolved = reconcileAiMentionSelections(source, selections);
+  const segments = [];
+  let cursor = 0;
+  resolved.forEach((selection) => {
+    if (selection.start > cursor) {
+      segments.push({ key: `plain-${cursor}`, text: source.slice(cursor, selection.start), highlighted: false });
+    }
+    segments.push({ key: selection.id || `${selection.type}-${selection.start}`, text: source.slice(selection.start, selection.end), highlighted: true });
+    cursor = selection.end;
+  });
+  if (cursor < source.length) segments.push({ key: `plain-${cursor}`, text: source.slice(cursor), highlighted: false });
+  return segments.length ? segments : [{ key: 'plain-empty', text: source, highlighted: false }];
+}
+
 export default function WorkspaceLogistics({ currentPath = '' }) {
   const { user, memberInfo } = useAuth();
   const [showAllTasks, setShowAllTasks] = useState(false);
@@ -4816,10 +4855,13 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const canRegisterTask = Boolean(permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.update);
   const canUseAiChat = featureAccess.aiChat;
   const aiInputRef = useRef(null);
+  const aiInputOverlayRef = useRef(null);
   const [aiMentionActiveIndex, setAiMentionActiveIndex] = useState(0);
   const [aiMentionDismissedToken, setAiMentionDismissedToken] = useState('');
+  const [aiMentionSelections, setAiMentionSelections] = useState([]);
   const aiMentionOptions = useMemo(() => buildLogisticsAiMentionOptions(permission), [permission]);
   const aiMentionToken = useMemo(() => currentAiMentionToken(aiChatInput), [aiChatInput]);
+  const aiMentionSegments = useMemo(() => aiMentionHighlightSegments(aiChatInput, aiMentionSelections), [aiChatInput, aiMentionSelections]);
   const aiMentionSuggestions = useMemo(() => {
     if (!aiMentionToken) return [];
     if (aiMentionDismissedToken === aiMentionToken.normalized) return [];
@@ -4835,8 +4877,23 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
 
   const insertAiMentionOption = (option) => {
     if (!option || !aiMentionToken) return;
-    const nextText = `${aiChatInput.slice(0, aiMentionToken.start)}${option.insertText} ${aiChatInput.slice(aiMentionToken.end)}`;
-    setAiChatInput(nextText.replace(/\s{2,}/gu, ' '));
+    const label = String(option.insertText || option.label || '').trim();
+    const prefix = aiChatInput.slice(0, aiMentionToken.start);
+    const suffix = aiChatInput.slice(aiMentionToken.end);
+    const nextText = `${prefix}${label}${suffix.startsWith(' ') ? '' : ' '}${suffix}`.replace(/\s{2,}/gu, ' ');
+    const start = prefix.length;
+    const end = start + label.length;
+    setAiChatInput(nextText);
+    setAiMentionSelections((items) => reconcileAiMentionSelections(nextText, [
+      ...items,
+      {
+        id: `${option.type}-${label}-${Date.now()}`,
+        type: option.type,
+        label,
+        start,
+        end,
+      },
+    ]));
     window.requestAnimationFrame(() => {
       aiInputRef.current?.focus();
     });
@@ -5245,6 +5302,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     };
     setAiChatMessages((messages) => [...messages, userMessage]);
     setAiChatInput('');
+    setAiMentionSelections([]);
     setAiChatLoading(true);
     const history = aiChatMessages
       .filter((message) => ['user', 'assistant'].includes(message.role) && message.content)
@@ -5785,40 +5843,64 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             </div>
           ) : null}
           <div className="flex items-end gap-2">
-            <textarea
-              ref={aiInputRef}
-              data-testid="logistics-ai-input"
-              value={aiChatInput}
-              onChange={(event) => setAiChatInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (aiMentionSuggestions.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
-                  event.preventDefault();
-                  setAiMentionActiveIndex((index) => {
-                    const delta = event.key === 'ArrowDown' ? 1 : -1;
-                    return (index + delta + aiMentionSuggestions.length) % aiMentionSuggestions.length;
-                  });
-                  return;
-                }
-                if (aiMentionSuggestions.length && (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey))) {
-                  event.preventDefault();
-                  insertAiMentionOption(aiMentionSuggestions[aiMentionActiveIndex] || aiMentionSuggestions[0]);
-                  return;
-                }
-                if (event.key === 'Escape' && aiMentionSuggestions.length) {
-                  event.preventDefault();
-                  setAiMentionActiveIndex(0);
-                  setAiMentionDismissedToken(aiMentionToken?.normalized || '');
-                  return;
-                }
-                if (event.key === 'Enter' && !event.shiftKey) {
-                  event.preventDefault();
-                  submitAiChatQuestion();
-                }
-              }}
-              rows={2}
-              placeholder="물류센터 데이터에 대해 질문하세요"
-              className="max-h-[120px] min-h-[46px] flex-1 resize-none rounded-[14px] border border-[#3A3A3C] bg-[#111] px-3 py-3 text-[13px] font-semibold leading-5 text-white outline-none placeholder:text-[#6E6E73] focus:border-[#8E8E93]"
-            />
+            <div className="relative flex-1">
+              <div
+                ref={aiInputOverlayRef}
+                data-testid="logistics-ai-input-highlight"
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 max-h-[120px] min-h-[46px] overflow-hidden whitespace-pre-wrap break-words rounded-[14px] px-3 py-3 text-[13px] font-semibold leading-5 text-white"
+              >
+                {aiChatInput ? aiMentionSegments.map((segment) => (
+                  <span
+                    key={segment.key}
+                    className={segment.highlighted ? 'text-[#60A5FA]' : 'text-white'}
+                  >
+                    {segment.text}
+                  </span>
+                )) : null}
+              </div>
+              <textarea
+                ref={aiInputRef}
+                data-testid="logistics-ai-input"
+                value={aiChatInput}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setAiChatInput(nextValue);
+                  setAiMentionSelections((items) => reconcileAiMentionSelections(nextValue, items));
+                }}
+                onScroll={(event) => {
+                  if (aiInputOverlayRef.current) aiInputOverlayRef.current.scrollTop = event.currentTarget.scrollTop;
+                }}
+                onKeyDown={(event) => {
+                  if (aiMentionSuggestions.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                    event.preventDefault();
+                    setAiMentionActiveIndex((index) => {
+                      const delta = event.key === 'ArrowDown' ? 1 : -1;
+                      return (index + delta + aiMentionSuggestions.length) % aiMentionSuggestions.length;
+                    });
+                    return;
+                  }
+                  if (aiMentionSuggestions.length && (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey))) {
+                    event.preventDefault();
+                    insertAiMentionOption(aiMentionSuggestions[aiMentionActiveIndex] || aiMentionSuggestions[0]);
+                    return;
+                  }
+                  if (event.key === 'Escape' && aiMentionSuggestions.length) {
+                    event.preventDefault();
+                    setAiMentionActiveIndex(0);
+                    setAiMentionDismissedToken(aiMentionToken?.normalized || '');
+                    return;
+                  }
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    submitAiChatQuestion();
+                  }
+                }}
+                rows={2}
+                placeholder="물류센터 데이터에 대해 질문하세요"
+                className="relative max-h-[120px] min-h-[46px] w-full resize-none rounded-[14px] border border-[#3A3A3C] bg-[#111]/70 px-3 py-3 text-[13px] font-semibold leading-5 text-transparent caret-white outline-none placeholder:text-[#6E6E73] focus:border-[#8E8E93]"
+              />
+            </div>
             <button
               type="submit"
               data-testid="logistics-ai-submit"
