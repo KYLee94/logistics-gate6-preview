@@ -2857,8 +2857,8 @@
           "delete": true
         }
       },
-      "role": "System Admin",
-      "logisticsRole": "System Admin"
+      "role": "Reader",
+      "logisticsRole": "Reader"
     },
     {
       "name": "오채은",

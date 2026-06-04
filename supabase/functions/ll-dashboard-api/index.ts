@@ -10937,17 +10937,19 @@ function publicLoginCapabilityRow(permission: Record<string, unknown>, authUsers
   }) as Record<string, unknown>;
 }
 
-function publicLoginHistoryRow(row: Record<string, unknown>) {
+function publicLoginHistoryRow(row: Record<string, unknown>, permissionByEmail?: Map<string, Record<string, unknown>>) {
   const eventPayload = (row.event_payload && typeof row.event_payload === 'object') ? row.event_payload as Record<string, unknown> : {};
   const requestPayload = (row.request_payload && typeof row.request_payload === 'object') ? row.request_payload as Record<string, unknown> : {};
   const email = normalizeAuthEmail(eventPayload.email || requestPayload.email || eventPayload.auth_email || requestPayload.auth_email);
+  const authEmail = normalizeAuthEmail(eventPayload.auth_email || requestPayload.auth_email || email);
+  const permission = permissionByEmail?.get(email) || permissionByEmail?.get(authEmail) || null;
   return stripUndefined({
     logged_at: row.created_at,
     email,
-    auth_email: normalizeAuthEmail(eventPayload.auth_email || requestPayload.auth_email || email),
-    organization: eventPayload.organization || requestPayload.organization || '-',
-    staff_name: eventPayload.staff_name || requestPayload.staff_name || staffNameForEmail(email),
-    logistics_role: eventPayload.logistics_role || requestPayload.logistics_role || null,
+    auth_email: authEmail,
+    organization: permission?.organization || eventPayload.organization || requestPayload.organization || '-',
+    staff_name: permission?.staff_name || eventPayload.staff_name || requestPayload.staff_name || staffNameForEmail(email),
+    logistics_role: permission?.logistics_role || eventPayload.logistics_role || requestPayload.logistics_role || null,
     status: row.event_status || ((Number(row.status_code) >= 200 && Number(row.status_code) < 400) ? 'success' : 'failed'),
     source_label: eventPayload.source === 'web_app' ? '웹 로그인' : '로그인',
   }) as Record<string, unknown>;
@@ -11184,13 +11186,19 @@ async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, u
     authReadError = safeProviderError(error);
   }
 
+  const permissionByEmail = new Map<string, Record<string, unknown>>();
+  ((permissionRows || []) as Record<string, unknown>[]).forEach((row) => {
+    const email = canonicalPermissionEmail(row);
+    if (email && isActivePermission(row)) permissionByEmail.set(email, row);
+  });
+
   const rows = ((rawRows || []) as Record<string, unknown>[])
     .filter((row) => !isTestLoginPayload({
       ...(row.event_payload as Record<string, unknown> || {}),
       ...(row.request_payload as Record<string, unknown> || {}),
     }))
     .slice(0, limit)
-    .map(publicLoginHistoryRow);
+    .map((row) => publicLoginHistoryRow(row, permissionByEmail));
   const users = loginCapabilityRows((permissionRows || []) as Record<string, unknown>[], authUsers);
 
   await audit(ctx.serviceClient, ctx.user.id, 'auth/login-history/list', 200, {

@@ -10,7 +10,6 @@ const ADMIN_EMAILS = new Set([
   'kylee@igisam.com',
   'sjlee@igisam.com',
   'jk.jeon@igisam.com',
-  'hayun.jeong@igisam.com',
 ]);
 
 const FEATURE_KEYS = [

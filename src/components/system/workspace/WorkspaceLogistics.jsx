@@ -5556,7 +5556,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             ) : null}
 
             {isLoadingTasks ? (
-              <div className="py-[40px] text-center text-[#86868B]">데이터를 불러오는 중입니다...</div>
+              <div className="py-[40px] text-center text-[13px] text-[#86868B]">데이터를 불러오는 중입니다.</div>
             ) : (
               <div className="flex flex-col gap-[8px]">
                 <AnimatePresence>
@@ -5701,7 +5701,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                   ))}
                 </AnimatePresence>
                 {!visibleTasks.length ? (
-                  <div className="rounded-[18px] border border-[#333333] bg-[#1F1F1E] px-5 py-6 text-[13px] text-[#86868B]">현재 권한 범위에 표시할 Task가 없습니다.</div>
+                  <div className="rounded-[18px] border border-[#333333] bg-[#1F1F1E] px-5 py-6 text-[13px] text-[#86868B]">등록된 게시물이 없습니다.</div>
                 ) : null}
               </div>
             )}

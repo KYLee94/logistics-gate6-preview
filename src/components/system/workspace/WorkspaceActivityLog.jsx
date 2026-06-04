@@ -905,8 +905,8 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                     </div>
                 ))}
                 {displayedLogs.length === 0 && (
-                    <div className="py-[60px] text-center text-[14px] text-[#86868B]">
-                        {isLoading ? '데이터를 불러오는 중입니다...' : '등록된 업무가 없습니다.'}
+                    <div className="py-[60px] text-center text-[13px] text-[#86868B]">
+                        {isLoading ? '데이터를 불러오는 중입니다.' : '등록된 게시물이 없습니다.'}
                     </div>
                 )}
 
