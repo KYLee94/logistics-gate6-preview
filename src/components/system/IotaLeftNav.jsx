@@ -120,7 +120,8 @@ const workspaceItems = [
     }
 ];
 
-const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용', '\uC815\uD558\uC724']);
+const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용']);
+const LOGISTICS_ADMIN_EMAILS = new Set(['sjlee@igisam.com', 'jk.jeon@igisam.com', 'kylee@igisam.com']);
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_ACCESS_USERS_CACHE_KEY = 'logisticsFeatureAccessUsers:v1';
 const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v1';
@@ -138,7 +139,6 @@ const FEATURE_ACCESS_DEFAULT_USERS = [
     { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
     { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
     { staff_name: '이시정', organization: '기획추진센터', email: 'sjlee@igisam.com' },
-    { staff_name: '\uC815\uD558\uC724', organization: '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81', email: 'hayun.jeong@igisam.com', image_url: HAYUN_PROFILE_IMAGE_URL },
 ];
 const FEATURE_ACCESS_FALLBACK_USERS = [
     { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
@@ -604,10 +604,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const isLogisticsPath = normalizedCurrentPath.startsWith(LOGISTICS_INTERNAL_BASE);
     const memberFeaturePermissions = memberInfo?.feature_permissions || memberInfo?.featurePermissions || memberInfo?.logistics_permission?.feature_permissions || {};
     const memberRole = memberInfo?.logistics_role || memberInfo?.logisticsRole || memberInfo?.role || memberInfo?.logistics_permission?.logistics_role;
+    const memberEmail = String(memberInfo?.email || memberInfo?.logistics_permission?.email || user?.email || '').trim().toLowerCase();
+    const memberName = memberInfo?.staff_name || memberInfo?.name;
+    const canUseAccessAdminTools = LOGISTICS_ADMIN_EMAILS.has(memberEmail) || LOGISTICS_ADMIN_NAMES.has(memberName);
     const isLogisticsAdmin = memberRole === 'System Admin'
-        || memberFeaturePermissions.login_history === true
-        || memberFeaturePermissions.data_quality === true
-        || LOGISTICS_ADMIN_NAMES.has(memberInfo?.staff_name || memberInfo?.name);
+        || canUseAccessAdminTools;
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
     const recentLoginHistoryRows = loginHistoryRows.slice(0, 5);
     const loginCapabilityUsers = Array.isArray(loginHistoryData?.users) ? loginHistoryData.users : [];
@@ -979,7 +980,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 </div>
 
                 <div className={`relative border-t border-[#2C2C2E] ${isCollapsed ? 'flex flex-col items-center gap-2 px-0 py-2' : 'p-3'}`}>
-                    {isLogisticsAdmin ? (
+                    {canUseAccessAdminTools ? (
                         <div className={isCollapsed ? 'flex w-full flex-col items-center gap-2' : 'mb-2 space-y-2'}>
                             <button
                                 type="button"

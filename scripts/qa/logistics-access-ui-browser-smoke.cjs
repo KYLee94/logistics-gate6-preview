@@ -111,6 +111,7 @@ async function main() {
   const modalScreenshot = path.join(OUT_DIR, `access-ui-feature-modal-${stamp}.png`);
   const chatScreenshot = path.join(OUT_DIR, `access-ui-chat-input-${stamp}.png`);
   const targetUrl = joinUrl(argsValue('base-url', DEFAULT_BASE_URL), argsValue('route', DEFAULT_ROUTE));
+  const mode = argsValue('mode', 'admin');
   const auth = await signInSession();
   const uiEmail = argsValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com');
   const browserSession = {
@@ -126,6 +127,7 @@ async function main() {
     url: targetUrl,
     auth_source: auth.source,
     ui_email: uiEmail,
+    mode,
     checks: {},
     screenshots: {
       sidebar: path.relative(ROOT, sidebarScreenshot).replace(/\\/gu, '/'),
@@ -147,6 +149,42 @@ async function main() {
       localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
     }, { email: uiEmail, session: browserSession });
     page = await context.newPage();
+    if (mode === 'non-admin') {
+      await page.route(/\/functions\/v1\/ll-dashboard-api/u, async (route) => {
+        const request = route.request();
+        const body = JSON.parse(request.postData() || '{}');
+        if (body.action === 'auth/me') {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ok: true,
+              data: {
+                email: uiEmail,
+                staff_name: '정하윤',
+                name: '정하윤',
+                organization: '자산관리1파트1',
+                department: '자산관리1파트1',
+                logistics_role: 'System Admin',
+                image_url: 'hayun-jeong.jpg',
+                avatar_url: 'hayun-jeong.jpg',
+                feature_permissions: {
+                  ai_chat: true,
+                  data_quality: true,
+                  analysis_tools: true,
+                  data_playground: true,
+                  login_history: true,
+                  building_register_refresh: true,
+                  opendart_refresh: true,
+                },
+              },
+            }),
+          });
+          return;
+        }
+        await route.continue();
+      });
+    }
     page.on('pageerror', (error) => report.errors.push(error.message));
     page.on('console', (message) => {
       const text = message.text();
@@ -173,6 +211,19 @@ async function main() {
     const loginButton = page.getByTestId('logistics-login-history-button');
     const notificationButton = page.getByTestId('logistics-notification-button');
     const profileButton = page.getByTestId('logistics-profile-button');
+    if (mode === 'non-admin') {
+      await notificationButton.waitFor({ state: 'visible', timeout: 25000 });
+      await profileButton.waitFor({ state: 'visible', timeout: 25000 });
+      await page.waitForTimeout(1000);
+      report.checks.feature_access_button_hidden_for_non_admin = await featureButton.count() === 0
+        || !(await featureButton.first().isVisible().catch(() => false));
+      report.checks.login_history_button_hidden_for_non_admin = await loginButton.count() === 0
+        || !(await loginButton.first().isVisible().catch(() => false));
+      report.checks.notification_button_visible_for_non_admin = await notificationButton.isVisible();
+      report.checks.profile_button_visible_for_non_admin = await profileButton.isVisible();
+      await page.screenshot({ path: sidebarScreenshot, clip: { x: 0, y: 780, width: 90, height: 220 } });
+      report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
+    } else {
     await featureButton.waitFor({ state: 'visible', timeout: 25000 });
     await loginButton.waitFor({ state: 'visible', timeout: 25000 });
     await notificationButton.waitFor({ state: 'visible', timeout: 25000 });
@@ -224,22 +275,15 @@ async function main() {
     report.metrics.hayun_image = hayunImageState;
     report.checks.hayun_photo_loaded = hayunImageLoaded && hayunImageState.src.includes('hayun-jeong.jpg');
     report.checks.hayun_photo_has_pixels = hayunImageState.naturalWidth > 0 && hayunImageState.naturalHeight > 0;
-    report.checks.hayun_locked_default = await hayunRow.getAttribute('data-locked') === 'true';
 
     const saveButton = page.getByTestId('logistics-feature-access-save');
     await saveButton.waitFor({ state: 'visible', timeout: 10000 });
     await page.waitForFunction((button) => button && button.getAttribute('data-loading') === 'false', await saveButton.elementHandle(), { timeout: 25000 });
-    const editableRows = modal.locator('[data-testid="logistics-feature-access-user"][data-locked="false"][data-user-email]:not([data-user-email=""])');
-    let editableRow = null;
-    const editableCount = await editableRows.count();
-    for (let index = 0; index < editableCount; index += 1) {
-      const candidate = editableRows.nth(index);
-      if (await candidate.isVisible().catch(() => false) && !(await candidate.isDisabled().catch(() => true))) {
-        editableRow = candidate;
-        break;
-      }
-    }
-    if (!editableRow) throw new Error('No visible editable feature permission row found.');
+    report.checks.hayun_is_editable = await hayunRow.getAttribute('data-locked') === 'false'
+      && !(await hayunRow.isDisabled().catch(() => true));
+
+    const editableRow = hayunRow;
+    if (!report.checks.hayun_is_editable) throw new Error('Hayun row is not editable.');
     await editableRow.waitFor({ state: 'visible', timeout: 20000 });
     const editableEmail = await editableRow.getAttribute('data-user-email');
     const editableFeatureKey = await editableRow.getAttribute('data-feature-key');
@@ -318,6 +362,7 @@ async function main() {
     }
 
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
+    }
   } catch (error) {
     report.errors.push(error?.message || String(error));
     if (page) {

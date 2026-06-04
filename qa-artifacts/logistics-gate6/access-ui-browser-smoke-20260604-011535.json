@@ -1,0 +1,58 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-04T01:15:36.745Z",
+  "url": "http://127.0.0.1:8081/?p=/platform/iotaseoul/workspace/logistics/dashboard/home",
+  "auth_source": "password_grant",
+  "ui_email": "kylee@igisam.com",
+  "mode": "admin",
+  "checks": {
+    "sidebar_center_aligned": true,
+    "sidebar_vertical_gap_aligned": true,
+    "hayun_photo_loaded": true,
+    "hayun_photo_has_pixels": true,
+    "hayun_is_editable": true,
+    "permission_toggle_changes_draft": true,
+    "permission_save_enabled_after_change": true,
+    "permission_save_persists_after_refresh": true,
+    "permission_restore_persists_after_refresh": true,
+    "chat_dock_absence_does_not_block_access_ui": true
+  },
+  "screenshots": {
+    "sidebar": "qa-artifacts/logistics-gate6/access-ui-sidebar-20260604-011535.png",
+    "feature_modal": "qa-artifacts/logistics-gate6/access-ui-feature-modal-20260604-011535.png"
+  },
+  "metrics": {
+    "sidebar_centers": [
+      35.5,
+      35.5,
+      35.5,
+      35.5,
+      35.5
+    ],
+    "sidebar_gaps": [
+      8,
+      8,
+      8
+    ],
+    "hayun_image": {
+      "src": "http://127.0.0.1:8081/hayun-jeong.jpg",
+      "naturalWidth": 413,
+      "naturalHeight": 531
+    },
+    "editable_row": {
+      "feature_key": "ai_chat",
+      "email": "hayun.jeong@igisam.com",
+      "before_pressed": "true",
+      "disabled": false,
+      "text": "정하윤 자산관리1파트1 · System Admin"
+    }
+  },
+  "errors": [],
+  "warnings": [
+    "console error: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "console info: %c NAVER Maps JavaScript API v3 %c\n\n잠시 후에 다시 요청해 주세요.,  * Error Code / Error Message: 500 / Internal Server Error (내부 서버 오류),  * Client ID: xmxdr3l9ij,  * URI: http://127.0.0.1:8081/home background:#f00;color:#fff;display:block; font-family:helvetica,dotum;font-size:14px;background: #fff; color: #334231; display: inline;",
+    "AI chat dock button was not rendered in this access UI auth context; chatbot quality is covered by qa:ai-chatbot."
+  ],
+  "final_url": "http://127.0.0.1:8081/home",
+  "root_child_count": 2
+}

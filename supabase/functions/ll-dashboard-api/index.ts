@@ -249,7 +249,7 @@ const FREE_TIER_GOOGLE_AI_MODELS = new Set([
   'gemini-2.5-flash-lite',
 ]);
 const SENSITIVE_KEY_PATTERN = /(authorization|password|secret|service[_-]?role|token|api[_-]?key|apikey|crtfc[_-]?key|client[_-]?secret|serviceKey|x-ncp)/iu;
-const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용', '\uC815\uD558\uC724']);
+const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
 const DEFAULT_FEATURE_ACCESS_EMAIL_BY_NAME: Record<string, string> = {
   '이관용': 'kylee@igisam.com',
   '이시정': 'sjlee@igisam.com',
@@ -271,7 +271,6 @@ const LOGISTICS_ADMIN_EMAILS = new Set([
   'kylee@igisam.com',
   'sjlee@igisam.com',
   'jk.jeon@igisam.com',
-  'hayun.jeong@igisam.com',
 ]);
 
 function allLogisticsFeaturePermissions(enabled = true) {
@@ -573,13 +572,21 @@ function isActivePermission(permission: Record<string, unknown> | null) {
   return Boolean(permission && !['inactive', 'disabled', 'blocked', 'deleted', 'archived'].includes(permissionAccountStatus(permission)));
 }
 
+function isDefaultFeatureAccessPermission(permission: Record<string, unknown> | null) {
+  const email = String(permission?.email || '').trim().toLowerCase();
+  const name = String(permission?.staff_name || permission?.name || permission?.display_name || '').trim();
+  const mappedName = staffNameForEmail(email);
+  return LOGISTICS_ADMIN_EMAILS.has(email)
+    || DATA_QUALITY_ALLOWED_NAMES.has(name)
+    || DATA_QUALITY_ALLOWED_NAMES.has(mappedName);
+}
+
 function userFeaturePermissions(permission: Record<string, unknown> | null) {
   const explicit = permission?.feature_permissions;
   const base = explicit && typeof explicit === 'object' && !Array.isArray(explicit)
     ? { ...(explicit as Record<string, unknown>) }
     : {};
-  const email = String(permission?.email || '').trim().toLowerCase();
-  if (String(permission?.logistics_role || '') === 'System Admin' || LOGISTICS_ADMIN_EMAILS.has(email)) {
+  if (isDefaultFeatureAccessPermission(permission)) {
     return { ...base, ...allLogisticsFeaturePermissions(true) };
   }
   return base;
@@ -707,6 +714,15 @@ function canUseDataQuality(ctx: Context) {
     || allowedDataQualityEmails().includes(email);
 }
 
+function canManageFeatureAccess(ctx: Context) {
+  const email = String(ctx.permission?.email || '').trim().toLowerCase();
+  const name = String(ctx.permission?.staff_name || ctx.permission?.name || ctx.permission?.display_name || '').trim();
+  const mappedName = staffNameForEmail(email);
+  return LOGISTICS_ADMIN_EMAILS.has(email)
+    || DATA_QUALITY_ALLOWED_NAMES.has(name)
+    || DATA_QUALITY_ALLOWED_NAMES.has(mappedName);
+}
+
 function compactFeatureAccessUser(row: Record<string, unknown>) {
   const staffName = safeText(firstDefined(row.staff_name, row.name));
   const email = String(row.email || DEFAULT_FEATURE_ACCESS_EMAIL_BY_NAME[staffName] || '').trim().toLowerCase();
@@ -799,7 +815,7 @@ async function readFeatureAccessConfig(ctx: Context) {
 }
 
 async function canUseServerFeature(ctx: Context, featureKey: string) {
-  if (canUseDataQuality(ctx)) return true;
+  if (canManageFeatureAccess(ctx)) return true;
   if (!LOGISTICS_FEATURE_KEYS.has(featureKey)) return false;
   if (hasUserFeaturePermission(ctx.permission, featureKey)) return true;
   const config = await readFeatureAccessConfig(ctx);
@@ -816,7 +832,7 @@ async function callFeatureAccessGet(ctx: Context) {
 }
 
 async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unknown>) {
-  if (!canUseDataQuality(ctx)) return fail(403, 'Feature access management is limited to Planning Center users', ctx.origin);
+  if (!canManageFeatureAccess(ctx)) return fail(403, 'Feature access management is limited to Planning Center users', ctx.origin);
   const config = normalizeFeatureAccessConfig(payload.config || payload);
   const { data: permissionRows, error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
@@ -840,7 +856,7 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
     }));
     const nextFeatures = { ...(row.feature_permissions as Record<string, unknown> || {}) };
     LOGISTICS_FEATURE_KEYS.forEach((key) => {
-      nextFeatures[key] = String(row.logistics_role || '') === 'System Admin'
+      nextFeatures[key] = isDefaultFeatureAccessPermission(row)
         || userKeys.some((item) => desiredByFeature.get(key)?.has(item));
     });
     const { error: updateError } = await ctx.serviceClient
@@ -11061,7 +11077,7 @@ async function callAuthUsersList(ctx: Context) {
 }
 
 async function callAuthUserPermissionsUpdate(ctx: Context, payload: Record<string, unknown>) {
-  if (!canUseDataQuality(ctx)) return fail(403, 'User permission updates are limited to Planning Center users', ctx.origin);
+  if (!canManageFeatureAccess(ctx)) return fail(403, 'User permission updates are limited to Planning Center users', ctx.origin);
   const email = normalizeAuthEmail(payload.email);
   if (!email || !email.endsWith('@igisam.com')) return fail(400, 'Valid company email is required', ctx.origin);
   const next: Record<string, unknown> = stripUndefined({
