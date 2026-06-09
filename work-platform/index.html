@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+
+<head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/logistics-gate6-preview/favicon.png" />
+    <link rel="apple-touch-icon" href="/logistics-gate6-preview/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IGIS Logistics Work Platform</title>
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, nocache" />
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+    <meta name="googlebot-news" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+    <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+
+    <!-- Preload critical top-of-page assets for fast sequential rendering -->
+    <link rel="preload" href="/logistics-gate6-preview/assets/logo_white-BmKhrYM7.png" as="image" />
+    <link rel="preload" href="/logistics-gate6-preview/assets/foster_partners-BTPj8RJt.jpg" as="image" />
+    <link rel="preload" href="/logistics-gate6-preview/assets/iota_full-Dtt_ddfJ.jpg" as="image" />
+    <link rel="preload" href="/logistics-gate6-preview/assets/iota_full_3-B0LWY6Jf.jpg" as="image" />
+
+    <!-- Local font only: avoid external font requests from this private work platform. -->
+    <link rel="stylesheet" as="style" href="/logistics-gate6-preview/fonts/Pretendard/pretendard.css" />
+
+    <script>
+        if (navigator.userAgent.indexOf('Win') !== -1) {
+            document.documentElement.classList.add('is-windows');
+        }
+        
+        // FOUC (Flash of Unstyled Content) Prevention for Dark Mode
+        try {
+            const theme = localStorage.getItem('theme');
+            if (theme === 'dark' || !theme) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        } catch (_) {}
+
+        // GitHub Pages SPA redirect restoration
+        // Restores path from ?p= query param set by 404.html
+        (function() {
+            var search = location.search;
+            if (search && search.indexOf('?p=') === 0) {
+                var decoded = search.slice(3).replace(/~and~/g, '&');
+                var qIdx = decoded.indexOf('&q=');
+                var path = qIdx >= 0 ? decoded.slice(0, qIdx) : decoded;
+                var query = qIdx >= 0 ? '?' + decoded.slice(qIdx + 3) : '';
+                // Remove trailing slash from pathname to avoid double-slash
+                var base = location.pathname.split('?')[0].replace(/\/$/, '');
+                history.replaceState(null, null, base + path + query + location.hash);
+            }
+        })();
+    </script>
+  <script type="module" crossorigin src="/logistics-gate6-preview/assets/index-CrqQYIrc.js"></script>
+  <link rel="stylesheet" crossorigin href="/logistics-gate6-preview/assets/index-BPDlo9GP.css">
+</head>
+
+<body>
+    <div id="root"></div>
+</body>
+
+</html>
