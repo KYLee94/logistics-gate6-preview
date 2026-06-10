@@ -1,0 +1,224 @@
+{
+  "schemaVersion": "asset_payload_v1",
+  "payloadSource": "260520_물류센터 펀드 정보 / 260513_담당자별 권한 부여",
+  "dataSourceMode": "fund_only_no_current_lease",
+  "generatedAt": "2026-06-10T07:03:41.847Z",
+  "basisDisplay": {
+    "asOf": "2026-06-10",
+    "source": "260520_물류센터 펀드 정보.xlsx",
+    "generatedAt": "2026-06-10T07:03:41.847Z"
+  },
+  "meta": {
+    "page": "asset",
+    "selection": {
+      "assetId": "asset_a190002001",
+      "assetCode": "A190002001",
+      "assetName": "분당야탑물류센터",
+      "sigunguCd": "41135",
+      "bjdongCd": "10700",
+      "platGbCd": "0",
+      "bun": "0403",
+      "ji": "0000"
+    },
+    "basis": {
+      "rowScope": "fund_info_only",
+      "nullPolicy": "현재 임대차계약 데이터가 없어 임대면적·임대료·임차인 KPI는 비워 둡니다."
+    }
+  },
+  "filters": {
+    "selectedAssetId": "asset_a190002001"
+  },
+  "overview": {
+    "sector": "물류센터",
+    "assetId": "asset_a190002001",
+    "assetCode": "A190002001",
+    "assetName": "분당야탑물류센터",
+    "fundCode": "190002",
+    "fundName": "이지스부동산일반사모투자회사제543호",
+    "fundShortName": "543호",
+    "legalForm": "투자회사",
+    "fundType": "실물형",
+    "investmentStrategy": "Core+",
+    "standardizedAddress": "경기도 성남시 분당구 탄천로 257",
+    "jibunAddress": "경기도 성남시 분당구 야탑동 403",
+    "latitude": 37.4147613,
+    "longitude": 127.118779,
+    "grossFloorAreaSqm": 70405.93,
+    "landAreaSqm": 14192.1,
+    "approvalDate": "2023-10-23",
+    "floorCount": "5F / B3",
+    "firstConfiguredAt": "2024-05-24",
+    "fundMaturityDate": "2027-08-25",
+    "tenantCount": 0,
+    "uniqueTenantCount": 0,
+    "leaseSpaceCount": 0,
+    "rowCount": 0,
+    "leasedAreaSqm": 0,
+    "vacancyAreaSqm": null,
+    "monthlyRentTotal": null,
+    "monthlyMfTotal": null,
+    "monthlyCostTotal": null,
+    "averageENoc": null,
+    "manager": {
+      "managerName": "류지훈",
+      "teamName": "스페셜시츄에이션그룹1파트",
+      "email": "jh.ryu@igisam.com"
+    },
+    "buildingRegisterSummary": {
+      "bldNm": "분당야탑물류센터",
+      "mainPurpsCdNm": "창고시설",
+      "etcPurps": "창고시설(창고)",
+      "strctCdNm": "철골철근콘크리트구조",
+      "grndFlrCnt": 5,
+      "ugrndFlrCnt": 3,
+      "platArea": 14192.1,
+      "totArea": 70405.93,
+      "useAprDay": "20231023"
+    }
+  },
+  "kpis": [
+    {
+      "key": "gross_floor_area_total",
+      "label": "총 연면적",
+      "value": 70405.93,
+      "valueType": "area"
+    },
+    {
+      "key": "leased_area_total",
+      "label": "총 임대면적",
+      "value": 0,
+      "valueType": "area"
+    },
+    {
+      "key": "average_e_noc",
+      "label": "E. NOC",
+      "value": null,
+      "valueType": "won"
+    },
+    {
+      "key": "unique_tenant_count",
+      "label": "현재 임차인 수",
+      "value": 0,
+      "valueType": "count"
+    }
+  ],
+  "rows": [],
+  "normalizedRows": [],
+  "topTenants": [],
+  "stackingPlan": [],
+  "analytics": {
+    "rentVsMf": [],
+    "contractExpiry": [],
+    "monthlyCostByTenant": []
+  },
+  "areaBreakdown": {},
+  "fundOverview": {
+    "fundInfo": {
+      "assetCode": "A190002001",
+      "assetName": "분당야탑물류센터",
+      "fundCode": "190002",
+      "fundName": "이지스부동산일반사모투자회사제543호",
+      "fundShortName": "543호",
+      "legalForm": "투자회사",
+      "sector": "물류",
+      "fundType": "실물형",
+      "investmentStrategy": "Core+",
+      "firstConfiguredAt": "2024-05-24",
+      "maturityDate": "2027-08-25"
+    },
+    "beneficiaries": [
+      {
+        "assetCode": "A190002001",
+        "assetName": "분당야탑물류센터",
+        "fundCode": "190002",
+        "fundName": "이지스부동산일반사모투자회사제543호",
+        "tranche": "",
+        "beneficiaryName": "쿠팡",
+        "commitmentAmount": 99574318540
+      },
+      {
+        "assetCode": "A190002001",
+        "assetName": "분당야탑물류센터",
+        "fundCode": "190002",
+        "fundName": "이지스부동산일반사모투자회사제543호",
+        "tranche": "",
+        "beneficiaryName": "쿠팡로지스틱스",
+        "commitmentAmount": 500373460
+      }
+    ],
+    "loans": [
+      {
+        "assetCode": "A190002001",
+        "assetName": "분당야탑물류센터",
+        "fundCode": "190002",
+        "fundName": "이지스부동산일반사모투자회사제543호",
+        "loanType": "담보",
+        "tranche": "Tr. A",
+        "lenderName": "농협은행",
+        "loanAmount": 24400000000,
+        "drawdownDate": "2024-08-02",
+        "maturityDate": "2027-08-02",
+        "interestType": "고정금리",
+        "baseRate": "",
+        "spreadRate": "",
+        "loanRate": "4.9",
+        "feeRate": "",
+        "allInRate": ""
+      },
+      {
+        "assetCode": "A190002001",
+        "assetName": "분당야탑물류센터",
+        "fundCode": "190002",
+        "fundName": "이지스부동산일반사모투자회사제543호",
+        "loanType": "담보",
+        "tranche": "Tr. A",
+        "lenderName": "중소기업은행",
+        "loanAmount": 54000000000,
+        "drawdownDate": "2024-08-02",
+        "maturityDate": "2027-08-02",
+        "interestType": "고정금리",
+        "baseRate": "",
+        "spreadRate": "",
+        "loanRate": "4.9",
+        "feeRate": "",
+        "allInRate": ""
+      },
+      {
+        "assetCode": "A190002001",
+        "assetName": "분당야탑물류센터",
+        "fundCode": "190002",
+        "fundName": "이지스부동산일반사모투자회사제543호",
+        "loanType": "담보",
+        "tranche": "Tr. A",
+        "lenderName": "케이디비산업은행",
+        "loanAmount": 54000000000,
+        "drawdownDate": "2024-08-02",
+        "maturityDate": "2027-08-02",
+        "interestType": "고정금리",
+        "baseRate": "",
+        "spreadRate": "",
+        "loanRate": "4.9",
+        "feeRate": "",
+        "allInRate": ""
+      },
+      {
+        "assetCode": "A190002001",
+        "assetName": "분당야탑물류센터",
+        "fundCode": "190002",
+        "fundName": "이지스부동산일반사모투자회사제543호",
+        "loanType": "담보",
+        "tranche": "Tr. A",
+        "lenderName": "하나은행",
+        "loanAmount": 30000000000,
+        "drawdownDate": "2024-08-02",
+        "maturityDate": "2027-08-02",
+        "interestType": "고정금리",
+        "baseRate": "",
+        "spreadRate": "",
+        "loanRate": "4.9",
+        "feeRate": "",
+        "allInRate": ""
+      }
+    ]
+  }
+}

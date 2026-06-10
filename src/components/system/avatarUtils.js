@@ -1,6 +1,10 @@
 const BASE_URL = import.meta.env.BASE_URL || '/';
 
 const AVATAR_FILE_BY_NAME = {
+  "오윤석": "오윤석.jpg",
+  "한창형": "한창형.jpg",
+  "류지훈": "류지훈.jpg",
+  "양우영": "양우영.jpg",
   강성호: '강성호.jpg',
   권도엽: '권도엽.jpeg',
   김민수: '김민수.jpg',

@@ -41,6 +41,10 @@ const MARKET_EMBEDDING_DIM = 768;
 const MARKET_SEMANTIC_MATCH_THRESHOLD = 0.24;
 
 const LOGISTICS_STAFF_NAME_BY_EMAIL: Record<string, string> = {
+  "ysoh@igisam.com": "오윤석",
+  "chhan@igisam.com": "한창형",
+  "jh.ryu@igisam.com": "류지훈",
+  "uyeong.yang@igisam.com": "양우영",
   'ethan.lee@igisam.com': '이철승',
   'sjlee@igisam.com': '이시정',
   'jk.jeon@igisam.com': '전기영',

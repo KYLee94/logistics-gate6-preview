@@ -1,0 +1,143 @@
+{
+  "schemaVersion": "asset_payload_v1",
+  "payloadSource": "260520_물류센터 펀드 정보 / 260513_담당자별 권한 부여",
+  "dataSourceMode": "fund_only_no_current_lease",
+  "generatedAt": "2026-06-10T07:03:41.849Z",
+  "basisDisplay": {
+    "asOf": "2026-06-10",
+    "source": "260520_물류센터 펀드 정보.xlsx",
+    "generatedAt": "2026-06-10T07:03:41.849Z"
+  },
+  "meta": {
+    "page": "asset",
+    "selection": {
+      "assetId": "asset_a190013001",
+      "assetCode": "A190013001",
+      "assetName": "포천정교리물류센터",
+      "sigunguCd": "41650",
+      "bjdongCd": "33025",
+      "platGbCd": "0",
+      "bun": "0272",
+      "ji": "0001"
+    },
+    "basis": {
+      "rowScope": "fund_info_only",
+      "nullPolicy": "현재 임대차계약 데이터가 없어 임대면적·임대료·임차인 KPI는 비워 둡니다."
+    }
+  },
+  "filters": {
+    "selectedAssetId": "asset_a190013001"
+  },
+  "overview": {
+    "sector": "물류센터",
+    "assetId": "asset_a190013001",
+    "assetCode": "A190013001",
+    "assetName": "포천정교리물류센터",
+    "fundCode": "190013",
+    "fundName": "이지스제560호부동산일반사모투자회사",
+    "fundShortName": "560호",
+    "legalForm": "투자회사",
+    "fundType": "개발(펀드)형",
+    "investmentStrategy": "Opportunistic",
+    "standardizedAddress": "경기도 포천시 가산면 정교리 272-1",
+    "jibunAddress": "경기도 포천시 가산면 정교리 272-1",
+    "latitude": 37.8116318,
+    "longitude": 127.1818612,
+    "grossFloorAreaSqm": null,
+    "landAreaSqm": null,
+    "approvalDate": null,
+    "floorCount": null,
+    "firstConfiguredAt": "2025-02-27",
+    "fundMaturityDate": "2030-02-07",
+    "tenantCount": 0,
+    "uniqueTenantCount": 0,
+    "leaseSpaceCount": 0,
+    "rowCount": 0,
+    "leasedAreaSqm": 0,
+    "vacancyAreaSqm": null,
+    "monthlyRentTotal": null,
+    "monthlyMfTotal": null,
+    "monthlyCostTotal": null,
+    "averageENoc": null,
+    "manager": {
+      "managerName": "양우영",
+      "teamName": "스페셜시츄에이션그룹1파트",
+      "email": "uyeong.yang@igisam.com"
+    },
+    "buildingRegisterSummary": {
+      "bldNm": "포천정교리물류센터"
+    }
+  },
+  "kpis": [
+    {
+      "key": "gross_floor_area_total",
+      "label": "총 연면적",
+      "value": null,
+      "valueType": "area"
+    },
+    {
+      "key": "leased_area_total",
+      "label": "총 임대면적",
+      "value": 0,
+      "valueType": "area"
+    },
+    {
+      "key": "average_e_noc",
+      "label": "E. NOC",
+      "value": null,
+      "valueType": "won"
+    },
+    {
+      "key": "unique_tenant_count",
+      "label": "현재 임차인 수",
+      "value": 0,
+      "valueType": "count"
+    }
+  ],
+  "rows": [],
+  "normalizedRows": [],
+  "topTenants": [],
+  "stackingPlan": [],
+  "analytics": {
+    "rentVsMf": [],
+    "contractExpiry": [],
+    "monthlyCostByTenant": []
+  },
+  "areaBreakdown": {},
+  "fundOverview": {
+    "fundInfo": {
+      "assetCode": "A190013001",
+      "assetName": "포천정교리물류센터",
+      "fundCode": "190013",
+      "fundName": "이지스제560호부동산일반사모투자회사",
+      "fundShortName": "560호",
+      "legalForm": "투자회사",
+      "sector": "물류",
+      "fundType": "개발(펀드)형",
+      "investmentStrategy": "Opportunistic",
+      "firstConfiguredAt": "2025-02-27",
+      "maturityDate": "2030-02-07"
+    },
+    "beneficiaries": [
+      {
+        "assetCode": "A190013001",
+        "assetName": "포천정교리물류센터",
+        "fundCode": "190013",
+        "fundName": "이지스제560호부동산일반사모투자회사",
+        "tranche": "",
+        "beneficiaryName": "비공개(쿠팡 계열)",
+        "commitmentAmount": 33847096725
+      },
+      {
+        "assetCode": "A190013001",
+        "assetName": "포천정교리물류센터",
+        "fundCode": "190013",
+        "fundName": "이지스제560호부동산일반사모투자회사",
+        "tranche": "",
+        "beneficiaryName": "비공개(쿠팡 계열)",
+        "commitmentAmount": 867874275
+      }
+    ],
+    "loans": []
+  }
+}

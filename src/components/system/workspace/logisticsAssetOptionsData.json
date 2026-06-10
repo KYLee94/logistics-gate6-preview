@@ -142,5 +142,41 @@
     "assetId": "asset_a112642001",
     "monthlyCostTotal": 1272556102,
     "vacancyRate": 0
+  },
+  {
+    "assetId": "asset_a190002001",
+    "assetCode": "A190002001",
+    "assetName": "분당야탑물류센터",
+    "fundCode": "190002",
+    "fundName": "이지스부동산일반사모투자회사제543호",
+    "sector": "물류센터",
+    "standardizedAddress": "경기도 성남시 분당구 탄천로 257",
+    "latitude": 37.4147613,
+    "longitude": 127.118779,
+    "grossFloorAreaSqm": 70405.93,
+    "leasedAreaSqm": 0,
+    "monthlyCostTotal": null,
+    "vacancyRate": null,
+    "averageENoc": null,
+    "uniqueTenantCount": 0,
+    "fetchedAt": "2026-06-10"
+  },
+  {
+    "assetId": "asset_a190013001",
+    "assetCode": "A190013001",
+    "assetName": "포천정교리물류센터",
+    "fundCode": "190013",
+    "fundName": "이지스제560호부동산일반사모투자회사",
+    "sector": "물류센터",
+    "standardizedAddress": "경기도 포천시 가산면 정교리 272-1",
+    "latitude": 37.8116318,
+    "longitude": 127.1818612,
+    "grossFloorAreaSqm": null,
+    "leasedAreaSqm": 0,
+    "monthlyCostTotal": null,
+    "vacancyRate": null,
+    "averageENoc": null,
+    "uniqueTenantCount": 0,
+    "fetchedAt": "2026-06-10"
   }
 ]

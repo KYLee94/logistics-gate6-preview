@@ -1523,6 +1523,19 @@ function calculateWeightedENoc(rows, fallbackValue) {
   return fallbackValue;
 }
 
+function calculateWeightedAveragePerPy(rows, valueKeys = [], totalKeys = [], fallbackValue) {
+  const weighted = (rows || []).reduce((acc, row) => {
+    const area = Number(firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm, row.totalLeasedAreaSqm, row.areaSqm));
+    const explicitValue = firstDefined(...valueKeys.map((key) => row?.[key]));
+    const totalValue = firstDefined(...totalKeys.map((key) => row?.[key]));
+    const perPy = Number(firstDefined(explicitValue, calculatePerPy(totalValue, area)));
+    if (!Number.isFinite(perPy) || !Number.isFinite(area) || perPy < 0 || area <= 0) return acc;
+    return { weightedSum: acc.weightedSum + perPy * area, areaSum: acc.areaSum + area };
+  }, { weightedSum: 0, areaSum: 0 });
+  if (weighted.areaSum > 0) return weighted.weightedSum / weighted.areaSum;
+  return fallbackValue;
+}
+
 function buildBuildingRegisterPayload(source = {}) {
   const asset = source.asset || source;
   const sigunguCd = firstDefined(asset.sigunguCd, asset.sigungu_cd, asset.sigungu);
@@ -8134,6 +8147,55 @@ function sortAssetTenantRows(rows = [], sortConfig = { index: 1, direction: 'des
   });
 }
 
+function companyAssetSummarySortableValue(row = {}, index = 0) {
+  if (index === 0) return firstDefined(row.assetName, row.label, '');
+  if (index === 1) return row.leasedAreaSqm;
+  if (index === 2) return row.averageRentPerPy;
+  if (index === 3) return row.averageMfPerPy;
+  if (index === 4) return row.monthlyRentTotal;
+  if (index === 5) return row.monthlyMfTotal;
+  if (index === 6) return firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal);
+  if (index === 7) return row.areaShare;
+  if (index === 8) return row.costShare;
+  return '';
+}
+
+function sortCompanyAssetSummaryRows(rows = [], sortConfig = { index: 0, direction: 'asc' }) {
+  const index = Number.isInteger(sortConfig?.index) ? sortConfig.index : 0;
+  const direction = sortConfig?.direction === 'desc' ? 'desc' : 'asc';
+  return (rows || []).slice().sort((a, b) => {
+    const primary = compareSortableCells(companyAssetSummarySortableValue(a, index), companyAssetSummarySortableValue(b, index), direction);
+    if (primary) return primary;
+    return String(firstDefined(a.assetName, a.label, '') || '').localeCompare(String(firstDefined(b.assetName, b.label, '') || ''), 'ko-KR');
+  });
+}
+
+function companyLeaseAssetSortableValue(row = {}, index = 0) {
+  if (index === 0) return row.assetName;
+  if (index === 1) return floorSortValue(firstDefined(row.spaceLabel, row.floorLabel, row.detailAreaLabel));
+  if (index === 2) return row.leasedAreaSqm;
+  if (index === 3) return row.monthlyRentTotal;
+  if (index === 4) return row.monthlyMfTotal;
+  if (index === 5) return row.monthlyCostTotal;
+  if (index === 6) return row.latestExpiry;
+  if (index === 7) return row.period;
+  return '';
+}
+
+function sortCompanyLeaseAssetRows(rows = [], sortConfig = { index: 0, direction: 'asc' }) {
+  const index = Number.isInteger(sortConfig?.index) ? sortConfig.index : 0;
+  const direction = sortConfig?.direction === 'desc' ? 'desc' : 'asc';
+  return (rows || []).slice().sort((a, b) => {
+    const primary = compareSortableCells(companyLeaseAssetSortableValue(a, index), companyLeaseAssetSortableValue(b, index), direction);
+    if (primary) return primary;
+    const assetDiff = String(firstDefined(a.assetName, '') || '').localeCompare(String(firstDefined(b.assetName, '') || ''), 'ko-KR');
+    if (assetDiff) return assetDiff;
+    const floorDiff = floorSortValue(firstDefined(b.spaceLabel, b.floorLabel, b.detailAreaLabel)) - floorSortValue(firstDefined(a.spaceLabel, a.floorLabel, a.detailAreaLabel));
+    if (floorDiff) return floorDiff;
+    return String(firstDefined(a.spaceLabel, a.leaseSpaceId, '') || '').localeCompare(String(firstDefined(b.spaceLabel, b.leaseSpaceId, '') || ''), 'ko-KR');
+  });
+}
+
 function expiryDateForRow(row = {}) {
   return firstDefined(row.currentEndDate, row.latestExpiry, row.earliestExpiry, row.endDate, row.firstEndDate, row.contractEndDate);
 }
@@ -9212,6 +9274,9 @@ function CompanyDashboard() {
   const [modal, setModal] = useState(null);
   const [dartApiStatus, setDartApiStatus] = useState(null);
   const [dartApiSummary, setDartApiSummary] = useState(null);
+  const [companyAssetSummarySortConfig, setCompanyAssetSummarySortConfig] = useState({ index: 0, direction: 'asc' });
+  const [leasedAssetSortConfig, setLeasedAssetSortConfig] = useState({ index: 0, direction: 'asc' });
+  const [leasedAssetDetailsOpen, setLeasedAssetDetailsOpen] = useState(false);
   useEffect(() => {
     if (!readableCompanyOptions.length) return;
     if (readableCompanyOptions.some((item) => item.tenantId === selectedTenantId)) return;
@@ -9261,43 +9326,52 @@ function CompanyDashboard() {
     { key: 'monthly_rent_total', label: '월 임대료 총액', value: visibleProfile.monthlyRentTotal, valueType: 'currency' },
     { key: 'monthly_mf_total', label: '월 관리비 총액', value: visibleProfile.monthlyMfTotal, valueType: 'currency' },
   ].map((item) => ({ ...(kpiLookup[item.key] || {}), ...item }));
-  const exposureSourceRows = filterAssetsByPermission(company.exposureRows || [], permission);
-  const hasCostExposure = exposureSourceRows.some((row) => Number(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal)) > 0);
+  const companyAssetSummarySourceRows = useMemo(() => {
+    const grouped = new Map();
+    (leasedAssets || []).forEach((row) => {
+      const assetName = firstDefined(row.assetName, row.label, "미지정");
+      const key = String(firstDefined(row.assetId, row.assetCode, assetName) || assetName);
+      const current = grouped.get(key) || { assetId: row.assetId, assetCode: row.assetCode, assetName, label: assetName, leasedAreaSqm: 0, monthlyRentTotal: 0, monthlyMfTotal: 0, monthlyCostTotal: 0 };
+      current.leasedAreaSqm += Number(row.leasedAreaSqm || 0);
+      current.monthlyRentTotal += Number(row.monthlyRentTotal || 0);
+      current.monthlyMfTotal += Number(row.monthlyMfTotal || 0);
+      current.monthlyCostTotal += Number(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, 0) || 0);
+      grouped.set(key, current);
+    });
+    return [...grouped.values()].map((row) => ({ ...row, averageRentPerPy: calculatePerPy(row.monthlyRentTotal, row.leasedAreaSqm), averageMfPerPy: calculatePerPy(row.monthlyMfTotal, row.leasedAreaSqm) }));
+  }, [leasedAssets]);
+  const hasCostExposure = companyAssetSummarySourceRows.some((row) => Number(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal)) > 0);
   const effectiveExposureMode = exposureMode === 'cost' && !hasCostExposure ? 'area' : exposureMode;
-  const exposureRows = exposureSourceRows.map((row) => ({
-    ...row,
-    value: effectiveExposureMode === 'area' ? row.leasedAreaSqm : firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal),
-  })).sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
+  const exposureRows = companyAssetSummarySourceRows.map((row) => ({ ...row, value: effectiveExposureMode === 'area' ? row.leasedAreaSqm : firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal) })).sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
   const exposureTotal = exposureRows.reduce((sum, row) => sum + Number(row.value || 0), 0);
+  const exposureAreaTotal = sumRows(companyAssetSummarySourceRows, (row) => row.leasedAreaSqm);
+  const exposureCostTotal = sumRows(companyAssetSummarySourceRows, (row) => firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal));
+  const companyAssetSummaryRows = sortCompanyAssetSummaryRows(companyAssetSummarySourceRows.map((row) => ({ ...row, areaShare: exposureAreaTotal ? Number(row.leasedAreaSqm || 0) / exposureAreaTotal : 0, costShare: exposureCostTotal ? Number(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, 0) || 0) / exposureCostTotal : 0 })), companyAssetSummarySortConfig);
+  const sortedLeasedAssets = sortCompanyLeaseAssetRows(leasedAssets, leasedAssetSortConfig);
   const exposureChartRows = exposureRows.map((row) => ({
     ...row,
     shareValue: exposureTotal ? Number(row.value || 0) / exposureTotal : 0,
-    displayValue: `${formatMetric(row.value, effectiveExposureMode === 'area' ? 'area' : 'currency')} (${formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0)})`,
+    displayValue: formatMetric(row.value, effectiveExposureMode === 'area' ? 'area' : 'currency') + ' (' + formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0) + ')',
     tooltipLines: [
-      ['전체 대비', formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0)],
-      ['임대면적', formatArea(row.leasedAreaSqm)],
-      ['월 임관리비', formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal))],
+      ["전체 대비", formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0)],
+      ["임대면적", formatArea(row.leasedAreaSqm)],
+      ["평균 임대료", formatWon(row.averageRentPerPy)],
+      ["평균 관리비", formatWon(row.averageMfPerPy)],
+      ["월 임관리비", formatCurrency(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal))],
     ],
   }));
-  const leasedAssetHeaders = ['자산명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '현재 계약만기일', '계약기간'];
-  const leasedAssetRows = leasedAssets.map((row) => [
-    row.assetName,
-    row.spaceLabel,
-    formatArea(row.leasedAreaSqm),
-    formatCurrency(row.monthlyRentTotal),
-    formatCurrency(row.monthlyMfTotal),
-    formatCurrency(row.monthlyCostTotal),
-    formatDate(row.latestExpiry),
-    row.period || '-',
-  ]);
-  const exposureTableRows = exposureRows.map((row) => [
-    row.assetName || row.label,
-    formatArea(row.leasedAreaSqm),
-    formatCurrency(row.monthlyRentTotal),
-    formatCurrency(row.monthlyMfTotal),
-    formatCurrency(row.monthlyCostTotal),
-    formatPercent(exposureTotal ? Number(row.value || 0) / exposureTotal : 0),
-  ]);
+  const companyAssetSummaryHeaderLabels = ["자산명", "임대면적(평)", "평균 임대료", "평균 관리비", "월 임대료", "월 관리비", "월 임관리비", "임대면적 기준 비율", "월 임관리비 기준 비율"];
+  const leasedAssetHeaderLabels = ["자산명", "층/세부구역", "임대면적(평)", "월 임대료", "월 관리비", "월 임관리비", "현재 계약만기일", "계약기간"];
+  const makeSortableHeaders = (labels, sortConfig, setSortConfig) => labels.map((label, index) => (
+    <button key={label} type="button" data-label={label} onClick={() => setSortConfig((current) => ({ index, direction: current.index === index && current.direction === 'asc' ? 'desc' : 'asc' }))} className="inline-flex items-center gap-1 text-left hover:text-white focus:outline-none focus:text-white">
+      <span>{label}</span>
+      <span className="text-[10px] text-[#A1A1AA]">{sortConfig.index === index ? (sortConfig.direction === 'asc' ? '?' : '?') : '?'}</span>
+    </button>
+  ));
+  const companyAssetSummaryHeaders = makeSortableHeaders(companyAssetSummaryHeaderLabels, companyAssetSummarySortConfig, setCompanyAssetSummarySortConfig);
+  const leasedAssetHeaders = makeSortableHeaders(leasedAssetHeaderLabels, leasedAssetSortConfig, setLeasedAssetSortConfig);
+  const companyAssetSummaryTableRows = companyAssetSummaryRows.map((row) => [row.assetName || row.label, formatArea(row.leasedAreaSqm), formatWon(row.averageRentPerPy), formatWon(row.averageMfPerPy), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyCostTotal), formatPercent(row.areaShare), formatPercent(row.costShare)]);
+  const leasedAssetRows = sortedLeasedAssets.map((row) => [row.assetName, row.spaceLabel, formatArea(row.leasedAreaSqm), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyCostTotal), formatDate(row.latestExpiry), row.period || '-']);
   const openTableModal = (title, headers, rows) => setModal({ title, headers, rows });
   const selectedCorpCode = String(firstDefined(profile.company?.dartCorpCode, profile.dartCorpCode, financials.dartCorpCode, '') || '').trim();
   const openDartDetailModal = (dartOverride = dartApiSummary) => setModal({
@@ -9352,6 +9426,21 @@ function CompanyDashboard() {
       setDartApiStatus({ type: 'blocked', message: `OpenDART Edge Function 연결 또는 secret 설정이 필요합니다. (${error.message || 'unknown error'})` });
     }
   };
+  const openCompanyAssetSummaryDetail = (row) => setModal({
+    title: "자산 노출 상세" + ' ? ' + (row.assetName || row.label || '-'),
+    headers: ["항목", "내용"],
+    rows: [
+      ["자산명", row.assetName || row.label || '-'],
+      ["임대면적", formatArea(row.leasedAreaSqm)],
+      ["평균 임대료", formatWon(row.averageRentPerPy)],
+      ["평균 관리비", formatWon(row.averageMfPerPy)],
+      ["월 임대료", formatCurrency(row.monthlyRentTotal)],
+      ["월 관리비", formatCurrency(row.monthlyMfTotal)],
+      ["월 임관리비", formatCurrency(row.monthlyCostTotal)],
+      ["임대면적 기준 비율", formatPercent(row.areaShare)],
+      ["월 임관리비 기준 비율", formatPercent(row.costShare)],
+    ],
+  });
   const openAssetExposureDetail = (row) => setModal({
     title: `자산 노출 상세 · ${row.assetName || '-'}`,
     headers: ['항목', '내용'],
@@ -9437,8 +9526,21 @@ function CompanyDashboard() {
       </section>
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-        <SectionHeader eyebrow="LEASED ASSETS" title="임차 자산 현황" />
-        <DataTable headers={leasedAssetHeaders} rows={leasedAssetRows} onRowClick={(index) => openAssetExposureDetail(leasedAssets[index])} compact />
+        <SectionHeader
+          eyebrow="LEASED ASSETS"
+          title="임차 자산 현황"
+          right={(
+            <button type="button" onClick={() => setLeasedAssetDetailsOpen((value) => !value)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">
+              {leasedAssetDetailsOpen ? "계약 구역 접기" : "계약 구역 상세 보기"}
+            </button>
+          )}
+        />
+        <DataTable headers={companyAssetSummaryHeaders} rows={companyAssetSummaryTableRows} onRowClick={(index) => openCompanyAssetSummaryDetail(companyAssetSummaryRows[index])} compact minTableWidth="1160px" />
+        {leasedAssetDetailsOpen ? (
+          <div className="mt-4 rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3">
+            <DataTable headers={leasedAssetHeaders} rows={leasedAssetRows} onRowClick={(index) => openAssetExposureDetail(sortedLeasedAssets[index])} compact minTableWidth="980px" />
+          </div>
+        ) : null}
       </section>
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
@@ -9447,13 +9549,12 @@ function CompanyDashboard() {
           title="자산별 노출도"
           right={(
             <div className="flex flex-wrap gap-2">
-              <button type="button" onClick={() => setExposureMode('cost')} className={`h-9 px-3 rounded-[8px] text-[13px] font-semibold ${effectiveExposureMode === 'cost' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}>임관리비 총합 기준</button>
-              <button type="button" onClick={() => setExposureMode('area')} className={`h-9 px-3 rounded-[8px] text-[13px] font-semibold ${effectiveExposureMode === 'area' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}>임대면적 기준</button>
-              <button type="button" onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '비율'], exposureTableRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">원본 표 보기</button>
+              <button type="button" onClick={() => setExposureMode('cost')} className={['h-9 px-3 rounded-[8px] text-[13px] font-semibold', effectiveExposureMode === 'cost' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'].join(' ')}>월 임관리비 총합 기준</button>
+              <button type="button" onClick={() => setExposureMode('area')} className={['h-9 px-3 rounded-[8px] text-[13px] font-semibold', effectiveExposureMode === 'area' ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'].join(' ')}>임대면적 기준</button>
             </div>
           )}
         />
-        <RichBarChart rows={exposureChartRows} labelKey="label" valueKey="value" barValueKey="shareValue" barMaxValue={1} valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} valueLabel={effectiveExposureMode === 'area' ? '자산별 임대면적(평)' : '자산별 월 임관리비'} showXAxisLabels={false} onClick={() => openTableModal('자산별 노출도', ['자산명', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '비율'], exposureTableRows)} />
+        <RichBarChart rows={exposureChartRows} labelKey="label" valueKey="value" barValueKey="shareValue" barMaxValue={1} valueType={effectiveExposureMode === 'area' ? 'area' : 'currency'} valueLabel={effectiveExposureMode === 'area' ? "자산별 임대면적(평)" : "자산별 월 임관리비"} showXAxisLabels={false} onClick={() => openTableModal("자산별 노출도", companyAssetSummaryHeaderLabels, companyAssetSummaryTableRows)} />
         {!hasCostExposure && exposureMode === 'cost' ? <div className="mt-2 text-[12px] text-[#86868B]">월 임관리비 값이 비어 있어 임대면적 기준으로 표시했습니다.</div> : null}
       </section>
 
@@ -12721,49 +12822,68 @@ function AssetDashboard() {
   const assetGrossAreaBasisSqm = sourceAssetGrossAreaSqm || (assetLeasedAreaBasisSqm + assetVacancyAreaBasisSqm);
   const assetAreaReconciliationGapSqm = assetGrossAreaBasisSqm - assetLeasedAreaBasisSqm - assetVacancyAreaBasisSqm;
   const assetOccupancyRate = assetGrossAreaBasisSqm > 0 ? assetLeasedAreaBasisSqm / assetGrossAreaBasisSqm : 1 - Number(overview.vacancyRate || 0);
+  const assetAverageRentPerPy = calculateWeightedAveragePerPy(
+    rows,
+    ['currentRentPerPy', 'currentRentPerPyeong', 'rentPerPy', 'monthlyRentPerPy'],
+    ['monthlyRentTotal', 'currentMonthlyRentTotal'],
+    calculatePerPy(firstDefined(overview.monthlyRentTotal, kpiByKey.monthly_rent_total?.value), assetLeasedAreaBasisSqm),
+  );
+  const assetAverageMfPerPy = calculateWeightedAveragePerPy(
+    rows,
+    ['currentMfPerPy', 'currentManagementFeePerPy', 'mfPerPy', 'monthlyMfPerPy', 'managementFeePerPy'],
+    ['monthlyMfTotal', 'currentMonthlyMfTotal'],
+    calculatePerPy(firstDefined(overview.monthlyMfTotal, kpiByKey.monthly_mf_total?.value), assetLeasedAreaBasisSqm),
+  );
   const assetKpiLabels = {
-    gross_floor_area_total: '총 연면적',
-    occupancy_rate: '임대율',
-    leased_area_total: '총 임대면적',
-    vacancy_area_total: '공실면적',
-    monthly_total_cost: '월 임관리비 총액',
+    gross_floor_area_total: "총 연면적",
+    occupancy_rate: "임대율",
+    leased_area_total: "총 임대면적",
+    vacancy_area_total: "공실면적",
+    average_rent_per_py: "평당 임대료 평균",
+    average_mf_per_py: "평당 관리비 평균",
     average_e_noc: 'E. NOC',
-    unique_tenant_count: '현재 임차인 수',
+    unique_tenant_count: "현재 임차인 수",
   };
   const assetKpiValueTypes = {
     gross_floor_area_total: 'area',
     occupancy_rate: 'percent',
     leased_area_total: 'area',
     vacancy_area_total: 'area',
-    monthly_total_cost: 'currency',
+    average_rent_per_py: 'won',
+    average_mf_per_py: 'won',
     average_e_noc: 'won',
     unique_tenant_count: 'count',
   };
   const kpis = [
-    kpiByKey.gross_floor_area_total || { key: 'gross_floor_area_total', label: '총 연면적', value: overview.grossFloorAreaSqm, valueType: 'area' },
-    kpiByKey.occupancy_rate || { key: 'occupancy_rate', label: '임대율', value: 1 - Number(overview.vacancyRate || 0), valueType: 'percent' },
-    kpiByKey.leased_area_total || { key: 'leased_area_total', label: '총 임대면적', value: overview.leasedAreaSqm, valueType: 'area' },
-    kpiByKey.vacancy_area_total || { key: 'vacancy_area_total', label: '공실면적', value: overview.vacancyAreaSqm, valueType: 'area' },
-    kpiByKey.monthly_total_cost || { key: 'monthly_total_cost', label: '월 임관리비 총액', value: overview.monthlyCostTotal, valueType: 'currency' },
+    kpiByKey.gross_floor_area_total || { key: 'gross_floor_area_total', label: "총 연면적", value: overview.grossFloorAreaSqm, valueType: 'area' },
+    kpiByKey.occupancy_rate || { key: 'occupancy_rate', label: "임대율", value: 1 - Number(overview.vacancyRate || 0), valueType: 'percent' },
+    kpiByKey.leased_area_total || { key: 'leased_area_total', label: "총 임대면적", value: overview.leasedAreaSqm, valueType: 'area' },
+    kpiByKey.vacancy_area_total || { key: 'vacancy_area_total', label: "공실면적", value: overview.vacancyAreaSqm, valueType: 'area' },
+    kpiByKey.average_rent_per_py || { key: 'average_rent_per_py', label: "평당 임대료 평균", value: assetAverageRentPerPy, valueType: 'won' },
+    kpiByKey.average_mf_per_py || { key: 'average_mf_per_py', label: "평당 관리비 평균", value: assetAverageMfPerPy, valueType: 'won' },
     kpiByKey.average_e_noc || { key: 'average_e_noc', label: 'E. NOC', value: assetWeightedENoc, valueType: 'won' },
-    kpiByKey.unique_tenant_count || { key: 'unique_tenant_count', label: '현재 임차인 수', value: firstDefined(overview.uniqueTenantCount, rows.length), valueType: 'count' },
+    kpiByKey.unique_tenant_count || { key: 'unique_tenant_count', label: "현재 임차인 수", value: firstDefined(overview.uniqueTenantCount, rows.length), valueType: 'count' },
   ].map((item) => ({
     ...item,
     label: assetKpiLabels[item.key] || item.label,
     valueType: assetKpiValueTypes[item.key] || item.valueType,
     value: item.key === 'average_e_noc'
       ? assetWeightedENoc
-      : item.key === 'gross_floor_area_total'
-        ? assetGrossAreaBasisSqm
-        : item.key === 'occupancy_rate'
-          ? assetOccupancyRate
-          : item.key === 'leased_area_total'
-            ? assetLeasedAreaBasisSqm
-            : item.key === 'vacancy_area_total'
-              ? assetVacancyAreaBasisSqm
-              : item.key === 'unique_tenant_count'
-                ? firstDefined(overview.uniqueTenantCount, rows.length)
-                : firstDefined(item.value, item.key === 'monthly_total_cost' ? overview.monthlyCostTotal : item.value),
+      : item.key === 'average_rent_per_py'
+        ? assetAverageRentPerPy
+        : item.key === 'average_mf_per_py'
+          ? assetAverageMfPerPy
+          : item.key === 'gross_floor_area_total'
+            ? assetGrossAreaBasisSqm
+            : item.key === 'occupancy_rate'
+              ? assetOccupancyRate
+              : item.key === 'leased_area_total'
+                ? assetLeasedAreaBasisSqm
+                : item.key === 'vacancy_area_total'
+                  ? assetVacancyAreaBasisSqm
+                  : item.key === 'unique_tenant_count'
+                    ? firstDefined(overview.uniqueTenantCount, rows.length)
+                    : item.value,
   }));
   const mapPoint = overview.latitude != null && overview.longitude != null ? [{
     assetId: overview.assetId,
@@ -13050,7 +13170,7 @@ function AssetDashboard() {
         </p>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-7 gap-3">
+      <section className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-8 gap-3">
         {kpis.map((item) => (
           <button key={item.key || item.label} type="button" onClick={() => {
             if (item.key === 'average_e_noc') {
