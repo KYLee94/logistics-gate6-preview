@@ -26,6 +26,15 @@ const clearSupabaseAuthStorage = () => {
     });
 };
 
+const isPasswordRecoveryLocation = () => {
+    if (typeof window === 'undefined') return false;
+    const params = [
+        new URLSearchParams(window.location.search || ''),
+        new URLSearchParams((window.location.hash || '').replace(/^#/, '')),
+    ];
+    return params.some((item) => item.get('type') === 'recovery');
+};
+
 const normalizeMemberInfo = (remoteUser, sessionEmail) => {
     const normalizedEmail = String(sessionEmail || remoteUser?.email || '').trim().toLowerCase();
     const permissionEmail = canonicalLogisticsEmail(remoteUser?.email || normalizedEmail);
@@ -116,6 +125,11 @@ export function AuthProvider({ children }) {
             let timeoutId;
 
             try {
+                const recoveryFromUrl = isPasswordRecoveryLocation();
+                if (recoveryFromUrl && mounted) {
+                    setRecoveryMode(true);
+                }
+
                 const lastActivityStr = sessionStorage.getItem('iota_last_activity');
                 if (lastActivityStr) {
                     const lastActivity = parseInt(lastActivityStr, 10);

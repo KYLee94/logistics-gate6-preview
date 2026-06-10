@@ -10,8 +10,10 @@
     <link rel="apple-touch-icon" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>IGIS Logistics Work Platform</title>
-    <!-- Prevent search engine indexing during legal review -->
-    <meta name="robots" content="noindex, nofollow" />
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, nocache" />
+    <meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+    <meta name="googlebot-news" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+    <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
 
     <!-- Preload critical top-of-page assets for fast sequential rendering -->
     <link rel="preload" href="./img/logo_white.png" as="image" />
@@ -19,23 +21,8 @@
     <link rel="preload" href="./img/iota_full.jpg" as="image" />
     <link rel="preload" href="./img/iota_full_3.jpg" as="image" />
 
-    <!-- 폰트 적용 (Pretendard & Inter) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
-        rel="stylesheet">
+    <!-- Local font only: avoid external font requests from this private work platform. -->
     <link rel="stylesheet" as="style" href="/fonts/Pretendard/pretendard.css" />
-
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-QNHPD2C1K4"></script>
-    <script>
-        window.dataLayer = window.dataLayer || [];
-        function gtag(){dataLayer.push(arguments);}
-        gtag('js', new Date());
-
-        gtag('config', 'G-QNHPD2C1K4');
-    </script>
 
     <script>
         if (navigator.userAgent.indexOf('Win') !== -1) {

@@ -1,0 +1,9 @@
+{
+  "ok": false,
+  "generated_at": "2026-06-09T08:51:19.224Z",
+  "checks": {},
+  "errors": [
+    "locator.waitFor: Timeout 50000ms exceeded.\nCall log:\n\u001b[2m  - waiting for getByTestId('logistics-notification-button') to be visible\u001b[22m\n\u001b[2m    8 × waiting for\" http://127.0.0.1:4181/logistics-gate6-preview/auth-setup\" navigation to finish...\u001b[22m\n\u001b[2m      - navigated to \"http://127.0.0.1:4181/logistics-gate6-preview/auth-setup\"\u001b[22m\n"
+  ],
+  "screenshot": "qa-artifacts/logistics-gate6/notification-logout-browser-smoke-20260609-085119.png"
+}

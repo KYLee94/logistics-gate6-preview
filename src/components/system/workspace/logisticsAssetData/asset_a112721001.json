@@ -65,7 +65,13 @@
     "rowCount": 1,
     "selection": {
       "assetId": "asset_a112721001",
-      "assetName": "인천석남물류센터"
+      "assetName": "인천석남물류센터",
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     },
     "generatedAt": "2026-04-27T16:07:14",
     "basisDisplay": {
@@ -85,13 +91,13 @@
   "rows": [
     {
       "asset": {
-        "ji": "20",
+        "ji": "8",
         "bun": "224",
         "assetId": "asset_a112721001",
         "bjdongCd": "11000",
         "latitude": 37.5080776,
         "platGbCd": "0",
-        "queryKey": "28260|11000|0|0224|0020",
+        "queryKey": "28260|11000|0|0224|0008",
         "assetCode": "A112721001",
         "assetName": "인천석남물류센터",
         "fetchedAt": "2026-04-22",
@@ -176,7 +182,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "인천석남물류센터"
+          "relatedAssetLabel": "인천석남물류센터",
+          "sigunguCd": "28260",
+          "bjdongCd": "11000",
+          "platGbCd": "0",
+          "bun": "224",
+          "ji": "8",
+          "queryKey": "28260|11000|0|0224|0008"
         }
       ],
       "sourceDocRef": "",
@@ -250,17 +262,23 @@
       "businessRegistrationNo": "120-88-00767",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 357933875.25,
-      "currentMonthlyRentTotal": 357933875.25
+      "currentMonthlyRentTotal": 357933875.25,
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     },
     {
       "asset": {
-        "ji": "20",
+        "ji": "8",
         "bun": "224",
         "assetId": "asset_a112721001",
         "bjdongCd": "11000",
         "latitude": 37.5080776,
         "platGbCd": "0",
-        "queryKey": "28260|11000|0|0224|0020",
+        "queryKey": "28260|11000|0|0224|0008",
         "assetCode": "A112721001",
         "assetName": "인천석남물류센터",
         "fetchedAt": "2026-04-22",
@@ -345,7 +363,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "인천석남물류센터"
+          "relatedAssetLabel": "인천석남물류센터",
+          "sigunguCd": "28260",
+          "bjdongCd": "11000",
+          "platGbCd": "0",
+          "bun": "224",
+          "ji": "8",
+          "queryKey": "28260|11000|0|0224|0008"
         }
       ],
       "sourceDocRef": "",
@@ -419,17 +443,23 @@
       "businessRegistrationNo": "120-88-00767",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 357933875.25,
-      "currentMonthlyRentTotal": 357933875.25
+      "currentMonthlyRentTotal": 357933875.25,
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     },
     {
       "asset": {
-        "ji": "20",
+        "ji": "8",
         "bun": "224",
         "assetId": "asset_a112721001",
         "bjdongCd": "11000",
         "latitude": 37.5080776,
         "platGbCd": "0",
-        "queryKey": "28260|11000|0|0224|0020",
+        "queryKey": "28260|11000|0|0224|0008",
         "assetCode": "A112721001",
         "assetName": "인천석남물류센터",
         "fetchedAt": "2026-04-22",
@@ -514,7 +544,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "인천석남물류센터"
+          "relatedAssetLabel": "인천석남물류센터",
+          "sigunguCd": "28260",
+          "bjdongCd": "11000",
+          "platGbCd": "0",
+          "bun": "224",
+          "ji": "8",
+          "queryKey": "28260|11000|0|0224|0008"
         }
       ],
       "sourceDocRef": "",
@@ -588,17 +624,23 @@
       "businessRegistrationNo": "120-88-00767",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 357933875.25,
-      "currentMonthlyRentTotal": 357933875.25
+      "currentMonthlyRentTotal": 357933875.25,
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     },
     {
       "asset": {
-        "ji": "20",
+        "ji": "8",
         "bun": "224",
         "assetId": "asset_a112721001",
         "bjdongCd": "11000",
         "latitude": 37.5080776,
         "platGbCd": "0",
-        "queryKey": "28260|11000|0|0224|0020",
+        "queryKey": "28260|11000|0|0224|0008",
         "assetCode": "A112721001",
         "assetName": "인천석남물류센터",
         "fetchedAt": "2026-04-22",
@@ -683,7 +725,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "인천석남물류센터"
+          "relatedAssetLabel": "인천석남물류센터",
+          "sigunguCd": "28260",
+          "bjdongCd": "11000",
+          "platGbCd": "0",
+          "bun": "224",
+          "ji": "8",
+          "queryKey": "28260|11000|0|0224|0008"
         }
       ],
       "sourceDocRef": "",
@@ -757,17 +805,23 @@
       "businessRegistrationNo": "120-88-00767",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 357933875.25,
-      "currentMonthlyRentTotal": 357933875.25
+      "currentMonthlyRentTotal": 357933875.25,
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     },
     {
       "asset": {
-        "ji": "20",
+        "ji": "8",
         "bun": "224",
         "assetId": "asset_a112721001",
         "bjdongCd": "11000",
         "latitude": 37.5080776,
         "platGbCd": "0",
-        "queryKey": "28260|11000|0|0224|0020",
+        "queryKey": "28260|11000|0|0224|0008",
         "assetCode": "A112721001",
         "assetName": "인천석남물류센터",
         "fetchedAt": "2026-04-22",
@@ -852,7 +906,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "인천석남물류센터"
+          "relatedAssetLabel": "인천석남물류센터",
+          "sigunguCd": "28260",
+          "bjdongCd": "11000",
+          "platGbCd": "0",
+          "bun": "224",
+          "ji": "8",
+          "queryKey": "28260|11000|0|0224|0008"
         }
       ],
       "sourceDocRef": "",
@@ -926,17 +986,23 @@
       "businessRegistrationNo": "120-88-00767",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 357933875.25,
-      "currentMonthlyRentTotal": 357933875.25
+      "currentMonthlyRentTotal": 357933875.25,
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     },
     {
       "asset": {
-        "ji": "20",
+        "ji": "8",
         "bun": "224",
         "assetId": "asset_a112721001",
         "bjdongCd": "11000",
         "latitude": 37.5080776,
         "platGbCd": "0",
-        "queryKey": "28260|11000|0|0224|0020",
+        "queryKey": "28260|11000|0|0224|0008",
         "assetCode": "A112721001",
         "assetName": "인천석남물류센터",
         "fetchedAt": "2026-04-22",
@@ -1021,7 +1087,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "인천석남물류센터"
+          "relatedAssetLabel": "인천석남물류센터",
+          "sigunguCd": "28260",
+          "bjdongCd": "11000",
+          "platGbCd": "0",
+          "bun": "224",
+          "ji": "8",
+          "queryKey": "28260|11000|0|0224|0008"
         }
       ],
       "sourceDocRef": "",
@@ -1095,17 +1167,23 @@
       "businessRegistrationNo": "120-88-00767",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 357933875.25,
-      "currentMonthlyRentTotal": 357933875.25
+      "currentMonthlyRentTotal": 357933875.25,
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     },
     {
       "asset": {
-        "ji": "20",
+        "ji": "8",
         "bun": "224",
         "assetId": "asset_a112721001",
         "bjdongCd": "11000",
         "latitude": 37.5080776,
         "platGbCd": "0",
-        "queryKey": "28260|11000|0|0224|0020",
+        "queryKey": "28260|11000|0|0224|0008",
         "assetCode": "A112721001",
         "assetName": "인천석남물류센터",
         "fetchedAt": "2026-04-22",
@@ -1190,7 +1268,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "인천석남물류센터"
+          "relatedAssetLabel": "인천석남물류센터",
+          "sigunguCd": "28260",
+          "bjdongCd": "11000",
+          "platGbCd": "0",
+          "bun": "224",
+          "ji": "8",
+          "queryKey": "28260|11000|0|0224|0008"
         }
       ],
       "sourceDocRef": "",
@@ -1264,17 +1348,23 @@
       "businessRegistrationNo": "120-88-00767",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 357933875.25,
-      "currentMonthlyRentTotal": 357933875.25
+      "currentMonthlyRentTotal": 357933875.25,
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     },
     {
       "asset": {
-        "ji": "20",
+        "ji": "8",
         "bun": "224",
         "assetId": "asset_a112721001",
         "bjdongCd": "11000",
         "latitude": 37.5080776,
         "platGbCd": "0",
-        "queryKey": "28260|11000|0|0224|0020",
+        "queryKey": "28260|11000|0|0224|0008",
         "assetCode": "A112721001",
         "assetName": "인천석남물류센터",
         "fetchedAt": "2026-04-22",
@@ -1359,7 +1449,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "인천석남물류센터"
+          "relatedAssetLabel": "인천석남물류센터",
+          "sigunguCd": "28260",
+          "bjdongCd": "11000",
+          "platGbCd": "0",
+          "bun": "224",
+          "ji": "8",
+          "queryKey": "28260|11000|0|0224|0008"
         }
       ],
       "sourceDocRef": "",
@@ -1433,7 +1529,13 @@
       "businessRegistrationNo": "120-88-00767",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 357933875.25,
-      "currentMonthlyRentTotal": 357933875.25
+      "currentMonthlyRentTotal": 357933875.25,
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     }
   ],
   "basis": {
@@ -1513,7 +1615,13 @@
         "averageENoc": 29980,
         "vacancyRate": 0.2216151400255058,
         "monthlyCostTotal": 2468703091,
-        "uniqueTenantCount": 2
+        "uniqueTenantCount": 2,
+        "sigunguCd": "41461",
+        "bjdongCd": "26221",
+        "platGbCd": "0",
+        "bun": "914",
+        "ji": "0",
+        "queryKey": "41461|26221|0|0914|0000"
       },
       {
         "assetId": "asset_ap00014001",
@@ -1576,7 +1684,13 @@
         "averageENoc": 31632.69,
         "vacancyRate": 0.00020146451000519652,
         "monthlyCostTotal": 2863471002,
-        "uniqueTenantCount": 1
+        "uniqueTenantCount": 1,
+        "sigunguCd": "28260",
+        "bjdongCd": "11000",
+        "platGbCd": "0",
+        "bun": "224",
+        "ji": "8",
+        "queryKey": "28260|11000|0|0224|0008"
       },
       {
         "assetId": "asset_a112500002",
@@ -1594,7 +1708,13 @@
         "averageENoc": 39312.35,
         "vacancyRate": 0,
         "monthlyCostTotal": 1272556102,
-        "uniqueTenantCount": 1
+        "uniqueTenantCount": 1,
+        "sigunguCd": "41591",
+        "bjdongCd": "35022",
+        "platGbCd": "0",
+        "bun": "147",
+        "ji": "12",
+        "queryKey": "41591|35022|0|0147|0012"
       }
     ],
     "selectorMeta": {
@@ -1787,7 +1907,13 @@
       "effectiveMonth": "2025-04",
       "firstConfiguredAt": "2023-01-18"
     },
-    "grossFloorAreaEffectiveMonth": "2025-04"
+    "grossFloorAreaEffectiveMonth": "2025-04",
+    "sigunguCd": "28260",
+    "bjdongCd": "11000",
+    "platGbCd": "0",
+    "bun": "224",
+    "ji": "8",
+    "queryKey": "28260|11000|0|0224|0008"
   },
   "analytics": {
     "rentVsMf": [

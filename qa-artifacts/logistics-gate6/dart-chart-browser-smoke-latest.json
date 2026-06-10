@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-05-28T06:57:44.442Z",
+  "generated_at": "2026-06-09T02:14:28.788Z",
   "url": "https://kylee94.github.io/logistics-gate6-preview/?p=company",
   "auth_source": "password_grant",
   "ui_email": "kylee@igisam.com",
@@ -18,5 +18,5 @@
     }
   },
   "page_errors": [],
-  "screenshot": "qa-artifacts/logistics-gate6/dart-chart-browser-smoke-20260528-065743.png"
+  "screenshot": "qa-artifacts/logistics-gate6/dart-chart-browser-smoke-20260609-021428.png"
 }

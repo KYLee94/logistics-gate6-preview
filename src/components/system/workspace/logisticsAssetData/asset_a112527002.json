@@ -636,7 +636,13 @@
         "averageENoc": 29980,
         "vacancyRate": 0.2216151400255058,
         "monthlyCostTotal": 2468703091,
-        "uniqueTenantCount": 2
+        "uniqueTenantCount": 2,
+        "sigunguCd": "41461",
+        "bjdongCd": "26221",
+        "platGbCd": "0",
+        "bun": "914",
+        "ji": "0",
+        "queryKey": "41461|26221|0|0914|0000"
       },
       {
         "assetId": "asset_ap00014001",
@@ -697,7 +703,13 @@
         "fetchedAt": "2026-04-22",
         "vacancyRate": 0.00020146451000519652,
         "monthlyCostTotal": 2863471002,
-        "uniqueTenantCount": 1
+        "uniqueTenantCount": 1,
+        "sigunguCd": "28260",
+        "bjdongCd": "11000",
+        "platGbCd": "0",
+        "bun": "224",
+        "ji": "8",
+        "queryKey": "28260|11000|0|0224|0008"
       },
       {
         "assetId": "asset_a112500002",
@@ -713,7 +725,13 @@
         "fetchedAt": "2026-04-22",
         "vacancyRate": 0,
         "monthlyCostTotal": 1272556102,
-        "uniqueTenantCount": 1
+        "uniqueTenantCount": 1,
+        "sigunguCd": "41591",
+        "bjdongCd": "35022",
+        "platGbCd": "0",
+        "bun": "147",
+        "ji": "12",
+        "queryKey": "41591|35022|0|0147|0012"
       }
     ],
     "selectorMeta": {

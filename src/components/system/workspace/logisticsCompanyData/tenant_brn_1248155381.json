@@ -94,7 +94,7 @@
         "buildingHubStatus": "official_not_found",
         "firstConfiguredAt": "2022-02-14",
         "grossFloorAreaSqm": 107009.56,
-        "standardizedAddress": "경기도 화성시 장안면 북부마을길 42"
+        "standardizedAddress": "경기도 화성시 만세구 장안면 북부마을길 42"
       },
       "is3pl": false,
       "fundId": "fund_112642",
@@ -838,11 +838,17 @@
   },
   "mapPoints": [
     {
-      "address": "경기도 화성시 장안면 북부마을길 42",
+      "address": "경기도 화성시 만세구 장안면 북부마을길 42",
       "assetId": "asset_a112642001",
       "latitude": 37.1220878,
       "assetName": "화성 석포리 물류센터",
-      "longitude": 126.8350908
+      "longitude": 126.8350908,
+      "sigunguCd": "41591",
+      "bjdongCd": "35022",
+      "platGbCd": "0",
+      "bun": "147",
+      "ji": "12",
+      "queryKey": "41591|35022|0|0147|0012"
     }
   ],
   "financials": {

@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
-const DEFAULT_ROUTE = '?p=platform/iotaseoul/workspace/logistics/dashboard/home';
+const DEFAULT_ROUTE = 'work-platform';
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -78,6 +78,7 @@ async function signInSession() {
       source: 'LOGISTICS_SUPABASE_ACCESS_TOKEN',
     };
   }
+
   const email = argsValue('email', envValue('LOGISTICS_SUPABASE_EMAIL', 'LOGISTICS_SUPABASE_AUTH_EMAIL'));
   const password = argsValue('password', envValue('LOGISTICS_SUPABASE_PASSWORD', 'LOGISTICS_SUPABASE_AUTH_PASSWORD'));
   if (!supabaseUrl || !anonKey || !email || !password) {
@@ -97,9 +98,9 @@ async function signInSession() {
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const stamp = timestampForFile();
-  const outJson = path.join(OUT_DIR, `login-history-browser-smoke-${stamp}.json`);
-  const latestJson = path.join(OUT_DIR, 'login-history-browser-smoke-latest.json');
-  const screenshotPath = path.join(OUT_DIR, `login-history-browser-smoke-${stamp}.png`);
+  const outJson = path.join(OUT_DIR, `logout-browser-smoke-${stamp}.json`);
+  const latestJson = path.join(OUT_DIR, 'logout-browser-smoke-latest.json');
+  const screenshotPath = path.join(OUT_DIR, `logout-browser-smoke-${stamp}.png`);
   const targetUrl = joinUrl(argsValue('base-url', DEFAULT_BASE_URL), argsValue('route', DEFAULT_ROUTE));
   const auth = await signInSession();
   const uiEmail = argsValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com');
@@ -115,16 +116,15 @@ async function main() {
     generated_at: new Date().toISOString(),
     url: targetUrl,
     auth_source: auth.source,
-    ui_email: uiEmail,
     checks: {},
-    screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
     errors: [],
+    screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
   };
   let browser;
   let page;
   try {
     browser = await chromium.launch({ headless: true, executablePath: chromeExecutablePath() });
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });
+    const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });
     await context.addInitScript(({ email, session }) => {
       sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(session));
       sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email }));
@@ -137,60 +137,32 @@ async function main() {
         report.errors.push(`edge ${response.status()} ${response.url()}`);
       }
     });
+
     await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 45000 });
-    const button = page.getByRole('button', { name: /로그인 이력/u }).first();
-    await button.waitFor({ state: 'visible', timeout: 20000 });
-    const profileText = page.getByText('이관용').first();
-    const buttonBox = await button.boundingBox();
-    const profileBox = await profileText.boundingBox();
-    report.checks.button_visible = true;
-    report.checks.button_above_profile = Boolean(buttonBox && profileBox && buttonBox.y < profileBox.y);
-    const notificationButton = page.getByTestId('logistics-notification-button');
-    await notificationButton.waitFor({ state: 'visible', timeout: 20000 });
-    const notificationBox = await notificationButton.boundingBox();
-    report.checks.notification_button_visible = true;
-    report.checks.notification_button_aligned = Boolean(
-      buttonBox
-      && notificationBox
-      && profileBox
-      && Math.abs((buttonBox.x + buttonBox.width) - (notificationBox.x + notificationBox.width)) <= 3
-      && notificationBox.y > buttonBox.y
-      && Math.abs(notificationBox.y - profileBox.y) <= 12,
-    );
-    await notificationButton.click();
-    await page.getByTestId('logistics-notification-panel').waitFor({ state: 'visible', timeout: 20000 });
-    const notificationPanelText = await page.getByTestId('logistics-notification-panel').innerText({ timeout: 10000 });
-    report.checks.notification_panel_visible = notificationPanelText.includes('알림') && notificationPanelText.includes('Data Update');
-    await page.keyboard.press('Escape').catch(() => {});
-    await page.mouse.click(20, 20);
-    await button.click();
-    await page.getByText('기획추진센터 전용 조회 화면').waitFor({ state: 'visible', timeout: 20000 });
-    await page.getByText('권한자 로그인 상태').waitFor({ state: 'visible', timeout: 20000 });
-    await page.getByText(/총\s*\d+명/u).waitFor({ state: 'visible', timeout: 20000 });
-    report.checks.modal_visible = true;
-    report.checks.capability_count_visible = true;
-    report.checks.has_organization_column = await page.getByRole('columnheader', { name: /조직/u }).count() >= 1;
-    report.checks.has_name_column = await page.getByRole('columnheader', { name: /이름/u }).count() >= 1;
-    const sortableLabels = ['조직', '이름', '권한', '상태', '최근 로그인'];
-    const sortButtonCounts = {};
-    for (const label of sortableLabels) {
-      sortButtonCounts[label] = await page.getByRole('button', { name: `${label} 정렬` }).count();
-    }
-    report.checks.sort_buttons_present = Object.values(sortButtonCounts).every((count) => count >= 1);
-    report.sort_button_counts = sortButtonCounts;
-    await page.getByRole('button', { name: '최근 로그인 정렬' }).first().click();
-    await page.getByRole('button', { name: '조직 정렬' }).first().click();
-    report.checks.sort_buttons_clickable = true;
+    const profileButton = page.getByTestId('logistics-profile-button');
+    await profileButton.waitFor({ state: 'visible', timeout: 25000 });
+    report.checks.profile_visible = true;
+
+    await profileButton.click();
+    const logoutButton = page.locator('button').filter({ hasText: /\uB85C\uADF8\uC544\uC6C3/u }).last();
+    await logoutButton.waitFor({ state: 'visible', timeout: 10000 });
+    report.checks.logout_button_visible = true;
+    await Promise.all([
+      page.waitForURL(/auth-setup/u, { timeout: 20000 }),
+      logoutButton.click(),
+    ]);
+    report.final_url = page.url();
+    report.checks.logout_navigated = /auth-setup/u.test(report.final_url);
     await page.screenshot({ path: screenshotPath, fullPage: false });
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
   } catch (error) {
     report.errors.push(error?.message || String(error));
     if (page) {
       try {
-        report.body_excerpt = (await page.locator('body').innerText()).slice(0, 1200);
+        report.body_excerpt = (await page.locator('body').innerText({ timeout: 5000 })).slice(0, 1200);
         await page.screenshot({ path: screenshotPath, fullPage: false });
       } catch {
-        // ignore screenshot failures after navigation errors
+        // Ignore screenshot failures after navigation errors.
       }
     }
   } finally {
@@ -198,7 +170,7 @@ async function main() {
   }
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(latestJson, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(`login-history browser smoke ${report.ok ? 'PASS' : 'FAIL'}: ${path.relative(ROOT, outJson)}`);
+  console.log(`logout browser smoke ${report.ok ? 'PASS' : 'FAIL'}: ${path.relative(ROOT, outJson)}`);
   if (!report.ok) process.exit(1);
 }
 

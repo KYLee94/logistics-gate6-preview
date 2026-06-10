@@ -42,6 +42,22 @@ function timestampForFile() {
   return new Date().toISOString().replace(/[-:]/gu, '').replace(/\..+$/u, '').replace('T', '-');
 }
 
+function logisticsWeekLabel(value = new Date()) {
+  const today = value instanceof Date ? value : new Date(value);
+  const safeToday = Number.isNaN(today.getTime()) ? new Date() : today;
+  const year = safeToday.getFullYear();
+  const month = safeToday.getMonth() + 1;
+  const firstDay = new Date(year, month - 1, 1);
+  const firstDayWeekday = firstDay.getDay() === 0 ? 7 : firstDay.getDay();
+  const offsetDate = safeToday.getDate() + firstDayWeekday - 1;
+  const week = Math.ceil(offsetDate / 7);
+  return `${String(year).slice(2)}년 ${month}월 ${week}주`;
+}
+
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
 function chromeExecutablePath() {
   const candidates = [
     process.env.CHROME_PATH,
@@ -127,6 +143,9 @@ async function main() {
     home_expiry_screenshot: path.relative(ROOT, homeExpiryScreenshotPath).replace(/\\/gu, '/'),
     errors: [],
   };
+  const expectedWeekLabel = logisticsWeekLabel();
+  const expectedWeekPattern = new RegExp(escapeRegExp(expectedWeekLabel).replace(/\s+/gu, '\\s*'), 'u');
+  const expectedWeekPatternSource = expectedWeekPattern.source;
   let browser;
   let page;
   try {
@@ -149,8 +168,8 @@ async function main() {
     await page.locator('#task-management').waitFor({ state: 'visible', timeout: 30000 });
     const taskHeaderText = await page.locator('#task-management').innerText();
     report.task_header_text = taskHeaderText;
-    report.checks.current_week_is_may_week_5 = /26년\s*5월\s*5주/u.test(taskHeaderText);
-    report.checks.current_week_is_not_may_week_4 = !/26년\s*5월\s*4주/u.test(taskHeaderText);
+    report.expected_week_label = expectedWeekLabel;
+    report.checks.current_week_label_matches_today = expectedWeekPattern.test(taskHeaderText);
 
     const writeButton = page.getByRole('button', { name: /글\s*작성하기/u }).first();
     await writeButton.waitFor({ state: 'visible', timeout: 30000 });
@@ -275,13 +294,13 @@ async function main() {
 
     await page.goto(archiveUrl, { waitUntil: 'networkidle', timeout: 60000 });
     await page.getByText(/Task/u).first().waitFor({ state: 'visible', timeout: 30000 });
-    const mayWeek5SidebarButtons = await page.locator('button').evaluateAll((buttons) => (
+    const mayWeek5SidebarButtons = await page.locator('button').evaluateAll((buttons, patternSource) => (
       buttons
         .map((button) => button.innerText || '')
-        .filter((text) => /26년\s*5월\s*5주/u.test(text))
-    ));
-    report.archive_may_week_5_sidebar_buttons = mayWeek5SidebarButtons;
-    report.checks.archive_may_week_5_not_duplicated = mayWeek5SidebarButtons.length <= 1;
+        .filter((text) => new RegExp(patternSource, 'u').test(text))
+    ), expectedWeekPatternSource);
+    report.archive_current_week_sidebar_buttons = mayWeek5SidebarButtons;
+    report.checks.archive_current_week_not_duplicated = mayWeek5SidebarButtons.length <= 1;
 
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
   } catch (error) {

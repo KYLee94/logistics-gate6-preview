@@ -702,6 +702,8 @@ async function main() {
           question: testCase.question,
           history: testCase.history || [],
           basis_date: basisDate,
+          qa_sample: true,
+          model_override: 'gemini-2.0-flash',
         });
         if (![429, 502, 503].includes(result.status)) break;
         if (attempt < 4) await new Promise((resolve) => setTimeout(resolve, 5000 * attempt));

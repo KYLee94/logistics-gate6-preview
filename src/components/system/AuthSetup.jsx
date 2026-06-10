@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-import { supabase } from '../../utils/supabaseClient';
+import { supabase, supabaseAnonKey, supabaseUrl } from '../../utils/supabaseClient';
 import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import { useAuth } from '../../context/AuthContext';
 import UserAvatar from './UserAvatar';
@@ -11,6 +11,7 @@ const LOGISTICS_LOCAL_AUTH_KEY = 'logistics_preview_auth';
 const LOGISTICS_ENROLLED_EMAILS_KEY = 'logistics_enrolled_emails';
 const LOGISTICS_LAST_EMAIL_KEY = 'logistics_last_login_email';
 const LOGISTICS_REMEMBER_EMAIL_KEY = 'logistics_remember_login_email';
+const LOGISTICS_PRODUCTION_AUTH_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const readEnrolledLogisticsEmails = () => {
     try {
         const parsed = JSON.parse(localStorage.getItem(LOGISTICS_ENROLLED_EMAILS_KEY) || '[]');
@@ -29,23 +30,76 @@ const markFirstAccessComplete = (email) => {
 };
 const fetchLogisticsAuthStatus = async (email) => {
     try {
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-            body: {
+        const response = await fetch(`${supabaseUrl}/functions/v1/ll-dashboard-api`, {
+            method: 'POST',
+            headers: {
+                apikey: supabaseAnonKey,
+                authorization: `Bearer ${supabaseAnonKey}`,
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
                 action: 'auth/logistics-status',
                 payload: { email },
-            },
+            }),
         });
-        if (error || data?.ok === false) return null;
+        const data = await response.json().catch(() => null);
+        if (!response.ok || data?.ok === false) return null;
         return data || null;
     } catch {
         return null;
     }
 };
+const setupLogisticsFirstLogin = async ({ email, authEmail, password, accessCode }) => {
+    try {
+        const response = await fetch(`${supabaseUrl}/functions/v1/ll-dashboard-api`, {
+            method: 'POST',
+            headers: {
+                apikey: supabaseAnonKey,
+                authorization: `Bearer ${supabaseAnonKey}`,
+                'content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                action: 'auth/first-login/setup',
+                payload: {
+                    email,
+                    auth_email: authEmail || email,
+                    password,
+                    access_code: accessCode,
+                },
+            }),
+        });
+        const data = await response.json().catch(() => null);
+        return data || { ok: false, error: response.ok ? '최초 접속 설정에 실패했습니다.' : `최초 접속 설정 실패 (${response.status})` };
+    } catch {
+        return { ok: false, error: '서버 연결에 실패했습니다.' };
+    }
+};
 const buildAuthRedirectUrl = (path = 'auth-setup') => {
-    const base = import.meta.env.BASE_URL || '/';
-    const normalizedBase = base.endsWith('/') ? base : `${base}/`;
     const normalizedPath = String(path || '').replace(/^\/+/, '');
-    return new URL(`${normalizedBase}${normalizedPath}`, window.location.origin).toString();
+    const configuredBase = import.meta.env.VITE_LOGISTICS_AUTH_REDIRECT_BASE_URL;
+    const host = typeof window !== 'undefined' ? window.location.host : '';
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const isLocalOrigin = /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(host);
+    const isLocalConfiguredBase = /https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?/i.test(String(configuredBase || ''));
+    const runtimeBase = isLocalOrigin
+        ? LOGISTICS_PRODUCTION_AUTH_BASE_URL
+        : `${origin}${import.meta.env.BASE_URL || '/'}`;
+    const base = !configuredBase || isLocalConfiguredBase
+        ? (runtimeBase || LOGISTICS_PRODUCTION_AUTH_BASE_URL)
+        : configuredBase;
+    const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+    return new URL(normalizedPath, normalizedBase).toString();
+};
+const navigateAfterSuccessfulAuth = (onLogin) => {
+    const beforeUrl = window.location.href;
+    if (onLogin) onLogin();
+    setTimeout(() => {
+        if (window.location.href !== beforeUrl && !window.location.href.includes('auth-setup')) return;
+        const base = import.meta.env.BASE_URL || '/';
+        const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+        const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || 'work-platform';
+        window.location.assign(new URL(`${normalizedBase}${String(nextPath).replace(/^\/+/, '')}`, window.location.origin).toString());
+    }, 900);
 };
 const activateLocalLogisticsSession = (email, userId, memberInfo = {}) => {
     const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -221,7 +275,11 @@ export default function AuthSetup({ onLogin }) {
                 avatar_url: remoteAuthStatus?.image_url || remoteAuthStatus?.avatar_url || remoteAuthStatus?.profile_image_url,
             });
             setResolvedAuthEmail(authEmail);
-            setIsFirstTime(!remoteFirstAccessComplete && !memberData?.auth_id && !hasCompletedFirstAccess(normalizedEmail) && !hasCompletedFirstAccess(authEmail));
+            const remoteHasAuthUser = remoteAuthStatus?.has_auth_user;
+            setIsFirstTime(
+                remoteHasAuthUser === false
+                || (!remoteFirstAccessComplete && !memberData?.auth_id && !hasCompletedFirstAccess(normalizedEmail) && !hasCompletedFirstAccess(authEmail))
+            );
             setStep(2);
         } catch {
             triggerError('서버 연결에 실패했습니다.');
@@ -256,20 +314,25 @@ export default function AuthSetup({ onLogin }) {
     const handleChangePasswordSubmit = async (e) => {
         e?.preventDefault();
         setErrorMessage('');
+        sessionStorage.setItem('logisticsAuthSetupMode', 'password-change');
         
         if (newPassword.length < 6) {
+            sessionStorage.removeItem('logisticsAuthSetupMode');
             triggerError('새 패스워드는 최소 6자리 이상이어야 합니다.');
             return;
         }
         if (newPassword !== confirmNewPassword) {
+            sessionStorage.removeItem('logisticsAuthSetupMode');
             triggerError('새 패스워드가 일치하지 않습니다.');
             return;
         }
         if (oldPassword === newPassword) {
+            sessionStorage.removeItem('logisticsAuthSetupMode');
             triggerError('새 패스워드는 기존 패스워드와 달라야 합니다.');
             return;
         }
 
+        let signedInForPasswordChange = false;
         try {
             // 1. Verify old password by signing in
             const { data, error } = await supabase.auth.signInWithPassword({
@@ -278,28 +341,52 @@ export default function AuthSetup({ onLogin }) {
             });
 
             if (error || !data.user) {
+                sessionStorage.removeItem('logisticsAuthSetupMode');
                 triggerError('기존 패스워드가 올바르지 않습니다.');
                 return;
             }
+            signedInForPasswordChange = true;
 
-            // 2. Update password
-            const { error: updateError } = await supabase.auth.updateUser({
-                password: newPassword
+            // 2. Update password through the same Supabase Auth API directly.
+            // The JS helper can wait on auth-state callbacks here; direct fetch keeps this form responsive.
+            const { data: { session } } = await supabase.auth.getSession();
+            if (!session?.access_token) {
+                sessionStorage.removeItem('logisticsAuthSetupMode');
+                if (signedInForPasswordChange) await supabase.auth.signOut();
+                triggerError('로그인 세션을 확인하지 못했습니다. 다시 로그인해 주세요.');
+                return;
+            }
+            const updateResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+                method: 'PUT',
+                headers: {
+                    apikey: supabaseAnonKey,
+                    authorization: `Bearer ${session.access_token}`,
+                    'content-type': 'application/json',
+                },
+                body: JSON.stringify({ password: newPassword }),
             });
+            const updateBody = await updateResponse.json().catch(() => ({}));
 
-            if (updateError) {
-                let msg = updateError.message;
+            if (!updateResponse.ok) {
+                let msg = updateBody?.msg || updateBody?.message || updateBody?.error_description || updateBody?.error || 'unknown error';
                 if (msg.includes('different from the old password')) {
                     msg = '새 패스워드는 기존 패스워드와 달라야 합니다.';
                 }
+                sessionStorage.removeItem('logisticsAuthSetupMode');
+                if (signedInForPasswordChange) await supabase.auth.signOut();
                 triggerError('패스워드 변경 실패: ' + msg);
                 return;
             }
 
-            // Success, show confirmation popup
-            setShowChangeSuccessModal(true);
+            sessionStorage.removeItem('logisticsAuthSetupMode');
+            setDissolved(true);
+            setTimeout(() => {
+                navigateAfterSuccessfulAuth(onLogin);
+            }, 700);
 
         } catch {
+            sessionStorage.removeItem('logisticsAuthSetupMode');
+            if (signedInForPasswordChange) await supabase.auth.signOut();
             triggerError('패스워드 변경 중 오류가 발생했습니다.');
         }
     };
@@ -309,12 +396,14 @@ export default function AuthSetup({ onLogin }) {
         setErrorMessage('');
         
         try {
-            const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+            const normalizedEmail = email.trim().toLowerCase();
+            const resetTargetEmail = currentAuthEmail() || normalizedEmail;
+            const { error } = await supabase.auth.resetPasswordForEmail(resetTargetEmail, {
                 redirectTo: buildAuthRedirectUrl('auth-setup'),
             });
             
-            if (error && currentAuthEmail() !== email.trim().toLowerCase()) {
-                const retry = await supabase.auth.resetPasswordForEmail(currentAuthEmail(), {
+            if (error && resetTargetEmail !== normalizedEmail) {
+                const retry = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
                     redirectTo: buildAuthRedirectUrl('auth-setup'),
                 });
                 if (retry.error) {
@@ -380,60 +469,39 @@ export default function AuthSetup({ onLogin }) {
             });
 
             if (isFirstTime) {
-                // Sign up new user
-                let { data, error } = await supabase.auth.signUp({
-                    email: authEmail,
-                    password: password,
-                    options: {
-                        emailRedirectTo: buildAuthRedirectUrl('work-platform'),
-                    },
+                const setupResult = await setupLogisticsFirstLogin({
+                    email: normalizedEmail,
+                    authEmail,
+                    password,
+                    accessCode,
                 });
-                
-                if (error) {
-                    // Auto-heal: If user already exists in Supabase auth but auth_id in DB is null (e.g. after table reset)
-                    if (error.message.includes('already registered')) {
-                        const signInRes = await supabase.auth.signInWithPassword({
-                            email: authEmail,
-                            password: password
-                        });
-                        
-                        if (signInRes.error) {
-                            if (/confirm/i.test(signInRes.error.message || '')) {
-                                activateLocalLogisticsSession(normalizedEmail, null, selectedAvatarInfo);
-                                data = { user: { id: `local-logistics-${normalizedEmail}` } };
-                            } else {
-                                triggerError('이미 가입된 이메일입니다. 기존 패스워드를 입력하거나 "비밀번호 찾기"를 이용하세요.');
-                                return;
-                            }
-                        } else {
-                            data = signInRes.data; // Use the signed-in session data
-                        }
-                    } else {
-                        triggerError('회원가입 실패: ' + error.message);
-                        return;
-                    }
+
+                if (!setupResult?.ok) {
+                    triggerError(setupResult?.error || '최초 접속 설정에 실패했습니다.');
+                    return;
                 }
 
-                // Update auth_id in our members table
-                if (data.user) {
-                    if (!String(data.user.id || '').startsWith('local-logistics-')) {
-                        await supabase.functions.invoke('iota-auth-member-sync', {
-                            body: {
-                                action: 'first_login',
-                                email: authEmail,
-                                auth_id: data.user.id,
-                            },
-                        });
-                    }
-                    markFirstAccessComplete(normalizedEmail);
-                    markFirstAccessComplete(authEmail);
-                    activateLocalLogisticsSession(normalizedEmail, data.user.id, selectedAvatarInfo);
-                    await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
-                } else {
-                    markFirstAccessComplete(normalizedEmail);
-                    markFirstAccessComplete(authEmail);
-                    activateLocalLogisticsSession(normalizedEmail, null, selectedAvatarInfo);
+                const { data, error } = await supabase.auth.signInWithPassword({
+                    email: authEmail,
+                    password,
+                });
+
+                if (error || !data?.user) {
+                    triggerError('패스워드 설정은 완료했지만 로그인 세션 생성에 실패했습니다. 같은 패스워드로 다시 로그인해 주세요.');
+                    return;
                 }
+
+                await supabase.functions.invoke('iota-auth-member-sync', {
+                    body: {
+                        action: 'first_login',
+                        email: authEmail,
+                        auth_id: data.user.id,
+                    },
+                });
+                markFirstAccessComplete(normalizedEmail);
+                markFirstAccessComplete(authEmail);
+                activateLocalLogisticsSession(normalizedEmail, data.user.id, selectedAvatarInfo);
+                await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
             } else {
                 // Sign in existing user
                 const { data, error } = await supabase.auth.signInWithPassword({
@@ -462,7 +530,7 @@ export default function AuthSetup({ onLogin }) {
 
             setDissolved(true);
             setTimeout(() => {
-                if(onLogin) onLogin();
+                navigateAfterSuccessfulAuth(onLogin);
             }, 700);
 
         } catch {
@@ -890,10 +958,11 @@ export default function AuthSetup({ onLogin }) {
                         </p>
                         <button 
                             onClick={() => {
+                                sessionStorage.removeItem('logisticsAuthSetupMode');
                                 setShowChangeSuccessModal(false);
                                 setDissolved(true);
                                 setTimeout(() => {
-                                    if(onLogin) onLogin();
+                                    navigateAfterSuccessfulAuth(onLogin);
                                 }, 700);
                             }} 
                             className="w-full py-3.5 rounded-[16px] bg-[#111] dark:bg-white text-white dark:text-[#111111] font-semibold text-[15px] hover:bg-[#333] dark:hover:bg-gray-200 transition-colors cursor-pointer"

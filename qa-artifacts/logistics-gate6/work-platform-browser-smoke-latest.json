@@ -1,14 +1,13 @@
 {
   "ok": true,
-  "generated_at": "2026-05-28T06:59:01.741Z",
+  "generated_at": "2026-06-09T02:15:33.695Z",
   "url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics",
   "home_url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics/dashboard/home",
   "archive_url": "https://kylee94.github.io/logistics-gate6-preview/platform/iotaseoul/workspace/archive?workspace=logistics",
   "auth_source": "password_grant",
   "ui_email": "kylee@igisam.com",
   "checks": {
-    "current_week_is_may_week_5": true,
-    "current_week_is_not_may_week_4": true,
+    "current_week_label_matches_today": true,
     "write_header_date_and_collapse_same_line": true,
     "board_dropdowns_open_and_select": true,
     "board_visibility_modal_opens": true,
@@ -16,21 +15,22 @@
     "home_expiry_right_count_axis_integer_unique": true,
     "home_expiry_count_points_align_to_integer_axis": true,
     "home_expiry_tooltip_has_area_count_and_details": true,
-    "archive_may_week_5_not_duplicated": true
+    "archive_current_week_not_duplicated": true
   },
-  "screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-065901.png",
-  "home_expiry_screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260528-065901-home-expiry.png",
+  "screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260609-021533.png",
+  "home_expiry_screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260609-021533-home-expiry.png",
   "errors": [],
-  "task_header_text": "주요 TASK 관리\n26년 5월 5주",
+  "task_header_text": "주요 TASK 관리\n26년 6월 2주\n지난 Task 관리\n완료 포함\n전체보기\n+ Task 등록하기\n등록된 게시물이 없습니다.",
+  "expected_week_label": "26년 6월 2주",
   "header_metrics": {
     "hasHeader": true,
     "hasDateLabel": true,
-    "dateText": "2026년 5월 28일 (목)",
+    "dateText": "2026년 6월 9일 (화)",
     "collapseText": "접기",
     "sameLine": true,
     "dateAndCollapseVisible": true,
     "collapseButtonWidth": 52,
-    "dateLabelWidth": 155.75
+    "dateLabelWidth": 147.375
   },
   "board_dropdown_results": [
     {
@@ -74,7 +74,5 @@
   },
   "home_expiry_hover_target_count": 30,
   "home_expiry_tooltip_text": "2029-01\n만기 임대면적\n3,723.1평\n만기 임차인 수\n2개\n만기 계약/구역 수\n2건\n만기 자산 / 임차인\n동산물류센터 / (주)우진글로벌 · 1,938.9평 · 4\n동산물류센터 / 송림물류(주) · 1,784.2평 · B1",
-  "archive_may_week_5_sidebar_buttons": [
-    "26년 5월 5주 26.5.25~26.5.31\n6"
-  ]
+  "archive_current_week_sidebar_buttons": []
 }

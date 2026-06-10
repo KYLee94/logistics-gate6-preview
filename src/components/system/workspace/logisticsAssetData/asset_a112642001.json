@@ -65,7 +65,13 @@
     "rowCount": 1,
     "selection": {
       "assetId": "asset_a112642001",
-      "assetName": "화성 석포리 물류센터"
+      "assetName": "화성 석포리 물류센터",
+      "sigunguCd": "41591",
+      "bjdongCd": "35022",
+      "platGbCd": "0",
+      "bun": "147",
+      "ji": "12",
+      "queryKey": "41591|35022|0|0147|0012"
     },
     "generatedAt": "2026-04-27T16:07:14",
     "basisDisplay": {
@@ -88,15 +94,15 @@
         "ji": "12",
         "bun": "147",
         "assetId": "asset_a112642001",
-        "bjdongCd": "37022",
+        "bjdongCd": "35022",
         "latitude": 37.1220878,
         "platGbCd": "0",
-        "queryKey": "41590|37022|0|0147|0012",
+        "queryKey": "41591|35022|0|0147|0012",
         "assetCode": "A112642001",
         "assetName": "화성 석포리 물류센터",
         "fetchedAt": "2026-04-22",
         "longitude": 126.8350908,
-        "sigunguCd": "41590",
+        "sigunguCd": "41591",
         "floorCount": "3F / B2",
         "landAreaSqm": 47602,
         "approvalDate": "2023-11-14",
@@ -106,7 +112,7 @@
         "buildingHubStatus": "official_not_found",
         "firstConfiguredAt": "2022-02-14",
         "grossFloorAreaSqm": 107009.56,
-        "standardizedAddress": "경기도 화성시 장안면 북부마을길 42"
+        "standardizedAddress": "경기도 화성시 만세구 장안면 북부마을길 42"
       },
       "is3pl": false,
       "fundId": "fund_112642",
@@ -174,7 +180,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "화성 석포리 물류센터"
+          "relatedAssetLabel": "화성 석포리 물류센터",
+          "sigunguCd": "41591",
+          "bjdongCd": "35022",
+          "platGbCd": "0",
+          "bun": "147",
+          "ji": "12",
+          "queryKey": "41591|35022|0|0147|0012"
         },
         {
           "owner": "",
@@ -191,7 +203,13 @@
           "relatedSheet": "DB_일반",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "화성 석포리 물류센터"
+          "relatedAssetLabel": "화성 석포리 물류센터",
+          "sigunguCd": "41591",
+          "bjdongCd": "35022",
+          "platGbCd": "0",
+          "bun": "147",
+          "ji": "12",
+          "queryKey": "41591|35022|0|0147|0012"
         }
       ],
       "sourceDocRef": "",
@@ -297,22 +315,28 @@
       "businessRegistrationNo": "124-81-55381",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 636278051,
-      "currentMonthlyRentTotal": 586697943
+      "currentMonthlyRentTotal": 586697943,
+      "sigunguCd": "41591",
+      "bjdongCd": "35022",
+      "platGbCd": "0",
+      "bun": "147",
+      "ji": "12",
+      "queryKey": "41591|35022|0|0147|0012"
     },
     {
       "asset": {
         "ji": "12",
         "bun": "147",
         "assetId": "asset_a112642001",
-        "bjdongCd": "37022",
+        "bjdongCd": "35022",
         "latitude": 37.1220878,
         "platGbCd": "0",
-        "queryKey": "41590|37022|0|0147|0012",
+        "queryKey": "41591|35022|0|0147|0012",
         "assetCode": "A112642001",
         "assetName": "화성 석포리 물류센터",
         "fetchedAt": "2026-04-22",
         "longitude": 126.8350908,
-        "sigunguCd": "41590",
+        "sigunguCd": "41591",
         "floorCount": "3F / B2",
         "landAreaSqm": 47602,
         "approvalDate": "2023-11-14",
@@ -322,7 +346,7 @@
         "buildingHubStatus": "official_not_found",
         "firstConfiguredAt": "2022-02-14",
         "grossFloorAreaSqm": 107009.56,
-        "standardizedAddress": "경기도 화성시 장안면 북부마을길 42"
+        "standardizedAddress": "경기도 화성시 만세구 장안면 북부마을길 42"
       },
       "is3pl": false,
       "fundId": "fund_112642",
@@ -390,7 +414,13 @@
           "relatedSheet": "전체",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "화성 석포리 물류센터"
+          "relatedAssetLabel": "화성 석포리 물류센터",
+          "sigunguCd": "41591",
+          "bjdongCd": "35022",
+          "platGbCd": "0",
+          "bun": "147",
+          "ji": "12",
+          "queryKey": "41591|35022|0|0147|0012"
         },
         {
           "owner": "",
@@ -407,7 +437,13 @@
           "relatedSheet": "DB_일반",
           "managerQuestion": "",
           "needsDevelopment": "",
-          "relatedAssetLabel": "화성 석포리 물류센터"
+          "relatedAssetLabel": "화성 석포리 물류센터",
+          "sigunguCd": "41591",
+          "bjdongCd": "35022",
+          "platGbCd": "0",
+          "bun": "147",
+          "ji": "12",
+          "queryKey": "41591|35022|0|0147|0012"
         }
       ],
       "sourceDocRef": "",
@@ -513,7 +549,13 @@
       "businessRegistrationNo": "124-81-55381",
       "insuranceSpecialClause": "없음",
       "currentMonthlyCostTotal": 636278051,
-      "currentMonthlyRentTotal": 586697943
+      "currentMonthlyRentTotal": 586697943,
+      "sigunguCd": "41591",
+      "bjdongCd": "35022",
+      "platGbCd": "0",
+      "bun": "147",
+      "ji": "12",
+      "queryKey": "41591|35022|0|0147|0012"
     }
   ],
   "basis": {
@@ -593,7 +635,13 @@
         "averageENoc": 29980,
         "vacancyRate": 0.2216151400255058,
         "monthlyCostTotal": 2468703091,
-        "uniqueTenantCount": 2
+        "uniqueTenantCount": 2,
+        "sigunguCd": "41461",
+        "bjdongCd": "26221",
+        "platGbCd": "0",
+        "bun": "914",
+        "ji": "0",
+        "queryKey": "41461|26221|0|0914|0000"
       },
       {
         "assetId": "asset_ap00014001",
@@ -656,7 +704,13 @@
         "averageENoc": 31632.69,
         "vacancyRate": 0.00020146451000519652,
         "monthlyCostTotal": 2863471002,
-        "uniqueTenantCount": 1
+        "uniqueTenantCount": 1,
+        "sigunguCd": "28260",
+        "bjdongCd": "11000",
+        "platGbCd": "0",
+        "bun": "224",
+        "ji": "8",
+        "queryKey": "28260|11000|0|0224|0008"
       },
       {
         "assetId": "asset_a112500002",
@@ -674,7 +728,13 @@
         "averageENoc": 39312.35,
         "vacancyRate": 0,
         "monthlyCostTotal": 1272556102,
-        "uniqueTenantCount": 1
+        "uniqueTenantCount": 1,
+        "sigunguCd": "41591",
+        "bjdongCd": "35022",
+        "platGbCd": "0",
+        "bun": "147",
+        "ji": "12",
+        "queryKey": "41591|35022|0|0147|0012"
       }
     ],
     "selectorMeta": {
@@ -779,7 +839,7 @@
     "firstConfiguredAt": "2022-02-14",
     "grossFloorAreaSqm": 107009.56,
     "uniqueTenantCount": 1,
-    "standardizedAddress": "경기도 화성시 장안면 북부마을길 42",
+    "standardizedAddress": "경기도 화성시 만세구 장안면 북부마을길 42",
     "grossFloorAreaEffectiveAt": "2023-11-14",
     "grossFloorAreaTimelineRule": "later_of_first_configured_at_and_approval_date",
     "grossFloorAreaTimelineBasis": {
@@ -790,7 +850,13 @@
       "effectiveMonth": "2023-11",
       "firstConfiguredAt": "2022-02-14"
     },
-    "grossFloorAreaEffectiveMonth": "2023-11"
+    "grossFloorAreaEffectiveMonth": "2023-11",
+    "sigunguCd": "41591",
+    "bjdongCd": "35022",
+    "platGbCd": "0",
+    "bun": "147",
+    "ji": "12",
+    "queryKey": "41591|35022|0|0147|0012"
   },
   "analytics": {
     "rentVsMf": [

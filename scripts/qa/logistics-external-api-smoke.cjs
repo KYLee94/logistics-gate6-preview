@@ -289,7 +289,7 @@ async function main() {
     openDartCheck = {
       name: 'opendart/company-provider-separated',
       status: dart.status,
-      ok: ['provider_success', 'fresh_cache', 'tenant_fallback', 'stale_cache', 'provider_tls_failure'].includes(classification),
+      ok: ['provider_success', 'fresh_cache'].includes(classification),
       provider_success: classification === 'provider_success',
       cache_success: classification === 'fresh_cache',
       stale_cache_success: classification === 'stale_cache',
@@ -317,13 +317,17 @@ async function main() {
         : null,
       body: summarizeExternalBody(dart.body),
     };
+    if (openDartCheck.required_user_action && classification === 'tenant_fallback') {
+      openDartCheck.required_user_action.reason = 'Supabase Edge secret OPENDART_API_KEY is configured, but Edge could not verify a live OpenDART provider payload and returned the ll_tenants fallback. For monthly operation, run OpenDART ingest from a local/GitHub environment and store the verified result through Edge cache-upsert.';
+    }
     const dartForce = await invoke(endpoint, anonKey, origin, auth.token, 'opendart/company', { corp_code: corpCode, include_financials: true, force_refresh: true });
     assertNoSecrets('opendart/company force_refresh', dartForce.body);
     const forceClassification = classifyOpenDart(dartForce);
     openDartForceCheck = {
       name: 'opendart/company-provider-force-refresh',
       status: dartForce.status,
-      ok: ['provider_success', 'stale_cache', 'provider_tls_failure'].includes(forceClassification),
+      ok: forceClassification === 'provider_success',
+      diagnostic: true,
       provider_success: forceClassification === 'provider_success',
       cache_success: false,
       stale_cache_success: forceClassification === 'stale_cache',
@@ -334,7 +338,7 @@ async function main() {
     };
   } else {
     openDartCheck = { name: 'opendart/company-provider-separated', status: 'skipped', ok: false, provider_success: false, fallback_success: false, classification: 'corp_code_missing' };
-    openDartForceCheck = { name: 'opendart/company-provider-force-refresh', status: 'skipped', ok: false, provider_success: false, fallback_success: false, classification: 'corp_code_missing', force_refresh: true };
+    openDartForceCheck = { name: 'opendart/company-provider-force-refresh', status: 'skipped', ok: false, diagnostic: true, provider_success: false, fallback_success: false, classification: 'corp_code_missing', force_refresh: true };
   }
   checks.push(openDartCheck);
   checks.push(openDartForceCheck);
@@ -373,7 +377,7 @@ async function main() {
   }
 
   const output = {
-    ok: checks.filter((row) => row.status !== 'skipped').every((row) => row.ok),
+    ok: checks.filter((row) => row.status !== 'skipped' && row.diagnostic !== true).every((row) => row.ok),
     generated_at: new Date().toISOString(),
     origin,
     basis_date: basisDate,
@@ -385,7 +389,9 @@ async function main() {
     opendart_cache_success: Boolean(openDartCheck?.cache_success),
     opendart_stale_cache_success: Boolean(openDartForceCheck?.stale_cache_success || openDartCheck?.stale_cache_success),
     opendart_fallback_success: Boolean(openDartForceCheck?.fallback_success || openDartCheck?.fallback_success),
-    opendart_requires_external_provider_resolution: Boolean(openDartCheck?.required_user_action),
+    opendart_requires_external_provider_resolution: Boolean(
+      openDartCheck?.required_user_action
+    ),
   };
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const outJson = path.join(OUT_DIR, `external-api-smoke-${timestampForFile()}.json`);

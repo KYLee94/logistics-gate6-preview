@@ -185,7 +185,10 @@ async function main() {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const origin = argValue('origin', DEFAULT_ORIGIN);
-  const model = argValue('model', 'gemini-3.1-flash-lite');
+  const model = argValue('model', 'gemini-2.0-flash');
+  if (model === 'gemini-3.1-flash-lite') {
+    throw new Error('QA must not call gemini-3.1-flash-lite. Use gemini-2.0-flash for tests; 3.1 Flash-Lite is reserved for deployed human use.');
+  }
   const sampleRate = Number(argValue('sample-rate', '0.1')) || 0.1;
   const seed = Number(argValue('seed', '20260602')) || 20260602;
   const basisDate = argValue('basis-date', envValue('LOGISTICS_BASIS_DATE') || currentKstMonthEndDate());

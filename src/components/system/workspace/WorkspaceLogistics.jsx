@@ -100,7 +100,21 @@ const LOGISTICS_FEATURE_KEYS = {
   loginHistory: 'login_history',
   buildingRegisterRefresh: 'building_register_refresh',
   openDartRefresh: 'opendart_refresh',
+  marketResearch: 'market_research',
 };
+
+const AI_CHAT_SCOPE_OPTIONS = [
+  {
+    key: 'operational',
+    label: '이지스 물류센터',
+    description: '자산·임차인·계약',
+  },
+  {
+    key: 'market',
+    label: '시장자료',
+    description: '리포트·거래·공급',
+  },
+];
 const LOGISTICS_FEATURE_GATED_MODULES = {
   tools: LOGISTICS_FEATURE_KEYS.analysisTools,
   playground: LOGISTICS_FEATURE_KEYS.dataPlayground,
@@ -1266,6 +1280,14 @@ function formatNumber(value) {
   return new Intl.NumberFormat('ko-KR').format(numeric);
 }
 
+function formatFileSize(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return '-';
+  if (numeric >= 1024 * 1024) return `${formatDecimalNumber(numeric / (1024 * 1024), 1)} MB`;
+  if (numeric >= 1024) return `${formatDecimalNumber(numeric / 1024, 1)} KB`;
+  return `${formatNumber(numeric)} B`;
+}
+
 function formatDecimalNumber(value, digits = 1) {
   if (value === undefined || value === null || value === '') return '-';
   const numeric = Number(value);
@@ -1971,6 +1993,7 @@ function WorklogRow({ item }) {
 
 function tableHeaderText(header) {
   if (typeof header === 'string' || typeof header === 'number') return String(header);
+  if (header && typeof header === 'object' && header.props?.['data-label']) return String(header.props['data-label']);
   return '';
 }
 
@@ -3940,6 +3963,7 @@ function useLogisticsFeatureAccess(memberInfo, permission) {
     loginHistory: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.loginHistory, config),
     buildingRegisterRefresh: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.buildingRegisterRefresh, config),
     openDartRefresh: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.openDartRefresh, config),
+    marketResearch: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.marketResearch, config),
   }), [config, memberInfo, permission]);
 }
 
@@ -4822,6 +4846,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const [mainSearchQuery, setMainSearchQuery] = useState('');
   const [isAiDockOpen, setIsAiDockOpen] = useState(false);
   const [aiChatInput, setAiChatInput] = useState('');
+  const [aiAnswerScope, setAiAnswerScope] = useState('operational');
   const [aiChatLoading, setAiChatLoading] = useState(false);
   const [aiDiagnosticsLoading, setAiDiagnosticsLoading] = useState(false);
   const [aiToast, setAiToast] = useState(null);
@@ -5291,6 +5316,69 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     }
   };
 
+  const refreshMarketDocsStatus = async () => {
+    setMarketDocsLoading(true);
+    try {
+      const data = await invokeLogisticsAiFunction(
+        'market-docs/status',
+        {},
+        { timeoutMs: 20000 },
+      );
+      setMarketDocsStatus(data?.data || null);
+    } catch (error) {
+      setMarketDocsUploadState({ type: 'warning', message: describeAiFunctionError(error, error?.data) });
+    } finally {
+      setMarketDocsLoading(false);
+    }
+  };
+
+  const openMarketDocsModal = () => {
+    setIsMarketDocsModalOpen(true);
+    setMarketDocsUploadState({ type: 'idle', message: '' });
+    refreshMarketDocsStatus();
+  };
+
+  const uploadMarketDocsFile = async () => {
+    if (!marketDocsFile) {
+      setMarketDocsUploadState({ type: 'warning', message: '업로드할 시장자료 파일을 선택해 주세요.' });
+      return;
+    }
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const accessToken = sessionData?.session?.access_token;
+    if (sessionError || !accessToken) {
+      setMarketDocsUploadState({ type: 'warning', message: '로그인 세션을 확인하지 못했습니다. 새로고침 후 다시 시도해 주세요.' });
+      return;
+    }
+    const formData = new FormData();
+    formData.append('action', 'market-docs/upload');
+    formData.append('payload', '{}');
+    formData.append('file', marketDocsFile);
+    setMarketDocsUploadState({ type: 'pending', message: '원본 파일을 Supabase Storage에 보관하는 중입니다.' });
+    try {
+      const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/functions/v1/ll-dashboard-api`, {
+        method: 'POST',
+        headers: {
+          apikey: supabaseAnonKey,
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+      const text = await response.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = { message: text.slice(0, 300) };
+      }
+      if (!response.ok || data?.ok === false) throw new Error(data?.message || data?.error || `업로드 실패 (${response.status})`);
+      setMarketDocsFile(null);
+      setMarketDocsUploadState({ type: 'success', message: data?.data?.message || '원본 파일을 Supabase Storage에 보관했습니다.' });
+      refreshMarketDocsStatus();
+    } catch (error) {
+      setMarketDocsUploadState({ type: 'warning', message: `시장자료 업로드 실패: ${error.message || 'unknown error'}` });
+    }
+  };
+
   const submitAiChatQuestion = async () => {
     const question = aiChatInput.trim();
     if (question.length < 2) return;
@@ -5311,7 +5399,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     try {
       const responseData = await invokeLogisticsAiFunction(
         'ai/search-chat',
-        { question, history },
+        { question, history, answer_scope: aiAnswerScope },
         { timeoutMs: 30000 },
       );
       if (!responseData?.ok) {
@@ -5323,7 +5411,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         id: `ai-assistant-${Date.now()}`,
         role: 'assistant',
         content: sanitizeLogisticsAiDisplayText(responseData?.answer || responseData?.message || '권한 범위 안에서 답변할 수 있는 근거를 찾지 못했습니다.'),
-        evidence: [],
+        evidence: Array.isArray(responseData?.evidence) ? responseData.evidence : [],
         scope: responseData?.scope || null,
         mode: responseData?.mode || null,
         model: responseData?.model || null,
@@ -5374,7 +5462,9 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   }
 
   return (
-    <div className={`w-full max-w-[1200px] px-8 pt-[50px] pb-[70px] transition-[margin,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isAiDockOpen ? 'xl:ml-8 xl:mr-[420px] xl:max-w-[calc(100vw-760px)]' : 'mx-auto'}`}>
+    <div className="relative w-full overflow-x-clip">
+      <div className={`w-full px-8 pt-[50px] pb-[70px] transition-[padding] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isAiDockOpen ? 'xl:pr-[452px]' : 'xl:pr-8'}`}>
+        <div className="w-full max-w-[1200px] mx-auto">
       <header className="mb-[28px] flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h1 className="text-[36px] font-bold leading-none tracking-tight text-white font-['Inter']">물류센터 워크 플랫폼</h1>
@@ -5456,14 +5546,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
 
       <WeeklyAssetStatusTable />
 
-      <section className="mb-[28px]">
-        <div className="mb-[10px] flex items-center justify-between">
+      <section id="task-management" className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-0">
-            <h2 id="task-management" className="flex items-center text-[18px] font-bold tracking-tight text-white">
+            <h2 className="flex items-center text-[20px] font-semibold tracking-tight text-white">
               <span className="mt-[2px]">주요 TASK 관리</span>
               <span className="ml-[10px] rounded-[6px] bg-[#333] px-[8px] py-[3px] text-[14px] font-bold text-[#b3b0a6]">{getLogisticsWeekInfo().weekLabel}</span>
             </h2>
-            <a href={`${import.meta.env.BASE_URL}platform/iotaseoul/workspace/archive?workspace=logistics`} target="_blank" rel="opener" className="ml-[10px] mt-[2px] flex cursor-pointer items-center gap-[4px] rounded-[6px] border border-[#3c3c3c] bg-transparent py-[3px] pl-[10px] pr-[8px] text-[13px] font-normal tracking-[-0.02em] text-[#A1A1AA] transition-all hover:bg-[#333] hover:text-white">
+            <a href={`${import.meta.env.BASE_URL}work-platform/archive?workspace=logistics`} target="_blank" rel="opener" className="ml-[10px] mt-[2px] flex cursor-pointer items-center gap-[4px] rounded-[6px] border border-[#3c3c3c] bg-transparent py-[3px] pl-[10px] pr-[8px] text-[13px] font-normal tracking-[-0.02em] text-[#A1A1AA] transition-all hover:bg-[#333] hover:text-white">
               지난 Task 관리
               <svg className="h-[14px] w-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -5484,7 +5574,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             ) : null}
           </div>
         </div>
-        <div className="-mx-[7px] mb-[34px] rounded-[30px] border border-[#333] p-[6px]">
+        <div className="rounded-[20px] border border-[#333333] bg-[#1F1F1E] p-[6px]">
           <div className="flex w-full flex-col gap-[16px]">
             {isAddingTask && !taskEditTarget && taskDraft ? (
               <div className="flex w-full flex-col gap-4 rounded-[24px] border border-[#3c3c3c] bg-[#272726] p-6">
@@ -5709,7 +5799,11 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         </div>
       </section>
 
-      <WorkspaceActivityLog workspaceCode="WS_LOGISTICS" workspaceLabel="물류센터 워크 플랫폼" assetOptions={topAssets} />
+      <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5">
+        <WorkspaceActivityLog workspaceCode="WS_LOGISTICS" workspaceLabel="물류센터 워크 플랫폼" assetOptions={topAssets} embedded />
+      </section>
+        </div>
+      </div>
 
       {mainModal === 'permission' && (
         <MainOverlay title="담당자별 자산·펀드 권한" eyebrow="PERMISSION SCOPE" onClose={() => setMainModal(null)}>
@@ -5740,6 +5834,103 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           {aiToast.message}
         </div>
       ) : null}
+      {false ? (
+        <MainOverlay title="" eyebrow="" onClose={() => {}}>
+          <div className="space-y-5">
+            <div className="rounded-[16px] border border-[#333333] bg-[#1F1F1E] p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <div className="text-[16px] font-bold text-white">원본 파일 업로드</div>
+                  <div className="mt-1 max-w-[720px] text-[13px] leading-6 text-[#A1A1AA]">
+                    업로드한 원본 파일은 비공개 Supabase Storage에 보관됩니다. 챗봇 검색에는 별도 추출된 표/문단 데이터가 사용되며, 원본 보존 상태와 추출 상태는 아래 목록에서 따로 확인합니다.
+                  </div>
+                </div>
+                <button type="button" onClick={refreshMarketDocsStatus} disabled={marketDocsLoading} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${marketDocsLoading ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : DARK_BUTTON_CLASS}`}>
+                  {marketDocsLoading ? '새로고침 중' : '상태 새로고침'}
+                </button>
+              </div>
+              <div className="mt-5 flex flex-col gap-3 md:flex-row md:items-center">
+                <input
+                  type="file"
+                  accept=".pdf,.xlsx,.xls,.txt,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                  onChange={(event) => setMarketDocsFile(event.target.files?.[0] || null)}
+                  className="min-h-11 flex-1 rounded-[10px] border border-[#3A3A3C] bg-[#141414] px-3 py-2 text-[13px] font-semibold text-[#D1D1D6] file:mr-3 file:rounded-[8px] file:border-0 file:bg-[#30302F] file:px-3 file:py-2 file:text-[12px] file:font-bold file:text-white"
+                />
+                <button type="button" onClick={uploadMarketDocsFile} disabled={!marketDocsFile || marketDocsUploadState.type === 'pending'} className={`h-11 rounded-[10px] border px-5 text-[13px] font-bold ${!marketDocsFile || marketDocsUploadState.type === 'pending' ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : PRIMARY_BLUE_BUTTON_CLASS}`}>
+                  {marketDocsUploadState.type === 'pending' ? '업로드 중' : '원본 저장'}
+                </button>
+              </div>
+              {marketDocsUploadState.message ? (
+                <div className={`mt-4 rounded-[12px] border px-4 py-3 text-[13px] font-semibold ${
+                  marketDocsUploadState.type === 'success'
+                    ? 'border-[#2E6B45] bg-[#12351F] text-[#B5E48C]'
+                    : marketDocsUploadState.type === 'pending'
+                      ? 'border-[#365C91] bg-[#16253A] text-[#9CC7FF]'
+                      : 'border-[#7A5C10] bg-[#2A2309] text-[#F7D774]'
+                }`}>
+                  {marketDocsUploadState.message}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              {[
+                ['문서', marketDocsStatus?.documents],
+                ['검색 문단', marketDocsStatus?.chunks],
+                ['구조화 값', marketDocsStatus?.facts],
+                ['원본 보존', marketDocsStatus?.preserved_documents],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-4">
+                  <div className="text-[12px] font-bold uppercase text-[#86868B]">{label}</div>
+                  <div className="mt-2 text-[22px] font-bold text-white">{formatNumber(value || 0)}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="overflow-hidden rounded-[16px] border border-[#333333] bg-[#1F1F1E]">
+              <div className="flex items-center justify-between border-b border-[#333333] px-4 py-3">
+                <div className="text-[15px] font-bold text-white">최근 시장자료</div>
+                <div className="text-[12px] font-semibold text-[#86868B]">원본 보존과 검색 추출은 별도 상태입니다.</div>
+              </div>
+              <div className="max-h-[420px] overflow-auto custom-scrollbar">
+                <table className="min-w-full text-left text-[12px]">
+                  <thead className="sticky top-0 z-[1] bg-[#191918] text-[#8E8E93]">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">파일명</th>
+                      <th className="px-4 py-3 font-semibold">발행기관</th>
+                      <th className="px-4 py-3 font-semibold">기간</th>
+                      <th className="px-4 py-3 font-semibold">원본 보존</th>
+                      <th className="px-4 py-3 font-semibold">추출 상태</th>
+                      <th className="px-4 py-3 font-semibold">크기</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(marketDocsStatus?.recent_documents || []).map((doc) => (
+                      <tr key={doc.document_id || doc.file_name} className="border-t border-[#2A2A29] text-[#D1D1D6]">
+                        <td className="max-w-[360px] truncate px-4 py-3 font-semibold text-white" title={doc.file_name}>{doc.file_name || '-'}</td>
+                        <td className="px-4 py-3">{doc.publisher || '-'}</td>
+                        <td className="px-4 py-3">{doc.report_period || doc.as_of_date || '-'}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full border px-2 py-1 text-[11px] font-bold ${doc.storage_preserved ? 'border-[#2E6B45] bg-[#12351F] text-[#B5E48C]' : 'border-[#7A5C10] bg-[#2A2309] text-[#F7D774]'}`}>
+                            {doc.storage_preserved ? '보존됨' : '미보존'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">{doc.extraction_status || '-'}</td>
+                        <td className="px-4 py-3 tabular-nums">{formatFileSize(doc.original_size_bytes)}</td>
+                      </tr>
+                    ))}
+                    {!(marketDocsStatus?.recent_documents || []).length ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-10 text-center text-[13px] text-[#86868B]">등록된 시장자료가 없습니다.</td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </MainOverlay>
+      ) : null}
       {canUseAiChat ? (
       <>
       <div className={`fixed right-0 top-1/2 z-[70] -translate-y-1/2 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isAiDockOpen ? 'translate-x-full' : 'translate-x-0'}`}>
@@ -5758,12 +5949,12 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           </button>
       </div>
       <div data-testid="logistics-ai-dock" className={`fixed right-0 top-0 z-[80] flex h-screen w-[min(420px,calc(100vw-24px))] transform flex-col border-l border-[#333333] bg-[#1B1B1A] shadow-2xl transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isAiDockOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-full opacity-0'}`}>
-        <div className="flex h-[68px] shrink-0 items-center justify-between border-b border-[#333333] px-4">
-            <div>
-              <div className="text-[15px] font-bold text-white">물류센터 AI 챗봇</div>
-              <div className="mt-1 text-[11px] font-semibold text-[#86868B]">자연어 대화 · 데이터 질문은 데이터베이스 기준</div>
-            </div>
-          <div className="flex items-center gap-2">
+        <div className="flex h-[68px] shrink-0 items-center justify-between gap-3 border-b border-[#333333] px-4">
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[15px] font-bold text-white">물류센터 AI 챗봇</div>
+              <div className="mt-1 truncate text-[11px] font-semibold text-[#86868B]">자연어 대화 · 데이터 질문은 데이터베이스 기준</div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               data-testid="logistics-ai-diagnostics"
@@ -5789,7 +5980,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             return (
               <div key={message.id} className={`flex ${isUserMessage ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[84%] rounded-[18px] px-4 py-3 text-[13px] leading-6 shadow-sm ${isUserMessage ? 'rounded-br-[6px] bg-[#3b82f6] text-white' : message.tone === 'warning' ? 'rounded-bl-[6px] border border-[#7A6425] bg-[#2B2613] text-[#FFE6A1]' : 'rounded-bl-[6px] border border-[#333333] bg-[#262625] text-[#F2F2F7]'}`}>
-                  <div className="whitespace-pre-line break-keep">{message.content}</div>
+                  {isUserMessage ? (
+                    <div className="whitespace-pre-line break-keep">{message.content}</div>
+                  ) : (
+                    <>
+                      <LogisticsAiMessageContent content={message.content} />
+                      <LogisticsAiEvidenceList evidence={message.evidence} />
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -5810,10 +6008,27 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
             submitAiChatQuestion();
           }}
         >
+          <div data-testid="logistics-ai-answer-scope" className="mb-3 grid grid-cols-2 gap-1.5 rounded-[12px] border border-[#303033] bg-[#141414] p-1.5">
+            {AI_CHAT_SCOPE_OPTIONS.map((option) => {
+              const selected = aiAnswerScope === option.key;
+              return (
+                <button
+                  key={option.key}
+                  type="button"
+                  onClick={() => setAiAnswerScope(option.key)}
+                  className={`min-h-[46px] rounded-[9px] px-2 py-1.5 text-left transition-colors ${selected ? 'bg-[#2F6FED] text-white shadow-sm' : 'bg-transparent text-[#A1A1AA] hover:bg-white/5 hover:text-white'}`}
+                  aria-pressed={selected}
+                >
+                  <span className="block truncate text-[12px] font-bold leading-4">{option.label}</span>
+                  <span className={`mt-0.5 block truncate text-[10px] font-semibold leading-3 ${selected ? 'text-[#DCEBFF]' : 'text-[#6E6E73]'}`}>{option.description}</span>
+                </button>
+              );
+            })}
+          </div>
           {aiMentionSuggestions.length ? (
             <div
               data-testid="logistics-ai-mention-suggestions"
-              className="absolute bottom-[78px] left-4 right-4 z-[2] overflow-hidden rounded-[14px] border border-[#3A3A3C] bg-[#20201F] shadow-2xl"
+              className="absolute bottom-[136px] left-4 right-4 z-[2] overflow-hidden rounded-[14px] border border-[#3A3A3C] bg-[#20201F] shadow-2xl"
             >
               <div className="border-b border-[#333333] px-3 py-2 text-[11px] font-bold text-[#A1A1AA]">
                 정확한 대상 선택
@@ -5915,6 +6130,78 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       </>
       ) : null}
     </div>
+  );
+}
+
+function LogisticsAiInlineMarkdown({ text }) {
+  const source = String(text || '');
+  const parts = source.split(/(\*\*[^*]+\*\*)/u);
+  return parts.map((part, index) => {
+    if (/^\*\*[^*]+\*\*$/u.test(part)) {
+      return <strong key={index} className="font-bold text-white">{part.slice(2, -2)}</strong>;
+    }
+    return <React.Fragment key={index}>{part}</React.Fragment>;
+  });
+}
+
+function LogisticsAiMessageContent({ content }) {
+  const blocks = String(content || '').split(/\n{2,}/u).map((item) => item.trim()).filter(Boolean);
+  if (!blocks.length) return null;
+  return (
+    <div className="space-y-2 break-keep text-[13px] leading-6">
+      {blocks.map((block, index) => {
+        const lines = block.split(/\n/u).map((line) => line.trim()).filter(Boolean);
+        const isList = lines.length > 1 && lines.every((line) => /^[-*]\s+/u.test(line));
+        if (isList) {
+          return (
+            <ul key={index} className="space-y-1 pl-4">
+              {lines.map((line, lineIndex) => (
+                <li key={lineIndex} className="list-disc">
+                  <LogisticsAiInlineMarkdown text={line.replace(/^[-*]\s+/u, '')} />
+                </li>
+              ))}
+            </ul>
+          );
+        }
+        return (
+          <p key={index} className="whitespace-pre-line">
+            <LogisticsAiInlineMarkdown text={block} />
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+function LogisticsAiEvidenceList({ evidence }) {
+  const rows = Array.isArray(evidence) ? evidence.filter(Boolean).slice(0, 8) : [];
+  if (!rows.length) return null;
+  return (
+    <details className="mt-3 rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 py-2">
+      <summary className="cursor-pointer select-none text-[11px] font-bold text-[#C7D2FE]">근거 보기 · {rows.length}개</summary>
+      <div className="mt-2 space-y-2">
+        {rows.map((row, index) => {
+          const title = String(row.title || row.label || '시장자료').trim();
+          const publisher = String(row.publisher || '').trim();
+          const period = String(row.period || row.as_of_date || '').trim();
+          const locator = String(row.locator || '').trim();
+          const snippet = String(row.snippet || row.value || '').trim();
+          const status = String(row.status || '').trim();
+          return (
+            <div key={`${title}-${index}`} className="rounded-[10px] border border-[#333333] bg-[#181817] p-3">
+              <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-bold text-[#A1A1AA]">
+                {publisher ? <span className="rounded-full border border-[#3A3A3C] px-2 py-0.5">{publisher}</span> : null}
+                {period ? <span className="rounded-full border border-[#3A3A3C] px-2 py-0.5">{period}</span> : null}
+                {locator ? <span className="rounded-full border border-[#3A3A3C] px-2 py-0.5">{locator}</span> : null}
+                {status && status !== 'ready' ? <span className="rounded-full border border-[#7A6425] bg-[#2B2613] px-2 py-0.5 text-[#FFD166]">{status === 'needs_ocr_review' ? '검토 필요' : status}</span> : null}
+              </div>
+              <div className="mt-1 text-[12px] font-bold text-white">{title}</div>
+              {snippet ? <div className="mt-1 overflow-hidden text-[11px] leading-5 text-[#C7C7CC] [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]">{snippet}</div> : null}
+            </div>
+          );
+        })}
+      </div>
+    </details>
   );
 }
 
@@ -7809,6 +8096,71 @@ function sortContractDataLeaseRows(rows = []) {
   });
 }
 
+function assetTenantFloorSortValue(row = {}) {
+  if (row.isVacancyRow) return Number.NEGATIVE_INFINITY;
+  return floorSortValue(firstDefined(row.floorLabel, row.spaceLabel, row.detailAreaLabel, row.sourceFloorLabel));
+}
+
+function assetTenantSortableValue(row = {}, index = 0) {
+  if (index === 0) return firstDefined(row.tenantMasterName, row.companyName, '');
+  if (index === 1) return assetTenantFloorSortValue(row);
+  if (index === 2) return firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm);
+  if (index === 3) return row.monthlyRentTotal;
+  if (index === 4) return row.monthlyMfTotal;
+  if (index === 5) return firstDefined(row.monthlyCombinedTotal, row.monthlyCostTotal);
+  if (index === 6) return firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy);
+  if (index === 7) return row.rfMonths;
+  if (index === 8) return row.foMonths;
+  if (index === 9) return row.tiAmount;
+  if (index === 10) return row.currentRentPerPy;
+  if (index === 11) return row.currentMfPerPy;
+  if (index === 12) return row.currentStartDate;
+  if (index === 13) return row.currentEndDate;
+  return '';
+}
+
+function sortAssetTenantRows(rows = [], sortConfig = { index: 1, direction: 'desc' }) {
+  const index = Number.isInteger(sortConfig?.index) ? sortConfig.index : 1;
+  const direction = sortConfig?.direction === 'asc' ? 'asc' : 'desc';
+  return (rows || []).slice().sort((a, b) => {
+    const primary = compareSortableCells(assetTenantSortableValue(a, index), assetTenantSortableValue(b, index), direction);
+    if (primary) return primary;
+    const floorDiff = assetTenantFloorSortValue(b) - assetTenantFloorSortValue(a);
+    if (floorDiff) return floorDiff;
+    const tenantDiff = String(firstDefined(a.tenantMasterName, a.companyName, '') || '')
+      .localeCompare(String(firstDefined(b.tenantMasterName, b.companyName, '') || ''), 'ko-KR');
+    if (tenantDiff) return tenantDiff;
+    return String(firstDefined(a.leaseSpaceId, a.spaceLabel, '') || '')
+      .localeCompare(String(firstDefined(b.leaseSpaceId, b.spaceLabel, '') || ''), 'ko-KR');
+  });
+}
+
+function buildVacancyTenantRow(vacancyAreaSqm) {
+  const numericVacancyAreaSqm = Number(vacancyAreaSqm || 0);
+  if (!Number.isFinite(numericVacancyAreaSqm) || numericVacancyAreaSqm <= 0) return null;
+  return {
+    isVacancyRow: true,
+    tenantMasterName: '공실',
+    spaceLabel: '-',
+    floorLabel: '',
+    detailAreaLabel: '',
+    leasedAreaSqm: numericVacancyAreaSqm,
+    monthlyRentTotal: null,
+    monthlyMfTotal: null,
+    monthlyCombinedTotal: null,
+    monthlyCostTotal: null,
+    eNoc: null,
+    averageENoc: null,
+    rfMonths: null,
+    foMonths: null,
+    tiAmount: null,
+    currentRentPerPy: null,
+    currentMfPerPy: null,
+    currentStartDate: null,
+    currentEndDate: null,
+  };
+}
+
 function expiryDateForRow(row = {}) {
   return firstDefined(row.currentEndDate, row.latestExpiry, row.earliestExpiry, row.endDate, row.firstEndDate, row.contractEndDate);
 }
@@ -9010,7 +9362,7 @@ function CompanyDashboard() {
     setDartApiStatus({ type: 'loading', message: 'OpenDART 원천 API를 다시 호출하고 Supabase 저장값을 갱신하는 중입니다.' });
     try {
       const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'opendart/company', payload: { corp_code: selectedCorpCode, include_financials: true, force_refresh: true } },
+        body: { action: 'opendart/company', payload: { corp_code: selectedCorpCode, include_financials: true } },
       });
       if (error) throw error;
       const dart = data?.data || {};
@@ -12273,6 +12625,7 @@ function AssetDashboard() {
   const [selectedAssetId, setSelectedAssetId] = useState(defaultAssetId);
   const [modal, setModal] = useState(null);
   const [buildingRegisterSummary, setBuildingRegisterSummary] = useState(null);
+  const [rosterSortConfig, setRosterSortConfig] = useState({ index: 1, direction: 'desc' });
   useEffect(() => {
     if (!readableAssetOptions.length) return;
     if (readableAssetOptions.some((asset) => asset.assetId === selectedAssetId)) return;
@@ -12447,6 +12800,14 @@ function AssetDashboard() {
     longitude: overview.longitude,
   }] : [];
   const openTableModal = (title, headers, tableRows) => setModal({ title, headers, rows: tableRows });
+  const openVacancyDetail = () => openTableModal('공실 면적 근거', ['항목', '내용'], [
+    ['자산', overview.assetName || '-'],
+    ['공실면적', formatArea(assetVacancyAreaBasisSqm)],
+    ['연면적', formatArea(assetGrossAreaBasisSqm)],
+    ['임대면적', formatArea(assetLeasedAreaBasisSqm)],
+    ['공실률', assetGrossAreaBasisSqm > 0 ? formatPercent(assetVacancyAreaBasisSqm / assetGrossAreaBasisSqm) : '-'],
+    ['표시 기준', '자산의 공실면적 데이터가 0보다 클 때 임차인 현황에 별도 행으로 표시합니다.'],
+  ]);
   const openTenantDetail = (tenant, title = '임차인 상세') => {
     if (!tenant) return;
     const matchedRows = rows.filter((row) => (
@@ -12571,7 +12932,39 @@ function AssetDashboard() {
   ];
   const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', 'RF', 'FO', 'TI', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
   const rosterColumnWidths = ['13%', '7.5%', '8%', '7.5%', '7.2%', '7.8%', '6.6%', '4.2%', '4.2%', '5.2%', '7%', '6.8%', '6.4%', '6.6%'];
-  const rosterRows = rows.map((row) => [
+  const vacancyTenantRow = useMemo(() => buildVacancyTenantRow(assetVacancyAreaBasisSqm), [assetVacancyAreaBasisSqm]);
+  const rosterSourceRows = useMemo(() => (
+    vacancyTenantRow ? [...rows, vacancyTenantRow] : rows
+  ), [rows, vacancyTenantRow]);
+  const sortedRosterSourceRows = useMemo(() => (
+    sortAssetTenantRows(rosterSourceRows, rosterSortConfig)
+  ), [rosterSourceRows, rosterSortConfig]);
+  const toggleRosterSort = (index) => {
+    setRosterSortConfig((current) => ({
+      index,
+      direction: current.index === index && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+  const rosterSortableHeaders = rosterHeaders.map((header, index) => {
+    const active = rosterSortConfig.index === index;
+    const numeric = index >= 2 && index <= 11;
+    return (
+      <button
+        key={header}
+        type="button"
+        data-label={header}
+        onClick={() => toggleRosterSort(index)}
+        className={`flex w-full items-center gap-1 text-[12px] font-semibold transition-colors hover:text-white ${numeric ? 'justify-end' : 'justify-start'}`}
+        title={`${header} 기준 정렬`}
+      >
+        <span className="truncate">{header}</span>
+        <span className={`text-[10px] ${active ? 'text-white' : 'text-[#5f5f64]'}`}>
+          {active ? (rosterSortConfig.direction === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    );
+  });
+  const rosterRows = sortedRosterSourceRows.map((row) => [
     row.tenantMasterName,
     row.spaceLabel,
     formatArea(row.leasedAreaSqm),
@@ -12713,9 +13106,16 @@ function AssetDashboard() {
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="TENANTS" title="임차인 현황" />
         <DataTable
-          headers={rosterHeaders}
+          headers={rosterSortableHeaders}
           rows={rosterRows}
-          onRowClick={(index) => openTenantDetail(rows[index], '임차인 상세')}
+          onRowClick={(index) => {
+            const selectedRow = sortedRosterSourceRows[index];
+            if (selectedRow?.isVacancyRow) {
+              openVacancyDetail();
+              return;
+            }
+            openTenantDetail(selectedRow, '임차인 상세');
+          }}
           columnWidths={rosterColumnWidths}
           minTableWidth="1120px"
           compact
@@ -13333,7 +13733,7 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal,
           continue;
         }
         const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'opendart/company', payload: { corp_code: target.corpCode, include_financials: true, force_refresh: true } },
+          body: { action: 'opendart/company', payload: { corp_code: target.corpCode, include_financials: true } },
         });
         const forceOutcome = externalRefreshOutcome(data, error);
         let finalData = data;
@@ -13488,7 +13888,7 @@ function DashboardShell({ activeModule }) {
 
       <div className="relative min-h-[540px]">
         {visibleModules.filter((item) => mountedIds.has(item.id)).map((item) => (
-          <div key={item.id} className={`transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${selected.id === item.id ? 'relative z-10 block translate-y-0 opacity-100' : 'pointer-events-none absolute inset-x-0 top-0 -z-10 translate-y-1 opacity-0'}`} aria-hidden={selected.id !== item.id}>
+          <div key={item.id} className={`transition-opacity duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${selected.id === item.id ? 'relative z-10 block opacity-100' : 'pointer-events-none absolute inset-x-0 top-0 -z-10 opacity-0'}`} aria-hidden={selected.id !== item.id}>
             {renderDashboardModule(item.id)}
           </div>
         ))}

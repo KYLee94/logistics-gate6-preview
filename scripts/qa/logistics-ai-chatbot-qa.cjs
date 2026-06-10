@@ -278,7 +278,9 @@ function assertPublicAiResponse(result, label, options = {}) {
     ? /\bll_[a-z0-9_]+\b|public\.|asset_id|tenant_id|lease_space_id|source[_ -]?cell|source[_ -]?row|provider|fallback|answer_focus|required_facts|required_display_values|readable_asset_count|_readable_asset_count|matched_tables|dashboard-metrics|Edge Function|service role|JWT/iu
     : /\bll_[a-z0-9_]+\b|public\.|asset_id|tenant_id|lease_space_id|source[_ -]?cell|source[_ -]?row|provider|fallback|answer_focus|required_facts|required_display_values|readable_asset_count|_readable_asset_count|matched_tables|dashboard-metrics|Edge Function|service role|JWT|GROQ|Gemini/iu;
   if (forbidden.test(serialized)) throw new Error(`${label} exposed implementation detail: ${serialized}`);
-  if (Array.isArray(result.body?.evidence) && result.body.evidence.length > 0) throw new Error(`${label} returned raw evidence rows.`);
+  if (Array.isArray(result.body?.evidence) && result.body.evidence.length > 0) {
+    throw new Error(`${label} returned raw evidence rows: ${JSON.stringify(result.body.evidence).slice(0, 500)}`);
+  }
   return answer;
 }
 
@@ -423,6 +425,9 @@ async function main() {
         question: testCase.question,
         history: testCase.history || [],
         basis_date: basisDate,
+        qa_sample: true,
+        answer_scope: 'operational',
+        model_override: 'gemini-2.0-flash',
       });
       if (![429, 502, 503].includes(result.status)) break;
       if (attempt < 5) await sleep(5000 * attempt);

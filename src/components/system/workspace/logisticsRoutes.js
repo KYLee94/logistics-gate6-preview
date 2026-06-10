@@ -2,6 +2,7 @@ export const LOGISTICS_INTERNAL_BASE = 'platform/iotaseoul/workspace/logistics';
 
 export const LOGISTICS_ROUTE_BY_KEY = {
   'work-platform': LOGISTICS_INTERNAL_BASE,
+  'work-platform/archive': `${LOGISTICS_INTERNAL_BASE}/archive`,
   home: `${LOGISTICS_INTERNAL_BASE}/dashboard/home`,
   asset: `${LOGISTICS_INTERNAL_BASE}/dashboard/asset`,
   company: `${LOGISTICS_INTERNAL_BASE}/dashboard/company`,
@@ -46,6 +47,7 @@ export function publicLogisticsPath(path = '') {
     return alias || 'home';
   }
   if (normalized === LOGISTICS_INTERNAL_BASE) return 'work-platform';
+  if (normalized === `${LOGISTICS_INTERNAL_BASE}/archive`) return 'work-platform/archive';
   return normalized;
 }
 

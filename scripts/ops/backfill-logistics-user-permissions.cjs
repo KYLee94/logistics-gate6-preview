@@ -6,10 +6,15 @@ const { spawnSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..', '..');
 const SOURCE = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'logisticsPermissionData.json');
 
-const ADMIN_EMAILS = new Set([
+const SYSTEM_ADMIN_EMAILS = new Set([
   'kylee@igisam.com',
   'sjlee@igisam.com',
   'jk.jeon@igisam.com',
+]);
+
+const FULL_ACCESS_EMAILS = new Set([
+  ...SYSTEM_ADMIN_EMAILS,
+  'hayun.jeong@igisam.com',
 ]);
 
 const FEATURE_KEYS = [
@@ -20,6 +25,7 @@ const FEATURE_KEYS = [
   'login_history',
   'building_register_refresh',
   'opendart_refresh',
+  'market_research',
 ];
 
 function normalizeEmail(value) {
@@ -51,9 +57,10 @@ function userRows() {
         .map((item) => String(item || '').trim())
         .filter(Boolean);
       const uniqueRefs = [...new Set(refs)];
-      const role = ADMIN_EMAILS.has(email)
+      const role = SYSTEM_ADMIN_EMAILS.has(email)
         ? 'System Admin'
         : String(user.role || user.logisticsRole || 'Reader').trim() || 'Reader';
+      const hasFullAccess = FULL_ACCESS_EMAILS.has(email);
       return {
         email,
         staff_name: String(user.name || '').trim(),
@@ -61,11 +68,11 @@ function userRows() {
         image_url: user.image_url || user.avatar_url || user.profile_image_url || null,
         logistics_role: role,
         managed_asset_codes: uniqueRefs,
-        managed_asset_permissions: boolPermissions(user.permissions?.managedAsset),
-        other_asset_permissions: boolPermissions(user.permissions?.otherAsset),
-        can_ingest_weekly: role === 'System Admin',
+        managed_asset_permissions: hasFullAccess ? { read: true, create: true, update: true, delete: true } : boolPermissions(user.permissions?.managedAsset),
+        other_asset_permissions: hasFullAccess ? { read: true, create: true, update: true, delete: true } : boolPermissions(user.permissions?.otherAsset),
+        can_ingest_weekly: hasFullAccess,
         account_status: 'active',
-        feature_permissions: ADMIN_EMAILS.has(email) ? adminFeaturePermissions() : {},
+        feature_permissions: hasFullAccess ? adminFeaturePermissions() : {},
         profile_payload: {
           source: 'logisticsPermissionData.json',
           source_file: data.sourceFile || null,
@@ -175,9 +182,13 @@ from jsonb_to_recordset(${sqlLiteralJson(rows)}::jsonb) as x(email text);
 `;
 }
 
-function main() {
+async function main() {
   const rows = userRows();
   const sql = buildSql(rows);
+  if (process.argv.includes('--print-sql')) {
+    console.log(sql);
+    return;
+  }
   const tmpPath = path.join(os.tmpdir(), `gate6-user-permission-backfill-${process.pid}-${Date.now()}.sql`);
   fs.writeFileSync(tmpPath, sql, 'utf8');
   const result = spawnSync('npx', ['supabase', 'db', 'query', '--linked', '--file', tmpPath, '-o', 'json'], {
@@ -193,4 +204,7 @@ function main() {
   if (result.status !== 0) process.exit(result.status || 1);
 }
 
-main();
+main().catch((error) => {
+  console.error(error?.message || error);
+  process.exit(1);
+});

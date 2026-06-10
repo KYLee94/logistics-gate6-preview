@@ -4427,7 +4427,13 @@
       "assetId": "asset_a112721001",
       "latitude": 37.5080776,
       "assetName": "인천석남물류센터",
-      "longitude": 126.6633807
+      "longitude": 126.6633807,
+      "sigunguCd": "28260",
+      "bjdongCd": "11000",
+      "platGbCd": "0",
+      "bun": "224",
+      "ji": "8",
+      "queryKey": "28260|11000|0|0224|0008"
     },
     {
       "address": "경기도 이천시 호법면 덕평로 257-21",

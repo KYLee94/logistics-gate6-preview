@@ -1,7 +1,7 @@
 {
   "ok": true,
-  "generated_at": "2026-05-28T06:53:25.063Z",
-  "url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics/dashboard/home",
+  "generated_at": "2026-06-09T09:24:48.964Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/work-platform",
   "auth_source": "password_grant",
   "ui_email": "kylee@igisam.com",
   "checks": {
@@ -11,13 +11,13 @@
     "notification_button_aligned": true,
     "notification_panel_visible": true,
     "modal_visible": true,
-    "capability_count_34": true,
+    "capability_count_visible": true,
     "has_organization_column": true,
     "has_name_column": true,
     "sort_buttons_present": true,
     "sort_buttons_clickable": true
   },
-  "screenshot": "qa-artifacts/logistics-gate6/login-history-browser-smoke-20260528-065324.png",
+  "screenshot": "qa-artifacts/logistics-gate6/login-history-browser-smoke-20260609-092448.png",
   "errors": [],
   "sort_button_counts": {
     "조직": 1,

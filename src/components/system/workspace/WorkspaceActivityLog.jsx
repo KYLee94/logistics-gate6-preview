@@ -72,7 +72,7 @@ function resolveLogisticsDisplayName(name, email) {
     return normalizedName || cleanStakeholderText(email) || '익명';
 }
 
-export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, assetOptions = [] }) {
+export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, assetOptions = [], embedded = false }) {
     const { memberInfo } = useAuth();
     const isLogisticsMode = workspaceCode === 'WS_LOGISTICS';
     
@@ -485,8 +485,8 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
     return (
         <div className="w-full flex flex-col mt-0">
             {/* Log Viewer */}
-            <div className="flex justify-between items-center mt-[-14px] mb-[12px]">
-                <h2 className="text-[18px] font-bold text-white tracking-tight translate-y-[6px]">{isLogisticsMode ? '협업게시판' : `${workspaceLabel ? workspaceLabel.split('-')[0].trim() : ''} 협업게시판`}</h2>
+            <div className={`flex justify-between items-center ${embedded ? 'mb-4' : 'mt-[-14px] mb-[12px]'}`}>
+                <h2 className={`${embedded ? 'text-[20px] font-semibold' : 'text-[18px] font-bold'} text-white tracking-tight ${embedded ? '' : 'translate-y-[6px]'}`}>{isLogisticsMode ? '협업게시판' : `${workspaceLabel ? workspaceLabel.split('-')[0].trim() : ''} 협업게시판`}</h2>
                 <div className="flex items-center gap-[12px]">
                     {/* Search Box */}
                     <div className="relative">
@@ -512,7 +512,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
             </div>
             
             
-            <div className="-mx-[7px] p-[6px] border border-[#333] rounded-[30px] mb-[40px]">
+            <div className={`${embedded ? 'mb-0 rounded-[20px] bg-[#1F1F1E]' : '-mx-[7px] mb-[40px] rounded-[30px]'} p-[6px] border border-[#333]`}>
                 <div className="w-full flex flex-col mt-0">{/* Task Input Form */}
             <LogWriteBox 
                 memberInfo={memberInfo}

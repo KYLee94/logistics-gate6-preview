@@ -1,0 +1,787 @@
+{
+  "generated_at": "2026-06-09T07:05:50.681Z",
+  "source_dir": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\260604_market data",
+  "file_count": 12,
+  "totals": {
+    "chunks": 518,
+    "facts": 1110,
+    "transaction_facts": 798,
+    "supply_pipeline_facts": 36
+  },
+  "status": {
+    "documents": 12,
+    "chunks": 518,
+    "facts": 1110,
+    "preserved_documents": 12,
+    "preserved_extracted_texts": 12,
+    "recent_documents": [
+      {
+        "document_id": "2bcce52f-ae4f-4d16-9faa-0ad623564773",
+        "file_name": "Market DB 거래사례_물류센터.xlsx",
+        "publisher": "IGIS 내부 시장 DB",
+        "report_period": "",
+        "as_of_date": "",
+        "source_type": "xlsx",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 28267,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:48.826+00:00"
+      },
+      {
+        "document_id": "c92042ed-da82-4603-8630-7ba90a973014",
+        "file_name": "쿠시먼앤웨이크필드_2026 한국 물류센터 마켓 리포트.pdf",
+        "publisher": "쿠시먼앤웨이크필드",
+        "report_period": "2026",
+        "as_of_date": "2026-12-31",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 5249499,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:45.803+00:00"
+      },
+      {
+        "document_id": "496861d3-b24a-4f9b-8543-1bee6afd5bde",
+        "file_name": "쿠시먼앤웨이크필드_2025 한국 물류센터 마켓 리포트_Part 2.pdf",
+        "publisher": "쿠시먼앤웨이크필드",
+        "report_period": "2025",
+        "as_of_date": "2025-12-31",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 3946142,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:42.693+00:00"
+      },
+      {
+        "document_id": "f2eb2c72-2cfa-4cef-b9c0-1ff7a35e768d",
+        "file_name": "쿠시먼앤웨이크필드_2025 한국 물류센터 마켓 리포트_Part 1.pdf",
+        "publisher": "쿠시먼앤웨이크필드",
+        "report_period": "2025",
+        "as_of_date": "2025-12-31",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 1991758,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:40.105+00:00"
+      },
+      {
+        "document_id": "ff6d8348-6347-4cd8-9297-e245b726c1f1",
+        "file_name": "젠스타메이트_2026 1분기 물류센터 시장 리포트.pdf",
+        "publisher": "젠스타메이트",
+        "report_period": "2026 Q1",
+        "as_of_date": "2026-03-31",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 5022029,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:38.492+00:00"
+      },
+      {
+        "document_id": "698d2103-1e1f-4d17-8c26-990ecbb82bb7",
+        "file_name": "젠스타메이트_2025년 3분기 물류센터 시장 리포트.pdf",
+        "publisher": "젠스타메이트",
+        "report_period": "2025 Q3",
+        "as_of_date": "2025-09-30",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 4333224,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:35.533+00:00"
+      },
+      {
+        "document_id": "06929a2b-d9e4-4df3-ac6b-6644ff3c4b0e",
+        "file_name": "젠스타메이트_2025년 2분기 물류센터 시장 리포트.pdf",
+        "publisher": "젠스타메이트",
+        "report_period": "2025 Q2",
+        "as_of_date": "2025-06-30",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 4633754,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:32.294+00:00"
+      },
+      {
+        "document_id": "ce020389-36e4-4255-be6c-e6e995275865",
+        "file_name": "젠스타메이트_2025년 1분기 물류센터 시장 리포트.pdf",
+        "publisher": "젠스타메이트",
+        "report_period": "2025 Q1",
+        "as_of_date": "2025-03-31",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 8564430,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:28.407+00:00"
+      },
+      {
+        "document_id": "58ac0496-afd9-46ce-9f49-8925860fb02b",
+        "file_name": "알스퀘어_물류센터 마켓 리포트_2025 2H.pdf",
+        "publisher": "알스퀘어",
+        "report_period": "2025 2H",
+        "as_of_date": "2025-12-31",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 3123262,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:24.755+00:00"
+      },
+      {
+        "document_id": "5e04960f-9bbd-4dd1-9505-1b93cf5a4b06",
+        "file_name": "알스퀘어_물류센터 마켓 리포트_2025 1H.pdf",
+        "publisher": "알스퀘어",
+        "report_period": "2025 1H",
+        "as_of_date": "2025-06-30",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 6916796,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:22.301+00:00"
+      },
+      {
+        "document_id": "6dd03120-8a20-46d3-ac07-c3a37af63d70",
+        "file_name": "세빌스_2026 한국 상업용 부동산 시장 전망_물류센터.pdf",
+        "publisher": "세빌스",
+        "report_period": "2026",
+        "as_of_date": "2026-12-31",
+        "source_type": "pdf",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 655660,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:19.655+00:00"
+      },
+      {
+        "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+        "file_name": "물류센터 통합DB_25.4분기.xlsx",
+        "publisher": "IGIS 내부 시장 DB",
+        "report_period": "2025 Q4",
+        "as_of_date": "2025-12-31",
+        "source_type": "xlsx",
+        "extraction_status": "ready",
+        "source_preservation_status": "stored",
+        "original_size_bytes": 3935164,
+        "storage_preserved": true,
+        "extracted_text_preserved": true,
+        "updated_at": "2026-06-09T07:05:17.45+00:00"
+      }
+    ]
+  },
+  "top3_search_preview": [
+    {
+      "kind": "transaction",
+      "publisher": "IGIS 내부 시장 DB",
+      "title": "",
+      "period": "2023 Q2",
+      "as_of_date": "2025-12-31",
+      "source_type": "xlsx",
+      "source_label": "Excel DB",
+      "locator": "sheet rawdata_Transaction_Logistic / row 506",
+      "label": "물류센터 거래사례",
+      "value": "5598 천원/평",
+      "snippet": "2023 Q2, 1.동남권, 이천로지포트물류센터(A동,C동), 경기도 이천시 부발읍 고백리 239-6, 연면적 16,346평, 거래가격 91,500,000천원, 단가 5,598천원/평, 매수자 라살자산운용, 매도자 미래에셋자산운용",
+      "status": "ready"
+    },
+    {
+      "kind": "transaction",
+      "publisher": "IGIS 내부 시장 DB",
+      "title": "",
+      "period": "2023 Q4",
+      "as_of_date": "2025-12-31",
+      "source_type": "xlsx",
+      "source_label": "Excel DB",
+      "locator": "sheet rawdata_Transaction_Logistic / row 527",
+      "label": "물류센터 거래사례",
+      "value": "6130 천원/평",
+      "snippet": "2023 Q4, 1.동남권, 이천 수정리 물류센터, 경기도 이천시 부발읍 수정리 83, 연면적 24,470평, 거래가격 149,993,644천원, 단가 6,130천원/평, 매수자 마스턴자산운용, 매도자 메테우스자산운용",
+      "status": "ready"
+    },
+    {
+      "kind": "transaction",
+      "publisher": "IGIS 내부 시장 DB",
+      "title": "",
+      "period": "2023 Q4",
+      "as_of_date": "2025-12-31",
+      "source_type": "xlsx",
+      "source_label": "Excel DB",
+      "locator": "sheet rawdata_Transaction_Logistic / row 528",
+      "label": "물류센터 거래사례",
+      "value": "6174 천원/평",
+      "snippet": "2023 Q4, 1.동남권, 이천 다코넷 물류센터, 경기도 이천시 백사면 조읍리 250, 연면적 18,511평, 거래가격 114,291,000천원, 단가 6,174천원/평, 매수자 ESR켄달스퀘어리츠, 매도자 다코넷",
+      "status": "ready"
+    },
+    {
+      "kind": "transaction",
+      "publisher": "IGIS 내부 시장 DB",
+      "title": "",
+      "period": "2023 Q4",
+      "as_of_date": "2025-12-31",
+      "source_type": "xlsx",
+      "source_label": "Excel DB",
+      "locator": "sheet rawdata_Transaction_Logistic / row 529",
+      "label": "물류센터 거래사례",
+      "value": "6788 천원/평",
+      "snippet": "2023 Q4, 1.동남권, YM 로지스틱스, 경기도 이천시 마장면 표교리 562, 연면적 10,474평, 거래가격 71,097,030천원, 단가 6,788천원/평, 매수자 비욘드자산운용, 매도자 와이엠로지스틱스",
+      "status": "ready"
+    },
+    {
+      "kind": "transaction",
+      "publisher": "IGIS 내부 시장 DB",
+      "title": "",
+      "period": "2024 Q1",
+      "as_of_date": "2025-12-31",
+      "source_type": "xlsx",
+      "source_label": "Excel DB",
+      "locator": "sheet rawdata_Transaction_Logistic / row 539",
+      "label": "물류센터 거래사례",
+      "value": "8389 천원/평",
+      "snippet": "2024 Q1, 7.기타권, 해천글로벌 냉동창고, 부산광역시 암남동 620-47, 연면적 2,189평, 거래가격 18,366,000천원, 단가 8,389천원/평, 매수자 한국자산관리공사, 매도자 해천글로벌",
+      "status": "ready"
+    }
+  ],
+  "results": [
+    {
+      "file_name": "물류센터 통합DB_25.4분기.xlsx",
+      "source_hash": "8e9b511e299fc09344a733ee3c4b6de02ac9ce5a6646fde1249b9c7075f96b16",
+      "chunks": 212,
+      "facts": 923,
+      "fact_type_counts": {
+        "caveat": 1,
+        "definition": 1,
+        "market_metric": 274,
+        "transaction": 611,
+        "supply_pipeline": 36
+      },
+      "extracted_chars": 192871,
+      "ingest_batches": [
+        {
+          "chunks": 60,
+          "facts": 60,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 60,
+            "facts_written": 60,
+            "replace_existing": true
+          }
+        },
+        {
+          "chunks": 60,
+          "facts": 0,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 60,
+            "facts_written": 0,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 60,
+          "facts": 0,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 60,
+            "facts_written": 0,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 32,
+          "facts": 0,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 32,
+            "facts_written": 0,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 23,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "물류센터 통합DB_25.4분기.xlsx",
+            "document_id": "29b95a81-c0fb-4787-a203-57b3d25a53f0",
+            "chunks_written": 0,
+            "facts_written": 23,
+            "replace_existing": false
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "세빌스_2026 한국 상업용 부동산 시장 전망_물류센터.pdf",
+      "source_hash": "38d65ba8e2c476f7d5cea4244e3ca7bbc247714249e25488e63432e2cfe7404f",
+      "chunks": 12,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 9446,
+      "ingest_batches": [
+        {
+          "chunks": 12,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "세빌스_2026 한국 상업용 부동산 시장 전망_물류센터.pdf",
+            "document_id": "6dd03120-8a20-46d3-ac07-c3a37af63d70",
+            "chunks_written": 12,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "알스퀘어_물류센터 마켓 리포트_2025 1H.pdf",
+      "source_hash": "393a879b579ec5bb9cc933fa763e7fa6c1c9d458314d48181d42d572186e4240",
+      "chunks": 22,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 13318,
+      "ingest_batches": [
+        {
+          "chunks": 22,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "알스퀘어_물류센터 마켓 리포트_2025 1H.pdf",
+            "document_id": "5e04960f-9bbd-4dd1-9505-1b93cf5a4b06",
+            "chunks_written": 22,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "알스퀘어_물류센터 마켓 리포트_2025 2H.pdf",
+      "source_hash": "d41d80effc3ab53a8037ef988da87c6660e039d6da7016373d4f52d82506d0d5",
+      "chunks": 22,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 13109,
+      "ingest_batches": [
+        {
+          "chunks": 22,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "알스퀘어_물류센터 마켓 리포트_2025 2H.pdf",
+            "document_id": "58ac0496-afd9-46ce-9f49-8925860fb02b",
+            "chunks_written": 22,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "젠스타메이트_2025년 1분기 물류센터 시장 리포트.pdf",
+      "source_hash": "b1db46fb8d99c83be47be8b1a4404c2b59df39300314f053c7a727966263ddd3",
+      "chunks": 28,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 22447,
+      "ingest_batches": [
+        {
+          "chunks": 28,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "젠스타메이트_2025년 1분기 물류센터 시장 리포트.pdf",
+            "document_id": "ce020389-36e4-4255-be6c-e6e995275865",
+            "chunks_written": 28,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "젠스타메이트_2025년 2분기 물류센터 시장 리포트.pdf",
+      "source_hash": "9613ae887f5bb15c78b33960c797a752cebda9b44752b17610a8d3e8ece1014d",
+      "chunks": 28,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 23122,
+      "ingest_batches": [
+        {
+          "chunks": 28,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "젠스타메이트_2025년 2분기 물류센터 시장 리포트.pdf",
+            "document_id": "06929a2b-d9e4-4df3-ac6b-6644ff3c4b0e",
+            "chunks_written": 28,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "젠스타메이트_2025년 3분기 물류센터 시장 리포트.pdf",
+      "source_hash": "db864ca3ddb4b9a8151618cc546987a9ab20a880ce009c7b1cba94557e89addc",
+      "chunks": 24,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 20588,
+      "ingest_batches": [
+        {
+          "chunks": 24,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "젠스타메이트_2025년 3분기 물류센터 시장 리포트.pdf",
+            "document_id": "698d2103-1e1f-4d17-8c26-990ecbb82bb7",
+            "chunks_written": 24,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "젠스타메이트_2026 1분기 물류센터 시장 리포트.pdf",
+      "source_hash": "bd2a3ad4ffce838b224aa48bdfb57033ff1725c28b1b5c86ad0d886594583ba1",
+      "chunks": 30,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 25633,
+      "ingest_batches": [
+        {
+          "chunks": 30,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "젠스타메이트_2026 1분기 물류센터 시장 리포트.pdf",
+            "document_id": "ff6d8348-6347-4cd8-9297-e245b726c1f1",
+            "chunks_written": 30,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "쿠시먼앤웨이크필드_2025 한국 물류센터 마켓 리포트_Part 1.pdf",
+      "source_hash": "4baf3b9ecdd85aabe99f1a52da8cecdc017549ca46c651b1d2fb4391c7873d93",
+      "chunks": 33,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 23997,
+      "ingest_batches": [
+        {
+          "chunks": 33,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "쿠시먼앤웨이크필드_2025 한국 물류센터 마켓 리포트_Part 1.pdf",
+            "document_id": "f2eb2c72-2cfa-4cef-b9c0-1ff7a35e768d",
+            "chunks_written": 33,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "쿠시먼앤웨이크필드_2025 한국 물류센터 마켓 리포트_Part 2.pdf",
+      "source_hash": "3f638ad5b186a57b0b7fc7b63d08333769dd073847c4b2409d01f5ff0cd95275",
+      "chunks": 29,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 20135,
+      "ingest_batches": [
+        {
+          "chunks": 29,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "쿠시먼앤웨이크필드_2025 한국 물류센터 마켓 리포트_Part 2.pdf",
+            "document_id": "496861d3-b24a-4f9b-8543-1bee6afd5bde",
+            "chunks_written": 29,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "쿠시먼앤웨이크필드_2026 한국 물류센터 마켓 리포트.pdf",
+      "source_hash": "5a33bd92cc46aff43d54544e61dd0393776083394c02ac9b5838951b1f437228",
+      "chunks": 46,
+      "facts": 0,
+      "fact_type_counts": {},
+      "extracted_chars": 32718,
+      "ingest_batches": [
+        {
+          "chunks": 46,
+          "facts": 0,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "쿠시먼앤웨이크필드_2026 한국 물류센터 마켓 리포트.pdf",
+            "document_id": "c92042ed-da82-4603-8630-7ba90a973014",
+            "chunks_written": 46,
+            "facts_written": 0,
+            "replace_existing": true
+          }
+        }
+      ]
+    },
+    {
+      "file_name": "Market DB 거래사례_물류센터.xlsx",
+      "source_hash": "e8cbdc9f6110b7c637447d95ba36d7af436f1215a38d48d6a55b931b679e5e37",
+      "chunks": 32,
+      "facts": 187,
+      "fact_type_counts": {
+        "transaction": 187
+      },
+      "extracted_chars": 25466,
+      "ingest_batches": [
+        {
+          "chunks": 32,
+          "facts": 60,
+          "replace_existing": true,
+          "edge_written": {
+            "file_name": "Market DB 거래사례_물류센터.xlsx",
+            "document_id": "2bcce52f-ae4f-4d16-9faa-0ad623564773",
+            "chunks_written": 32,
+            "facts_written": 60,
+            "replace_existing": true
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "Market DB 거래사례_물류센터.xlsx",
+            "document_id": "2bcce52f-ae4f-4d16-9faa-0ad623564773",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 60,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "Market DB 거래사례_물류센터.xlsx",
+            "document_id": "2bcce52f-ae4f-4d16-9faa-0ad623564773",
+            "chunks_written": 0,
+            "facts_written": 60,
+            "replace_existing": false
+          }
+        },
+        {
+          "chunks": 0,
+          "facts": 7,
+          "replace_existing": false,
+          "edge_written": {
+            "file_name": "Market DB 거래사례_물류센터.xlsx",
+            "document_id": "2bcce52f-ae4f-4d16-9faa-0ad623564773",
+            "chunks_written": 0,
+            "facts_written": 7,
+            "replace_existing": false
+          }
+        }
+      ]
+    }
+  ],
+  "pass": true
+}

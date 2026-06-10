@@ -95,7 +95,7 @@
         "buildingHubStatus": "official_not_found",
         "firstConfiguredAt": "2017-05-25",
         "grossFloorAreaSqm": 349722,
-        "standardizedAddress": "경기도 용인시 처인구 양지면 남평로 111-73"
+        "standardizedAddress": "경기도 용인시 처인구 양지읍 남평로 111-73"
       },
       "is3pl": true,
       "fundId": "fund_112127",
@@ -417,7 +417,7 @@
         "buildingHubStatus": "official_not_found",
         "firstConfiguredAt": "2017-05-25",
         "grossFloorAreaSqm": 349722,
-        "standardizedAddress": "경기도 용인시 처인구 양지면 남평로 111-73"
+        "standardizedAddress": "경기도 용인시 처인구 양지읍 남평로 111-73"
       },
       "is3pl": true,
       "fundId": "fund_112127",
@@ -738,7 +738,7 @@
         "buildingHubStatus": "official_not_found",
         "firstConfiguredAt": "2017-05-25",
         "grossFloorAreaSqm": 349722,
-        "standardizedAddress": "경기도 용인시 처인구 양지면 남평로 111-73"
+        "standardizedAddress": "경기도 용인시 처인구 양지읍 남평로 111-73"
       },
       "is3pl": true,
       "fundId": "fund_112127",
@@ -1649,11 +1649,17 @@
   },
   "mapPoints": [
     {
-      "address": "경기도 용인시 처인구 양지면 남평로 111-73",
+      "address": "경기도 용인시 처인구 양지읍 남평로 111-73",
       "assetId": "asset_a112127001",
       "latitude": 37.2300579,
       "assetName": "아레나스양지물류센터",
-      "longitude": 127.2950305
+      "longitude": 127.2950305,
+      "sigunguCd": "41461",
+      "bjdongCd": "26221",
+      "platGbCd": "0",
+      "bun": "914",
+      "ji": "0",
+      "queryKey": "41461|26221|0|0914|0000"
     }
   ],
   "financials": {

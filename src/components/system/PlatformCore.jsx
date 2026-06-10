@@ -34,7 +34,7 @@ export default function PlatformCore({ isPlatform = true, isIotaWorkspaceOverrid
             {/* Stage 2 Layout (상세페이지 고정) - No Right AI Panel for Platform */}
             <div className="flex-1 flex overflow-hidden">
                 {/* 컨텐츠 박스 (PlatformCenter) */}
-                <div className="w-full h-full overflow-hidden shrink-0 flex flex-col items-stretch opacity-100">
+                <div className={`${isIotaWorkspace ? 'w-[calc(100vw-275px)]' : 'w-full'} h-full overflow-hidden shrink-0 flex flex-col items-stretch opacity-100`}>
                     <div className="w-full h-full flex flex-col items-stretch min-w-[600px] opacity-100">
                         <PlatformCenter currentPath={currentPath} />
                     </div>

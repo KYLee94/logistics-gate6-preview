@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-09T09:37:59.126Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/work-platform",
+  "auth_source": "password_grant",
+  "checks": {
+    "profile_visible": true,
+    "logout_button_visible": true,
+    "logout_navigated": true
+  },
+  "errors": [],
+  "screenshot": "qa-artifacts/logistics-gate6/logout-browser-smoke-20260609-093758.png",
+  "final_url": "https://kylee94.github.io/logistics-gate6-preview/auth-setup"
+}

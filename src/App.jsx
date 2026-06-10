@@ -18,6 +18,12 @@ export default function App() {
   // BASE_URL: '/' in dev, '/IGIS-Fund-Production-DP/' in GitHub Pages production
   const BASE = import.meta.env.BASE_URL;
   const LOGISTICS_WORKSPACE_PATH = LOGISTICS_INTERNAL_BASE;
+  const normalizeGate6Page = (path) => {
+      const normalized = normalizeLogisticsPath(path || LOGISTICS_WORKSPACE_PATH);
+      const isLegacyIotaPage = normalized.startsWith('platform/iotaseoul')
+          && !normalized.startsWith(LOGISTICS_INTERNAL_BASE);
+      return isLegacyIotaPage ? LOGISTICS_WORKSPACE_PATH : normalized;
+  };
   const getPage = () => {
       const base = BASE.endsWith('/') ? BASE.slice(0, -1) : BASE;
       const redirectedPath = new URLSearchParams(window.location.search).get('p');
@@ -25,13 +31,14 @@ export default function App() {
           ? redirectedPath.replace(/~and~/g, '&').replace(/^\//, '')
           : window.location.pathname.replace(base, '').replace(/^\//, '');
       if (path.endsWith('/')) path = path.slice(0, -1);
-      return normalizeLogisticsPath(path || LOGISTICS_WORKSPACE_PATH);
+      return normalizeGate6Page(path);
   };
   const toUrl = (page) => {
+      const base = BASE.endsWith('/') ? BASE : `${BASE}/`;
       if (normalizeLogisticsPath(page).startsWith(LOGISTICS_INTERNAL_BASE)) {
-          return `${BASE}${publicLogisticsPath(page)}`;
+          return `${base}${publicLogisticsPath(page)}`;
       }
-      return page === 'home' ? BASE : `${BASE}${page}`;
+      return page === 'home' ? base : `${base}${page}`;
   };
 
   const [currentPage, setCurrentPage] = React.useState(() => getPage());
@@ -66,7 +73,7 @@ export default function App() {
   }, [currentPage]);
 
   const navigateTo = (page) => {
-      const normalizedPage = normalizeLogisticsPath(page);
+      const normalizedPage = normalizeGate6Page(page);
       window.history.pushState(null, '', toUrl(normalizedPage));
       setCurrentPage(normalizedPage);
   };
@@ -90,6 +97,13 @@ export default function App() {
 
   const { lang } = useLanguage();
   const { user, loading, recoveryMode } = useAuth();
+  const isAuthSetupMaintenance = () => {
+      try {
+          return window.sessionStorage.getItem('logisticsAuthSetupMode') === 'password-change';
+      } catch {
+          return false;
+      }
+  };
   const shouldShowAuthSetup = currentPage === 'auth-setup'
       || (!loading && !user && currentPage.startsWith('platform/iotaseoul') && !recoveryMode);
   const renderedPage = shouldShowAuthSetup ? 'auth-setup' : currentPage;
@@ -110,7 +124,7 @@ export default function App() {
           return;
       }
 
-      if (!loading && user && currentPage === 'auth-setup' && !recoveryMode) {
+      if (!loading && user && currentPage === 'auth-setup' && !recoveryMode && !isAuthSetupMaintenance()) {
           const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_WORKSPACE_PATH;
           window.sessionStorage.removeItem('logisticsPostLoginPath');
           navigateTo(nextPath);

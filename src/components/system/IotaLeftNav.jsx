@@ -124,7 +124,7 @@ const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용']);
 const LOGISTICS_ADMIN_EMAILS = new Set(['sjlee@igisam.com', 'jk.jeon@igisam.com', 'kylee@igisam.com']);
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_ACCESS_USERS_CACHE_KEY = 'logisticsFeatureAccessUsers:v1';
-const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v1';
+const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v2';
 const HAYUN_PROFILE_IMAGE_URL = 'hayun-jeong.jpg';
 const LOGISTICS_FEATURES = [
     { key: 'ai_chat', label: 'AI 챗봇', description: '워크 플랫폼 우측 AI 챗봇 열기 및 질문' },
@@ -316,11 +316,24 @@ const writeFeatureAccessUsersCache = (rows = []) => {
         // Cache write failure should not block the permission modal.
     }
 };
+const normalizeLoginCapabilityUserRow = (row = {}) => {
+    const hasAuthUser = row.has_auth_user === true;
+    return {
+        ...row,
+        login_status: hasAuthUser ? (row.login_status || '로그인 가능') : '최초 접속 전',
+        last_sign_in_at: hasAuthUser ? (row.last_sign_in_at || null) : null,
+    };
+};
+const normalizeLoginHistoryData = (data = {}) => ({
+    rows: Array.isArray(data.rows) ? data.rows.slice(0, 5) : [],
+    users: Array.isArray(data.users) ? data.users.map(normalizeLoginCapabilityUserRow).slice(0, 300) : [],
+    summary: data.summary || null,
+});
 const readLoginHistoryCache = () => {
     try {
         const parsed = JSON.parse(localStorage.getItem(LOGISTICS_LOGIN_HISTORY_CACHE_KEY) || '{}');
         return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-            ? { rows: Array.isArray(parsed.rows) ? parsed.rows : [], users: Array.isArray(parsed.users) ? parsed.users : [], summary: parsed.summary || null }
+            ? normalizeLoginHistoryData(parsed)
             : { rows: [], users: [], summary: null };
     } catch {
         return { rows: [], users: [], summary: null };
@@ -328,12 +341,7 @@ const readLoginHistoryCache = () => {
 };
 const writeLoginHistoryCache = (data = {}) => {
     try {
-        const next = {
-            rows: Array.isArray(data.rows) ? data.rows.slice(0, 5) : [],
-            users: Array.isArray(data.users) ? data.users.slice(0, 300) : [],
-            summary: data.summary || null,
-            cached_at: new Date().toISOString(),
-        };
+        const next = { ...normalizeLoginHistoryData(data), cached_at: new Date().toISOString() };
         localStorage.setItem(LOGISTICS_LOGIN_HISTORY_CACHE_KEY, JSON.stringify(next));
     } catch {
         // Cache write failure should not block the login history modal.
@@ -560,6 +568,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
             alert('비밀번호 변경 실패: ' + error.message);
         }
     };
+    const handleSignOutClick = async (event) => {
+        event?.preventDefault?.();
+        event?.stopPropagation?.();
+        setShowProfileMenu(false);
+        await signOut();
+    };
     const [isStakeholderOpen, setIsStakeholderOpen] = useState(() => {
         const saved = sessionStorage.getItem('isStakeholderOpen');
         return saved !== null ? saved === 'true' : true;
@@ -659,12 +673,29 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setNotificationsError('');
         try {
             const rows = [];
-            const [leaseResult, approvalResult] = await Promise.allSettled([
-                invokeWithTimeout('lease-events/list', { limit: 40, include_smoke: false }, 18000),
-                invokeWithTimeout('edits/list', { status: 'submitted', limit: 20 }, 18000),
-            ]);
-            const leaseValue = leaseResult.status === 'fulfilled' ? leaseResult.value : null;
-            const approvalValue = approvalResult.status === 'fulfilled' ? approvalResult.value : null;
+            let leaseValue = null;
+            let approvalValue = null;
+            const combinedResult = await invokeWithTimeout('notifications/list', { limit: 80, include_smoke: false }, 10000);
+            if (!combinedResult?.error && combinedResult?.data?.ok !== false) {
+                leaseValue = { data: { ok: true, data: combinedResult.data?.data?.lease_events || [] } };
+                approvalValue = { data: { ok: true, data: combinedResult.data?.data?.edit_requests || [] } };
+            } else {
+                const combinedMessage = [
+                    combinedResult?.error?.message,
+                    combinedResult?.data?.message,
+                    combinedResult?.data?.error,
+                ].filter(Boolean).join(' ');
+                const shouldTryLegacyFallback = /unknown action|not found|unsupported|404/i.test(combinedMessage);
+                if (!shouldTryLegacyFallback) {
+                    throw new Error(combinedMessage || 'notification timeout');
+                }
+                const [leaseResult, approvalResult] = await Promise.allSettled([
+                    invokeWithTimeout('lease-events/list', { limit: 40, include_smoke: false }, 8000),
+                    invokeWithTimeout('edits/list', { status: 'submitted', limit: 20 }, 8000),
+                ]);
+                leaseValue = leaseResult.status === 'fulfilled' ? leaseResult.value : null;
+                approvalValue = approvalResult.status === 'fulfilled' ? approvalResult.value : null;
+            }
             let successCount = 0;
             if (leaseValue && !leaseValue.error && leaseValue.data?.ok !== false) {
                 successCount += 1;
@@ -852,7 +883,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             if (error || data?.ok === false) {
                 throw new Error(data?.message || error?.message || '로그인 이력을 불러오지 못했습니다.');
             }
-            const next = data?.data || { rows: [], users: [], summary: null };
+            const next = normalizeLoginHistoryData(data?.data || { rows: [], users: [], summary: null });
             setLoginHistoryData(next);
             writeLoginHistoryCache(next);
         } catch (error) {
@@ -896,7 +927,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
         const isDashboardActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard`);
         return (
-            <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full overflow-hidden bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width,background-color,border-color] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] print:hidden`}>
+            <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full overflow-hidden bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] print:hidden`}>
                 <div className={`w-full flex items-center ${isCollapsed ? 'justify-center px-[10px]' : 'justify-between px-[15px]'} pt-[14px] pb-4`}>
                     <span className={`overflow-hidden whitespace-nowrap font-bold text-[20px] tracking-tight font-inter ml-[5px] text-white transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[170px] translate-x-0 opacity-100'}`}>Logistics</span>
                     <button type="button" onClick={() => setIsCollapsed((value) => !value)} title={isCollapsed ? '사이드바 펼치기' : '사이드바 접기'} className="text-[#86868B] hover:text-white pb-1 transition-colors cursor-pointer mt-[4px]">
@@ -1083,7 +1114,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                         <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
                             <div className="absolute bottom-full left-3 right-3 z-50 mb-2 rounded-[16px] border border-[#3A3A3C] bg-[#2C2C2E] py-2 shadow-lg">
-                                <button onClick={async () => { setShowProfileMenu(false); await signOut(); }} className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-[14px] font-medium text-[#FF453A] transition-colors hover:bg-red-500/10">
+                            <button type="button" onClick={handleSignOutClick} className="flex w-full cursor-pointer items-center gap-3 px-4 py-2.5 text-left text-[14px] font-medium text-[#FF453A] transition-colors hover:bg-red-500/10">
                                     로그아웃
                                 </button>
                             </div>
@@ -1348,7 +1379,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     }
 
     return (
-        <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width,background-color,border-color] duration-300`}>
+        <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width]`}>
 
             {/* Header */}
             <div className={`w-full flex items-center ${isCollapsed ? 'justify-center px-[10px]' : 'justify-between px-[15px]'} pt-[14px] pb-4`}>
@@ -1577,7 +1608,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 플랫폼 이용 문의
                             </button>
                             <div className="my-1 border-t border-white/5"></div>
-                            <button onClick={async () => { setShowProfileMenu(false); await signOut(); }} className="w-full text-left px-4 py-2.5 text-[14px] font-medium text-[#FF453A] hover:bg-red-500/10 transition-colors flex items-center gap-3 cursor-pointer">
+                            <button type="button" onClick={handleSignOutClick} className="w-full text-left px-4 py-2.5 text-[14px] font-medium text-[#FF453A] hover:bg-red-500/10 transition-colors flex items-center gap-3 cursor-pointer">
                                 <svg className="w-4 h-4 text-[#FF453A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                                 로그아웃
                             </button>
