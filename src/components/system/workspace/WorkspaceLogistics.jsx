@@ -8097,7 +8097,6 @@ function sortContractDataLeaseRows(rows = []) {
 }
 
 function assetTenantFloorSortValue(row = {}) {
-  if (row.isVacancyRow) return Number.NEGATIVE_INFINITY;
   return floorSortValue(firstDefined(row.floorLabel, row.spaceLabel, row.detailAreaLabel, row.sourceFloorLabel));
 }
 
@@ -8133,32 +8132,6 @@ function sortAssetTenantRows(rows = [], sortConfig = { index: 1, direction: 'des
     return String(firstDefined(a.leaseSpaceId, a.spaceLabel, '') || '')
       .localeCompare(String(firstDefined(b.leaseSpaceId, b.spaceLabel, '') || ''), 'ko-KR');
   });
-}
-
-function buildVacancyTenantRow(vacancyAreaSqm) {
-  const numericVacancyAreaSqm = Number(vacancyAreaSqm || 0);
-  if (!Number.isFinite(numericVacancyAreaSqm) || numericVacancyAreaSqm <= 0) return null;
-  return {
-    isVacancyRow: true,
-    tenantMasterName: '공실',
-    spaceLabel: '-',
-    floorLabel: '',
-    detailAreaLabel: '',
-    leasedAreaSqm: numericVacancyAreaSqm,
-    monthlyRentTotal: null,
-    monthlyMfTotal: null,
-    monthlyCombinedTotal: null,
-    monthlyCostTotal: null,
-    eNoc: null,
-    averageENoc: null,
-    rfMonths: null,
-    foMonths: null,
-    tiAmount: null,
-    currentRentPerPy: null,
-    currentMfPerPy: null,
-    currentStartDate: null,
-    currentEndDate: null,
-  };
 }
 
 function expiryDateForRow(row = {}) {
@@ -12800,14 +12773,6 @@ function AssetDashboard() {
     longitude: overview.longitude,
   }] : [];
   const openTableModal = (title, headers, tableRows) => setModal({ title, headers, rows: tableRows });
-  const openVacancyDetail = () => openTableModal('공실 면적 근거', ['항목', '내용'], [
-    ['자산', overview.assetName || '-'],
-    ['공실면적', formatArea(assetVacancyAreaBasisSqm)],
-    ['연면적', formatArea(assetGrossAreaBasisSqm)],
-    ['임대면적', formatArea(assetLeasedAreaBasisSqm)],
-    ['공실률', assetGrossAreaBasisSqm > 0 ? formatPercent(assetVacancyAreaBasisSqm / assetGrossAreaBasisSqm) : '-'],
-    ['표시 기준', '자산의 공실면적 데이터가 0보다 클 때 임차인 현황에 별도 행으로 표시합니다.'],
-  ]);
   const openTenantDetail = (tenant, title = '임차인 상세') => {
     if (!tenant) return;
     const matchedRows = rows.filter((row) => (
@@ -12932,10 +12897,7 @@ function AssetDashboard() {
   ];
   const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', 'RF', 'FO', 'TI', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
   const rosterColumnWidths = ['13%', '7.5%', '8%', '7.5%', '7.2%', '7.8%', '6.6%', '4.2%', '4.2%', '5.2%', '7%', '6.8%', '6.4%', '6.6%'];
-  const vacancyTenantRow = useMemo(() => buildVacancyTenantRow(assetVacancyAreaBasisSqm), [assetVacancyAreaBasisSqm]);
-  const rosterSourceRows = useMemo(() => (
-    vacancyTenantRow ? [...rows, vacancyTenantRow] : rows
-  ), [rows, vacancyTenantRow]);
+  const rosterSourceRows = rows;
   const sortedRosterSourceRows = useMemo(() => (
     sortAssetTenantRows(rosterSourceRows, rosterSortConfig)
   ), [rosterSourceRows, rosterSortConfig]);
@@ -13110,10 +13072,6 @@ function AssetDashboard() {
           rows={rosterRows}
           onRowClick={(index) => {
             const selectedRow = sortedRosterSourceRows[index];
-            if (selectedRow?.isVacancyRow) {
-              openVacancyDetail();
-              return;
-            }
             openTenantDetail(selectedRow, '임차인 상세');
           }}
           columnWidths={rosterColumnWidths}
