@@ -425,6 +425,7 @@ function camelAssetFromApi(row = {}) {
     fundCode: firstDefined(row.fund_code, row.fundCode),
     fundName: firstDefined(row.fund_name, row.fundName),
     sector: row.sector,
+    region: firstDefined(row.region, row.region_name, row.regionName),
     address: firstDefined(row.address, row.standardizedAddress),
     standardizedAddress: firstDefined(row.address, row.standardizedAddress),
     latitude: row.latitude,
@@ -444,6 +445,8 @@ function camelLeaseSpaceFromApi(row = {}, asset = {}, fallback = {}) {
   const monthlyCostTotal = firstDefined(row.current_monthly_cost_total, row.currentMonthlyCostTotal, fallback.monthlyCostTotal, Number(monthlyRentTotal || 0) + Number(monthlyMfTotal || 0));
   const floorLabel = firstDefined(row.floor_label, row.floorLabel, fallback.floorLabel);
   const detailAreaLabel = firstDefined(row.detail_area_label, row.detailAreaLabel, fallback.detailAreaLabel);
+  const assetAddress = firstDefined(asset.standardizedAddress, asset.address, fallback.standardizedAddress, fallback.address);
+  const assetRegion = deriveLogisticsRegionFromAddress(assetAddress, firstDefined(asset.region, fallback.region, '미분류'));
   const tenantDisplayName = firstHumanTenantName(
     row.tenant_master_name,
     row.company_name,
@@ -463,7 +466,9 @@ function camelLeaseSpaceFromApi(row = {}, asset = {}, fallback = {}) {
     assetId: firstDefined(row.asset_id, row.assetId, asset.assetId, fallback.assetId),
     assetName: firstDefined(asset.assetName, fallback.assetName, '-'),
     fundName: firstDefined(asset.fundName, fallback.fundName),
-    address: firstDefined(asset.address, fallback.address),
+    address: assetAddress,
+    standardizedAddress: assetAddress,
+    region: assetRegion,
     latitude: firstDefined(asset.latitude, fallback.latitude),
     longitude: firstDefined(asset.longitude, fallback.longitude),
     tenantId: firstDefined(row.tenant_id, row.tenantId, fallback.tenantId),
@@ -907,6 +912,7 @@ function assetPayloadFromDashboardRead(response, fallbackPayload = {}) {
   const summary = readData.summary || {};
   const asset = camelAssetFromApi(readData.asset || {});
   const fallbackNormalized = normalizeAssetPayload(fallbackPayload || {});
+  const fallbackSelection = fallbackPayload.meta?.selection || {};
   const rows = generalRowsFromDashboardReadData({
     assets: readData.asset ? [readData.asset] : [],
     leases: readData.leases || [],
@@ -927,6 +933,11 @@ function assetPayloadFromDashboardRead(response, fallbackPayload = {}) {
       ...fallbackPayload,
       overview: {
         ...(fallbackPayload.overview || {}),
+        sigunguCd: firstDefined(fallbackPayload.overview?.sigunguCd, fallbackSelection.sigunguCd),
+        bjdongCd: firstDefined(fallbackPayload.overview?.bjdongCd, fallbackSelection.bjdongCd),
+        platGbCd: firstDefined(fallbackPayload.overview?.platGbCd, fallbackSelection.platGbCd),
+        bun: firstDefined(fallbackPayload.overview?.bun, fallbackSelection.bun),
+        ji: firstDefined(fallbackPayload.overview?.ji, fallbackSelection.ji),
         ...asset,
         areaBreakdown: {
           ...(fallbackPayload.overview?.areaBreakdown || fallbackPayload.areaBreakdown || {}),
@@ -6940,7 +6951,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
       .then((L) => {
         if (disposed || !containerRef.current) return;
         setMode('leaflet');
-        setStatus(`동적 지도 · ${validPoints.length}개 자산`);
+        setStatus(`지도에 ${validPoints.length}개 자산을 표시하고 있어요`);
         if (mapRef.current) {
           if (typeof mapRef.current.destroy === 'function') mapRef.current.destroy();
           if (typeof mapRef.current.remove === 'function') mapRef.current.remove();
@@ -6966,7 +6977,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
         validPoints.forEach((point, index) => {
           const marker = L.marker([Number(point.latitude), Number(point.longitude)], { title: point.assetName || `자산 ${index + 1}` }).addTo(map);
           marker.bindTooltip(
-            `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:block;max-width:240px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.24);cursor:pointer;"><strong style="display:block;margin-bottom:4px;color:#111;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="color:#111;">${escapeHtml(point.address || '')}</span></button>`,
+            `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:block;max-width:240px;border:0;outline:0;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.18);cursor:pointer;"><strong style="display:block;margin-bottom:4px;color:#111;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="color:#111;">${escapeHtml(point.address || '')}</span></button>`,
             { direction: 'right', offset: [14, 0], opacity: 1, sticky: true, interactive: true, className: 'logistics-map-tooltip' },
           );
           marker.on('mouseover', () => marker.openTooltip());
@@ -6982,7 +6993,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
       .catch(() => {
         if (disposed) return;
         setMode('schematic');
-        setStatus(`스케매틱 지도 대체 · ${validPoints.length}개 자산`);
+        setStatus(`대체 지도로 ${validPoints.length}개 자산을 표시하고 있어요`);
       });
 
     getNaverMapsClientId()
@@ -6990,7 +7001,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
       .then((naver) => {
         if (disposed || !containerRef.current) return;
         setMode('naver');
-        setStatus(`네이버 동적 지도 · ${validPoints.length}개 자산`);
+        setStatus(`네이버 지도에 ${validPoints.length}개 자산을 표시하고 있어요`);
         const latLngs = validPoints.map((point) => new naver.maps.LatLng(Number(point.latitude), Number(point.longitude)));
         const map = new naver.maps.Map(containerRef.current, {
           center: latLngs[0],
@@ -7015,7 +7026,11 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
             title: point.assetName || `자산 ${index + 1}`,
           });
           const infoWindow = new naver.maps.InfoWindow({
-            content: `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:block;max-width:240px;border:1px solid #d1d5db;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;font-size:12px;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.24);cursor:pointer;"><strong style="display:block;margin-bottom:4px;color:#111;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="color:#111;">${escapeHtml(point.address || '')}</span></button>`,
+            content: `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:block;max-width:240px;border:0;outline:0;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;font-size:12px;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.18);cursor:pointer;"><strong style="display:block;margin-bottom:4px;color:#111;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="color:#111;">${escapeHtml(point.address || '')}</span></button>`,
+            backgroundColor: 'transparent',
+            borderColor: 'transparent',
+            borderWidth: 0,
+            anchorSize: new naver.maps.Size(0, 0),
           });
           let closeTimer = null;
           naver.maps.Event.addListener(marker, 'mouseover', () => {
@@ -7079,7 +7094,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
   }, [focusMapPoint, focusedAssetId, validPoints]);
 
   if (!validPoints.length) {
-    return <div className="text-[13px] text-[#86868B]">좌표가 등록된 자산이 없습니다.</div>;
+    return <div className="text-[13px] text-[#86868B]">지도에 표시할 좌표가 없습니다.</div>;
   }
 
   return (
@@ -7090,21 +7105,28 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
         <div className={`absolute left-3 top-3 rounded-full border px-3 py-1 text-[12px] font-semibold ${mode === 'leaflet' || mode === 'naver' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
           {status}
         </div>
-        <div className="absolute right-3 top-3 z-20 flex max-w-[min(520px,calc(100%-24px))] flex-wrap justify-end gap-1.5 rounded-[10px] border border-[#333333] bg-[#1F1F1E]/92 p-1.5 shadow-xl backdrop-blur">
+        <style>{`
+          .logistics-map-tooltip {
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+          }
+          .logistics-map-tooltip::before {
+            display: none !important;
+          }
+        `}</style>
+        <div className="absolute right-3 top-3 z-20 flex w-[74px] flex-col gap-1.5 rounded-[10px] border border-[#333333] bg-[#1F1F1E]/92 p-1.5 shadow-xl backdrop-blur">
           {[
-            ['normal', '일반지도'],
-            ['satellite', '위성지도'],
+            ['normal', '일반'],
+            ['satellite', '위성'],
             ['cadastral', '지적편집도'],
-            ['street', '거리뷰'],
-            ['radius', '반경'],
-            ['area', '면적'],
-            ['distance', '거리'],
           ].map(([tool, label]) => (
             <button
               key={tool}
               type="button"
               onClick={() => applyMapTool(tool)}
-              className={`h-8 rounded-[7px] px-2.5 text-[12px] font-semibold transition ${activeMapTool === tool ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}
+              className={`h-8 rounded-[7px] px-2 text-[12px] font-semibold transition ${activeMapTool === tool ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}
             >
               {label}
             </button>
@@ -7565,8 +7587,24 @@ function HomeDashboard() {
       return [assetName, topTenant?.tenantName || '-'];
     }));
   }, [generalRows]);
+  const regionAssetLookup = useMemo(() => {
+    const lookup = new Map();
+    (readableAssetOptions || []).forEach((asset) => {
+      if (asset.assetId) lookup.set(asset.assetId, asset);
+      const nameKey = normalizeAssetNameKey(asset.assetName);
+      if (nameKey) lookup.set(nameKey, asset);
+    });
+    return lookup;
+  }, [readableAssetOptions]);
   const regionRows = Object.values(generalRows.reduce((acc, row) => {
-    const region = deriveLogisticsRegionFromAddress(row.standardizedAddress || row.address || row.region, row.region || '미분류');
+    const matchedAsset = regionAssetLookup.get(row.assetId) || regionAssetLookup.get(normalizeAssetNameKey(row.assetName)) || {};
+    const regionAddress = firstDefined(
+      row.standardizedAddress,
+      row.address,
+      matchedAsset.standardizedAddress,
+      matchedAsset.address,
+    );
+    const region = deriveLogisticsRegionFromAddress(regionAddress, firstDefined(row.region, matchedAsset.region, '미분류'));
     if (!acc[region]) acc[region] = { label: region, assetCountSet: new Set(), grossFloorAreaSqm: 0, leasedAreaSqm: 0, monthlyCostTotal: 0 };
     const assetKey = row.assetId || row.assetName;
     if (!acc[region].assetCountSet.has(assetKey)) {
@@ -7902,6 +7940,7 @@ function RichBarChart({
           const value = Number(row[valueKey] || 0);
           const barValue = Number(row[axisValueKey] || 0);
           const label = chartLabel(row, labelKey);
+          const barWidth = Math.min(100, Math.max(valueType === 'percent' ? 0 : 3, (barValue / maxValue) * 100));
           return (
             <button
               key={`${label}-${valueKey}`}
@@ -7918,7 +7957,7 @@ function RichBarChart({
               <div className="grid grid-cols-[168px_1fr_152px] items-center gap-3 text-[12px]">
                 <span className="truncate font-semibold text-[#E5E5E5]">{label}</span>
                 <div className="relative h-5 rounded-full bg-[#151515]">
-                  <div className="h-full rounded-full bg-[#9AD7FF] transition-colors group-hover:bg-[#B5E48C]" style={{ width: `${Math.min(100, Math.max(3, (barValue / maxValue) * 100))}%` }} />
+                  <div className="h-full rounded-full bg-[#9AD7FF] transition-colors group-hover:bg-[#B5E48C]" style={{ width: `${barWidth}%` }} />
                 </div>
                 <span className="text-right font-semibold text-[#D1D1D6]">{row.displayValue || formatMetric(value, valueType)}</span>
               </div>
@@ -9009,24 +9048,27 @@ function CompanyDartDetailView({ profile, financials }) {
 
 function deriveLogisticsRegionFromAddress(address, fallback = '미분류') {
   const text = String(address || '');
-  const cityMatch = text.match(/([가-힣]+(?:시|군|구|읍|면|동))/gu) || [];
-  const includesAny = (items) => items.some((item) => text.includes(item));
-  if (includesAny(['인천광역시', '김포시', '안산시', '시흥시', '광명시', '부천시'])) return '인천';
-  if (includesAny(['고양시', '구리시', '파주시', '연천군', '포천시', '동두천시', '양주시', '의정부시', '남양주시', '가평군'])) return '경기 북부';
+  const compactText = text.replace(/\s+/gu, '');
+  const normalizedFallback = cleanDisplay(fallback, '미분류');
+  const includesAny = (items) => items.some((item) => text.includes(item) || compactText.includes(String(item).replace(/\s+/gu, '')));
+  if (['인천', '경기 북부', '경기 서남부', '경기 동남부', '전라', '경북', '경남', '충청'].includes(normalizedFallback)) return normalizedFallback;
+  if (includesAny(['인천광역시', '인천', '김포시', '김포', '안산시', '안산', '시흥시', '시흥', '광명시', '광명', '부천시', '부천'])) return '인천';
+  if (includesAny(['고양시', '고양', '구리시', '구리', '파주시', '파주', '연천군', '연천', '포천시', '포천', '동두천시', '동두천', '양주시', '양주', '의정부시', '의정부', '남양주시', '남양주', '가평군', '가평'])) return '경기 북부';
   if (text.includes('용인시')) {
     if (includesAny(['수지구', '삼가동', '역북동', '중앙동', '이동읍', '남사읍'])) return '경기 서남부';
-    if (includesAny(['모현읍', '유림동', '양지면', '동부동', '원삼면', '백암면', '포곡읍'])) return '경기 동남부';
+    if (includesAny(['모현읍', '유림동', '양지면', '양지읍', '동부동', '원삼면', '백암면', '포곡읍'])) return '경기 동남부';
   }
   if (text.includes('안성시')) {
     if (includesAny(['고삼면', '원곡면', '양성면', '공도읍', '대덕면', '미양면', '안성동', '서운면'])) return '경기 서남부';
     if (includesAny(['보개면', '삼죽면', '금광면', '죽산면', '일죽면'])) return '경기 동남부';
   }
-  if (includesAny(['군포시', '화성시', '수원시', '평택시', '천안시', '아산시', '안양시', '오산시', '의왕시', '당진시'])) return '경기 서남부';
-  if (includesAny(['하남시', '성남시', '광주시', '여주시', '이천시', '진천군', '음성군'])) return '경기 동남부';
-  if (includesAny(['광주광역시', '군산시', '익산시', '김제시', '완주군', '전주시', '부안군', '고창군', '정읍시', '임실군', '순창군', '남원시', '영광군', '함평군', '장성군', '담양군', '나주시', '화순군'])) return '전라';
-  if (includesAny(['대구광역시', '칠곡군', '성주군', '고령군', '청도군', '경산시', '영천시', '군위군', '김천시', '구미시'])) return '경북';
-  if (includesAny(['울산광역시', '양산시', '밀양시', '김해시', '부산광역시', '창원시', '경주시', '포항시'])) return '경남';
-  return cityMatch[0] ? fallback : fallback;
+  if (includesAny(['군포시', '군포', '화성시', '화성', '수원시', '수원', '평택시', '평택', '안양시', '안양', '오산시', '오산', '의왕시', '의왕'])) return '경기 서남부';
+  if (includesAny(['하남시', '하남', '성남시', '성남', '광주시', '경기도광주시', '여주시', '여주', '이천시', '이천'])) return '경기 동남부';
+  if (includesAny(['천안시', '천안', '아산시', '아산', '당진시', '당진', '대전광역시', '대전', '세종특별자치시', '세종', '청주시', '청주', '진천군', '진천', '음성군', '음성'])) return '충청';
+  if (includesAny(['광주광역시', '군산시', '군산', '익산시', '익산', '김제시', '김제', '완주군', '완주', '전주시', '전주', '부안군', '부안', '고창군', '고창', '정읍시', '정읍', '임실군', '임실', '순창군', '순창', '남원시', '남원', '영광군', '영광', '함평군', '함평', '장성군', '장성', '담양군', '담양', '나주시', '나주', '화순군', '화순'])) return '전라';
+  if (includesAny(['대구광역시', '대구', '칠곡군', '칠곡', '성주군', '성주', '고령군', '고령', '청도군', '청도', '경산시', '경산', '영천시', '영천', '군위군', '군위', '김천시', '김천', '구미시', '구미'])) return '경북';
+  if (includesAny(['울산광역시', '울산', '양산시', '양산', '밀양시', '밀양', '김해시', '김해', '부산광역시', '부산', '창원시', '창원', '경주시', '경주', '포항시', '포항'])) return '경남';
+  return normalizedFallback;
 }
 
 function reviewStatusLabel(status) {
@@ -9538,8 +9580,8 @@ function CompanyDashboard() {
   const kpis = [
     { key: 'asset_count', label: '임차 자산 수', value: visibleProfile.assetCount, valueType: 'number' },
     { key: 'leased_area', label: '총 임차면적', value: visibleProfile.leasedAreaSqm, valueType: 'area' },
-    { key: 'weighted_rent_per_py', label: '평당 임대료', value: companyWeightedRentPerPy, valueType: 'won' },
-    { key: 'weighted_mf_per_py', label: '평당 관리비', value: companyWeightedMfPerPy, valueType: 'won' },
+    { key: 'weighted_rent_per_py', label: '평균 평당 임대료', value: companyWeightedRentPerPy, valueType: 'won' },
+    { key: 'weighted_mf_per_py', label: '평균 평당 관리비', value: companyWeightedMfPerPy, valueType: 'won' },
     { key: 'weighted_e_noc', label: 'E.NOC', value: companyWeightedENoc, valueType: 'won' },
     { key: 'monthly_total_cost', label: '월 임관리비 총액', value: visibleProfile.monthlyCostTotal, valueType: 'currency' },
     { key: 'monthly_rent_total', label: '월 임대료 총액', value: visibleProfile.monthlyRentTotal, valueType: 'currency' },
@@ -12911,6 +12953,103 @@ function DataQualityDashboard() {
   );
 }
 
+function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onOpen }) {
+  const safeSlides = Array.isArray(slides) && slides.length
+    ? slides
+    : [{ id: 'floorplan-empty', label: '층별 평면도', imageUrl: '' }];
+  const [activeIndex, setActiveIndex] = useState(0);
+  const activeSlide = safeSlides[activeIndex] || safeSlides[0];
+  const imageUrl = firstDefined(activeSlide?.imageUrl, activeSlide?.image_url, activeSlide?.url, activeSlide?.src, '');
+  const canMove = safeSlides.length > 1;
+  const canOpen = typeof onOpen === 'function';
+
+  useEffect(() => {
+    if (activeIndex < safeSlides.length) return;
+    setActiveIndex(0);
+  }, [activeIndex, safeSlides.length]);
+
+  const moveSlide = (direction, event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!canMove) return;
+    setActiveIndex((current) => (current + direction + safeSlides.length) % safeSlides.length);
+  };
+
+  const openModal = () => {
+    if (canOpen) onOpen();
+  };
+
+  const handleKeyDown = (event) => {
+    if (!canOpen) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onOpen();
+    }
+  };
+
+  const slideLabel = cleanDisplay(firstDefined(activeSlide?.label, activeSlide?.floorLabel, activeSlide?.floor), '층별 평면도');
+  const containerHeightClass = modalMode ? 'min-h-[520px]' : 'min-h-[116px]';
+  const titleClass = modalMode ? 'text-[18px]' : 'text-[14px]';
+
+  return (
+    <div
+      role={canOpen ? 'button' : undefined}
+      tabIndex={canOpen ? 0 : undefined}
+      onClick={openModal}
+      onKeyDown={handleKeyDown}
+      className={`group relative mt-3 flex ${containerHeightClass} w-full overflow-hidden rounded-[10px] border border-dashed border-[#4A4A4D] bg-[#1F1F1E] text-center ${canOpen ? 'cursor-pointer hover:bg-[#2A2A29]' : ''}`}
+      aria-label={`${assetName || '자산'} 평면도 이미지`}
+    >
+      {imageUrl ? (
+        <img src={imageUrl} alt={`${assetName || '자산'} ${slideLabel} 평면도`} className="h-full w-full object-contain" />
+      ) : (
+        <div className="flex flex-1 items-center justify-center p-6">
+          <div>
+            <div className={`${titleClass} font-semibold text-white`}>{slideLabel}</div>
+            <div className="mt-2 text-[12px] text-[#A1A1AA]">평면도 이미지를 등록하면 층별로 넘겨 볼 수 있습니다.</div>
+          </div>
+        </div>
+      )}
+      {canMove ? (
+        <>
+          <button
+            type="button"
+            onClick={(event) => moveSlide(-1, event)}
+            className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-[24px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-70 hover:bg-white/35 hover:opacity-100 focus:opacity-100"
+            aria-label="이전 평면도 보기"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            onClick={(event) => moveSlide(1, event)}
+            className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-[24px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-70 hover:bg-white/35 hover:opacity-100 focus:opacity-100"
+            aria-label="다음 평면도 보기"
+          >
+            ›
+          </button>
+        </>
+      ) : null}
+      {safeSlides.length > 1 ? (
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white">
+          {activeIndex + 1} / {safeSlides.length}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function floorplanLabelsFromFloorCount(floorCount = '') {
+  const text = String(floorCount || '');
+  const groundMatch = text.match(/(\d+)\s*F/iu);
+  const basementMatch = text.match(/B\s*(\d+)/iu);
+  const groundCount = Number(groundMatch?.[1] || 0);
+  const basementCount = Number(basementMatch?.[1] || 0);
+  const basementLabels = Array.from({ length: basementCount }, (_, index) => `B${basementCount - index}`);
+  const groundLabels = Array.from({ length: groundCount }, (_, index) => `${index + 1}F`);
+  return [...basementLabels, ...groundLabels].filter(Boolean);
+}
+
 function AssetDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
@@ -12953,6 +13092,31 @@ function AssetDashboard() {
   const breakdown = asset.areaBreakdown || {};
   const rows = useMemo(() => asset.normalizedRows || asset.rows || [], [asset.normalizedRows, asset.rows]);
   const stackingFloors = useMemo(() => buildStackingFloorsFromRows(rows, overview.floors || asset.stackingPlan), [rows, overview.floors, asset.stackingPlan]);
+  const floorplanSlides = useMemo(() => {
+    const sourceFloorplans = Array.isArray(firstDefined(asset.floorplans, overview.floorplans))
+      ? firstDefined(asset.floorplans, overview.floorplans)
+      : [];
+    if (sourceFloorplans.length) {
+      return sourceFloorplans.map((item, index) => ({
+        id: cleanDisplay(firstDefined(item.id, item.floorLabel, item.floor), `floorplan-${index}`),
+        label: cleanDisplay(firstDefined(item.label, item.floorLabel, item.floor), `평면도 ${index + 1}`),
+        imageUrl: cleanDisplay(firstDefined(item.imageUrl, item.image_url, item.url, item.src), ''),
+      }));
+    }
+    const floorLabels = [...new Set((stackingFloors || [])
+      .map((floor) => cleanDisplay(firstDefined(floor.floorLabel, floor.label, floor.floor), ''))
+      .filter(Boolean))];
+    const scaleFloorLabels = floorplanLabelsFromFloorCount(firstDefined(overview.floorCount, overview.floorScale));
+    const floorLabelsOnlyOverall = floorLabels.length > 0 && floorLabels.every((label) => /^전체/u.test(label));
+    const fallbackLabels = floorLabels.length && !floorLabelsOnlyOverall
+      ? floorLabels
+      : (scaleFloorLabels.length ? scaleFloorLabels : ['층별 평면도']);
+    return fallbackLabels.map((label, index) => ({
+      id: `${selectedAssetId || 'asset'}-floorplan-${index}`,
+      label,
+      imageUrl: '',
+    }));
+  }, [asset.floorplans, overview.floorplans, selectedAssetId, stackingFloors]);
   const assetWeightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
   const buildingRegisterSource = rows.find((row) => row.asset?.sigunguCd || row.sigunguCd) || overview;
   const buildingRegisterPayload = buildBuildingRegisterPayload(buildingRegisterSource);
@@ -13072,8 +13236,8 @@ function AssetDashboard() {
     occupancy_rate: "임대율",
     leased_area_total: "총 임대면적",
     vacancy_area_total: "공실면적",
-    average_rent_per_py: "평당 임대료 평균",
-    average_mf_per_py: "평당 관리비 평균",
+    average_rent_per_py: "평균 평당 임대료",
+    average_mf_per_py: "평균 평당 관리비",
     average_e_noc: 'E. NOC',
     unique_tenant_count: "현재 임차인 수",
   };
@@ -13092,8 +13256,8 @@ function AssetDashboard() {
     kpiByKey.occupancy_rate || { key: 'occupancy_rate', label: "임대율", value: 1 - Number(overview.vacancyRate || 0), valueType: 'percent' },
     kpiByKey.leased_area_total || { key: 'leased_area_total', label: "총 임대면적", value: overview.leasedAreaSqm, valueType: 'area' },
     kpiByKey.vacancy_area_total || { key: 'vacancy_area_total', label: "공실면적", value: overview.vacancyAreaSqm, valueType: 'area' },
-    kpiByKey.average_rent_per_py || { key: 'average_rent_per_py', label: "평당 임대료 평균", value: assetAverageRentPerPy, valueType: 'won' },
-    kpiByKey.average_mf_per_py || { key: 'average_mf_per_py', label: "평당 관리비 평균", value: assetAverageMfPerPy, valueType: 'won' },
+    kpiByKey.average_rent_per_py || { key: 'average_rent_per_py', label: "평균 평당 임대료", value: assetAverageRentPerPy, valueType: 'won' },
+    kpiByKey.average_mf_per_py || { key: 'average_mf_per_py', label: "평균 평당 관리비", value: assetAverageMfPerPy, valueType: 'won' },
     kpiByKey.average_e_noc || { key: 'average_e_noc', label: 'E. NOC', value: assetWeightedENoc, valueType: 'won' },
     kpiByKey.unique_tenant_count || { key: 'unique_tenant_count', label: "현재 임차인 수", value: firstDefined(overview.uniqueTenantCount, rows.length), valueType: 'count' },
   ].map((item) => ({
@@ -13399,7 +13563,7 @@ function AssetDashboard() {
           )}
         />
         <p className="text-[13px] leading-6 text-[#A1A1AA]">
-          자산개요, 투자개요, 펀드개요는 전체 화면 팝업에서 확인하고 수정합니다.
+          전체 화면에서 자산·투자·펀드 정보를 확인하고 수정할 수 있습니다.
         </p>
       </section>
 
@@ -13449,27 +13613,15 @@ function AssetDashboard() {
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="AREA" title="면적 구성" />
           <DataTable headers={['항목', '면적(평)', '비율']} rows={areaRows} compact />
-          <button
-            type="button"
-            onClick={() => setModal({
+          <FloorplanCarousel
+            slides={floorplanSlides}
+            assetName={overview.assetName}
+            onOpen={() => setModal({
               title: `${overview.assetName || '자산'} 평면도 이미지`,
               size: 'fullscreen',
-              content: (
-                <div className="flex h-full min-h-[520px] items-center justify-center rounded-[14px] border border-dashed border-[#4A4A4D] bg-[#1F1F1E] p-6 text-center">
-                  <div>
-                    <div className="text-[18px] font-semibold text-white">평면도 이미지</div>
-                    <div className="mt-2 text-[13px] text-[#A1A1AA]">등록 예정</div>
-                  </div>
-                </div>
-              ),
+              content: <FloorplanCarousel slides={floorplanSlides} assetName={overview.assetName} modalMode />,
             })}
-            className="mt-3 flex min-h-[96px] w-full items-center justify-center rounded-[10px] border border-dashed border-[#4A4A4D] bg-[#1F1F1E] text-center hover:bg-[#2A2A29]"
-          >
-            <span>
-              <span className="block text-[14px] font-semibold text-white">평면도 이미지</span>
-              <span className="mt-1 block text-[12px] text-[#A1A1AA]">등록 예정</span>
-            </span>
-          </button>
+          />
         </div>
       </section>
 
