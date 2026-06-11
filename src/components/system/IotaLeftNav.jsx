@@ -644,8 +644,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
             ...configuredUsers,
         ];
         return mergeFeatureAccessUsers(rows)
-            .sort((left, right) => String(left.organization || '').localeCompare(String(right.organization || ''), 'ko-KR')
-                || String(left.staff_name || '').localeCompare(String(right.staff_name || ''), 'ko-KR'));
+            .sort((left, right) => String(left.staff_name || '').localeCompare(String(right.staff_name || ''), 'ko-KR')
+                || String(left.organization || '').localeCompare(String(right.organization || ''), 'ko-KR')
+                || String(left.email || '').localeCompare(String(right.email || ''), 'ko-KR'));
     }, [featureAccessModalConfig.features, featureAccessUsers, loginCapabilityUsers]);
     const notificationStorageKey = useMemo(() => {
         const owner = user?.id || user?.email || memberInfo?.email || memberInfo?.staff_name || 'anonymous';
@@ -818,7 +819,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setFeatureAccessDraft(normalizeFeatureAccessConfig(featureAccessData));
         setFeatureAccessDirty(false);
         setShowFeatureAccessModal(true);
-        await loadFeatureAccess();
+        loadFeatureAccess();
     };
     const persistFeatureAccessConfig = async (nextConfig) => {
         setFeatureAccessSaving(true);

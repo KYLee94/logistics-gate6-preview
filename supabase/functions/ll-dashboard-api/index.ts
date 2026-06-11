@@ -13146,20 +13146,47 @@ async function permissionAssetRows(ctx: Context, permission: Record<string, unkn
     .select('asset_id,asset_code,asset_name,fund_code,fund_name,current_manager_name,current_manager_email')
     .limit(500);
   if (error) return [];
-  return ((data || []) as Record<string, unknown>[])
+  const matchedAssets = ((data || []) as Record<string, unknown>[])
     .filter((asset) => {
       const candidates = [asset.asset_id, asset.asset_code, asset.asset_name].flatMap(assetRefVariants).map((item) => String(item).toLowerCase());
       return candidates.some((item) => refs.includes(item));
-    })
-    .map((asset) => ({
+    });
+  const assetIds = uniqueStrings(matchedAssets.map((asset) => asset.asset_id), 500);
+  const fundByAssetId = new Map<string, Record<string, unknown>>();
+  if (assetIds.length) {
+    const { data: linkRows } = await ctx.serviceClient
+      .from('ll_fund_asset_links')
+      .select('asset_id,fund_id,link_type,ll_funds(fund_code,fund_name)')
+      .in('asset_id', assetIds)
+      .limit(1000);
+    const sortedLinks = [...((linkRows || []) as Record<string, unknown>[])].sort((left, right) => (
+      (safeText(left.link_type) === 'primary' ? 0 : 1) - (safeText(right.link_type) === 'primary' ? 0 : 1)
+    ));
+    sortedLinks.forEach((row) => {
+      const assetId = safeText(row.asset_id);
+      if (!assetId || fundByAssetId.has(assetId)) return;
+      const fund = row.ll_funds && typeof row.ll_funds === 'object' && !Array.isArray(row.ll_funds)
+        ? row.ll_funds as Record<string, unknown>
+        : {};
+      fundByAssetId.set(assetId, {
+        fundCode: fund.fund_code,
+        fundName: fund.fund_name,
+        linkType: row.link_type,
+      });
+    });
+  }
+  return matchedAssets.map((asset) => {
+    const linkedFund = fundByAssetId.get(safeText(asset.asset_id)) || {};
+    return {
       assetId: asset.asset_id,
       assetCode: asset.asset_code,
       assetName: asset.asset_name,
-      fundCode: asset.fund_code,
-      fundName: asset.fund_name,
+      fundCode: firstDefined(asset.fund_code, linkedFund.fundCode),
+      fundName: firstDefined(asset.fund_name, linkedFund.fundName),
       assetManagerName: asset.current_manager_name,
       assetManagerEmail: asset.current_manager_email,
-    }));
+    };
+  });
 }
 
 async function permissionFundRows(ctx: Context, assets: Record<string, unknown>[]) {

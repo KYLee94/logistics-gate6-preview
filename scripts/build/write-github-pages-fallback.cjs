@@ -7,6 +7,15 @@ const fallbackPath = path.join(distDir, '404.html');
 const routeFallbacks = [
   'auth-setup',
   'work-platform',
+  'work-platform/archive',
+  'home',
+  'asset',
+  'company',
+  'analysis-tools',
+  'pivot-table',
+  'data-quality',
+  'contract-data',
+  'pdf-report',
 ];
 
 if (!fs.existsSync(indexPath)) {

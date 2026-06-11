@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
@@ -2145,7 +2145,7 @@ function compareSortableCells(left, right, direction) {
   return direction === 'asc' ? result : -result;
 }
 
-function PortfolioAssetTable({ rows }) {
+function PortfolioAssetTable({ rows, onAssetClick = null }) {
   return (
     <div className="overflow-hidden rounded-[10px] border border-[#333333]">
       <table className="w-full table-fixed border-collapse text-left">
@@ -2166,7 +2166,11 @@ function PortfolioAssetTable({ rows }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={`${row.no}-${row.assetName}`} className="border-b border-[#333333] last:border-b-0">
+            <tr
+              key={`${row.no}-${row.assetName}`}
+              onClick={() => onAssetClick?.(row.assetId || row.assetCode || row.assetName)}
+              className={`border-b border-[#333333] last:border-b-0 ${onAssetClick ? 'cursor-pointer hover:bg-white/[0.04]' : ''}`}
+            >
               <td className="px-2.5 py-2 text-[12px] text-[#A1A1AA] first:pl-3">{row.no}</td>
               <td className="truncate px-2.5 py-2 text-[12.5px] font-semibold text-[#F5F5F7]" title={row.assetName}>{row.assetName}</td>
               <td className="truncate px-2.5 py-2 text-[12.5px] text-[#D1D1D6]" title={row.address}>{row.address}</td>
@@ -2457,8 +2461,23 @@ function snakeToCamelKey(key = '') {
   return String(key).replace(/_([a-z])/gu, (_, letter) => letter.toUpperCase());
 }
 
+function hasBuildingRegisterOverviewValue(summary = {}) {
+  const source = summary && typeof summary === 'object' ? summary : {};
+  return BUILDING_REGISTER_OVERVIEW_TEMPLATE.some(([, key]) => {
+    const value = firstDefined(source[key], source[snakeToCamelKey(key)]);
+    return value !== undefined && value !== null && value !== '';
+  });
+}
+
 function buildBuildingRegisterOverviewRows(summary = {}) {
   const source = summary && typeof summary === 'object' ? summary : {};
+  if (source.status === 'unavailable') {
+    return BUILDING_REGISTER_OVERVIEW_TEMPLATE.map(([label]) => [
+      '건축물대장',
+      label,
+      '개발 중/자료 없음',
+    ]);
+  }
   return BUILDING_REGISTER_OVERVIEW_TEMPLATE.map(([label, key, type]) => [
     '건축물대장',
     label,
@@ -6743,12 +6762,161 @@ function PortfolioMapSchematic({ points, onAssetClick = navigateToAsset }) {
   );
 }
 
-function PortfolioMapPlot({ points, onAssetClick = navigateToAsset }) {
+function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAssetId = '' }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
+  const mapRuntimeRef = useRef({
+    provider: '',
+    naver: null,
+    leaflet: null,
+    naverMarkers: new Map(),
+    leafletMarkers: new Map(),
+    cadastralLayer: null,
+    streetLayer: null,
+    measureOverlays: [],
+  });
   const validPoints = useMemo(() => (points || []).filter((point) => point.latitude != null && point.longitude != null), [points]);
   const [mode, setMode] = useState('loading');
   const [status, setStatus] = useState('동적 지도를 준비하고 있습니다.');
+  const [activeMapTool, setActiveMapTool] = useState('normal');
+
+  const clearMeasureOverlays = useCallback(() => {
+    const runtime = mapRuntimeRef.current;
+    runtime.measureOverlays.forEach((overlay) => {
+      if (!overlay) return;
+      if (typeof overlay.setMap === 'function') overlay.setMap(null);
+      if (typeof overlay.remove === 'function') overlay.remove();
+    });
+    runtime.measureOverlays = [];
+  }, []);
+
+  const focusMapPoint = useCallback((point, zoom = 15) => {
+    if (!point) return;
+    const latitude = Number(point.latitude);
+    const longitude = Number(point.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+    const runtime = mapRuntimeRef.current;
+    if (runtime.provider === 'naver' && runtime.naver && mapRef.current) {
+      const position = new runtime.naver.maps.LatLng(latitude, longitude);
+      mapRef.current.setCenter(position);
+      mapRef.current.setZoom(Math.max(mapRef.current.getZoom?.() || zoom, zoom), true);
+      const marker = runtime.naverMarkers.get(point.assetId || point.assetName);
+      if (marker && runtime.naver.maps.Event) runtime.naver.maps.Event.trigger(marker, 'mouseover');
+      return;
+    }
+    if (runtime.provider === 'leaflet' && mapRef.current?.setView) {
+      mapRef.current.setView([latitude, longitude], zoom);
+      const marker = runtime.leafletMarkers.get(point.assetId || point.assetName);
+      if (marker?.openTooltip) marker.openTooltip();
+    }
+  }, []);
+
+  const applyMapTool = useCallback((tool) => {
+    setActiveMapTool(tool);
+    const runtime = mapRuntimeRef.current;
+    const map = mapRef.current;
+    const naver = runtime.naver;
+    const leaflet = runtime.leaflet;
+    const centerPoint = validPoints.find((point) => (point.assetId || point.assetName) === focusedAssetId) || validPoints[0];
+
+    if (runtime.cadastralLayer?.setMap) runtime.cadastralLayer.setMap(null);
+    if (runtime.streetLayer?.setMap) runtime.streetLayer.setMap(null);
+    clearMeasureOverlays();
+
+    if (runtime.provider === 'naver' && naver && map) {
+      if (tool === 'normal' && naver.maps.MapTypeId?.NORMAL) map.setMapTypeId(naver.maps.MapTypeId.NORMAL);
+      if (tool === 'satellite' && naver.maps.MapTypeId?.SATELLITE) map.setMapTypeId(naver.maps.MapTypeId.SATELLITE);
+      if (tool === 'cadastral') {
+        if (naver.maps.MapTypeId?.NORMAL) map.setMapTypeId(naver.maps.MapTypeId.NORMAL);
+        if (!runtime.cadastralLayer && naver.maps.CadastralLayer) runtime.cadastralLayer = new naver.maps.CadastralLayer();
+        runtime.cadastralLayer?.setMap?.(map);
+      }
+      if (tool === 'street') {
+        if (!runtime.streetLayer && naver.maps.StreetLayer) runtime.streetLayer = new naver.maps.StreetLayer();
+        runtime.streetLayer?.setMap?.(map);
+      }
+      if (centerPoint && ['radius', 'area', 'distance'].includes(tool)) {
+        const center = new naver.maps.LatLng(Number(centerPoint.latitude), Number(centerPoint.longitude));
+        if (tool === 'radius') {
+          runtime.measureOverlays.push(new naver.maps.Circle({
+            map,
+            center,
+            radius: 1000,
+            strokeColor: '#2F80ED',
+            strokeOpacity: 0.95,
+            strokeWeight: 2,
+            fillColor: '#2F80ED',
+            fillOpacity: 0.16,
+          }));
+          map.setCenter(center);
+          map.setZoom(Math.max(map.getZoom?.() || 14, 14), true);
+        }
+        if (tool === 'distance') {
+          const linePoints = validPoints.length > 1
+            ? validPoints.slice(0, 2).map((point) => new naver.maps.LatLng(Number(point.latitude), Number(point.longitude)))
+            : [center, new naver.maps.LatLng(Number(centerPoint.latitude) + 0.006, Number(centerPoint.longitude) + 0.006)];
+          runtime.measureOverlays.push(new naver.maps.Polyline({
+            map,
+            path: linePoints,
+            strokeColor: '#FFB020',
+            strokeOpacity: 0.95,
+            strokeWeight: 4,
+          }));
+          const lineBounds = new naver.maps.LatLngBounds();
+          linePoints.forEach((position) => lineBounds.extend(position));
+          map.fitBounds(lineBounds);
+        }
+        if (tool === 'area') {
+          const delta = 0.0045;
+          const polygonPath = [
+            new naver.maps.LatLng(Number(centerPoint.latitude) + delta, Number(centerPoint.longitude) - delta),
+            new naver.maps.LatLng(Number(centerPoint.latitude) + delta, Number(centerPoint.longitude) + delta),
+            new naver.maps.LatLng(Number(centerPoint.latitude) - delta, Number(centerPoint.longitude) + delta),
+            new naver.maps.LatLng(Number(centerPoint.latitude) - delta, Number(centerPoint.longitude) - delta),
+          ];
+          runtime.measureOverlays.push(new naver.maps.Polygon({
+            map,
+            paths: polygonPath,
+            strokeColor: '#30D158',
+            strokeOpacity: 0.95,
+            strokeWeight: 2,
+            fillColor: '#30D158',
+            fillOpacity: 0.16,
+          }));
+          const areaBounds = new naver.maps.LatLngBounds();
+          polygonPath.forEach((position) => areaBounds.extend(position));
+          map.fitBounds(areaBounds);
+        }
+      }
+      return;
+    }
+
+    if (runtime.provider === 'leaflet' && leaflet && map && centerPoint && ['radius', 'area', 'distance'].includes(tool)) {
+      const latLng = [Number(centerPoint.latitude), Number(centerPoint.longitude)];
+      if (tool === 'radius') {
+        runtime.measureOverlays.push(leaflet.circle(latLng, { radius: 1000, color: '#2F80ED', fillOpacity: 0.16 }).addTo(map));
+        map.setView(latLng, Math.max(map.getZoom?.() || 14, 14));
+      }
+      if (tool === 'distance') {
+        const linePoints = validPoints.length > 1
+          ? validPoints.slice(0, 2).map((point) => [Number(point.latitude), Number(point.longitude)])
+          : [latLng, [latLng[0] + 0.006, latLng[1] + 0.006]];
+        runtime.measureOverlays.push(leaflet.polyline(linePoints, { color: '#FFB020', weight: 4 }).addTo(map));
+        map.fitBounds(linePoints, { padding: [28, 28] });
+      }
+      if (tool === 'area') {
+        const delta = 0.0045;
+        const polygonPath = [
+          [latLng[0] + delta, latLng[1] - delta],
+          [latLng[0] + delta, latLng[1] + delta],
+          [latLng[0] - delta, latLng[1] + delta],
+          [latLng[0] - delta, latLng[1] - delta],
+        ];
+        runtime.measureOverlays.push(leaflet.polygon(polygonPath, { color: '#30D158', fillOpacity: 0.16 }).addTo(map));
+        map.fitBounds(polygonPath, { padding: [28, 28] });
+      }
+    }
+  }, [clearMeasureOverlays, focusedAssetId, validPoints]);
 
   useEffect(() => {
     const handleMapCardClick = (event) => {
@@ -6785,6 +6953,12 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset }) {
           attributionControl: true,
         });
         mapRef.current = map;
+        mapRuntimeRef.current.provider = 'leaflet';
+        mapRuntimeRef.current.leaflet = L;
+        mapRuntimeRef.current.naver = null;
+        mapRuntimeRef.current.leafletMarkers = new Map();
+        mapRuntimeRef.current.naverMarkers = new Map();
+        mapRuntimeRef.current.measureOverlays = [];
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
           attribution: '&copy; OpenStreetMap contributors',
@@ -6797,6 +6971,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset }) {
           );
           marker.on('mouseover', () => marker.openTooltip());
           marker.on('mouseout', () => window.setTimeout(() => marker.closeTooltip(), 650));
+          mapRuntimeRef.current.leafletMarkers.set(point.assetId || point.assetName, marker);
         });
         if (latLngs.length > 1) map.fitBounds(latLngs, { padding: [28, 28] });
         else map.setView(latLngs[0], 13);
@@ -6822,6 +6997,14 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset }) {
           zoom: validPoints.length === 1 ? 13 : 8,
         });
         mapRef.current = map;
+        mapRuntimeRef.current.provider = 'naver';
+        mapRuntimeRef.current.naver = naver;
+        mapRuntimeRef.current.leaflet = null;
+        mapRuntimeRef.current.naverMarkers = new Map();
+        mapRuntimeRef.current.leafletMarkers = new Map();
+        mapRuntimeRef.current.cadastralLayer = null;
+        mapRuntimeRef.current.streetLayer = null;
+        mapRuntimeRef.current.measureOverlays = [];
         const bounds = new naver.maps.LatLngBounds();
         validPoints.forEach((point, index) => {
           const position = latLngs[index];
@@ -6842,6 +7025,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset }) {
           naver.maps.Event.addListener(marker, 'mouseout', () => {
             closeTimer = window.setTimeout(() => infoWindow.close(), 650);
           });
+          mapRuntimeRef.current.naverMarkers.set(point.assetId || point.assetName, marker);
         });
         if (validPoints.length > 1) map.fitBounds(bounds);
         [80, 300, 800].forEach((delay) => window.setTimeout(() => {
@@ -6888,6 +7072,12 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset }) {
     };
   }, [onAssetClick, validPoints]);
 
+  useEffect(() => {
+    if (!focusedAssetId) return;
+    const point = validPoints.find((item) => (item.assetId || item.assetName) === focusedAssetId);
+    focusMapPoint(point, 15);
+  }, [focusMapPoint, focusedAssetId, validPoints]);
+
   if (!validPoints.length) {
     return <div className="text-[13px] text-[#86868B]">좌표가 등록된 자산이 없습니다.</div>;
   }
@@ -6899,6 +7089,26 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset }) {
         {mode !== 'leaflet' && mode !== 'naver' ? <PortfolioMapSchematic points={validPoints} onAssetClick={onAssetClick} /> : null}
         <div className={`absolute left-3 top-3 rounded-full border px-3 py-1 text-[12px] font-semibold ${mode === 'leaflet' || mode === 'naver' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
           {status}
+        </div>
+        <div className="absolute right-3 top-3 z-20 flex max-w-[min(520px,calc(100%-24px))] flex-wrap justify-end gap-1.5 rounded-[10px] border border-[#333333] bg-[#1F1F1E]/92 p-1.5 shadow-xl backdrop-blur">
+          {[
+            ['normal', '일반지도'],
+            ['satellite', '위성지도'],
+            ['cadastral', '지적편집도'],
+            ['street', '거리뷰'],
+            ['radius', '반경'],
+            ['area', '면적'],
+            ['distance', '거리'],
+          ].map(([tool, label]) => (
+            <button
+              key={tool}
+              type="button"
+              onClick={() => applyMapTool(tool)}
+              className={`h-8 rounded-[7px] px-2.5 text-[12px] font-semibold transition ${activeMapTool === tool ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
       </div>
     </div>
@@ -7041,6 +7251,7 @@ function HomeDashboard() {
   ), [homeRead.payload, homeReadBlocked]);
   const data = useMemo(() => normalizeHomeData(home), [home]);
   const [modal, setModal] = useState(null);
+  const [focusedPortfolioAssetId, setFocusedPortfolioAssetId] = useState('');
   const [costCompositionMode, setCostCompositionMode] = useState('asset');
   const [compositionAssetId, setCompositionAssetId] = useState('all');
   const [sectorAssetSort, setSectorAssetSort] = useState('cost');
@@ -7105,6 +7316,8 @@ function HomeDashboard() {
         : cleanDisplay(option.coldRatio, '-');
       return {
         no: formatNumber(index + 1),
+        assetId: row.assetId,
+        assetCode: row.assetCode,
         assetName: row.assetName,
         address: formatSigunguAddress(row.address),
         grossFloorAreaPy: formatPyFromSqm(row.grossFloorAreaSqm),
@@ -7417,9 +7630,9 @@ function HomeDashboard() {
           right={<button type="button" onClick={() => openTableModal('포트폴리오 자산 목록', ['No.', '자산명', '주소(시군구)', '연면적(평)', '저온창고 비율', 'E. NOC'], portfolioModalRows)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">자산 표</button>}
         />
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.82fr_1.18fr]">
-          <PortfolioMapPlot points={readableMapPoints} />
+          <PortfolioMapPlot points={readableMapPoints} focusedAssetId={focusedPortfolioAssetId} />
           <div className="custom-scrollbar min-h-0 xl:max-h-[520px] xl:overflow-auto">
-            <PortfolioAssetTable rows={portfolioRows} />
+            <PortfolioAssetTable rows={portfolioRows} onAssetClick={setFocusedPortfolioAssetId} />
           </div>
         </div>
       </section>
@@ -9318,10 +9531,16 @@ function CompanyDashboard() {
     monthlyMfTotal: sumRows(leasedAssets, (row) => row.monthlyMfTotal),
     monthlyCostTotal: sumRows(leasedAssets, (row) => row.monthlyCostTotal),
   };
+  const companyWeightedRentPerPy = calculatePerPy(visibleProfile.monthlyRentTotal, visibleProfile.leasedAreaSqm);
+  const companyWeightedMfPerPy = calculatePerPy(visibleProfile.monthlyMfTotal, visibleProfile.leasedAreaSqm);
+  const companyWeightedENoc = calculatePerPy(visibleProfile.monthlyCostTotal, visibleProfile.leasedAreaSqm);
   const kpiLookup = kpiLookupFrom(company.kpis);
   const kpis = [
     { key: 'asset_count', label: '임차 자산 수', value: visibleProfile.assetCount, valueType: 'number' },
     { key: 'leased_area', label: '총 임차면적', value: visibleProfile.leasedAreaSqm, valueType: 'area' },
+    { key: 'weighted_rent_per_py', label: '평당 임대료', value: companyWeightedRentPerPy, valueType: 'won' },
+    { key: 'weighted_mf_per_py', label: '평당 관리비', value: companyWeightedMfPerPy, valueType: 'won' },
+    { key: 'weighted_e_noc', label: 'E.NOC', value: companyWeightedENoc, valueType: 'won' },
     { key: 'monthly_total_cost', label: '월 임관리비 총액', value: visibleProfile.monthlyCostTotal, valueType: 'currency' },
     { key: 'monthly_rent_total', label: '월 임대료 총액', value: visibleProfile.monthlyRentTotal, valueType: 'currency' },
     { key: 'monthly_mf_total', label: '월 관리비 총액', value: visibleProfile.monthlyMfTotal, valueType: 'currency' },
@@ -9365,7 +9584,7 @@ function CompanyDashboard() {
   const makeSortableHeaders = (labels, sortConfig, setSortConfig) => labels.map((label, index) => (
     <button key={label} type="button" data-label={label} onClick={() => setSortConfig((current) => ({ index, direction: current.index === index && current.direction === 'asc' ? 'desc' : 'asc' }))} className="inline-flex items-center gap-1 text-left hover:text-white focus:outline-none focus:text-white">
       <span>{label}</span>
-      <span className="text-[10px] text-[#A1A1AA]">{sortConfig.index === index ? (sortConfig.direction === 'asc' ? '?' : '?') : '?'}</span>
+      <span className="text-[10px] text-[#A1A1AA]">{sortConfig.index === index ? (sortConfig.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
     </button>
   ));
   const companyAssetSummaryHeaders = makeSortableHeaders(companyAssetSummaryHeaderLabels, companyAssetSummarySortConfig, setCompanyAssetSummarySortConfig);
@@ -9516,7 +9735,7 @@ function CompanyDashboard() {
         </div>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-3">
+      <section className="grid grid-cols-1 md:grid-cols-4 xl:grid-cols-8 gap-3">
         {kpis.map((item) => (
           <button key={item.key || item.label} type="button" onClick={() => openKpiModal(item)} className="text-left rounded-[14px] border border-[#333333] bg-[#252524] px-4 py-4 hover:bg-[#2A2A29]">
             <div className="text-[12px] text-[#86868B] font-semibold">{item.label}</div>
@@ -9529,13 +9748,15 @@ function CompanyDashboard() {
         <SectionHeader
           eyebrow="LEASED ASSETS"
           title="임차 자산 현황"
-          right={(
-            <button type="button" onClick={() => setLeasedAssetDetailsOpen((value) => !value)} className="h-9 px-3 rounded-[8px] bg-[#30302F] text-white text-[13px] font-semibold hover:bg-[#3A3A3A]">
-              {leasedAssetDetailsOpen ? "계약 구역 접기" : "계약 구역 상세 보기"}
-            </button>
-          )}
         />
-        <DataTable headers={companyAssetSummaryHeaders} rows={companyAssetSummaryTableRows} onRowClick={(index) => openCompanyAssetSummaryDetail(companyAssetSummaryRows[index])} compact minTableWidth="1160px" />
+        <DataTable headers={companyAssetSummaryHeaders} rows={companyAssetSummaryTableRows} onRowClick={(index) => openCompanyAssetSummaryDetail(companyAssetSummaryRows[index])} compact minTableWidth="1240px" columnWidths={['18%', '10%', '10%', '10%', '10%', '10%', '10%', '10%', '12%']} />
+        <button
+          type="button"
+          onClick={() => setLeasedAssetDetailsOpen((value) => !value)}
+          className="mt-3 h-10 w-full rounded-[8px] bg-[#30302F] text-[13px] font-semibold text-white hover:bg-[#3A3A3A]"
+        >
+          계약별 상세 정보 보기
+        </button>
         {leasedAssetDetailsOpen ? (
           <div className="mt-4 rounded-[14px] border border-[#333333] bg-[#1F1F1E] p-3">
             <DataTable headers={leasedAssetHeaders} rows={leasedAssetRows} onRowClick={(index) => openAssetExposureDetail(sortedLeasedAssets[index])} compact minTableWidth="980px" />
@@ -9600,7 +9821,10 @@ function AnalysisToolsDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo);
-  const readableAssetOptions = useMemo(() => filterAssetsByPermission(dashboardDataset.assetOptions, permission), [dashboardDataset.assetOptions, permission]);
+  const readableAssetOptions = useMemo(() => (
+    [...filterAssetsByPermission(dashboardDataset.assetOptions, permission)]
+      .sort((left, right) => String(left.assetName || '').localeCompare(String(right.assetName || ''), 'ko-KR', { numeric: true, sensitivity: 'base' }))
+  ), [dashboardDataset.assetOptions, permission]);
   const sourceRows = useMemo(() => filterAssetsByPermission(dashboardDataset.generalRows, permission), [dashboardDataset.generalRows, permission]);
   const readableCompanyOptions = useMemo(() => (
     companyOptionsFromDashboardRows(sourceRows, companyOptionsData)
@@ -12736,7 +12960,10 @@ function AssetDashboard() {
     ? `${buildingRegisterPayload.sigungu_cd}|${buildingRegisterPayload.bjdong_cd}|${buildingRegisterPayload.plat_gb_cd}|${buildingRegisterPayload.bun}|${buildingRegisterPayload.ji}`
     : '';
   useEffect(() => {
-    if (!buildingRegisterCacheKey) return undefined;
+    if (!buildingRegisterCacheKey) {
+      setBuildingRegisterSummary({ status: 'unavailable' });
+      return undefined;
+    }
     let cancelled = false;
     const cached = ASSET_BUILDING_REGISTER_CACHE.get(buildingRegisterCacheKey);
     if (cached) {
@@ -12746,10 +12973,16 @@ function AssetDashboard() {
     supabase.functions.invoke('ll-dashboard-api', {
       body: { action: 'building-register/summary', payload: buildingRegisterPayload },
     }).then(({ data, error }) => {
-      if (cancelled || error || data?.ok === false || !data?.data) return;
+      if (cancelled) return;
+      if (error || data?.ok === false || !data?.data || !hasBuildingRegisterOverviewValue(data.data)) {
+        setBuildingRegisterSummary({ status: 'unavailable' });
+        return;
+      }
       ASSET_BUILDING_REGISTER_CACHE.set(buildingRegisterCacheKey, data.data);
       setBuildingRegisterSummary(data.data);
-    }).catch(() => {});
+    }).catch(() => {
+      if (!cancelled) setBuildingRegisterSummary({ status: 'unavailable' });
+    });
     return () => {
       cancelled = true;
     };
@@ -13216,6 +13449,27 @@ function AssetDashboard() {
         <div className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
           <SectionHeader eyebrow="AREA" title="면적 구성" />
           <DataTable headers={['항목', '면적(평)', '비율']} rows={areaRows} compact />
+          <button
+            type="button"
+            onClick={() => setModal({
+              title: `${overview.assetName || '자산'} 평면도 이미지`,
+              size: 'fullscreen',
+              content: (
+                <div className="flex h-full min-h-[520px] items-center justify-center rounded-[14px] border border-dashed border-[#4A4A4D] bg-[#1F1F1E] p-6 text-center">
+                  <div>
+                    <div className="text-[18px] font-semibold text-white">평면도 이미지</div>
+                    <div className="mt-2 text-[13px] text-[#A1A1AA]">등록 예정</div>
+                  </div>
+                </div>
+              ),
+            })}
+            className="mt-3 flex min-h-[96px] w-full items-center justify-center rounded-[10px] border border-dashed border-[#4A4A4D] bg-[#1F1F1E] text-center hover:bg-[#2A2A29]"
+          >
+            <span>
+              <span className="block text-[14px] font-semibold text-white">평면도 이미지</span>
+              <span className="mt-1 block text-[12px] text-[#A1A1AA]">등록 예정</span>
+            </span>
+          </button>
         </div>
       </section>
 
