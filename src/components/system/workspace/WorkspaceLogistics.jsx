@@ -7842,9 +7842,19 @@ function HomeDashboard() {
             )}
           />
           <RichBarChart rows={regionChartRows} labelKey="label" valueKey="value" valueType="percent" valueLabel={regionMetric === 'area' ? '권역별 연면적 비율' : '권역별 월 임관리비 비율'} barMaxValue={1} showXAxisLabels={false} onClick={() => openTableModal('권역별 노출도', ['권역', '자산 수', '연면적(평)', '연면적 비율', '월 임관리비', '임관리비 비율'], regionExposureRows)} />
-          <p className="mt-2 text-[12px] leading-5 text-[#86868B]">
-            권역은 자산 주소를 기준으로 묶었어요. 인천권은 인천·김포·안산·시흥·광명·부천, 경기 북부는 고양·구리·파주·연천·포천·동두천·양주·의정부·남양주·가평, 경기 서남부는 군포·화성·수원·평택·안양·오산·의왕과 용인/안성 일부, 경기 동남부는 하남·성남·광주·여주·이천과 용인/안성 일부, 그 외는 충청·전라·경북·경남 기준으로 보여줘요.
-          </p>
+          <div className="mt-2 text-[12px] leading-5 text-[#86868B]">
+            <p>권역은 자산 주소를 기준으로 묶었어요.</p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-4">
+              <li>경기 동남부 : 하남, 성남, 광주, 여주, 이천, 용인 일부, 안성 일부</li>
+              <li>경기 북부 : 고양, 구리, 파주, 연천, 포천, 동두천, 양주, 의정부, 남양주, 가평</li>
+              <li>경기 서남부 : 군포, 화성, 수원, 평택, 안양, 오산, 의왕, 용인 일부, 안성 일부</li>
+              <li>경남 : 울산, 양산, 밀양, 김해, 부산, 창원, 경주, 포항</li>
+              <li>경북 : 대구, 칠곡, 성주, 고령, 청도, 경산, 영천, 군위, 김천, 구미</li>
+              <li>인천권 : 인천, 김포, 안산, 시흥, 광명, 부천</li>
+              <li>전라 : 광주광역시, 군산, 익산, 김제, 완주, 전주, 부안, 고창, 정읍, 임실, 순창, 남원, 영광, 함평, 장성, 담양, 나주, 화순</li>
+              <li>충청 : 천안, 아산, 당진, 대전, 세종, 청주, 진천, 음성</li>
+            </ul>
+          </div>
         </div>
       </section>
 
