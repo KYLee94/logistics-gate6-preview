@@ -7843,11 +7843,11 @@ function HomeDashboard() {
           />
           <RichBarChart rows={regionChartRows} labelKey="label" valueKey="value" valueType="percent" valueLabel={regionMetric === 'area' ? '권역별 연면적 비율' : '권역별 월 임관리비 비율'} barMaxValue={1} showXAxisLabels={false} onClick={() => openTableModal('권역별 노출도', ['권역', '자산 수', '연면적(평)', '연면적 비율', '월 임관리비', '임관리비 비율'], regionExposureRows)} />
           <div className="mt-2 text-[12px] leading-5 text-[#86868B]">
-            <p>권역은 자산 주소를 기준으로 묶었어요.</p>
+            <p>권역별 포함 지역</p>
             <ul className="mt-1 list-disc space-y-0.5 pl-4">
-              <li>경기 동남부 : 하남, 성남, 광주, 여주, 이천, 용인 일부, 안성 일부</li>
+              <li>경기 동남부 : 하남, 성남, 광주, 여주, 이천, 용인(모현읍, 유림동, 양지면, 양지읍, 동부동, 원삼면, 백암면, 포곡읍), 안성(보개면, 삼죽면, 금광면, 죽산면, 일죽면)</li>
               <li>경기 북부 : 고양, 구리, 파주, 연천, 포천, 동두천, 양주, 의정부, 남양주, 가평</li>
-              <li>경기 서남부 : 군포, 화성, 수원, 평택, 안양, 오산, 의왕, 용인 일부, 안성 일부</li>
+              <li>경기 서남부 : 군포, 화성, 수원, 평택, 안양, 오산, 의왕, 용인(수지구, 삼가동, 역북동, 중앙동, 이동읍, 남사읍), 안성(고삼면, 원곡면, 양성면, 공도읍, 대덕면, 미양면, 안성동, 서운면)</li>
               <li>경남 : 울산, 양산, 밀양, 김해, 부산, 창원, 경주, 포항</li>
               <li>경북 : 대구, 칠곡, 성주, 고령, 청도, 경산, 영천, 군위, 김천, 구미</li>
               <li>인천권 : 인천, 김포, 안산, 시흥, 광명, 부천</li>
