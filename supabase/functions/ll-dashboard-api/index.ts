@@ -1481,7 +1481,7 @@ function isCurrentDashboardLeaseSpace(row: Record<string, unknown>) {
   const status = normalizeText(row.contract_status).trim().toLowerCase();
   if (!status) return true;
   if (['active', 'y', 'yes', 'current', 'in_force', 'ongoing'].includes(status)) return true;
-  if (['inactive', 'n', 'no', 'false', '0'].includes(status)) return false;
+  if (['inactive', 'n', 'no', 'false', '0', 'vacant', 'vacancy', 'empty', 'placeholder'].includes(status)) return false;
   if (
     status.includes('superseded')
     || status.includes('inactive')
@@ -1612,6 +1612,12 @@ function applyLatestRentHistoryAmountsToLeaseSpaces(leaseSpaces: Record<string, 
 }
 
 function pickAssetPublic(row: Record<string, unknown>) {
+  const sourcePayload = (row.source_payload && typeof row.source_payload === 'object')
+    ? row.source_payload as Record<string, unknown>
+    : {};
+  const buildingRegisterQuery = (sourcePayload.buildingRegisterQuery && typeof sourcePayload.buildingRegisterQuery === 'object')
+    ? sourcePayload.buildingRegisterQuery as Record<string, unknown>
+    : {};
   return stripUndefined({
     asset_id: row.asset_id,
     asset_code: row.asset_code,
@@ -1627,6 +1633,18 @@ function pickAssetPublic(row: Record<string, unknown>) {
     floor_count: row.floor_count,
     current_manager_name: row.current_manager_name,
     current_manager_team: row.current_manager_team,
+    sigungu_cd: firstDefined(buildingRegisterQuery.sigunguCd, buildingRegisterQuery.sigungu_cd),
+    bjdong_cd: firstDefined(buildingRegisterQuery.bjdongCd, buildingRegisterQuery.bjdong_cd),
+    plat_gb_cd: firstDefined(buildingRegisterQuery.platGbCd, buildingRegisterQuery.plat_gb_cd),
+    bun: buildingRegisterQuery.bun,
+    ji: buildingRegisterQuery.ji,
+    building_register_query: Object.keys(buildingRegisterQuery).length ? {
+      sigunguCd: firstDefined(buildingRegisterQuery.sigunguCd, buildingRegisterQuery.sigungu_cd),
+      bjdongCd: firstDefined(buildingRegisterQuery.bjdongCd, buildingRegisterQuery.bjdong_cd),
+      platGbCd: firstDefined(buildingRegisterQuery.platGbCd, buildingRegisterQuery.plat_gb_cd),
+      bun: buildingRegisterQuery.bun,
+      ji: buildingRegisterQuery.ji,
+    } : undefined,
     source_sheet_row_id: row.source_sheet_row_id,
     review_status: row.review_status,
   });
@@ -13512,6 +13530,93 @@ async function callLogisticsFirstLoginSetup(origin: string, payload: Record<stri
   }, 200, origin);
 }
 
+async function callLogisticsPasswordResetWithAccessCode(origin: string, payload: Record<string, unknown>) {
+  const email = normalizeAuthEmail(payload.email);
+  const password = String(firstDefined(payload.password, payload.new_password, payload.newPassword) || '');
+  if (!email || !email.endsWith('@igisam.com')) return fail(403, 'Company email is required', origin);
+  if (password.length < 6) return fail(400, 'Password must be at least 6 characters', origin);
+  if (!matchesLogisticsFirstAccessCode(payload.access_code)) return fail(403, 'Invalid access code', origin);
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRoleKey = readEdgeSecret('SUPABASE_SERVICE_ROLE_KEY');
+  if (!supabaseUrl || !serviceRoleKey) return fail(500, 'Server is not configured', origin);
+  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const emailCandidates = logisticsAuthEmailCandidates(email);
+  const { data: permissionRows, error: permissionError } = await serviceClient
+    .from('ll_user_permissions')
+    .select('*')
+    .in('email', emailCandidates)
+    .limit(1);
+  if (permissionError) return fail(500, 'Failed to read logistics permission', origin);
+  const permission = ((permissionRows || [])[0] as Record<string, unknown> | undefined) || bootstrapPermissionForEmail(email) || undefined;
+  if (!isActivePermission(permission || null)) return fail(403, 'No active logistics permission found', origin);
+
+  const authEmail = canonicalPermissionEmail(permission || null, email);
+  let authUser: Record<string, unknown> | null = null;
+  try {
+    authUser = await findAuthUserByEmail(serviceClient, authEmail || email) as Record<string, unknown> | null;
+  } catch (error) {
+    return fail(500, 'Failed to inspect auth user', origin, { error: safeProviderError(error) });
+  }
+
+  const metadata = stripUndefined({
+    staff_name: permission?.staff_name || staffNameForEmail(authEmail),
+    organization: permission?.organization || organizationForEmail(authEmail),
+    logistics_permission_email: authEmail,
+    source: 'logistics_password_reset_access_code',
+  }) as Record<string, unknown>;
+
+  let savedAuthUser: Record<string, unknown> | null = null;
+  if (authUser?.id) {
+    const { data, error } = await serviceClient.auth.admin.updateUserById(String(authUser.id), {
+      password,
+      email_confirm: true,
+      user_metadata: metadata,
+    });
+    if (error || !data?.user) return fail(500, 'Failed to reset password', origin, { error: error?.message || 'missing auth user' });
+    savedAuthUser = data.user as Record<string, unknown>;
+  } else {
+    const { data, error } = await serviceClient.auth.admin.createUser({
+      email: authEmail,
+      password,
+      email_confirm: true,
+      user_metadata: metadata,
+    });
+    if (error || !data?.user) return fail(500, 'Failed to create login account', origin, { error: error?.message || 'missing auth user' });
+    savedAuthUser = data.user as Record<string, unknown>;
+  }
+
+  const authUserId = safeText(savedAuthUser?.id);
+  if (authUserId && permissionRows?.length) {
+    await serviceClient
+      .from('ll_user_permissions')
+      .update({
+        user_id: authUserId,
+        updated_at: new Date().toISOString(),
+      })
+      .in('email', emailCandidates);
+  }
+
+  await audit(serviceClient, authUserId || null, 'auth/password-reset/access-code', 200, {
+    email,
+    auth_email: authEmail,
+    permission_row: Boolean(permissionRows?.length),
+    existing_auth_user: Boolean(authUser?.id),
+  });
+
+  return jsonResponse({
+    ok: true,
+    auth_email: authEmail,
+    has_auth_user: true,
+    password_reset_completed: true,
+    staff_name: permission?.staff_name || staffNameForEmail(authEmail),
+    organization: permission?.organization || organizationForEmail(authEmail),
+  }, 200, origin);
+}
+
 async function callLogisticsAuthStatus(origin: string, payload: Record<string, unknown>) {
   const email = normalizeAuthEmail(payload.email);
   if (!email || !email.endsWith('@igisam.com')) return fail(403, 'Company email is required', origin);
@@ -13638,6 +13743,7 @@ Deno.serve(async (request) => {
   if (action === 'ai/gemini-diagnostics') return callGeminiDiagnostics(origin, payload);
   if (action === 'ai/search-chat-demo') return callGoogleAiSearchChatDemo(origin, payload);
   if (action === 'auth/first-login/setup') return callLogisticsFirstLoginSetup(origin, payload);
+  if (action === 'auth/password-reset/access-code') return callLogisticsPasswordResetWithAccessCode(origin, payload);
   if (action === 'auth/logistics-status') return callLogisticsAuthStatus(origin, payload);
   if (action === 'weekly-assets/latest-preview') return callWeeklyAssetsLatestPreview(origin, payload);
 

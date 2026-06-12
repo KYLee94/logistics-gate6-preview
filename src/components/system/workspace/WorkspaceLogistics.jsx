@@ -433,6 +433,12 @@ function camelAssetFromApi(row = {}) {
     grossFloorAreaSqm: firstDefined(row.gross_floor_area_sqm, row.grossFloorAreaSqm),
     landAreaSqm: firstDefined(row.land_area_sqm, row.landAreaSqm),
     floorCount: firstDefined(row.floor_count, row.floorCount),
+    sigunguCd: firstDefined(row.sigungu_cd, row.sigunguCd),
+    bjdongCd: firstDefined(row.bjdong_cd, row.bjdongCd),
+    platGbCd: firstDefined(row.plat_gb_cd, row.platGbCd),
+    bun: row.bun,
+    ji: row.ji,
+    buildingRegisterQuery: firstDefined(row.building_register_query, row.buildingRegisterQuery),
     sourceSheetRowId: firstDefined(row.source_sheet_row_id, row.sourceSheetRowId),
     reviewStatus: firstDefined(row.review_status, row.reviewStatus),
   };
@@ -1242,7 +1248,7 @@ function isCurrentDashboardLeaseRow(row = {}) {
   const status = String(firstDefined(row.contract_status, row.contractStatus, '') || '').trim().toLowerCase();
   if (!status) return true;
   if (['active', 'y', 'yes', 'current', 'in_force', 'ongoing'].includes(status)) return true;
-  if (['inactive', 'n', 'no', 'false', '0'].includes(status)) return false;
+  if (['inactive', 'n', 'no', 'false', '0', 'vacant', 'vacancy', 'empty', 'placeholder'].includes(status)) return false;
   if (
     status.includes('superseded')
     || status.includes('inactive')
@@ -1577,11 +1583,13 @@ function calculateWeightedAveragePerPy(rows, valueKeys = [], totalKeys = [], fal
 
 function buildBuildingRegisterPayload(source = {}) {
   const asset = source.asset || source;
-  const sigunguCd = firstDefined(asset.sigunguCd, asset.sigungu_cd, asset.sigungu);
-  const bjdongCd = firstDefined(asset.bjdongCd, asset.bjdong_cd, asset.bjdong);
-  const platGbCd = firstDefined(asset.platGbCd, asset.plat_gb_cd, '0');
-  const bun = firstDefined(asset.bun, asset.mainBun);
-  const ji = firstDefined(asset.ji, asset.subBun, '0');
+  const sourcePayload = asset.sourcePayload || asset.source_payload || {};
+  const buildingQuery = asset.buildingRegisterQuery || asset.building_register_query || sourcePayload.buildingRegisterQuery || sourcePayload.building_register_query || {};
+  const sigunguCd = firstDefined(asset.sigunguCd, asset.sigungu_cd, asset.sigungu, buildingQuery.sigunguCd, buildingQuery.sigungu_cd);
+  const bjdongCd = firstDefined(asset.bjdongCd, asset.bjdong_cd, asset.bjdong, buildingQuery.bjdongCd, buildingQuery.bjdong_cd);
+  const platGbCd = firstDefined(asset.platGbCd, asset.plat_gb_cd, buildingQuery.platGbCd, buildingQuery.plat_gb_cd, '0');
+  const bun = firstDefined(asset.bun, asset.mainBun, buildingQuery.bun);
+  const ji = firstDefined(asset.ji, asset.subBun, buildingQuery.ji, '0');
   return {
     sigungu_cd: sigunguCd ? String(sigunguCd) : '',
     bjdong_cd: bjdongCd ? String(bjdongCd) : '',
@@ -13515,23 +13523,25 @@ function AssetDashboard() {
   ) || 0);
   const recomputedGrossAreaSqm = exclusiveAreaSqm + commonAreaSqm;
   const occupancyGrossAreaSqm = assetLeasedAreaBasisSqm + assetVacancyAreaBasisSqm;
-  const areaBasisSqm = occupancyGrossAreaSqm || recomputedGrossAreaSqm || sourceAssetGrossAreaSqm;
+  const areaBasisSqm = Math.max(occupancyGrossAreaSqm || 0, recomputedGrossAreaSqm || 0, sourceAssetGrossAreaSqm || 0);
+  const unclassifiedAreaSqm = Math.max(0, areaBasisSqm - recomputedGrossAreaSqm);
   const areaRatio = (value) => (areaBasisSqm > 0 ? formatPercent(Number(value || 0) / areaBasisSqm) : '-');
   const areaRows = [
-    [<span key="gross" className="font-bold text-white">전체 연면적</span>, formatArea(areaBasisSqm), '100.0%'],
-    [<span key="exclusive" className="font-bold text-white">전용면적 subtotal</span>, formatArea(exclusiveAreaSqm), areaRatio(exclusiveAreaSqm)],
+    [<span key="gross" className="font-bold text-white">전체 면적 기준</span>, formatArea(areaBasisSqm), '-'],
+    [<span key="exclusive" className="font-bold text-white">전용면적 subtotal</span>, formatArea(exclusiveAreaSqm), '-'],
     [<span key="warehouse" className="pl-4">창고</span>, formatArea(breakdown.warehouseAreaSqm), areaRatio(breakdown.warehouseAreaSqm)],
     [<span key="dock" className="pl-4">하역장</span>, formatArea(breakdown.dockAreaSqm), areaRatio(breakdown.dockAreaSqm)],
     [<span key="office" className="pl-4">사무실</span>, formatArea(breakdown.officeAreaSqm), areaRatio(breakdown.officeAreaSqm)],
     [<span key="other-exclusive" className="pl-4">기타 전용</span>, formatArea(breakdown.otherExclusiveAreaSqm), areaRatio(breakdown.otherExclusiveAreaSqm)],
-    [<span key="common" className="font-bold text-white">공용면적 subtotal</span>, formatArea(commonAreaSqm), areaRatio(commonAreaSqm)],
+    [<span key="common" className="font-bold text-white">공용면적 subtotal</span>, formatArea(commonAreaSqm), '-'],
     [<span key="mechanical" className="pl-4">기계전기실</span>, formatArea(breakdown.mechanicalAreaSqm), areaRatio(breakdown.mechanicalAreaSqm)],
     [<span key="core" className="pl-4">층별 코어</span>, formatArea(breakdown.coreAreaSqm), areaRatio(breakdown.coreAreaSqm)],
     [<span key="other-common" className="pl-4">기타 공용</span>, formatArea(breakdown.otherCommonAreaSqm), areaRatio(breakdown.otherCommonAreaSqm)],
     [<span key="corridor" className="pl-4">통로</span>, formatArea(breakdown.corridorAreaSqm), areaRatio(breakdown.corridorAreaSqm)],
     [<span key="ramp" className="pl-4">램프</span>, formatArea(breakdown.rampAreaSqm), areaRatio(breakdown.rampAreaSqm)],
     [<span key="parking" className="pl-4">주차장</span>, formatArea(breakdown.parkingAreaSqm), areaRatio(breakdown.parkingAreaSqm)],
-  ];
+    unclassifiedAreaSqm > 0.5 ? [<span key="unclassified" className="pl-4">미분류 면적</span>, formatArea(unclassifiedAreaSqm), areaRatio(unclassifiedAreaSqm)] : null,
+  ].filter(Boolean);
   const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', 'RF', 'FO', 'TI', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
   const rosterColumnWidths = ['13%', '7.5%', '8%', '7.5%', '7.2%', '7.8%', '6.6%', '4.2%', '4.2%', '5.2%', '7%', '6.8%', '6.4%', '6.6%'];
   const rosterSourceRows = rows;
