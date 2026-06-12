@@ -1357,6 +1357,14 @@ function formatArea(value) {
   return `${formatDecimalNumber(numeric * 0.3025, 1)}평`;
 }
 
+function formatRoundedArea(value) {
+  if (value === undefined || value === null || value === '') return '-';
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '-';
+  if (numeric <= 0) return '0평';
+  return `${formatNumber(Math.round(numeric * 0.3025))}평`;
+}
+
 function formatSignedArea(value) {
   if (value === undefined || value === null || value === '') return '-';
   const numeric = Number(value);
@@ -1756,6 +1764,7 @@ function formatNewlyAddedAssets(row = {}, emptyLabel = '-') {
 
 function formatMetric(value, type) {
   if (type === 'area') return formatArea(value);
+  if (type === 'areaRounded') return formatRoundedArea(value);
   if (type === 'currency') return formatCurrency(value);
   if (type === 'won') return formatWon(value);
   if (type === 'percent') return formatPercent(value);
@@ -7535,9 +7544,9 @@ function HomeDashboard() {
   });
   const kpiCards = [
     ['운영 자산 수', formatMetric(filteredHomeMetrics.operatingAssetCount, 'number'), DASHBOARD_BASIS_LABEL, () => openTableModal('운영 자산 목록', ['자산명', '주소', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이', '공실률'], metricAssetRows.map((row) => [row.assetName, row.address || '-', formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm), formatPercent(row.vacancyRate)]))],
-    ['총 연면적', formatMetric(filteredHomeMetrics.grossArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 연면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm)]))],
-    ['총 임대면적', formatMetric(filteredHomeMetrics.leasedArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 임대면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm)]))],
-    ['총 공실면적', formatMetric(filteredHomeMetrics.vacancyArea, 'area'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 공실면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm)]))],
+    ['총 연면적', formatMetric(filteredHomeMetrics.grossArea, 'areaRounded'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 연면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm)]))],
+    ['총 임대면적', formatMetric(filteredHomeMetrics.leasedArea, 'areaRounded'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 임대면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm)]))],
+    ['총 공실면적', formatMetric(filteredHomeMetrics.vacancyArea, 'areaRounded'), DASHBOARD_BASIS_LABEL, () => openTableModal('총 공실면적 근거', ['자산명', '연면적(평)', '임대면적(평)', '공실면적(평)', '차이'], metricAssetRows.map((row) => [row.assetName, formatArea(row.grossFloorAreaSqm), formatArea(row.leasedAreaSqm), formatArea(row.vacancyAreaSqm), formatSignedArea(row.areaReconciliationGapSqm)]))],
     ['공실률', formatMetric(filteredHomeMetrics.vacancyRate, 'percent'), DASHBOARD_BASIS_LABEL, () => openTableModal('공실률 계산 근거', ['항목', '내용'], [['기준시점', DASHBOARD_BASIS_LABEL], ['총 연면적(평)', formatArea(filteredHomeMetrics.grossArea)], ['총 임대면적(평)', formatArea(filteredHomeMetrics.leasedArea)], ['총 공실면적(평)', formatArea(filteredHomeMetrics.vacancyArea)], ['연면적-임대면적-공실면적 차이', formatSignedArea(filteredHomeMetrics.areaReconciliationGap)], ['계산식', '총 공실면적 / 총 연면적'], ['공실률', formatPercent(filteredHomeMetrics.vacancyRate)]])],
     ['월 임관리비 총액', formatMetric(canonicalMonthlyCost, 'currency'), `${DASHBOARD_BASIS_LABEL} · Rent History 기준`, () => openTableModal('월 임관리비 총액 근거', ['구분', '값', '비고'], [['기준시점', DASHBOARD_BASIS_LABEL, '기준월 이전 최신 rent history를 계약 구역별로 반영'], ['자산 합계', formatCurrency(assetSnapshotMonthlyCost), 'KPI/자산별 도넛 기준'], ['Lease space 합계', formatCurrency(leaseSpaceMonthlyCost), '임차인 계약 row 기준'], ['차이', formatCurrency(leaseSpaceToKpiGap), 'Data Quality reconciliation 대상'], ...monthlyCostEvidenceRows.map((row) => [row.tenantMasterName, formatCurrency(row.value), `${formatNumber(row.assetCount)}개 자산 · 최근 만기 ${formatDate(row.latestExpiry)}`])])],
   ];
@@ -13286,10 +13295,10 @@ function AssetDashboard() {
     unique_tenant_count: "현재 임차인 수",
   };
   const assetKpiValueTypes = {
-    gross_floor_area_total: 'area',
+    gross_floor_area_total: 'areaRounded',
     occupancy_rate: 'percent',
-    leased_area_total: 'area',
-    vacancy_area_total: 'area',
+    leased_area_total: 'areaRounded',
+    vacancy_area_total: 'areaRounded',
     average_rent_per_py: 'won',
     average_mf_per_py: 'won',
     average_e_noc: 'won',
