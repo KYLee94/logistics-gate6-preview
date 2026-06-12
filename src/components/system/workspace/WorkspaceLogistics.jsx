@@ -1781,6 +1781,12 @@ function formatBusinessRegistrationNo(value, tenantId = '') {
   return value || (digits || '-');
 }
 
+function normalizedBusinessRegistrationNo(value, tenantId = '') {
+  const raw = String(value || '').replace(/\D/gu, '');
+  const fallback = String(tenantId || '').match(/tenant_brn_(\d{10})/u)?.[1] || '';
+  return raw || fallback;
+}
+
 function formatNewlyAddedAssets(row = {}, emptyLabel = '-') {
   const assets = Array.isArray(row.newlyAddedAssets) ? row.newlyAddedAssets : [];
   const names = assets
@@ -9599,7 +9605,7 @@ function CompanyDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
-  const canUseExternalApiRefresh = featureAccess.openDartRefresh;
+  const canUseExternalApiRefresh = false;
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo);
   const readableCompanyOptions = useMemo(() => (
     dashboardDataset.companyOptions
@@ -9729,7 +9735,13 @@ function CompanyDashboard() {
   const companyAssetSummaryTableRows = companyAssetSummaryRows.map((row) => [row.assetName || row.label, formatArea(row.leasedAreaSqm), formatWon(row.averageRentPerPy), formatWon(row.averageMfPerPy), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyCostTotal), formatWon(row.eNoc), formatPercent(row.areaShare), formatPercent(row.costShare)]);
   const leasedAssetRows = sortedLeasedAssets.map((row) => [row.assetName, row.spaceLabel, formatArea(row.leasedAreaSqm), formatCurrency(row.monthlyRentTotal), formatCurrency(row.monthlyMfTotal), formatCurrency(row.monthlyCostTotal), formatDate(row.latestExpiry), row.period || '-']);
   const openTableModal = (title, headers, rows) => setModal({ title, headers, rows });
-  const selectedCorpCode = String(firstDefined(profile.company?.dartCorpCode, profile.dartCorpCode, financials.dartCorpCode, '') || '').trim();
+  const selectedCorpCode = String(firstDefined(
+    profile.company?.dartCorpCode,
+    profile.dartCorpCode,
+    financials.dartCorpCode,
+    normalizedBusinessRegistrationNo(profile.businessRegistrationNo || profile.company?.businessRegistrationNo, selectedTenantId),
+    '',
+  ) || '').trim();
   const openDartDetailModal = (dartOverride = dartApiSummary) => setModal({
     title: 'DART 상세 정보',
     size: 'wide',
@@ -14462,7 +14474,7 @@ function DashboardShell({ activeModule }) {
     })
   ), [featureAccess]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
-  const canUseExternalApiRefresh = featureAccess.buildingRegisterRefresh || featureAccess.openDartRefresh;
+  const canUseExternalApiRefresh = featureAccess.buildingRegisterRefresh;
   const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
   useEffect(() => {
     if (!selected?.id) return undefined;
@@ -14496,7 +14508,7 @@ function DashboardShell({ activeModule }) {
       <SectionHeader
         title={selected.label}
         right={canUseExternalApiRefresh ? (
-          <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={featureAccess} />
+          <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={{ ...featureAccess, openDartRefresh: false }} />
         ) : null}
       />
 

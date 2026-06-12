@@ -2166,10 +2166,10 @@ async function callDashboardCompanyRead(ctx: Context, payload: Record<string, un
   const adjustedLeaseSpaces = applyLatestRentHistoryAmountsToLeaseSpaces(leaseSpaces, rentHistory, basisDate);
   const assets = readableAssets.filter((row) => assetIds.includes(String(row.asset_id || '')));
   const scope = await dashboardScope(ctx, readableAssets);
-  const dartCorpCode = safeText(tenant.dart_corp_code);
+  const dartLookupCode = safeText(tenant.dart_corp_code) || safeText(tenant.business_registration_no).replace(/\D+/gu, '');
   let openDartCache: Record<string, unknown> | null = null;
-  if (dartCorpCode) {
-    const dartCacheKey = await cacheKeyFor('opendart/company', { corp_code: dartCorpCode, include_financials: true });
+  if (dartLookupCode) {
+    const dartCacheKey = await cacheKeyFor('opendart/company', { corp_code: dartLookupCode, include_financials: true });
     const cachedDart = await readExternalApiCache(ctx, 'opendart/company', dartCacheKey, true).catch(() => null);
     openDartCache = cachedDart?.responsePayload && typeof cachedDart.responsePayload === 'object'
       ? cachedDart.responsePayload as Record<string, unknown>
