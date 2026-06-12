@@ -252,15 +252,21 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
   const [state, setState] = useState(() => {
     const cached = DASHBOARD_READ_CACHE.get(cacheKey);
     return cached
-      ? { status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' }
-      : { status: 'idle', payload: null, raw: null, blocked: false, message: '' };
+      ? { cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' }
+      : { cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' };
   });
   const mode = dashboardReadRuntimeMode();
   const primaryMode = isDashboardReadPrimaryMode(mode);
+  const cachedForCurrentRequest = DASHBOARD_READ_CACHE.get(cacheKey);
+  const effectiveState = state.cacheKey === cacheKey
+    ? state
+    : (cachedForCurrentRequest
+      ? { cacheKey, status: 'primary', payload: cachedForCurrentRequest.payload, raw: cachedForCurrentRequest.raw, blocked: false, message: '' }
+      : { cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' });
 
   useEffect(() => {
     if (!enabled || mode === 'off') {
-      setState({ status: 'idle', payload: null, raw: null, blocked: false, message: '' });
+      setState({ cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' });
       return undefined;
     }
     let cancelled = false;
@@ -270,13 +276,14 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       const cached = DASHBOARD_READ_CACHE.get(cacheKey);
       const cacheAgeMs = cached?.checkedAt ? Date.now() - Date.parse(cached.checkedAt) : Number.POSITIVE_INFINITY;
       if (primaryMode && cached?.payload && cacheAgeMs >= 0 && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS) {
-        setState({ status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
+        setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
         return;
       }
       if (primaryMode) setState((current) => ({
+        cacheKey,
         status: 'loading',
-        payload: current.payload || DASHBOARD_READ_CACHE.get(cacheKey)?.payload || null,
-        raw: current.raw || DASHBOARD_READ_CACHE.get(cacheKey)?.raw || null,
+        payload: current.cacheKey === cacheKey ? (current.payload || DASHBOARD_READ_CACHE.get(cacheKey)?.payload || null) : (DASHBOARD_READ_CACHE.get(cacheKey)?.payload || null),
+        raw: current.cacheKey === cacheKey ? (current.raw || DASHBOARD_READ_CACHE.get(cacheKey)?.raw || null) : (DASHBOARD_READ_CACHE.get(cacheKey)?.raw || null),
         blocked: false,
         message: '',
       }));
@@ -309,8 +316,9 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
           if (!cancelled) {
             storeDashboardShadowDiff(report);
             setState((current) => ({
+              cacheKey,
               status: fallbackAllowed ? 'fallback' : 'blocked',
-              payload: fallbackAllowed ? current.payload : null,
+              payload: fallbackAllowed && current.cacheKey === cacheKey ? current.payload : null,
               raw: data || null,
               blocked: !fallbackAllowed,
               message,
@@ -346,6 +354,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
           storeDashboardShadowDiff(report);
           DASHBOARD_READ_CACHE.set(cacheKey, { payload: adapted.payload, raw: data, checkedAt: report.checked_at });
           setState({
+            cacheKey,
             status: primaryMode ? 'primary' : 'preview',
             payload: primaryMode ? adapted.payload : null,
             raw: data,
@@ -370,8 +379,9 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
         if (!cancelled) {
           storeDashboardShadowDiff(report);
           setState((current) => ({
+            cacheKey,
             status: fallbackAllowed ? 'fallback' : 'blocked',
-            payload: fallbackAllowed ? current.payload : null,
+            payload: fallbackAllowed && current.cacheKey === cacheKey ? current.payload : null,
             raw: null,
             blocked: !fallbackAllowed,
             message,
@@ -386,11 +396,11 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
   }, [action, enabled, mode, payloadKey, primaryMode, summaryKey, adapter, cacheKey]);
 
   return {
-    ...state,
+    ...effectiveState,
     mode,
     primaryMode,
-    loading: primaryMode && enabled && (state.status === 'idle' || state.status === 'loading'),
-    fallbackAllowed: !primaryMode || state.status === 'fallback' || state.status === 'preview',
+    loading: primaryMode && enabled && (effectiveState.status === 'idle' || effectiveState.status === 'loading'),
+    fallbackAllowed: !primaryMode || effectiveState.status === 'fallback' || effectiveState.status === 'preview',
   };
 }
 

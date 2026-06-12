@@ -32,7 +32,10 @@ const isPasswordRecoveryLocation = () => {
         new URLSearchParams(window.location.search || ''),
         new URLSearchParams((window.location.hash || '').replace(/^#/, '')),
     ];
-    return params.some((item) => item.get('type') === 'recovery');
+    return params.some((item) => (
+        item.get('type') === 'recovery'
+        || (item.has('access_token') && item.has('refresh_token') && window.location.pathname.includes('auth-setup'))
+    ));
 };
 
 const normalizeMemberInfo = (remoteUser, sessionEmail) => {
@@ -152,10 +155,14 @@ export function AuthProvider({ children }) {
 
                 if (session?.user) {
                     setUser(session.user);
-                    const ok = await fetchMemberInfo(session.user.email);
-                    if (!ok) {
-                        await handleSignOut();
-                        return;
+                    if (recoveryFromUrl) {
+                        setMemberInfo((current) => current || normalizeMemberInfo({ email: session.user.email }, session.user.email));
+                    } else {
+                        const ok = await fetchMemberInfo(session.user.email);
+                        if (!ok) {
+                            await handleSignOut();
+                            return;
+                        }
                     }
                 } else {
                     setUser(null);
@@ -172,6 +179,12 @@ export function AuthProvider({ children }) {
                 const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
                     if (event === 'PASSWORD_RECOVERY') {
                         setRecoveryMode(true);
+                        if (session?.user) {
+                            setUser(session.user);
+                            setMemberInfo((current) => current || normalizeMemberInfo({ email: session.user.email }, session.user.email));
+                        }
+                        setLoading(false);
+                        return;
                     }
 
                     if (session?.user) {
