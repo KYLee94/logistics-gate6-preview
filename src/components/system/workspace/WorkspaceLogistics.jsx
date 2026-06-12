@@ -2560,6 +2560,25 @@ function normalizeInvestmentRowsForUi(rows = []) {
   });
 }
 
+function mergeInvestmentRowsWithTemplate(templateRows = [], sourceRows = []) {
+  const normalizedRows = normalizeInvestmentRowsForUi(sourceRows);
+  const byGroupAndItem = new Map(normalizedRows.map((row) => [
+    `${cleanDisplay(row?.[0], '')}||${cleanDisplay(row?.[1], '')}`,
+    cleanDisplay(row?.[2], ''),
+  ]));
+  const templateKeys = new Set();
+  const mergedRows = templateRows.map((row) => {
+    const key = `${cleanDisplay(row?.[0], '')}||${cleanDisplay(row?.[1], '')}`;
+    templateKeys.add(key);
+    return [row?.[0] || '', row?.[1] || '', byGroupAndItem.has(key) ? byGroupAndItem.get(key) : cleanDisplay(row?.[2], '')];
+  });
+  const extraRows = normalizedRows.filter((row) => {
+    const key = `${cleanDisplay(row?.[0], '')}||${cleanDisplay(row?.[1], '')}`;
+    return key !== '||' && !templateKeys.has(key);
+  });
+  return [...mergedRows, ...extraRows];
+}
+
 const FUND_INFO_ROW_TEMPLATE = [
   ['펀드 정보', '펀드명', ''],
   ['펀드 정보', '약칭', ''],
@@ -2900,7 +2919,12 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const { rows: latestWeeklyAssetRows } = useLatestWeeklyAssetRows(permission, memberInfo);
-  const [openSections, setOpenSections] = useState({ overview: false, investment: false, fund: false });
+  const defaultOpenSections = useMemo(() => (
+    modalMode
+      ? { overview: true, investment: true, fund: true }
+      : { overview: false, investment: false, fund: false }
+  ), [modalMode]);
+  const [openSections, setOpenSections] = useState(defaultOpenSections);
   const [isEditing, setIsEditing] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
   const [serverRows, setServerRows] = useState(null);
@@ -2929,7 +2953,7 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
     buildingRegisterSummary,
   ), [buildingRegisterSummary, finalOverviewRows, serverRows]);
   const effectiveInvestmentRows = useMemo(() => (
-    serverRows?.investment?.length ? normalizeInvestmentRowsForUi(serverRows.investment) : finalInvestmentRows
+    serverRows?.investment?.length ? mergeInvestmentRowsWithTemplate(finalInvestmentRows, serverRows.investment) : finalInvestmentRows
   ), [finalInvestmentRows, serverRows]);
   const effectiveFundInfoRows = useMemo(() => {
     if (fundAccessBlock) return [];
@@ -2942,6 +2966,9 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
     assetIdMatchesPermission(assetId, assetName, permission)
     && (permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete)
   ));
+  useEffect(() => {
+    setOpenSections(defaultOpenSections);
+  }, [assetName, defaultOpenSections]);
   useEffect(() => {
     let cancelled = false;
     const detailCacheKey = assetId || normalizeAssetNameKey(assetName);
@@ -6977,7 +7004,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
         validPoints.forEach((point, index) => {
           const marker = L.marker([Number(point.latitude), Number(point.longitude)], { title: point.assetName || `자산 ${index + 1}` }).addTo(map);
           marker.bindTooltip(
-            `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:block;max-width:240px;border:0;outline:0;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.18);cursor:pointer;"><strong style="display:block;margin-bottom:4px;color:#111;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="color:#111;">${escapeHtml(point.address || '')}</span></button>`,
+            `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:inline-block;min-width:220px;max-width:320px;width:max-content;border:0;outline:0;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.18);cursor:pointer;box-sizing:border-box;white-space:nowrap;"><strong style="display:block;margin-bottom:4px;color:#111;white-space:nowrap;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="display:block;color:#111;white-space:nowrap;">${escapeHtml(point.address || '')}</span></button>`,
             { direction: 'right', offset: [14, 0], opacity: 1, sticky: true, interactive: true, className: 'logistics-map-tooltip' },
           );
           marker.on('mouseover', () => marker.openTooltip());
@@ -7026,7 +7053,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
             title: point.assetName || `자산 ${index + 1}`,
           });
           const infoWindow = new naver.maps.InfoWindow({
-            content: `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:block;max-width:240px;border:0;outline:0;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;font-size:12px;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.18);cursor:pointer;"><strong style="display:block;margin-bottom:4px;color:#111;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="color:#111;">${escapeHtml(point.address || '')}</span></button>`,
+            content: `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:inline-block;min-width:220px;max-width:320px;width:max-content;border:0;outline:0;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;font-size:12px;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.18);cursor:pointer;box-sizing:border-box;white-space:nowrap;"><strong style="display:block;margin-bottom:4px;color:#111;white-space:nowrap;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="display:block;color:#111;white-space:nowrap;">${escapeHtml(point.address || '')}</span></button>`,
             backgroundColor: 'transparent',
             borderColor: 'transparent',
             borderWidth: 0,
@@ -7115,8 +7142,12 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
           .logistics-map-tooltip::before {
             display: none !important;
           }
+          .logistics-map-tooltip,
+          .logistics-map-tooltip * {
+            box-sizing: border-box !important;
+          }
         `}</style>
-        <div className="absolute right-3 top-3 z-20 flex w-[74px] flex-col gap-1.5 rounded-[10px] border border-[#333333] bg-[#1F1F1E]/92 p-1.5 shadow-xl backdrop-blur">
+        <div className="absolute right-3 top-3 z-20 flex w-[96px] flex-col gap-1.5 rounded-[10px] border border-[#333333] bg-[#1F1F1E]/92 p-1.5 shadow-xl backdrop-blur">
           {[
             ['normal', '일반'],
             ['satellite', '위성'],
@@ -7126,7 +7157,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
               key={tool}
               type="button"
               onClick={() => applyMapTool(tool)}
-              className={`h-8 rounded-[7px] px-2 text-[12px] font-semibold transition ${activeMapTool === tool ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}
+              className={`h-8 whitespace-nowrap rounded-[7px] px-2 text-[12px] font-semibold transition ${activeMapTool === tool ? 'bg-white text-[#1F1F1E]' : 'bg-[#30302F] text-white hover:bg-[#3A3A3A]'}`}
             >
               {label}
             </button>
@@ -7811,6 +7842,9 @@ function HomeDashboard() {
             )}
           />
           <RichBarChart rows={regionChartRows} labelKey="label" valueKey="value" valueType="percent" valueLabel={regionMetric === 'area' ? '권역별 연면적 비율' : '권역별 월 임관리비 비율'} barMaxValue={1} showXAxisLabels={false} onClick={() => openTableModal('권역별 노출도', ['권역', '자산 수', '연면적(평)', '연면적 비율', '월 임관리비', '임관리비 비율'], regionExposureRows)} />
+          <p className="mt-2 text-[12px] leading-5 text-[#86868B]">
+            권역은 자산 주소를 기준으로 묶었어요. 인천권은 인천·김포·안산·시흥·광명·부천, 경기 북부는 고양·구리·파주·연천·포천·동두천·양주·의정부·남양주·가평, 경기 서남부는 군포·화성·수원·평택·안양·오산·의왕과 용인/안성 일부, 경기 동남부는 하남·성남·광주·여주·이천과 용인/안성 일부, 그 외는 충청·전라·경북·경남 기준으로 보여줘요.
+          </p>
         </div>
       </section>
 
@@ -9529,7 +9563,7 @@ function CompanyDashboard() {
   const [modal, setModal] = useState(null);
   const [dartApiStatus, setDartApiStatus] = useState(null);
   const [dartApiSummary, setDartApiSummary] = useState(null);
-  const [companyAssetSummarySortConfig, setCompanyAssetSummarySortConfig] = useState({ index: 0, direction: 'asc' });
+  const [companyAssetSummarySortConfig, setCompanyAssetSummarySortConfig] = useState({ index: 1, direction: 'desc' });
   const [leasedAssetSortConfig, setLeasedAssetSortConfig] = useState({ index: 0, direction: 'asc' });
   const [leasedAssetDetailsOpen, setLeasedAssetDetailsOpen] = useState(false);
   useEffect(() => {
@@ -13006,7 +13040,7 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
         <div className="flex flex-1 items-center justify-center p-6">
           <div>
             <div className={`${titleClass} font-semibold text-white`}>{slideLabel}</div>
-            <div className="mt-2 text-[12px] text-[#A1A1AA]">평면도 이미지를 등록하면 층별로 넘겨 볼 수 있습니다.</div>
+            <div className="mt-2 text-[12px] text-[#A1A1AA]">층별 평면도 이미지를 등록하면 이곳에서 넘겨 볼 수 있어요.</div>
           </div>
         </div>
       )}
@@ -13563,7 +13597,7 @@ function AssetDashboard() {
           )}
         />
         <p className="text-[13px] leading-6 text-[#A1A1AA]">
-          전체 화면에서 자산·투자·펀드 정보를 확인하고 수정할 수 있습니다.
+          전체 화면에서 자산·투자·펀드 정보를 더 넓게 확인하고 수정할 수 있어요.
         </p>
       </section>
 
