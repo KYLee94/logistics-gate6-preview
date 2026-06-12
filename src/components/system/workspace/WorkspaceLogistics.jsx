@@ -9656,11 +9656,12 @@ function CompanyDashboard() {
     (response) => companyPayloadFromDashboardRead(response, staticRawPayload)
   ), [staticRawPayload]);
   const companyRead = useDashboardReadBridge('dashboard/company/read', { basis_date: DASHBOARD_BASIS_DATE, tenant_id: selectedTenantId }, staticCompanySummary, companyReadAdapter, Boolean(selectedTenantId));
+  const showStaticCompanyWhileReading = companyRead.loading && !companyRead.payload;
   const rawPayload = useMemo(() => (
-    companyRead.payload || (companyRead.primaryMode && !companyRead.fallbackAllowed
-      ? { profile: {}, leasedAssets: [], rows: [], mapPoints: [], operations: {} }
-      : staticRawPayload)
-  ), [companyRead.fallbackAllowed, companyRead.payload, companyRead.primaryMode, staticRawPayload]);
+    companyRead.payload || (showStaticCompanyWhileReading || !companyRead.primaryMode || companyRead.fallbackAllowed
+      ? staticRawPayload
+      : { profile: {}, leasedAssets: [], rows: [], mapPoints: [], operations: {} })
+  ), [companyRead.fallbackAllowed, companyRead.payload, companyRead.primaryMode, showStaticCompanyWhileReading, staticRawPayload]);
   const company = useMemo(() => normalizeCompanyPayload(rawPayload || {}), [rawPayload]);
   const profile = company.profile || {};
   const financials = company.financials || {};
@@ -13228,11 +13229,12 @@ function AssetDashboard() {
     leased_area_sqm: staticAsset.overview?.leasedAreaSqm,
     current_monthly_cost_total: staticAsset.overview?.monthlyCostTotal,
   }, assetReadAdapter, Boolean(selectedAssetId));
+  const showStaticAssetWhileReading = assetRead.loading && !assetRead.payload;
   const rawPayload = useMemo(() => (
-    assetRead.payload || (assetRead.primaryMode && !assetRead.fallbackAllowed
-      ? { overview: {}, rows: [], kpis: [] }
-      : staticRawPayload)
-  ), [assetRead.fallbackAllowed, assetRead.payload, assetRead.primaryMode, staticRawPayload]);
+    assetRead.payload || (showStaticAssetWhileReading || !assetRead.primaryMode || assetRead.fallbackAllowed
+      ? staticRawPayload
+      : { overview: {}, rows: [], kpis: [] })
+  ), [assetRead.fallbackAllowed, assetRead.payload, assetRead.primaryMode, showStaticAssetWhileReading, staticRawPayload]);
   const asset = useMemo(() => normalizeAssetPayload(rawPayload || {}), [rawPayload]);
   const overview = asset.overview || {};
   const breakdown = asset.areaBreakdown || {};
