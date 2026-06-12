@@ -75,30 +75,6 @@ const setupLogisticsFirstLogin = async ({ email, authEmail, password, accessCode
         return { ok: false, error: '서버 연결에 실패했습니다.' };
     }
 };
-const resetLogisticsPasswordWithAccessCode = async ({ email, password, accessCode }) => {
-    try {
-        const response = await fetch(`${supabaseUrl}/functions/v1/ll-dashboard-api`, {
-            method: 'POST',
-            headers: {
-                apikey: supabaseAnonKey,
-                authorization: `Bearer ${supabaseAnonKey}`,
-                'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-                action: 'auth/password-reset/access-code',
-                payload: {
-                    email,
-                    password,
-                    access_code: accessCode,
-                },
-            }),
-        });
-        const data = await response.json().catch(() => null);
-        return data || { ok: false, error: response.ok ? '비밀번호 재설정에 실패했습니다.' : `비밀번호 재설정 실패 (${response.status})` };
-    } catch {
-        return { ok: false, error: '서버 연결에 실패했습니다.' };
-    }
-};
 const buildAuthRedirectUrl = (path = 'auth-setup') => {
     const normalizedPath = String(path || '').replace(/^\/+/, '');
     const configuredBase = import.meta.env.VITE_LOGISTICS_AUTH_REDIRECT_BASE_URL;
@@ -446,50 +422,6 @@ export default function AuthSetup({ onLogin }) {
             setStep(1);
         } catch {
             triggerError('이메일 발송 중 오류가 발생했습니다.');
-        }
-    };
-
-    const handleAccessCodePasswordResetSubmit = async (e) => {
-        e?.preventDefault();
-        setErrorMessage('');
-
-        const normalizedEmail = email.trim().toLowerCase();
-        if (!normalizedEmail.includes('@')) {
-            triggerError('회사 이메일을 입력해주세요.');
-            return;
-        }
-        if (newPassword.length < 6) {
-            triggerError('새 비밀번호는 6자리 이상이어야 합니다.');
-            return;
-        }
-        if (newPassword !== confirmNewPassword) {
-            triggerError('새 비밀번호가 일치하지 않습니다.');
-            return;
-        }
-        if (!accessCode.trim()) {
-            triggerError('접속 코드를 입력해주세요.');
-            return;
-        }
-
-        try {
-            const resetResult = await resetLogisticsPasswordWithAccessCode({
-                email: normalizedEmail,
-                password: newPassword,
-                accessCode,
-            });
-            if (!resetResult?.ok) {
-                triggerError(resetResult?.error || '비밀번호 재설정에 실패했습니다.');
-                return;
-            }
-            setResolvedAuthEmail(resetResult.auth_email || normalizedEmail);
-            setPassword(newPassword);
-            setNewPassword('');
-            setConfirmNewPassword('');
-            setAccessCode('');
-            alert('비밀번호가 재설정되었습니다. 새 비밀번호로 로그인해주세요.');
-            setStep(1);
-        } catch {
-            triggerError('비밀번호 재설정 중 오류가 발생했습니다.');
         }
     };
 
@@ -869,7 +801,7 @@ export default function AuthSetup({ onLogin }) {
                         <>
                             <div className="flex items-center justify-between w-full mt-1 mb-6">
                                 <span className="text-[#333] dark:text-[#E5E5E5] text-[17px] font-semibold tracking-tight transition-colors duration-300">
-                                    비밀번호 재설정
+                                    비밀번호 재설정 링크 발송
                                 </span>
                                 <button onClick={() => setStep(2)} className="text-[#86868B] hover:text-[#111] dark:hover:text-white transition-colors flex items-center text-[13px] shrink-0">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"/></svg>
@@ -877,15 +809,11 @@ export default function AuthSetup({ onLogin }) {
                                 </button>
                             </div>
 
-                            <p className="hidden">
+                            <p className="text-[#86868B] dark:text-[#A1A1AA] text-[14px] mb-6 leading-relaxed">
                                 가입하신 이메일 주소로 비밀번호를 재설정할 수 있는 링크를 보내드립니다.
                             </p>
 
-                            <p className="text-[#86868B] dark:text-[#A1A1AA] text-[14px] mb-6 leading-relaxed">
-                                회사 이메일, 새 비밀번호, 접속 코드를 입력하면 비밀번호를 다시 설정합니다.
-                            </p>
-
-                            <form onSubmit={handleAccessCodePasswordResetSubmit} className="w-full">
+                            <form onSubmit={handleResetEmailSubmit} className="w-full">
                                 <div className="w-full mb-2">
                                     <input 
                                         type="email" 
@@ -896,42 +824,6 @@ export default function AuthSetup({ onLogin }) {
                                         placeholder="이메일을 입력하세요."
                                         value={email}
                                         onChange={(e) => { setEmail(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
-                                    />
-                                </div>
-                                <div className="w-full mb-2">
-                                    <input
-                                        type="password"
-                                        id="logistics-reset-new-password"
-                                        name="new-password"
-                                        autoComplete="new-password"
-                                        placeholder="새 비밀번호"
-                                        value={newPassword}
-                                        onChange={(e) => { setNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
-                                    />
-                                </div>
-                                <div className="w-full mb-2">
-                                    <input
-                                        type="password"
-                                        id="logistics-reset-confirm-password"
-                                        name="new-password-confirm"
-                                        autoComplete="new-password"
-                                        placeholder="새 비밀번호 확인"
-                                        value={confirmNewPassword}
-                                        onChange={(e) => { setConfirmNewPassword(e.target.value); if(errorMessage) setErrorMessage(''); }}
-                                        className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
-                                    />
-                                </div>
-                                <div className="w-full mb-2">
-                                    <input
-                                        type="text"
-                                        id="logistics-reset-access-code"
-                                        name="logistics-access-code"
-                                        autoComplete="off"
-                                        placeholder="접속 코드"
-                                        value={accessCode}
-                                        onChange={(e) => { setAccessCode(e.target.value); if(errorMessage) setErrorMessage(''); }}
                                         className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
                                     />
                                 </div>
@@ -948,7 +840,7 @@ export default function AuthSetup({ onLogin }) {
                                     type="submit"
                                     className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
                                 >
-                                    비밀번호 재설정
+                                    재설정 링크 받기
                                 </button>
                             </form>
                         </>
