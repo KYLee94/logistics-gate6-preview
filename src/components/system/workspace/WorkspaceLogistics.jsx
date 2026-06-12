@@ -1542,6 +1542,26 @@ function calculateWeightedENoc(rows, fallbackValue) {
   return fallbackValue;
 }
 
+function explicitENocValue(row = {}) {
+  const value = firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy);
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+}
+
+function calculateWeightedExplicitENoc(rows, fallbackValue) {
+  const weighted = (rows || []).reduce((acc, row) => {
+    const area = Number(firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm, row.totalLeasedAreaSqm, row.areaSqm));
+    const eNoc = explicitENocValue(row);
+    if (!Number.isFinite(eNoc) || !Number.isFinite(area) || area <= 0) return acc;
+    return {
+      weightedSum: acc.weightedSum + eNoc * area,
+      areaSum: acc.areaSum + area,
+    };
+  }, { weightedSum: 0, areaSum: 0 });
+  if (weighted.areaSum > 0) return weighted.weightedSum / weighted.areaSum;
+  return fallbackValue;
+}
+
 function calculateWeightedAveragePerPy(rows, valueKeys = [], totalKeys = [], fallbackValue) {
   const weighted = (rows || []).reduce((acc, row) => {
     const area = Number(firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm, row.totalLeasedAreaSqm, row.areaSqm));
@@ -8711,6 +8731,7 @@ function normalizeCompanyPayload(payload) {
       monthlyRentTotal,
       monthlyMfTotal,
       monthlyCostTotal,
+      eNoc: firstDefined(row.eNoc, row.averageENoc, matched.eNoc, matched.averageENoc, matched.currentENoc, matched.currentENocPerPy),
       latestExpiry: firstDefined(row.latestExpiry, matched.currentEndDate, matched.latestExpiry),
       spaceLabel: buildSpaceLabel({ ...matched, ...row }),
     };
@@ -8721,6 +8742,7 @@ function normalizeCompanyPayload(payload) {
     monthlyRentTotal: row.monthlyRentTotal,
     monthlyMfTotal: row.monthlyMfTotal,
     monthlyCostTotal: row.monthlyCostTotal,
+    eNoc: row.eNoc,
   }));
   const mapPoints = (payload.mapPoints || leasedAssets).map((row) => ({
     assetId: firstDefined(row.assetId, row.assetCode, row.assetName),
@@ -9629,7 +9651,7 @@ function CompanyDashboard() {
   };
   const companyWeightedRentPerPy = calculatePerPy(visibleProfile.monthlyRentTotal, visibleProfile.leasedAreaSqm);
   const companyWeightedMfPerPy = calculatePerPy(visibleProfile.monthlyMfTotal, visibleProfile.leasedAreaSqm);
-  const companyWeightedENoc = calculatePerPy(visibleProfile.monthlyCostTotal, visibleProfile.leasedAreaSqm);
+  const companyWeightedENoc = calculateWeightedExplicitENoc(leasedAssets, null);
   const kpiLookup = kpiLookupFrom(company.kpis);
   const kpis = [
     { key: 'asset_count', label: '임차 자산 수', value: visibleProfile.assetCount, valueType: 'number' },
@@ -9646,18 +9668,24 @@ function CompanyDashboard() {
     (leasedAssets || []).forEach((row) => {
       const assetName = firstDefined(row.assetName, row.label, "미지정");
       const key = String(firstDefined(row.assetId, row.assetCode, assetName) || assetName);
-      const current = grouped.get(key) || { assetId: row.assetId, assetCode: row.assetCode, assetName, label: assetName, leasedAreaSqm: 0, monthlyRentTotal: 0, monthlyMfTotal: 0, monthlyCostTotal: 0 };
-      current.leasedAreaSqm += Number(row.leasedAreaSqm || 0);
+      const current = grouped.get(key) || { assetId: row.assetId, assetCode: row.assetCode, assetName, label: assetName, leasedAreaSqm: 0, monthlyRentTotal: 0, monthlyMfTotal: 0, monthlyCostTotal: 0, eNocWeightedSum: 0, eNocAreaSum: 0 };
+      const leasedAreaSqm = Number(row.leasedAreaSqm || 0);
+      const eNoc = explicitENocValue(row);
+      current.leasedAreaSqm += leasedAreaSqm;
       current.monthlyRentTotal += Number(row.monthlyRentTotal || 0);
       current.monthlyMfTotal += Number(row.monthlyMfTotal || 0);
       current.monthlyCostTotal += Number(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, 0) || 0);
+      if (Number.isFinite(eNoc) && Number.isFinite(leasedAreaSqm) && leasedAreaSqm > 0) {
+        current.eNocWeightedSum += eNoc * leasedAreaSqm;
+        current.eNocAreaSum += leasedAreaSqm;
+      }
       grouped.set(key, current);
     });
     return [...grouped.values()].map((row) => ({
       ...row,
       averageRentPerPy: calculatePerPy(row.monthlyRentTotal, row.leasedAreaSqm),
       averageMfPerPy: calculatePerPy(row.monthlyMfTotal, row.leasedAreaSqm),
-      eNoc: calculatePerPy(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal), row.leasedAreaSqm),
+      eNoc: row.eNocAreaSum > 0 ? row.eNocWeightedSum / row.eNocAreaSum : null,
     }));
   }, [leasedAssets]);
   const hasCostExposure = companyAssetSummarySourceRows.some((row) => Number(firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal)) > 0);
@@ -13092,7 +13120,7 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
       ) : null}
       {safeSlides.length > 1 ? (
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-semibold text-white">
-          {activeIndex + 1} / {safeSlides.length}
+          {activeIndex + 1}pg / {safeSlides.length}pg
         </div>
       ) : null}
     </div>
@@ -13108,6 +13136,34 @@ function floorplanLabelsFromFloorCount(floorCount = '') {
   const basementLabels = Array.from({ length: basementCount }, (_, index) => `B${basementCount - index}`);
   const groundLabels = Array.from({ length: groundCount }, (_, index) => `${index + 1}F`);
   return [...basementLabels, ...groundLabels].filter(Boolean);
+}
+
+function sortedFloorplanLabels(labels = []) {
+  return [...new Set((labels || []).map((label) => cleanDisplay(label, '')).filter(Boolean))]
+    .sort((a, b) => {
+      const aFloor = floorSortValue(a);
+      const bFloor = floorSortValue(b);
+      const aKnown = aFloor !== -999;
+      const bKnown = bFloor !== -999;
+      if (aKnown && bKnown && aFloor !== bFloor) return aFloor - bFloor;
+      if (aKnown !== bKnown) return aKnown ? -1 : 1;
+      return String(a).localeCompare(String(b), 'ko-KR');
+    });
+}
+
+function sortFloorplanSlides(slides = []) {
+  return (slides || []).slice().sort((a, b) => {
+    const aFloor = floorSortValue(firstDefined(a.floorLabel, a.floor, a.label));
+    const bFloor = floorSortValue(firstDefined(b.floorLabel, b.floor, b.label));
+    const aKnown = aFloor !== -999;
+    const bKnown = bFloor !== -999;
+    if (aKnown && bKnown && aFloor !== bFloor) return aFloor - bFloor;
+    if (aKnown !== bKnown) return aKnown ? -1 : 1;
+    return Number(a.pageNumber || 0) - Number(b.pageNumber || 0);
+  }).map((slide, index) => ({
+    ...slide,
+    pageNumber: index + 1,
+  }));
 }
 
 function AssetDashboard() {
@@ -13156,27 +13212,31 @@ function AssetDashboard() {
     const sourceFloorplans = Array.isArray(firstDefined(asset.floorplans, overview.floorplans))
       ? firstDefined(asset.floorplans, overview.floorplans)
       : [];
-    if (sourceFloorplans.length) {
-      return sourceFloorplans.map((item, index) => ({
-        id: cleanDisplay(firstDefined(item.id, item.floorLabel, item.floor), `floorplan-${index}`),
-        label: cleanDisplay(firstDefined(item.label, item.floorLabel, item.floor), `평면도 ${index + 1}`),
-        imageUrl: cleanDisplay(firstDefined(item.imageUrl, item.image_url, item.url, item.src), ''),
-      }));
-    }
-    const floorLabels = [...new Set((stackingFloors || [])
+    const scaleFloorLabels = sortedFloorplanLabels(floorplanLabelsFromFloorCount(firstDefined(overview.floorCount, overview.floorScale)));
+    const floorLabels = sortedFloorplanLabels((stackingFloors || [])
       .map((floor) => cleanDisplay(firstDefined(floor.floorLabel, floor.label, floor.floor), ''))
-      .filter(Boolean))];
-    const scaleFloorLabels = floorplanLabelsFromFloorCount(firstDefined(overview.floorCount, overview.floorScale));
+      .filter(Boolean));
     const floorLabelsOnlyOverall = floorLabels.length > 0 && floorLabels.every((label) => /^전체/u.test(label));
-    const fallbackLabels = floorLabels.length && !floorLabelsOnlyOverall
-      ? floorLabels
-      : (scaleFloorLabels.length ? scaleFloorLabels : ['층별 평면도']);
-    return fallbackLabels.map((label, index) => ({
+    const fallbackLabels = scaleFloorLabels.length
+      ? scaleFloorLabels
+      : (floorLabels.length && !floorLabelsOnlyOverall ? floorLabels : ['층별 평면도']);
+    if (sourceFloorplans.length) {
+      return sortFloorplanSlides(sourceFloorplans.map((item, index) => ({
+        id: cleanDisplay(firstDefined(item.id, item.floorLabel, item.floor), `floorplan-${index}`),
+        label: cleanDisplay(firstDefined(item.label, item.floorLabel, item.floor, fallbackLabels[index]), `평면도 ${index + 1}`),
+        floorLabel: cleanDisplay(firstDefined(item.floorLabel, item.floor, item.label, fallbackLabels[index]), ''),
+        pageNumber: Number(firstDefined(item.pageNumber, item.page, index + 1)),
+        imageUrl: cleanDisplay(firstDefined(item.imageUrl, item.image_url, item.url, item.src), ''),
+      })));
+    }
+    return sortFloorplanSlides(fallbackLabels.map((label, index) => ({
       id: `${selectedAssetId || 'asset'}-floorplan-${index}`,
       label,
+      floorLabel: label,
+      pageNumber: index + 1,
       imageUrl: '',
-    }));
-  }, [asset.floorplans, overview.floorplans, selectedAssetId, stackingFloors]);
+    })));
+  }, [asset.floorplans, overview.floorCount, overview.floorScale, overview.floorplans, selectedAssetId, stackingFloors]);
   const assetWeightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
   const buildingRegisterSource = rows.find((row) => row.asset?.sigunguCd || row.sigunguCd) || overview;
   const buildingRegisterPayload = buildBuildingRegisterPayload(buildingRegisterSource);

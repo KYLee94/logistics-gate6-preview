@@ -12,6 +12,7 @@ const LOGISTICS_ENROLLED_EMAILS_KEY = 'logistics_enrolled_emails';
 const LOGISTICS_LAST_EMAIL_KEY = 'logistics_last_login_email';
 const LOGISTICS_REMEMBER_EMAIL_KEY = 'logistics_remember_login_email';
 const LOGISTICS_PRODUCTION_AUTH_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
+const LOGISTICS_PASSWORD_RECOVERY_REDIRECT_URL = new URL('auth-setup', LOGISTICS_PRODUCTION_AUTH_BASE_URL).toString();
 const readEnrolledLogisticsEmails = () => {
     try {
         const parsed = JSON.parse(localStorage.getItem(LOGISTICS_ENROLLED_EMAILS_KEY) || '[]');
@@ -90,6 +91,7 @@ const buildAuthRedirectUrl = (path = 'auth-setup') => {
     const normalizedBase = base.endsWith('/') ? base : `${base}/`;
     return new URL(normalizedPath, normalizedBase).toString();
 };
+const buildPasswordRecoveryRedirectUrl = () => LOGISTICS_PASSWORD_RECOVERY_REDIRECT_URL;
 const navigateAfterSuccessfulAuth = (onLogin) => {
     const beforeUrl = window.location.href;
     if (onLogin) onLogin();
@@ -398,13 +400,14 @@ export default function AuthSetup({ onLogin }) {
         try {
             const normalizedEmail = email.trim().toLowerCase();
             const resetTargetEmail = currentAuthEmail() || normalizedEmail;
+            const redirectTo = buildPasswordRecoveryRedirectUrl();
             const { error } = await supabase.auth.resetPasswordForEmail(resetTargetEmail, {
-                redirectTo: buildAuthRedirectUrl('auth-setup'),
+                redirectTo,
             });
             
             if (error && resetTargetEmail !== normalizedEmail) {
                 const retry = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-                    redirectTo: buildAuthRedirectUrl('auth-setup'),
+                    redirectTo,
                 });
                 if (retry.error) {
                     triggerError('이메일 발송 실패: ' + retry.error.message);
