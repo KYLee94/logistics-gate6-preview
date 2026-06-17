@@ -204,6 +204,11 @@ async function main() {
           await page.waitForTimeout(1200);
         }
         const restoredDate = dateControlVisible ? await dateInput.inputValue() : '';
+        const importantBadgeAbsent = dateControlVisible ? !/\b중요\b/u.test(await newsSection.innerText({ timeout: 5000 }).catch(() => '')) : false;
+        const publisherDatePairs = dateControlVisible ? await newsSection.locator('a').evaluateAll((nodes) => nodes.map((node) => {
+          const text = node.textContent || '';
+          return /언론사 미확인|[가-힣A-Za-z0-9.\s]+(?:뉴스|일보|신문|경제|투데이|데일리|타임즈|TV|방송|통신|닷컴)?\s+\d{2}\.\s*\d{2}\./u.test(text);
+        }).slice(0, 10)).catch(() => []) : [];
         const dateControls = {
           visible: dateControlVisible,
           initial_date: initialDate,
@@ -212,7 +217,9 @@ async function main() {
           after_previous_next_disabled: afterPreviousNextDisabled,
           previous_date: previousDate,
           restored_date: restoredDate,
-          empty_state_ok: /수집된 뉴스가 없습니다\.|뉴스를 불러오는 중입니다\.|중요|[가-힣].*(물류|쿠팡|CJ|한진|컬리|롯데)/u.test(previousBody),
+          empty_state_ok: /수집된 뉴스가 없습니다\.|뉴스를 불러오는 중입니다\.|[가-힣].*(물류|쿠팡|CJ|한진|컬리|롯데)/u.test(previousBody),
+          important_badge_absent: importantBadgeAbsent,
+          publisher_date_pairs_ok: !publisherDatePairs.length || publisherDatePairs.every(Boolean),
         };
         dateControls.ok = dateControls.visible
           && dateControls.initial_date === today
@@ -221,7 +228,9 @@ async function main() {
           && !dateControls.after_previous_next_disabled
           && dateControls.previous_date === addDateDays(initialDate, -1)
           && dateControls.restored_date === initialDate
-          && dateControls.empty_state_ok;
+          && dateControls.empty_state_ok
+          && dateControls.important_badge_absent
+          && dateControls.publisher_date_pairs_ok;
         routeReport.news_date_controls = dateControls;
         routeReport.ok = routeReport.ok && dateControls.ok;
       }

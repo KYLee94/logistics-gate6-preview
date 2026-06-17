@@ -104,6 +104,22 @@ function formatNewsDateLabel(value) {
   }).format(date);
 }
 
+function cleanNewsTitleForDisplay(title, publisher = '') {
+  let out = text(title, '');
+  const variants = [publisher, text(publisher, '').replace(/\s+/g, ''), text(publisher, '').replace(/뉴스$/u, '')].filter(Boolean);
+  variants.forEach((variant) => {
+    const escaped = String(variant).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out
+      .replace(new RegExp(`\\s*[-|–—·ㆍ:]\\s*${escaped}\\s*$`, 'iu'), '')
+      .replace(new RegExp(`^${escaped}\\s*[-|–—·ㆍ:]\\s*`, 'iu'), '');
+  });
+  return out
+    .replace(/\s*[-|–—·ㆍ:]\s*(네이버뉴스|Google News|Bing News)\s*$/iu, '')
+    .replace(/^\s*(?:\[중요\]|중요[:：-])\s*/iu, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
 function sourceDomainLabel(domain) {
   return SOURCE_DOMAINS.find((item) => item.key === domain)?.label || text(domain);
 }
@@ -637,16 +653,15 @@ export function DailyLogisticsNewsCard() {
           {items.length ? (
             <div className="grid gap-1.5">
               {items.map((item) => {
-                const keywords = safeArray(item.matched_keywords).join(' ');
-                const isMajor = /쿠팡|CJ|대한통운|한진|컬리|롯데|리포트|보고서|거래|매매|선매입/iu.test(`${item.title} ${keywords}`);
+                const title = cleanNewsTitleForDisplay(item.title, item.publisher);
                 return (
                   <a key={item.news_item_id || item.canonical_url} href={item.canonical_url || item.original_url} target="_blank" rel="noreferrer" className={`${INNER} block px-3 py-2 hover:bg-[#242424]`}>
                     <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3">
-                      <div className="min-w-0 truncate text-[13px] font-semibold text-white">
-                        {isMajor ? <span className="mr-2 rounded-[6px] bg-[#2E3A2F] px-1.5 py-0.5 text-[10px] text-[#B5E48C]">중요</span> : null}
-                        {text(item.title)}
+                      <div className="min-w-0 truncate text-[13px] font-semibold text-white">{text(title, '-')}</div>
+                      <div className="shrink-0 text-right text-[11px] text-[#86868B]">
+                        <span>{text(item.publisher, '언론사 미확인')}</span>
+                        <span className="ml-2">{formatDateTime(item.published_at)}</span>
                       </div>
-                      <div className="shrink-0 text-right text-[11px] text-[#86868B]">{formatDateTime(item.published_at)}</div>
                     </div>
                   </a>
                 );

@@ -6,39 +6,65 @@ const { createClient } = require('@supabase/supabase-js');
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
 const BING_NEWS_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v3-major-priority';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v4-strict-24h-balanced';
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
 const SEARCH_QUERIES = [
-  '쿠팡 물류센터 OR 풀필먼트센터',
-  'CJ대한통운 물류센터 OR 물류센터 투자',
-  '한진 물류센터 OR 택배 허브',
-  '컬리 물류센터 OR 샛별배송',
-  '롯데글로벌로지스 OR 롯데 물류센터',
-  '물류센터 시장 리포트 OR 물류부동산 리포트',
-  '물류센터 매매 OR 선매입 OR 캡레이트',
-  '물류센터 OR 물류창고',
-  '물류센터 임대 OR 공실 OR 임대료',
-  '물류센터 매매 OR 거래 OR 캡레이트 OR 자산운용',
-  '저온물류센터 OR 풀필먼트센터',
-  '물류창고 착공 OR 준공 OR 공급 OR 개발',
-  '물류센터 PF OR 대출 OR 금리',
-  '쿠팡 OR CJ대한통운 OR 컬리 물류센터',
+  '"물류센터" "임대료" OR "물류센터" "공실" OR "물류센터" "임대차"',
+  '"물류센터" "렌트프리" OR "물류센터" "NOC" OR "물류창고" "임대"',
+  '"물류센터" "매매" OR "물류센터" "거래" OR "물류센터" "선매입"',
+  '"물류센터" "매각" OR "물류센터" "자산운용" OR "물류센터" "캡레이트"',
+  '"물류부동산" "리포트" OR "물류센터" "시장 리포트" OR "물류센터" "전망"',
+  '"물류센터" "공급" OR "물류센터" "개발" OR "물류센터" "준공"',
+  '"저온물류센터" OR "콜드체인" "물류센터" OR "풀필먼트센터"',
+  '"물류창고" "임대" OR "물류창고" "매매" OR "물류창고" "공실"',
+  '"물류센터"',
+  '"물류창고"',
+  '"물류부동산"',
+  '"풀필먼트센터" OR "풀필먼트 서비스"',
+  '"택배" "물류" "센터"',
+  '"저온물류" OR "콜드체인"',
+  '쿠팡 물류센터 OR 쿠팡 풀필먼트 OR 쿠팡 물류',
+  'CJ대한통운 물류센터 OR CJ대한통운 택배 OR CJ대한통운 물류',
+  '한진 물류센터 OR 한진 택배 OR 한진 물류',
+  '컬리 물류센터 OR 컬리 배송 OR 컬리 물류',
+  '롯데글로벌로지스 OR 롯데 물류센터 OR 롯데택배',
+  '현대글로비스 물류 OR 현대글로비스 물류센터',
+  'LX판토스 물류 OR 판토스 물류센터',
+  'DHL 물류 OR DHL 물류센터',
+  '로젠택배 물류 OR 로젠 물류센터',
+  'GS리테일 물류 OR BGF 물류 OR 우체국 물류',
 ];
 
-const IMPORTANT_TERMS = [
-  '쿠팡', 'CJ대한통운', '대한통운', '한진', '컬리', '롯데', '롯데글로벌로지스',
-  '물류시장', '시장 리포트', '리포트', '보고서', '거래시장', '매각', '선매입', '캡레이트',
-  '물류센터', '물류창고', '저온물류', '풀필먼트', '임대', '임대료', '공실',
-  '매매', '거래', '공급', '개발', '인허가', '착공', '준공', '캡레이트', 'cap rate',
-  'PF', '대출', '금리', '쿠팡', 'CJ대한통운', '컬리', '네이버', 'SSG', '아마존', '3PL',
+const LOGISTICS_CONTEXT_TERMS = ['물류센터', '물류 창고', '물류창고', '풀필먼트', 'fulfillment', '저온물류', '저온 물류', '상온물류', '택배', '배송', '3PL', '창고', '허브', '콜드체인', 'cold chain', '냉장', '냉동'];
+const MARKET_DEAL_TERMS = ['매매', '거래', '선매입', '매각', '인수', '매수', '매도', '자산운용', '리츠', '펀드', '투자', '캡레이트', 'cap rate', 'PF'];
+const LEASE_MARKET_TERMS = ['임대', '임대차', '임대료', '공실', '렌트프리', 'NOC', 'WALE', '테넌트', '임차'];
+const SUPPLY_DEVELOPMENT_TERMS = ['공급', '개발', '착공', '준공', '인허가', '신규공급', '신규 공급', '공급예정', '공급 예정', '물류단지', '허가'];
+const MARKET_REPORT_TERMS = ['시장 리포트', '물류시장', '물류부동산', '리포트', '보고서', '전망', '마켓', 'market report'];
+const MAJOR_COMPANIES = [
+  { key: 'coupang', label: '쿠팡', terms: ['쿠팡', 'Coupang'] },
+  { key: 'cjlogistics', label: 'CJ대한통운', terms: ['CJ대한통운', '대한통운', 'CJ Logistics'] },
+  { key: 'hanjin', label: '한진', terms: ['한진'] },
+  { key: 'kurly', label: '컬리', terms: ['컬리', 'Kurly'] },
+  { key: 'lotte', label: '롯데글로벌로지스', terms: ['롯데글로벌로지스', '롯데택배', '롯데 물류', '롯데'] },
+  { key: 'ssg', label: 'SSG', terms: ['SSG', '쓱닷컴', '이마트'] },
+  { key: 'lx-pantos', label: 'LX판토스', terms: ['LX판토스', '판토스'] },
+  { key: 'hyundai-glovis', label: '현대글로비스', terms: ['현대글로비스', 'Glovis'] },
+  { key: 'dhl', label: 'DHL', terms: ['DHL'] },
+  { key: 'logen', label: '로젠', terms: ['로젠', '로젠택배'] },
+  { key: 'gs-bgf', label: 'GS/BGF', terms: ['GS리테일', 'GS25', 'BGF', 'CU'] },
+  { key: 'korea-post', label: '우체국', terms: ['우체국', '우정사업본부'] },
 ];
-const CORE_TERMS = ['물류센터', '물류 창고', '물류창고', '저온물류', '저온 물류', '풀필먼트', 'fulfillment'];
-
-const STRUCTURAL_TERMS = /(공급|매매|거래|임대|공실|준공|착공|인허가|금리|캡레이트|cap\s*rate|PF|투자|매각)/iu;
-const MAJOR_COMPANY_TERMS = ['쿠팡', 'CJ대한통운', '대한통운', '한진', '컬리', '롯데', '롯데글로벌로지스'];
-const MARKET_REPORT_TERMS = ['시장 리포트', '물류시장', '리포트', '보고서', '캡레이트', 'cap rate', '매매', '거래', '선매입', '매각'];
+const CATEGORY_TARGETS = {
+  market_deal: 4,
+  lease_market: 2,
+  supply_development: 2,
+  major_company: 4,
+};
+const CATEGORY_ORDER = ['market_deal', 'lease_market', 'supply_development', 'major_company', 'other'];
+const MAX_ITEMS_PER_COMPANY = 2;
+const MAX_MAJOR_COMPANY_ONLY_ITEMS = 5;
 
 function hasFlag(name) {
   return process.argv.includes(name);
@@ -118,7 +144,7 @@ function kstDateKey(date) {
 function parseWindow() {
   const basis = argValue('--basis-kst', '');
   const windowEnd = basis ? parseBasisKst(basis) : currentSevenAmBasisKst();
-  const windowHours = kstDayOfWeek(windowEnd) === 1 ? 72 : 24;
+  const windowHours = 24;
   const windowStart = new Date(windowEnd.getTime() - windowHours * HOUR_MS);
   return { windowStart, windowEnd, windowHours };
 }
@@ -180,14 +206,75 @@ function inferPublisher(item) {
   }
 }
 
+function escapeRegExp(value) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function cleanNewsTitle(title, publisher = '') {
+  let out = stripHtml(title);
+  const publisherVariants = [
+    publisher,
+    String(publisher || '').replace(/\s+/g, ''),
+    String(publisher || '').replace(/뉴스$/u, ''),
+  ].filter(Boolean);
+  for (const variant of publisherVariants) {
+    const escaped = escapeRegExp(variant);
+    out = out
+      .replace(new RegExp(`\\s*[-|–—·ㆍ:]\\s*${escaped}\\s*$`, 'iu'), '')
+      .replace(new RegExp(`^${escaped}\\s*[-|–—·ㆍ:]\\s*`, 'iu'), '');
+  }
+  return out
+    .replace(/\s*[-|–—·ㆍ:]\s*(네이버뉴스|Google News|Bing News)\s*$/iu, '')
+    .replace(/^\s*(?:\[중요\]|중요[:：-])\s*/iu, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function matchTerms(text, terms) {
+  const lower = String(text || '').toLowerCase();
+  return terms.filter((term) => lower.includes(String(term).toLowerCase()));
+}
+
+function companyForText(text) {
+  const lower = String(text || '').toLowerCase();
+  return MAJOR_COMPANIES.find((company) => company.terms.some((term) => lower.includes(String(term).toLowerCase()))) || null;
+}
+
 function scoreItem(item) {
   const text = `${item.title} ${item.summary}`;
-  if (!CORE_TERMS.some((term) => text.toLowerCase().includes(term.toLowerCase()))) return { score: 0, matched: [] };
-  const matched = IMPORTANT_TERMS.filter((term) => text.toLowerCase().includes(term.toLowerCase()));
-  const structuralBoost = STRUCTURAL_TERMS.test(text) ? 2 : 0;
-  const majorBoost = MAJOR_COMPANY_TERMS.some((term) => text.toLowerCase().includes(term.toLowerCase())) ? 5 : 0;
-  const reportBoost = MARKET_REPORT_TERMS.some((term) => text.toLowerCase().includes(term.toLowerCase())) ? 4 : 0;
-  return { score: matched.length + structuralBoost + majorBoost + reportBoost, matched };
+  const logisticsMatches = matchTerms(text, LOGISTICS_CONTEXT_TERMS);
+  const dealMatches = matchTerms(text, MARKET_DEAL_TERMS);
+  const leaseMatches = matchTerms(text, LEASE_MARKET_TERMS);
+  const supplyMatches = matchTerms(text, SUPPLY_DEVELOPMENT_TERMS);
+  const reportMatches = matchTerms(text, MARKET_REPORT_TERMS);
+  const company = companyForText(text);
+  const hasLogisticsContext = logisticsMatches.length > 0;
+  const hasMarketSignal = dealMatches.length || leaseMatches.length || reportMatches.length;
+  const hasSupplySignal = supplyMatches.length;
+  const companyLogisticsSignal = company && /물류|센터|창고|풀필먼트|허브|택배|배송|터미널|fulfillment/iu.test(text);
+  if ((!hasLogisticsContext || (!hasMarketSignal && !hasSupplySignal)) && !companyLogisticsSignal) {
+    return { score: 0, matched: [], category: 'noise', company: null };
+  }
+  let category = 'major_company';
+  if (dealMatches.length || reportMatches.length) category = 'market_deal';
+  else if (leaseMatches.length) category = 'lease_market';
+  else if (supplyMatches.length) category = 'supply_development';
+  else if (!company) category = 'other';
+  const matched = [...new Set([
+    ...logisticsMatches,
+    ...dealMatches,
+    ...leaseMatches,
+    ...supplyMatches,
+    ...reportMatches,
+    ...(company ? [company.label] : []),
+  ])];
+  const score = (logisticsMatches.length * 1.5)
+    + (dealMatches.length * 3)
+    + (leaseMatches.length * 3)
+    + (supplyMatches.length * 1.5)
+    + (reportMatches.length * 3)
+    + (company ? 2 : 0);
+  return { score, matched, category, company };
 }
 
 function titleTokens(value) {
@@ -219,9 +306,47 @@ function removeNearDuplicateStories(items) {
   for (const item of items) {
     const cluster = storyClusterKey(item.title);
     if (cluster && clusters.has(cluster)) continue;
-    if (selected.some((existing) => titleSimilarity(existing.title, item.title) >= 0.45)) continue;
+    if (selected.some((existing) => titleSimilarity(existing.title, item.title) >= 0.62)) continue;
     if (cluster) clusters.add(cluster);
     selected.push(item);
+  }
+  return selected;
+}
+
+function selectBalancedNews(items, limit = 10) {
+  const sorted = removeNearDuplicateStories(items).sort(
+    (a, b) => Number(b.importance_score) - Number(a.importance_score) || Date.parse(b.published_at) - Date.parse(a.published_at),
+  );
+  const selected = [];
+  const selectedKeys = new Set();
+  const categoryCounts = {};
+  const companyCounts = {};
+  const canAdd = (item, enforceCategoryTarget) => {
+    if (!item || selectedKeys.has(item.dedupe_key)) return false;
+    const category = item.payload?.category || 'other';
+    const companyKey = item.payload?.company_key || '';
+    if (companyKey && (companyCounts[companyKey] || 0) >= MAX_ITEMS_PER_COMPANY) return false;
+    if (category === 'major_company' && (categoryCounts.major_company || 0) >= MAX_MAJOR_COMPANY_ONLY_ITEMS) return false;
+    if (enforceCategoryTarget && CATEGORY_TARGETS[category] && (categoryCounts[category] || 0) >= CATEGORY_TARGETS[category]) return false;
+    return true;
+  };
+  const add = (item, enforceCategoryTarget = false) => {
+    if (!canAdd(item, enforceCategoryTarget)) return false;
+    const category = item.payload?.category || 'other';
+    const companyKey = item.payload?.company_key || '';
+    selected.push(item);
+    selectedKeys.add(item.dedupe_key);
+    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    if (companyKey) companyCounts[companyKey] = (companyCounts[companyKey] || 0) + 1;
+    return selected.length >= limit;
+  };
+  for (const category of CATEGORY_ORDER) {
+    for (const item of sorted.filter((row) => (row.payload?.category || 'other') === category)) {
+      if (add(item, true)) return selected;
+    }
+  }
+  for (const item of sorted) {
+    if (add(item, false)) return selected;
   }
   return selected;
 }
@@ -251,11 +376,11 @@ async function collectNews(windowStart, windowEnd) {
       const publishedAt = new Date(item.pubDate);
       if (Number.isNaN(publishedAt.getTime())) continue;
       if (publishedAt < windowStart || publishedAt > windowEnd) continue;
-      const title = stripHtml(item.title);
+      const publisher = inferPublisher(item);
+      const title = cleanNewsTitle(item.title, publisher);
       const summary = stripHtml(item.description).slice(0, 500);
       const canonical = canonicalUrl(item.originallink || item.link);
       const titleHash = hash(normalizeTitle(title));
-      const publisher = inferPublisher(item);
       const dedupeKey = canonical ? `url:${hash(canonical)}` : `title:${titleHash}`;
       const fallbackDedupeKey = `publisher-title-time:${hash(`${publisher}:${titleHash}:${publishedAt.toISOString().slice(0, 13)}`)}`;
       const scored = scoreItem({ title, summary });
@@ -271,7 +396,14 @@ async function collectNews(windowStart, windowEnd) {
         importance_score: scored.score,
         matched_keywords: scored.matched,
         source_name: item.source_name || 'rss',
-        payload: { query, raw_pub_date: item.pubDate, fallback_dedupe_key: fallbackDedupeKey },
+        payload: {
+          query,
+          raw_pub_date: item.pubDate,
+          fallback_dedupe_key: fallbackDedupeKey,
+          category: scored.category,
+          company_key: scored.company?.key || '',
+          company_label: scored.company?.label || '',
+        },
       };
       const current = seen.get(dedupeKey) || seen.get(fallbackDedupeKey);
       if (!current || Number(next.importance_score) > Number(current.importance_score)) {
@@ -280,11 +412,10 @@ async function collectNews(windowStart, windowEnd) {
       }
     }
   }
-  const items = removeNearDuplicateStories(
-    [...new Map([...seen.values()].map((item) => [item.dedupe_key, item])).values()]
-      .sort((a, b) => Number(b.importance_score) - Number(a.importance_score) || Date.parse(b.published_at) - Date.parse(a.published_at)),
-  ).slice(0, 10);
+  const candidates = [...new Map([...seen.values()].map((item) => [item.dedupe_key, item])).values()];
+  const items = selectBalancedNews(candidates, 10);
   items.sourceStats = sourceStats;
+  items.candidateCount = candidates.length;
   return items;
 }
 
@@ -318,7 +449,15 @@ async function publish(run, items) {
       strict_window_start: run.strictWindowStart?.toISOString?.() || run.windowStart.toISOString(),
       strict_window_end: run.windowEnd.toISOString(),
       strict_item_count: run.strictItemCount,
-      expanded_to_recent_7d: run.expandedToRecent7d,
+      expanded_to_recent_7d: false,
+      strict_24h_window: true,
+      candidate_count: run.candidateCount || items.length,
+      selection_policy: {
+        limit: 10,
+        category_targets: CATEGORY_TARGETS,
+        max_items_per_company: MAX_ITEMS_PER_COMPANY,
+        max_major_company_only_items: MAX_MAJOR_COMPANY_ONLY_ITEMS,
+      },
       source_stats: run.sourceStats || {},
       empty_state: items.length === 0,
     },
@@ -355,6 +494,7 @@ async function publishFailure(run, error) {
       queries: SEARCH_QUERIES,
       query_count: SEARCH_QUERIES.length,
       window_hours: run.windowHours,
+      strict_24h_window: true,
       empty_state: false,
     },
     run_status: 'failed',
@@ -368,17 +508,12 @@ async function publishFailure(run, error) {
 async function main() {
   const { windowStart, windowEnd, windowHours } = parseWindow();
   const runKey = `daily-news:${kstDateKey(windowEnd)}:0700KST`;
-  const run = { run_key: runKey, windowStart, windowEnd, windowHours, strictWindowStart: windowStart, strictItemCount: 0, expandedToRecent7d: false, sourceStats: {} };
+  const run = { run_key: runKey, windowStart, windowEnd, windowHours, strictWindowStart: windowStart, strictItemCount: 0, expandedToRecent7d: false, sourceStats: {}, candidateCount: 0 };
   try {
-    let items = await collectNews(windowStart, windowEnd);
+    const items = await collectNews(windowStart, windowEnd);
     run.strictItemCount = items.length;
     run.sourceStats = items.sourceStats || {};
-    if (items.length < 5) {
-      run.expandedToRecent7d = true;
-      run.windowStart = new Date(windowEnd.getTime() - 7 * 24 * HOUR_MS);
-      items = await collectNews(run.windowStart, windowEnd);
-      run.sourceStats = items.sourceStats || {};
-    }
+    run.candidateCount = items.candidateCount || items.length;
     const output = {
       ok: true,
       dry_run: hasFlag('--dry-run'),
@@ -388,7 +523,9 @@ async function main() {
       strict_window_start: windowStart.toISOString(),
       window_end: windowEnd.toISOString(),
       strict_item_count: run.strictItemCount,
-      expanded_to_recent_7d: run.expandedToRecent7d,
+      expanded_to_recent_7d: false,
+      strict_24h_window: true,
+      candidate_count: run.candidateCount,
       source_stats: run.sourceStats,
       item_count: items.length,
       empty_message: items.length ? '' : '수집된 뉴스가 없습니다.',

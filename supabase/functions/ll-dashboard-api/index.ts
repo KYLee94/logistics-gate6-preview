@@ -4374,39 +4374,65 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
 }
 
 const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v3-major-priority';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v4-strict-24h-balanced';
 const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NEWS_HOUR_MS = 60 * 60 * 1000;
 const NEWS_GOOGLE_RSS_URL = 'https://news.google.com/rss/search';
 const NEWS_BING_RSS_URL = 'https://www.bing.com/news/search';
 const NEWS_SEARCH_QUERIES = [
-  '쿠팡 물류센터 OR 풀필먼트센터',
-  'CJ대한통운 물류센터 OR 물류센터 투자',
-  '한진 물류센터 OR 택배 허브',
-  '컬리 물류센터 OR 샛별배송',
-  '롯데글로벌로지스 OR 롯데 물류센터',
-  '물류센터 시장 리포트 OR 물류부동산 리포트',
-  '물류센터 매매 OR 선매입 OR 캡레이트',
-  '물류센터 OR 물류창고',
-  '물류센터 임대 OR 공실 OR 임대료',
-  '물류센터 매매 OR 거래 OR 캡레이트 OR 자산운용',
-  '저온물류센터 OR 풀필먼트센터',
-  '물류창고 착공 OR 준공 OR 공급 OR 개발',
-  '물류센터 PF OR 대출 OR 금리',
-  '쿠팡 OR CJ대한통운 OR 컬리 물류센터',
+  '"물류센터" "임대료" OR "물류센터" "공실" OR "물류센터" "임대차"',
+  '"물류센터" "렌트프리" OR "물류센터" "NOC" OR "물류창고" "임대"',
+  '"물류센터" "매매" OR "물류센터" "거래" OR "물류센터" "선매입"',
+  '"물류센터" "매각" OR "물류센터" "자산운용" OR "물류센터" "캡레이트"',
+  '"물류부동산" "리포트" OR "물류센터" "시장 리포트" OR "물류센터" "전망"',
+  '"물류센터" "공급" OR "물류센터" "개발" OR "물류센터" "준공"',
+  '"저온물류센터" OR "콜드체인" "물류센터" OR "풀필먼트센터"',
+  '"물류창고" "임대" OR "물류창고" "매매" OR "물류창고" "공실"',
+  '"물류센터"',
+  '"물류창고"',
+  '"물류부동산"',
+  '"풀필먼트센터" OR "풀필먼트 서비스"',
+  '"택배" "물류" "센터"',
+  '"저온물류" OR "콜드체인"',
+  '쿠팡 물류센터 OR 쿠팡 풀필먼트 OR 쿠팡 물류',
+  'CJ대한통운 물류센터 OR CJ대한통운 택배 OR CJ대한통운 물류',
+  '한진 물류센터 OR 한진 택배 OR 한진 물류',
+  '컬리 물류센터 OR 컬리 배송 OR 컬리 물류',
+  '롯데글로벌로지스 OR 롯데 물류센터 OR 롯데택배',
+  '현대글로비스 물류 OR 현대글로비스 물류센터',
+  'LX판토스 물류 OR 판토스 물류센터',
+  'DHL 물류 OR DHL 물류센터',
+  '로젠택배 물류 OR 로젠 물류센터',
+  'GS리테일 물류 OR BGF 물류 OR 우체국 물류',
 ];
-const NEWS_IMPORTANT_TERMS = [
-  '쿠팡', 'CJ대한통운', '대한통운', '한진', '컬리', '롯데', '롯데글로벌로지스',
-  '물류시장', '시장 리포트', '리포트', '보고서', '거래시장', '매각', '선매입', '캡레이트',
-  '물류센터', '물류창고', '저온물류', '풀필먼트', '임대', '임대료', '공실',
-  '매매', '거래', '공급', '개발', '인허가', '착공', '준공', '캡레이트', 'cap rate',
-  'PF', '대출', '금리', '쿠팡', 'CJ대한통운', '컬리', '네이버', 'SSG', '3PL',
+const NEWS_LOGISTICS_CONTEXT_TERMS = ['물류센터', '물류 창고', '물류창고', '풀필먼트', 'fulfillment', '저온물류', '저온 물류', '상온물류', '택배', '배송', '3PL', '창고', '허브', '콜드체인', 'cold chain', '냉장', '냉동'];
+const NEWS_MARKET_DEAL_TERMS = ['매매', '거래', '선매입', '매각', '인수', '매수', '매도', '자산운용', '리츠', '펀드', '투자', '캡레이트', 'cap rate', 'PF'];
+const NEWS_LEASE_MARKET_TERMS = ['임대', '임대차', '임대료', '공실', '렌트프리', 'NOC', 'WALE', '테넌트', '임차'];
+const NEWS_SUPPLY_DEVELOPMENT_TERMS = ['공급', '개발', '착공', '준공', '인허가', '신규공급', '신규 공급', '공급예정', '공급 예정', '물류단지', '허가'];
+const NEWS_MARKET_REPORT_TERMS = ['시장 리포트', '물류시장', '물류부동산', '리포트', '보고서', '전망', '마켓', 'market report'];
+const NEWS_MAJOR_COMPANIES = [
+  { key: 'coupang', label: '쿠팡', terms: ['쿠팡', 'Coupang'] },
+  { key: 'cjlogistics', label: 'CJ대한통운', terms: ['CJ대한통운', '대한통운', 'CJ Logistics'] },
+  { key: 'hanjin', label: '한진', terms: ['한진'] },
+  { key: 'kurly', label: '컬리', terms: ['컬리', 'Kurly'] },
+  { key: 'lotte', label: '롯데글로벌로지스', terms: ['롯데글로벌로지스', '롯데택배', '롯데 물류', '롯데'] },
+  { key: 'ssg', label: 'SSG', terms: ['SSG', '쓱닷컴', '이마트'] },
+  { key: 'lx-pantos', label: 'LX판토스', terms: ['LX판토스', '판토스'] },
+  { key: 'hyundai-glovis', label: '현대글로비스', terms: ['현대글로비스', 'Glovis'] },
+  { key: 'dhl', label: 'DHL', terms: ['DHL'] },
+  { key: 'logen', label: '로젠', terms: ['로젠', '로젠택배'] },
+  { key: 'gs-bgf', label: 'GS/BGF', terms: ['GS리테일', 'GS25', 'BGF', 'CU'] },
+  { key: 'korea-post', label: '우체국', terms: ['우체국', '우정사업본부'] },
 ];
-const NEWS_CORE_TERMS = ['물류센터', '물류 창고', '물류창고', '저온물류', '저온 물류', '풀필먼트', 'fulfillment'];
-const NEWS_STRUCTURAL_TERMS = /(공급|매매|거래|임대|공실|준공|착공|인허가|금리|캡레이트|cap\s*rate|PF|투자|매각|개발|물류)/iu;
-
-const NEWS_MAJOR_COMPANY_TERMS = ['쿠팡', 'CJ대한통운', '대한통운', '한진', '컬리', '롯데', '롯데글로벌로지스'];
-const NEWS_MARKET_REPORT_TERMS = ['시장 리포트', '물류시장', '리포트', '보고서', '캡레이트', 'cap rate', '매매', '거래', '선매입', '매각'];
+const NEWS_CATEGORY_TARGETS: Record<string, number> = {
+  market_deal: 4,
+  lease_market: 2,
+  supply_development: 2,
+  major_company: 4,
+};
+const NEWS_CATEGORY_ORDER = ['market_deal', 'lease_market', 'supply_development', 'major_company', 'other'];
+const NEWS_MAX_ITEMS_PER_COMPANY = 2;
+const NEWS_MAX_MAJOR_COMPANY_ONLY_ITEMS = 5;
 
 type NewsCollectorItem = {
   dedupe_key: string;
@@ -4485,15 +4511,75 @@ function newsPublisher(item: Record<string, unknown>) {
   }
 }
 
+function newsEscapeRegExp(value: unknown) {
+  return String(value || '').replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function newsCleanTitle(title: unknown, publisher: unknown = '') {
+  let out = newsStripHtml(title);
+  const publisherVariants = [
+    safeText(publisher),
+    safeText(publisher).replace(/\s+/gu, ''),
+    safeText(publisher).replace(/뉴스$/u, ''),
+  ].filter(Boolean);
+  for (const variant of publisherVariants) {
+    const escaped = newsEscapeRegExp(variant);
+    out = out
+      .replace(new RegExp(`\\s*[-|–—·ㆍ:]\\s*${escaped}\\s*$`, 'iu'), '')
+      .replace(new RegExp(`^${escaped}\\s*[-|–—·ㆍ:]\\s*`, 'iu'), '');
+  }
+  return out
+    .replace(/\s*[-|–—·ㆍ:]\s*(네이버뉴스|Google News|Bing News)\s*$/iu, '')
+    .replace(/^\s*(?:\[중요\]|중요[:：-])\s*/iu, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function newsMatchTerms(text: string, terms: string[]) {
+  const lower = text.toLowerCase();
+  return terms.filter((term) => lower.includes(term.toLowerCase()));
+}
+
+function newsCompanyForText(text: string) {
+  const lower = text.toLowerCase();
+  return NEWS_MAJOR_COMPANIES.find((company) => company.terms.some((term) => lower.includes(term.toLowerCase()))) || null;
+}
+
 function newsScore(item: { title: string; summary: string }) {
   const combined = `${item.title} ${item.summary}`;
-  const lower = combined.toLowerCase();
-  if (!NEWS_CORE_TERMS.some((term) => lower.includes(term.toLowerCase()))) return { score: 0, matched: [] };
-  const matched = NEWS_IMPORTANT_TERMS.filter((term) => lower.includes(term.toLowerCase()));
-  const structuralBoost = NEWS_STRUCTURAL_TERMS.test(combined) ? 2 : 0;
-  const majorBoost = NEWS_MAJOR_COMPANY_TERMS.some((term) => lower.includes(term.toLowerCase())) ? 5 : 0;
-  const reportBoost = NEWS_MARKET_REPORT_TERMS.some((term) => lower.includes(term.toLowerCase())) ? 4 : 0;
-  return { score: matched.length + structuralBoost + majorBoost + reportBoost, matched };
+  const logisticsMatches = newsMatchTerms(combined, NEWS_LOGISTICS_CONTEXT_TERMS);
+  const dealMatches = newsMatchTerms(combined, NEWS_MARKET_DEAL_TERMS);
+  const leaseMatches = newsMatchTerms(combined, NEWS_LEASE_MARKET_TERMS);
+  const supplyMatches = newsMatchTerms(combined, NEWS_SUPPLY_DEVELOPMENT_TERMS);
+  const reportMatches = newsMatchTerms(combined, NEWS_MARKET_REPORT_TERMS);
+  const company = newsCompanyForText(combined);
+  const hasLogisticsContext = logisticsMatches.length > 0;
+  const hasMarketSignal = dealMatches.length || leaseMatches.length || reportMatches.length;
+  const hasSupplySignal = supplyMatches.length;
+  const companyLogisticsSignal = company && /물류|센터|창고|풀필먼트|허브|택배|배송|터미널|fulfillment/iu.test(combined);
+  if ((!hasLogisticsContext || (!hasMarketSignal && !hasSupplySignal)) && !companyLogisticsSignal) {
+    return { score: 0, matched: [], category: 'noise', company: null };
+  }
+  let category = 'major_company';
+  if (dealMatches.length || reportMatches.length) category = 'market_deal';
+  else if (leaseMatches.length) category = 'lease_market';
+  else if (supplyMatches.length) category = 'supply_development';
+  else if (!company) category = 'other';
+  const matched = [...new Set([
+    ...logisticsMatches,
+    ...dealMatches,
+    ...leaseMatches,
+    ...supplyMatches,
+    ...reportMatches,
+    ...(company ? [company.label] : []),
+  ])];
+  const score = (logisticsMatches.length * 1.5)
+    + (dealMatches.length * 3)
+    + (leaseMatches.length * 3)
+    + (supplyMatches.length * 1.5)
+    + (reportMatches.length * 3)
+    + (company ? 2 : 0);
+  return { score, matched, category, company };
 }
 
 function newsTitleTokens(value: unknown) {
@@ -4525,9 +4611,47 @@ function newsRemoveNearDuplicateStories(items: NewsCollectorItem[]) {
   for (const item of items) {
     const cluster = newsStoryClusterKey(item.title);
     if (cluster && clusters.has(cluster)) continue;
-    if (selected.some((existing) => newsTitleSimilarity(existing.title, item.title) >= 0.45)) continue;
+    if (selected.some((existing) => newsTitleSimilarity(existing.title, item.title) >= 0.62)) continue;
     if (cluster) clusters.add(cluster);
     selected.push(item);
+  }
+  return selected;
+}
+
+function newsSelectBalancedItems(items: NewsCollectorItem[], limit = 10) {
+  const sorted = newsRemoveNearDuplicateStories(items).sort(
+    (a, b) => Number(b.importance_score) - Number(a.importance_score) || Date.parse(b.published_at) - Date.parse(a.published_at),
+  );
+  const selected: NewsCollectorItem[] = [];
+  const selectedKeys = new Set<string>();
+  const categoryCounts: Record<string, number> = {};
+  const companyCounts: Record<string, number> = {};
+  const canAdd = (item: NewsCollectorItem, enforceCategoryTarget: boolean) => {
+    if (!item || selectedKeys.has(item.dedupe_key)) return false;
+    const category = safeText(item.payload?.category || 'other');
+    const companyKey = safeText(item.payload?.company_key);
+    if (companyKey && (companyCounts[companyKey] || 0) >= NEWS_MAX_ITEMS_PER_COMPANY) return false;
+    if (category === 'major_company' && (categoryCounts.major_company || 0) >= NEWS_MAX_MAJOR_COMPANY_ONLY_ITEMS) return false;
+    if (enforceCategoryTarget && NEWS_CATEGORY_TARGETS[category] && (categoryCounts[category] || 0) >= NEWS_CATEGORY_TARGETS[category]) return false;
+    return true;
+  };
+  const add = (item: NewsCollectorItem, enforceCategoryTarget = false) => {
+    if (!canAdd(item, enforceCategoryTarget)) return false;
+    const category = safeText(item.payload?.category || 'other');
+    const companyKey = safeText(item.payload?.company_key);
+    selected.push(item);
+    selectedKeys.add(item.dedupe_key);
+    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    if (companyKey) companyCounts[companyKey] = (companyCounts[companyKey] || 0) + 1;
+    return selected.length >= limit;
+  };
+  for (const category of NEWS_CATEGORY_ORDER) {
+    for (const item of sorted.filter((row) => safeText(row.payload?.category || 'other') === category)) {
+      if (add(item, true)) return selected;
+    }
+  }
+  for (const item of sorted) {
+    if (add(item, false)) return selected;
   }
   return selected;
 }
@@ -4540,8 +4664,7 @@ function newsWindowForDate(dateText: string) {
   const match = String(dateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/u);
   if (!match) throw new Error('date must look like YYYY-MM-DD');
   const windowEnd = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), -2, 0, 0));
-  const kstDay = new Date(windowEnd.getTime() + NEWS_KST_OFFSET_MS).getUTCDay();
-  const windowHours = kstDay === 1 ? 72 : 24;
+  const windowHours = 24;
   const windowStart = new Date(windowEnd.getTime() - windowHours * NEWS_HOUR_MS);
   return { windowStart, windowEnd, windowHours };
 }
@@ -4587,9 +4710,9 @@ async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days
       const publishedAt = new Date(row.pubDate);
       if (Number.isNaN(publishedAt.getTime())) continue;
       if (publishedAt < windowStart || publishedAt > windowEnd) continue;
-      const title = newsStripHtml(row.title);
-      const summary = newsStripHtml(row.description).slice(0, 500);
       const publisher = newsPublisher(row as Record<string, unknown>);
+      const title = newsCleanTitle(row.title, publisher);
+      const summary = newsStripHtml(row.description).slice(0, 500);
       const canonical = newsCanonicalUrl(row.link);
       const titleHash = await sha256Text(newsNormalizeTitle(title));
       const urlHash = canonical ? await sha256Text(canonical) : '';
@@ -4608,7 +4731,14 @@ async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days
         importance_score: scored.score,
         matched_keywords: scored.matched,
         source_name: safeText(row.source_name),
-        payload: { query: row.query, raw_pub_date: row.pubDate, fallback_dedupe_key: fallbackDedupeKey },
+        payload: {
+          query: row.query,
+          raw_pub_date: row.pubDate,
+          fallback_dedupe_key: fallbackDedupeKey,
+          category: scored.category,
+          company_key: scored.company?.key || '',
+          company_label: scored.company?.label || '',
+        },
       };
       const current = seen.get(dedupeKey) || seen.get(fallbackDedupeKey);
       if (!current || Number(next.importance_score) > Number(current.importance_score)) {
@@ -4617,12 +4747,11 @@ async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days
       }
     }
   }
+  const candidates = [...new Map([...seen.values()].map((item) => [item.dedupe_key, item])).values()];
   return {
-    items: newsRemoveNearDuplicateStories(
-      [...new Map([...seen.values()].map((item) => [item.dedupe_key, item])).values()]
-        .sort((a, b) => Number(b.importance_score) - Number(a.importance_score) || Date.parse(b.published_at) - Date.parse(a.published_at)),
-    ),
+    items: newsSelectBalancedItems(candidates, 10),
     sourceStats,
+    candidateCount: candidates.length,
   };
 }
 
@@ -4630,22 +4759,15 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
   const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(dateText) ? dateText : newsTodayKstDateKey();
   const strictWindow = newsWindowForDate(selectedDate);
   const strictDays = Math.ceil(strictWindow.windowHours / 24);
-  let collected = await collectNewsRowsForWindow(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
-  let expandedWindowStart = strictWindow.windowStart;
-  let expanded = false;
+  const collected = await collectNewsRowsForWindow(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
   const strictItemCount = collected.items.length;
-  if (collected.items.length < 5) {
-    expanded = true;
-    expandedWindowStart = new Date(strictWindow.windowEnd.getTime() - 7 * 24 * NEWS_HOUR_MS);
-    collected = await collectNewsRowsForWindow(expandedWindowStart, strictWindow.windowEnd, 7);
-  }
   const runKey = `daily-news:${selectedDate}:0700KST`;
   const { data: runRow, error: runError } = await ctx.serviceClient
     .from('ll_news_runs')
     .upsert({
       run_key: runKey,
       scheduled_for: strictWindow.windowEnd.toISOString(),
-      window_start: expandedWindowStart.toISOString(),
+      window_start: strictWindow.windowStart.toISOString(),
       window_end: strictWindow.windowEnd.toISOString(),
       source_summary: {
         collector_version: NEWS_COLLECTOR_VERSION,
@@ -4657,7 +4779,15 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
         strict_window_start: strictWindow.windowStart.toISOString(),
         strict_window_end: strictWindow.windowEnd.toISOString(),
         strict_item_count: strictItemCount,
-        expanded_to_recent_7d: expanded,
+        expanded_to_recent_7d: false,
+        strict_24h_window: true,
+        candidate_count: collected.candidateCount || collected.items.length,
+        selection_policy: {
+          limit: 10,
+          category_targets: NEWS_CATEGORY_TARGETS,
+          max_items_per_company: NEWS_MAX_ITEMS_PER_COMPANY,
+          max_major_company_only_items: NEWS_MAX_MAJOR_COMPANY_ONLY_ITEMS,
+        },
         source_stats: collected.sourceStats,
         empty_state: collected.items.length === 0,
       },

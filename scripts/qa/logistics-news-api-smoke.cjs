@@ -88,14 +88,27 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date) {
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body?.ok === false) throw new Error(`news/list ${date} failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
   const data = body.data || {};
+  const items = Array.isArray(data.items) ? data.items : [];
+  const sourceSummary = data.latest_run?.source_summary || {};
   return {
     date,
     http_status: response.status,
     data_status: data.status,
     selected_date: data.selected_date,
     run_key: data.latest_run?.run_key || null,
-    item_count: Array.isArray(data.items) ? data.items.length : 0,
+    item_count: items.length,
     empty_message: data.empty_message,
+    source_summary: sourceSummary,
+    window_hours: sourceSummary.window_hours,
+    strict_24h_window: sourceSummary.strict_24h_window,
+    expanded_to_recent_7d: sourceSummary.expanded_to_recent_7d,
+    titles_with_important_prefix: items
+      .filter((item) => /^\s*(?:\[중요\]|중요[:：-])/iu.test(String(item.title || '')))
+      .map((item) => item.title),
+    titles_with_publisher_suffix: items
+      .filter((item) => item.publisher && new RegExp(`\\s*[-|–—·ㆍ:]\\s*${String(item.publisher).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'iu').test(String(item.title || '')))
+      .map((item) => item.title),
+    missing_publisher_count: items.filter((item) => !item.publisher).length,
   };
 }
 
@@ -114,6 +127,13 @@ async function main() {
     ok: checks.every((check, index) => check.http_status === 200
       && check.selected_date === check.date
       && check.empty_message === '수집된 뉴스가 없습니다.'
+      && check.window_hours === 24
+      && check.strict_24h_window === true
+      && check.expanded_to_recent_7d !== true
+      && check.item_count <= 10
+      && check.titles_with_important_prefix.length === 0
+      && check.titles_with_publisher_suffix.length === 0
+      && check.missing_publisher_count === 0
       && (index > 0 || check.item_count > 0)),
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
