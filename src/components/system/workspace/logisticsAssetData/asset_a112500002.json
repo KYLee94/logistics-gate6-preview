@@ -105,7 +105,7 @@
         "areaTableStatus": "unknown",
         "buildingHubStatus": "ok",
         "firstConfiguredAt": "2021-10-29",
-        "grossFloorAreaSqm": 39368.8,
+        "grossFloorAreaSqm": 50825.88,
         "standardizedAddress": "경기도 평택시 도일유통길 64"
       },
       "is3pl": false,
@@ -287,7 +287,7 @@
         "areaTableStatus": "unknown",
         "buildingHubStatus": "ok",
         "firstConfiguredAt": "2021-10-29",
-        "grossFloorAreaSqm": 39368.8,
+        "grossFloorAreaSqm": 50825.88,
         "standardizedAddress": "경기도 평택시 도일유통길 64"
       },
       "is3pl": false,
@@ -469,7 +469,7 @@
         "areaTableStatus": "unknown",
         "buildingHubStatus": "ok",
         "firstConfiguredAt": "2021-10-29",
-        "grossFloorAreaSqm": 39368.8,
+        "grossFloorAreaSqm": 50825.88,
         "standardizedAddress": "경기도 평택시 도일유통길 64"
       },
       "is3pl": false,
@@ -651,7 +651,7 @@
         "areaTableStatus": "unknown",
         "buildingHubStatus": "ok",
         "firstConfiguredAt": "2021-10-29",
-        "grossFloorAreaSqm": 39368.8,
+        "grossFloorAreaSqm": 50825.88,
         "standardizedAddress": "경기도 평택시 도일유통길 64"
       },
       "is3pl": false,
@@ -1116,7 +1116,7 @@
     "monthlyCostTotal": 460486000,
     "monthlyRentTotal": 460486000,
     "firstConfiguredAt": "2021-10-29",
-    "grossFloorAreaSqm": 39368.8,
+    "grossFloorAreaSqm": 50825.88,
     "uniqueTenantCount": 1,
     "standardizedAddress": "경기도 평택시 도일유통길 64",
     "grossFloorAreaEffectiveAt": "2021-10-29",
@@ -1501,7 +1501,7 @@
     "corridorAreaSqm": null,
     "exclusiveAreaSqm": 53212.24,
     "warehouseAreaSqm": 49491.52,
-    "grossFloorAreaSqm": 39368.8,
+    "grossFloorAreaSqm": 50825.88,
     "mechanicalAreaSqm": 656.68,
     "otherCommonAreaSqm": 29.4,
     "otherExclusiveAreaSqm": null

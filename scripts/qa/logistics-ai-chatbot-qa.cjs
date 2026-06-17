@@ -858,14 +858,14 @@ async function main() {
     id: 'confusing_lower_vacancy_comparison',
     category: '헷갈리는 질문',
     question: '아레나스 양지랑 부산 송정 중에 공실률 더 낮은 쪽이 뭐야? 높은 거 말고 낮은 거',
-    basis: { expected_winner: busan.asset_name, arena_vacancy_rate: formatPercent(arenaVacancyRate), busan_vacancy_rate: formatPercent(busanVacancyRate) },
+    basis: { expected_winner: arenaYangji.asset_name, arena_vacancy_rate: formatPercent(arenaVacancyRate), busan_vacancy_rate: formatPercent(busanVacancyRate) },
     validate: (answer) => {
       assertIncludes(answer, 'confusing lower vacancy comparison', '아레나스', '양지', '부산', '송정', formatPercent(arenaVacancyRate), formatPercent(busanVacancyRate));
-      if (!/부산|송정/u.test(answer)) throw new Error(`lower vacancy comparison missing expected lower asset: ${answer}`);
-      if (!/(부산|송정).{0,36}(낮|작|적|최소|더\s*낮)|낮은\s*쪽.{0,36}(부산|송정)/u.test(answer)) {
+      if (!/아레나스|양지/u.test(answer)) throw new Error(`lower vacancy comparison missing expected lower asset: ${answer}`);
+      if (!/(아레나스|양지).{0,36}(낮|작|적|최소|더\s*낮)|낮은\s*쪽.{0,36}(아레나스|양지)/u.test(answer)) {
         throw new Error(`lower vacancy comparison does not state expected lower direction: ${answer}`);
       }
-      if (/아레나스.{0,24}(낮|작|적|더\s*낮)/u.test(answer)) {
+      if (/(부산|송정).{0,24}(낮|작|적|더\s*낮)/u.test(answer)) {
         throw new Error(`lower vacancy comparison has wrong direction: ${answer}`);
       }
       if (/아레나스안성|안성.{0,16}공실률/u.test(answer)) {

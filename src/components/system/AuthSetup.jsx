@@ -92,6 +92,19 @@ const buildAuthRedirectUrl = (path = 'auth-setup') => {
     return new URL(normalizedPath, normalizedBase).toString();
 };
 const buildPasswordRecoveryRedirectUrl = () => LOGISTICS_PASSWORD_RECOVERY_REDIRECT_URL;
+const clearPasswordRecoveryUrl = () => {
+    try {
+        const base = import.meta.env.BASE_URL || '/';
+        const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+        window.history.replaceState(
+            window.history.state || null,
+            '',
+            new URL(`${normalizedBase}auth-setup`, window.location.origin).toString(),
+        );
+    } catch {
+        // URL cleanup should not block a successful password update.
+    }
+};
 const navigateAfterSuccessfulAuth = (onLogin) => {
     const beforeUrl = window.location.href;
     if (onLogin) onLogin();
@@ -203,7 +216,7 @@ export default function AuthSetup({ onLogin }) {
     const [isCheckingEmail, setIsCheckingEmail] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [showChangeSuccessModal, setShowChangeSuccessModal] = useState(false);
+    const [isRecoverySubmitting, setIsRecoverySubmitting] = useState(false);
     
     const passwordInputRef = useRef(null);
     const currentAuthEmail = () => (resolvedAuthEmail || email).trim().toLowerCase();
@@ -428,6 +441,7 @@ export default function AuthSetup({ onLogin }) {
     const handleRecoveryPasswordSubmit = async (e) => {
         e?.preventDefault();
         setErrorMessage('');
+        if (isRecoverySubmitting) return;
         
         if (newPassword.length < 6) {
             triggerError('새 패스워드는 최소 6자리 이상이어야 합니다.');
@@ -438,6 +452,7 @@ export default function AuthSetup({ onLogin }) {
             return;
         }
 
+        setIsRecoverySubmitting(true);
         try {
             const { error: updateError } = await supabase.auth.updateUser({
                 password: newPassword
@@ -448,12 +463,31 @@ export default function AuthSetup({ onLogin }) {
                 return;
             }
 
-            // Success, clear recovery mode and show confirmation popup
+            const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+            const sessionUser = sessionData?.session?.user;
+            if (sessionError || !sessionUser) {
+                triggerError('패스워드는 변경됐지만 접속 세션을 확인하지 못했습니다. 새 패스워드로 다시 로그인해 주세요.');
+                return;
+            }
+
+            const sessionEmail = sessionUser.email || email || '';
+            await recordLogisticsLoginHistory(sessionEmail, sessionEmail, 'password_recovery');
+            clearPasswordRecoveryUrl();
             setRecoveryMode(false);
-            setShowChangeSuccessModal(true);
+            setDissolved(true);
+
+            setTimeout(() => {
+                const base = import.meta.env.BASE_URL || '/';
+                const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+                const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || 'work-platform';
+                window.sessionStorage.removeItem('logisticsPostLoginPath');
+                window.location.assign(new URL(`${normalizedBase}${String(nextPath).replace(/^\/+/, '')}`, window.location.origin).toString());
+            }, 500);
 
         } catch {
             triggerError('패스워드 변경 중 오류가 발생했습니다.');
+        } finally {
+            setIsRecoverySubmitting(false);
         }
     };
 
@@ -889,9 +923,10 @@ export default function AuthSetup({ onLogin }) {
 
                                 <button 
                                     type="submit"
-                                    className="w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] cursor-pointer"
+                                    disabled={isRecoverySubmitting}
+                                    className={`w-full bg-[#111] dark:bg-white text-white dark:text-[#111111] hover:bg-[#333] dark:hover:bg-gray-200 rounded-[16px] py-3.5 font-semibold transition-colors text-[16px] ${isRecoverySubmitting ? 'opacity-70 cursor-wait' : 'cursor-pointer'}`}
                                 >
-                                    패스워드 저장 및 접속하기
+                                    {isRecoverySubmitting ? '패스워드 저장 중...' : '패스워드 저장 및 접속하기'}
                                 </button>
                             </form>
                         </>
@@ -942,39 +977,6 @@ export default function AuthSetup({ onLogin }) {
                 </div>
             )}
 
-            {/* Password Change Success Modal */}
-            {showChangeSuccessModal && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 backdrop-blur-sm transition-opacity">
-                    <div className="bg-white dark:bg-[#1C1C1E] w-[400px] rounded-[24px] p-8 shadow-2xl flex flex-col items-center">
-                        <div className="w-12 h-12 rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center mb-5">
-                            <svg className="w-6 h-6 text-green-500" fill="none" strokeWidth="2.5" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                            </svg>
-                        </div>
-                        <h3 className="text-[20px] font-bold text-[#1D1D1F] dark:text-white mb-4 tracking-tight">패스워드 변경 완료</h3>
-                        <div className="bg-[#F5F5F7] dark:bg-[#2C2C2E] rounded-lg px-6 py-4 mb-6 flex flex-col items-center w-full">
-                            <span className="text-[13px] text-[#86868B] dark:text-[#A1A1AA] mb-1">새로 설정된 패스워드</span>
-                            <span className="text-[22px] font-semibold text-[#1D1D1F] dark:text-white tracking-widest">{newPassword}</span>
-                        </div>
-                        <p className="text-[14px] font-medium text-[#86868B] dark:text-[#A1A1AA] mb-8 text-center leading-relaxed">
-                            패스워드가 성공적으로 변경되었습니다.<br/>반드시 기억해 주세요.
-                        </p>
-                        <button 
-                            onClick={() => {
-                                sessionStorage.removeItem('logisticsAuthSetupMode');
-                                setShowChangeSuccessModal(false);
-                                setDissolved(true);
-                                setTimeout(() => {
-                                    navigateAfterSuccessfulAuth(onLogin);
-                                }, 700);
-                            }} 
-                            className="w-full py-3.5 rounded-[16px] bg-[#111] dark:bg-white text-white dark:text-[#111111] font-semibold text-[15px] hover:bg-[#333] dark:hover:bg-gray-200 transition-colors cursor-pointer"
-                        >
-                            접속하기
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

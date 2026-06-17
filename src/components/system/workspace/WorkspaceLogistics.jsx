@@ -11,6 +11,14 @@ import rawAssetOptionsData from './logisticsAssetOptionsData.json';
 import companyOptionsData from './logisticsCompanyOptionsData.json';
 import sectorData from './logisticsSectorData.json';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
+import {
+  AssetSpecDashboard,
+  DailyLogisticsNewsCard,
+  DataManagementDashboard,
+  HomeOperatingCostSummary,
+  InvestmentIndexDashboard,
+  MarketDataDashboard,
+} from './LogisticsSectorModules';
 import infoIconUrl from '../../../assets/i_icon.png';
 import { avatarCandidates } from '../avatarUtils';
 
@@ -53,6 +61,8 @@ const MODULES = [
   { id: 'home', label: 'Home', source: 'Home' },
   { id: 'asset', label: 'Asset', source: 'Asset' },
   { id: 'company', label: 'Company', source: 'Company' },
+  { id: 'investment-index', label: 'Investment Index', source: 'Investment Index' },
+  { id: 'asset-spec', label: 'Asset Spec', source: 'Asset Spec' },
   { id: 'tools', label: 'Analysis Tools', source: 'Analysis Tools' },
   { id: 'playground', label: 'Pivot Table', source: 'Pivot Table' },
   { id: 'quality', label: 'Data Quality', source: 'Data Quality' },
@@ -1591,6 +1601,19 @@ function calculateWeightedAveragePerPy(rows, valueKeys = [], totalKeys = [], fal
   return fallbackValue;
 }
 
+function calculateWeightedWaleYears(rows, fallbackValue) {
+  const now = new Date();
+  const weighted = (rows || []).reduce((acc, row) => {
+    const area = Number(firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm, row.totalLeasedAreaSqm, row.areaSqm));
+    const expiry = new Date(firstDefined(row.currentEndDate, row.latestExpiry, row.earliestExpiry));
+    if (!Number.isFinite(area) || area <= 0 || Number.isNaN(expiry.getTime())) return acc;
+    const years = Math.max(0, (expiry.getTime() - now.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    return { weightedSum: acc.weightedSum + years * area, areaSum: acc.areaSum + area };
+  }, { weightedSum: 0, areaSum: 0 });
+  if (weighted.areaSum > 0) return weighted.weightedSum / weighted.areaSum;
+  return fallbackValue;
+}
+
 function buildBuildingRegisterPayload(source = {}) {
   const asset = source.asset || source;
   const sourcePayload = asset.sourcePayload || asset.source_payload || {};
@@ -2215,16 +2238,21 @@ function PortfolioAssetTable({ rows, onAssetClick = null }) {
       <table className="w-full table-fixed border-collapse text-left">
         <colgroup>
           <col className="w-[42px]" />
-          <col className="w-[34%]" />
-          <col className="w-[24%]" />
-          <col className="w-[18%]" />
-          <col className="w-[12%]" />
-          <col className="w-[12%]" />
+          <col className="w-[25%]" />
+          <col className="w-[20%]" />
+          <col className="w-[10%]" />
+          <col className="w-[9%]" />
+          <col className="w-[11%]" />
+          <col className="w-[9%]" />
+          <col className="w-[8%]" />
         </colgroup>
         <thead className="bg-[#1F1F1E] text-[12px] text-[#86868B]">
           <tr>
             {['No.', '자산명', '주소(시군구)', '연면적(평)', '저온창고 비율', 'E. NOC'].map((header) => (
-              <th key={header} className="px-2.5 py-2 font-semibold first:pl-3 last:pr-3">{header}</th>
+              <th key={header} className="whitespace-nowrap px-2 py-2 text-[11px] font-semibold first:pl-3 last:pr-3">{header}</th>
+            ))}
+            {['평당 임대료', 'WALE'].map((header) => (
+              <th key={header} className="whitespace-nowrap px-2 py-2 text-right text-[11px] font-semibold last:pr-3">{header}</th>
             ))}
           </tr>
         </thead>
@@ -2240,7 +2268,9 @@ function PortfolioAssetTable({ rows, onAssetClick = null }) {
               <td className="truncate px-2.5 py-2 text-[12.5px] text-[#D1D1D6]" title={row.address}>{row.address}</td>
               <td className="whitespace-nowrap px-2.5 py-2 text-right text-[12.5px] font-semibold text-[#E5E5E5] last:pr-3">{row.grossFloorAreaPy}</td>
               <td className="whitespace-nowrap px-2.5 py-2 text-right text-[12.5px] text-[#D1D1D6]">{row.coldRatio}</td>
-              <td className="whitespace-nowrap px-2.5 py-2 text-right text-[12.5px] font-semibold text-[#E5E5E5] last:pr-3">{row.eNoc}</td>
+              <td className="whitespace-nowrap px-2.5 py-2 text-right text-[12.5px] font-semibold text-[#E5E5E5]">{row.eNoc}</td>
+              <td className="whitespace-nowrap px-2.5 py-2 text-right text-[12.5px] text-[#D1D1D6]">{row.rentPerPy}</td>
+              <td className="whitespace-nowrap px-2.5 py-2 text-right text-[12.5px] font-semibold text-[#E5E5E5] last:pr-3">{row.wale}</td>
             </tr>
           ))}
         </tbody>
@@ -4991,12 +5021,28 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const [pendingTaskAction, setPendingTaskAction] = useState(null);
   const [taskSaveStatus, setTaskSaveStatus] = useState(null);
 
-  const isContractData = normalizeLogisticsPath(currentPath) === pathFor('contract-data');
+  const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
+  const isContractData = normalizedCurrentPath === pathFor('contract-data');
+  const isDataManagement = normalizedCurrentPath === pathFor('data-management');
+  const isMarketData = normalizedCurrentPath === pathFor('market-data') || normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/market-data/`);
   const isDashboard = currentPath.startsWith(pathFor('dashboard'));
   const isPdfReport = currentPath.startsWith(pathFor('pdf-report'));
-  const shouldLoadWorkPlatformData = !isDashboard && !isContractData && !isPdfReport;
+  const shouldLoadWorkPlatformData = !isDashboard && !isContractData && !isDataManagement && !isMarketData && !isPdfReport;
   const requestedModule = currentPath.split('/').pop() || 'home';
   const activeModule = requestedModule === 'sector' || requestedModule === 'weekly' ? 'home' : requestedModule;
+  const marketRoute = normalizedCurrentPath.split('/').pop() || 'overview';
+  const activeMarketTab = ({
+    overview: 'overview',
+    'lease-market': 'lease',
+    'supply-pipeline': 'supply',
+    transactions: 'transactions',
+    'source-update': 'source',
+  })[marketRoute] || 'overview';
+  const navigateMarketData = (route) => {
+    const nextPath = `${LOGISTICS_INTERNAL_BASE}/market-data/${route || 'overview'}`;
+    window.history.pushState(null, '', pathForLogisticsUrl(import.meta.env.BASE_URL, nextPath));
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
   const weeklyTasks = useMemo(() => buildMainWeeklyTasks(weeklyReportData, permission), [permission]);
@@ -5568,6 +5614,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     await submitTaskOperation('update', other, { createdAt: currentCreatedAt });
   };
 
+  if (isMarketData) {
+    return <MarketDataDashboard activeTab={activeMarketTab} onNavigate={navigateMarketData} />;
+  }
+
+  if (isDataManagement) {
+    return <DataManagementDashboard />;
+  }
+
   if (isContractData) {
     return (
       <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
@@ -5668,6 +5722,8 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       </section>
 
       <WeeklyAssetStatusTable />
+
+      <DailyLogisticsNewsCard />
 
       <section id="task-management" className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5">
         <div className="mb-4 flex items-center justify-between">
@@ -6788,6 +6844,11 @@ function escapeHtmlAttribute(value) {
   return escapeHtml(value).replace(/`/g, '&#96;');
 }
 
+function buildMapCalloutHtml(point, index, options = {}) {
+  const centeredClass = options.centered ? ' logistics-map-callout-wrap--centered' : '';
+  return `<div class="logistics-map-callout-wrap${centeredClass}"><button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" class="logistics-map-callout"><strong>${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span>${escapeHtml(point.address || '')}</span></button></div>`;
+}
+
 function buildPrintableMapTiles(latitude, longitude, zoom = 13) {
   const lat = Math.max(-85.05112878, Math.min(85.05112878, Number(latitude)));
   const lng = Number(longitude);
@@ -7057,8 +7118,8 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
         validPoints.forEach((point, index) => {
           const marker = L.marker([Number(point.latitude), Number(point.longitude)], { title: point.assetName || `자산 ${index + 1}` }).addTo(map);
           marker.bindTooltip(
-            `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:inline-block;min-width:220px;max-width:320px;width:max-content;border:0;outline:0;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.18);cursor:pointer;box-sizing:border-box;white-space:nowrap;"><strong style="display:block;margin-bottom:4px;color:#111;white-space:nowrap;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="display:block;color:#111;white-space:nowrap;">${escapeHtml(point.address || '')}</span></button>`,
-            { direction: 'right', offset: [14, 0], opacity: 1, sticky: true, interactive: true, className: 'logistics-map-tooltip' },
+            buildMapCalloutHtml(point, index),
+            { direction: 'top', offset: [-16, -18], opacity: 1, sticky: false, interactive: true, className: 'logistics-map-tooltip' },
           );
           marker.on('mouseover', () => marker.openTooltip());
           marker.on('mouseout', () => window.setTimeout(() => marker.closeTooltip(), 650));
@@ -7106,11 +7167,13 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
             title: point.assetName || `자산 ${index + 1}`,
           });
           const infoWindow = new naver.maps.InfoWindow({
-            content: `<button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" style="display:inline-block;min-width:220px;max-width:320px;width:max-content;border:0;outline:0;border-radius:8px;background:#fff;color:#111;padding:10px 12px;text-align:left;font-size:12px;line-height:1.45;box-shadow:0 12px 28px rgba(0,0,0,.18);cursor:pointer;box-sizing:border-box;white-space:nowrap;"><strong style="display:block;margin-bottom:4px;color:#111;white-space:nowrap;">${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span style="display:block;color:#111;white-space:nowrap;">${escapeHtml(point.address || '')}</span></button>`,
+            content: buildMapCalloutHtml(point, index, { centered: true }),
             backgroundColor: 'transparent',
             borderColor: 'transparent',
             borderWidth: 0,
+            disableAnchor: true,
             anchorSize: new naver.maps.Size(0, 0),
+            pixelOffset: new naver.maps.Point(0, -38),
           });
           let closeTimer = null;
           naver.maps.Event.addListener(marker, 'mouseover', () => {
@@ -7198,6 +7261,47 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
           .logistics-map-tooltip,
           .logistics-map-tooltip * {
             box-sizing: border-box !important;
+          }
+          .logistics-map-callout-wrap {
+            display: block;
+            pointer-events: auto;
+          }
+          .logistics-map-callout-wrap--centered {
+            transform: translateX(-50%);
+          }
+          .logistics-map-callout {
+            display: block;
+            min-width: 220px;
+            max-width: min(320px, calc(100vw - 48px));
+            width: max-content;
+            border: 0;
+            outline: 0;
+            border-radius: 8px;
+            background: #fff;
+            color: #111;
+            padding: 10px 12px;
+            text-align: left;
+            font-size: 12px;
+            line-height: 1.45;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+            cursor: pointer;
+            white-space: nowrap;
+          }
+          .logistics-map-callout,
+          .logistics-map-callout * {
+            box-sizing: border-box !important;
+          }
+          .logistics-map-callout strong {
+            display: block;
+            margin-bottom: 4px;
+            color: #111;
+            font-weight: 700;
+            white-space: nowrap;
+          }
+          .logistics-map-callout span {
+            display: block;
+            color: #111;
+            white-space: nowrap;
           }
         `}</style>
         <div className="absolute right-3 top-3 z-20 flex w-[96px] flex-col gap-1.5 rounded-[10px] border border-[#333333] bg-[#1F1F1E]/92 p-1.5 shadow-xl backdrop-blur">
@@ -7417,6 +7521,13 @@ function HomeDashboard() {
       const coldArea = Number(useRows.find((item) => item.label === '저온창고')?.value || 0);
       const ambientArea = Number(useRows.find((item) => item.label === '상온창고')?.value || 0);
       const weightedENoc = calculateWeightedENoc(assetRows, option.averageENoc);
+      const weightedRentPerPy = calculateWeightedAveragePerPy(
+        assetRows,
+        ['currentRentPerPy', 'rentPerPy', 'monthlyRentPerPy'],
+        ['currentMonthlyRentTotal', 'monthlyRentTotal'],
+        firstDefined(option.currentRentPerPy, option.rentPerPy),
+      );
+      const weightedWaleYears = calculateWeightedWaleYears(assetRows, firstDefined(option.waleYears, option.wale));
       const coldRatio = Number(coldArea || 0) + Number(ambientArea || 0) > 0
         ? formatPercent(Number(coldArea || 0) / (Number(coldArea || 0) + Number(ambientArea || 0)))
         : cleanDisplay(option.coldRatio, '-');
@@ -7429,10 +7540,12 @@ function HomeDashboard() {
         grossFloorAreaPy: formatPyFromSqm(row.grossFloorAreaSqm),
         coldRatio,
         eNoc: formatWon(weightedENoc),
+        rentPerPy: formatWon(weightedRentPerPy),
+        wale: Number.isFinite(Number(weightedWaleYears)) ? `${formatDecimalNumber(Number(weightedWaleYears), 1)}년` : '-',
       };
     })(),
   }));
-  const portfolioModalRows = portfolioRows.map((row) => [row.no, row.assetName, row.address, row.grossFloorAreaPy, row.coldRatio, row.eNoc]);
+  const portfolioModalRows = portfolioRows.map((row) => [row.no, row.assetName, row.address, row.grossFloorAreaPy, row.coldRatio, row.eNoc, row.rentPerPy, row.wale]);
   const expiryDetailRows = (data.monthlyExpiryRows || []).flatMap((monthRow) => (
     (monthRow.items || []).map((item) => [
       monthRow.month || monthRow.label || '-',
@@ -7952,6 +8065,8 @@ function HomeDashboard() {
           compact
         />
       </section>
+
+      <HomeOperatingCostSummary />
     </div>
   );
 }
@@ -8465,18 +8580,19 @@ function assetTenantFloorSortValue(row = {}) {
 function assetTenantSortableValue(row = {}, index = 0) {
   if (index === 0) return firstDefined(row.tenantMasterName, row.companyName, '');
   if (index === 1) return assetTenantFloorSortValue(row);
-  if (index === 2) return firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm);
-  if (index === 3) return row.monthlyRentTotal;
-  if (index === 4) return row.monthlyMfTotal;
-  if (index === 5) return firstDefined(row.monthlyCombinedTotal, row.monthlyCostTotal);
-  if (index === 6) return firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy);
-  if (index === 7) return row.rfMonths;
-  if (index === 8) return row.foMonths;
-  if (index === 9) return row.tiAmount;
-  if (index === 10) return row.currentRentPerPy;
-  if (index === 11) return row.currentMfPerPy;
-  if (index === 12) return row.currentStartDate;
-  if (index === 13) return row.currentEndDate;
+  if (index === 2) return firstDefined(row.coldStorageType, row.temperatureType, '');
+  if (index === 3) return firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm);
+  if (index === 4) return row.monthlyRentTotal;
+  if (index === 5) return row.monthlyMfTotal;
+  if (index === 6) return firstDefined(row.monthlyCombinedTotal, row.monthlyCostTotal);
+  if (index === 7) return firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy);
+  if (index === 8) return row.rfMonths;
+  if (index === 9) return row.foMonths;
+  if (index === 10) return row.tiAmount;
+  if (index === 11) return row.currentRentPerPy;
+  if (index === 12) return row.currentMfPerPy;
+  if (index === 13) return row.currentStartDate;
+  if (index === 14) return row.currentEndDate;
   return '';
 }
 
@@ -13567,7 +13683,8 @@ function AssetDashboard() {
     unclassifiedAreaSqm > 0.5 ? [<span key="unclassified" className="pl-4">미분류 면적</span>, formatArea(unclassifiedAreaSqm), areaRatio(unclassifiedAreaSqm)] : null,
   ].filter(Boolean);
   const rosterHeaders = ['임차인명', '층/세부구역', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E. NOC', 'RF', 'FO', 'TI', '평당 임대료', '평당 관리비', '현재 계약개시일', '현재 계약만기일'];
-  const rosterColumnWidths = ['13%', '7.5%', '8%', '7.5%', '7.2%', '7.8%', '6.6%', '4.2%', '4.2%', '5.2%', '7%', '6.8%', '6.4%', '6.6%'];
+  rosterHeaders.splice(2, 0, '상/저온');
+  const rosterColumnWidths = ['11.5%', '7%', '5.8%', '7.2%', '7%', '7%', '7.4%', '6.2%', '3.8%', '3.8%', '4.8%', '6.3%', '6.1%', '6.1%', '6%'];
   const rosterSourceRows = rows;
   const sortedRosterSourceRows = useMemo(() => (
     sortAssetTenantRows(rosterSourceRows, rosterSortConfig)
@@ -13580,7 +13697,7 @@ function AssetDashboard() {
   };
   const rosterSortableHeaders = rosterHeaders.map((header, index) => {
     const active = rosterSortConfig.index === index;
-    const numeric = index >= 2 && index <= 11;
+    const numeric = index >= 3 && index <= 12;
     return (
       <button
         key={header}
@@ -13600,6 +13717,7 @@ function AssetDashboard() {
   const rosterRows = sortedRosterSourceRows.map((row) => [
     row.tenantMasterName,
     row.spaceLabel,
+    cleanDisplay(firstDefined(row.coldStorageType, row.temperatureType), '-'),
     formatArea(row.leasedAreaSqm),
     formatCurrency(row.monthlyRentTotal),
     formatCurrency(row.monthlyMfTotal),
@@ -13746,7 +13864,7 @@ function AssetDashboard() {
             openTenantDetail(selectedRow, '임차인 상세');
           }}
           columnWidths={rosterColumnWidths}
-          minTableWidth="1120px"
+          minTableWidth={null}
           compact
           tight
         />
@@ -14508,10 +14626,12 @@ function DashboardShell({ activeModule }) {
     moduleId === 'home' ? <HomeDashboard />
       : moduleId === 'asset' ? <AssetDashboard />
         : moduleId === 'company' ? <CompanyDashboard />
-          : moduleId === 'tools' ? <AnalysisToolsDashboard />
-            : moduleId === 'playground' ? <DataPlaygroundDashboard />
-              : moduleId === 'quality' ? <DataQualityDashboard />
-                : null
+          : moduleId === 'investment-index' ? <InvestmentIndexDashboard />
+            : moduleId === 'asset-spec' ? <AssetSpecDashboard />
+              : moduleId === 'tools' ? <AnalysisToolsDashboard />
+                : moduleId === 'playground' ? <DataPlaygroundDashboard />
+                  : moduleId === 'quality' ? <DataQualityDashboard />
+                    : null
   );
 
   return (

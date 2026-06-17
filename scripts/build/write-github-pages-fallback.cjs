@@ -11,9 +11,13 @@ const routeFallbacks = [
   'home',
   'asset',
   'company',
+  'investment-index',
+  'asset-spec',
   'analysis-tools',
   'pivot-table',
   'data-quality',
+  'market-data',
+  'data-management',
   'contract-data',
   'pdf-report',
 ];

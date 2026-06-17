@@ -404,6 +404,34 @@ const isSmokeNotificationSource = (row = {}) => {
         || String(row.status || '').toLowerCase().startsWith('smoke')
         || payload.rollback_after_write === true;
 };
+const sanitizeNotificationText = (value, fallback = '-') => {
+    const source = String(value || '').trim();
+    if (!source) return fallback;
+    const cleaned = source
+        .replace(/tenant_brn_\d{6,}/giu, '임차인')
+        .replace(/asset_[a-z0-9_-]{8,}/giu, '자산')
+        .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/giu, '')
+        .replace(/\s{2,}/gu, ' ')
+        .trim();
+    if (!cleaned || /\?{4,}|�/u.test(cleaned)) return fallback;
+    return cleaned;
+};
+const joinNotificationParts = (parts, fallback) => {
+    const cleaned = parts.map((item) => sanitizeNotificationText(item, '')).filter(Boolean);
+    return cleaned.length ? cleaned.join(' · ') : fallback;
+};
+const buildCanonicalNotification = (row = {}) => {
+    const type = sanitizeNotificationText(row.type || row.notification_type, '알림');
+    return {
+        id: String(row.id || row.delivery_id || row.notification_id || `${type}:${row.created_at || Date.now()}`),
+        canonical: true,
+        tag: sanitizeNotificationText(row.tag, type === 'loan_maturity' ? 'Loan Maturity' : type === 'lease_maturity' ? 'Lease Maturity' : 'Notification'),
+        title: sanitizeNotificationText(row.title, type === 'loan_maturity' ? '대출 만기 알림' : type === 'lease_maturity' ? '임대차 만기 알림' : '플랫폼 알림'),
+        body: sanitizeNotificationText(row.body, '확인할 알림이 있습니다.'),
+        createdAt: row.created_at || row.createdAt || row.due_date || '',
+        tone: row.tone || 'warning',
+    };
+};
 const buildLeaseEventNotification = (row = {}) => {
     if (isSmokeNotificationSource(row)) return null;
     const payload = parseNotificationPayload(row.request_payload);
@@ -416,8 +444,8 @@ const buildLeaseEventNotification = (row = {}) => {
     return {
         id: `lease:${row.id || `${eventType}:${row.created_at || summary}`}`,
         tag: 'Data Update',
-        title,
-        body: [asset, tenant, summary].filter((item) => item && item !== '-').join(' · ') || '계약 변경 반영 이력이 있습니다.',
+        title: sanitizeNotificationText(title, 'Data Update 반영 알림'),
+        body: joinNotificationParts([asset, tenant, summary], '계약 변경 반영 이력이 있습니다.'),
         createdAt: row.created_at || row.updated_at || '',
         tone: String(status).includes('failed') ? 'error' : status === 'submitted' ? 'warning' : 'success',
     };
@@ -431,8 +459,8 @@ const buildEditRequestNotification = (row = {}) => {
     return {
         id: `edit:${row.id || `${target}:${field}:${row.created_at}`}`,
         tag: '수정 요청',
-        title: '담당자 수정 요청',
-        body: [target, field, reason].filter(Boolean).join(' · '),
+        title: '데이터 수정 요청',
+        body: joinNotificationParts([target, field, reason], '승인이 필요한 수정 요청이 있습니다.'),
         createdAt: row.created_at || row.updated_at || '',
         tone: 'warning',
     };
@@ -477,6 +505,16 @@ const logisticsDashboardItems = [
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 21h18M5 21V5a2 2 0 012-2h5v18M12 8h5a2 2 0 012 2v11M8 7h.01M8 11h.01M8 15h.01M16 12h.01M16 16h.01" /></svg>,
     },
     {
+        label: 'Investment Index',
+        path: `${LOGISTICS_INTERNAL_BASE}/dashboard/investment-index`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 15l3-3 3 2 4-6M8 19v-4m4 4v-7m4 7v-5m4 5V8" /></svg>,
+    },
+    {
+        label: 'Asset Spec',
+        path: `${LOGISTICS_INTERNAL_BASE}/dashboard/asset-spec`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7h16M6 7v12h12V7M9 11h6M9 15h3M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>,
+    },
+    {
         label: 'Analysis Tools',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/tools`,
         adminOnly: true,
@@ -500,10 +538,37 @@ const LOGISTICS_DASHBOARD_FEATURE_BY_PATH = {
     [`${LOGISTICS_INTERNAL_BASE}/dashboard/playground`]: 'data_playground',
     [`${LOGISTICS_INTERNAL_BASE}/dashboard/quality`]: 'data_quality',
 };
+const logisticsMarketDataItems = [
+    {
+        label: 'Overview',
+        path: `${LOGISTICS_INTERNAL_BASE}/market-data/overview`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4" /></svg>,
+    },
+    {
+        label: 'Lease Market',
+        path: `${LOGISTICS_INTERNAL_BASE}/market-data/lease-market`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M5 7h14M7 7v12m10-12v12M5 19h14M9 11h6M9 15h6" /></svg>,
+    },
+    {
+        label: 'Supply Pipeline',
+        path: `${LOGISTICS_INTERNAL_BASE}/market-data/supply-pipeline`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19h16M6 19V9l6-4 6 4v10M9 19v-6h6v6" /></svg>,
+    },
+    {
+        label: 'Transactions',
+        path: `${LOGISTICS_INTERNAL_BASE}/market-data/transactions`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 7h10M7 12h10M7 17h6M4 4h16v16H4z" /></svg>,
+    },
+    {
+        label: 'Source Update',
+        path: `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10v5h4l-9 11-9-11h4V4z" /></svg>,
+    },
+];
 const logisticsStandaloneItems = [
     {
-        label: 'Data Update',
-        path: `${LOGISTICS_INTERNAL_BASE}/contract-data`,
+        label: 'Data Management',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-management`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2zM9 8h6M9 12h6M9 16h4" /></svg>,
     },
     {
@@ -595,6 +660,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const saved = sessionStorage.getItem('isLogisticsDashboardOpen');
         return saved !== null ? saved === 'true' : true;
     });
+    const [isLogisticsMarketDataOpen, setIsLogisticsMarketDataOpen] = useState(() => {
+        const saved = sessionStorage.getItem('isLogisticsMarketDataOpen');
+        return saved !== null ? saved === 'true' : true;
+    });
 
     useEffect(() => { sessionStorage.setItem('iotaLeftNavCollapsed', isCollapsed); }, [isCollapsed]);
     useEffect(() => { sessionStorage.setItem('isWorkspaceOpen', isWorkspaceOpen); }, [isWorkspaceOpen]);
@@ -602,6 +671,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     useEffect(() => { sessionStorage.setItem('isGovOpen', isGovOpen); }, [isGovOpen]);
     useEffect(() => { sessionStorage.setItem('isVehicleOpen', isVehicleOpen); }, [isVehicleOpen]);
     useEffect(() => { sessionStorage.setItem('isLogisticsDashboardOpen', isLogisticsDashboardOpen); }, [isLogisticsDashboardOpen]);
+    useEffect(() => { sessionStorage.setItem('isLogisticsMarketDataOpen', isLogisticsMarketDataOpen); }, [isLogisticsMarketDataOpen]);
 
     useEffect(() => {
         if (
@@ -678,6 +748,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
             let approvalValue = null;
             const combinedResult = await invokeWithTimeout('notifications/list', { limit: 80, include_smoke: false }, 10000);
             if (!combinedResult?.error && combinedResult?.data?.ok !== false) {
+                const canonicalRows = Array.isArray(combinedResult.data?.data?.notifications)
+                    ? combinedResult.data.data.notifications.map(buildCanonicalNotification)
+                    : [];
+                canonicalRows.forEach((item) => rows.push(item));
                 leaseValue = { data: { ok: true, data: combinedResult.data?.data?.lease_events || [] } };
                 approvalValue = { data: { ok: true, data: combinedResult.data?.data?.edit_requests || [] } };
             } else {
@@ -698,6 +772,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 approvalValue = approvalResult.status === 'fulfilled' ? approvalResult.value : null;
             }
             let successCount = 0;
+            if (rows.some((item) => item.canonical)) successCount += 1;
             if (leaseValue && !leaseValue.error && leaseValue.data?.ok !== false) {
                 successCount += 1;
                 (Array.isArray(leaseValue.data?.data) ? leaseValue.data.data : [])
@@ -747,6 +822,32 @@ export default function IotaLeftNav({ currentPath = '' }) {
             } else {
                 const rows = await loadNotifications({ markRead: false });
                 markNotificationsRead(rows);
+            }
+        }
+    };
+    const dismissNotification = async (item) => {
+        const next = notifications.filter((row) => row.id !== item.id);
+        setNotifications(next);
+        writeCachedNotifications(next);
+        setReadNotificationIds((ids) => ids.filter((id) => id !== item.id));
+        if (item.canonical) {
+            try {
+                await invokeWithTimeout('notifications/dismiss', { ids: [item.id] }, 10000);
+            } catch {
+                setNotificationsError('알림 삭제 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
+            }
+        }
+    };
+    const dismissAllNotifications = async () => {
+        const canonicalIds = notifications.filter((item) => item.canonical).map((item) => item.id);
+        setNotifications([]);
+        writeCachedNotifications([]);
+        setReadNotificationIds([]);
+        if (canonicalIds.length) {
+            try {
+                await invokeWithTimeout('notifications/dismiss', { all: true }, 12000);
+            } catch {
+                setNotificationsError('전체 알림 삭제 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
             }
         }
     };
@@ -927,6 +1028,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const visibleStandaloneItems = logisticsStandaloneItems;
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
         const isDashboardActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard`);
+        const isMarketDataActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/market-data`);
         return (
             <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full overflow-hidden bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] print:hidden`}>
                 <div className={`w-full flex items-center ${isCollapsed ? 'justify-center px-[10px]' : 'justify-between px-[15px]'} pt-[14px] pb-4`}>
@@ -995,6 +1097,48 @@ export default function IotaLeftNav({ currentPath = '' }) {
                             </div>
                         </div>
                         <div className="mt-1">
+                            <button
+                                type="button"
+                                title={isCollapsed ? 'Market Data' : undefined}
+                                onClick={() => {
+                                    if (isCollapsed) {
+                                        handleNavigation(`${LOGISTICS_INTERNAL_BASE}/market-data/overview`);
+                                    } else {
+                                        setIsLogisticsMarketDataOpen((value) => !value);
+                                    }
+                                }}
+                                className={`group relative flex w-full items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isMarketDataActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}
+                            >
+                                <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : ''}`}>
+                                    <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>
+                                        <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4M7 9h2m2-3h2m2 6h2" /></svg>
+                                    </span>
+                                    <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>Market Data</span>
+                                </div>
+                                {!isCollapsed ? (
+                                    <svg className={`h-4 w-4 text-[#86868B] transition-transform ${isLogisticsMarketDataOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                ) : null}
+                                {renderCollapsedTooltip('Market Data')}
+                            </button>
+                            <div className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${!isCollapsed && isLogisticsMarketDataOpen ? 'max-h-[260px] translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0'}`}>
+                                <div className="mt-1 flex flex-col gap-0 pl-4">
+                                    {logisticsMarketDataItems.map((item) => {
+                                        const isActive = normalizedCurrentPath === item.path || normalizedCurrentPath.startsWith(`${item.path}/`);
+                                        return (
+                                            <div key={item.path} title={isCollapsed ? item.label : undefined} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
+                                                <div className="flex min-w-0 items-center">
+                                                    <span className="text-white">{item.icon}</span>
+                                                    <span className="overflow-hidden whitespace-nowrap text-[13px] font-light text-white">{item.label}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-1">
                             {visibleStandaloneItems.map((item) => {
                                 const isActive = normalizedCurrentPath === item.path || normalizedCurrentPath.startsWith(`${item.path}/`);
                                 return (
@@ -1047,11 +1191,16 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                 <div className="flex items-center justify-between gap-3 border-b border-[#303033] px-4 py-3">
                                     <div>
                                         <div className="text-[14px] font-bold text-white">알림</div>
-                                        <div className="mt-0.5 text-[11px] text-[#8E8E93]">Data Update · 승인 요청 연동</div>
+                                        <div className="mt-0.5 text-[11px] text-[#8E8E93]">만기 · 데이터 반영 · 승인 요청</div>
                                     </div>
-                                    <button type="button" onClick={() => loadNotifications({ markRead: true })} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5">
-                                        새로고침
-                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button type="button" onClick={() => loadNotifications({ markRead: true })} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                            새로고침
+                                        </button>
+                                        <button type="button" onClick={dismissAllNotifications} disabled={!notifications.length} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40">
+                                            전체 삭제
+                                        </button>
+                                    </div>
                                 </div>
                                 <div className="custom-scrollbar max-h-[360px] overflow-auto p-3">
                                     {notificationsError ? (
@@ -1072,7 +1221,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                             <div className="mt-1 text-[13px] font-semibold text-white">{item.title}</div>
                                                             <div className="mt-1 text-[12px] leading-5 text-[#A1A1AA]">{item.body}</div>
                                                         </div>
-                                                        <div className="shrink-0 text-[11px] text-[#6E6E73]">{formatLoginHistoryTime(item.createdAt)}</div>
+                                                        <div className="flex shrink-0 flex-col items-end gap-2">
+                                                            <div className="text-[11px] text-[#6E6E73]">{formatLoginHistoryTime(item.createdAt)}</div>
+                                                            <button type="button" onClick={() => dismissNotification(item)} className="rounded-[7px] border border-[#3A3A3C] px-2 py-1 text-[11px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">
+                                                                삭제
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}

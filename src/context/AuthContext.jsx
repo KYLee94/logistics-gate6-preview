@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
 
 const AuthContext = createContext();
@@ -64,7 +64,14 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [memberInfo, setMemberInfo] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [recoveryMode, setRecoveryMode] = useState(false);
+    const [recoveryModeState, setRecoveryModeState] = useState(false);
+    const recoveryModeRef = useRef(false);
+    const setRecoveryMode = (value) => {
+        const normalized = Boolean(value);
+        recoveryModeRef.current = normalized;
+        setRecoveryModeState(normalized);
+    };
+    const recoveryMode = recoveryModeState;
 
     const handleSignOut = async () => {
         try {
@@ -177,7 +184,10 @@ export function AuthProvider({ children }) {
                 if (mounted) setLoading(false);
 
                 const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
-                    if (event === 'PASSWORD_RECOVERY') {
+                    const recoveryEventActive = event === 'PASSWORD_RECOVERY'
+                        || (Boolean(session?.user) && (recoveryModeRef.current || isPasswordRecoveryLocation()));
+
+                    if (recoveryEventActive) {
                         setRecoveryMode(true);
                         if (session?.user) {
                             setUser(session.user);

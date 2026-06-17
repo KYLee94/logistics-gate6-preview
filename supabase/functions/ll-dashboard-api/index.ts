@@ -3524,18 +3524,653 @@ async function listLogisticsNotifications(ctx: Context, payload: Record<string, 
     .filter((row) => safeText(row.status) === 'submitted')
     .filter((row) => canUseQuality || row.requested_by === ctx.user.id || canReadEditRequestRow(ctx, row))
     .slice(0, limit);
+  const canonicalNotifications = await listCanonicalNotifications(ctx, limit);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/list', 200, {
+    canonical_notifications: canonicalNotifications.length,
     lease_events: leaseEvents.length,
     edit_requests: editRequests.length,
   });
   return jsonResponse({
     ok: true,
     data: {
+      notifications: canonicalNotifications,
       lease_events: leaseEvents,
       edit_requests: editRequests,
       generated_at: new Date().toISOString(),
     },
   }, 200, ctx.origin);
+}
+
+function isMissingRelationError(error: unknown) {
+  const message = safeText((error as { message?: unknown })?.message);
+  const code = safeText((error as { code?: unknown })?.code);
+  return code === '42P01' || /does not exist|relation .* not found/iu.test(message);
+}
+
+async function listCanonicalNotifications(ctx: Context, limit: number) {
+  const email = canonicalPermissionEmail(ctx.permission, ctx.user.email);
+  if (!email) return [] as Record<string, unknown>[];
+  const { data, error } = await ctx.serviceClient
+    .from('ll_notification_deliveries')
+    .select('delivery_id,delivery_status,read_at,dismissed_at,created_at,recipient_email,notification:ll_notifications(notification_id,notification_type,title,body,due_date,lead_days,asset_id,fund_id,payload,created_at)')
+    .eq('recipient_email', email)
+    .neq('delivery_status', 'dismissed')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+  if (error) {
+    if (isMissingRelationError(error)) return [];
+    throw new Error(`canonical notifications read failed: ${error.message}`);
+  }
+  return ((data || []) as Record<string, unknown>[]).map((row) => {
+    const notification = (row.notification && typeof row.notification === 'object' ? row.notification : {}) as Record<string, unknown>;
+    return {
+      id: safeText(row.delivery_id),
+      notification_id: safeText(notification.notification_id),
+      type: safeText(notification.notification_type),
+      tag: safeText(notification.notification_type) === 'loan_maturity' ? 'Loan Maturity' : safeText(notification.notification_type) === 'lease_maturity' ? 'Lease Maturity' : 'Notification',
+      title: safeText(notification.title),
+      body: safeText(notification.body),
+      due_date: safeText(notification.due_date),
+      lead_days: Number(notification.lead_days || 0),
+      delivery_status: safeText(row.delivery_status),
+      created_at: safeText(notification.created_at || row.created_at),
+      payload: notification.payload || {},
+    };
+  });
+}
+
+async function dismissLogisticsNotifications(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'notifications/dismiss', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const email = canonicalPermissionEmail(ctx.permission, ctx.user.email);
+  if (!email) return fail(400, 'Missing user email', ctx.origin);
+  const all = payload.all === true;
+  const ids = Array.isArray(payload.ids) ? payload.ids.map((item) => safeText(item)).filter(Boolean).slice(0, 120) : [];
+  if (!all && !ids.length) return fail(400, 'Missing notification delivery ids', ctx.origin);
+  let query = ctx.serviceClient
+    .from('ll_notification_deliveries')
+    .update({ delivery_status: 'dismissed', dismissed_at: new Date().toISOString() })
+    .eq('recipient_email', email);
+  if (!all) query = query.in('delivery_id', ids);
+  const { error, count } = await query.select('delivery_id', { count: 'exact' });
+  if (error) {
+    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { dismissed: 0, skipped: 'notifications table missing' } }, 200, ctx.origin);
+    return fail(500, 'Failed to dismiss notifications', ctx.origin, { error: error.message });
+  }
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/dismiss', 200, { all, ids: ids.length, dismissed: count || 0 });
+  return jsonResponse({ ok: true, data: { dismissed: count || 0 } }, 200, ctx.origin);
+}
+
+async function callSectorMarketRead(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) return fail(403, 'Market research permission required', ctx.origin);
+  const limit = Math.min(Math.max(Number(payload.limit || 500), 50), 2000);
+  const sourceResult = await ctx.serviceClient
+    .from('ll_source_files')
+    .select('source_file_id,source_domain,source_version,file_name,source_hash,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at')
+    .eq('source_domain', 'sector_market')
+    .order('active_version', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(10);
+  if (sourceResult.error && !isMissingRelationError(sourceResult.error)) return fail(500, 'Failed to read market source files', ctx.origin, { error: sourceResult.error.message });
+  const activeSource = ((sourceResult.data || []) as Record<string, unknown>[]).find((row) => row.active_version) || ((sourceResult.data || []) as Record<string, unknown>[])[0] || null;
+  const activeSourceId = safeText(activeSource?.source_file_id);
+  let leaseQuery = ctx.serviceClient.from('ll_sector_market_lease_observations').select('*').limit(limit);
+  let supplyQuery = ctx.serviceClient.from('ll_sector_market_supply_cases').select('*').limit(limit);
+  let transactionQuery = ctx.serviceClient.from('ll_sector_market_transaction_cases').select('*').limit(limit);
+  let capRateQuery = ctx.serviceClient.from('ll_sector_market_cap_rate_series').select('*').order('report_year', { ascending: false }).order('report_quarter', { ascending: false }).limit(80);
+  if (activeSourceId) {
+    leaseQuery = leaseQuery.eq('source_file_id', activeSourceId);
+    supplyQuery = supplyQuery.eq('source_file_id', activeSourceId);
+    transactionQuery = transactionQuery.eq('source_file_id', activeSourceId);
+    capRateQuery = capRateQuery.eq('source_file_id', activeSourceId);
+  }
+  const [leaseResult, supplyResult, transactionResult, capRateResult] = await Promise.all([
+    leaseQuery,
+    supplyQuery,
+    transactionQuery,
+    capRateQuery,
+  ]);
+  const results = [leaseResult, supplyResult, transactionResult, capRateResult];
+  const hardError = results.find((result) => result.error && !isMissingRelationError(result.error));
+  if (hardError?.error) return fail(500, 'Failed to read sector market data', ctx.origin, { error: hardError.error.message });
+  /*
+  const leases = ((leaseResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
+    ...row,
+    period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
+    center_name: firstDefined(row.center_name, row.warehouse_name),
+    area_py: firstDefined(row.leasable_area_py, row.gross_area_py),
+    rent_per_py: row.rent_manwon_per_py,
+    management_fee_per_py: row.management_fee_manwon_per_py,
+    temperature_type: row.temperature_type || '미분류',
+  }));
+  const supply = ((supplyResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
+    ...row,
+    center_name: firstDefined(row.warehouse_name, row.center_name),
+    status: firstDefined(row.progress_status, row.status),
+    completion_period: [row.expected_year, row.expected_quarter].filter(Boolean).join(' '),
+    area_py: row.gross_area_py,
+    temperature_type: row.temperature_type || '미분류',
+  }));
+  const transactions = ((transactionResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
+    ...row,
+    asset_name: firstDefined(row.warehouse_name, row.asset_name, row.center_name),
+    region: firstDefined(row.capital_region, row.national_region, row.region),
+    transaction_date: firstDefined(row.closing_date, row.contract_date),
+    transaction_period: [row.transaction_year, row.transaction_quarter].filter(Boolean).join(' '),
+    area_py: firstDefined(row.gross_area_py, row.building_area_py, row.land_area_py),
+    unit_price_krw_per_py: Number(row.unit_price_thousand_krw_per_py || 0) ? Number(row.unit_price_thousand_krw_per_py) * 1000 : null,
+    temperature_type: row.temperature_type || '미분류',
+  }));
+  const capRatesRaw = (capRateResult.data || []) as Record<string, unknown>[];
+  const capRates = capRatesRaw.flatMap((row) => [
+    stripUndefined({
+      ...row,
+      cap_rate_id: `${row.cap_rate_id}:capital`,
+      region: '수도권',
+      cap_rate: row.capital_area_cap_rate,
+      period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
+    }),
+    stripUndefined({
+      ...row,
+      cap_rate_id: `${row.cap_rate_id}:national`,
+      region: '전국',
+      cap_rate: row.national_cap_rate,
+      period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
+    }),
+  ]).filter((row) => row.cap_rate !== null && row.cap_rate !== undefined && row.cap_rate !== '');
+  */
+  const leases = ((leaseResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
+    ...row,
+    period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
+    center_name: firstDefined(row.center_name, row.warehouse_name),
+    area_py: firstDefined(row.leasable_area_py, row.gross_area_py),
+    rent_per_py: row.rent_manwon_per_py,
+    management_fee_per_py: row.management_fee_manwon_per_py,
+    temperature_type: row.temperature_type || '미분류',
+  }));
+  const supply = ((supplyResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
+    ...row,
+    center_name: firstDefined(row.warehouse_name, row.center_name),
+    status: firstDefined(row.progress_status, row.status),
+    completion_period: [row.expected_year, row.expected_quarter].filter(Boolean).join(' '),
+    area_py: row.gross_area_py,
+    temperature_type: row.temperature_type || '미분류',
+  }));
+  const transactions = ((transactionResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
+    ...row,
+    asset_name: firstDefined(row.warehouse_name, row.asset_name, row.center_name),
+    region: firstDefined(row.capital_region, row.national_region, row.region),
+    transaction_date: firstDefined(row.closing_date, row.contract_date),
+    transaction_period: [row.transaction_year, row.transaction_quarter].filter(Boolean).join(' '),
+    area_py: firstDefined(row.gross_area_py, row.building_area_py, row.land_area_py),
+    unit_price_krw_per_py: Number(row.unit_price_thousand_krw_per_py || 0) ? Number(row.unit_price_thousand_krw_per_py) * 1000 : null,
+    temperature_type: row.temperature_type || '미분류',
+  }));
+  const capRatesRaw = (capRateResult.data || []) as Record<string, unknown>[];
+  const capRates = capRatesRaw.flatMap((row) => [
+    stripUndefined({
+      ...row,
+      cap_rate_id: `${row.cap_rate_id}:capital`,
+      region: '수도권',
+      cap_rate: row.capital_area_cap_rate,
+      period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
+    }),
+    stripUndefined({
+      ...row,
+      cap_rate_id: `${row.cap_rate_id}:national`,
+      region: '전국',
+      cap_rate: row.national_cap_rate,
+      period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
+    }),
+  ]).filter((row) => row.cap_rate !== null && row.cap_rate !== undefined && row.cap_rate !== '');
+  const latestLeasePeriod = leases.map((row) => safeText(row.report_period)).filter(Boolean).sort().at(-1) || '';
+  const latestLeases = latestLeasePeriod ? leases.filter((row) => safeText(row.report_period) === latestLeasePeriod) : leases;
+  const leaseArea = latestLeases.reduce((sum, row) => sum + Number(row.leasable_area_py || 0), 0);
+  const weightedRent = leaseArea ? latestLeases.reduce((sum, row) => sum + Number(row.rent_manwon_per_py || 0) * Number(row.leasable_area_py || 0), 0) / leaseArea : null;
+  const weightedVacancy = leaseArea ? latestLeases.reduce((sum, row) => sum + Number(row.vacancy_rate || 0) * Number(row.leasable_area_py || 0), 0) / leaseArea : null;
+  const latestCapRate = capRates[0] || null;
+  const supplyTotalPy = supply.reduce((sum, row) => sum + Number(row.gross_area_py || 0), 0);
+  /*
+  const aggregateArea = (rows: Record<string, unknown>[], key: string, valueField: string, weightField = 'area_py') => {
+    const grouped = new Map<string, { key: string; count: number; area_py: number; weighted_sum: number; value_sum: number }>();
+    rows.forEach((row) => {
+      const groupKey = safeText(row[key]) || '미분류';
+      const current = grouped.get(groupKey) || { key: groupKey, count: 0, area_py: 0, weighted_sum: 0, value_sum: 0 };
+      const weight = Number(row[weightField] || row.leasable_area_py || row.gross_area_py || 0);
+      const value = Number(row[valueField] || 0);
+      current.count += 1;
+      current.area_py += Number.isFinite(weight) ? weight : 0;
+      current.weighted_sum += Number.isFinite(weight) && Number.isFinite(value) ? weight * value : 0;
+      current.value_sum += Number.isFinite(value) ? value : 0;
+      grouped.set(groupKey, current);
+    });
+    return [...grouped.values()].map((row) => ({
+      label: row.key,
+      count: row.count,
+      area_py: row.area_py,
+      value: row.area_py ? row.weighted_sum / row.area_py : (row.count ? row.value_sum / row.count : null),
+    })).sort((a, b) => Number(b.area_py || 0) - Number(a.area_py || 0));
+  };
+  */
+  const aggregateArea = (rows: Record<string, unknown>[], key: string, valueField: string, weightField = 'area_py') => {
+    const grouped = new Map<string, { key: string; count: number; area_py: number; weighted_sum: number; value_sum: number }>();
+    rows.forEach((row) => {
+      const groupKey = safeText(row[key]) || '미분류';
+      const current = grouped.get(groupKey) || { key: groupKey, count: 0, area_py: 0, weighted_sum: 0, value_sum: 0 };
+      const weight = Number(row[weightField] || row.leasable_area_py || row.gross_area_py || 0);
+      const value = Number(row[valueField] || 0);
+      current.count += 1;
+      current.area_py += Number.isFinite(weight) ? weight : 0;
+      current.weighted_sum += Number.isFinite(weight) && Number.isFinite(value) ? weight * value : 0;
+      current.value_sum += Number.isFinite(value) ? value : 0;
+      grouped.set(groupKey, current);
+    });
+    return [...grouped.values()].map((row) => ({
+      label: row.key,
+      count: row.count,
+      area_py: row.area_py,
+      value: row.area_py ? row.weighted_sum / row.area_py : (row.count ? row.value_sum / row.count : null),
+    })).sort((a, b) => Number(b.area_py || 0) - Number(a.area_py || 0));
+  };
+  const summary = {
+    status: activeSourceId ? 'ready' : 'missing_source',
+    source: activeSource,
+    latest_lease_period: latestLeasePeriod,
+    lease_observation_count: leases.length,
+    latest_lease_center_count: new Set(latestLeases.map((row) => safeText(row.center_name)).filter(Boolean)).size,
+    weighted_rent_manwon_per_py: weightedRent,
+    weighted_vacancy_rate: weightedVacancy,
+    supply_case_count: supply.length,
+    supply_total_gross_area_py: supplyTotalPy,
+    transaction_case_count: transactions.length,
+    latest_cap_rate: latestCapRate,
+    expected_counts: activeSource?.validation_summary && typeof activeSource.validation_summary === 'object'
+      ? (activeSource.validation_summary as Record<string, unknown>).normalized_counts || {}
+      : {},
+  };
+  return jsonResponse({ ok: true, data: {
+    summary,
+    leases,
+    supply,
+    transactions,
+    cap_rates: capRates,
+    sources: sourceResult.data || [],
+    charts: {
+      lease_rent_by_region: aggregateArea(latestLeases, 'region', 'rent_manwon_per_py', 'leasable_area_py'),
+      lease_vacancy_by_region: aggregateArea(latestLeases, 'region', 'vacancy_rate', 'leasable_area_py'),
+      lease_rent_by_temperature: aggregateArea(latestLeases, 'temperature_type', 'rent_manwon_per_py', 'leasable_area_py'),
+      supply_by_period: aggregateArea(supply, 'completion_period', 'gross_area_py', 'gross_area_py'),
+      transactions_by_region: aggregateArea(transactions, 'region', 'transaction_amount_krw', 'area_py'),
+    },
+  } }, 200, ctx.origin);
+}
+
+async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const [fundsResult, linksResult, tranchesResult, assetsResult] = await Promise.all([
+    ctx.serviceClient.from('ll_funds').select('*').limit(500),
+    ctx.serviceClient.from('ll_fund_asset_links').select('*').limit(1000),
+    ctx.serviceClient.from('ll_fund_capital_tranches').select('*').eq('is_active', true).limit(2000),
+    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,current_manager_name,current_manager_email,gross_floor_area_sqm,gross_floor_area_py').limit(1000),
+  ]);
+  const hardError = [fundsResult, linksResult, tranchesResult, assetsResult].find((result) => result.error && !isMissingRelationError(result.error));
+  if (hardError?.error) return fail(500, 'Failed to read investment index', ctx.origin, { error: hardError.error.message });
+  const funds = (fundsResult.data || []) as Record<string, unknown>[];
+  const links = ((linksResult.data || []) as Record<string, unknown>[]).filter((row) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
+  const readableAssetIds = new Set(links.map((row) => safeText(row.asset_id)).filter(Boolean));
+  const tranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => links.some((link) => safeText(link.fund_id) === safeText(row.fund_id)));
+  const assets = ((assetsResult.data || []) as Record<string, unknown>[]).filter((row) => readableAssetIds.has(safeText(row.asset_id)) || canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
+  const fundById = new Map(funds.map((fund) => [safeText(fund.fund_id), fund]));
+  const assetById = new Map(assets.map((asset) => [safeText(asset.asset_id), asset]));
+  const fundDisplayName = (fund: Record<string, unknown>) => safeText(firstDefined(fund.short_name, fund.fund_name, fund.fund_code, fund.fund_id));
+  const assetDisplayName = (asset: Record<string, unknown>) => safeText(firstDefined(asset.asset_name, asset.asset_code, asset.asset_id));
+  const trancheKind = (row: Record<string, unknown>) => safeText(row.tranche_type) === 'loan' ? 'loan' : 'equity';
+  const trancheTypeLabel = (row: Record<string, unknown>) => trancheKind(row) === 'loan' ? '대출(Loan)' : '수익자 지분(Equity)';
+  const fundAssetCount = new Map<string, number>();
+  links.forEach((link) => {
+    const fundId = safeText(link.fund_id);
+    if (!fundId) return;
+    fundAssetCount.set(fundId, (fundAssetCount.get(fundId) || 0) + 1);
+  });
+  const fundRows = funds.map((fund) => {
+    const fundId = safeText(fund.fund_id);
+    const fundLinks = links.filter((link) => safeText(link.fund_id) === fundId);
+    const fundTranches = tranches.filter((row) => safeText(row.fund_id) === fundId);
+    const equity = fundTranches.filter((row) => trancheKind(row) === 'equity').reduce((sum, row) => sum + Number(row.committed_amount_krw || 0), 0);
+    const loan = fundTranches.filter((row) => trancheKind(row) === 'loan').reduce((sum, row) => sum + Number(row.committed_amount_krw || 0), 0);
+    const assetNames = fundLinks.map((link) => safeText(link.asset_name) || assetDisplayName(assetById.get(safeText(link.asset_id)) || {})).filter(Boolean);
+    return {
+      ...fund,
+      display_name: fundDisplayName(fund),
+      assets: fundLinks,
+      asset_count: fundLinks.length,
+      asset_names: assetNames,
+      joint_fund: fundLinks.length > 1,
+      tranche_count: fundTranches.length,
+      equity_krw: equity,
+      loan_krw: loan,
+      total_capital_krw: equity + loan,
+    };
+  }).filter((row) => row.assets.length);
+  const investmentAssets = [...new Map(links.map((link) => {
+    const assetId = safeText(link.asset_id);
+    const fallbackAsset = {
+      asset_id: assetId,
+      asset_code: safeText(link.asset_code),
+      asset_name: safeText(link.asset_name),
+    };
+    const asset = assetById.get(assetId) || fallbackAsset;
+    return [assetId || safeText(link.asset_name), asset];
+  }).filter(([key]) => key) as Array<[string, Record<string, unknown>]>).values()];
+  const assetRows = investmentAssets.map((asset) => {
+    const assetId = safeText(asset.asset_id);
+    const assetName = safeText(asset.asset_name);
+    const assetLinks = links.filter((link) => safeText(link.asset_id) === assetId || (!!assetName && safeText(link.asset_name) === assetName));
+    const assetFundIds = new Set(assetLinks.map((link) => safeText(link.fund_id)));
+    const assetTranches = tranches.filter((row) => assetFundIds.has(safeText(row.fund_id)));
+    const confirmedTranches = assetTranches.filter((row) => (fundAssetCount.get(safeText(row.fund_id)) || 0) <= 1 || safeText(row.asset_id) === safeText(asset.asset_id));
+    const referenceTranches = assetTranches.filter((row) => !confirmedTranches.includes(row));
+    const confirmedEquity = confirmedTranches.filter((row) => trancheKind(row) === 'equity').reduce((sum, row) => sum + Number(row.committed_amount_krw || 0), 0);
+    const confirmedLoan = confirmedTranches.filter((row) => trancheKind(row) === 'loan').reduce((sum, row) => sum + Number(row.committed_amount_krw || 0), 0);
+    const referenceEquity = referenceTranches.filter((row) => trancheKind(row) === 'equity').reduce((sum, row) => sum + Number(row.committed_amount_krw || 0), 0);
+    const referenceLoan = referenceTranches.filter((row) => trancheKind(row) === 'loan').reduce((sum, row) => sum + Number(row.committed_amount_krw || 0), 0);
+    const fundNames = assetLinks.map((link) => fundDisplayName(fundById.get(safeText(link.fund_id)) || link)).filter(Boolean);
+    return {
+      ...asset,
+      display_name: assetDisplayName(asset),
+      funds: assetLinks,
+      fund_names: fundNames,
+      joint_fund_reference: referenceTranches.length > 0,
+      equity_krw: confirmedEquity,
+      loan_krw: confirmedLoan,
+      total_capital_krw: confirmedEquity + confirmedLoan,
+      reference_equity_krw: referenceEquity,
+      reference_loan_krw: referenceLoan,
+      reference_total_capital_krw: referenceEquity + referenceLoan,
+    };
+  });
+  const publicTranches = tranches.map((row) => {
+    const fund = fundById.get(safeText(row.fund_id)) || {};
+    return stripUndefined({
+      ...row,
+      capital_kind: trancheKind(row),
+      tranche_type_label: trancheTypeLabel(row),
+      fund_display_name: fundDisplayName(fund),
+      counterparty_name: firstDefined(row.party_name, row.counterparty_name, row.lender_name, row.beneficiary_name),
+      amount_krw: firstDefined(row.committed_amount_krw, row.drawn_amount_krw),
+    });
+  });
+  const loanRates = publicTranches
+    .filter((row) => row.capital_kind === 'loan' && (row.interest_rate !== null || row.loan_rate !== null || row.all_in_rate !== null))
+    .map((row) => ({
+      fund_id: row.fund_id,
+      fund_display_name: row.fund_display_name,
+      counterparty_name: row.counterparty_name,
+      drawdown_date: row.drawdown_date,
+      maturity_date: row.maturity_date,
+      interest_rate: firstDefined(row.interest_rate, row.loan_rate, row.all_in_rate),
+      amount_krw: row.amount_krw,
+    }));
+  return jsonResponse({ ok: true, data: {
+    funds: fundRows,
+    assets: assetRows,
+    tranches: publicTranches,
+    loan_rates: loanRates,
+    empty_message: '투자 지표 데이터가 없습니다.',
+    generated_at: new Date().toISOString(),
+  } }, 200, ctx.origin);
+}
+
+async function callAssetSpecRead(ctx: Context, _payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const [assetsResult, specsResult, filesResult, linksResult] = await Promise.all([
+    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,gross_floor_area_sqm,gross_floor_area_py,current_manager_name,current_manager_email').limit(1000),
+    ctx.serviceClient.from('ll_asset_specs').select('*').limit(2000),
+    ctx.serviceClient.from('ll_asset_spec_files').select('*').limit(1000),
+    ctx.serviceClient.from('ll_fund_asset_links').select('asset_id,asset_name,asset_code,fund_id').limit(1000),
+  ]);
+  const hardError = [assetsResult, specsResult, filesResult, linksResult].find((result) => result.error && !isMissingRelationError(result.error));
+  if (hardError?.error) return fail(500, 'Failed to read asset specs', ctx.origin, { error: hardError.error.message });
+  const readableLinks = ((linksResult.data || []) as Record<string, unknown>[]).filter((row) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
+  const readableAssetIds = new Set(readableLinks.map((row) => safeText(row.asset_id)).filter(Boolean));
+  const assetsFromTable = ((assetsResult.data || []) as Record<string, unknown>[]).filter((row) => readableAssetIds.has(safeText(row.asset_id)) || canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
+  const assets = assetsFromTable.length ? assetsFromTable : [...new Map(readableLinks.map((link) => {
+    const assetId = safeText(link.asset_id);
+    return [assetId || safeText(link.asset_name), {
+      asset_id: assetId,
+      asset_code: safeText(link.asset_code),
+      asset_name: safeText(link.asset_name),
+      gross_floor_area_sqm: null,
+      gross_floor_area_py: null,
+      current_manager_name: null,
+      current_manager_email: null,
+    }];
+  }).filter(([key]) => key) as Array<[string, Record<string, unknown>]>).values()];
+  const visibleAssetIds = new Set(assets.map((row) => safeText(row.asset_id)).filter(Boolean));
+  const specs = ((specsResult.data || []) as Record<string, unknown>[]).filter((row) => visibleAssetIds.has(safeText(row.asset_id)));
+  const files = ((filesResult.data || []) as Record<string, unknown>[]).filter((row) => visibleAssetIds.has(safeText(row.asset_id)));
+  let tenantSummary: Record<string, unknown>[] = [];
+  if (visibleAssetIds.size) {
+    const leaseSpacesResult = await ctx.serviceClient
+      .from('ll_lease_spaces')
+      .select('asset_id,tenant_id,leased_area_sqm,review_status')
+      .in('asset_id', [...visibleAssetIds])
+      .limit(5000);
+    if (leaseSpacesResult.error && !isMissingRelationError(leaseSpacesResult.error)) {
+      return fail(500, 'Failed to read asset tenant occupancy', ctx.origin, { error: leaseSpacesResult.error.message });
+    }
+    const leaseSpaces = ((leaseSpacesResult.data || []) as Record<string, unknown>[])
+      .filter((row) => safeText(row.review_status) !== 'archived');
+    const tenantIds = [...new Set(leaseSpaces.map((row) => safeText(row.tenant_id)).filter(Boolean))];
+    let tenantById = new Map<string, Record<string, unknown>>();
+    if (tenantIds.length) {
+      const tenantsResult = await ctx.serviceClient
+        .from('ll_tenants')
+        .select('tenant_id,tenant_master_name')
+        .in('tenant_id', tenantIds)
+        .limit(tenantIds.length);
+      if (tenantsResult.error && !isMissingRelationError(tenantsResult.error)) {
+        return fail(500, 'Failed to read asset tenant names', ctx.origin, { error: tenantsResult.error.message });
+      }
+      tenantById = new Map(((tenantsResult.data || []) as Record<string, unknown>[])
+        .map((tenant) => [safeText(tenant.tenant_id), tenant])
+        .filter(([key]) => key) as Array<[string, Record<string, unknown>]>);
+    }
+    const tenantMap = new Map<string, Record<string, unknown>>();
+    leaseSpaces.forEach((space) => {
+      const assetId = safeText(space.asset_id);
+      const tenantId = safeText(space.tenant_id);
+      const tenant = tenantById.get(tenantId) || {};
+      const tenantName = safeText(tenant.tenant_master_name) || tenantId || '임차인';
+      const key = `${assetId}::${tenantName}`;
+      const current = tenantMap.get(key) || {
+        asset_id: assetId,
+        tenant_id: tenantId,
+        tenant_name: tenantName,
+        leased_area_sqm: 0,
+        lease_space_count: 0,
+      };
+      current.leased_area_sqm = Number(current.leased_area_sqm || 0) + Number(space.leased_area_sqm || 0);
+      current.lease_space_count = Number(current.lease_space_count || 0) + 1;
+      tenantMap.set(key, current);
+    });
+    tenantSummary = [...tenantMap.values()];
+  }
+  return jsonResponse({ ok: true, data: { assets, specs, files, tenant_summary: tenantSummary, generated_at: new Date().toISOString() } }, 200, ctx.origin);
+}
+
+async function callOperatingCostsRead(ctx: Context, _payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_asset_operating_costs')
+    .select('*')
+    .order('period_start', { ascending: false })
+    .limit(2000);
+  if (error) {
+    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { rows: [], summary: {} } }, 200, ctx.origin);
+    return fail(500, 'Failed to read operating costs', ctx.origin, { error: error.message });
+  }
+  const rows = ((data || []) as Record<string, unknown>[]).filter((row) => canReadRelatedAsset(ctx, row.asset_id));
+  const assetIds = [...new Set(rows.map((row) => safeText(row.asset_id)).filter(Boolean))];
+  let assetNameById = new Map<string, string>();
+  if (assetIds.length) {
+    const assetsResult = await ctx.serviceClient
+      .from('ll_assets')
+      .select('asset_id,asset_name')
+      .in('asset_id', assetIds)
+      .limit(assetIds.length);
+    if (assetsResult.error && !isMissingRelationError(assetsResult.error)) {
+      return fail(500, 'Failed to read operating cost asset names', ctx.origin, { error: assetsResult.error.message });
+    }
+    assetNameById = new Map(((assetsResult.data || []) as Record<string, unknown>[]).map((row) => [safeText(row.asset_id), safeText(row.asset_name)]));
+  }
+  const enrichedRows = rows.map((row) => ({
+    ...row,
+    asset_name: safeText(row.asset_name) || assetNameById.get(safeText(row.asset_id)) || safeText(row.asset_id),
+  }));
+  const totals = rows.reduce((acc, row) => {
+    acc.pm_cost_krw += Number(row.pm_cost_krw || 0);
+    acc.fm_cost_krw += Number(row.fm_cost_krw || 0);
+    acc.insurance_cost_krw += Number(row.insurance_cost_krw || 0);
+    acc.utility_cost_krw += Number(row.utility_cost_krw || 0);
+    return acc;
+  }, { pm_cost_krw: 0, fm_cost_krw: 0, insurance_cost_krw: 0, utility_cost_krw: 0 });
+  return jsonResponse({ ok: true, data: { rows: enrichedRows, summary: { ...totals, row_count: rows.length } } }, 200, ctx.origin);
+}
+
+async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const [sourcesResult, sheetsResult, columnsResult, rowsResult, editsResult] = await Promise.all([
+    ctx.serviceClient.from('ll_source_files').select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at').order('created_at', { ascending: false }).limit(80),
+    ctx.serviceClient.from('ll_source_sheets').select('source_sheet_id,source_file_id,sheet_name,sheet_index,header_row_number,row_count,column_count').limit(240),
+    managerView
+      ? ctx.serviceClient.from('ll_source_columns').select('source_column_id,source_sheet_id,column_index,column_letter,header_label,normalized_header,value_type,unit_label,target_table,target_field,edit_group,is_required,is_user_editable').limit(800)
+      : Promise.resolve({ data: [], error: null }),
+    managerView
+      ? ctx.serviceClient.from('ll_source_rows').select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,row_hash,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.row_limit || 120), 20), 300))
+      : Promise.resolve({ data: [], error: null }),
+    ctx.serviceClient.from('ll_edit_requests').select('id,target_type,target_name,field_name,status,write_status,requested_by,approved_by,created_at,updated_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.limit || 60), 10), 120)),
+  ]);
+  const hardError = [sourcesResult, sheetsResult, columnsResult, rowsResult, editsResult].find((result) => result.error && !isMissingRelationError(result.error));
+  if (hardError?.error) return fail(500, 'Failed to read data management status', ctx.origin, { error: hardError.error.message });
+  const sources = (sourcesResult.data || []) as Record<string, unknown>[];
+  const sheets = (sheetsResult.data || []) as Record<string, unknown>[];
+  const sourceRows = (rowsResult.data || []) as Record<string, unknown>[];
+  const domainStats = sources.reduce((acc: Record<string, Record<string, unknown>>, row) => {
+    const domain = safeText(row.source_domain) || 'unknown';
+    const current = acc[domain] || { source_domain: domain, version_count: 0, active_source: null, total_rows: 0, warning_count: 0 };
+    current.version_count = Number(current.version_count || 0) + 1;
+    if (row.active_version || !current.active_source) current.active_source = row;
+    const rowCounts = row.row_counts && typeof row.row_counts === 'object' ? row.row_counts as Record<string, unknown> : {};
+    current.total_rows = Number(current.total_rows || 0) + Object.values(rowCounts).reduce((sum, value) => sum + Number(value || 0), 0);
+    const validationSummary = row.validation_summary && typeof row.validation_summary === 'object' ? row.validation_summary as Record<string, unknown> : {};
+    if (safeText(validationSummary.status) && safeText(validationSummary.status) !== 'validated') current.warning_count = Number(current.warning_count || 0) + 1;
+    acc[domain] = current;
+    return acc;
+  }, {});
+  return jsonResponse({ ok: true, data: {
+    access_scope: managerView ? 'manager_full_source' : 'asset_limited',
+    sources,
+    sheets,
+    columns: columnsResult.data || [],
+    source_rows: sourceRows,
+    domain_stats: Object.values(domainStats),
+    edit_requests: editsResult.data || [],
+    generated_at: new Date().toISOString(),
+  } }, 200, ctx.origin);
+}
+
+async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'data-management/submit-edit', 40)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const targetType = safeText(payload.target_type || payload.targetType || 'source_row');
+  const fieldName = safeText(payload.field_name || payload.fieldName);
+  const targetRowId = safeText(payload.target_row_id || payload.targetRowId);
+  const beforeValue = safeText(payload.before_value || payload.beforeValue);
+  const requestedValue = safeText(payload.requested_value || payload.requestedValue);
+  if (!targetType || !fieldName || !targetRowId) return fail(400, 'target_type, target_row_id, and field_name are required', ctx.origin);
+  if (!requestedValue || beforeValue === requestedValue) return fail(400, 'A changed requested value is required', ctx.origin);
+  const sourceTable = safeText(payload.source_table || payload.sourceTable || 'public.ll_source_rows');
+  if (!sourceTable.startsWith('public.ll_')) return fail(403, 'Source table is not allowed', ctx.origin);
+  const requestPayload = redactSensitivePayload({
+    kind: 'data_management_edit_request',
+    source_domain: payload.source_domain || payload.sourceDomain || null,
+    sheet_name: payload.sheet_name || payload.sheetName || null,
+    row_number: payload.row_number || payload.rowNumber || null,
+    before: payload.before || beforeValue,
+    after: payload.after || requestedValue,
+    impact_summary: payload.impact_summary || payload.impactSummary || null,
+    reason: payload.reason || null,
+  }) as Record<string, unknown>;
+  const { data, error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .insert({
+      source_table: sourceTable,
+      target_type: targetType,
+      target_name: payload.target_name || payload.targetName || null,
+      target_row_id: targetRowId,
+      field_name: fieldName,
+      reason_code: payload.reason_code || payload.reasonCode || 'data_management_update',
+      before_value: beforeValue,
+      requested_value: requestedValue,
+      request_payload: requestPayload,
+      requested_by: ctx.user.id,
+      status: 'submitted',
+      write_status: 'approval_required',
+    })
+    .select('id,status,write_status,created_at')
+    .single();
+  if (error) return fail(500, 'Failed to submit data management edit request', ctx.origin, { error: error.message });
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/submit-edit', 200, { id: data.id, target_type: targetType });
+  return jsonResponse({ ok: true, data }, 200, ctx.origin);
+}
+
+async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const limit = Math.min(Math.max(Number(payload.limit || 10), 1), 30);
+  const selectedDate = safeText(firstDefined(payload.date, payload.news_date, payload.selected_date));
+  const hasDateFilter = /^\d{4}-\d{2}-\d{2}$/u.test(selectedDate);
+  const selectedRunKey = hasDateFilter ? `daily-news:${selectedDate}:0700KST` : '';
+  let runQuery = ctx.serviceClient
+    .from('ll_news_runs')
+    .select('news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at')
+    .order('scheduled_for', { ascending: false, nullsFirst: false });
+  if (selectedRunKey) runQuery = runQuery.eq('run_key', selectedRunKey);
+  const runResult = await runQuery.limit(1).maybeSingle();
+  if (runResult.error && !isMissingRelationError(runResult.error)) return fail(500, 'Failed to read logistics news run', ctx.origin, { error: runResult.error.message });
+  const latestRun = runResult.data || null;
+  if (hasDateFilter && !latestRun) {
+    return jsonResponse({ ok: true, data: {
+      status: 'no_run',
+      selected_date: selectedDate,
+      latest_run: null,
+      items: [],
+      item_count: 0,
+      empty_message: '수집된 뉴스가 없습니다.',
+      generated_at: new Date().toISOString(),
+    } }, 200, ctx.origin);
+  }
+  let itemQuery = ctx.serviceClient
+    .from('ll_news_items')
+    .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,created_at')
+    .order('published_at', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (latestRun?.news_run_id) itemQuery = itemQuery.eq('news_run_id', latestRun.news_run_id);
+  const { data, error } = await itemQuery;
+  if (error) {
+    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', items: [], empty_message: '수집된 뉴스가 없습니다.', generated_at: new Date().toISOString() } }, 200, ctx.origin);
+    return fail(500, 'Failed to read logistics news', ctx.origin, { error: error.message });
+  }
+  return jsonResponse({ ok: true, data: {
+    status: latestRun ? safeText((latestRun as Record<string, unknown>).run_status || 'completed') : 'no_run',
+    selected_date: hasDateFilter ? selectedDate : safeText((latestRun as Record<string, unknown> | null)?.run_key).match(/daily-news:(\d{4}-\d{2}-\d{2}):0700KST/u)?.[1] || '',
+    latest_run: latestRun,
+    items: data || [],
+    item_count: (data || []).length,
+    empty_message: '수집된 뉴스가 없습니다.',
+    generated_at: new Date().toISOString(),
+  } }, 200, ctx.origin);
 }
 
 function normalizeLeaseEventPayload(payload: Record<string, unknown>) {
@@ -7049,7 +7684,9 @@ function buildingRegisterFirstItem(body: Record<string, unknown>) {
 function buildingRegisterEndpointCandidates() {
   const titleUrl = (Deno.env.get('BUILDING_REGISTER_TITLE_URL') || 'https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo').trim();
   const recapUrl = (Deno.env.get('BUILDING_REGISTER_RECAP_TITLE_URL') || titleUrl.replace('getBrTitleInfo', 'getBrRecapTitleInfo')).trim();
-  return [...new Set([titleUrl, recapUrl].filter(Boolean))];
+  // Asset-level summaries need the aggregate register first. The title endpoint can return
+  // a single building row, which understates total gross area on multi-building parcels.
+  return [...new Set([recapUrl, titleUrl].filter(Boolean))];
 }
 
 async function callBuildingRegister(ctx: Context, payload: Record<string, unknown>) {
@@ -7059,7 +7696,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
   if (!apiKey) return fail(503, 'Building-register API key is not configured', ctx.origin);
   const forceRefresh = payload.force_refresh === true || payload.forceRefresh === true || payload.bypass_cache === true;
   const cachePayload = {
-    summary_version: 'v2',
+    summary_version: 'v3',
     sigungu_cd: String(payload.sigungu_cd || ''),
     bjdong_cd: String(payload.bjdong_cd || ''),
     plat_gb_cd: String(payload.plat_gb_cd || '0'),
@@ -8107,7 +8744,7 @@ function summarizeAssetOperations(assetRows: Record<string, unknown>[], leaseRow
 function formatAssetAreaSummary(label: string, summary: ReturnType<typeof summarizeAssetOperations>) {
   const pieces = [`${label}의 면적 현황입니다.`];
   if (summary.grossAreaPy > 0) pieces.push(`총 연면적 ${formatAiPy(summary.grossAreaPy)}`);
-  if (summary.leasedAreaPy > 0) pieces.push(`임대면적 ${formatAiPy(summary.leasedAreaPy)}`);
+  if (summary.leasedAreaPy >= 0) pieces.push(`임대면적 ${formatAiPy(summary.leasedAreaPy)}`);
   if (summary.vacancyRate !== null) pieces.push(`공실면적 ${formatAiPy(summary.vacancyAreaPy)}, 공실률 ${formatAiPercent(summary.vacancyRate)}`);
   return pieces.join(' ');
 }
@@ -8165,7 +8802,7 @@ function buildAssetComparisonAnswer(question: string, assetRows: Record<string, 
     if ((isMonthlyCostQuestion(question) || /임관리비|임대료|관리비|월\s*비용/iu.test(question)) && summary.monthlyCost > 0) parts.push(`월 임관리비 ${compactAiValue(summary.monthlyCost)}`);
     if (isAreaSummaryQuestion(question)) {
       if (summary.grossAreaPy > 0) parts.push(`총 연면적 ${formatAiPy(summary.grossAreaPy)}`);
-      if (summary.leasedAreaPy > 0) parts.push(`임대면적 ${formatAiPy(summary.leasedAreaPy)}`);
+      if (summary.leasedAreaPy >= 0) parts.push(`임대면적 ${formatAiPy(summary.leasedAreaPy)}`);
     }
     if (parts.length === 1) {
       if (summary.vacancyRate !== null) parts.push(`공실률 ${formatAiPercent(summary.vacancyRate)}`);
@@ -10063,7 +10700,7 @@ function aiMetricForAssetRows(assetRows: Record<string, unknown>[], leaseRowsAll
   const eNoc = summary.eNoc || storedENoc || null;
   const metricMap: Record<string, { label: string; value: number | null; display: string }> = {
     gross_area: { label: '연면적', value: summary.grossAreaPy || null, display: summary.grossAreaPy > 0 ? formatKoreanPy(summary.grossAreaPy) : '' },
-    leased_area: { label: '임대면적', value: summary.leasedAreaPy || null, display: summary.leasedAreaPy > 0 ? formatKoreanPy(summary.leasedAreaPy) : '' },
+    leased_area: { label: '임대면적', value: summary.leasedAreaPy, display: summary.leasedAreaPy >= 0 ? formatKoreanPy(summary.leasedAreaPy) : '' },
     vacancy_area: { label: '공실면적', value: summary.vacancyAreaPy || null, display: summary.vacancyAreaPy >= 0 ? formatKoreanPy(summary.vacancyAreaPy) : '' },
     vacancy_rate: { label: '공실률', value: summary.vacancyRate, display: summary.vacancyRate === null ? '' : formatKoreanPercent(summary.vacancyRate) },
     monthly_cost: { label: '월 임관리비', value: summary.monthlyCost || 0, display: formatAiWonWithCompact(summary.monthlyCost || 0) },
@@ -10208,7 +10845,7 @@ function buildAiAssetMetricToolFacts(question: string, context: Record<string, u
     const requiredFacts = [
       { label: '자산명', value: assetName },
       { label: '연면적', value: summary.grossAreaPy > 0 ? formatKoreanPy(summary.grossAreaPy) : '' },
-      { label: '임대면적', value: summary.leasedAreaPy > 0 ? formatKoreanPy(summary.leasedAreaPy) : '' },
+      { label: '임대면적', value: summary.leasedAreaPy >= 0 ? formatKoreanPy(summary.leasedAreaPy) : '' },
       ...(isVacancyQuestion(question) ? [
         { label: '공실면적', value: summary.vacancyAreaPy >= 0 ? formatKoreanPy(summary.vacancyAreaPy) : '' },
         { label: '공실률', value: summary.vacancyRate === null ? '' : formatKoreanPercent(summary.vacancyRate) },
@@ -10222,7 +10859,7 @@ function buildAiAssetMetricToolFacts(question: string, context: Record<string, u
           asset_area_summary: {
             asset_name: assetName,
             gross_area_display: summary.grossAreaPy > 0 ? formatKoreanPy(summary.grossAreaPy) : '',
-            leased_area_display: summary.leasedAreaPy > 0 ? formatKoreanPy(summary.leasedAreaPy) : '',
+            leased_area_display: summary.leasedAreaPy >= 0 ? formatKoreanPy(summary.leasedAreaPy) : '',
             vacancy_area_display: summary.vacancyAreaPy >= 0 ? formatKoreanPy(summary.vacancyAreaPy) : '',
             vacancy_rate: summary.vacancyRate === null ? '' : formatKoreanPercent(summary.vacancyRate),
           },
@@ -10232,7 +10869,7 @@ function buildAiAssetMetricToolFacts(question: string, context: Record<string, u
         matched_assets: [{
           asset_name: assetName,
           gross_area_display: summary.grossAreaPy > 0 ? formatKoreanPy(summary.grossAreaPy) : '',
-          leased_area_display: summary.leasedAreaPy > 0 ? formatKoreanPy(summary.leasedAreaPy) : '',
+          leased_area_display: summary.leasedAreaPy >= 0 ? formatKoreanPy(summary.leasedAreaPy) : '',
         }],
       }) as Record<string, unknown>;
     }
@@ -10757,10 +11394,157 @@ function publicMarketEvidence(row: Record<string, unknown>, documentByHash: Map<
   }) as Record<string, unknown>;
 }
 
+function publicSectorMarketEvidence(row: Record<string, unknown>, kind = 'sector_market') {
+  const source = row.source_row && typeof row.source_row === 'object' ? row.source_row as Record<string, unknown> : {};
+  const sourceLocator = source.source_locator && typeof source.source_locator === 'object'
+    ? source.source_locator as Record<string, unknown>
+    : {};
+  const locator = row.source_locator && typeof row.source_locator === 'object'
+    ? row.source_locator as Record<string, unknown>
+    : sourceLocator;
+  return stripUndefined({
+    kind,
+    publisher: 'IGIS',
+    title: '물류 시장 데이터_20261Q',
+    period: normalizeText(firstDefined(row.report_period, [row.transaction_year, row.transaction_quarter].filter(Boolean).join(' '), [row.report_year, row.report_quarter].filter(Boolean).join(' '))),
+    as_of_date: '2026-03-31',
+    source_type: 'xlsx',
+    source_label: 'Excel DB',
+    locator: [locator.sheet_name || row.sheet_name, locator.row_number ? `row ${locator.row_number}` : ''].map(normalizeText).filter(Boolean).join(' / '),
+    label: normalizeText(firstDefined(row.center_name, row.warehouse_name, row.region, row.capital_region, kind)),
+    value: normalizeText(firstDefined(row.rent_manwon_per_py, row.unit_price_thousand_krw_per_py, row.cap_rate, row.gross_area_py)),
+    snippet: cleanMarketPublicSnippet(firstDefined(row.summary, row.warehouse_name, row.center_name, row.legal_address, JSON.stringify(row.payload || {}))),
+    status: 'ready',
+  }) as Record<string, unknown>;
+}
+
+async function readSectorMarketTransactions(ctx: Context, limit = 1500) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_sector_market_transaction_cases')
+    .select('*,source_row:ll_source_rows(source_locator)')
+    .limit(limit);
+  if (error) {
+    if (isMissingRelationError(error)) return [] as Record<string, unknown>[];
+    throw new Error(`sector market transactions read failed: ${error.message}`);
+  }
+  return (data || []) as Record<string, unknown>[];
+}
+
+async function buildSectorMarketTransactionAreaRankAnswer(ctx: Context, question: string) {
+  const years = marketQuestionYears(question).map((year) => Number(year)).filter((year) => Number.isFinite(year));
+  const limit = marketRankLimit(question);
+  const rows = (await readSectorMarketTransactions(ctx, 2000))
+    .filter((row) => numberValue(row.gross_area_py) !== null)
+    .filter((row) => !years.length || years.includes(Number(row.transaction_year || 0)))
+    .sort((a, b) => Number(b.gross_area_py || 0) - Number(a.gross_area_py || 0))
+    .slice(0, limit);
+  if (!rows.length) return null;
+  const lines = rows.map((row, index) => [
+    `${index + 1}. ${normalizeText(row.warehouse_name) || '이름 없음'}: 연면적 ${formatKoreanPy(Number(row.gross_area_py || 0))}`,
+    row.transaction_amount_krw ? `거래가격 ${formatKoreanCompactWon(Number(row.transaction_amount_krw))}` : '',
+    row.unit_price_thousand_krw_per_py ? `평당가 ${Math.round(Number(row.unit_price_thousand_krw_per_py)).toLocaleString('ko-KR')}천원/평` : '',
+    row.buyer_name ? `매수인 ${normalizeText(row.buyer_name)}` : '',
+    row.seller_name ? `매도인 ${normalizeText(row.seller_name)}` : '',
+  ].filter(Boolean).join(', '));
+  return {
+    denied: false,
+    answer: [`물류 시장 데이터_20261Q 기준 거래사례 중 연면적 상위 ${rows.length}건은 아래와 같습니다.`, ...lines].join('\n'),
+    evidence: rows.map((row) => publicSectorMarketEvidence(row, 'transaction')),
+  };
+}
+
+async function buildSectorMarketAverageTransactionUnitPriceAnswer(ctx: Context, question: string) {
+  const asksAverageUnitPrice = /평균|average/iu.test(question)
+    && /평당가|평당\s*가격|unit\s*price/iu.test(question)
+    && /거래|거래사례|매매|transaction/iu.test(question);
+  if (!asksAverageUnitPrice) return null;
+  const years = marketQuestionYears(question).map((year) => Number(year)).filter((year) => Number.isFinite(year));
+  const rows = (await readSectorMarketTransactions(ctx, 2000))
+    .filter((row) => numberValue(row.unit_price_thousand_krw_per_py) !== null)
+    .filter((row) => !years.length || years.includes(Number(row.transaction_year || 0)));
+  if (!rows.length) return null;
+  const simpleAverage = rows.reduce((sum, row) => sum + Number(row.unit_price_thousand_krw_per_py || 0), 0) / rows.length;
+  const weightedRows = rows.filter((row) => Number(row.gross_area_py || 0) > 0 && Number(row.transaction_amount_krw || 0) > 0);
+  const totalAreaPy = weightedRows.reduce((sum, row) => sum + Number(row.gross_area_py || 0), 0);
+  const totalAmountKrw = weightedRows.reduce((sum, row) => sum + Number(row.transaction_amount_krw || 0), 0);
+  const weightedAverage = totalAreaPy ? totalAmountKrw / totalAreaPy / 1000 : null;
+  const sampleRows = [...rows].sort((a, b) => Number(b.unit_price_thousand_krw_per_py || 0) - Number(a.unit_price_thousand_krw_per_py || 0)).slice(0, 5);
+  return {
+    denied: false,
+    answer: [
+      `물류 시장 데이터_20261Q 거래사례 ${rows.length.toLocaleString('ko-KR')}건 기준 단순 평균 평당가는 ${Math.round(simpleAverage).toLocaleString('ko-KR')}천원/평입니다.`,
+      weightedAverage ? `거래금액과 연면적을 함께 쓸 수 있는 사례 기준 면적가중 평당가는 ${Math.round(weightedAverage).toLocaleString('ko-KR')}천원/평입니다.` : '',
+    ].filter(Boolean).join(' '),
+    evidence: sampleRows.map((row) => publicSectorMarketEvidence(row, 'transaction')),
+  };
+}
+
+async function buildSectorMarketTransactionLookupAnswer(ctx: Context, question: string) {
+  if (!/(거래|거래사례|매매|매수|매도|거래가격|평당가)/iu.test(question)) return null;
+  const compactQuestion = normalizeText(question).replace(/\s+/gu, '').toLowerCase();
+  const candidates = (await readSectorMarketTransactions(ctx, 2000))
+    .map((row) => {
+      const name = normalizeText(row.warehouse_name);
+      const compactName = name.replace(/\s+/gu, '').toLowerCase();
+      let score = 0;
+      if (compactName && compactQuestion.includes(compactName)) score += 100 + compactName.length;
+      if (name && compactQuestion.includes(compactName.replace(/물류센터|물류창고/gu, ''))) score += 30;
+      return { row, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((item) => item.row);
+  if (!candidates.length) return null;
+  const lines = candidates.map((row, index) => [
+    `${index + 1}. ${normalizeText(row.warehouse_name)}`,
+    row.transaction_year ? `${row.transaction_year} ${normalizeText(row.transaction_quarter)}` : '',
+    row.capital_region ? `권역 ${normalizeText(row.capital_region)}` : '',
+    row.gross_area_py ? `연면적 ${formatKoreanPy(Number(row.gross_area_py))}` : '',
+    row.transaction_amount_krw ? `거래가격 ${formatKoreanCompactWon(Number(row.transaction_amount_krw))}` : '',
+    row.unit_price_thousand_krw_per_py ? `평당가 ${Math.round(Number(row.unit_price_thousand_krw_per_py)).toLocaleString('ko-KR')}천원/평` : '',
+  ].filter(Boolean).join(', '));
+  return {
+    denied: false,
+    answer: ['물류 시장 데이터_20261Q에서 확인되는 거래사례는 아래와 같습니다.', ...lines].join('\n'),
+    evidence: candidates.map((row) => publicSectorMarketEvidence(row, 'transaction')),
+  };
+}
+
+async function buildSectorMarketSourcePolicyAnswer(ctx: Context, question: string) {
+  const text = normalizeText(question);
+  const asksLatest = /(최신|최근|기준|기준시점|source|출처)/iu.test(text);
+  const asksPolicy = /(자료마다|근거|없는\s*숫자|Excel|엑셀|PDF|우선순위)/iu.test(text);
+  if (!asksLatest && !asksPolicy) return null;
+  const { data, error } = await ctx.serviceClient
+    .from('ll_source_files')
+    .select('source_file_id,file_name,source_version,report_period,as_of_date,active_version,parse_status,row_counts,validation_summary,created_at')
+    .eq('source_domain', 'sector_market')
+    .order('active_version', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if (error) {
+    if (isMissingRelationError(error)) return null;
+    throw new Error(`sector market source read failed: ${error.message}`);
+  }
+  const latest = ((data || []) as Record<string, unknown>[])[0] || {};
+  const latestLabel = [latest.file_name, latest.report_period, latest.as_of_date].map(normalizeText).filter(Boolean).join(' / ');
+  return {
+    denied: false,
+    answer: [
+      `현재 시장자료 기준 원천은 ${latestLabel || '물류 시장 데이터_20261Q.xlsx'}입니다.`,
+      '시장 관련 수치는 이 Excel DB에 저장된 원본 행과 정규화 테이블을 우선 근거로 사용하고, 자료에 없는 값은 임의로 만들지 않습니다.',
+    ].join(' '),
+    evidence: ((data || []) as Record<string, unknown>[]).map((row) => publicSectorMarketEvidence({ ...row, source_locator: { sheet_name: 'source registry' } }, 'market_source')),
+  };
+}
+
 async function buildMarketTransactionAreaRankAnswer(ctx: Context, question: string) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) {
     return { denied: true, answer: '', evidence: [] as Record<string, unknown>[] };
   }
+  const sectorAnswer = await buildSectorMarketTransactionAreaRankAnswer(ctx, question);
+  if (sectorAnswer) return sectorAnswer;
   const years = marketQuestionYears(question).map((year) => Number(year)).filter((year) => Number.isFinite(year));
   const limit = marketRankLimit(question);
   let query = ctx.serviceClient
@@ -10845,6 +11629,9 @@ async function buildMarketAverageTransactionUnitPriceAnswer(ctx: Context, questi
     && /(거래|거래사례|시장자료|매매|transaction)/iu.test(question);
   if (!asksAverageUnitPrice) return null;
 
+  const sectorAnswer = await buildSectorMarketAverageTransactionUnitPriceAnswer(ctx, question);
+  if (sectorAnswer) return sectorAnswer;
+
   const years = marketQuestionYears(question).map((year) => Number(year)).filter((year) => Number.isFinite(year));
   const { data, error } = await ctx.serviceClient
     .from('ll_market_facts')
@@ -10923,6 +11710,8 @@ async function buildMarketTransactionLookupAnswer(ctx: Context, question: string
     return { denied: true, answer: '', evidence: [] as Record<string, unknown>[] };
   }
   if (!/(거래|거래사례|매매|매수|매도|거래가격|평당가)/iu.test(question)) return null;
+  const sectorAnswer = await buildSectorMarketTransactionLookupAnswer(ctx, question);
+  if (sectorAnswer) return sectorAnswer;
   const questionKey = normalizeText(question).replace(/\s+/gu, '').toLowerCase();
   if (/아레나스/iu.test(question) && !/아레나스/iu.test(question.replace(/양지/giu, ''))) return null;
   const { data, error } = await ctx.serviceClient
@@ -11019,6 +11808,8 @@ async function buildMarketSourcePolicyAnswer(ctx: Context, question: string) {
   const asksLatest = /(최신|최근|기준일|기준시점|저장된\s*시장자료\s*중\s*최신)/iu.test(text);
   const asksPolicy = /(기준시점.*다르|자료마다.*다르|근거가\s*없는\s*숫자|없는\s*숫자|숫자.*근거|출처.*사용|Excel DB.*PDF|PDF.*Excel)/iu.test(text);
   if (!asksLatest && !asksPolicy) return null;
+  const sectorAnswer = await buildSectorMarketSourcePolicyAnswer(ctx, question);
+  if (sectorAnswer) return sectorAnswer;
   const { data, error } = await ctx.serviceClient
     .from('ll_market_documents')
     .select('file_name,publisher,report_title,report_period,as_of_date,source_type,extraction_status,source_preservation_status')
@@ -11246,6 +12037,85 @@ async function searchMarketMaterialsSemantic(ctx: Context, question: string, lim
   return { ok: true, status: 'semantic_ready', facts, chunks, evidence };
 }
 
+function sectorMarketSearchFact(row: Record<string, unknown>, kind: string) {
+  const locator = row.source_locator && typeof row.source_locator === 'object'
+    ? row.source_locator as Record<string, unknown>
+    : {};
+  const period = normalizeText(firstDefined(
+    row.report_period,
+    [row.transaction_year, row.transaction_quarter].filter(Boolean).join(' '),
+    [row.report_year, row.report_quarter].filter(Boolean).join(' '),
+  ));
+  const label = normalizeText(firstDefined(row.center_name, row.warehouse_name, row.asset_name, row.region, row.submarket, kind));
+  const value = firstDefined(
+    row.rent_manwon_per_py,
+    row.unit_price_thousand_krw_per_py,
+    row.unit_price_krw_per_py,
+    row.cap_rate,
+    row.gross_area_py,
+    row.leasable_area_py,
+  );
+  return stripUndefined({
+    ...row,
+    fact_type: kind,
+    metric_name: label,
+    period,
+    region: normalizeText(firstDefined(row.region, row.submarket, row.capital_region)),
+    numeric_value: value,
+    unit: kind === 'cap_rate' ? '%' : kind === 'transaction' ? 'KRW/py' : kind === 'lease' ? 'manwon/py' : 'py',
+    fact_text: [
+      label,
+      period,
+      normalizeText(firstDefined(row.legal_address, row.address)),
+      row.transaction_amount_krw ? formatKoreanCompactWon(Number(row.transaction_amount_krw)) : '',
+      row.gross_area_py ? formatKoreanPy(Number(row.gross_area_py)) : '',
+      row.rent_manwon_per_py ? `${normalizeText(row.rent_manwon_per_py)}만원/평` : '',
+      row.cap_rate ? `${normalizeText(row.cap_rate)}%` : '',
+    ].filter(Boolean).join(' / '),
+    publisher: 'IGIS',
+    title: '물류 시장 데이터_20261Q',
+    locator: [locator.sheet_name || row.source_sheet_name, locator.row_number ? `row ${locator.row_number}` : ''].map(normalizeText).filter(Boolean).join(' / '),
+    source_type: 'xlsx',
+    extraction_status: 'ready',
+  }) as Record<string, unknown>;
+}
+
+async function searchSectorMarketMaterialsLexical(ctx: Context, question: string, limit = 8, terms = expandedMarketSearchTerms(question)) {
+  const [leaseResult, supplyResult, transactionResult, capRateResult] = await Promise.all([
+    ctx.serviceClient.from('ll_sector_market_lease_observations').select('*,source_row:ll_source_rows(source_locator)').limit(1200),
+    ctx.serviceClient.from('ll_sector_market_supply_cases').select('*,source_row:ll_source_rows(source_locator)').limit(900),
+    ctx.serviceClient.from('ll_sector_market_transaction_cases').select('*,source_row:ll_source_rows(source_locator)').limit(1200),
+    ctx.serviceClient.from('ll_sector_market_cap_rate_series').select('*,source_row:ll_source_rows(source_locator)').limit(240),
+  ]);
+  const results = [leaseResult, supplyResult, transactionResult, capRateResult];
+  const hardError = results.find((result) => result.error && !isMissingRelationError(result.error));
+  if (hardError?.error) throw new Error(`sector market search read failed: ${hardError.error.message}`);
+  const candidates = [
+    ...((leaseResult.data || []) as Record<string, unknown>[]).map((row) => sectorMarketSearchFact(row, 'lease')),
+    ...((supplyResult.data || []) as Record<string, unknown>[]).map((row) => sectorMarketSearchFact(row, 'supply')),
+    ...((transactionResult.data || []) as Record<string, unknown>[]).map((row) => sectorMarketSearchFact(row, 'transaction')),
+    ...((capRateResult.data || []) as Record<string, unknown>[]).map((row) => sectorMarketSearchFact(row, 'cap_rate')),
+  ];
+  const scored = candidates
+    .map((row) => {
+      const evidence = publicSectorMarketEvidence(row, normalizeText(row.fact_type) || 'sector_market');
+      const score = marketTextScore(`${Object.values(row).join(' ')} ${Object.values(evidence).join(' ')}`, terms)
+        + marketRowRelevanceBoost(question, evidence, row);
+      return { ...row, score };
+    })
+    .filter((row) => Number(row.score || 0) > 0)
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+  const selected = scored.length ? scored.slice(0, Math.max(limit, 12)) : candidates.slice(0, Math.max(limit, 12));
+  return {
+    allowed: true,
+    facts: selected,
+    chunks: [] as Record<string, unknown>[],
+    evidence: selected.slice(0, limit).map((row) => publicSectorMarketEvidence(row, normalizeText(row.fact_type) || 'sector_market')),
+    terms,
+    status: 'sector_market_ready',
+  };
+}
+
 async function searchMarketMaterialsLexical(ctx: Context, question: string, limit = 8, terms = expandedMarketSearchTerms(question), publisherKeys = marketQuestionPublishers(question)) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) {
     return { allowed: false, facts: [] as Record<string, unknown>[], chunks: [] as Record<string, unknown>[], evidence: [] as Record<string, unknown>[], terms, status: 'permission_denied' };
@@ -11320,8 +12190,38 @@ async function searchMarketMaterials(ctx: Context, question: string, limit = 8) 
   const terms = expandedMarketSearchTerms(question);
   const publisherKeys = marketQuestionPublishers(question);
   const years = marketQuestionYears(question);
-  const lexical = await searchMarketMaterialsLexical(ctx, question, Math.max(limit, 10), terms, publisherKeys);
-  const semantic = await searchMarketMaterialsSemantic(ctx, question, Math.max(limit, 10), publisherKeys, years);
+  const emptyRows = {
+    facts: [] as Record<string, unknown>[],
+    chunks: [] as Record<string, unknown>[],
+    evidence: [] as Record<string, unknown>[],
+  };
+  try {
+    const sector = await searchSectorMarketMaterialsLexical(ctx, question, Math.max(limit, 10), terms);
+    if (sector.evidence.length) {
+      return {
+        allowed: true,
+        facts: sector.facts,
+        chunks: sector.chunks,
+        evidence: sector.evidence,
+        terms,
+        retrieval_status: sector.status,
+      };
+    }
+  } catch (error) {
+    console.warn('sector market search failed, trying legacy market search:', safeProviderError(error).slice(0, 180));
+  }
+  let lexical: Awaited<ReturnType<typeof searchMarketMaterialsLexical>> = { allowed: true, ...emptyRows, terms, status: 'legacy_lexical_skipped' };
+  try {
+    lexical = await searchMarketMaterialsLexical(ctx, question, Math.max(limit, 10), terms, publisherKeys);
+  } catch (error) {
+    lexical = { allowed: true, ...emptyRows, terms, status: `legacy_lexical_unavailable:${safeProviderError(error).slice(0, 140)}` };
+  }
+  let semantic: Awaited<ReturnType<typeof searchMarketMaterialsSemantic>> = { ok: false, status: 'legacy_semantic_skipped', ...emptyRows };
+  try {
+    semantic = await searchMarketMaterialsSemantic(ctx, question, Math.max(limit, 10), publisherKeys, years);
+  } catch (error) {
+    semantic = { ok: false, status: `legacy_semantic_unavailable:${safeProviderError(error).slice(0, 140)}`, ...emptyRows };
+  }
   if (semantic.ok && semantic.evidence.length) {
     const facts = dedupeMarketRows([...semantic.facts, ...lexical.facts], Math.max(limit, 12));
     const chunks = dedupeMarketRows([...semantic.chunks, ...lexical.chunks], Math.max(limit, 12));
@@ -11396,7 +12296,8 @@ function buildAiSafeToolFacts(question: string, context: Record<string, unknown>
   const shouldUseTenantTool = tool === 'get_tenant_assets'
     || tool === 'get_tenant_metric'
     || isTenantAssetQuestion(question)
-    || ((hasTenantMention || hasFollowUpTenant) && !hasDirectAssetScope);
+    || hasTenantMention
+    || hasFollowUpTenant;
   if (shouldUseTenantTool) return buildAiTenantToolFacts(question, context, lookupQuestion, plan);
   if (tool === 'get_portfolio_rank') return buildAiPortfolioRankToolFacts(question, context);
   if (tool === 'get_asset_metric') return buildAiAssetMetricToolFacts(question, context, lookupQuestion, plan);
@@ -11436,12 +12337,15 @@ function comparisonFallbackAnswer(question: string, supabaseFacts: Record<string
 }
 
 function ensureMetricComparisonDirection(question: string, answer: string) {
-  const text = normalizeText(answer).trim();
+  let text = normalizeText(answer).trim();
   if (!text) return answer;
   const questionText = normalizeText(question);
+  if (/공실률|vacancy/iu.test(`${questionText} ${text}`)) {
+    text = text.replace(/(공실률\s*)(\d+)%/gu, '$1$2.0%');
+  }
   const lower = wantsLowerMetric(question) || /낮|작|적은|최소|낮은|작은/u.test(questionText);
   const higher = /높|크|큰|많|최대|높은/u.test(questionText);
-  if (!lower && !higher) return answer;
+  if (!lower && !higher) return text;
   const vacancyPairs = [...text.matchAll(/([가-힣A-Za-z0-9()·\s-]{2,40}?물류센터)\s*공실률\s*([0-9]+(?:\.[0-9]+)?)%/gu)]
     .map((match) => ({
       name: (normalizeText(match[1]).replace(/\s+/gu, '')
@@ -12674,10 +13578,19 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       market_evidence_count: publicEvidence.length,
       evidence_titles: publicEvidence.map((row) => row.title).slice(0, 6),
     });
-    const fallbackAnswer = comparisonFallbackAnswer(intentQuestion, supabaseFacts)
+    const comparisonFallback = comparisonFallbackAnswer(intentQuestion, supabaseFacts);
+    const fallbackAnswer = comparisonFallback
       || publicAiFallbackAnswer(intentQuestion, supabaseFacts)
       || 'AI 답변을 안전하게 정리하지 못했습니다. 같은 질문을 한 번 더 보내주시거나 자산명/임차인명을 함께 적어주세요.';
     const fallbackAnswerWithDirection = ensureMetricComparisonDirection(intentQuestion, fallbackAnswer);
+    if (comparisonFallback) {
+      return publicAiAnswerResponse(fallbackAnswerWithDirection, ctx.origin, {
+        safe_fallback_answer: fallbackAnswerWithDirection,
+        evidence: publicEvidence,
+        mode: responseMode || 'server_verified_comparison',
+        model: providerResult.model,
+      });
+    }
     if (!providerResult.ok) {
       const completedFallback = ensureAiAssetIdentityCompleteness(question, fallbackAnswerWithDirection, supabaseFacts);
       return publicAiAnswerResponse(completedFallback, ctx.origin, {
@@ -13772,6 +14685,14 @@ Deno.serve(async (request) => {
   if (action === 'edits/approve') return approveEdit(ctx, payload);
   if (action === 'edits/reject') return rejectEdit(ctx, payload);
   if (action === 'notifications/list') return listLogisticsNotifications(ctx, payload);
+  if (action === 'notifications/dismiss') return dismissLogisticsNotifications(ctx, payload);
+  if (action === 'sector-market/read' || action === 'sector-market/status') return callSectorMarketRead(ctx, payload);
+  if (action === 'investment-index/read') return callInvestmentIndexRead(ctx, payload);
+  if (action === 'asset-spec/read') return callAssetSpecRead(ctx, payload);
+  if (action === 'operating-costs/read') return callOperatingCostsRead(ctx, payload);
+  if (action === 'data-management/status') return callDataManagementStatus(ctx, payload);
+  if (action === 'data-management/submit-edit') return callDataManagementSubmitEdit(ctx, payload);
+  if (action === 'news/list') return callNewsList(ctx, payload);
   if (action === 'lease-events/list') return listLeaseEvents(ctx, payload);
   if (action === 'lease-events/preview') return previewLeaseEvent(ctx, payload);
   if (action === 'lease-events/submit') return submitLeaseEvent(ctx, payload);
