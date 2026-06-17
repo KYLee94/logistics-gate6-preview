@@ -6,11 +6,18 @@ const { createClient } = require('@supabase/supabase-js');
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
 const BING_NEWS_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v2';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v3-major-priority';
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
 const SEARCH_QUERIES = [
+  '쿠팡 물류센터 OR 풀필먼트센터',
+  'CJ대한통운 물류센터 OR 물류센터 투자',
+  '한진 물류센터 OR 택배 허브',
+  '컬리 물류센터 OR 샛별배송',
+  '롯데글로벌로지스 OR 롯데 물류센터',
+  '물류센터 시장 리포트 OR 물류부동산 리포트',
+  '물류센터 매매 OR 선매입 OR 캡레이트',
   '물류센터 OR 물류창고',
   '물류센터 임대 OR 공실 OR 임대료',
   '물류센터 매매 OR 거래 OR 캡레이트 OR 자산운용',
@@ -21,6 +28,8 @@ const SEARCH_QUERIES = [
 ];
 
 const IMPORTANT_TERMS = [
+  '쿠팡', 'CJ대한통운', '대한통운', '한진', '컬리', '롯데', '롯데글로벌로지스',
+  '물류시장', '시장 리포트', '리포트', '보고서', '거래시장', '매각', '선매입', '캡레이트',
   '물류센터', '물류창고', '저온물류', '풀필먼트', '임대', '임대료', '공실',
   '매매', '거래', '공급', '개발', '인허가', '착공', '준공', '캡레이트', 'cap rate',
   'PF', '대출', '금리', '쿠팡', 'CJ대한통운', '컬리', '네이버', 'SSG', '아마존', '3PL',
@@ -28,6 +37,8 @@ const IMPORTANT_TERMS = [
 const CORE_TERMS = ['물류센터', '물류 창고', '물류창고', '저온물류', '저온 물류', '풀필먼트', 'fulfillment'];
 
 const STRUCTURAL_TERMS = /(공급|매매|거래|임대|공실|준공|착공|인허가|금리|캡레이트|cap\s*rate|PF|투자|매각)/iu;
+const MAJOR_COMPANY_TERMS = ['쿠팡', 'CJ대한통운', '대한통운', '한진', '컬리', '롯데', '롯데글로벌로지스'];
+const MARKET_REPORT_TERMS = ['시장 리포트', '물류시장', '리포트', '보고서', '캡레이트', 'cap rate', '매매', '거래', '선매입', '매각'];
 
 function hasFlag(name) {
   return process.argv.includes(name);
@@ -174,7 +185,9 @@ function scoreItem(item) {
   if (!CORE_TERMS.some((term) => text.toLowerCase().includes(term.toLowerCase()))) return { score: 0, matched: [] };
   const matched = IMPORTANT_TERMS.filter((term) => text.toLowerCase().includes(term.toLowerCase()));
   const structuralBoost = STRUCTURAL_TERMS.test(text) ? 2 : 0;
-  return { score: matched.length + structuralBoost, matched };
+  const majorBoost = MAJOR_COMPANY_TERMS.some((term) => text.toLowerCase().includes(term.toLowerCase())) ? 5 : 0;
+  const reportBoost = MARKET_REPORT_TERMS.some((term) => text.toLowerCase().includes(term.toLowerCase())) ? 4 : 0;
+  return { score: matched.length + structuralBoost + majorBoost + reportBoost, matched };
 }
 
 function titleTokens(value) {

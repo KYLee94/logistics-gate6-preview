@@ -16,7 +16,8 @@ const ADMIN_EMAILS = [
   'kylee@igisam.com',
   'sjlee@igisam.com',
   'jk.jeon@igisam.com',
-  'hayun.jeong@igisam.com',
+  'seunghoon.lee@igisam.com',
+  'ethan.lee@igisam.com',
 ];
 const FEATURE_KEYS = [
   'ai_chat',

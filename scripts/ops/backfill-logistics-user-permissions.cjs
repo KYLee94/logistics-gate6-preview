@@ -10,6 +10,8 @@ const SYSTEM_ADMIN_EMAILS = new Set([
   'kylee@igisam.com',
   'sjlee@igisam.com',
   'jk.jeon@igisam.com',
+  'seunghoon.lee@igisam.com',
+  'ethan.lee@igisam.com',
 ]);
 
 const FULL_ACCESS_EMAILS = new Set([

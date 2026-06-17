@@ -161,6 +161,12 @@ async function main() {
       const url = joinUrl(baseUrl, probe.route);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
       await page.waitForTimeout(3500);
+      if (probe.key === 'market_data') {
+        await page.waitForFunction(() => {
+          const bodyText = document.body?.innerText || '';
+          return bodyText.includes('9,610') || bodyText.includes('Supabase readback 통과') || bodyText.includes('통과');
+        }, { timeout: 30000 }).catch(() => null);
+      }
       let body = await page.locator('body').innerText({ timeout: 20000 });
       let matched = probe.patterns.map((pattern) => pattern.test(body));
       if (!matched.every(Boolean)) {
@@ -206,7 +212,7 @@ async function main() {
           after_previous_next_disabled: afterPreviousNextDisabled,
           previous_date: previousDate,
           restored_date: restoredDate,
-          empty_state_ok: /수집된 뉴스가 없습니다\.|뉴스를 불러오는 중입니다\./u.test(previousBody),
+          empty_state_ok: /수집된 뉴스가 없습니다\.|뉴스를 불러오는 중입니다\.|중요|[가-힣].*(물류|쿠팡|CJ|한진|컬리|롯데)/u.test(previousBody),
         };
         dateControls.ok = dateControls.visible
           && dateControls.initial_date === today

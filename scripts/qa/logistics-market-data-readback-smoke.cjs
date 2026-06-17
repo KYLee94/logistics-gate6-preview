@@ -78,20 +78,28 @@ async function main() {
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
   const auth = await signIn(supabaseUrl, anonKey);
-  const data = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', { limit: 2000 });
+  const data = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', { limit: 12000 });
   const summary = data.summary || {};
   const readback = summary.readback || {};
+  const sourceAudit = summary.source_audit || {};
   const checks = {
     status_ready: summary.status === 'ready',
     active_source_only: Boolean(summary.source?.active_version && summary.source?.source_file_id),
+    source_sheet_count: sourceAudit.sheet_count === 9,
+    source_row_count: sourceAudit.source_row_count === 11738,
+    source_sheet_readback_all_pass: Array.isArray(sourceAudit.sheet_readback) && sourceAudit.sheet_readback.length === 9 && sourceAudit.sheet_readback.every((row) => row.ok !== false && row.expected_rows === row.actual_rows),
     lease_count: summary.lease_observation_count === 9610,
     transaction_count: summary.transaction_case_count === 541,
     pipeline_supply_count: summary.pipeline_supply_count === 267,
+    supply_total_count: summary.supply_case_count === 276,
+    new_supply_count: summary.new_supply_count === 9,
+    cap_rate_series_count: summary.cap_rate_series_count === 90,
     new_supply_total_gross_area_py: approxEqual(summary.new_supply_total_gross_area_py, 111517.9),
     readback_all_pass: Object.values(readback).every((item) => item && item.ok !== false),
     sample_non_empty: Array.isArray(data.leases) && data.leases.length > 0
       && Array.isArray(data.supply) && data.supply.length > 0
       && Array.isArray(data.transactions) && data.transactions.length > 0,
+    lease_sample_full: Array.isArray(data.leases) && data.leases.length === 9610,
   };
   const report = {
     ok: Object.values(checks).every(Boolean),
@@ -107,6 +115,7 @@ async function main() {
       new_supply_total_gross_area_py: summary.new_supply_total_gross_area_py,
       sample_counts: summary.sample_counts,
       readback,
+      source_audit: sourceAudit,
     },
   };
   const outJson = path.join(OUT_DIR, `market-data-readback-smoke-${timestampForFile()}.json`);

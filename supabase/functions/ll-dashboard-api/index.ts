@@ -283,6 +283,8 @@ const LOGISTICS_ADMIN_EMAILS = new Set([
   'kylee@igisam.com',
   'sjlee@igisam.com',
   'jk.jeon@igisam.com',
+  'seunghoon.lee@igisam.com',
+  'ethan.lee@igisam.com',
 ]);
 
 function allLogisticsFeaturePermissions(enabled = true) {
@@ -3603,7 +3605,7 @@ async function dismissLogisticsNotifications(ctx: Context, payload: Record<strin
 
 async function callSectorMarketRead(ctx: Context, payload: Record<string, unknown>) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) return fail(403, 'Market research permission required', ctx.origin);
-  const sampleLimit = Math.min(Math.max(Number(payload.limit || 500), 50), 2000);
+  const sampleLimit = Math.min(Math.max(Number(payload.limit || 500), 50), 12000);
   const sourceResult = await ctx.serviceClient
     .from('ll_source_files')
     .select('source_file_id,source_domain,source_version,file_name,source_hash,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at')
@@ -3727,34 +3729,83 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   };
   const readbackOk = Object.values(readback).every((item) => item.ok !== false);
 
-  const leaseQuery = ctx.serviceClient
-    .from('ll_sector_market_lease_observations')
-    .select('*')
-    .eq('source_file_id', activeSourceId)
-    .order('report_year', { ascending: false })
-    .order('report_quarter', { ascending: false })
-    .limit(sampleLimit);
-  const supplyQuery = ctx.serviceClient
-    .from('ll_sector_market_supply_cases')
-    .select('*')
-    .eq('source_file_id', activeSourceId)
-    .order('expected_year', { ascending: false })
-    .order('expected_quarter', { ascending: false })
-    .limit(sampleLimit);
-  const transactionQuery = ctx.serviceClient
-    .from('ll_sector_market_transaction_cases')
-    .select('*')
-    .eq('source_file_id', activeSourceId)
-    .order('transaction_year', { ascending: false })
-    .order('transaction_quarter', { ascending: false })
-    .limit(sampleLimit);
-  const capRateQuery = ctx.serviceClient
-    .from('ll_sector_market_cap_rate_series')
-    .select('*')
-    .eq('source_file_id', activeSourceId)
-    .order('report_year', { ascending: false })
-    .order('report_quarter', { ascending: false })
-    .limit(120);
+  const [sourceSheetsResult, sourceRowsCountResult] = await Promise.all([
+    ctx.serviceClient
+      .from('ll_source_sheets')
+      .select('source_sheet_id,sheet_name,sheet_index,header_row_number,row_count,column_count')
+      .eq('source_file_id', activeSourceId)
+      .order('sheet_index', { ascending: true })
+      .limit(40),
+    ctx.serviceClient
+      .from('ll_source_rows')
+      .select('source_row_id', { count: 'exact', head: true })
+      .eq('source_file_id', activeSourceId),
+  ]);
+  if (sourceSheetsResult.error && !isMissingRelationError(sourceSheetsResult.error)) return fail(500, 'Failed to read source sheets', ctx.origin, { error: sourceSheetsResult.error.message });
+  const sourceSheets = (sourceSheetsResult.data || []) as Record<string, unknown>[];
+  let sourceColumnCount = 0;
+  if (sourceSheets.length) {
+    const sheetIds = sourceSheets.map((row) => safeText(row.source_sheet_id)).filter(Boolean);
+    const columnCountResult = await ctx.serviceClient
+      .from('ll_source_columns')
+      .select('source_column_id', { count: 'exact', head: true })
+      .in('source_sheet_id', sheetIds);
+    if (columnCountResult.error && !isMissingRelationError(columnCountResult.error)) return fail(500, 'Failed to read source columns', ctx.origin, { error: columnCountResult.error.message });
+    sourceColumnCount = columnCountResult.count || 0;
+  }
+  if (sourceRowsCountResult.error && !isMissingRelationError(sourceRowsCountResult.error)) return fail(500, 'Failed to count source rows', ctx.origin, { error: sourceRowsCountResult.error.message });
+  const sheetReadback = await Promise.all(sourceSheets.map(async (sheet) => {
+    const { count, error } = await ctx.serviceClient
+      .from('ll_source_rows')
+      .select('source_row_id', { count: 'exact', head: true })
+      .eq('source_file_id', activeSourceId)
+      .eq('sheet_name', safeText(sheet.sheet_name));
+    if (error && !isMissingRelationError(error)) throw new Error(`source sheet count failed: ${error.message}`);
+    const expectedRows = Number(sheet.row_count || 0);
+    const actualRows = count || 0;
+    return {
+      source_sheet_id: sheet.source_sheet_id,
+      sheet_name: sheet.sheet_name,
+      sheet_index: sheet.sheet_index,
+      header_row_number: sheet.header_row_number,
+      column_count: sheet.column_count,
+      expected_rows: expectedRows,
+      actual_rows: actualRows,
+      status: expectedRows === actualRows ? '통과' : '불일치',
+      ok: expectedRows === actualRows,
+    };
+  }));
+
+  const fetchMarketPageRows = async (
+    table: string,
+    limit: number,
+    orders: Array<[string, boolean]>,
+  ) => {
+    const out: Record<string, unknown>[] = [];
+    const pageSize = 1000;
+    for (let offset = 0; offset < limit; offset += pageSize) {
+      let query = ctx.serviceClient
+        .from(table)
+        .select('*')
+        .eq('source_file_id', activeSourceId);
+      orders.forEach(([column, ascending]) => {
+        query = query.order(column, { ascending });
+      });
+      const { data, error } = await query.range(offset, Math.min(offset + pageSize - 1, limit - 1));
+      if (error) {
+        if (isMissingRelationError(error)) return { data: out, error: null };
+        return { data: out, error };
+      }
+      const rows = (data || []) as Record<string, unknown>[];
+      out.push(...rows);
+      if (rows.length < pageSize) break;
+    }
+    return { data: out, error: null };
+  };
+  const leaseQuery = fetchMarketPageRows('ll_sector_market_lease_observations', sampleLimit, [['report_year', false], ['report_quarter', false]]);
+  const supplyQuery = fetchMarketPageRows('ll_sector_market_supply_cases', sampleLimit, [['expected_year', false], ['expected_quarter', false]]);
+  const transactionQuery = fetchMarketPageRows('ll_sector_market_transaction_cases', sampleLimit, [['transaction_year', false], ['transaction_quarter', false]]);
+  const capRateQuery = fetchMarketPageRows('ll_sector_market_cap_rate_series', 120, [['report_year', false], ['report_quarter', false]]);
   const [leaseResult, supplyResult, transactionResult, capRateResult] = await Promise.all([
     leaseQuery,
     supplyQuery,
@@ -3860,6 +3911,21 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       supply: supply.length,
       transactions: transactions.length,
       cap_rates: capRateSeriesCount,
+    },
+    source_audit: {
+      sheet_count: sourceSheets.length,
+      source_row_count: sourceRowsCountResult.count || 0,
+      source_column_count: sourceColumnCount,
+      sheet_readback: sheetReadback,
+      sheet_readback_ok: sheetReadback.every((row) => row.ok),
+      chapter_checks: {
+        lease_market_statistics_rows: sheetReadback.find((row) => safeText(row.sheet_name).includes('임대') && safeText(row.sheet_name).includes('통계')) || null,
+        new_supply_normalized_rows: newSupplyCount,
+        pipeline_supply_normalized_rows: pipelineSupplyCount,
+        transaction_statistics_rows: sheetReadback.find((row) => safeText(row.sheet_name).includes('매매') && safeText(row.sheet_name).includes('통계')) || null,
+        transaction_cases_normalized_rows: transactionCount,
+        cap_rate_series_rows: capRateSeriesCount,
+      },
     },
   };
   return jsonResponse({ ok: true, data: {
@@ -4308,12 +4374,19 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
 }
 
 const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v2';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v3-major-priority';
 const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NEWS_HOUR_MS = 60 * 60 * 1000;
 const NEWS_GOOGLE_RSS_URL = 'https://news.google.com/rss/search';
 const NEWS_BING_RSS_URL = 'https://www.bing.com/news/search';
 const NEWS_SEARCH_QUERIES = [
+  '쿠팡 물류센터 OR 풀필먼트센터',
+  'CJ대한통운 물류센터 OR 물류센터 투자',
+  '한진 물류센터 OR 택배 허브',
+  '컬리 물류센터 OR 샛별배송',
+  '롯데글로벌로지스 OR 롯데 물류센터',
+  '물류센터 시장 리포트 OR 물류부동산 리포트',
+  '물류센터 매매 OR 선매입 OR 캡레이트',
   '물류센터 OR 물류창고',
   '물류센터 임대 OR 공실 OR 임대료',
   '물류센터 매매 OR 거래 OR 캡레이트 OR 자산운용',
@@ -4323,12 +4396,17 @@ const NEWS_SEARCH_QUERIES = [
   '쿠팡 OR CJ대한통운 OR 컬리 물류센터',
 ];
 const NEWS_IMPORTANT_TERMS = [
+  '쿠팡', 'CJ대한통운', '대한통운', '한진', '컬리', '롯데', '롯데글로벌로지스',
+  '물류시장', '시장 리포트', '리포트', '보고서', '거래시장', '매각', '선매입', '캡레이트',
   '물류센터', '물류창고', '저온물류', '풀필먼트', '임대', '임대료', '공실',
   '매매', '거래', '공급', '개발', '인허가', '착공', '준공', '캡레이트', 'cap rate',
   'PF', '대출', '금리', '쿠팡', 'CJ대한통운', '컬리', '네이버', 'SSG', '3PL',
 ];
 const NEWS_CORE_TERMS = ['물류센터', '물류 창고', '물류창고', '저온물류', '저온 물류', '풀필먼트', 'fulfillment'];
 const NEWS_STRUCTURAL_TERMS = /(공급|매매|거래|임대|공실|준공|착공|인허가|금리|캡레이트|cap\s*rate|PF|투자|매각|개발|물류)/iu;
+
+const NEWS_MAJOR_COMPANY_TERMS = ['쿠팡', 'CJ대한통운', '대한통운', '한진', '컬리', '롯데', '롯데글로벌로지스'];
+const NEWS_MARKET_REPORT_TERMS = ['시장 리포트', '물류시장', '리포트', '보고서', '캡레이트', 'cap rate', '매매', '거래', '선매입', '매각'];
 
 type NewsCollectorItem = {
   dedupe_key: string;
@@ -4413,7 +4491,9 @@ function newsScore(item: { title: string; summary: string }) {
   if (!NEWS_CORE_TERMS.some((term) => lower.includes(term.toLowerCase()))) return { score: 0, matched: [] };
   const matched = NEWS_IMPORTANT_TERMS.filter((term) => lower.includes(term.toLowerCase()));
   const structuralBoost = NEWS_STRUCTURAL_TERMS.test(combined) ? 2 : 0;
-  return { score: matched.length + structuralBoost, matched };
+  const majorBoost = NEWS_MAJOR_COMPANY_TERMS.some((term) => lower.includes(term.toLowerCase())) ? 5 : 0;
+  const reportBoost = NEWS_MARKET_REPORT_TERMS.some((term) => lower.includes(term.toLowerCase())) ? 4 : 0;
+  return { score: matched.length + structuralBoost + majorBoost + reportBoost, matched };
 }
 
 function newsTitleTokens(value: unknown) {
