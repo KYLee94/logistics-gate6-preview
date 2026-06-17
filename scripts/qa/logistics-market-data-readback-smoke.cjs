@@ -29,30 +29,8 @@ function envValue(...keys) {
   return '';
 }
 
-function argsValues(name) {
-  const flag = `--${name}`;
-  const values = [];
-  for (let index = 0; index < process.argv.length; index += 1) {
-    if (process.argv[index] === flag && process.argv[index + 1]) values.push(process.argv[index + 1]);
-  }
-  return values;
-}
-
 function timestampForFile() {
   return new Date().toISOString().replace(/[-:]/gu, '').replace(/\..+$/u, '').replace('T', '-');
-}
-
-function kstDateKey(value = new Date()) {
-  const date = value instanceof Date ? value : new Date(value);
-  return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
-}
-
-function addDateDays(dateText, diff) {
-  const match = String(dateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/u);
-  if (!match) return kstDateKey();
-  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  date.setUTCDate(date.getUTCDate() + diff);
-  return date.toISOString().slice(0, 10);
 }
 
 async function signIn(supabaseUrl, anonKey) {
@@ -74,7 +52,7 @@ async function signIn(supabaseUrl, anonKey) {
   return { token: body.access_token, source: 'password_grant' };
 }
 
-async function invokeNewsList(supabaseUrl, anonKey, token, date) {
+async function invoke(supabaseUrl, anonKey, token, action, payload = {}) {
   const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/functions/v1/ll-dashboard-api`, {
     method: 'POST',
     headers: {
@@ -83,20 +61,15 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date) {
       'content-type': 'application/json',
       origin: 'https://kylee94.github.io',
     },
-    body: JSON.stringify({ action: 'news/list', payload: { limit: 10, date } }),
+    body: JSON.stringify({ action, payload }),
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok || body?.ok === false) throw new Error(`news/list ${date} failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
-  const data = body.data || {};
-  return {
-    date,
-    http_status: response.status,
-    data_status: data.status,
-    selected_date: data.selected_date,
-    run_key: data.latest_run?.run_key || null,
-    item_count: Array.isArray(data.items) ? data.items.length : 0,
-    empty_message: data.empty_message,
-  };
+  if (!response.ok || body?.ok === false) throw new Error(`${action} failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
+  return body.data || {};
+}
+
+function approxEqual(actual, expected, tolerance = 0.1) {
+  return Math.abs(Number(actual) - Number(expected)) <= tolerance;
 }
 
 async function main() {
@@ -104,24 +77,41 @@ async function main() {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
-  const dates = argsValues('date');
-  const today = kstDateKey();
-  const targets = dates.length ? dates : [today, addDateDays(today, -1)];
   const auth = await signIn(supabaseUrl, anonKey);
-  const checks = [];
-  for (const date of targets) checks.push(await invokeNewsList(supabaseUrl, anonKey, auth.token, date));
+  const data = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', { limit: 2000 });
+  const summary = data.summary || {};
+  const readback = summary.readback || {};
+  const checks = {
+    status_ready: summary.status === 'ready',
+    active_source_only: Boolean(summary.source?.active_version && summary.source?.source_file_id),
+    lease_count: summary.lease_observation_count === 9610,
+    transaction_count: summary.transaction_case_count === 541,
+    pipeline_supply_count: summary.pipeline_supply_count === 267,
+    new_supply_total_gross_area_py: approxEqual(summary.new_supply_total_gross_area_py, 111517.9),
+    readback_all_pass: Object.values(readback).every((item) => item && item.ok !== false),
+    sample_non_empty: Array.isArray(data.leases) && data.leases.length > 0
+      && Array.isArray(data.supply) && data.supply.length > 0
+      && Array.isArray(data.transactions) && data.transactions.length > 0,
+  };
   const report = {
-    ok: checks.every((check, index) => check.http_status === 200
-      && check.selected_date === check.date
-      && check.empty_message === '수집된 뉴스가 없습니다.'
-      && (index > 0 || check.item_count > 0)),
+    ok: Object.values(checks).every(Boolean),
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
     checks,
+    observed: {
+      status: summary.status,
+      source_file: summary.source?.file_name || null,
+      lease_observation_count: summary.lease_observation_count,
+      transaction_case_count: summary.transaction_case_count,
+      pipeline_supply_count: summary.pipeline_supply_count,
+      new_supply_total_gross_area_py: summary.new_supply_total_gross_area_py,
+      sample_counts: summary.sample_counts,
+      readback,
+    },
   };
-  const outJson = path.join(OUT_DIR, `news-api-smoke-${timestampForFile()}.json`);
+  const outJson = path.join(OUT_DIR, `market-data-readback-smoke-${timestampForFile()}.json`);
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify({ ok: report.ok, artifact: outJson, checks }, null, 2));
+  console.log(JSON.stringify({ ok: report.ok, artifact: outJson, checks, observed: report.observed }, null, 2));
   if (!report.ok) process.exit(1);
 }
 

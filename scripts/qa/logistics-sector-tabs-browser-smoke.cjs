@@ -154,7 +154,7 @@ async function main() {
       { key: 'asset_spec', route: 'platform/iotaseoul/workspace/logistics/dashboard/asset-spec', patterns: [/Asset Spec|자산 스펙/u, /층고|통로|램프|바닥/u, /임차인|Tenant/u] },
       { key: 'market_data', route: 'platform/iotaseoul/workspace/logistics/market-data', patterns: [/Market Data/u, /Lease Market/u, /Supply Pipeline/u, /Transactions/u] },
       { key: 'data_management', route: 'platform/iotaseoul/workspace/logistics/data-management', patterns: [/Data Management/u, /내 작업|임대차/u, /승인 대기|반영 이력/u] },
-      { key: 'work_platform_news', route: 'platform/iotaseoul/workspace/logistics', patterns: [/일자별 물류센터 주요 뉴스/u, /Project 현황|Project/u, /주요\s*TASK|주요\s*Task/u] },
+      { key: 'work_platform_news', route: 'platform/iotaseoul/workspace/logistics', patterns: [/데일리 물류 뉴스/u, /Project 현황|Project/u, /주요\s*TASK|주요\s*Task/u] },
     ];
 
     for (const probe of probes) {
@@ -178,7 +178,7 @@ async function main() {
       };
       if (probe.key === 'work_platform_news') {
         const today = kstDateKey();
-        const newsSection = page.locator('section', { has: page.locator('h2', { hasText: '일자별 물류센터 주요 뉴스' }) }).first();
+        const newsSection = page.locator('section', { has: page.locator('h2', { hasText: '데일리 물류 뉴스' }) }).first();
         const dateInput = newsSection.locator('input[type="date"]').first();
         const prevButton = newsSection.locator('button[aria-label="이전 날짜 뉴스"]').first();
         const nextButton = newsSection.locator('button[aria-label="다음 날짜 뉴스"]').first();

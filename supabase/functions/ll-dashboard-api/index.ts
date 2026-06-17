@@ -3603,7 +3603,7 @@ async function dismissLogisticsNotifications(ctx: Context, payload: Record<strin
 
 async function callSectorMarketRead(ctx: Context, payload: Record<string, unknown>) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) return fail(403, 'Market research permission required', ctx.origin);
-  const limit = Math.min(Math.max(Number(payload.limit || 500), 50), 2000);
+  const sampleLimit = Math.min(Math.max(Number(payload.limit || 500), 50), 2000);
   const sourceResult = await ctx.serviceClient
     .from('ll_source_files')
     .select('source_file_id,source_domain,source_version,file_name,source_hash,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at')
@@ -3612,18 +3612,149 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     .order('created_at', { ascending: false })
     .limit(10);
   if (sourceResult.error && !isMissingRelationError(sourceResult.error)) return fail(500, 'Failed to read market source files', ctx.origin, { error: sourceResult.error.message });
-  const activeSource = ((sourceResult.data || []) as Record<string, unknown>[]).find((row) => row.active_version) || ((sourceResult.data || []) as Record<string, unknown>[])[0] || null;
+  const sources = (sourceResult.data || []) as Record<string, unknown>[];
+  const activeSource = sources.find((row) => row.active_version) || null;
   const activeSourceId = safeText(activeSource?.source_file_id);
-  let leaseQuery = ctx.serviceClient.from('ll_sector_market_lease_observations').select('*').limit(limit);
-  let supplyQuery = ctx.serviceClient.from('ll_sector_market_supply_cases').select('*').limit(limit);
-  let transactionQuery = ctx.serviceClient.from('ll_sector_market_transaction_cases').select('*').limit(limit);
-  let capRateQuery = ctx.serviceClient.from('ll_sector_market_cap_rate_series').select('*').order('report_year', { ascending: false }).order('report_quarter', { ascending: false }).limit(80);
-  if (activeSourceId) {
-    leaseQuery = leaseQuery.eq('source_file_id', activeSourceId);
-    supplyQuery = supplyQuery.eq('source_file_id', activeSourceId);
-    transactionQuery = transactionQuery.eq('source_file_id', activeSourceId);
-    capRateQuery = capRateQuery.eq('source_file_id', activeSourceId);
+
+  const emptyMarketData = {
+    summary: {
+      status: 'missing_source',
+      source: null,
+      latest_lease_period: '',
+      lease_observation_count: 0,
+      latest_lease_center_count: 0,
+      weighted_rent_manwon_per_py: null,
+      weighted_vacancy_rate: null,
+      supply_case_count: 0,
+      pipeline_supply_count: 0,
+      new_supply_count: 0,
+      supply_total_gross_area_py: 0,
+      new_supply_total_gross_area_py: 0,
+      transaction_case_count: 0,
+      cap_rate_series_count: 0,
+      latest_cap_rate: null,
+      expected_counts: {},
+      check_values: {},
+      readback: {},
+    },
+    leases: [],
+    supply: [],
+    transactions: [],
+    cap_rates: [],
+    sources,
+    charts: {},
+  };
+  if (!activeSourceId) return jsonResponse({ ok: true, data: emptyMarketData }, 200, ctx.origin);
+
+  const validationSummary = activeSource?.validation_summary && typeof activeSource.validation_summary === 'object'
+    ? activeSource.validation_summary as Record<string, unknown>
+    : {};
+  const expectedCounts = validationSummary.normalized_counts && typeof validationSummary.normalized_counts === 'object'
+    ? validationSummary.normalized_counts as Record<string, unknown>
+    : {};
+  const checkValues = validationSummary.check_values && typeof validationSummary.check_values === 'object'
+    ? validationSummary.check_values as Record<string, unknown>
+    : {};
+
+  const countMarketRows = async (table: string, filters: Array<[string, unknown]> = []) => {
+    let query = ctx.serviceClient
+      .from(table)
+      .select('source_file_id', { count: 'exact', head: true })
+      .eq('source_file_id', activeSourceId);
+    filters.forEach(([column, value]) => {
+      query = query.eq(column, value);
+    });
+    const { count, error } = await query;
+    if (error) {
+      if (isMissingRelationError(error)) return 0;
+      throw new Error(`${table} count failed: ${error.message}`);
+    }
+    return count || 0;
+  };
+  const numericExpected = (key: string) => {
+    const parsed = Number(expectedCounts[key]);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const valueExpected = (key: string) => {
+    const parsed = Number(checkValues[key]);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const countCheck = (key: string, actual: number) => {
+    const expected = numericExpected(key);
+    return { expected, actual, ok: expected === null ? null : expected === actual };
+  };
+  const valueCheck = (key: string, actual: number, tolerance = 0.1) => {
+    const expected = valueExpected(key);
+    return { expected, actual, ok: expected === null ? null : Math.abs(expected - actual) <= tolerance };
+  };
+
+  const [
+    leaseCount,
+    supplyCount,
+    pipelineSupplyCount,
+    newSupplyCount,
+    transactionCount,
+    capRateSeriesCount,
+    newSupplyRowsResult,
+  ] = await Promise.all([
+    countMarketRows('ll_sector_market_lease_observations'),
+    countMarketRows('ll_sector_market_supply_cases'),
+    countMarketRows('ll_sector_market_supply_cases', [['supply_kind', 'pipeline']]),
+    countMarketRows('ll_sector_market_supply_cases', [['supply_kind', 'new_supply']]),
+    countMarketRows('ll_sector_market_transaction_cases'),
+    countMarketRows('ll_sector_market_cap_rate_series'),
+    ctx.serviceClient
+      .from('ll_sector_market_supply_cases')
+      .select('gross_area_py')
+      .eq('source_file_id', activeSourceId)
+      .eq('supply_kind', 'new_supply')
+      .limit(500),
+  ]);
+  if (newSupplyRowsResult.error && !isMissingRelationError(newSupplyRowsResult.error)) {
+    return fail(500, 'Failed to read sector market check values', ctx.origin, { error: newSupplyRowsResult.error.message });
   }
+  const newSupplyTotalGrossAreaPy = ((newSupplyRowsResult.data || []) as Record<string, unknown>[])
+    .reduce((sum, row) => sum + Number(row.gross_area_py || 0), 0);
+
+  const readback = {
+    lease_observations: countCheck('lease_observations', leaseCount),
+    supply_cases: countCheck('supply_cases', supplyCount),
+    pipeline_supply_cases: countCheck('pipeline_supply_cases', pipelineSupplyCount),
+    new_supply_cases: countCheck('new_supply_cases', newSupplyCount),
+    transaction_cases: countCheck('transaction_cases', transactionCount),
+    cap_rate_series: countCheck('cap_rate_series', capRateSeriesCount),
+    new_supply_total_gross_area_py: valueCheck('new_supply_total_gross_area_py', Math.round(newSupplyTotalGrossAreaPy * 10) / 10),
+  };
+  const readbackOk = Object.values(readback).every((item) => item.ok !== false);
+
+  const leaseQuery = ctx.serviceClient
+    .from('ll_sector_market_lease_observations')
+    .select('*')
+    .eq('source_file_id', activeSourceId)
+    .order('report_year', { ascending: false })
+    .order('report_quarter', { ascending: false })
+    .limit(sampleLimit);
+  const supplyQuery = ctx.serviceClient
+    .from('ll_sector_market_supply_cases')
+    .select('*')
+    .eq('source_file_id', activeSourceId)
+    .order('expected_year', { ascending: false })
+    .order('expected_quarter', { ascending: false })
+    .limit(sampleLimit);
+  const transactionQuery = ctx.serviceClient
+    .from('ll_sector_market_transaction_cases')
+    .select('*')
+    .eq('source_file_id', activeSourceId)
+    .order('transaction_year', { ascending: false })
+    .order('transaction_quarter', { ascending: false })
+    .limit(sampleLimit);
+  const capRateQuery = ctx.serviceClient
+    .from('ll_sector_market_cap_rate_series')
+    .select('*')
+    .eq('source_file_id', activeSourceId)
+    .order('report_year', { ascending: false })
+    .order('report_quarter', { ascending: false })
+    .limit(120);
   const [leaseResult, supplyResult, transactionResult, capRateResult] = await Promise.all([
     leaseQuery,
     supplyQuery,
@@ -3633,52 +3764,6 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const results = [leaseResult, supplyResult, transactionResult, capRateResult];
   const hardError = results.find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return fail(500, 'Failed to read sector market data', ctx.origin, { error: hardError.error.message });
-  /*
-  const leases = ((leaseResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
-    ...row,
-    period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
-    center_name: firstDefined(row.center_name, row.warehouse_name),
-    area_py: firstDefined(row.leasable_area_py, row.gross_area_py),
-    rent_per_py: row.rent_manwon_per_py,
-    management_fee_per_py: row.management_fee_manwon_per_py,
-    temperature_type: row.temperature_type || '미분류',
-  }));
-  const supply = ((supplyResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
-    ...row,
-    center_name: firstDefined(row.warehouse_name, row.center_name),
-    status: firstDefined(row.progress_status, row.status),
-    completion_period: [row.expected_year, row.expected_quarter].filter(Boolean).join(' '),
-    area_py: row.gross_area_py,
-    temperature_type: row.temperature_type || '미분류',
-  }));
-  const transactions = ((transactionResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
-    ...row,
-    asset_name: firstDefined(row.warehouse_name, row.asset_name, row.center_name),
-    region: firstDefined(row.capital_region, row.national_region, row.region),
-    transaction_date: firstDefined(row.closing_date, row.contract_date),
-    transaction_period: [row.transaction_year, row.transaction_quarter].filter(Boolean).join(' '),
-    area_py: firstDefined(row.gross_area_py, row.building_area_py, row.land_area_py),
-    unit_price_krw_per_py: Number(row.unit_price_thousand_krw_per_py || 0) ? Number(row.unit_price_thousand_krw_per_py) * 1000 : null,
-    temperature_type: row.temperature_type || '미분류',
-  }));
-  const capRatesRaw = (capRateResult.data || []) as Record<string, unknown>[];
-  const capRates = capRatesRaw.flatMap((row) => [
-    stripUndefined({
-      ...row,
-      cap_rate_id: `${row.cap_rate_id}:capital`,
-      region: '수도권',
-      cap_rate: row.capital_area_cap_rate,
-      period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
-    }),
-    stripUndefined({
-      ...row,
-      cap_rate_id: `${row.cap_rate_id}:national`,
-      region: '전국',
-      cap_rate: row.national_cap_rate,
-      period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
-    }),
-  ]).filter((row) => row.cap_rate !== null && row.cap_rate !== undefined && row.cap_rate !== '');
-  */
   const leases = ((leaseResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
     ...row,
     period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
@@ -3730,28 +3815,6 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const weightedVacancy = leaseArea ? latestLeases.reduce((sum, row) => sum + Number(row.vacancy_rate || 0) * Number(row.leasable_area_py || 0), 0) / leaseArea : null;
   const latestCapRate = capRates[0] || null;
   const supplyTotalPy = supply.reduce((sum, row) => sum + Number(row.gross_area_py || 0), 0);
-  /*
-  const aggregateArea = (rows: Record<string, unknown>[], key: string, valueField: string, weightField = 'area_py') => {
-    const grouped = new Map<string, { key: string; count: number; area_py: number; weighted_sum: number; value_sum: number }>();
-    rows.forEach((row) => {
-      const groupKey = safeText(row[key]) || '미분류';
-      const current = grouped.get(groupKey) || { key: groupKey, count: 0, area_py: 0, weighted_sum: 0, value_sum: 0 };
-      const weight = Number(row[weightField] || row.leasable_area_py || row.gross_area_py || 0);
-      const value = Number(row[valueField] || 0);
-      current.count += 1;
-      current.area_py += Number.isFinite(weight) ? weight : 0;
-      current.weighted_sum += Number.isFinite(weight) && Number.isFinite(value) ? weight * value : 0;
-      current.value_sum += Number.isFinite(value) ? value : 0;
-      grouped.set(groupKey, current);
-    });
-    return [...grouped.values()].map((row) => ({
-      label: row.key,
-      count: row.count,
-      area_py: row.area_py,
-      value: row.area_py ? row.weighted_sum / row.area_py : (row.count ? row.value_sum / row.count : null),
-    })).sort((a, b) => Number(b.area_py || 0) - Number(a.area_py || 0));
-  };
-  */
   const aggregateArea = (rows: Record<string, unknown>[], key: string, valueField: string, weightField = 'area_py') => {
     const grouped = new Map<string, { key: string; count: number; area_py: number; weighted_sum: number; value_sum: number }>();
     rows.forEach((row) => {
@@ -3773,20 +3836,31 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     })).sort((a, b) => Number(b.area_py || 0) - Number(a.area_py || 0));
   };
   const summary = {
-    status: activeSourceId ? 'ready' : 'missing_source',
+    status: readbackOk ? 'ready' : 'readback_mismatch',
     source: activeSource,
     latest_lease_period: latestLeasePeriod,
-    lease_observation_count: leases.length,
+    lease_observation_count: leaseCount,
     latest_lease_center_count: new Set(latestLeases.map((row) => safeText(row.center_name)).filter(Boolean)).size,
     weighted_rent_manwon_per_py: weightedRent,
     weighted_vacancy_rate: weightedVacancy,
-    supply_case_count: supply.length,
+    supply_case_count: supplyCount,
+    pipeline_supply_count: pipelineSupplyCount,
+    new_supply_count: newSupplyCount,
     supply_total_gross_area_py: supplyTotalPy,
-    transaction_case_count: transactions.length,
+    new_supply_total_gross_area_py: Math.round(newSupplyTotalGrossAreaPy * 10) / 10,
+    transaction_case_count: transactionCount,
+    cap_rate_series_count: capRateSeriesCount,
     latest_cap_rate: latestCapRate,
-    expected_counts: activeSource?.validation_summary && typeof activeSource.validation_summary === 'object'
-      ? (activeSource.validation_summary as Record<string, unknown>).normalized_counts || {}
-      : {},
+    expected_counts: expectedCounts,
+    check_values: checkValues,
+    readback,
+    sample_limit: sampleLimit,
+    sample_counts: {
+      leases: leases.length,
+      supply: supply.length,
+      transactions: transactions.length,
+      cap_rates: capRateSeriesCount,
+    },
   };
   return jsonResponse({ ok: true, data: {
     summary,
@@ -3794,7 +3868,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     supply,
     transactions,
     cap_rates: capRates,
-    sources: sourceResult.data || [],
+    sources,
     charts: {
       lease_rent_by_region: aggregateArea(latestLeases, 'region', 'rent_manwon_per_py', 'leasable_area_py'),
       lease_vacancy_by_region: aggregateArea(latestLeases, 'region', 'vacancy_rate', 'leasable_area_py'),
@@ -3818,7 +3892,7 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
   const funds = (fundsResult.data || []) as Record<string, unknown>[];
   const links = ((linksResult.data || []) as Record<string, unknown>[]).filter((row) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
   const readableAssetIds = new Set(links.map((row) => safeText(row.asset_id)).filter(Boolean));
-  const tranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => links.some((link) => safeText(link.fund_id) === safeText(row.fund_id)));
+  const rawTranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => links.some((link) => safeText(link.fund_id) === safeText(row.fund_id)));
   const assets = ((assetsResult.data || []) as Record<string, unknown>[]).filter((row) => readableAssetIds.has(safeText(row.asset_id)) || canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
   const fundById = new Map(funds.map((fund) => [safeText(fund.fund_id), fund]));
   const assetById = new Map(assets.map((asset) => [safeText(asset.asset_id), asset]));
@@ -3826,6 +3900,23 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
   const assetDisplayName = (asset: Record<string, unknown>) => safeText(firstDefined(asset.asset_name, asset.asset_code, asset.asset_id));
   const trancheKind = (row: Record<string, unknown>) => safeText(row.tranche_type) === 'loan' ? 'loan' : 'equity';
   const trancheTypeLabel = (row: Record<string, unknown>) => trancheKind(row) === 'loan' ? '대출(Loan)' : '수익자 지분(Equity)';
+  const trancheIdentity = (row: Record<string, unknown>) => [
+    safeText(row.fund_id),
+    safeText(row.asset_id),
+    trancheKind(row),
+    safeText(firstDefined(row.tranche_name, row.tranche_label, row.party_name, row.counterparty_name, row.lender_name, row.beneficiary_name)),
+    safeText(firstDefined(row.committed_amount_krw, row.drawn_amount_krw, row.amount_krw)),
+    safeText(row.drawdown_date),
+    safeText(row.maturity_date),
+    safeText(firstDefined(row.interest_rate, row.loan_rate, row.all_in_rate, row.spread_rate)),
+  ].join('|').toLowerCase();
+  const seenTrancheIdentities = new Set<string>();
+  const tranches = rawTranches.filter((row) => {
+    const identity = trancheIdentity(row);
+    if (seenTrancheIdentities.has(identity)) return false;
+    seenTrancheIdentities.add(identity);
+    return true;
+  });
   const fundAssetCount = new Map<string, number>();
   links.forEach((link) => {
     const fundId = safeText(link.fund_id);
@@ -3911,7 +4002,41 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
       interest_rate: firstDefined(row.interest_rate, row.loan_rate, row.all_in_rate),
       amount_krw: row.amount_krw,
     }));
+  const fundTotals = fundRows.reduce((acc, row) => {
+    acc.equity_krw += Number(row.equity_krw || 0);
+    acc.loan_krw += Number(row.loan_krw || 0);
+    acc.total_capital_krw += Number(row.total_capital_krw || 0);
+    return acc;
+  }, { equity_krw: 0, loan_krw: 0, total_capital_krw: 0 });
+  const assetTotals = assetRows.reduce((acc, row) => {
+    acc.equity_krw += Number(row.equity_krw || 0);
+    acc.loan_krw += Number(row.loan_krw || 0);
+    acc.total_capital_krw += Number(row.total_capital_krw || 0);
+    acc.reference_equity_krw += Number(row.reference_equity_krw || 0);
+    acc.reference_loan_krw += Number(row.reference_loan_krw || 0);
+    acc.reference_total_capital_krw += Number(row.reference_total_capital_krw || 0);
+    return acc;
+  }, {
+    equity_krw: 0,
+    loan_krw: 0,
+    total_capital_krw: 0,
+    reference_equity_krw: 0,
+    reference_loan_krw: 0,
+    reference_total_capital_krw: 0,
+  });
   return jsonResponse({ ok: true, data: {
+    summary: {
+      fund_count: fundRows.length,
+      asset_count: assetRows.length,
+      raw_tranche_count: rawTranches.length,
+      tranche_count: tranches.length,
+      deduped_tranche_count: Math.max(0, rawTranches.length - tranches.length),
+      joint_fund_count: fundRows.filter((row) => row.joint_fund).length,
+      joint_asset_reference_count: assetRows.filter((row) => row.joint_fund_reference).length,
+      funds: fundTotals,
+      assets: assetTotals,
+      generated_at: new Date().toISOString(),
+    },
     funds: fundRows,
     assets: assetRows,
     tranches: publicTranches,
@@ -4050,16 +4175,29 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     managerView
       ? ctx.serviceClient.from('ll_source_rows').select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,row_hash,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.row_limit || 120), 20), 300))
       : Promise.resolve({ data: [], error: null }),
-    ctx.serviceClient.from('ll_edit_requests').select('id,target_type,target_name,field_name,status,write_status,requested_by,approved_by,created_at,updated_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.limit || 60), 10), 120)),
+    ctx.serviceClient.from('ll_edit_requests').select('id,source_table,target_type,target_name,target_row_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,write_status,write_error,write_result,requested_by,approved_by,approved_at,rejected_by,rejected_at,created_at,updated_at,written_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.limit || 60), 10), 120)),
   ]);
   const hardError = [sourcesResult, sheetsResult, columnsResult, rowsResult, editsResult].find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return fail(500, 'Failed to read data management status', ctx.origin, { error: hardError.error.message });
   const sources = (sourcesResult.data || []) as Record<string, unknown>[];
   const sheets = (sheetsResult.data || []) as Record<string, unknown>[];
   const sourceRows = (rowsResult.data || []) as Record<string, unknown>[];
+  const edits = (editsResult.data || []) as Record<string, unknown>[];
+  const sourceDomainKeys = ['lease_contracts', 'fund_info', 'sector_market', 'permissions', 'asset_specs', 'operating_costs'];
   const domainStats = sources.reduce((acc: Record<string, Record<string, unknown>>, row) => {
     const domain = safeText(row.source_domain) || 'unknown';
-    const current = acc[domain] || { source_domain: domain, version_count: 0, active_source: null, total_rows: 0, warning_count: 0 };
+    const current = acc[domain] || {
+      source_domain: domain,
+      version_count: 0,
+      active_source: null,
+      total_rows: 0,
+      warning_count: 0,
+      pending_edits: 0,
+      completed_edits: 0,
+      rejected_edits: 0,
+      failed_edits: 0,
+      latest_edit_at: null,
+    };
     current.version_count = Number(current.version_count || 0) + 1;
     if (row.active_version || !current.active_source) current.active_source = row;
     const rowCounts = row.row_counts && typeof row.row_counts === 'object' ? row.row_counts as Record<string, unknown> : {};
@@ -4069,6 +4207,49 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     acc[domain] = current;
     return acc;
   }, {});
+  const domainFromEdit = (row: Record<string, unknown>) => {
+    const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload as Record<string, unknown> : {};
+    const explicit = safeText(payload.source_domain);
+    if (explicit) return explicit;
+    const targetType = safeText(row.target_type);
+    const knownDomain = sourceDomainKeys.find((domain) => targetType.includes(domain));
+    return knownDomain || 'unknown';
+  };
+  edits.forEach((row) => {
+    const domain = domainFromEdit(row);
+    const current = domainStats[domain] || {
+      source_domain: domain,
+      version_count: 0,
+      active_source: null,
+      total_rows: 0,
+      warning_count: 0,
+      pending_edits: 0,
+      completed_edits: 0,
+      rejected_edits: 0,
+      failed_edits: 0,
+      latest_edit_at: null,
+    };
+    const status = safeText(row.status);
+    const writeStatus = safeText(row.write_status);
+    if (status === 'submitted' || writeStatus === 'approval_required') current.pending_edits = Number(current.pending_edits || 0) + 1;
+    if (status === 'approved' || writeStatus === 'written') current.completed_edits = Number(current.completed_edits || 0) + 1;
+    if (status === 'rejected') current.rejected_edits = Number(current.rejected_edits || 0) + 1;
+    if (writeStatus === 'failed' || safeText(row.write_error)) current.failed_edits = Number(current.failed_edits || 0) + 1;
+    const updatedAt = safeText(row.updated_at || row.created_at);
+    if (updatedAt && (!current.latest_edit_at || updatedAt > safeText(current.latest_edit_at))) current.latest_edit_at = updatedAt;
+    domainStats[domain] = current;
+  });
+  const editHistory = edits.map((row) => stripUndefined({
+    ...row,
+    source_domain: domainFromEdit(row),
+    before_after_diff: {
+      before: row.before_value,
+      after: row.requested_value,
+      readback: row.readback_value,
+      changed: !valuesEqual(row.before_value, row.requested_value),
+      readback_matches: row.readback_value ? valuesEqual(row.readback_value, row.requested_value) : null,
+    },
+  }));
   return jsonResponse({ ok: true, data: {
     access_scope: managerView ? 'manager_full_source' : 'asset_limited',
     sources,
@@ -4076,7 +4257,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     columns: columnsResult.data || [],
     source_rows: sourceRows,
     domain_stats: Object.values(domainStats),
-    edit_requests: editsResult.data || [],
+    edit_requests: editHistory,
     generated_at: new Date().toISOString(),
   } }, 200, ctx.origin);
 }
@@ -4126,6 +4307,297 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
   return jsonResponse({ ok: true, data }, 200, ctx.origin);
 }
 
+const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v2';
+const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const NEWS_HOUR_MS = 60 * 60 * 1000;
+const NEWS_GOOGLE_RSS_URL = 'https://news.google.com/rss/search';
+const NEWS_BING_RSS_URL = 'https://www.bing.com/news/search';
+const NEWS_SEARCH_QUERIES = [
+  '물류센터 OR 물류창고',
+  '물류센터 임대 OR 공실 OR 임대료',
+  '물류센터 매매 OR 거래 OR 캡레이트 OR 자산운용',
+  '저온물류센터 OR 풀필먼트센터',
+  '물류창고 착공 OR 준공 OR 공급 OR 개발',
+  '물류센터 PF OR 대출 OR 금리',
+  '쿠팡 OR CJ대한통운 OR 컬리 물류센터',
+];
+const NEWS_IMPORTANT_TERMS = [
+  '물류센터', '물류창고', '저온물류', '풀필먼트', '임대', '임대료', '공실',
+  '매매', '거래', '공급', '개발', '인허가', '착공', '준공', '캡레이트', 'cap rate',
+  'PF', '대출', '금리', '쿠팡', 'CJ대한통운', '컬리', '네이버', 'SSG', '3PL',
+];
+const NEWS_CORE_TERMS = ['물류센터', '물류 창고', '물류창고', '저온물류', '저온 물류', '풀필먼트', 'fulfillment'];
+const NEWS_STRUCTURAL_TERMS = /(공급|매매|거래|임대|공실|준공|착공|인허가|금리|캡레이트|cap\s*rate|PF|투자|매각|개발|물류)/iu;
+
+type NewsCollectorItem = {
+  dedupe_key: string;
+  canonical_url: string;
+  original_url: string;
+  title: string;
+  publisher: string;
+  published_at: string;
+  summary: string;
+  importance_score: number;
+  matched_keywords: string[];
+  source_name: string;
+  payload: Record<string, unknown>;
+};
+
+function newsStripHtml(value: unknown) {
+  return String(value || '')
+    .replace(/<!\[CDATA\[(.*?)\]\]>/gsu, '$1')
+    .replace(/<[^>]+>/gu, '')
+    .replace(/&quot;/gu, '"')
+    .replace(/&#39;/gu, "'")
+    .replace(/&amp;/gu, '&')
+    .replace(/&lt;/gu, '<')
+    .replace(/&gt;/gu, '>')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function newsXmlTag(source: unknown, tag: string) {
+  const match = String(source || '').match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'iu'));
+  return match ? newsStripHtml(match[1]) : '';
+}
+
+function newsParseRssItems(xml: string, sourceName: string, query: string) {
+  return [...String(xml || '').matchAll(/<item\b[^>]*>([\s\S]*?)<\/item>/giu)]
+    .map((match) => {
+      const item = match[1];
+      return {
+        title: newsXmlTag(item, 'title'),
+        description: newsXmlTag(item, 'description'),
+        pubDate: newsXmlTag(item, 'pubDate'),
+        link: newsXmlTag(item, 'link'),
+        publisher: newsXmlTag(item, 'source'),
+        source_name: sourceName,
+        query,
+      };
+    })
+    .filter((item) => item.title && item.link);
+}
+
+function newsCanonicalUrl(value: unknown) {
+  try {
+    const url = new URL(String(value || ''));
+    ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid'].forEach((key) => url.searchParams.delete(key));
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return safeText(value);
+  }
+}
+
+function newsNormalizeTitle(value: unknown) {
+  return newsStripHtml(value)
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '')
+    .slice(0, 120);
+}
+
+function newsPublisher(item: Record<string, unknown>) {
+  const direct = safeText(item.publisher);
+  if (direct) return direct;
+  try {
+    return new URL(String(item.link || '')).hostname.replace(/^www\./u, '');
+  } catch {
+    return '';
+  }
+}
+
+function newsScore(item: { title: string; summary: string }) {
+  const combined = `${item.title} ${item.summary}`;
+  const lower = combined.toLowerCase();
+  if (!NEWS_CORE_TERMS.some((term) => lower.includes(term.toLowerCase()))) return { score: 0, matched: [] };
+  const matched = NEWS_IMPORTANT_TERMS.filter((term) => lower.includes(term.toLowerCase()));
+  const structuralBoost = NEWS_STRUCTURAL_TERMS.test(combined) ? 2 : 0;
+  return { score: matched.length + structuralBoost, matched };
+}
+
+function newsTitleTokens(value: unknown) {
+  return [...new Set(newsStripHtml(value).toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) || [])]
+    .filter((token) => !['단독', '종합', '속보', '포토', '영상'].includes(token));
+}
+
+function newsTitleSimilarity(left: unknown, right: unknown) {
+  const a = newsTitleTokens(left);
+  const b = newsTitleTokens(right);
+  if (!a.length || !b.length) return 0;
+  const bSet = new Set(b);
+  const overlap = a.filter((token) => bSet.has(token)).length;
+  return overlap / Math.min(a.length, b.length);
+}
+
+function newsStoryClusterKey(value: unknown) {
+  const normalized = newsNormalizeTitle(value);
+  if (normalized.includes('캠퍼스크루') || (normalized.includes('쿠팡풀필먼트') && normalized.includes('인증'))) return 'story:coupang-campuscrew';
+  if (normalized.includes('롱탄') && normalized.includes('물류센터')) return 'story:long-thanh-logistics-center';
+  if (normalized.includes('휴머노이드') && normalized.includes('물류센터')) return 'story:humanoid-logistics-center';
+  if (normalized.includes('lx판토스') && normalized.includes('물류센터')) return 'story:lx-pantos-logistics-center';
+  return '';
+}
+
+function newsRemoveNearDuplicateStories(items: NewsCollectorItem[]) {
+  const selected: NewsCollectorItem[] = [];
+  const clusters = new Set<string>();
+  for (const item of items) {
+    const cluster = newsStoryClusterKey(item.title);
+    if (cluster && clusters.has(cluster)) continue;
+    if (selected.some((existing) => newsTitleSimilarity(existing.title, item.title) >= 0.45)) continue;
+    if (cluster) clusters.add(cluster);
+    selected.push(item);
+  }
+  return selected;
+}
+
+function newsKstDateKey(date: Date) {
+  return new Date(date.getTime() + NEWS_KST_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+function newsWindowForDate(dateText: string) {
+  const match = String(dateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/u);
+  if (!match) throw new Error('date must look like YYYY-MM-DD');
+  const windowEnd = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), -2, 0, 0));
+  const kstDay = new Date(windowEnd.getTime() + NEWS_KST_OFFSET_MS).getUTCDay();
+  const windowHours = kstDay === 1 ? 72 : 24;
+  const windowStart = new Date(windowEnd.getTime() - windowHours * NEWS_HOUR_MS);
+  return { windowStart, windowEnd, windowHours };
+}
+
+function newsTodayKstDateKey() {
+  return newsKstDateKey(new Date());
+}
+
+async function fetchNewsRss(url: URL) {
+  const response = await fetch(url, { headers: { 'user-agent': 'logistics-gate6-news-collector/2.0' } });
+  if (!response.ok) return '';
+  return await response.text();
+}
+
+async function fetchGoogleNewsRows(query: string, days: number) {
+  const url = new URL(NEWS_GOOGLE_RSS_URL);
+  url.searchParams.set('q', `${query} when:${Math.max(1, Math.min(days, 14))}d`);
+  url.searchParams.set('hl', 'ko');
+  url.searchParams.set('gl', 'KR');
+  url.searchParams.set('ceid', 'KR:ko');
+  return newsParseRssItems(await fetchNewsRss(url), 'google_news_rss', query);
+}
+
+async function fetchBingNewsRows(query: string) {
+  const url = new URL(NEWS_BING_RSS_URL);
+  url.searchParams.set('q', query);
+  url.searchParams.set('format', 'rss');
+  url.searchParams.set('setlang', 'ko-KR');
+  url.searchParams.set('cc', 'KR');
+  return newsParseRssItems(await fetchNewsRss(url), 'bing_news_rss', query);
+}
+
+async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days: number) {
+  const seen = new Map<string, NewsCollectorItem>();
+  const sourceStats: Record<string, number> = {};
+  for (const query of NEWS_SEARCH_QUERIES) {
+    const rows = [
+      ...(await fetchGoogleNewsRows(query, days).catch(() => [])),
+      ...(await fetchBingNewsRows(query).catch(() => [])),
+    ];
+    for (const row of rows) {
+      sourceStats[String(row.source_name)] = (sourceStats[String(row.source_name)] || 0) + 1;
+      const publishedAt = new Date(row.pubDate);
+      if (Number.isNaN(publishedAt.getTime())) continue;
+      if (publishedAt < windowStart || publishedAt > windowEnd) continue;
+      const title = newsStripHtml(row.title);
+      const summary = newsStripHtml(row.description).slice(0, 500);
+      const publisher = newsPublisher(row as Record<string, unknown>);
+      const canonical = newsCanonicalUrl(row.link);
+      const titleHash = await sha256Text(newsNormalizeTitle(title));
+      const urlHash = canonical ? await sha256Text(canonical) : '';
+      const dedupeKey = urlHash ? `url:${urlHash}` : `title:${titleHash}`;
+      const fallbackDedupeKey = `publisher-title-time:${await sha256Text(`${publisher}:${titleHash}:${publishedAt.toISOString().slice(0, 13)}`)}`;
+      const scored = newsScore({ title, summary });
+      if (scored.score < 2) continue;
+      const next: NewsCollectorItem = {
+        dedupe_key: dedupeKey,
+        canonical_url: canonical,
+        original_url: canonical,
+        title,
+        publisher,
+        published_at: publishedAt.toISOString(),
+        summary,
+        importance_score: scored.score,
+        matched_keywords: scored.matched,
+        source_name: safeText(row.source_name),
+        payload: { query: row.query, raw_pub_date: row.pubDate, fallback_dedupe_key: fallbackDedupeKey },
+      };
+      const current = seen.get(dedupeKey) || seen.get(fallbackDedupeKey);
+      if (!current || Number(next.importance_score) > Number(current.importance_score)) {
+        seen.set(dedupeKey, next);
+        seen.set(fallbackDedupeKey, next);
+      }
+    }
+  }
+  return {
+    items: newsRemoveNearDuplicateStories(
+      [...new Map([...seen.values()].map((item) => [item.dedupe_key, item])).values()]
+        .sort((a, b) => Number(b.importance_score) - Number(a.importance_score) || Date.parse(b.published_at) - Date.parse(a.published_at)),
+    ),
+    sourceStats,
+  };
+}
+
+async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10) {
+  const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(dateText) ? dateText : newsTodayKstDateKey();
+  const strictWindow = newsWindowForDate(selectedDate);
+  const strictDays = Math.ceil(strictWindow.windowHours / 24);
+  let collected = await collectNewsRowsForWindow(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
+  let expandedWindowStart = strictWindow.windowStart;
+  let expanded = false;
+  const strictItemCount = collected.items.length;
+  if (collected.items.length < 5) {
+    expanded = true;
+    expandedWindowStart = new Date(strictWindow.windowEnd.getTime() - 7 * 24 * NEWS_HOUR_MS);
+    collected = await collectNewsRowsForWindow(expandedWindowStart, strictWindow.windowEnd, 7);
+  }
+  const runKey = `daily-news:${selectedDate}:0700KST`;
+  const { data: runRow, error: runError } = await ctx.serviceClient
+    .from('ll_news_runs')
+    .upsert({
+      run_key: runKey,
+      scheduled_for: strictWindow.windowEnd.toISOString(),
+      window_start: expandedWindowStart.toISOString(),
+      window_end: strictWindow.windowEnd.toISOString(),
+      source_summary: {
+        collector_version: NEWS_COLLECTOR_VERSION,
+        primary: 'google_news_rss',
+        fallback: 'bing_news_rss',
+        queries: NEWS_SEARCH_QUERIES,
+        query_count: NEWS_SEARCH_QUERIES.length,
+        window_hours: strictWindow.windowHours,
+        strict_window_start: strictWindow.windowStart.toISOString(),
+        strict_window_end: strictWindow.windowEnd.toISOString(),
+        strict_item_count: strictItemCount,
+        expanded_to_recent_7d: expanded,
+        source_stats: collected.sourceStats,
+        empty_state: collected.items.length === 0,
+      },
+      run_status: 'completed',
+      error_message: null,
+      completed_at: new Date().toISOString(),
+    }, { onConflict: 'run_key' })
+    .select('news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at')
+    .single();
+  if (runError || !runRow) throw new Error(runError?.message || 'Failed to upsert news run');
+  const newsRunId = safeText((runRow as Record<string, unknown>).news_run_id);
+  if (newsRunId) await ctx.serviceClient.from('ll_news_items').delete().eq('news_run_id', newsRunId);
+  const itemRows = collected.items.slice(0, Math.max(limit, 10)).map((item) => ({ news_run_id: newsRunId, ...item }));
+  if (itemRows.length) {
+    const { error: itemError } = await ctx.serviceClient.from('ll_news_items').insert(itemRows);
+    if (itemError) throw new Error(itemError.message);
+  }
+  return { run: runRow, item_count: itemRows.length };
+}
+
 async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 10), 1), 30);
@@ -4139,17 +4611,26 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   if (selectedRunKey) runQuery = runQuery.eq('run_key', selectedRunKey);
   const runResult = await runQuery.limit(1).maybeSingle();
   if (runResult.error && !isMissingRelationError(runResult.error)) return fail(500, 'Failed to read logistics news run', ctx.origin, { error: runResult.error.message });
-  const latestRun = runResult.data || null;
-  if (hasDateFilter && !latestRun) {
-    return jsonResponse({ ok: true, data: {
-      status: 'no_run',
-      selected_date: selectedDate,
-      latest_run: null,
-      items: [],
-      item_count: 0,
-      empty_message: '수집된 뉴스가 없습니다.',
-      generated_at: new Date().toISOString(),
-    } }, 200, ctx.origin);
+  let latestRun = runResult.data || null;
+  const runSummary = (latestRun as Record<string, unknown> | null)?.source_summary as Record<string, unknown> | undefined;
+  if (hasDateFilter && (!latestRun || safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION || payload.refresh === true || payload.force_refresh === true)) {
+    try {
+      const refreshed = await collectAndStoreNewsRun(ctx, selectedDate, limit);
+      latestRun = refreshed.run;
+    } catch (error) {
+      if (!latestRun) {
+        return jsonResponse({ ok: true, data: {
+          status: 'collection_failed',
+          selected_date: selectedDate,
+          latest_run: null,
+          items: [],
+          item_count: 0,
+          empty_message: NEWS_EMPTY_MESSAGE,
+          collection_error: error instanceof Error ? error.message : String(error),
+          generated_at: new Date().toISOString(),
+        } }, 200, ctx.origin);
+      }
+    }
   }
   let itemQuery = ctx.serviceClient
     .from('ll_news_items')
@@ -4159,7 +4640,7 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   if (latestRun?.news_run_id) itemQuery = itemQuery.eq('news_run_id', latestRun.news_run_id);
   const { data, error } = await itemQuery;
   if (error) {
-    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', items: [], empty_message: '수집된 뉴스가 없습니다.', generated_at: new Date().toISOString() } }, 200, ctx.origin);
+    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
     return fail(500, 'Failed to read logistics news', ctx.origin, { error: error.message });
   }
   return jsonResponse({ ok: true, data: {
@@ -4168,7 +4649,7 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
     latest_run: latestRun,
     items: data || [],
     item_count: (data || []).length,
-    empty_message: '수집된 뉴스가 없습니다.',
+    empty_message: NEWS_EMPTY_MESSAGE,
     generated_at: new Date().toISOString(),
   } }, 200, ctx.origin);
 }

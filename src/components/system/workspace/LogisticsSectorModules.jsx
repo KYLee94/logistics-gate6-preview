@@ -243,6 +243,25 @@ function BarList({ rows, labelKey = 'label', valueKey = 'value', formatter = for
   );
 }
 
+function aggregateRows(rows, labelFn, valueFn) {
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const label = text(labelFn(row), '미입력');
+    const current = grouped.get(label) || { label, value: 0, count: 0 };
+    current.value += number(valueFn(row));
+    current.count += 1;
+    grouped.set(label, current);
+  });
+  return [...grouped.values()].sort((a, b) => number(b.value) - number(a.value));
+}
+
+function periodBucket(value) {
+  const source = text(value, '');
+  if (/^\d{4}-\d{2}/u.test(source)) return source.slice(0, 7);
+  if (/^\d{4}/u.test(source)) return source.slice(0, 4);
+  return '미입력';
+}
+
 function StackedCapitalChart({ rows, labelKey = 'display_name', equityKey = 'equity_krw', loanKey = 'loan_krw', referenceKey = '' }) {
   const visibleRows = rows.slice(0, 14);
   const maxValue = Math.max(...visibleRows.map((row) => number(row[equityKey]) + number(row[loanKey]) + number(referenceKey ? row[referenceKey] : 0)), 1);
@@ -300,10 +319,10 @@ export function DailyLogisticsNewsCard() {
       <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-start">
         <div>
           <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">NEWS</div>
-          <h2 className="mt-1 text-[20px] font-semibold tracking-tight text-white">일자별 물류센터 주요 뉴스</h2>
+          <h2 className="mt-1 text-[20px] font-semibold tracking-tight text-white">데일리 물류 뉴스</h2>
           <div className="mt-1 text-[11px] text-[#86868B]">수집 기준 {latestRun ? formatDateTime(latestRun.window_end) : formatNewsDateLabel(selectedDate)} · {selectedRunStatus}</div>
         </div>
-        <div className="flex w-full items-center justify-center gap-2 md:w-auto">
+        <div className="flex w-full items-center justify-center gap-2 md:w-auto md:pt-6">
           <button
             type="button"
             aria-label="이전 날짜 뉴스"
@@ -379,6 +398,22 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate }) {
   const sources = safeArray(data?.sources);
   const charts = data?.charts || {};
   const expectedCounts = summary.expected_counts || {};
+  const readback = summary.readback || {};
+  const readbackItems = Object.entries(readback).map(([key, value]) => ({
+    key,
+    label: {
+      lease_observations: '임대 관측치',
+      supply_cases: '공급 전체',
+      pipeline_supply_cases: '공급 예정',
+      new_supply_cases: '신규 공급',
+      transaction_cases: '매매 사례',
+      cap_rate_series: 'Cap Rate',
+      new_supply_total_gross_area_py: '신규공급 면적',
+    }[key] || key,
+    ...(value || {}),
+  }));
+  const latestTransaction = transactions.reduce((best, row) => (number(row.transaction_amount_krw) > number(best?.transaction_amount_krw) ? row : best), null);
+  const supplyByStatus = aggregateRows(supply, (row) => row.status, () => 1).slice(0, 8);
   const selectTab = (id) => {
     const route = MARKET_TABS.find((tab) => tab.id === id)?.route || 'overview';
     if (onNavigate) onNavigate(route);
@@ -406,7 +441,7 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate }) {
           <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="임대 관측치" value={`${formatNumber(summary.lease_observation_count || leases.length)}건`} detail={`검증 기준 ${formatNumber(expectedCounts.lease_observations || 0)}건`} />
             <MetricCard label="평당 임대료" value={summary.weighted_rent_manwon_per_py == null ? '-' : `${formatNumber(summary.weighted_rent_manwon_per_py, 1)}만원`} detail="임대면적 가중평균" />
-            <MetricCard label="공급 예정" value={`${formatNumber(summary.supply_case_count || supply.length)}건`} detail={`합계 ${formatNumber(summary.supply_total_gross_area_py, 1)}평`} />
+            <MetricCard label="공급 예정" value={`${formatNumber(summary.pipeline_supply_count || 0)}건`} detail={`신규공급 ${formatNumber(summary.new_supply_total_gross_area_py, 1)}평`} />
             <MetricCard label="매매 사례" value={`${formatNumber(summary.transaction_case_count || transactions.length)}건`} detail={summary.latest_cap_rate ? `최근 ${summary.latest_cap_rate.region} Cap Rate ${formatRate(summary.latest_cap_rate.cap_rate)}` : '거래 사례 기준'} />
           </section>
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -425,6 +460,12 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate }) {
       {currentTab === 'lease' ? (
         <section className={`${CARD} p-5`}>
           <ModuleHeader eyebrow="LEASE MARKET" title="임대 시장 비교" subtitle="권역, 상/저온, 규모별 임대료와 공실률을 함께 확인합니다." />
+          <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <MetricCard label="최신 기준" value={text(summary.latest_lease_period, '-')} detail="Excel report period" />
+            <MetricCard label="관측치" value={`${formatNumber(summary.lease_observation_count || leases.length)}건`} detail={`샘플 표시 ${formatNumber(leases.length)}건`} />
+            <MetricCard label="센터 수" value={`${formatNumber(summary.latest_lease_center_count || 0)}개`} detail="최신 기간 기준" />
+            <MetricCard label="공실률" value={summary.weighted_vacancy_rate == null ? '-' : formatRate(summary.weighted_vacancy_rate)} detail="임대면적 가중평균" />
+          </div>
           <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
             <BarList rows={safeArray(charts.lease_rent_by_temperature)} formatter={(value) => `${formatNumber(value, 1)}만원`} color="#34D399" />
             <BarList rows={safeArray(charts.lease_vacancy_by_region)} formatter={formatRate} color="#F59E0B" />
@@ -449,8 +490,15 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate }) {
       {currentTab === 'supply' ? (
         <section className={`${CARD} p-5`}>
           <ModuleHeader eyebrow="SUPPLY PIPELINE" title="공급 예정 및 신규 공급" subtitle="준공 예정 시점, 권역, 진행 상태별 공급 규모를 비교합니다." />
-          <div className="mb-5">
+          <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <MetricCard label="공급 전체" value={`${formatNumber(summary.supply_case_count || supply.length)}건`} detail={`검증 기준 ${formatNumber(expectedCounts.supply_cases || 0)}건`} />
+            <MetricCard label="공급 예정" value={`${formatNumber(summary.pipeline_supply_count || 0)}건`} detail="Pipeline cases" />
+            <MetricCard label="당분기 신규" value={`${formatNumber(summary.new_supply_count || 0)}건`} detail={`${formatNumber(summary.new_supply_total_gross_area_py, 1)}평`} />
+            <MetricCard label="진행상태" value={`${formatNumber(supplyByStatus.length)}종`} detail="상태별 분포 확인" />
+          </div>
+          <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
             <BarList rows={safeArray(charts.supply_by_period)} formatter={(value) => `${formatNumber(value, 1)}평`} color="#60A5FA" />
+            <BarList rows={supplyByStatus} formatter={(value) => `${formatNumber(value)}건`} color="#34D399" />
           </div>
           <Table
             minWidth={980}
@@ -472,8 +520,15 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate }) {
       {currentTab === 'transactions' ? (
         <section className={`${CARD} p-5`}>
           <ModuleHeader eyebrow="TRANSACTIONS" title="매매 사례 비교" subtitle="권역, 거래시점, 평당 단가, Cap Rate를 비교합니다." />
-          <div className="mb-5">
+          <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <MetricCard label="매매 사례" value={`${formatNumber(summary.transaction_case_count || transactions.length)}건`} detail={`검증 기준 ${formatNumber(expectedCounts.transaction_cases || 0)}건`} />
+            <MetricCard label="Cap Rate Row" value={`${formatNumber(summary.cap_rate_series_count || capRates.length)}건`} detail="수도권/전국 차트 전개 전" />
+            <MetricCard label="최대 거래" value={latestTransaction ? formatKrw(latestTransaction.transaction_amount_krw) : '-'} detail={latestTransaction ? text(latestTransaction.asset_name) : '샘플 기준'} />
+            <MetricCard label="표시 샘플" value={`${formatNumber(transactions.length)}건`} detail="전체 count는 readback 기준" />
+          </div>
+          <div className="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-2">
             <BarList rows={safeArray(charts.transactions_by_region)} formatter={formatKrw} color="#A78BFA" />
+            <BarList rows={aggregateRows(transactions, (row) => row.transaction_period || row.transaction_year, (row) => row.transaction_amount_krw).slice(0, 10)} formatter={formatKrw} color="#60A5FA" />
           </div>
           <Table
             minWidth={1050}
@@ -496,12 +551,30 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate }) {
         <section className={`${CARD} p-5`}>
           <ModuleHeader eyebrow="SOURCE UPDATE" title="분기별 Excel 업데이트 관리" subtitle="업로드, dry-run 검증, active 버전 교체, readback 확인 순서로 관리합니다." />
           <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
+            <MetricCard label="Active 상태" value={summary.status === 'ready' ? '정상' : '확인 필요'} detail={text(summary.source?.source_version, 'active 없음')} />
+            <MetricCard label="원본 행" value={`${formatNumber(Object.values(summary.source?.row_counts || {}).reduce((sum, value) => sum + number(value), 0))}건`} detail="ll_source_rows 원천 기준" />
+            <MetricCard label="정규화 합계" value={`${formatNumber((summary.lease_observation_count || 0) + (summary.supply_case_count || 0) + (summary.transaction_case_count || 0) + (summary.cap_rate_series_count || 0))}건`} detail="분석용 테이블 readback" />
+            <MetricCard label="Readback" value={readbackItems.every((item) => item.ok !== false) ? '통과' : '불일치'} detail="expected vs actual" />
+          </div>
+          <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
             {['업로드', 'Dry-run 검증', 'Diff/승인', 'Active 교체'].map((step, index) => (
               <div key={step} className={`${INNER} px-4 py-4`}>
                 <div className="text-[11px] font-semibold text-[#86868B]">STEP {index + 1}</div>
                 <div className="mt-2 text-[14px] font-semibold text-white">{step}</div>
               </div>
             ))}
+          </div>
+          <div className="mb-5">
+            <Table
+              minWidth={820}
+              headers={['검증 항목', '기대값', '실제값', '결과']}
+              rows={readbackItems.map((item) => [
+                item.label,
+                item.expected == null ? '-' : formatNumber(item.expected, item.key.includes('area') ? 1 : 0),
+                item.actual == null ? '-' : formatNumber(item.actual, item.key.includes('area') ? 1 : 0),
+                item.ok === false ? '불일치' : '통과',
+              ])}
+            />
           </div>
           <Table
             minWidth={980}
@@ -524,6 +597,7 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate }) {
 export function InvestmentIndexDashboard() {
   const [mode, setMode] = useState('fund');
   const { loading, error, data, reload } = useEdgeData('investment-index/read', {}, []);
+  const summary = data?.summary || {};
   const funds = safeArray(data?.funds);
   const assets = safeArray(data?.assets);
   const tranches = safeArray(data?.tranches);
@@ -538,6 +612,16 @@ export function InvestmentIndexDashboard() {
     .slice()
     .sort((a, b) => String(a.drawdown_date || '').localeCompare(String(b.drawdown_date || '')))
     .slice(0, 240);
+  const drawdownChartRows = aggregateRows(
+    tranches.filter((row) => row.drawdown_date),
+    (row) => periodBucket(row.drawdown_date),
+    (row) => row.amount_krw,
+  ).sort((a, b) => String(a.label).localeCompare(String(b.label))).slice(-12);
+  const maturityChartRows = aggregateRows(
+    tranches.filter((row) => row.maturity_date),
+    (row) => periodBucket(row.maturity_date),
+    (row) => row.amount_krw,
+  ).sort((a, b) => String(a.label).localeCompare(String(b.label))).slice(0, 12);
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -550,7 +634,13 @@ export function InvestmentIndexDashboard() {
         <MetricCard label="Equity" value={formatKrw(totals.equity)} detail="확정 배분 기준" />
         <MetricCard label="Loan" value={formatKrw(totals.loan)} detail="확정 배분 기준" />
         <MetricCard label="합계" value={formatKrw(totals.equity + totals.loan)} detail={mode === 'asset' ? '공동 펀드 참고금액 제외' : '펀드별 합계'} />
-        <MetricCard label="공동 펀드 참고" value={formatKrw(totals.reference)} detail="동산/부국/에이블로지스 등 1펀드-3자산 참고" />
+        <MetricCard label="공동 펀드 참고" value={formatKrw(totals.reference)} detail={`${formatNumber(summary.joint_asset_reference_count || 0)}개 자산은 참고금액 분리`} />
+      </section>
+      <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
+        <MetricCard label="펀드" value={`${formatNumber(summary.fund_count || funds.length)}개`} detail="표시 가능한 펀드" />
+        <MetricCard label="자산" value={`${formatNumber(summary.asset_count || assets.length)}개`} detail="권한 범위 내 자산" />
+        <MetricCard label="Tranche" value={`${formatNumber(summary.tranche_count || tranches.length)}건`} detail="active, 중복 제거 후" />
+        <MetricCard label="중복 제거" value={`${formatNumber(summary.deduped_tranche_count || 0)}건`} detail="동일 조건 tranche 반복 방지" />
       </section>
       <section className="grid grid-cols-1 gap-5 xl:grid-cols-[0.95fr_1.05fr]">
         <div className={`${CARD} p-5`}>
@@ -576,6 +666,16 @@ export function InvestmentIndexDashboard() {
       <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         <div className={`${CARD} p-5`}>
           <ModuleHeader eyebrow="DRAWDOWN / MATURITY" title="인출 및 만기 일정" />
+          <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div>
+              <div className="mb-2 text-[12px] font-semibold text-[#A1A1AA]">인출 금액 추이</div>
+              <BarList rows={drawdownChartRows} formatter={formatKrw} color="#34D399" maxRows={12} />
+            </div>
+            <div>
+              <div className="mb-2 text-[12px] font-semibold text-[#A1A1AA]">만기 금액 분포</div>
+              <BarList rows={maturityChartRows} formatter={formatKrw} color="#60A5FA" maxRows={12} />
+            </div>
+          </div>
           <Table
             minWidth={1040}
             headers={['구분', '펀드명', '금액', '인출일', '만기일', '금리', '대주/수익자']}
@@ -670,6 +770,7 @@ export function DataManagementDashboard() {
   const columns = safeArray(data?.columns);
   const sourceRows = safeArray(data?.source_rows);
   const edits = safeArray(data?.edit_requests);
+  const domainStats = safeArray(data?.domain_stats);
   const tabs = [
     { id: 'my', label: '내 작업' },
     { id: 'lease', label: '임대차' },
@@ -694,6 +795,9 @@ export function DataManagementDashboard() {
   const rowValues = selectedRow?.row_values && typeof selectedRow.row_values === 'object' ? selectedRow.row_values : {};
   const editableFields = Object.keys(rowValues).slice(0, 80);
   const currentBeforeValue = selectedField ? text(rowValues[selectedField], '') : '';
+  const selectedSource = sources.find((row) => row.source_file_id === selectedRow?.source_file_id) || {};
+  const selectedDomainStats = domainStats.find((row) => row.source_domain === domainForTab) || {};
+  const hasPendingChange = Boolean(selectedRow && selectedField && afterValue && afterValue !== currentBeforeValue);
   useEffect(() => {
     setSelectedRowId('');
     setSelectedField('');
@@ -707,7 +811,8 @@ export function DataManagementDashboard() {
   const sourceCards = SOURCE_DOMAINS.map((domain) => {
     const rows = domainSources(sources, domain.key);
     const active = rows.find((row) => row.active_version) || rows[0] || {};
-    return { ...domain, count: rows.length, active };
+    const stats = domainStats.find((row) => row.source_domain === domain.key) || {};
+    return { ...domain, count: rows.length, active, stats };
   });
   const submitEdit = async () => {
     if (!selectedRow || !selectedField || !afterValue || afterValue === currentBeforeValue) {
@@ -770,6 +875,10 @@ export function DataManagementDashboard() {
                   <span>{formatNumber(item.count)} versions</span>
                   <span>{item.active.active_version ? 'Active' : 'Draft'}</span>
                 </div>
+                <div className="mt-2 flex items-center justify-between text-[11px] text-[#86868B]">
+                  <span>승인대기 {formatNumber(item.stats.pending_edits || 0)}건</span>
+                  <span>{item.stats.latest_edit_at ? formatDate(item.stats.latest_edit_at) : '이력 없음'}</span>
+                </div>
               </button>
             ))}
           </section>
@@ -816,18 +925,36 @@ export function DataManagementDashboard() {
                     <input value={reason} onChange={(event) => setReason(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none focus:border-[#8E8E93]" placeholder="예: PM 제출 자료 반영, 분기 Excel 업데이트" />
                   </label>
                   <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={submitEdit} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5]">승인 요청 저장</button>
+                    <button
+                      type="button"
+                      onClick={submitEdit}
+                      disabled={!hasPendingChange}
+                      className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35"
+                    >
+                      승인 요청 저장
+                    </button>
                     {submitStatus ? <span className={`text-[12px] ${submitStatus.type === 'error' ? 'text-[#FF9F9F]' : submitStatus.type === 'success' ? 'text-[#B5E48C]' : 'text-[#A1A1AA]'}`}>{submitStatus.message}</span> : null}
                   </div>
                 </div>
                 <div className={`${INNER} p-4`}>
                   <div className="text-[13px] font-semibold text-white">저장 전 영향 범위</div>
                   <div className="mt-3 space-y-2 text-[12px] leading-5 text-[#A1A1AA]">
-                    <div>원천: {sourceDomainLabel(domainForTab)}</div>
+                    <div>원천: {sourceDomainLabel(selectedSource.source_domain || domainForTab)}</div>
                     <div>시트/행: {selectedRow ? `${selectedRow.sheet_name} ${selectedRow.row_number}행` : '-'}</div>
                     <div>필드: {selectedField || '-'}</div>
-                    <div>상태: {afterValue && afterValue !== currentBeforeValue ? '변경 감지' : '변경 없음'}</div>
+                    <div>상태: {hasPendingChange ? '변경 감지' : '변경 없음'}</div>
+                    <div>승인 대기: {formatNumber(selectedDomainStats.pending_edits || 0)}건</div>
                     <div>반영 방식: 승인 요청 생성 후 담당자가 검토합니다.</div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">Before</div>
+                      <div className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-[#C7C7CC]">{currentBeforeValue || '-'}</div>
+                    </div>
+                    <div className={`rounded-[10px] border p-3 ${hasPendingChange ? 'border-[#4B5563] bg-[#182018]' : 'border-[#333333] bg-[#171717]'}`}>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">After</div>
+                      <div className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-white">{afterValue || '-'}</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -844,12 +971,14 @@ export function DataManagementDashboard() {
         <section className={`${CARD} p-5`}>
           <ModuleHeader eyebrow="APPROVAL" title="승인 대기" />
           <Table
-            minWidth={980}
-            headers={['유형', '대상', '필드', '상태', '요청자', '생성일']}
+            minWidth={1180}
+            headers={['구분', '대상', '필드', '변경 전', '변경 후', '상태', '요청자', '생성일']}
             rows={edits.filter((row) => row.status === 'submitted').map((row) => [
-              text(row.target_type),
+              sourceDomainLabel(row.source_domain),
               text(row.target_name),
               text(row.field_name),
+              text(row.before_value),
+              text(row.requested_value),
               text(row.write_status || row.status),
               text(row.requested_by),
               formatDate(row.created_at),
@@ -859,22 +988,41 @@ export function DataManagementDashboard() {
       ) : null}
 
       {tab === 'history' ? (
-        <section className={`${CARD} p-5`}>
-          <ModuleHeader eyebrow="SOURCE HISTORY" title="반영 이력" />
-          <Table
-            minWidth={980}
-            headers={['구분', '파일', '버전', 'Active', '상태', '행수', '업데이트']}
-            rows={sources.map((row) => [
-              sourceDomainLabel(row.source_domain),
-              text(row.file_name),
-              text(row.source_version),
-              row.active_version ? 'Y' : 'N',
-              text(row.parse_status),
-              formatNumber(Object.values(row.row_counts || {}).reduce((sum, value) => sum + number(value), 0)),
-              formatDate(row.updated_at || row.created_at),
-            ])}
-          />
-        </section>
+        <div className="space-y-5">
+          <section className={`${CARD} p-5`}>
+            <ModuleHeader eyebrow="EDIT HISTORY" title="승인/반영 요청 이력" />
+            <Table
+              minWidth={1220}
+              headers={['구분', '대상', '필드', '변경 후', 'Readback', '처리상태', '승인자', '업데이트']}
+              rows={edits.map((row) => [
+                sourceDomainLabel(row.source_domain),
+                text(row.target_name),
+                text(row.field_name),
+                text(row.requested_value),
+                text(row.readback_value, row.write_status === 'written' ? '확인 필요' : '-'),
+                text(row.write_status || row.status),
+                text(row.approved_by),
+                formatDate(row.written_at || row.updated_at || row.created_at),
+              ])}
+            />
+          </section>
+          <section className={`${CARD} p-5`}>
+            <ModuleHeader eyebrow="SOURCE HISTORY" title="원천 파일 반영 이력" />
+            <Table
+              minWidth={980}
+              headers={['구분', '파일', '버전', 'Active', '상태', '행수', '업데이트']}
+              rows={sources.map((row) => [
+                sourceDomainLabel(row.source_domain),
+                text(row.file_name),
+                text(row.source_version),
+                row.active_version ? 'Y' : 'N',
+                text(row.parse_status),
+                formatNumber(Object.values(row.row_counts || {}).reduce((sum, value) => sum + number(value), 0)),
+                formatDate(row.updated_at || row.created_at),
+              ])}
+            />
+          </section>
+        </div>
       ) : null}
     </div>
   );

@@ -30,6 +30,8 @@
     "qa:maturity-notifications:dry-run": "node scripts/integrations/logistics-maturity-notifications.cjs --dry-run",
     "qa:news:daily:dry-run": "node scripts/integrations/logistics-news-daily-ingest.cjs --dry-run",
     "qa:news:api": "node scripts/qa/logistics-news-api-smoke.cjs",
+    "qa:market-data:readback": "node scripts/qa/logistics-market-data-readback-smoke.cjs",
+    "qa:investment-index:readback": "node scripts/qa/logistics-investment-index-readback-smoke.cjs",
     "qa:market-rag:preflight": "node scripts/ops/logistics-market-rag-preflight.cjs",
     "qa:market-retrieval": "node scripts/qa/logistics-market-retrieval-qa.cjs",
     "qa:market-chatbot": "node scripts/qa/logistics-market-chatbot-qa.cjs",
