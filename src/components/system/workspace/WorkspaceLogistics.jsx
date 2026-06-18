@@ -11,6 +11,7 @@ import homeData from './logisticsHomeData.json';
 import rawAssetOptionsData from './logisticsAssetOptionsData.json';
 import companyOptionsData from './logisticsCompanyOptionsData.json';
 import sectorData from './logisticsSectorData.json';
+import logisticsPermissionData from './logisticsPermissionData.json';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
 import {
   AssetSpecDashboard,
@@ -24,7 +25,6 @@ import infoIconUrl from '../../../assets/i_icon.png';
 import { avatarCandidates } from '../avatarUtils';
 
 const MotionDiv = motion.div;
-const logisticsPermissionData = { sourceFile: 'Supabase ll_user_permissions', users: [] };
 
 const assetPayloadModules = import.meta.glob('./logisticsAssetData/*.json', { eager: true });
 const ASSET_PAYLOADS = Object.fromEntries(Object.values(assetPayloadModules)
@@ -1912,9 +1912,7 @@ function useLatestWeeklyAssetRows(permission, memberInfo) {
       setStatus('loading');
       let nextRows = [];
       try {
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'weekly-assets/latest', payload: {} },
-        });
+        const { data, error } = await invokeDashboardApi('weekly-assets/latest', {});
         if (error || data?.ok === false) throw error || new Error(data?.message || 'weekly asset read failed');
         nextRows = normalizeWeeklyAssetRows(data?.data?.rows || []);
       } catch {
@@ -1922,12 +1920,7 @@ function useLatestWeeklyAssetRows(permission, memberInfo) {
       }
       if (!nextRows.length) {
         try {
-          const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-            body: {
-              action: 'weekly-assets/latest-preview',
-              payload: { email: permission?.email || memberInfo?.email || '' },
-            },
-          });
+          const { data, error } = await invokeDashboardApi('weekly-assets/latest-preview', { email: permission?.email || memberInfo?.email || '' });
           if (error || data?.ok === false) throw error || new Error(data?.message || 'weekly asset preview read failed');
           nextRows = normalizeWeeklyAssetRows(data?.data?.rows || []);
         } catch {
@@ -3091,12 +3084,7 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
     setFundReadMode(cachedFund ? 'allowed' : assetName ? 'loading' : 'idle');
     setSaveStatus(null);
     if (!assetName) return undefined;
-    supabase.functions.invoke('ll-dashboard-api', {
-      body: {
-        action: 'weekly-projects/get-asset-detail',
-        payload: { asset_name: assetName, asset_id: assetId },
-      },
-    }).then(({ data }) => {
+    invokeDashboardApi('weekly-projects/get-asset-detail', { asset_name: assetName, asset_id: assetId }).then(({ data }) => {
       if (cancelled || !data?.ok || !data?.data) return;
       const nextServerRows = {
         overview: Array.isArray(data.data.overview_rows) ? data.data.overview_rows : [],
@@ -3107,12 +3095,7 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
     }).catch(() => {
       if (!cancelled && !cachedDetail) setServerRows(null);
     });
-    supabase.functions.invoke('ll-dashboard-api', {
-      body: {
-        action: 'funds/read-by-asset',
-        payload: { asset_name: assetName, asset_id: assetId },
-      },
-    }).then(({ data, error }) => {
+    invokeDashboardApi('funds/read-by-asset', { asset_name: assetName, asset_id: assetId }).then(({ data, error }) => {
       if (error) throw error;
       if (cancelled) return;
       if (data?.ok === false) {
@@ -3264,30 +3247,20 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
   const saveProjectRows = async () => {
     setSaveStatus({ type: 'pending', message: '자산개요·투자개요·펀드개요를 서버 권한 확인 후 저장 중입니다.' });
     try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'weekly-projects/save-asset-detail',
-          payload: {
-            asset_id: assetId,
-            asset_name: assetName,
-            overview_rows: draftRows.overview,
-            investment_rows: draftRows.investment,
-          },
-        },
+      const { data, error } = await invokeDashboardApi('weekly-projects/save-asset-detail', {
+        asset_id: assetId,
+        asset_name: assetName,
+        overview_rows: draftRows.overview,
+        investment_rows: draftRows.investment,
       });
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '저장 실패');
-      const { data: fundData, error: fundError } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'funds/save-by-asset',
-          payload: {
-            asset_id: assetId,
-            asset_name: assetName,
-            fund_info_rows: draftRows.fundInfo,
-            beneficiary_rows: draftRows.fundBeneficiaries,
-            loan_rows: draftRows.fundLoans,
-          },
-        },
+      const { data: fundData, error: fundError } = await invokeDashboardApi('funds/save-by-asset', {
+        asset_id: assetId,
+        asset_name: assetName,
+        fund_info_rows: draftRows.fundInfo,
+        beneficiary_rows: draftRows.fundBeneficiaries,
+        loan_rows: draftRows.fundLoans,
       });
       if (fundError) throw fundError;
       if (fundData?.ok === false) throw new Error(fundData.message || '펀드개요 저장 실패');
@@ -3464,9 +3437,7 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
     const fetchRows = async () => {
       let rows = [];
       try {
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'weekly-assets/latest', payload: {} },
-        });
+        const { data, error } = await invokeDashboardApi('weekly-assets/latest', {});
         if (error || data?.ok === false) throw error || new Error(data?.message || 'weekly asset read failed');
         rows = normalizeWeeklyAssetRows(data?.data?.rows || []);
       } catch {
@@ -3474,12 +3445,7 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
       }
       if (!rows.length) {
         try {
-          const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-            body: {
-              action: 'weekly-assets/latest-preview',
-              payload: { email: permission.email || memberInfo?.email || '' },
-            },
-          });
+          const { data, error } = await invokeDashboardApi('weekly-assets/latest-preview', { email: permission.email || memberInfo?.email || '' });
           if (error || data?.ok === false) throw error || new Error(data?.message || 'weekly asset preview read failed');
           rows = normalizeWeeklyAssetRows(data?.data?.rows || []);
         } catch {
@@ -3532,14 +3498,9 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
     setSaveStatus({ type: 'pending', message: '자산현황 수정 내용을 서버 권한 확인 후 저장 중입니다.' });
     try {
       const rows = assetRowsDraft.filter((row) => cleanDisplay(row.assetName, ''));
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'weekly-assets/replace-latest',
-          payload: {
-            original_asset_names: originalAssetNamesRef.current,
-            rows,
-          },
-        },
+      const { data, error } = await invokeDashboardApi('weekly-assets/replace-latest', {
+        original_asset_names: originalAssetNamesRef.current,
+        rows,
       });
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '저장 실패');
@@ -4117,9 +4078,7 @@ function useLogisticsFeatureAccess(memberInfo, permission) {
   const [config, setConfig] = useState(() => readLogisticsFeatureAccessConfig());
   useEffect(() => {
     let cancelled = false;
-    supabase.functions.invoke('ll-dashboard-api', {
-      body: { action: 'feature-access/get', payload: {} },
-    }).then(({ data, error }) => {
+    invokeDashboardApi('feature-access/get', {}).then(({ data, error }) => {
       if (cancelled || error || data?.ok === false) return;
       const next = data?.data || {};
       window.localStorage.setItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY, JSON.stringify(next));
@@ -4260,15 +4219,15 @@ function normalizeServerWorklogTask(row, permission) {
     createdByName: row.created_by_name || payload.createdByName || permission.name,
     createdByEmail: row.created_by_email || payload.createdByEmail || permission.email,
     organization: row.organization || payload.organization || permission.organization,
-    stakeholder: companyName || '????',
+    stakeholder: companyName || '확인 필요',
     companyName,
     dueDate: row.due_date || payload.dueDate || '',
     status: normalizeLogisticsTaskStatus(row.status || payload.status),
-    priority: payload.priority || row.priority || '??',
+    priority: payload.priority || row.priority || '보통',
     completed: row.status === 'completed' || Boolean(row.completed_at) || payload.completed,
     deleted: row.status === 'deleted' || Boolean(row.deleted_at) || payload.deleted,
     createdAt: row.created_at || payload.createdAt || '',
-    source: payload.source || 'll_work_items',
+    source: payload.sourceLabel || payload.source_name || '작업관리',
   };
 }
 
@@ -4321,11 +4280,99 @@ function normalizeIdentity(value) {
   return String(value || '').trim().replace(/\t/g, '').toLowerCase();
 }
 
+const logisticsPermissionUsers = Array.isArray(logisticsPermissionData.users) ? logisticsPermissionData.users : [];
+
+function getLogisticsPermissionIdentity(memberInfo, raw = {}) {
+  return {
+    emails: [
+      raw.email,
+      raw.user_email,
+      raw.login_id,
+      raw.id,
+      raw.permission_email,
+      raw.profile_payload?.permission_email,
+      raw.profilePayload?.permission_email,
+      memberInfo?.email,
+      memberInfo?.user_email,
+      memberInfo?.login_id,
+      memberInfo?.id,
+      memberInfo?.permission_email,
+      memberInfo?.profile_payload?.permission_email,
+      memberInfo?.profilePayload?.permission_email,
+    ].map(normalizeIdentity).filter(Boolean),
+    names: [
+      raw.staff_name,
+      raw.staffName,
+      raw.name,
+      raw.full_name,
+      raw.fullName,
+      raw.display_name,
+      raw.displayName,
+      memberInfo?.staff_name,
+      memberInfo?.staffName,
+      memberInfo?.name,
+      memberInfo?.full_name,
+      memberInfo?.fullName,
+      memberInfo?.display_name,
+      memberInfo?.displayName,
+      memberInfo?.profile_payload?.staff_name,
+      memberInfo?.profile_payload?.staffName,
+      memberInfo?.profile_payload?.full_name,
+      memberInfo?.profile_payload?.display_name,
+      memberInfo?.profilePayload?.staff_name,
+      memberInfo?.profilePayload?.staffName,
+      memberInfo?.profilePayload?.full_name,
+      memberInfo?.profilePayload?.display_name,
+    ].map((value) => String(value || '').trim()).filter(Boolean),
+    organizations: [
+      raw.organization,
+      raw.department,
+      raw.team_name,
+      memberInfo?.organization,
+      memberInfo?.department,
+      memberInfo?.team_name,
+    ].map((value) => String(value || '').trim()).filter(Boolean),
+  };
+}
+
+function findStaticLogisticsPermissionUser(memberInfo, raw = {}) {
+  const identity = getLogisticsPermissionIdentity(memberInfo, raw);
+  return logisticsPermissionUsers.find((user) => identity.emails.includes(normalizeIdentity(user.email)))
+    || logisticsPermissionUsers.find((user) => identity.names.includes(String(user.name || '').trim()))
+    || null;
+}
+
+function firstNonEmptyArray(...arrays) {
+  return arrays.find((items) => Array.isArray(items) && items.length) || [];
+}
+
+function mergePermissionRows(rows, fallbackRows, keyFields) {
+  const unique = new Map();
+  [...(Array.isArray(rows) ? rows : []), ...(Array.isArray(fallbackRows) ? fallbackRows : [])]
+    .filter(Boolean)
+    .forEach((row) => {
+      const key = keyFields
+        .map((field) => normalizeIdentity(row?.[field]))
+        .find(Boolean)
+        || JSON.stringify(row);
+      if (!unique.has(key)) unique.set(key, row);
+    });
+  return [...unique.values()];
+}
+
+function mergePermissionFlags(primary = {}, fallback = {}, defaults = {}) {
+  const merged = { ...defaults, ...fallback, ...primary };
+  return Object.fromEntries(Object.entries(merged).map(([key, value]) => [
+    key,
+    value === true || fallback?.[key] === true || defaults?.[key] === true,
+  ]));
+}
+
 function resolveLogisticsPermissionLegacy(memberInfo) {
   const email = normalizeIdentity(memberInfo?.email || memberInfo?.user_email || memberInfo?.login_id || memberInfo?.id);
   const name = String(memberInfo?.staff_name || memberInfo?.name || '').trim();
   const organization = String(memberInfo?.organization || memberInfo?.department || memberInfo?.team_name || '').trim();
-  const users = [];
+  const users = logisticsPermissionUsers;
   const matched = users.find((user) => normalizeIdentity(user.email) === email)
     || users.find((user) => name && user.name === name)
     || users.find((user) => organization && user.organization === organization);
@@ -4354,38 +4401,58 @@ function resolveLogisticsPermissionLegacy(memberInfo) {
 
 function resolveLogisticsPermission(memberInfo) {
   const raw = memberInfo?.logistics_permission || memberInfo || {};
-  const email = normalizeIdentity(raw.email || memberInfo?.email || raw.user_email || memberInfo?.user_email || raw.login_id || memberInfo?.login_id || raw.id || memberInfo?.id);
-  const name = String(raw.staff_name || raw.name || memberInfo?.staff_name || memberInfo?.name || '').trim();
-  const organization = String(raw.organization || raw.department || raw.team_name || memberInfo?.organization || memberInfo?.department || memberInfo?.team_name || '').trim();
+  let staticUser = findStaticLogisticsPermissionUser(memberInfo, raw);
+  const email = normalizeIdentity(raw.email || memberInfo?.email || staticUser?.email || raw.user_email || memberInfo?.user_email || raw.login_id || memberInfo?.login_id || raw.id || memberInfo?.id);
+  const name = String(raw.staff_name || raw.staffName || raw.name || raw.full_name || raw.display_name || memberInfo?.staff_name || memberInfo?.staffName || memberInfo?.name || memberInfo?.full_name || memberInfo?.display_name || staticUser?.name || '').trim();
+  if (!staticUser) {
+    staticUser = logisticsPermissionUsers.find((user) => email && normalizeIdentity(user.email) === email)
+      || logisticsPermissionUsers.find((user) => name && normalizeIdentity(user.name) === normalizeIdentity(name))
+      || null;
+  }
+  const organization = String(raw.organization || raw.department || raw.team_name || memberInfo?.organization || memberInfo?.department || memberInfo?.team_name || staticUser?.organization || '').trim();
   const role = raw.logistics_role || raw.logisticsRole || raw.role || 'Reader';
   const managedAssetCodes = [
     ...(Array.isArray(raw.managedAssetCodes) ? raw.managedAssetCodes : []),
     ...(Array.isArray(raw.managed_asset_codes) ? raw.managed_asset_codes : []),
   ].map((item) => String(item || '').trim()).filter(Boolean);
-  const managedAssets = Array.isArray(raw.managedAssets)
-    ? raw.managedAssets
-    : managedAssetCodes.map((assetCode) => ({ assetCode, assetId: assetCode, assetName: assetCode }));
-  const managedFunds = raw.managedFunds || raw.profile_payload?.managed_funds || raw.profilePayload?.managed_funds || [];
+  const managedAssets = mergePermissionRows(
+    firstNonEmptyArray(
+      raw.managedAssets,
+      raw.profile_payload?.managed_assets,
+      raw.profilePayload?.managed_assets,
+      managedAssetCodes.map((assetCode) => ({ assetCode, assetId: assetCode, assetName: assetCode })),
+    ),
+    staticUser?.managedAssets,
+    ['assetCode', 'assetId', 'assetName'],
+  );
+  const managedFunds = mergePermissionRows(
+    firstNonEmptyArray(
+      raw.managedFunds,
+      raw.managed_funds,
+      raw.profile_payload?.managed_funds,
+      raw.profilePayload?.managed_funds,
+    ),
+    staticUser?.managedFunds,
+    ['fundCode', 'fundId', 'fundName'],
+  );
   const managedAssetPermissions = raw.permissions?.managedAsset || raw.managed_asset_permissions || raw.managedAssetPermissions || {};
   const otherAssetPermissions = raw.permissions?.otherAsset || raw.other_asset_permissions || raw.otherAssetPermissions || {};
   const permissions = {
-    managedAsset: {
-      read: managedAssetPermissions.read === true || managedAssets.length > 0,
-      create: managedAssetPermissions.create === true,
-      update: managedAssetPermissions.update === true,
-      delete: managedAssetPermissions.delete === true,
-    },
-    otherAsset: {
-      read: otherAssetPermissions.read === true,
-      create: otherAssetPermissions.create === true,
-      update: otherAssetPermissions.update === true,
-      delete: otherAssetPermissions.delete === true,
-    },
+    managedAsset: mergePermissionFlags(
+      managedAssetPermissions,
+      staticUser?.permissions?.managedAsset,
+      { read: managedAssets.length > 0, create: false, update: false, delete: false },
+    ),
+    otherAsset: mergePermissionFlags(
+      otherAssetPermissions,
+      staticUser?.permissions?.otherAsset,
+      { read: false, create: false, update: false, delete: false },
+    ),
   };
 
   return {
     ...raw,
-    matched: Boolean(raw.email || raw.staff_name || raw.name),
+    matched: Boolean(staticUser || raw.email || raw.staff_name || raw.name),
     name: name || '로그인 사용자',
     email: email || '',
     organization: organization || '조직 미확인',
@@ -5133,9 +5200,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       }
       setIsLoadingTasks(true);
       try {
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'work-platform/tasks/list', payload: { workspace: 'logistics', include_deleted: true } },
-        });
+        const { data, error } = await invokeDashboardApi('work-platform/tasks/list', { workspace: 'logistics', include_deleted: true });
         if (error) throw error;
         if (data?.ok === false) throw new Error(data.message || 'TASK 목록을 불러오지 못했습니다.');
         const rows = Array.isArray(data?.data) ? data.data.map((row) => normalizeServerWorklogTask(row, permission)) : [];
@@ -5176,15 +5241,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     let cancelled = false;
     const syncSnapshot = async () => {
       try {
-        await supabase.functions.invoke('ll-dashboard-api', {
-          body: {
-            action: 'work-platform/tasks/snapshots/upsert-current',
-            payload: {
-              workspace: 'logistics',
-              basis_date: getLogisticsWeekInfo().basisDate,
-              seed_tasks: weeklyTasks,
-            },
-          },
+        await invokeDashboardApi('work-platform/tasks/snapshots/upsert-current', {
+          workspace: 'logistics',
+          basis_date: getLogisticsWeekInfo().basisDate,
+          seed_tasks: weeklyTasks,
         });
       } catch (error) {
         if (!cancelled) console.warn('Failed to sync logistics task snapshot:', error);
@@ -5267,25 +5327,20 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           ? 'work-platform/tasks/archive-seed'
           : `work-platform/tasks/${operation}`;
       const assetName = payload.assetName || task.assetName;
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action,
-          payload: {
-            id: task.id,
-            seed_id: payload.seedId || taskSeedId(task) || undefined,
-            task_name: payload.taskName || task.taskName,
-            company_name: payload.companyName || task.companyName || '',
-            next_action: payload.nextAction || task.nextAction,
-            issue: payload.issue || task.issue || '',
-            notes: payload.notes || task.notes || '',
-            due_date: payload.dueDate || task.dueDate || null,
-            priority: payload.priority || task.priority,
-            status: payload.status || task.status,
-            related_asset_id: resolveAssetIdByName(assetName),
-            related_asset_name: assetName,
-            payload: { ...task, ...payload, seedId: payload.seedId || taskSeedId(task) || undefined, assetName, relatedAsset: assetName, source: payload.source || task.source || 'main_task_manager' },
-          },
-        },
+      const { data, error } = await invokeDashboardApi(action, {
+        id: task.id,
+        seed_id: payload.seedId || taskSeedId(task) || undefined,
+        task_name: payload.taskName || task.taskName,
+        company_name: payload.companyName || task.companyName || '',
+        next_action: payload.nextAction || task.nextAction,
+        issue: payload.issue || task.issue || '',
+        notes: payload.notes || task.notes || '',
+        due_date: payload.dueDate || task.dueDate || null,
+        priority: payload.priority || task.priority,
+        status: payload.status || task.status,
+        related_asset_id: resolveAssetIdByName(assetName),
+        related_asset_name: assetName,
+        payload: { ...task, ...payload, seedId: payload.seedId || taskSeedId(task) || undefined, assetName, relatedAsset: assetName, source: payload.source || task.source || 'main_task_manager' },
       });
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '서버 저장 실패');
@@ -6813,9 +6868,7 @@ async function getNaverMapsClientId() {
   if (typeof window === 'undefined') return '';
   if (window.__logisticsNaverMapsClientId) return window.__logisticsNaverMapsClientId;
   if (window.__logisticsNaverMapsClientIdPromise) return window.__logisticsNaverMapsClientIdPromise;
-  window.__logisticsNaverMapsClientIdPromise = supabase.functions.invoke('ll-dashboard-api', {
-    body: { action: 'naver/maps-config', payload: {} },
-  })
+  window.__logisticsNaverMapsClientIdPromise = invokeDashboardApi('naver/maps-config', {})
     .then(({ data, error }) => {
       if (error || !data?.ok || !data?.ncp_key_id) throw new Error(error?.message || data?.message || 'Naver Maps client id unavailable');
       window.__logisticsNaverMapsClientId = data.ncp_key_id;
@@ -9907,9 +9960,7 @@ function CompanyDashboard() {
       return undefined;
     }
     let cancelled = false;
-    supabase.functions.invoke('ll-dashboard-api', {
-      body: { action: 'opendart/company', payload: { corp_code: selectedCorpCode, include_financials: true } },
-    }).then(({ data, error }) => {
+    invokeDashboardApi('opendart/company', { corp_code: selectedCorpCode, include_financials: true }).then(({ data, error }) => {
       if (cancelled) return;
       if (error || data?.ok === false) return;
       setDartApiSummary(data?.data || null);
@@ -9930,9 +9981,7 @@ function CompanyDashboard() {
     }
     setDartApiStatus({ type: 'loading', message: 'OpenDART 원천 API를 다시 호출하고 Supabase 저장값을 갱신하는 중입니다.' });
     try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'opendart/company', payload: { corp_code: selectedCorpCode, include_financials: true } },
-      });
+      const { data, error } = await invokeDashboardApi('opendart/company', { corp_code: selectedCorpCode, include_financials: true });
       if (error) throw error;
       const dart = data?.data || {};
       if (!data?.ok) {
@@ -10873,9 +10922,7 @@ function ContractDataManagementDashboard() {
       setEventsLoading(true);
       setEventsError('');
       try {
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'lease-events/list', payload: { limit: 120 } },
-        });
+        const { data, error } = await invokeDashboardApi('lease-events/list', { limit: 120 });
         if (error) throw error;
         if (!cancelled) setSubmittedEvents(Array.isArray(data?.data) ? data.data : []);
       } catch (error) {
@@ -11022,18 +11069,11 @@ function ContractDataManagementDashboard() {
     setIsSubmitting(true);
     setEventStatus({ type: 'pending', message: '계약 구역 추가 내용을 검토 후 정규 DB에 반영하는 중입니다.' });
     try {
-      const previewResult = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'lease-events/preview', payload: leasePayload },
-      });
+      const previewResult = await invokeDashboardApi('lease-events/preview', leasePayload);
       if (previewResult.error) throw previewResult.error;
       if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '정규 DB 반영 전 검토 실패');
       assertLeaseEventPreviewReady(previewResult.data);
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'lease-events/submit',
-          payload: leasePayload,
-        },
-      });
+      const { data, error } = await invokeDashboardApi('lease-events/submit', leasePayload);
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '계약 구역 추가 요청 접수 실패');
       const saved = data?.data ? {
@@ -11074,18 +11114,11 @@ function ContractDataManagementDashboard() {
     setIsSubmitting(true);
     setEventStatus({ type: 'pending', message: '계약 종료/아카이빙 요청을 접수하는 중입니다.' });
     try {
-      const previewResult = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'lease-events/preview', payload: leasePayload },
-      });
+      const previewResult = await invokeDashboardApi('lease-events/preview', leasePayload);
       if (previewResult.error) throw previewResult.error;
       if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '아카이빙 전 검토 실패');
       assertLeaseEventPreviewReady(previewResult.data);
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'lease-events/submit',
-          payload: leasePayload,
-        },
-      });
+      const { data, error } = await invokeDashboardApi('lease-events/submit', leasePayload);
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '계약 아카이빙 요청 실패');
       setArchiveConfirmOpen(false);
@@ -11167,15 +11200,11 @@ function ContractDataManagementDashboard() {
           changed_field_count: changedFields.length,
         }],
       };
-      const previewResult = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'lease-events/preview', payload: leasePayload },
-      });
+      const previewResult = await invokeDashboardApi('lease-events/preview', leasePayload);
       if (previewResult.error) throw previewResult.error;
       if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '정규 DB 반영 전 검토 실패');
       assertLeaseEventPreviewReady(previewResult.data);
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: { action: 'lease-events/submit', payload: leasePayload },
-      });
+      const { data, error } = await invokeDashboardApi('lease-events/submit', leasePayload);
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '계약 데이터 정규 DB 반영 실패');
       setFieldEditStatus({ type: 'success', message: `${leaseEventResultMessage(data?.data?.write_result || {})} / 대상 필드 ${formatNumber(directCount)}개, 원본 보존 ${formatNumber(sourceOnlyCount)}개 / 요청 ID: ${data?.data?.id || '-'}` });
@@ -11777,7 +11806,7 @@ function qualityDetailRows(item) {
     ['문제로 본 이유', qualityReasonLabel(item.reason)],
     ['권장 조치', qualityActionLabel(item)],
     ['원본 영역', qualitySheetLabel(item.sheetName)],
-    ['원본 행', cleanDisplay(firstDefined(raw.source_row_number, raw.source_row_id, payload.source_row_number, payload.source_row_id), '-')],
+    ['원본 행', cleanDisplay(firstDefined(raw.source_row_number, payload.source_row_number), '-')],
     ['원본 항목명', cleanDisplay(firstDefined(raw.source_header, raw.field_name, item.field), '-')],
     ['원본 값', cleanDisplay(firstDefined(raw.source_value_text, raw.before_value, payload.source_value_text, payload.before_value), '-')],
     ['Supabase 값', cleanDisplay(firstDefined(raw.supabase_value_text, raw.after_value, raw.readback_value, payload.supabase_value_text), '-')],
@@ -12032,7 +12061,7 @@ function QualityFindingReadableDetail({ item, canEdit, onRequestEdit, onDismiss 
   ];
   const technicalRows = [
     ['원본 영역', qualitySheetLabel(item.sheetName)],
-    ['원본 행', qualityReadableValue(firstDefined(raw.source_row_number, raw.source_row_id, payload.source_row_number, payload.source_row_id))],
+    ['원본 행', qualityReadableValue(firstDefined(raw.source_row_number, payload.source_row_number))],
     ['원본 항목명', qualityReadableValue(firstDefined(raw.source_header, raw.field_name, item.field))],
     ['원본 값', qualityReadableValue(firstDefined(raw.source_value_text, raw.before_value, payload.source_value_text, payload.before_value))],
     ['데이터베이스 값', qualityReadableValue(firstDefined(raw.supabase_value_text, raw.after_value, raw.readback_value, payload.supabase_value_text))],
@@ -12691,15 +12720,15 @@ function normalizeQualityWorkbookRows(rows, permission) {
     const validationError = !QUALITY_ALLOWED_ACTIONS.has(action)
       ? '현재 Excel 왕복 수정 파일은 수정 행위만 지원합니다. 추가/삭제는 Data Update에서 정규 DB 반영 흐름으로 처리합니다.'
       : !targetTable.startsWith('public.ll_')
-        ? 'target_table은 public.ll_* 형식이어야 합니다.'
+        ? '대상 데이터 형식이 올바르지 않습니다.'
       : !targetRowId
-        ? 'target_row_id가 비어 있습니다.'
+        ? '대상 행 정보가 비어 있습니다.'
         : !fieldName
-          ? 'field_name이 비어 있습니다.'
+          ? '수정 필드가 비어 있습니다.'
           : !sourceRowId
-            ? 'source_row_id가 비어 있습니다.'
+            ? '원천 행 정보가 비어 있습니다.'
             : !sourceCellId
-              ? 'source_cell_id가 비어 있습니다.'
+              ? '원천 셀 정보가 비어 있습니다.'
               : action === '수정' && afterValue === beforeValue
                 ? '수정값이 현재값과 같습니다.'
                 : '';
@@ -12830,10 +12859,7 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
         ? '내 수정 가능 자산 전체'
         : (qualityAssetOptions.find((asset) => asset.assetId === qualityAssetId)?.assetName || qualityAssetId);
       const uploadAt = new Date().toISOString();
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'edits/submit',
-          payload: {
+      const { data, error } = await invokeDashboardApi('edits/submit', {
             source_table: 'public.ll_audit_events',
             finding_id: null,
             target_type: 'excel_batch',
@@ -12856,8 +12882,6 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
               permission_source: 'Supabase ll_user_permissions',
               cell_edits: cellEdits,
             },
-          },
-        },
       });
       if (error) throw error;
       setExcelStatus({ type: blockedRows.length ? 'warning' : 'success', message: data?.message || `${permission.name}님의 ${assetName} 수정 검토 기록 ${formatNumber(editableRows.length)}행을 저장했습니다.${blockedRows.length ? ` 권한 밖 ${formatNumber(blockedRows.length)}행은 제외했습니다.` : ''}` });
@@ -12904,9 +12928,7 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
 
 async function fetchRemoteQualityFindings(signal) {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
-  const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-    body: { action: 'quality/findings', payload: { limit: 300 } },
-  });
+  const { data, error } = await invokeDashboardApi('quality/findings', { limit: 300 });
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
   if (error) throw error;
   if (data?.ok === false) {
@@ -13034,10 +13056,7 @@ function DataQualityDashboard() {
     }
     setEditSubmitStatus({ type: 'pending', message: '수정 요청 저장 중' });
     try {
-      const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'edits/submit',
-          payload: {
+      const { data, error } = await invokeDashboardApi('edits/submit', {
             source_table: editTarget.sourceTable || 'public.ll_audit_events',
             finding_id: editTarget.id || null,
             target_type: editTarget.targetType,
@@ -13070,8 +13089,6 @@ function DataQualityDashboard() {
                 asset_name: editGridRows.find((row) => row.assetName)?.assetName || editTarget.target || null,
               },
             },
-          },
-        },
       });
       if (error) throw error;
       setEditSubmitStatus({ type: 'success', message: data?.message || '수정 검토 기록이 저장됐습니다.' });
@@ -13105,7 +13122,7 @@ function DataQualityDashboard() {
               <div className="mt-2 text-[24px] font-semibold">{formatNumber(count)}건</div>
             </button>
           ))}
-          <button type="button" onClick={() => setModal({ title: '수정 권한 기준', headers: ['항목', '내용'], rows: [['권한 원본', logisticsPermissionData.sourceFile], ['현재 사용자', permission.name], ['조직', permission.organization], ['담당 자산 수정', permissionText(permission.permissions?.managedAsset?.update)], ['서버 검증', 'Edge Function/RLS에서 JWT와 public.ll_* 권한 재확인 필요']] })} className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4 text-left text-white hover:bg-[#2A2A29]">
+          <button type="button" onClick={() => setModal({ title: '수정 권한 기준', headers: ['항목', '내용'], rows: [['권한 원본', logisticsPermissionData.sourceFile], ['현재 사용자', permission.name], ['조직', permission.organization], ['담당 자산 수정', permissionText(permission.permissions?.managedAsset?.update)], ['서버 검증', '서버 권한 정책에서 현재 사용자 권한을 재확인합니다.']] })} className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4 text-left text-white hover:bg-[#2A2A29]">
             <div className="text-[12px] font-semibold text-[#86868B]">권한 기준</div>
             <div className="mt-2 text-[18px] font-semibold">담당자별 권한표</div>
           </button>
@@ -13429,9 +13446,7 @@ function AssetDashboard() {
       setBuildingRegisterSummary(cached);
       return undefined;
     }
-    supabase.functions.invoke('ll-dashboard-api', {
-      body: { action: 'building-register/summary', payload: buildingRegisterPayload },
-    }).then(({ data, error }) => {
+    invokeDashboardApi('building-register/summary', buildingRegisterPayload).then(({ data, error }) => {
       if (cancelled) return;
       if (error || data?.ok === false || !data?.data || !hasBuildingRegisterOverviewValue(data.data)) {
         setBuildingRegisterSummary({ status: 'unavailable' });
@@ -13459,12 +13474,7 @@ function AssetDashboard() {
     if (!assetNameForPrefetch || !cacheKey) return undefined;
     let cancelled = false;
     if (!ASSET_PROJECT_DETAIL_CACHE.has(cacheKey)) {
-      supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'weekly-projects/get-asset-detail',
-          payload: { asset_name: assetNameForPrefetch, asset_id: selectedAssetId },
-        },
-      }).then(({ data }) => {
+      invokeDashboardApi('weekly-projects/get-asset-detail', { asset_name: assetNameForPrefetch, asset_id: selectedAssetId }).then(({ data }) => {
         if (cancelled || !data?.ok || !data?.data) return;
         ASSET_PROJECT_DETAIL_CACHE.set(cacheKey, {
           overview: Array.isArray(data.data.overview_rows) ? data.data.overview_rows : [],
@@ -13474,12 +13484,7 @@ function AssetDashboard() {
     }
     if (!ASSET_FUND_OVERVIEW_CACHE.has(cacheKey)) {
       const fallbackFundRows = buildDefaultFundInfoRows(assetNameForPrefetch, {});
-      supabase.functions.invoke('ll-dashboard-api', {
-        body: {
-          action: 'funds/read-by-asset',
-          payload: { asset_name: assetNameForPrefetch, asset_id: selectedAssetId },
-        },
-      }).then(({ data, error }) => {
+      invokeDashboardApi('funds/read-by-asset', { asset_name: assetNameForPrefetch, asset_id: selectedAssetId }).then(({ data, error }) => {
         if (cancelled || error || data?.ok === false || !data?.data) return;
         ASSET_FUND_OVERVIEW_CACHE.set(cacheKey, {
           fundInfo: normalizeFundInfoRowsForUi(data.data.fund_info_rows, fallbackFundRows),
@@ -14012,12 +14017,7 @@ function PdfReportBuilder() {
   useEffect(() => {
     let cancelled = false;
     if (!selectedAsset.assetId && !selectedAsset.assetName) return undefined;
-    supabase.functions.invoke('ll-dashboard-api', {
-      body: {
-        action: 'funds/read-by-asset',
-        payload: { asset_id: selectedAsset.assetId, asset_name: selectedAsset.assetName },
-      },
-    }).then(({ data, error }) => {
+    invokeDashboardApi('funds/read-by-asset', { asset_id: selectedAsset.assetId, asset_name: selectedAsset.assetName }).then(({ data, error }) => {
       if (error) throw error;
       if (cancelled) return;
       if (data?.ok === false) {
@@ -14170,10 +14170,10 @@ function PdfReportBuilder() {
     formatArea(row.leasedAreaSqm),
   ]);
   const qualityRows = [
-    ['자산개요·투자개요', 'll_weekly_records(project) 저장 및 readback 기준'],
-    ['자산현황', 'll_weekly_records(asset) 저장 및 readback 기준'],
-    ['계약 원장', 'll_lease_spaces / ll_rent_history 기준'],
-    ['외부 API', 'OpenDART·건축물대장·Naver는 Edge Function 기준'],
+    ['자산개요·투자개요', '주간 자산 리포트 저장 및 readback 기준'],
+    ['자산현황', '자산 현황 저장 및 readback 기준'],
+    ['계약 원장', '임대차 계약 및 임대료 이력 기준'],
+    ['외부 API', 'OpenDART·건축물대장·Naver 연동 기준'],
   ];
   const mapLatitude = firstDefined(selectedAsset.latitude, overview.latitude, assetPayload?.overview?.latitude);
   const mapLongitude = firstDefined(selectedAsset.longitude, overview.longitude, assetPayload?.overview?.longitude);
@@ -14460,9 +14460,7 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal,
           setProgress({ type: 'building', done: index + 1, total: buildingTargets.length, label: target.assetName || '자산 확인 완료' });
           continue;
         }
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'building-register/summary', payload: { ...target.payload, force_refresh: true } },
-        });
+        const { data, error } = await invokeDashboardApi('building-register/summary', { ...target.payload, force_refresh: true });
         const outcome = externalRefreshOutcome(data, error);
         const providerAddress = data?.data?.new_plat_plc || data?.data?.plat_plc || '';
         const hasProviderData = Boolean(providerAddress || Object.keys(data?.data || {}).length);
@@ -14515,9 +14513,7 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal,
           setProgress({ type: 'opendart', done: index + 1, total: openDartTargets.length, label: target.tenantName || '기업 확인 완료' });
           continue;
         }
-        const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-          body: { action: 'opendart/company', payload: { corp_code: target.corpCode, include_financials: true } },
-        });
+        const { data, error } = await invokeDashboardApi('opendart/company', { corp_code: target.corpCode, include_financials: true });
         const forceOutcome = externalRefreshOutcome(data, error);
         let finalData = data;
         let finalOutcome = forceOutcome;
@@ -14526,9 +14522,7 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal,
         if (forceOutcome.status === '새로고침 완료') sourceStatus = '원천 갱신 완료';
 
         if (!forceOutcome.stored) {
-          const { data: cachedData, error: cachedError } = await supabase.functions.invoke('ll-dashboard-api', {
-            body: { action: 'opendart/company', payload: { corp_code: target.corpCode, include_financials: true } },
-          });
+          const { data: cachedData, error: cachedError } = await invokeDashboardApi('opendart/company', { corp_code: target.corpCode, include_financials: true });
           const cachedOutcome = externalRefreshOutcome(cachedData, cachedError);
           if (cachedOutcome.stored) {
             finalData = cachedData;

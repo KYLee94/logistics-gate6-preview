@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
+import { invokeDashboardApi } from '../../../utils/supabaseSession';
 import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import LogWriteBox from '../LogWriteBox';
@@ -203,9 +204,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         setIsLoading(true);
         try {
             if (isLogisticsMode) {
-                const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-                    body: { action: 'work-platform/board-posts/list', payload: { workspace: 'logistics' } },
-                });
+                const { data, error } = await invokeDashboardApi('work-platform/board-posts/list', { workspace: 'logistics' });
                 if (error) throw error;
                 if (!data?.ok) throw new Error(data?.message || '협업게시판 목록을 불러오지 못했습니다.');
                 setLogs(Array.isArray(data?.data) ? data.data.map(toLogisticsBoardLog) : []);
@@ -235,9 +234,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         setIsDeleting(true);
         try {
             if (isLogisticsMode) {
-                const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-                    body: { action: 'work-platform/board-posts/delete', payload: { log_id: logId } },
-                });
+                const { data, error } = await invokeDashboardApi('work-platform/board-posts/delete', { log_id: logId });
                 if (error) throw error;
                 if (!data?.ok) throw new Error(data?.message || '협업게시판 글 삭제에 실패했습니다.');
                 setLogs(prev => prev.filter(l => l.log_id !== logId));
@@ -264,9 +261,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         setIsSavingComment(true);
         try {
             if (isLogisticsMode) {
-                const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-                    body: { action: 'work-platform/board-posts/comment', payload: { log_id: logId, text: commentContent } },
-                });
+                const { data, error } = await invokeDashboardApi('work-platform/board-posts/comment', { log_id: logId, text: commentContent });
                 if (error) throw error;
                 if (!data?.ok) throw new Error(data?.message || '댓글 저장에 실패했습니다.');
                 const next = data?.data ? toLogisticsBoardLog(data.data) : null;
@@ -311,9 +306,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         setIsDeleting(true);
         try {
             if (isLogisticsMode) {
-                const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-                    body: { action: 'work-platform/board-posts/comment-delete', payload: { log_id: logId, comment_id: commentId } },
-                });
+                const { data, error } = await invokeDashboardApi('work-platform/board-posts/comment-delete', { log_id: logId, comment_id: commentId });
                 if (error) throw error;
                 if (!data?.ok) throw new Error(data?.message || '댓글 삭제에 실패했습니다.');
                 const next = data?.data ? toLogisticsBoardLog(data.data) : null;

@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-18T08:44:55.336Z",
+  "auth_source": "password_grant",
+  "workbook": "C:\\tmp\\IGIS-Fund-Production-DP\\qa-artifacts\\logistics-gate6\\source-workbook-ingest\\storage-upload\\source-workbook.xlsx",
+  "sentinel": {
+    "key": "lease|수도권|2026 1Q|복합 상온|rent_manwon_per_py|region|동남권",
+    "expected": 3.0361600000000006,
+    "actual": 3.0361600000000006,
+    "ok": true
+  },
+  "summary": {
+    "excel_lease_rows": 7849,
+    "api_lease_rows": 7849,
+    "excel_supply_rows": 1568,
+    "api_supply_rows": 1568,
+    "lease_mismatches": 0,
+    "supply_mismatches": 0
+  },
+  "lease_compare": {
+    "checked": 7849,
+    "matched": 7849,
+    "mismatches": []
+  },
+  "supply_compare": {
+    "checked": 1568,
+    "matched": 1568,
+    "mismatches": []
+  }
+}

@@ -116,6 +116,7 @@ async function main() {
     observed: {
       status: summary.status,
       source_file: summary.source?.file_name || null,
+      source: summary.source || null,
       lease_observation_count: summary.lease_observation_count,
       transaction_case_count: summary.transaction_case_count,
       pipeline_supply_count: summary.pipeline_supply_count,

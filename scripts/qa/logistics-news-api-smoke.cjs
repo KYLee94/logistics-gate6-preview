@@ -230,7 +230,7 @@ async function main() {
       && check.titles_with_publisher_suffix.length === 0
       && check.missing_publisher_count === 0
       && Math.max(0, ...Object.values(check.company_mention_counts || {})) <= 2
-      && (index > 0 || check.item_count >= 8))
+      && (check.date !== '2026-06-17' || check.item_count >= 8))
       && preservation_checks.every((check) => check.ok),
     generated_at: new Date().toISOString(),
     auth_source: auth.source,

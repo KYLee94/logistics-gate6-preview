@@ -34,6 +34,7 @@
     "ops:news:edge-restore-20260617": "node scripts/ops/logistics-news-edge-restore-20260617.cjs",
     "qa:news:restore-20260617": "node scripts/qa/logistics-news-restore-readback.cjs",
     "qa:market-data:readback": "node scripts/qa/logistics-market-data-readback-smoke.cjs",
+    "qa:market-data:parity": "node scripts/qa/logistics-market-data-parity-audit.cjs",
     "qa:market-data:browser": "node scripts/qa/logistics-market-data-browser-smoke.cjs",
     "qa:data-management:browser-readback": "node scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
     "qa:investment-index:readback": "node scripts/qa/logistics-investment-index-readback-smoke.cjs",

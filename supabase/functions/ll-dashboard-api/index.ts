@@ -2262,6 +2262,220 @@ function safeDateText(value: unknown) {
   return /^\d{4}-\d{2}-\d{2}$/u.test(text) ? text : null;
 }
 
+const MARKET_LEASE_CAPITAL_PERIODS = ['2022 2H', '2023 1H', '2023 2H', '2024 1Q', '2024 2Q', '2024 3Q', '2024 4Q', '2025 1Q', '2025 2Q', '2025 3Q', '2025 4Q', '2026 1Q'];
+const MARKET_LEASE_LOCAL_PERIODS = ['2024 1Q', '2025 1Q', '2025 2Q', '2025 3Q', '2025 4Q', '2026 1Q'];
+const MARKET_LEASE_CAPITAL_REGIONS = ['동남권', '남부권', '중앙권', '서부권', '서북권', '수도권 기타권', '평균'];
+const MARKET_LEASE_LOCAL_REGIONS = ['경남권', '충청권', '전라권', '경북권', '지방 기타권', '평균'];
+const MARKET_LEASE_SIZE_BUCKETS = ['소형', '중형', '대형', '초대형', '평균'];
+const MARKET_SUPPLY_CAPITAL_REGIONS = ['동남권', '남부권', '중앙권', '서부권', '서북권', '수도권 기타권', '소계'];
+const MARKET_SUPPLY_LOCAL_REGIONS = ['경남권', '충청권', '전라권', '경북권', '지방 기타권', '소계'];
+
+function marketPeriodKey(value: unknown) {
+  return safeText(value).replace(/\s+/gu, '');
+}
+
+function marketNumber(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function marketMetricKey(label: unknown) {
+  const source = safeText(label).replace(/\s+/gu, '');
+  if (!source) return '';
+  if (source.includes('보증금')) return 'deposit_manwon_per_py';
+  if (source.includes('임대료')) return 'rent_manwon_per_py';
+  if (source.includes('관리비')) return 'management_fee_manwon_per_py';
+  if (source.includes('렌트프리_공실률') || source.includes('렌트프리공실률')) return 'rent_free_vacancy_10';
+  if (source.includes('렌트프리')) return 'rent_free_months_per_year';
+  if (source.includes('공실률')) return 'vacancy_rate';
+  return '';
+}
+
+function marketMetricLabel(metricKey: string, fallback: unknown) {
+  return ({
+    deposit_manwon_per_py: '보증금(만원/평)',
+    rent_manwon_per_py: '임대료(만원/평)',
+    management_fee_manwon_per_py: '관리비(만원/평)',
+    rent_free_months_per_year: '렌트프리(개월/년)',
+    rent_free_vacancy_10: '렌트프리_공실률 10% 이상(개월/년)',
+    vacancy_rate: '공실률(%)',
+  } as Record<string, string>)[metricKey] || safeText(fallback);
+}
+
+function marketColumnIndexByHeader(columns: Record<string, unknown>[]) {
+  const out = new Map<string, number>();
+  columns.forEach((column) => {
+    const key = safeText(column.normalized_header);
+    const index = Number(column.column_index || 0);
+    if (key && Number.isFinite(index)) out.set(key, index);
+  });
+  return out;
+}
+
+function marketColumnKeyByIndex(columns: Record<string, unknown>[]) {
+  const out = new Map<number, string>();
+  columns.forEach((column) => {
+    const key = safeText(column.normalized_header);
+    const index = Number(column.column_index || 0);
+    if (key && Number.isFinite(index)) out.set(index, key);
+  });
+  return out;
+}
+
+function parseLeaseStatisticRows(rows: Record<string, unknown>[], columns: Record<string, unknown>[]) {
+  const columnKeyByIndex = marketColumnKeyByIndex(columns);
+  const sortedRows = rows.slice().sort((a, b) => Number(a.row_number || 0) - Number(b.row_number || 0));
+  const state = {
+    capitalCategory: '',
+    capitalSubcategory: '',
+    localCategory: '',
+    localSubcategory: '',
+  };
+  const out: Record<string, unknown>[] = [];
+  sortedRows.forEach((sourceRow) => {
+    const rowNumber = Number(sourceRow.row_number || 0);
+    const rowValues = sourceRow.row_values && typeof sourceRow.row_values === 'object'
+      ? sourceRow.row_values as Record<string, unknown>
+      : {};
+    const scope = rowNumber >= 54 && rowNumber <= 94 ? '지방' : rowNumber <= 48 ? '수도권' : '';
+    if (!scope) return;
+    const rawCategory = safeText(rowValues.col_2);
+    const rawSubOrMetric = safeText(rowValues.col_3);
+    const rawMetric = safeText(rowValues.col_4);
+    if (rawCategory.startsWith('*') || rawCategory === '구분' || rawCategory.includes('권역별')) return;
+    const categoryKey = scope === '수도권' ? 'capitalCategory' : 'localCategory';
+    const subcategoryKey = scope === '수도권' ? 'capitalSubcategory' : 'localSubcategory';
+    let metricLabel = '';
+    if (rawMetric) {
+      if (rawCategory) state[categoryKey] = rawCategory;
+      if (rawSubOrMetric) state[subcategoryKey] = rawSubOrMetric;
+      metricLabel = rawMetric;
+    } else {
+      if (rawCategory) {
+        state[categoryKey] = rawCategory;
+        state[subcategoryKey] = '';
+      }
+      metricLabel = rawSubOrMetric;
+    }
+    const metricKey = marketMetricKey(metricLabel);
+    const category = safeText(state[categoryKey]);
+    const subcategory = safeText(state[subcategoryKey]);
+    if (!metricKey || !category) return;
+    const segmentLabel = category === '복합' && subcategory ? `${category} ${subcategory}` : category;
+    const segmentKey = segmentLabel.replace(/\s+/gu, '_');
+    const sectionPeriods = scope === '수도권' ? MARKET_LEASE_CAPITAL_PERIODS : MARKET_LEASE_LOCAL_PERIODS;
+    const blockWidth = scope === '수도권' ? 12 : 11;
+    const baseColumn = 5;
+    const regionLabels = scope === '수도권' ? MARKET_LEASE_CAPITAL_REGIONS : MARKET_LEASE_LOCAL_REGIONS;
+    const dimensionLabels = regionLabels.concat(MARKET_LEASE_SIZE_BUCKETS);
+    sectionPeriods.forEach((periodLabel, block) => {
+      dimensionLabels.forEach((label, offset) => {
+        const columnIndex = baseColumn + (block * blockWidth) + offset;
+        const valueKey = columnKeyByIndex.get(columnIndex) || `col_${columnIndex}`;
+        const numericValue = marketNumber(rowValues[valueKey]);
+        if (numericValue === null) return;
+        const isRegion = offset < regionLabels.length;
+        out.push(stripUndefined({
+          row_key: `lease-stat-${scope}-${marketPeriodKey(periodLabel)}-${segmentKey}-${metricKey}-${isRegion ? 'region' : 'size'}-${label}`,
+          source_row_number: rowNumber,
+          scope,
+          period_label: periodLabel,
+          period_key: marketPeriodKey(periodLabel),
+          category,
+          subcategory,
+          segment_key: segmentKey,
+          segment_label: segmentLabel,
+          metric_key: metricKey,
+          metric_label: marketMetricLabel(metricKey, metricLabel),
+          dimension_type: isRegion ? 'region' : 'size',
+          label,
+          region: isRegion && label !== '평균' ? label : undefined,
+          size_bucket: !isRegion && label !== '평균' ? label : undefined,
+          is_average: label === '평균',
+          value: numericValue,
+        }) as Record<string, unknown>);
+      });
+    });
+  });
+  return out;
+}
+
+function parseSupplyStatisticRows(rows: Record<string, unknown>[], columns: Record<string, unknown>[]) {
+  const columnIndexByKey = marketColumnIndexByHeader(columns);
+  const sortedRows = rows.slice().sort((a, b) => Number(a.row_number || 0) - Number(b.row_number || 0));
+  const out: Record<string, unknown>[] = [];
+  let newSupplyYear = '';
+  let cumulativeYear = '';
+  sortedRows.forEach((sourceRow) => {
+    const rowNumber = Number(sourceRow.row_number || 0);
+    if (rowNumber > 70) return;
+    const rowValues = sourceRow.row_values && typeof sourceRow.row_values === 'object'
+      ? sourceRow.row_values as Record<string, unknown>
+      : {};
+    const rawNewYear = safeText(rowValues.col_2);
+    const rawNewQuarter = safeText(rowValues.col_3);
+    const rawCumulativeYear = safeText(rowValues.col_19);
+    const rawCumulativeQuarter = safeText(rowValues.col_20);
+    if (rawNewYear) newSupplyYear = rawNewYear;
+    if (rawCumulativeYear) cumulativeYear = rawCumulativeYear;
+    Object.entries(rowValues).forEach(([key, value]) => {
+      const columnIndex = columnIndexByKey.get(key) || 0;
+      const numericValue = marketNumber(value);
+      if (!columnIndex || numericValue === null) return;
+      let seriesType = '';
+      let scope = '';
+      let label = '';
+      let periodLabel = '';
+      if (columnIndex >= 4 && columnIndex <= 10) {
+        seriesType = 'new_supply';
+        scope = '수도권';
+        label = MARKET_SUPPLY_CAPITAL_REGIONS[columnIndex - 4];
+        periodLabel = [newSupplyYear, rawNewQuarter].filter(Boolean).join(' ');
+      } else if (columnIndex >= 11 && columnIndex <= 16) {
+        seriesType = 'new_supply';
+        scope = '지방';
+        label = MARKET_SUPPLY_LOCAL_REGIONS[columnIndex - 11];
+        periodLabel = [newSupplyYear, rawNewQuarter].filter(Boolean).join(' ');
+      } else if (columnIndex === 17) {
+        seriesType = 'new_supply';
+        scope = '전체';
+        label = '합계';
+        periodLabel = [newSupplyYear, rawNewQuarter].filter(Boolean).join(' ');
+      } else if (columnIndex >= 21 && columnIndex <= 27) {
+        seriesType = 'cumulative_supply';
+        scope = '수도권';
+        label = MARKET_SUPPLY_CAPITAL_REGIONS[columnIndex - 21];
+        periodLabel = [cumulativeYear, rawCumulativeQuarter].filter(Boolean).join(' ');
+      } else if (columnIndex >= 28 && columnIndex <= 33) {
+        seriesType = 'cumulative_supply';
+        scope = '지방';
+        label = MARKET_SUPPLY_LOCAL_REGIONS[columnIndex - 28];
+        periodLabel = [cumulativeYear, rawCumulativeQuarter].filter(Boolean).join(' ');
+      } else if (columnIndex === 34) {
+        seriesType = 'cumulative_supply';
+        scope = '전체';
+        label = '합계';
+        periodLabel = [cumulativeYear, rawCumulativeQuarter].filter(Boolean).join(' ');
+      }
+      if (!seriesType || !label || !periodLabel) return;
+      const isSubtotal = label === '소계' || label === '합계';
+      out.push(stripUndefined({
+        row_key: `supply-stat-${seriesType}-${marketPeriodKey(periodLabel)}-${scope}-${label}-${rowNumber}`,
+        source_row_number: rowNumber,
+        series_type: seriesType,
+        scope,
+        period_label: periodLabel,
+        period_key: marketPeriodKey(periodLabel),
+        label,
+        region: !isSubtotal ? label : undefined,
+        is_subtotal: isSubtotal,
+        value: numericValue,
+      }) as Record<string, unknown>);
+    });
+  });
+  return out;
+}
+
 function normalizeEditCells(record: Record<string, unknown>) {
   const requestPayload = (record.request_payload || {}) as Record<string, unknown>;
   const rawCells = Array.isArray(requestPayload.cell_edits) && requestPayload.cell_edits.length
@@ -3775,6 +3989,42 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       ok: expectedRows === actualRows,
     };
   }));
+  const statisticSheetIds = sourceSheets
+    .filter((sheet) => ['임대시장 통계', '공급시장 통계'].includes(safeText(sheet.sheet_name)))
+    .map((sheet) => safeText(sheet.source_sheet_id))
+    .filter(Boolean);
+  const [sourceStatisticRowsResult, sourceStatisticColumnsResult] = statisticSheetIds.length ? await Promise.all([
+    ctx.serviceClient
+      .from('ll_source_rows')
+      .select('source_sheet_id,sheet_name,row_number,row_values')
+      .eq('source_file_id', activeSourceId)
+      .in('source_sheet_id', statisticSheetIds)
+      .order('source_sheet_id', { ascending: true })
+      .order('row_number', { ascending: true })
+      .limit(240),
+    ctx.serviceClient
+      .from('ll_source_columns')
+      .select('source_sheet_id,column_index,normalized_header,header_label')
+      .in('source_sheet_id', statisticSheetIds)
+      .order('source_sheet_id', { ascending: true })
+      .order('column_index', { ascending: true })
+      .limit(420),
+  ]) : [{ data: [], error: null }, { data: [], error: null }];
+  if (sourceStatisticRowsResult.error && !isMissingRelationError(sourceStatisticRowsResult.error)) return fail(500, 'Failed to read market statistic source rows', ctx.origin, { error: sourceStatisticRowsResult.error.message });
+  if (sourceStatisticColumnsResult.error && !isMissingRelationError(sourceStatisticColumnsResult.error)) return fail(500, 'Failed to read market statistic source columns', ctx.origin, { error: sourceStatisticColumnsResult.error.message });
+  const sourceStatisticRows = (sourceStatisticRowsResult.data || []) as Record<string, unknown>[];
+  const sourceStatisticColumns = (sourceStatisticColumnsResult.data || []) as Record<string, unknown>[];
+  const statisticSheetIdByName = new Map(sourceSheets.map((sheet) => [safeText(sheet.sheet_name), safeText(sheet.source_sheet_id)]));
+  const leaseStatisticSheetId = statisticSheetIdByName.get('임대시장 통계') || '';
+  const supplyStatisticSheetId = statisticSheetIdByName.get('공급시장 통계') || '';
+  const leaseStatisticRows = parseLeaseStatisticRows(
+    sourceStatisticRows.filter((row) => safeText(row.source_sheet_id) === leaseStatisticSheetId),
+    sourceStatisticColumns.filter((column) => safeText(column.source_sheet_id) === leaseStatisticSheetId),
+  );
+  const supplyStatisticRows = parseSupplyStatisticRows(
+    sourceStatisticRows.filter((row) => safeText(row.source_sheet_id) === supplyStatisticSheetId),
+    sourceStatisticColumns.filter((column) => safeText(column.source_sheet_id) === supplyStatisticSheetId),
+  );
 
   const fetchMarketPageRows = async (
     table: string,
@@ -3967,6 +4217,14 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const latestLeasePublicRows = publicLeases.filter((row) => !latestLeasePeriod || safeText(row.report_period) === latestLeasePeriod);
   const transactionYearSeries = aggregateSum(publicTransactions, 'transaction_year', 'transaction_amount_krw').filter((row) => row.label !== '미정');
   const supplyPeriodSeries = aggregateSum(publicSupply.map((row) => ({ ...row, period_bucket: periodForSupply(row) })), 'period_bucket', 'gross_area_py');
+  const latestLeaseStatisticPeriod = MARKET_LEASE_CAPITAL_PERIODS.at(-1) || safeText(leaseStatisticRows.at(-1)?.period_label);
+  const latestLeaseStatisticRows = leaseStatisticRows.filter((row) => safeText(row.period_label) === latestLeaseStatisticPeriod);
+  const supplyStatisticNewSeries = supplyStatisticRows
+    .filter((row) => safeText(row.series_type) === 'new_supply' && safeText(row.label) === '합계')
+    .map((row) => ({ label: row.period_label, value: row.value, count: 1 }));
+  const supplyStatisticCumulativeSeries = supplyStatisticRows
+    .filter((row) => safeText(row.series_type) === 'cumulative_supply' && safeText(row.label) === '합계')
+    .map((row) => ({ label: row.period_label, value: row.value, count: 1 }));
   const marketViews = {
     overview: {
       kpis: {
@@ -3989,6 +4247,11 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     },
     lease: {
       latest_period: latestLeasePeriod,
+      statistics_latest_period: latestLeaseStatisticPeriod,
+      statistics_rows: leaseStatisticRows,
+      statistics_latest_rows: latestLeaseStatisticRows,
+      statistics_periods: [...new Set(leaseStatisticRows.map((row) => safeText(row.period_label)).filter(Boolean))],
+      statistics_segments: [...new Set(leaseStatisticRows.map((row) => safeText(row.segment_label)).filter(Boolean))],
       regions: [...new Set(publicLeases.map((row) => safeText(row.region)).filter(Boolean))],
       temperature_types: [...new Set(publicLeases.map((row) => safeText(row.temperature_type)).filter(Boolean))],
       latest_rows: latestLeasePublicRows,
@@ -4002,12 +4265,14 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     },
     supply: {
       rows: publicSupply,
+      statistics_rows: supplyStatisticRows,
       new_supply_rows: publicSupply.filter((row) => row.supply_kind === 'new_supply'),
       pipeline_rows: publicSupply.filter((row) => row.supply_kind === 'pipeline'),
       cumulative_new_rows: publicSupply.filter((row) => row.supply_kind === 'new_supply' && Number(row.expected_year || row.completion_year || 0) >= 2024),
       map_points: publicSupply.map((row, index) => marketPoint(row, index, 'supply', 'center_name')),
       charts: {
-        supply_by_period: supplyPeriodSeries,
+        supply_by_period: supplyStatisticNewSeries.length ? supplyStatisticNewSeries : supplyPeriodSeries,
+        cumulative_supply_by_period: supplyStatisticCumulativeSeries,
         supply_by_region: aggregateSum(publicSupply, 'region', 'gross_area_py'),
         supply_by_status: aggregateSum(publicSupply, 'status', 'gross_area_py', '미정'),
       },
@@ -4121,7 +4386,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       lease_rent_by_region: marketViews.overview.charts.lease_rent_by_region,
       lease_vacancy_by_region: marketViews.overview.charts.lease_vacancy_by_region,
       lease_rent_by_temperature: marketViews.lease.charts.rent_by_temperature,
-      supply_by_period: marketViews.overview.charts.supply_by_period,
+      supply_by_period: marketViews.supply.charts.supply_by_period,
       transactions_by_region: marketViews.transactions.charts.amount_by_region,
     },
     views: marketViews,
@@ -4795,6 +5060,8 @@ const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
 const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v5-strict-window-balanced-market';
 const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NEWS_HOUR_MS = 60 * 60 * 1000;
+const NEWS_RSS_FETCH_TIMEOUT_MS = 7000;
+const NEWS_RSS_QUERY_BATCH_SIZE = 8;
 const NEWS_GOOGLE_RSS_URL = 'https://news.google.com/rss/search';
 const NEWS_BING_RSS_URL = 'https://www.bing.com/news/search';
 const NEWS_SEARCH_QUERIES = [
@@ -5044,6 +5311,11 @@ function newsRemoveNearDuplicateStories(items: NewsCollectorItem[]) {
   return selected;
 }
 
+function newsCompanyKeyForItem(item: NewsCollectorItem) {
+  return safeText(item.payload?.company_key)
+    || safeText(newsCompanyForText(`${item.title || ''} ${item.summary || ''}`)?.key);
+}
+
 function newsSelectBalancedItems(items: NewsCollectorItem[], limit = 10) {
   const sorted = newsRemoveNearDuplicateStories(items).sort(
     (a, b) => Number(b.importance_score) - Number(a.importance_score) || Date.parse(b.published_at) - Date.parse(a.published_at),
@@ -5055,7 +5327,7 @@ function newsSelectBalancedItems(items: NewsCollectorItem[], limit = 10) {
   const canAdd = (item: NewsCollectorItem, enforceCategoryTarget: boolean) => {
     if (!item || selectedKeys.has(item.dedupe_key)) return false;
     const category = safeText(item.payload?.category || 'other');
-    const companyKey = safeText(item.payload?.company_key);
+    const companyKey = newsCompanyKeyForItem(item);
     if (companyKey && (companyCounts[companyKey] || 0) >= NEWS_MAX_ITEMS_PER_COMPANY) return false;
     if (category === 'major_company' && (categoryCounts.major_company || 0) >= NEWS_MAX_MAJOR_COMPANY_ONLY_ITEMS) return false;
     if (enforceCategoryTarget && NEWS_CATEGORY_TARGETS[category] && (categoryCounts[category] || 0) >= NEWS_CATEGORY_TARGETS[category]) return false;
@@ -5064,7 +5336,7 @@ function newsSelectBalancedItems(items: NewsCollectorItem[], limit = 10) {
   const add = (item: NewsCollectorItem, enforceCategoryTarget = false) => {
     if (!canAdd(item, enforceCategoryTarget)) return false;
     const category = safeText(item.payload?.category || 'other');
-    const companyKey = safeText(item.payload?.company_key);
+    const companyKey = newsCompanyKeyForItem(item);
     selected.push(item);
     selectedKeys.add(item.dedupe_key);
     categoryCounts[category] = (categoryCounts[category] || 0) + 1;
@@ -5100,9 +5372,17 @@ function newsTodayKstDateKey() {
 }
 
 async function fetchNewsRss(url: URL) {
-  const response = await fetch(url, { headers: { 'user-agent': 'logistics-gate6-news-collector/2.0' } });
-  if (!response.ok) return '';
-  return await response.text();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), NEWS_RSS_FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(url, { headers: { 'user-agent': 'logistics-gate6-news-collector/2.0' }, signal: controller.signal });
+    if (!response.ok) return '';
+    return await response.text();
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchGoogleNewsRows(query: string, days: number) {
@@ -5137,12 +5417,13 @@ async function fetchBingNewsRows(query: string) {
 async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days: number) {
   const seen = new Map<string, NewsCollectorItem>();
   const sourceStats: Record<string, number> = {};
-  for (const query of NEWS_SEARCH_QUERIES) {
-    const rows = [
+  for (let index = 0; index < NEWS_SEARCH_QUERIES.length; index += NEWS_RSS_QUERY_BATCH_SIZE) {
+    const queryBatch = NEWS_SEARCH_QUERIES.slice(index, index + NEWS_RSS_QUERY_BATCH_SIZE);
+    const batchRows = await Promise.all(queryBatch.map(async (query) => [
       ...(await fetchGoogleNewsRows(query, days).catch(() => [])),
       ...(await fetchBingNewsRows(query).catch(() => [])),
-    ];
-    for (const row of rows) {
+    ]));
+    for (const row of batchRows.flat()) {
       sourceStats[String(row.source_name)] = (sourceStats[String(row.source_name)] || 0) + 1;
       const publishedAt = new Date(row.pubDate);
       if (Number.isNaN(publishedAt.getTime())) continue;
@@ -5294,6 +5575,23 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
   if (runError || !runRow) throw new Error(runError?.message || 'Failed to upsert news run');
   const newsRunId = safeText((runRow as Record<string, unknown>).news_run_id);
   const itemRows = collected.items.slice(0, Math.max(limit, 10)).map((item) => ({ news_run_id: newsRunId, ...item }));
+  const selectedDedupeKeys = new Set(itemRows.map((item) => safeText(item.dedupe_key)).filter(Boolean));
+  const { data: existingItems, error: existingItemsError } = await ctx.serviceClient
+    .from('ll_news_items')
+    .select('dedupe_key')
+    .eq('news_run_id', newsRunId);
+  if (existingItemsError) throw new Error(existingItemsError.message);
+  const staleDedupeKeys = ((existingItems || []) as Array<Record<string, unknown>>)
+    .map((item) => safeText(item.dedupe_key))
+    .filter((key) => key && !selectedDedupeKeys.has(key));
+  if (staleDedupeKeys.length) {
+    const { error: staleDeleteError } = await ctx.serviceClient
+      .from('ll_news_items')
+      .delete()
+      .eq('news_run_id', newsRunId)
+      .in('dedupe_key', staleDedupeKeys);
+    if (staleDeleteError) throw new Error(staleDeleteError.message);
+  }
   if (itemRows.length) {
     const { error: itemError } = await ctx.serviceClient.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
     if (itemError) throw new Error(itemError.message);

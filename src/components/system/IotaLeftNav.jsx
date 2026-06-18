@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabaseClient';
+import { invokeDashboardApi } from '../../utils/supabaseSession';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './workspace/logisticsRoutes';
 import UserAvatar from './UserAvatar';
 
@@ -120,8 +121,8 @@ const workspaceItems = [
     }
 ];
 
-const LOGISTICS_ADMIN_NAMES = new Set(['이시정', '전기영', '이관용']);
-const LOGISTICS_ADMIN_EMAILS = new Set(['sjlee@igisam.com', 'jk.jeon@igisam.com', 'kylee@igisam.com']);
+const LOGISTICS_ADMIN_NAMES = new Set(['이관용', '전기영', '이시정', '이승훈', '이철승']);
+const LOGISTICS_ADMIN_EMAILS = new Set(['kylee@igisam.com', 'jk.jeon@igisam.com', 'sjlee@igisam.com', 'seunghoon.lee@igisam.com', 'ethan.lee@igisam.com']);
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_ACCESS_USERS_CACHE_KEY = 'logisticsFeatureAccessUsers:v1';
 const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v2';
@@ -139,11 +140,15 @@ const FEATURE_ACCESS_DEFAULT_USERS = [
     { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
     { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
     { staff_name: '이시정', organization: '기획추진센터', email: 'sjlee@igisam.com' },
+    { staff_name: '이승훈', organization: '사업그룹4파트', email: 'seunghoon.lee@igisam.com' },
+    { staff_name: '이철승', organization: '리얼에셋부문', email: 'ethan.lee@igisam.com' },
 ];
 const FEATURE_ACCESS_FALLBACK_USERS = [
     { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
     { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
     { staff_name: '이시정', organization: '기획추진센터', email: 'sjlee@igisam.com' },
+    { staff_name: '이승훈', organization: '사업그룹4파트', email: 'seunghoon.lee@igisam.com' },
+    { staff_name: '이철승', organization: '리얼에셋부문', email: 'ethan.lee@igisam.com' },
     { staff_name: '\uC815\uD558\uC724', organization: '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81', email: 'hayun.jeong@igisam.com', image_url: HAYUN_PROFILE_IMAGE_URL },
 ];
 const FEATURE_ACCESS_DEFAULT_EMAIL_BY_NAME = new Map(FEATURE_ACCESS_DEFAULT_USERS.map((row) => [row.staff_name, row.email]));
@@ -473,9 +478,7 @@ const invokeWithTimeout = async (action, payload = {}, timeoutMs = 12000) => {
     });
     try {
         return await Promise.race([
-            supabase.functions.invoke('ll-dashboard-api', {
-                body: { action, payload },
-            }),
+            invokeDashboardApi(action, payload),
             timeout,
         ]);
     } finally {

@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8081/';
-const DEFAULT_ROUTE = '?p=/platform/iotaseoul/workspace/logistics/dashboard/home';
+const DEFAULT_ROUTE = 'platform/iotaseoul/workspace/logistics/dashboard/home';
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -110,7 +110,8 @@ async function main() {
   const sidebarScreenshot = path.join(OUT_DIR, `access-ui-sidebar-${stamp}.png`);
   const modalScreenshot = path.join(OUT_DIR, `access-ui-feature-modal-${stamp}.png`);
   const chatScreenshot = path.join(OUT_DIR, `access-ui-chat-input-${stamp}.png`);
-  const targetUrl = joinUrl(argsValue('base-url', DEFAULT_BASE_URL), argsValue('route', DEFAULT_ROUTE));
+  const withCacheBust = (url) => `${url}${url.includes('?') ? '&' : '?'}cb=${encodeURIComponent(stamp)}`;
+  const targetUrl = withCacheBust(joinUrl(argsValue('base-url', DEFAULT_BASE_URL), argsValue('route', DEFAULT_ROUTE)));
   const mode = argsValue('mode', 'admin');
   const auth = await signInSession();
   const uiEmail = argsValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com');
@@ -197,7 +198,8 @@ async function main() {
       const url = response.url();
       if (response.status() === 404) {
         const isLocalAppResource = url.startsWith(new URL(targetUrl).origin);
-        report[isLocalAppResource ? 'errors' : 'warnings'].push(`resource 404 ${url}`);
+        const isGithubPagesSpaFallback = isLocalAppResource && new URL(targetUrl).hostname.endsWith('github.io') && response.request().resourceType() === 'document';
+        report[isLocalAppResource && !isGithubPagesSpaFallback ? 'errors' : 'warnings'].push(`resource 404 ${url}`);
       }
       if (url.includes('/functions/v1/ll-dashboard-api') && response.status() >= 500) {
         report.errors.push(`edge ${response.status()} ${url}`);

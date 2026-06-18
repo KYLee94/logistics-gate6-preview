@@ -321,6 +321,10 @@ function removeNearDuplicateStories(items) {
   return selected;
 }
 
+function companyKeyForItem(item) {
+  return item?.payload?.company_key || companyForText(`${item?.title || ''} ${item?.summary || ''}`)?.key || '';
+}
+
 function selectBalancedNews(items, limit = 10) {
   const sorted = removeNearDuplicateStories(items).sort(
     (a, b) => Number(b.importance_score) - Number(a.importance_score) || Date.parse(b.published_at) - Date.parse(a.published_at),
@@ -332,7 +336,7 @@ function selectBalancedNews(items, limit = 10) {
   const canAdd = (item, enforceCategoryTarget) => {
     if (!item || selectedKeys.has(item.dedupe_key)) return false;
     const category = item.payload?.category || 'other';
-    const companyKey = item.payload?.company_key || '';
+    const companyKey = companyKeyForItem(item);
     if (companyKey && (companyCounts[companyKey] || 0) >= MAX_ITEMS_PER_COMPANY) return false;
     if (category === 'major_company' && (categoryCounts.major_company || 0) >= MAX_MAJOR_COMPANY_ONLY_ITEMS) return false;
     if (enforceCategoryTarget && CATEGORY_TARGETS[category] && (categoryCounts[category] || 0) >= CATEGORY_TARGETS[category]) return false;
@@ -341,7 +345,7 @@ function selectBalancedNews(items, limit = 10) {
   const add = (item, enforceCategoryTarget = false) => {
     if (!canAdd(item, enforceCategoryTarget)) return false;
     const category = item.payload?.category || 'other';
-    const companyKey = item.payload?.company_key || '';
+    const companyKey = companyKeyForItem(item);
     selected.push(item);
     selectedKeys.add(item.dedupe_key);
     categoryCounts[category] = (categoryCounts[category] || 0) + 1;
@@ -479,6 +483,23 @@ async function publish(run, items) {
     news_run_id: runRow.news_run_id,
     ...item,
   }));
+  const selectedDedupeKeys = new Set(itemRows.map((item) => item.dedupe_key).filter(Boolean));
+  const existingItems = await supabase
+    .from('ll_news_items')
+    .select('dedupe_key')
+    .eq('news_run_id', runRow.news_run_id);
+  if (existingItems.error) throw new Error(`ll_news_items readback failed: ${existingItems.error.message}`);
+  const staleDedupeKeys = (existingItems.data || [])
+    .map((item) => item.dedupe_key)
+    .filter((key) => key && !selectedDedupeKeys.has(key));
+  if (staleDedupeKeys.length) {
+    const staleDelete = await supabase
+      .from('ll_news_items')
+      .delete()
+      .eq('news_run_id', runRow.news_run_id)
+      .in('dedupe_key', staleDedupeKeys);
+    if (staleDelete.error) throw new Error(`ll_news_items stale cleanup failed: ${staleDelete.error.message}`);
+  }
   if (itemRows.length) {
     const itemResult = await supabase.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
     if (itemResult.error) throw new Error(`ll_news_items upsert failed: ${itemResult.error.message}`);

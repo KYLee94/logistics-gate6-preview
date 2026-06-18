@@ -1,0 +1,187 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-18T08:50:32.594Z",
+  "readback_source": "edge:password_grant",
+  "target_date": "2026-06-17",
+  "run_key": "daily-news:2026-06-17:0700KST",
+  "run": {
+    "news_run_id": "596ef533-2953-47d5-8303-8c0af1c7ee66",
+    "run_key": "daily-news:2026-06-17:0700KST",
+    "scheduled_for": "2026-06-16T22:00:00+00:00",
+    "window_start": "2026-06-15T22:00:00+00:00",
+    "window_end": "2026-06-16T22:00:00+00:00",
+    "source_summary": {
+      "primary": "google_news_rss",
+      "queries": [
+        "\"물류센터\" \"임대료\" OR \"물류센터\" \"공실\" OR \"물류센터\" \"임대차\"",
+        "\"물류센터\" \"렌트프리\" OR \"물류센터\" \"NOC\" OR \"물류창고\" \"임대\"",
+        "\"물류센터\" \"매매\" OR \"물류센터\" \"거래\" OR \"물류센터\" \"선매입\"",
+        "\"물류센터\" \"매각\" OR \"물류센터\" \"자산운용\" OR \"물류센터\" \"캡레이트\"",
+        "\"물류부동산\" \"리포트\" OR \"물류센터\" \"시장 리포트\" OR \"물류센터\" \"전망\"",
+        "\"물류센터\" \"공급\" OR \"물류센터\" \"개발\" OR \"물류센터\" \"준공\"",
+        "\"저온물류센터\" OR \"콜드체인\" \"물류센터\" OR \"풀필먼트센터\"",
+        "\"물류창고\" \"임대\" OR \"물류창고\" \"매매\" OR \"물류창고\" \"공실\"",
+        "\"물류센터\"",
+        "\"물류창고\"",
+        "\"물류부동산\"",
+        "\"풀필먼트센터\" OR \"풀필먼트 서비스\"",
+        "\"택배\" \"물류\" \"센터\"",
+        "\"저온물류\" OR \"콜드체인\"",
+        "쿠팡 물류센터 OR 쿠팡 풀필먼트 OR 쿠팡 물류",
+        "CJ대한통운 물류센터 OR CJ대한통운 택배 OR CJ대한통운 물류",
+        "한진 물류센터 OR 한진 택배 OR 한진 물류",
+        "컬리 물류센터 OR 컬리 배송 OR 컬리 물류",
+        "롯데글로벌로지스 OR 롯데 물류센터 OR 롯데택배",
+        "현대글로비스 물류 OR 현대글로비스 물류센터",
+        "LX판토스 물류 OR 판토스 물류센터",
+        "DHL 물류 OR DHL 물류센터",
+        "로젠택배 물류 OR 로젠 물류센터",
+        "GS리테일 물류 OR BGF 물류 OR 우체국 물류",
+        "\"물류센터\" \"거래면적\" OR \"물류센터\" \"평당가\" OR \"물류센터\" \"매입\"",
+        "\"물류센터\" \"공급예정\" OR \"물류센터\" \"인허가\" OR \"물류센터\" \"착공\"",
+        "\"물류센터\" \"임대시장\" OR \"물류센터\" \"공실률\" OR \"물류센터\" \"렌트프리\"",
+        "\"물류센터\" \"캡레이트\" OR \"물류부동산\" \"투자\" OR \"물류부동산\" \"거래\"",
+        "쿠팡 CJ대한통운 한진 컬리 롯데글로벌로지스 물류 배송 택배 투자 실적"
+      ],
+      "fallback": "bing_news_rss",
+      "empty_state": false,
+      "query_count": 29,
+      "source_stats": {
+        "bing_news_rss": 57,
+        "google_news_rss": 132
+      },
+      "window_hours": 24,
+      "candidate_count": 3,
+      "selection_policy": {
+        "limit": 10,
+        "category_targets": {
+          "market_deal": 4,
+          "lease_market": 2,
+          "major_company": 4,
+          "supply_development": 2
+        },
+        "max_items_per_company": 2,
+        "max_major_company_only_items": 5
+      },
+      "collector_version": "google-bing-rss-v5-strict-window-balanced-market",
+      "strict_24h_window": true,
+      "strict_item_count": 1,
+      "strict_window_end": "2026-06-16T22:00:00.000Z",
+      "strict_window_start": "2026-06-15T22:00:00.000Z",
+      "expanded_to_recent_7d": false
+    },
+    "run_status": "completed",
+    "error_message": null,
+    "completed_at": "2026-06-18T01:40:01.878+00:00",
+    "created_at": "2026-06-17T01:53:29.513792+00:00"
+  },
+  "item_count": 8,
+  "item_keys": [
+    "url:e352dfffd5683d3c5f42d427baa52a31b72eafa5d7c6d5cd7483aa95e3732ea4",
+    "url:fc9c7dfbb0ba9a3c0b3c6e810f3579abb78be65b0ae32507add2f0b5eb197930",
+    "url:a0cc95cc45de7a051efcd8b8af164d65735700f56e4498a9adfe3e916c411000",
+    "url:67217f4443237740c663e09969820c64cdd29346ac42e7911948cbf8fcab7215",
+    "url:382db9cdd96cbc78a0a259dc4174042a1f8ee8136d0f4503e9e8935668ce6641",
+    "url:bad3c5af73d41ca07ff85c76f364067eedefa2a879d35643008534f82c609f08",
+    "url:b69f9d58be7e46f241605bab72f3a6bcdeb9a4df04f7d37aedc197ab3e0be514",
+    "url:d7b36c5cdb3d1a370313d514ee05b3975eff9a4c4b7a821215cfd2a5fa08ad56"
+  ],
+  "checks": {
+    "run_present": true,
+    "run_key_exact": true,
+    "completed_at_present": true,
+    "item_count_8_to_10": true,
+    "dedupe_keys_present": true,
+    "unique_dedupe_keys": true,
+    "unique_titles": true,
+    "no_important_prefix": true,
+    "no_publisher_suffix": true,
+    "publishers_present": true,
+    "company_not_overconcentrated": true
+  },
+  "company_counts": {
+    "coupang": 2
+  },
+  "items": [
+    {
+      "dedupe_key": "url:e352dfffd5683d3c5f42d427baa52a31b72eafa5d7c6d5cd7483aa95e3732ea4",
+      "title": "현대글로비스, 증권가 목표가 34만원 제시…실적 성장 기대에 강세",
+      "publisher": "CBC뉴스",
+      "published_at": "2026-06-16T15:00:00+00:00",
+      "canonical_url": "https://news.google.com/rss/articles/CBMiaEFVX3lxTFBab0tpQjY2cDhoN2xrNnNrdERnWDVVczY3bG8tcUtlWHhKSHFPOFRBcm1MUGRoU0R4cWhiWDlBc0QwQ1V6TnRlVEdwVlFqSEFZaFpKWGlaaFNoSmR6U19Ic05KdlB5TEhk?oc=5",
+      "category": "",
+      "company_key": "",
+      "restoration_mode": ""
+    },
+    {
+      "dedupe_key": "url:fc9c7dfbb0ba9a3c0b3c6e810f3579abb78be65b0ae32507add2f0b5eb197930",
+      "title": "국내 물류센터 선매입 계약 부실 확대, 자산운용업계 손실 위험 커져",
+      "publisher": "Traders Union",
+      "published_at": "2026-06-16T09:55:15+00:00",
+      "canonical_url": "https://news.google.com/rss/articles/CBMiugFBVV95cUxQZWNMRGV0YVBsVGdqLXRfSkVnMk04dEdsNTRvaWdjb29GRVFIVVNXLWJWZ2JJYWdjeFRSeWlpV1dBV0k0eXpqcEJZa190NEI5UlE4dFE5ZVNDMUNYVmtVMFotMTFDX0RScC02eXBIYmxHd2wtcDZzb3A5ZDRZd25lRlNhWmhtd1dlOVNKbE0xNWhaUWc3Q2N2N0hHelZ6eEU2SDR0Wl84czV3LVR5bDVyY0JfRmVlYzhGNkE?oc=5",
+      "category": "",
+      "company_key": "",
+      "restoration_mode": ""
+    },
+    {
+      "dedupe_key": "url:a0cc95cc45de7a051efcd8b8af164d65735700f56e4498a9adfe3e916c411000",
+      "title": "LG CNS·LX판토스, 휴머노이드 로봇 기반 스마트 물류 구축",
+      "publisher": "ainews1.co.kr",
+      "published_at": "2026-06-16T08:44:09+00:00",
+      "canonical_url": "https://news.google.com/rss/articles/CBMia0FVX3lxTFBvb1NmLUJ1aW41VzQyRWRZV3hWTzk1bEtzbGRNR2xYMjlzeHB6LTNtcFRkSmN1M0t0ekpfNDdjZ205dks3LXNXTENTUUdsLWwycGZZNFdjUGFnRUFPRTJiMXY0TUx1WEdwaGM4?oc=5",
+      "category": "",
+      "company_key": "",
+      "restoration_mode": ""
+    },
+    {
+      "dedupe_key": "url:67217f4443237740c663e09969820c64cdd29346ac42e7911948cbf8fcab7215",
+      "title": "물류센터 공급 과잉에 … 선매입 계약 '1조 펑크'",
+      "publisher": "매일경제",
+      "published_at": "2026-06-16T08:32:09+00:00",
+      "canonical_url": "https://news.google.com/rss/articles/CBMiWEFVX3lxTE1waFd3MmtDREtKelByY29pejlnR1UycF8tQ3k4LU5kcndiaEdZS3dlT1JlbHNTNHJZcFVsdzlOZTVhS0ZGcFUwaDRsZTJPNDNWUGt5ZGNNR2E?oc=5",
+      "category": "",
+      "company_key": "",
+      "restoration_mode": ""
+    },
+    {
+      "dedupe_key": "url:382db9cdd96cbc78a0a259dc4174042a1f8ee8136d0f4503e9e8935668ce6641",
+      "title": "택배노조 “쿠팡 프레시백 추가 업무 강요” 공정위 신고",
+      "publisher": "매일노동뉴스",
+      "published_at": "2026-06-16T07:00:00+00:00",
+      "canonical_url": "https://news.google.com/rss/articles/CBMicEFVX3lxTFBwQjdyR0NQdGRmeGJKYTliTFg0VnY2Y3NBRHJHZThvd243VlRrb2NzTk1zOW9NNnQzVDlGdlh4Mkw4aTlBWXlKOW1qN2JhQU4wSmIzVEtkaHphNmV2dDhYRmE3d21DdGI4ZzltRU9pVXE?oc=5",
+      "category": "",
+      "company_key": "",
+      "restoration_mode": ""
+    },
+    {
+      "dedupe_key": "url:bad3c5af73d41ca07ff85c76f364067eedefa2a879d35643008534f82c609f08",
+      "title": "\"전 세계 화장 브러시 85% 공급\"...中 루이현, '글로벌 뷰티 허브'로-Xinhua",
+      "publisher": "신화망",
+      "published_at": "2026-06-16T01:08:48+00:00",
+      "canonical_url": "https://news.google.com/rss/articles/CBMidkFVX3lxTE5zV1l2dUNjVjB0RnJjYlhUUzNhU2Zyck1uQU1abVlPMWdodlpESUN2cFl5RlV1bWM2Q05TMHhHVk5nZWE0ZFpYUUdFTF9RWW9odjBmQnRPbnZBLU5BOU5ONm9KSm1FdEEzQ2YxWVdhZlV0RHN4R2c?oc=5",
+      "category": "",
+      "company_key": "",
+      "restoration_mode": ""
+    },
+    {
+      "dedupe_key": "url:b69f9d58be7e46f241605bab72f3a6bcdeb9a4df04f7d37aedc197ab3e0be514",
+      "title": "의료진이 물류센터 찾아간다…쿠팡, 택배기사 맞춤형 건강관리",
+      "publisher": "네이트",
+      "published_at": "2026-06-16T00:53:00+00:00",
+      "canonical_url": "https://news.google.com/rss/articles/CBMiU0FVX3lxTE1lRzJfUm9rQzRBcWExVTZ1ZUJpaGtMNFlYWjF1QXFTVWxlVHFpbjJIVUVTYWRkd1pZeDN2aUo2Nmk5S1p2T1N4YndSOXFNZm0wZEM4?oc=5",
+      "category": "",
+      "company_key": "",
+      "restoration_mode": ""
+    },
+    {
+      "dedupe_key": "url:d7b36c5cdb3d1a370313d514ee05b3975eff9a4c4b7a821215cfd2a5fa08ad56",
+      "title": "[단독] '땅값만 4조' 물류센터 부지 놓고 롯데-서초구 세금전쟁",
+      "publisher": "조세일보",
+      "published_at": "2026-06-15T22:00:00+00:00",
+      "canonical_url": "https://news.google.com/rss/articles/CBMiX0FVX3lxTE5ObGdtQjU1Sml4R3pkYkpyak11X0xZMlJzMHNQOEFfWUdtTnJ5a2VIa0lGUU50QW10Q0w2VWlmcTRCU2tOalpPc2swOEZYYUFwZHZveU5sYU5jTm53NDV3?oc=5",
+      "category": "",
+      "company_key": "",
+      "restoration_mode": ""
+    }
+  ]
+}

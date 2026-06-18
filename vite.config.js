@@ -26,8 +26,21 @@ export default defineConfig({
       usePolling: true, // Mac OS 환경에서 파일 변경 이벤트를 100% 감지하도록 강제
       interval: 100,
     },
-    hmr: {
+  hmr: {
       overlay: true,
     }
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+          if (id.includes('react') || id.includes('react-dom')) return 'vendor-react';
+          if (id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('@supabase')) return 'vendor-supabase';
+          return 'vendor';
+        },
+      },
+    },
   },
 })

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
+import { invokeDashboardApi } from '../../../utils/supabaseSession';
 
 const WORKSPACES = [
   { id: 'logistics', name: '물류센터 워크 플랫폼', table: 'll_work_items' },
@@ -175,9 +176,7 @@ function coalesceLogisticsTaskSnapshots(snapshots = []) {
 }
 
 async function fetchLogisticsTaskSnapshots() {
-  const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-    body: { action: 'work-platform/tasks/snapshots/list', payload: { limit: 500 } },
-  });
+  const { data, error } = await invokeDashboardApi('work-platform/tasks/snapshots/list', { limit: 500 });
   if (error || data?.ok === false) throw error || new Error(data?.message || 'Edge Function returned false');
   return coalesceLogisticsTaskSnapshots((data?.data || []).map((snapshot) => ({
     id: snapshot.id,

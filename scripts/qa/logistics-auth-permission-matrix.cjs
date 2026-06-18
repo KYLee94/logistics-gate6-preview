@@ -48,6 +48,18 @@ function readSourceUsers() {
     .filter((user) => user.email);
 }
 
+function readSourcePermissionRows() {
+  const parsed = JSON.parse(fs.readFileSync(SOURCE_JSON, 'utf8'));
+  return (parsed.users || [])
+    .map((user) => ({
+      email: normalizeEmail(user.email),
+      staff_name: String(user.name || '').trim(),
+      managed_asset_count: Array.isArray(user.managedAssets) ? user.managedAssets.length : 0,
+      managed_fund_count: Array.isArray(user.managedFunds) ? user.managedFunds.length : 0,
+    }))
+    .filter((user) => user.email);
+}
+
 function sqlJsonLiteral(value) {
   return `$json$${JSON.stringify(value)}$json$`;
 }
@@ -86,7 +98,7 @@ function scanRuntimeImports() {
     const text = fs.readFileSync(absolutePath, 'utf8');
     const findings = [];
     if (/import\s+.*logisticsPermissionData\.json/.test(text)) {
-      findings.push({ file: relativePath, issue: 'runtime_permission_json_import' });
+      findings.push({ file: relativePath, issue: 'runtime_permission_json_fallback' });
     }
     if (/LOGISTICS_ALLOWED_EMAILS|LOGISTICS_PERMISSION_USERS|logisticsUserByEmail/.test(text)) {
       findings.push({ file: relativePath, issue: 'legacy_frontend_permission_gate' });
@@ -160,12 +172,25 @@ select jsonb_build_object(
 function main() {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
   const sourceUsers = readSourceUsers();
+  const sourcePermissionRows = readSourcePermissionRows();
   const staticFindings = scanRuntimeImports();
+  const legacyGateFindings = staticFindings.filter((finding) => finding.issue === 'legacy_frontend_permission_gate');
+  const expectedAdminAssetCount = Math.max(...sourcePermissionRows.map((row) => row.managed_asset_count), 0);
+  const expectedAdminFundCount = Math.max(...sourcePermissionRows.map((row) => row.managed_fund_count), 0);
+  const adminStaticScope = ADMIN_EMAILS.map((email) => {
+    const row = sourcePermissionRows.find((user) => user.email === email);
+    return row || { email, staff_name: '', managed_asset_count: 0, managed_fund_count: 0 };
+  });
+  const adminStaticScopeGaps = adminStaticScope.filter((row) => (
+    row.managed_asset_count !== expectedAdminAssetCount
+    || row.managed_fund_count !== expectedAdminFundCount
+  ));
   const queryRows = runSupabaseQuery(buildSql(sourceUsers));
   const db = queryRows?.[0]?.result || {};
   const failures = [];
 
-  if (staticFindings.length) failures.push('critical runtime files still depend on frontend permission JSON');
+  if (legacyGateFindings.length) failures.push('legacy frontend permission gates remain');
+  if (adminStaticScopeGaps.length) failures.push('admin static asset/fund scopes are missing');
   if (Number(db.source_user_count || 0) !== sourceUsers.length) failures.push('source JSON count mismatch');
   if (Number(db.permission_user_count || 0) < sourceUsers.length) failures.push('ll_user_permissions has fewer users than source JSON');
   if (Number(db.duplicate_email_count || 0) > 0) failures.push('duplicate permission emails exist');
@@ -177,7 +202,13 @@ function main() {
     ok: failures.length === 0,
     generated_at: new Date().toISOString(),
     source_json: path.relative(ROOT, SOURCE_JSON),
+    expected_admin_scope: {
+      managed_asset_count: expectedAdminAssetCount,
+      managed_fund_count: expectedAdminFundCount,
+    },
     db,
+    admin_static_scope: adminStaticScope,
+    admin_static_scope_gaps: adminStaticScopeGaps,
     static_findings: staticFindings,
     failures,
   };

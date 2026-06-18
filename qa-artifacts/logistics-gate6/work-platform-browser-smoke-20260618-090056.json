@@ -1,9 +1,9 @@
 {
   "ok": true,
-  "generated_at": "2026-06-18T09:03:18.602Z",
-  "url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics&cb=20260618-090317",
-  "home_url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics/dashboard/home&cb=20260618-090317",
-  "archive_url": "https://kylee94.github.io/logistics-gate6-preview/platform/iotaseoul/workspace/archive?workspace=logistics&cb=20260618-090317",
+  "generated_at": "2026-06-18T09:00:57.050Z",
+  "url": "http://127.0.0.1:5173/?p=platform/iotaseoul/workspace/logistics&cb=20260618-090056",
+  "home_url": "http://127.0.0.1:5173/?p=platform/iotaseoul/workspace/logistics/dashboard/home&cb=20260618-090056",
+  "archive_url": "http://127.0.0.1:5173/platform/iotaseoul/workspace/archive?workspace=logistics&cb=20260618-090056",
   "auth_source": "password_grant",
   "ui_email": "kylee@igisam.com",
   "checks": {
@@ -18,8 +18,8 @@
     "home_expiry_tooltip_has_area_count_and_details": true,
     "archive_current_week_not_duplicated": true
   },
-  "screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260618-090317.png",
-  "home_expiry_screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260618-090317-home-expiry.png",
+  "screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260618-090056.png",
+  "home_expiry_screenshot": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-20260618-090056-home-expiry.png",
   "errors": [],
   "permission_header_counts": {
     "asset_count": 19,

@@ -1,7 +1,9 @@
 import { supabase } from './supabaseClient';
 
-const SESSION_REFRESH_MARGIN_MS = 2 * 60 * 1000;
+const SESSION_REFRESH_MARGIN_MS = 10 * 60 * 1000;
+const SESSION_IDLE_FORCE_REFRESH_MS = 5 * 60 * 1000;
 let refreshPromise = null;
+let lastSessionCheckAt = 0;
 
 function authFailureMessage(error) {
   return String(error?.message || error?.error_description || error?.name || '').toLowerCase();
@@ -27,12 +29,28 @@ export async function ensureFreshSupabaseSession({ force = false } = {}) {
   if (!session?.refresh_token) return session;
 
   const expiresAtMs = Number(session.expires_at || 0) * 1000;
-  const shouldRefresh = force || (expiresAtMs && expiresAtMs - Date.now() <= SESSION_REFRESH_MARGIN_MS);
-  if (!shouldRefresh) return session;
+  const now = Date.now();
+  const expiredSoon = !expiresAtMs || expiresAtMs - now <= SESSION_REFRESH_MARGIN_MS;
+  const idleTooLong = Boolean(lastSessionCheckAt) && now - lastSessionCheckAt >= SESSION_IDLE_FORCE_REFRESH_MS;
+  const shouldRefresh = force
+    || expiredSoon
+    || idleTooLong;
+  if (!shouldRefresh) {
+    lastSessionCheckAt = now;
+    return session;
+  }
 
   if (!refreshPromise) {
     refreshPromise = supabase.auth.refreshSession()
-      .then((result) => result?.data?.session || session)
+      .then((result) => {
+        lastSessionCheckAt = Date.now();
+        return result?.data?.session || session;
+      })
+      .catch((refreshError) => {
+        console.warn('Supabase session refresh failed:', refreshError?.message || refreshError);
+        lastSessionCheckAt = Date.now();
+        return session;
+      })
       .finally(() => {
         refreshPromise = null;
       });
@@ -41,13 +59,23 @@ export async function ensureFreshSupabaseSession({ force = false } = {}) {
   return refreshPromise;
 }
 
+function shouldRetryDashboardInvoke(error) {
+  const message = authFailureMessage(error);
+  return isSupabaseAuthFailure(error)
+    || message.includes('failed to fetch')
+    || message.includes('network')
+    || message.includes('timeout')
+    || message.includes('aborted')
+    || message.includes('load failed');
+}
+
 export async function invokeDashboardApi(action, payload = {}, { retryAuth = true } = {}) {
   await ensureFreshSupabaseSession();
   let result = await supabase.functions.invoke('ll-dashboard-api', {
     body: { action, payload },
   });
 
-  if (retryAuth && result?.error && isSupabaseAuthFailure(result.error)) {
+  if (retryAuth && result?.error && shouldRetryDashboardInvoke(result.error)) {
     await ensureFreshSupabaseSession({ force: true });
     result = await supabase.functions.invoke('ll-dashboard-api', {
       body: { action, payload },

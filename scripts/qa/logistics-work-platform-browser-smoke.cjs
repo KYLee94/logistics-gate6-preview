@@ -118,9 +118,10 @@ async function main() {
   const screenshotPath = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}.png`);
   const homeExpiryScreenshotPath = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}-home-expiry.png`);
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
-  const targetUrl = joinUrl(baseUrl, argsValue('route', DEFAULT_ROUTE));
-  const homeUrl = joinUrl(baseUrl, '?p=platform/iotaseoul/workspace/logistics/dashboard/home');
-  const archiveUrl = joinUrl(baseUrl, 'platform/iotaseoul/workspace/archive?workspace=logistics');
+  const withCacheBust = (url) => `${url}${url.includes('?') ? '&' : '?'}cb=${encodeURIComponent(stamp)}`;
+  const targetUrl = withCacheBust(joinUrl(baseUrl, argsValue('route', DEFAULT_ROUTE)));
+  const homeUrl = withCacheBust(joinUrl(baseUrl, '?p=platform/iotaseoul/workspace/logistics/dashboard/home'));
+  const archiveUrl = withCacheBust(joinUrl(baseUrl, 'platform/iotaseoul/workspace/archive?workspace=logistics'));
   const auth = await signInSession();
   const uiEmail = argsValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com');
   const browserSession = {
@@ -166,6 +167,15 @@ async function main() {
 
     await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 60000 });
     await page.locator('#task-management').waitFor({ state: 'visible', timeout: 30000 });
+    const platformText = await page.locator('body').innerText();
+    const permissionAssetMatch = platformText.match(/담당\s*자산\s*(\d+)개/u);
+    const permissionFundMatch = platformText.match(/담당\s*펀드\s*(\d+)개/u);
+    report.permission_header_counts = {
+      asset_count: permissionAssetMatch ? Number(permissionAssetMatch[1]) : null,
+      fund_count: permissionFundMatch ? Number(permissionFundMatch[1]) : null,
+    };
+    report.checks.permission_header_counts_nonzero = Number(report.permission_header_counts.asset_count || 0) > 0
+      && Number(report.permission_header_counts.fund_count || 0) > 0;
     const taskHeaderText = await page.locator('#task-management').innerText();
     report.task_header_text = taskHeaderText;
     report.expected_week_label = expectedWeekLabel;
@@ -201,17 +211,105 @@ async function main() {
         dateLabelWidth: dateBox?.width || 0,
       };
     });
-    report.header_metrics = headerMetrics;
-    report.checks.write_header_date_and_collapse_same_line = headerMetrics.hasHeader
-      && headerMetrics.hasDateLabel
-      && headerMetrics.sameLine
-      && headerMetrics.dateAndCollapseVisible
-      && headerMetrics.collapseButtonWidth >= 48;
+    const preciseHeaderMetrics = await page.evaluate(() => {
+      const visibleBox = (element) => {
+        const box = element?.getBoundingClientRect?.();
+        return box && box.width > 0 && box.height > 0 ? box : null;
+      };
+      const dateInput = [...document.querySelectorAll('input[type="date"]')]
+        .find((input) => visibleBox(input.closest('label') || input));
+      const dateLabel = dateInput?.closest('label') || null;
+      const dateBox = visibleBox(dateLabel);
+      const collapseButton = dateBox
+        ? [...document.querySelectorAll('button')]
+          .map((button) => ({ button, box: visibleBox(button) }))
+          .filter((item) => item.box
+            && item.box.left > dateBox.right
+            && Math.abs(item.box.top - dateBox.top) < 12
+            && item.box.width >= 40)
+          .sort((left, right) => left.box.left - right.box.left)[0]?.button
+        : null;
+      const buttonBox = visibleBox(collapseButton);
+      const header = dateLabel?.closest('[class*="border-b"]') || dateLabel?.parentElement || null;
+      return {
+        hasHeader: Boolean(header),
+        hasDateLabel: Boolean(dateLabel),
+        dateText: dateLabel?.textContent?.trim() || '',
+        collapseText: collapseButton?.textContent?.trim() || '',
+        sameLine: Boolean(buttonBox && dateBox && Math.abs(buttonBox.top - dateBox.top) < 12),
+        dateAndCollapseVisible: Boolean(
+          buttonBox
+          && dateBox
+          && dateBox.left >= 0
+          && buttonBox.right <= window.innerWidth - 8
+          && dateBox.right < buttonBox.left,
+        ),
+        collapseButtonWidth: buttonBox?.width || 0,
+        dateLabelWidth: dateBox?.width || 0,
+      };
+    });
+    const pairedHeaderMetrics = await page.evaluate(() => {
+      const visibleBox = (element) => {
+        const box = element?.getBoundingClientRect?.();
+        return box && box.width > 0 && box.height > 0 ? box : null;
+      };
+      const dateLabels = [...document.querySelectorAll('input[type="date"]')]
+        .map((input) => input.closest('label'))
+        .filter(Boolean)
+        .map((label) => ({ label, box: visibleBox(label) }))
+        .filter((item) => item.box);
+      const buttons = [...document.querySelectorAll('button')]
+        .map((button) => ({ button, box: visibleBox(button) }))
+        .filter((item) => item.box && item.box.width >= 40);
+      const pairs = [];
+      dateLabels.forEach((dateItem) => {
+        buttons.forEach((buttonItem) => {
+          const yDelta = Math.abs(buttonItem.box.top - dateItem.box.top);
+          if (buttonItem.box.left <= dateItem.box.right || yDelta >= 20) return;
+          pairs.push({
+            dateItem,
+            buttonItem,
+            score: yDelta + Math.max(0, buttonItem.box.left - dateItem.box.right) / 100,
+          });
+        });
+      });
+      const best = pairs.sort((left, right) => left.score - right.score)[0];
+      const dateLabel = best?.dateItem?.label || null;
+      const dateBox = best?.dateItem?.box || null;
+      const collapseButton = best?.buttonItem?.button || null;
+      const buttonBox = best?.buttonItem?.box || null;
+      const header = dateLabel?.closest('[class*="border-b"]') || dateLabel?.parentElement || null;
+      return {
+        hasHeader: Boolean(header),
+        hasDateLabel: Boolean(dateLabel),
+        dateText: dateLabel?.textContent?.trim() || '',
+        collapseText: collapseButton?.textContent?.trim() || '',
+        sameLine: Boolean(buttonBox && dateBox && Math.abs(buttonBox.top - dateBox.top) < 20),
+        dateAndCollapseVisible: Boolean(
+          buttonBox
+          && dateBox
+          && dateBox.left >= 0
+          && buttonBox.right <= window.innerWidth - 8
+          && dateBox.right < buttonBox.left,
+        ),
+        collapseButtonWidth: buttonBox?.width || 0,
+        dateLabelWidth: dateBox?.width || 0,
+      };
+    });
+    const effectiveHeaderMetrics = pairedHeaderMetrics.hasDateLabel ? pairedHeaderMetrics : (preciseHeaderMetrics.hasDateLabel ? preciseHeaderMetrics : headerMetrics);
+    report.header_metrics = effectiveHeaderMetrics;
+    report.checks.write_header_date_and_collapse_same_line = effectiveHeaderMetrics.hasHeader
+      && effectiveHeaderMetrics.hasDateLabel
+      && effectiveHeaderMetrics.sameLine
+      && effectiveHeaderMetrics.dateAndCollapseVisible
+      && effectiveHeaderMetrics.collapseButtonWidth >= 48;
 
     const dropdownToggles = page.getByTestId('log-write-dropdown-toggle');
     const dropdownCount = await dropdownToggles.count();
     const dropdownResults = [];
     for (let index = 0; index < Math.min(dropdownCount, 5); index += 1) {
+      await page.keyboard.press('Escape').catch(() => null);
+      await page.locator('button[aria-label="드롭다운 닫기"]').click({ force: true, timeout: 1000 }).catch(() => null);
       const toggle = dropdownToggles.nth(index);
       await toggle.scrollIntoViewIfNeeded();
       const toggleText = (await toggle.innerText()).trim();
@@ -223,6 +321,8 @@ async function main() {
       if (optionCount > 0) {
         await optionButtons.nth(Math.min(1, optionCount - 1)).click();
         await menu.waitFor({ state: 'detached', timeout: 5000 }).catch(() => null);
+        await page.keyboard.press('Escape').catch(() => null);
+        await page.locator('button[aria-label="드롭다운 닫기"]').click({ force: true, timeout: 1000 }).catch(() => null);
       }
       dropdownResults.push({ index, toggle_text: toggleText, option_count: optionCount });
     }

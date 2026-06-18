@@ -180,7 +180,10 @@ async function main() {
       const sortableTableCount = await page.locator('[data-sortable-table="true"]').count().catch(() => 0);
       const chartCount = await page.locator('[data-chart-role]').count().catch(() => 0);
       const emptyChartCount = await page.locator('[data-chart-empty="true"]').count().catch(() => 0);
-      const regionPrefixPresent = body.includes('(수도권)') || body.includes('(지방)');
+      const titleDomCount = await page.getByText(/market\s*data/iu).count().catch(() => 0);
+      const regionPrefixDomCount = await page.getByText(/\((수도권|지방)\)/u).count().catch(() => 0);
+      const titlePresent = /market\s*data/iu.test(body) || titleDomCount > 0;
+      const regionPrefixPresent = /\((수도권|지방)\)/u.test(body) || regionPrefixDomCount > 0;
       const leaseSlicerPresent = body.includes('상/저온') && body.includes('지표');
       const supplySlicerPresent = body.includes('유형') && body.includes('기간');
       const transactionSlicerPresent = body.includes('기간') && body.includes('권역') && body.includes('상/저온') && body.includes('실물/선매입');
@@ -192,7 +195,7 @@ async function main() {
         view_present: Boolean(apiBody?.data?.views?.[tab.viewKey]),
         view_has_rows: hasRequiredRows(apiBody, tab.viewKey),
         api_data_quality: apiBody?.data?.summary?.data_quality || null,
-        title_present: body.includes('Market Data'),
+        title_present: titlePresent,
         has_broken_question_marks: /\?{4,}/u.test(body),
         internal_tokens_visible: /\bll_|source_row_id|source_file_id|payload|natural_key|natural\s+key|row_hash|row\s+hash|\bPNU\b|\bpnu\b|법정동코드/iu.test(body),
         map_count: mapCount,

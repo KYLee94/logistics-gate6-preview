@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../utils/supabaseClient';
+import { invokeDashboardApi } from '../../utils/supabaseSession';
 import { motion, AnimatePresence } from 'framer-motion';
 import logisticsPermissionData from './workspace/logisticsPermissionData.json';
 import companyOptionsData from './workspace/logisticsCompanyOptionsData.json';
@@ -532,26 +533,21 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
 
             if (isLogisticsMode) {
                 const action = isEditing ? 'work-platform/board-posts/update' : 'work-platform/board-posts';
-                const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-                    body: {
-                        action,
-                        payload: {
-                            log_id: logId,
-                            work_date: workDate,
-                            title,
-                            content,
-                            related_asset_id: selectedProject?.id,
-                            related_asset_name: selectedProject?.label,
-                            triage_type: triageType,
-                            issue_status: issueStatus,
-                            priority,
-                            stakeholder_category: stakeholderCat,
-                            stakeholder_name: [companyQuery, contactQuery].filter(Boolean).join(' - '),
-                            visibility_groups: visibilityGroups.filter(Boolean),
-                            visibility_individuals: visibilityIndividualNames,
-                            metadata: logData.metadata,
-                        },
-                    },
+                const { data, error } = await invokeDashboardApi(action, {
+                    log_id: logId,
+                    work_date: workDate,
+                    title,
+                    content,
+                    related_asset_id: selectedProject?.id,
+                    related_asset_name: selectedProject?.label,
+                    triage_type: triageType,
+                    issue_status: issueStatus,
+                    priority,
+                    stakeholder_category: stakeholderCat,
+                    stakeholder_name: [companyQuery, contactQuery].filter(Boolean).join(' - '),
+                    visibility_groups: visibilityGroups.filter(Boolean),
+                    visibility_individuals: visibilityIndividualNames,
+                    metadata: logData.metadata,
                 });
                 if (error || !data?.ok) throw new Error(data?.message || error?.message || '협업게시판 저장 실패');
 
