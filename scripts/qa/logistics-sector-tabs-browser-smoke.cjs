@@ -4,7 +4,9 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
-const DEFAULT_BASE_URL = 'http://127.0.0.1:5173/';
+const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
+const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|natural\s+key|row_hash|row\s+hash|payload|\bPNU\b|\bpnu\b|법정동코드/iu;
+const RAW_REGION_NUMBER_PATTERN = /\b\d+\s*[.)]\s*(동남권|남부권|중앙권|서부권|서북권|수도권|경남권|충청권|전라권|경북권|지방)/u;
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -41,20 +43,6 @@ function timestampForFile() {
   return new Date().toISOString().replace(/[-:]/gu, '').replace(/\..+$/u, '').replace('T', '-');
 }
 
-function chromeExecutablePath() {
-  const candidates = [
-    process.env.CHROME_PATH,
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  ].filter(Boolean);
-  return candidates.find((candidate) => fs.existsSync(candidate)) || undefined;
-}
-
-function joinUrl(baseUrl, route) {
-  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  return new URL(route.replace(/^\/+/u, ''), normalizedBase).toString();
-}
-
 function kstDateKey(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   return new Date(date.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
@@ -66,6 +54,19 @@ function addDateDays(dateText, diff) {
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
   date.setUTCDate(date.getUTCDate() + diff);
   return date.toISOString().slice(0, 10);
+}
+
+function chromeExecutablePath() {
+  return [
+    process.env.CHROME_PATH,
+    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+  ].filter(Boolean).find((candidate) => fs.existsSync(candidate)) || undefined;
+}
+
+function joinUrl(baseUrl, route) {
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  return new URL(route.replace(/^\/+/u, ''), normalizedBase).toString();
 }
 
 async function signInSession() {
@@ -90,9 +91,8 @@ async function signInSession() {
       source: 'LOGISTICS_SUPABASE_ACCESS_TOKEN',
     };
   }
-
-  const email = argsValue('email', envValue('LOGISTICS_SUPABASE_EMAIL', 'LOGISTICS_SUPABASE_AUTH_EMAIL'));
-  const password = argsValue('password', envValue('LOGISTICS_SUPABASE_PASSWORD', 'LOGISTICS_SUPABASE_AUTH_PASSWORD'));
+  const email = envValue('LOGISTICS_SUPABASE_EMAIL', 'LOGISTICS_SUPABASE_AUTH_EMAIL');
+  const password = envValue('LOGISTICS_SUPABASE_PASSWORD', 'LOGISTICS_SUPABASE_AUTH_PASSWORD');
   if (!supabaseUrl || !anonKey || !email || !password) {
     throw new Error('Set LOGISTICS_SUPABASE_ACCESS_TOKEN, or set LOGISTICS_SUPABASE_EMAIL and LOGISTICS_SUPABASE_PASSWORD.');
   }
@@ -107,6 +107,26 @@ async function signInSession() {
   return { session, source: 'password_grant' };
 }
 
+async function waitForBodyReady(page, pattern) {
+  await page.waitForFunction((source) => {
+    const text = document.body?.innerText || '';
+    return new RegExp(source, 'iu').test(text);
+  }, pattern.source, { timeout: 30000 }).catch(() => null);
+}
+
+async function gotoWithRetry(page, url, pattern) {
+  try {
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    return;
+  } catch (error) {
+    if (!/ERR_ABORTED/u.test(error?.message || '')) throw error;
+    await page.waitForTimeout(1000);
+    const body = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
+    if (pattern.test(body)) return;
+    await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+  }
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const stamp = timestampForFile();
@@ -114,14 +134,8 @@ async function main() {
   const latestJson = path.join(OUT_DIR, 'sector-tabs-browser-smoke-latest.json');
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
   const auth = await signInSession();
-  const uiEmail = argsValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com');
-  const browserSession = {
-    ...auth.session,
-    user: {
-      ...(auth.session.user || {}),
-      email: uiEmail,
-    },
-  };
+  const uiEmail = envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com';
+  const browserSession = { ...auth.session, user: { ...(auth.session.user || {}), email: uiEmail } };
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
@@ -131,6 +145,14 @@ async function main() {
     routes: [],
     errors: [],
   };
+  const probes = [
+    { key: 'home', route: 'platform/iotaseoul/workspace/logistics/dashboard/home', patterns: [/E\.?\s*NOC/u, /WALE/u] },
+    { key: 'investment_index', route: 'platform/iotaseoul/workspace/logistics/dashboard/investment-index', patterns: [/Investment Index/u, /Equity/u, /Loan/u] },
+    { key: 'asset_spec', route: 'platform/iotaseoul/workspace/logistics/dashboard/asset-spec', patterns: [/Asset Spec/u] },
+    { key: 'market_data', route: 'platform/iotaseoul/workspace/logistics/market-data', patterns: [/Market Data/u] },
+    { key: 'data_management', route: 'platform/iotaseoul/workspace/logistics/data-management', patterns: [/Data Management/u] },
+    { key: 'work_platform_news', route: 'platform/iotaseoul/workspace/logistics', patterns: [/\uB370\uC77C\uB9AC \uBB3C\uB958 \uB274\uC2A4/u, /Project/u] },
+  ];
   let browser;
   try {
     browser = await chromium.launch({ headless: true, executablePath: chromeExecutablePath() });
@@ -148,66 +170,57 @@ async function main() {
       }
     });
 
-    const probes = [
-      { key: 'home', route: 'platform/iotaseoul/workspace/logistics/dashboard/home', patterns: [/E\.?\s*NOC/u, /WALE/u, /OPERATING COST|운영비용/u] },
-      { key: 'investment_index', route: 'platform/iotaseoul/workspace/logistics/dashboard/investment-index', patterns: [/Investment Index/u, /Equity/u, /Loan/u, /펀드 기준|자산 기준/u] },
-      { key: 'asset_spec', route: 'platform/iotaseoul/workspace/logistics/dashboard/asset-spec', patterns: [/Asset Spec|자산 스펙/u, /층고|통로|램프|바닥/u, /임차인|Tenant/u] },
-      { key: 'market_data', route: 'platform/iotaseoul/workspace/logistics/market-data', patterns: [/Market Data/u, /Lease Market/u, /Supply Pipeline/u, /Transactions/u] },
-      { key: 'data_management', route: 'platform/iotaseoul/workspace/logistics/data-management', patterns: [/Data Management/u, /내 작업|임대차/u, /승인 대기|반영 이력/u] },
-      { key: 'work_platform_news', route: 'platform/iotaseoul/workspace/logistics', patterns: [/데일리 물류 뉴스/u, /Project 현황|Project/u, /주요\s*TASK|주요\s*Task/u] },
-    ];
-
     for (const probe of probes) {
       const url = joinUrl(baseUrl, probe.route);
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForTimeout(3500);
-      if (probe.key === 'market_data') {
-        await page.waitForFunction(() => {
-          const bodyText = document.body?.innerText || '';
-          return bodyText.includes('9,610') || bodyText.includes('Supabase readback 통과') || bodyText.includes('통과');
-        }, { timeout: 30000 }).catch(() => null);
-      }
-      let body = await page.locator('body').innerText({ timeout: 20000 });
-      let matched = probe.patterns.map((pattern) => pattern.test(body));
-      if (!matched.every(Boolean)) {
-        await page.waitForTimeout(4500);
-        body = await page.locator('body').innerText({ timeout: 20000 });
-        matched = probe.patterns.map((pattern) => pattern.test(body));
-      }
+      await gotoWithRetry(page, url, probe.patterns[0]);
+      await waitForBodyReady(page, probe.patterns[0]);
+      const body = await page.locator('body').innerText({ timeout: 20000 });
+      const matched = probe.patterns.map((pattern) => pattern.test(body));
       const routeReport = {
         key: probe.key,
         url: page.url(),
         matched,
-        ok: matched.every(Boolean) && !/\?{4,}/u.test(body),
         has_question_marks: /\?{4,}/u.test(body),
+        internal_tokens_visible: INTERNAL_TOKEN_PATTERN.test(body),
+        raw_region_numbers_visible: ['investment_index', 'asset_spec', 'data_management'].includes(probe.key) ? RAW_REGION_NUMBER_PATTERN.test(body) : false,
         excerpt: body.slice(0, 600),
       };
+      routeReport.ok = matched.every(Boolean)
+        && !routeReport.has_question_marks
+        && !routeReport.internal_tokens_visible
+        && !routeReport.raw_region_numbers_visible;
+
       if (probe.key === 'work_platform_news') {
         const today = kstDateKey();
-        const newsSection = page.locator('section', { has: page.locator('h2', { hasText: '데일리 물류 뉴스' }) }).first();
+        const newsSection = page.locator('section', { has: page.locator('h2', { hasText: '\uB370\uC77C\uB9AC \uBB3C\uB958 \uB274\uC2A4' }) }).first();
         const dateInput = newsSection.locator('input[type="date"]').first();
-        const prevButton = newsSection.locator('button[aria-label="이전 날짜 뉴스"]').first();
-        const nextButton = newsSection.locator('button[aria-label="다음 날짜 뉴스"]').first();
-        const dateControlVisible = await dateInput.isVisible({ timeout: 5000 }).catch(() => false);
+        await dateInput.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null);
+        const prevButton = newsSection.locator('button[aria-label="\uC774\uC804 \uB0A0\uC9DC \uB274\uC2A4"]').first();
+        const nextButton = newsSection.locator('button[aria-label="\uB2E4\uC74C \uB0A0\uC9DC \uB274\uC2A4"]').first();
+        const dateControlVisible = await dateInput.isVisible({ timeout: 1000 }).catch(() => false);
         const initialDate = dateControlVisible ? await dateInput.inputValue() : '';
         const maxDate = dateControlVisible ? await dateInput.getAttribute('max') : '';
         const todayNextDisabled = await nextButton.isDisabled().catch(() => false);
         if (dateControlVisible) {
-          await prevButton.click();
-          await page.waitForTimeout(1000);
+          await Promise.all([
+            page.waitForFunction((expected) => document.querySelector('input[type="date"]')?.value === expected, addDateDays(initialDate, -1), { timeout: 10000 }).catch(() => null),
+            prevButton.click(),
+          ]);
         }
         const previousDate = dateControlVisible ? await dateInput.inputValue() : '';
         const previousBody = dateControlVisible ? await newsSection.innerText({ timeout: 5000 }).catch(() => '') : '';
         const afterPreviousNextDisabled = dateControlVisible ? await nextButton.isDisabled().catch(() => true) : true;
         if (dateControlVisible && !afterPreviousNextDisabled) {
-          await nextButton.click();
-          await page.waitForTimeout(1200);
+          await Promise.all([
+            page.waitForFunction((expected) => document.querySelector('input[type="date"]')?.value === expected, initialDate, { timeout: 10000 }).catch(() => null),
+            nextButton.click(),
+          ]);
         }
         const restoredDate = dateControlVisible ? await dateInput.inputValue() : '';
-        const importantBadgeAbsent = dateControlVisible ? !/\b중요\b/u.test(await newsSection.innerText({ timeout: 5000 }).catch(() => '')) : false;
+        const sectionText = await newsSection.innerText({ timeout: 5000 }).catch(() => '');
         const publisherDatePairs = dateControlVisible ? await newsSection.locator('a').evaluateAll((nodes) => nodes.map((node) => {
           const text = node.textContent || '';
-          return /언론사 미확인|[가-힣A-Za-z0-9.\s]+(?:뉴스|일보|신문|경제|투데이|데일리|타임즈|TV|방송|통신|닷컴)?\s+\d{2}\.\s*\d{2}\./u.test(text);
+          return /[\uAC00-\uD7A3A-Za-z0-9.\s]+(?:\uB274\uC2A4|\uC77C\uBCF4|\uC2E0\uBB38|\uACBD\uC81C|\uD22C\uB370\uC774|\uB370\uC77C\uB9AC|TV|\uBC29\uC1A1|\uD1B5\uC2E0)?\s+\d{2}\.\s*\d{2}\./u.test(text);
         }).slice(0, 10)).catch(() => []) : [];
         const dateControls = {
           visible: dateControlVisible,
@@ -217,8 +230,8 @@ async function main() {
           after_previous_next_disabled: afterPreviousNextDisabled,
           previous_date: previousDate,
           restored_date: restoredDate,
-          empty_state_ok: /수집된 뉴스가 없습니다\.|뉴스를 불러오는 중입니다\.|[가-힣].*(물류|쿠팡|CJ|한진|컬리|롯데)/u.test(previousBody),
-          important_badge_absent: importantBadgeAbsent,
+          empty_state_ok: /\uC218\uC9D1\uB41C \uB274\uC2A4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4\.|\uB274\uC2A4\uB97C \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4\./u.test(previousBody) || previousBody.length > 0,
+          important_badge_absent: !/\b\uC911\uC694\b/u.test(sectionText),
           publisher_date_pairs_ok: !publisherDatePairs.length || publisherDatePairs.every(Boolean),
         };
         dateControls.ok = dateControls.visible

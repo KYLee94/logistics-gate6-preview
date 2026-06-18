@@ -82,6 +82,7 @@ async function main() {
   const summary = data.summary || {};
   const readback = summary.readback || {};
   const sourceAudit = summary.source_audit || {};
+  const dataQuality = summary.data_quality || {};
   const checks = {
     status_ready: summary.status === 'ready',
     active_source_only: Boolean(summary.source?.active_version && summary.source?.source_file_id),
@@ -100,6 +101,12 @@ async function main() {
       && Array.isArray(data.supply) && data.supply.length > 0
       && Array.isArray(data.transactions) && data.transactions.length > 0,
     lease_sample_full: Array.isArray(data.leases) && data.leases.length === 9610,
+    lease_area_fill_rate: Number(dataQuality.lease_area_fill_rate || 0) >= 95,
+    lease_rent_fill_rate: Number(dataQuality.lease_rent_fill_rate || 0) >= 50,
+    transaction_area_fill_rate: Number(dataQuality.transaction_area_fill_rate || 0) >= 95,
+    transaction_unit_price_fill_rate: Number(dataQuality.transaction_unit_price_fill_rate || 0) >= 95,
+    supply_expected_period_fill_rate: Number(dataQuality.supply_expected_period_fill_rate || 0) >= 15,
+    views_present: Boolean(data.views?.overview && data.views?.lease && data.views?.supply && data.views?.transactions && data.views?.source),
   };
   const report = {
     ok: Object.values(checks).every(Boolean),
@@ -114,12 +121,15 @@ async function main() {
       pipeline_supply_count: summary.pipeline_supply_count,
       new_supply_total_gross_area_py: summary.new_supply_total_gross_area_py,
       sample_counts: summary.sample_counts,
+      data_quality: dataQuality,
       readback,
       source_audit: sourceAudit,
     },
   };
   const outJson = path.join(OUT_DIR, `market-data-readback-smoke-${timestampForFile()}.json`);
+  const latestJson = path.join(OUT_DIR, 'market-data-readback-smoke-latest.json');
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
+  fs.writeFileSync(latestJson, `${JSON.stringify(report, null, 2)}\n`);
   console.log(JSON.stringify({ ok: report.ok, artifact: outJson, checks, observed: report.observed }, null, 2));
   if (!report.ok) process.exit(1);
 }

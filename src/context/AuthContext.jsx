@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { invokeDashboardApi, signOutSupabaseLocal } from '../utils/supabaseSession';
 
 const AuthContext = createContext();
 
@@ -74,15 +75,19 @@ export function AuthProvider({ children }) {
     const recoveryMode = recoveryModeState;
 
     const handleSignOut = async () => {
+        clearSupabaseAuthStorage();
+        setUser(null);
+        setMemberInfo(null);
+
         try {
-            await supabase.auth.signOut();
+            void signOutSupabaseLocal().catch((error) => {
+                console.warn('Local Supabase sign out cleanup failed:', error?.message || error);
+            });
         } catch (error) {
             console.error('Error during sign out:', error);
         } finally {
             clearSupabaseAuthStorage();
-            setUser(null);
-            setMemberInfo(null);
-            window.location.href = `${import.meta.env.BASE_URL}auth-setup`;
+            window.location.replace(`${import.meta.env.BASE_URL}auth-setup`);
         }
     };
 
@@ -94,12 +99,7 @@ export function AuthProvider({ children }) {
         }
 
         try {
-            const { data, error } = await supabase.functions.invoke('ll-dashboard-api', {
-                body: {
-                    action: 'auth/me',
-                    payload: {},
-                },
-            });
+            const { data, error } = await invokeDashboardApi('auth/me', {});
 
             const remoteUser = data?.data || data?.user || null;
             if (error || data?.ok === false || !remoteUser) {

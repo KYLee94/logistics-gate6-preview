@@ -6,7 +6,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
 const BING_NEWS_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v4-strict-24h-balanced';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v5-strict-window-balanced-market';
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -35,6 +35,11 @@ const SEARCH_QUERIES = [
   'DHL 물류 OR DHL 물류센터',
   '로젠택배 물류 OR 로젠 물류센터',
   'GS리테일 물류 OR BGF 물류 OR 우체국 물류',
+  '"물류센터" "거래면적" OR "물류센터" "평당가" OR "물류센터" "매입"',
+  '"물류센터" "공급예정" OR "물류센터" "인허가" OR "물류센터" "착공"',
+  '"물류센터" "임대시장" OR "물류센터" "공실률" OR "물류센터" "렌트프리"',
+  '"물류센터" "캡레이트" OR "물류부동산" "투자" OR "물류부동산" "거래"',
+  '쿠팡 CJ대한통운 한진 컬리 롯데글로벌로지스 물류 배송 택배 투자 실적',
 ];
 
 const LOGISTICS_CONTEXT_TERMS = ['물류센터', '물류 창고', '물류창고', '풀필먼트', 'fulfillment', '저온물류', '저온 물류', '상온물류', '택배', '배송', '3PL', '창고', '허브', '콜드체인', 'cold chain', '냉장', '냉동'];
@@ -65,6 +70,7 @@ const CATEGORY_TARGETS = {
 const CATEGORY_ORDER = ['market_deal', 'lease_market', 'supply_development', 'major_company', 'other'];
 const MAX_ITEMS_PER_COMPANY = 2;
 const MAX_MAJOR_COMPANY_ONLY_ITEMS = 5;
+const COMPANY_BUSINESS_TERMS = ['실적', '투자', '배송', '택배', '물류', '센터', '풀필먼트', '창고', '허브', '운송', '로봇', '자동화', '커머스', '신선', '새벽배송', 'parcel', 'delivery', 'logistics', 'fulfillment', 'robot', 'automation'];
 
 function hasFlag(name) {
   return process.argv.includes(name);
@@ -144,7 +150,7 @@ function kstDateKey(date) {
 function parseWindow() {
   const basis = argValue('--basis-kst', '');
   const windowEnd = basis ? parseBasisKst(basis) : currentSevenAmBasisKst();
-  const windowHours = 24;
+  const windowHours = kstDayOfWeek(windowEnd) === 1 ? 72 : 24;
   const windowStart = new Date(windowEnd.getTime() - windowHours * HOUR_MS);
   return { windowStart, windowEnd, windowHours };
 }
@@ -252,7 +258,8 @@ function scoreItem(item) {
   const hasMarketSignal = dealMatches.length || leaseMatches.length || reportMatches.length;
   const hasSupplySignal = supplyMatches.length;
   const companyLogisticsSignal = company && /물류|센터|창고|풀필먼트|허브|택배|배송|터미널|fulfillment/iu.test(text);
-  if ((!hasLogisticsContext || (!hasMarketSignal && !hasSupplySignal)) && !companyLogisticsSignal) {
+  const companyBusinessSignal = company && matchTerms(text, COMPANY_BUSINESS_TERMS).length > 0;
+  if ((!hasLogisticsContext || (!hasMarketSignal && !hasSupplySignal)) && !companyLogisticsSignal && !companyBusinessSignal) {
     return { score: 0, matched: [], category: 'noise', company: null };
   }
   let category = 'major_company';
@@ -273,7 +280,8 @@ function scoreItem(item) {
     + (leaseMatches.length * 3)
     + (supplyMatches.length * 1.5)
     + (reportMatches.length * 3)
-    + (company ? 2 : 0);
+    + (company ? 2 : 0)
+    + (companyBusinessSignal ? 1 : 0);
   return { score, matched, category, company };
 }
 
@@ -450,7 +458,7 @@ async function publish(run, items) {
       strict_window_end: run.windowEnd.toISOString(),
       strict_item_count: run.strictItemCount,
       expanded_to_recent_7d: false,
-      strict_24h_window: true,
+      strict_24h_window: run.windowHours === 24,
       candidate_count: run.candidateCount || items.length,
       selection_policy: {
         limit: 10,
@@ -494,7 +502,7 @@ async function publishFailure(run, error) {
       queries: SEARCH_QUERIES,
       query_count: SEARCH_QUERIES.length,
       window_hours: run.windowHours,
-      strict_24h_window: true,
+      strict_24h_window: run.windowHours === 24,
       empty_state: false,
     },
     run_status: 'failed',
@@ -524,7 +532,7 @@ async function main() {
       window_end: windowEnd.toISOString(),
       strict_item_count: run.strictItemCount,
       expanded_to_recent_7d: false,
-      strict_24h_window: true,
+      strict_24h_window: windowHours === 24,
       candidate_count: run.candidateCount,
       source_stats: run.sourceStats,
       item_count: items.length,

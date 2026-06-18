@@ -368,18 +368,18 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
       province: clean(cell(values, ['시_도', '법정도'])),
       city: clean(cell(values, ['시_군'])),
       district: clean(cell(values, ['구_읍_면'])),
-      gross_area_py: numberValue(cell(values, ['연면적_평'])),
+      gross_area_py: numberValue(cell(values, ['연면적_평', '연면적평', '연면적_3_3', '연면적3_3'])),
       completion_year: integerValue(cell(values, ['준공년도'])),
       temperature_type: clean(cell(values, ['보관방식_상온_저온_복합'])),
       size_bucket: clean(cell(values, ['규모'])),
-      deposit_manwon_per_py: numberValue(cell(values, ['보증금_만원_평'])),
-      rent_manwon_per_py: numberValue(cell(values, ['임대료_만원_평'])),
-      management_fee_manwon_per_py: numberValue(cell(values, ['관리비_만원_평'])),
-      rent_free_months_per_year: numberValue(cell(values, ['rf_개월_년'])),
+      deposit_manwon_per_py: numberValue(cell(values, ['보증금_만원_평', '보증금만원_평', '보증금만원평'])),
+      rent_manwon_per_py: numberValue(cell(values, ['임대료_만원_평', '임대료만원_평', '임대료만원평'])),
+      management_fee_manwon_per_py: numberValue(cell(values, ['관리비_만원_평', '관리비만원_평', '관리비만원평'])),
+      rent_free_months_per_year: numberValue(cell(values, ['rf_개월_년', 'rf개월_년', 'rf개월년'])),
       fit_out_months: numberValue(cell(values, ['fo개월'])),
       tenant_improvement_manwon_per_py: numberValue(cell(values, ['ti만원_평'])),
-      leasable_area_py: numberValue(cell(values, ['보관면적_평'])),
-      vacancy_area_py: numberValue(cell(values, ['창고_공실면적_평'])),
+      leasable_area_py: numberValue(cell(values, ['보관면적_평', '보관면적평'])),
+      vacancy_area_py: numberValue(cell(values, ['창고_공실면적_평', '창고공실면적_평', '창고공실면적평'])),
       vacancy_rate: numberValue(cell(values, ['공실률'])),
       payload: values,
     };
@@ -409,7 +409,7 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
 
   const transactionCases = getSheetRows(8, 3).map(({ rowNumber, values }) => {
     const sourceRow = sourceRowIndex.get(`8:${rowNumber}`);
-    const transactionAmountThousand = numberValue(cell(values, ['거래가_천원']));
+    const transactionAmountThousand = numberValue(cell(values, ['거래가_천원', '거래가천원']));
     return {
       transaction_case_id: uuidFromHash(`transaction_case:${sourceRow?.source_row_id}`),
       source_row_id: sourceRow?.source_row_id,
@@ -426,19 +426,19 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
       province: clean(cell(values, ['시_도'])),
       city: clean(cell(values, ['시_군'])),
       district: clean(cell(values, ['구_읍_면'])),
-      building_area_sqm: numberValue(cell(values, ['건축면적_sqm'])),
-      building_area_py: numberValue(cell(values, ['건축면적_3_3'])),
-      gross_area_sqm: numberValue(cell(values, ['연면적_sqm'])),
-      gross_area_py: numberValue(cell(values, ['연면적_3_3'])),
-      land_area_sqm: numberValue(cell(values, ['대지면적_sqm'])),
-      land_area_py: numberValue(cell(values, ['대지면적_3_3'])),
+      building_area_sqm: numberValue(cell(values, ['건축면적_sqm', '건축면적sqm'])),
+      building_area_py: numberValue(cell(values, ['건축면적_3_3', '건축면적3_3'])),
+      gross_area_sqm: numberValue(cell(values, ['연면적_sqm', '연면적sqm'])),
+      gross_area_py: numberValue(cell(values, ['연면적_3_3', '연면적3_3'])),
+      land_area_sqm: numberValue(cell(values, ['대지면적_sqm', '대지면적sqm'])),
+      land_area_py: numberValue(cell(values, ['대지면적_3_3', '대지면적3_3'])),
       contract_date: dateValue(cell(values, ['계약일자'])),
       closing_date: dateValue(cell(values, ['잔금일자'])),
       transaction_year: integerValue(cell(values, ['거래년도_잔금기준', '거래시기계산_연도'])),
       transaction_quarter: normalizeQuarter(cell(values, ['거래분기_잔금기준'])),
       transaction_amount_thousand_krw: transactionAmountThousand,
       transaction_amount_krw: transactionAmountThousand ? transactionAmountThousand * 1000 : numberValue(cell(values, ['거래가격'])),
-      unit_price_thousand_krw_per_py: numberValue(cell(values, ['평당가_연면적_천원'])),
+      unit_price_thousand_krw_per_py: numberValue(cell(values, ['평당가_연면적_천원', '평당가연면적_천원', '평당가연면적천원'])),
       seller_name: clean(cell(values, ['매도인'])),
       seller_type: clean(cell(values, ['유형'])),
       buyer_name: clean(cell(values, ['매수인'])),
@@ -567,6 +567,41 @@ function batch(items, size = 500) {
   const out = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
   return out;
+}
+
+function buildValidationSummary(domain, rowCounts, normalized) {
+  if (domain !== 'sector_market') return { status: 'validated', row_counts: rowCounts };
+  const newSupplyCases = (normalized.supplyCases || []).filter((row) => row.supply_kind === 'new_supply');
+  const pipelineSupplyCases = (normalized.supplyCases || []).filter((row) => row.supply_kind === 'pipeline');
+  const newSupplyTotal = newSupplyCases.reduce((sum, row) => sum + (Number(row.gross_area_py) || 0), 0);
+  const rawNewSupplyRows = Object.entries(rowCounts)
+    .filter(([sheetName]) => /(\uB2F9\uBD84\uAE30|\uC2E0\uADDC)/iu.test(sheetName) && /\uACF5\uAE09/iu.test(sheetName))
+    .reduce((sum, [, count]) => sum + Number(count || 0), 0);
+  const warnings = [];
+  if (rawNewSupplyRows && !newSupplyCases.length) {
+    warnings.push({
+      code: 'new_supply_normalized_empty',
+      message: 'Quarterly new supply source rows were detected, but no normalized new supply cases were produced.',
+      raw_candidate_rows: rawNewSupplyRows,
+      normalized_rows: newSupplyCases.length,
+    });
+  }
+  return {
+    status: warnings.length ? 'validated_with_warnings' : 'validated',
+    row_counts: rowCounts,
+    normalized_counts: {
+      lease_observations: normalized.leaseObservations?.length || 0,
+      supply_cases: normalized.supplyCases?.length || 0,
+      pipeline_supply_cases: pipelineSupplyCases.length,
+      new_supply_cases: newSupplyCases.length,
+      transaction_cases: normalized.transactionCases?.length || 0,
+      cap_rate_series: normalized.capRateSeries?.length || 0,
+    },
+    check_values: {
+      new_supply_total_gross_area_py: Math.round(newSupplyTotal * 10) / 10,
+    },
+    warnings,
+  };
 }
 
 async function publishParsed(parsed, options) {

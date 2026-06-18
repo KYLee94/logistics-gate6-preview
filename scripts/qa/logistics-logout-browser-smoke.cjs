@@ -122,10 +122,13 @@ async function main() {
   };
   let browser;
   let page;
+  let logoutClicked = false;
   try {
     browser = await chromium.launch({ headless: true, executablePath: chromeExecutablePath() });
     const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });
     await context.addInitScript(({ email, session }) => {
+      if (localStorage.getItem('logisticsQaLogoutCompleted') === '1') return;
+      if (window.location.pathname.includes('/auth-setup')) return;
       sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(session));
       sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email }));
       localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
@@ -133,7 +136,7 @@ async function main() {
     page = await context.newPage();
     page.on('pageerror', (error) => report.errors.push(error.message));
     page.on('response', (response) => {
-      if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 400) {
+      if (!logoutClicked && response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 400) {
         report.errors.push(`edge ${response.status()} ${response.url()}`);
       }
     });
@@ -147,12 +150,51 @@ async function main() {
     const logoutButton = page.locator('button').filter({ hasText: /\uB85C\uADF8\uC544\uC6C3/u }).last();
     await logoutButton.waitFor({ state: 'visible', timeout: 10000 });
     report.checks.logout_button_visible = true;
+    report.checks.stale_session_simulated = await page.evaluate(() => {
+      const raw = sessionStorage.getItem('sb-iota-auth-token');
+      if (!raw) return false;
+      try {
+        const session = JSON.parse(raw);
+        session.expires_at = Math.round(Date.now() / 1000) - 120;
+        session.expires_in = 0;
+        sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(session));
+        sessionStorage.setItem('iota_last_activity', String(Date.now() - 31 * 60 * 1000));
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    logoutClicked = true;
+    const logoutStartedAt = Date.now();
+    await page.evaluate(() => localStorage.setItem('logisticsQaLogoutCompleted', '1'));
     await Promise.all([
       page.waitForURL(/auth-setup/u, { timeout: 20000 }),
       logoutButton.click(),
     ]);
+    report.logout_elapsed_ms = Date.now() - logoutStartedAt;
     report.final_url = page.url();
     report.checks.logout_navigated = /auth-setup/u.test(report.final_url);
+    report.checks.logout_completed_without_refresh = report.logout_elapsed_ms < 5000;
+    await page.waitForLoadState('domcontentloaded', { timeout: 10000 }).catch(() => {});
+    const storageAfterLogout = await page.evaluate(() => ({
+      session_token: sessionStorage.getItem('sb-iota-auth-token'),
+      preview_auth: sessionStorage.getItem('logistics_preview_auth'),
+      supabase_auth_keys: Object.keys(localStorage).filter((key) => /^sb-|supabase/iu.test(key)),
+    })).catch(() => ({ session_token: null, preview_auth: null, supabase_auth_keys: [] }));
+    report.storage_after_logout = {
+      session_token_present: Boolean(storageAfterLogout.session_token),
+      preview_auth_present: Boolean(storageAfterLogout.preview_auth),
+      supabase_auth_key_count: storageAfterLogout.supabase_auth_keys.length,
+    };
+    report.checks.storage_cleared = !storageAfterLogout.session_token
+      && !storageAfterLogout.preview_auth
+      && storageAfterLogout.supabase_auth_keys.length === 0;
+    await page.evaluate(() => localStorage.setItem('logisticsQaLogoutCompleted', '1'));
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
+    const profileVisibleAfterReentry = await page.getByTestId('logistics-profile-button').isVisible({ timeout: 5000 }).catch(() => false);
+    report.reentry_url = page.url();
+    report.checks.protected_route_blocked_after_logout = /auth-setup/u.test(report.reentry_url) || !profileVisibleAfterReentry;
     await page.screenshot({ path: screenshotPath, fullPage: false });
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
   } catch (error) {

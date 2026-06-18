@@ -1,0 +1,222 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-18T05:12:30.739Z",
+  "auth_source": "password_grant",
+  "checks": {
+    "status_ready": true,
+    "active_source_only": true,
+    "source_sheet_count": true,
+    "source_row_count": true,
+    "source_sheet_readback_all_pass": true,
+    "lease_count": true,
+    "transaction_count": true,
+    "pipeline_supply_count": true,
+    "supply_total_count": true,
+    "new_supply_count": true,
+    "cap_rate_series_count": true,
+    "new_supply_total_gross_area_py": true,
+    "readback_all_pass": true,
+    "sample_non_empty": true,
+    "lease_sample_full": true,
+    "lease_area_fill_rate": true,
+    "lease_rent_fill_rate": true,
+    "transaction_area_fill_rate": true,
+    "transaction_unit_price_fill_rate": true,
+    "supply_expected_period_fill_rate": true,
+    "views_present": true
+  },
+  "observed": {
+    "status": "ready",
+    "source_file": "물류 시장 데이터_20261Q.xlsx",
+    "lease_observation_count": 9610,
+    "transaction_case_count": 541,
+    "pipeline_supply_count": 267,
+    "new_supply_total_gross_area_py": 111517.9,
+    "sample_counts": {
+      "leases": 9610,
+      "supply": 276,
+      "transactions": 541,
+      "cap_rates": 90
+    },
+    "data_quality": {
+      "lease_area_fill_rate": 100,
+      "lease_rent_fill_rate": 64.8,
+      "transaction_area_fill_rate": 100,
+      "transaction_unit_price_fill_rate": 97.4,
+      "supply_area_fill_rate": 100,
+      "supply_expected_period_fill_rate": 19.1
+    },
+    "readback": {
+      "lease_observations": {
+        "expected": 9610,
+        "actual": 9610,
+        "ok": true
+      },
+      "supply_cases": {
+        "expected": 276,
+        "actual": 276,
+        "ok": true
+      },
+      "pipeline_supply_cases": {
+        "expected": 267,
+        "actual": 267,
+        "ok": true
+      },
+      "new_supply_cases": {
+        "expected": 9,
+        "actual": 9,
+        "ok": true
+      },
+      "transaction_cases": {
+        "expected": 541,
+        "actual": 541,
+        "ok": true
+      },
+      "cap_rate_series": {
+        "expected": 90,
+        "actual": 90,
+        "ok": true
+      },
+      "new_supply_total_gross_area_py": {
+        "expected": 111517.9,
+        "actual": 111517.9,
+        "ok": true
+      }
+    },
+    "source_audit": {
+      "sheet_count": 9,
+      "source_row_count": 11738,
+      "source_column_count": 876,
+      "sheet_readback": [
+        {
+          "source_sheet_id": "c635181d-d3ef-47d7-86d6-5f28f4b2a562",
+          "sheet_name": "임대시장 통계",
+          "sheet_index": 1,
+          "header_row_number": 6,
+          "column_count": 294,
+          "expected_rows": 90,
+          "actual_rows": 90,
+          "status": "통과",
+          "ok": true
+        },
+        {
+          "source_sheet_id": "3dbc12f8-8578-4cba-840a-f7c6caaebc12",
+          "sheet_name": "임대시장 현황",
+          "sheet_index": 2,
+          "header_row_number": 6,
+          "column_count": 249,
+          "expected_rows": 722,
+          "actual_rows": 722,
+          "status": "통과",
+          "ok": true
+        },
+        {
+          "source_sheet_id": "3076e000-fe80-40f5-9448-d1ef06a1c0ad",
+          "sheet_name": "임대 현황_원자료",
+          "sheet_index": 3,
+          "header_row_number": 4,
+          "column_count": 35,
+          "expected_rows": 9610,
+          "actual_rows": 9610,
+          "status": "통과",
+          "ok": true
+        },
+        {
+          "source_sheet_id": "f21d0484-c8b7-4fa6-8952-dac6f535b025",
+          "sheet_name": "공급시장 통계",
+          "sheet_index": 4,
+          "header_row_number": 5,
+          "column_count": 34,
+          "expected_rows": 66,
+          "actual_rows": 66,
+          "status": "통과",
+          "ok": true
+        },
+        {
+          "source_sheet_id": "b8f252a6-7fe9-4bbd-8693-975e7df45e48",
+          "sheet_name": "당분기 신규공급 사례",
+          "sheet_index": 5,
+          "header_row_number": 7,
+          "column_count": 38,
+          "expected_rows": 212,
+          "actual_rows": 212,
+          "status": "통과",
+          "ok": true
+        },
+        {
+          "source_sheet_id": "f848d9f1-2602-4131-9e27-bca249663443",
+          "sheet_name": "공급예정물량 구분(수도권)",
+          "sheet_index": 6,
+          "header_row_number": 4,
+          "column_count": 43,
+          "expected_rows": 189,
+          "actual_rows": 189,
+          "status": "통과",
+          "ok": true
+        },
+        {
+          "source_sheet_id": "a746a369-ed14-4ae4-a756-eb752501ae76",
+          "sheet_name": "공급예정물량 구분(지방)",
+          "sheet_index": 7,
+          "header_row_number": 4,
+          "column_count": 43,
+          "expected_rows": 78,
+          "actual_rows": 78,
+          "status": "통과",
+          "ok": true
+        },
+        {
+          "source_sheet_id": "290d45ce-ebdf-4dd5-8a66-6547794c59fb",
+          "sheet_name": "매매통계",
+          "sheet_index": 8,
+          "header_row_number": 4,
+          "column_count": 37,
+          "expected_rows": 230,
+          "actual_rows": 230,
+          "status": "통과",
+          "ok": true
+        },
+        {
+          "source_sheet_id": "a80d55ea-17a4-4625-8285-13691fc05080",
+          "sheet_name": "매매사례",
+          "sheet_index": 9,
+          "header_row_number": 3,
+          "column_count": 103,
+          "expected_rows": 541,
+          "actual_rows": 541,
+          "status": "통과",
+          "ok": true
+        }
+      ],
+      "sheet_readback_ok": true,
+      "chapter_checks": {
+        "lease_market_statistics_rows": {
+          "source_sheet_id": "c635181d-d3ef-47d7-86d6-5f28f4b2a562",
+          "sheet_name": "임대시장 통계",
+          "sheet_index": 1,
+          "header_row_number": 6,
+          "column_count": 294,
+          "expected_rows": 90,
+          "actual_rows": 90,
+          "status": "통과",
+          "ok": true
+        },
+        "new_supply_normalized_rows": 9,
+        "pipeline_supply_normalized_rows": 267,
+        "transaction_statistics_rows": {
+          "source_sheet_id": "290d45ce-ebdf-4dd5-8a66-6547794c59fb",
+          "sheet_name": "매매통계",
+          "sheet_index": 8,
+          "header_row_number": 4,
+          "column_count": 37,
+          "expected_rows": 230,
+          "actual_rows": 230,
+          "status": "통과",
+          "ok": true
+        },
+        "transaction_cases_normalized_rows": 541,
+        "cap_rate_series_rows": 90
+      }
+    }
+  }
+}

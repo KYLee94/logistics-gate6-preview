@@ -3886,8 +3886,189 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       value: row.area_py ? row.weighted_sum / row.area_py : (row.count ? row.value_sum / row.count : null),
     })).sort((a, b) => Number(b.area_py || 0) - Number(a.area_py || 0));
   };
+  const aggregateSum = (rows: Record<string, unknown>[], key: string, valueField: string, fallback = '미정') => {
+    const grouped = new Map<string, { label: string; count: number; value: number }>();
+    rows.forEach((row) => {
+      const label = safeText(row[key]) || fallback;
+      const current = grouped.get(label) || { label, count: 0, value: 0 };
+      current.count += 1;
+      current.value += Number(row[valueField] || 0);
+      grouped.set(label, current);
+    });
+    return [...grouped.values()].sort((a, b) => String(a.label).localeCompare(String(b.label), 'ko'));
+  };
+  const fillRate = (rows: Record<string, unknown>[], fields: string[]) => {
+    if (!rows.length) return 0;
+    const filled = rows.filter((row) => fields.some((field) => {
+      const value = row[field];
+      return value !== null && value !== undefined && safeText(value) !== '' && Number(value) !== 0;
+    })).length;
+    return Math.round((filled / rows.length) * 1000) / 10;
+  };
+  const periodForSupply = (row: Record<string, unknown>) => {
+    const year = safeText(row.expected_year || row.completion_year);
+    const quarter = safeText(row.expected_quarter || row.completion_quarter);
+    return year ? [year, quarter].filter(Boolean).join(' ') : '미정';
+  };
+  const publicMarketRow = (row: Record<string, unknown>, index: number, kind: string) => {
+    const {
+      payload: _payload,
+      source_file_id: _sourceFileId,
+      source_row_id: _sourceRowId,
+      observation_id: _observationId,
+      supply_case_id: _supplyCaseId,
+      transaction_case_id: _transactionCaseId,
+      cap_rate_id: _capRateId,
+      pnu: _pnu,
+      legal_dong_code: _legalDongCode,
+      ...rest
+    } = row;
+    return stripUndefined({ row_key: `${kind}-${index + 1}`, ...rest });
+  };
+  const regionAnchors: Record<string, [number, number]> = {
+    동남권: [58, 56],
+    남부권: [48, 64],
+    중앙권: [50, 48],
+    서부권: [40, 56],
+    서북권: [34, 42],
+    수도권기타권: [55, 43],
+    '수도권 기타권': [55, 43],
+    경남권: [70, 77],
+    충청권: [49, 69],
+    전라권: [35, 82],
+    경북권: [65, 67],
+    지방기타권: [54, 82],
+    '지방 기타권': [54, 82],
+  };
+  const marketPoint = (row: Record<string, unknown>, index: number, kind: string, labelField: string) => {
+    const region = safeText(firstDefined(row.region, row.capital_region, row.national_region, row.region_group), '미분류');
+    const label = safeText(firstDefined(row[labelField], row.center_name, row.asset_name, row.warehouse_name), '미입력');
+    const compactRegion = region.replace(/\s+/g, '');
+    const anchor = regionAnchors[region] || regionAnchors[compactRegion] || [45 + ((index * 7) % 30), 44 + ((index * 11) % 38)];
+    const jitterX = ((index % 7) - 3) * 1.4;
+    const jitterY = ((Math.floor(index / 7) % 7) - 3) * 1.3;
+    return stripUndefined({
+      row_key: `${kind}-point-${index + 1}`,
+      label,
+      kind,
+      region,
+      address: safeText(row.legal_address, ''),
+      x_percent: Math.max(8, Math.min(92, anchor[0] + jitterX)),
+      y_percent: Math.max(8, Math.min(90, anchor[1] + jitterY)),
+      latitude: row.latitude,
+      longitude: row.longitude,
+      source: row.latitude && row.longitude ? 'coordinates' : 'region-fallback',
+    });
+  };
+  const publicLeases = leases.map((row, index) => publicMarketRow(row, index, 'lease'));
+  const publicSupply = supply.map((row, index) => publicMarketRow({ ...row, completion_period: periodForSupply(row) }, index, 'supply'));
+  const publicTransactions = transactions.map((row, index) => publicMarketRow(row, index, 'transaction'));
+  const publicCapRates = capRates.map((row, index) => publicMarketRow(row, index, 'cap_rate'));
+  const latestLeasePublicRows = publicLeases.filter((row) => !latestLeasePeriod || safeText(row.report_period) === latestLeasePeriod);
+  const transactionYearSeries = aggregateSum(publicTransactions, 'transaction_year', 'transaction_amount_krw').filter((row) => row.label !== '미정');
+  const supplyPeriodSeries = aggregateSum(publicSupply.map((row) => ({ ...row, period_bucket: periodForSupply(row) })), 'period_bucket', 'gross_area_py');
+  const marketViews = {
+    overview: {
+      kpis: {
+        lease_observations: leaseCount,
+        weighted_rent_manwon_per_py: weightedRent,
+        weighted_vacancy_rate: weightedVacancy,
+        supply_cases: supplyCount,
+        pipeline_supply_cases: pipelineSupplyCount,
+        new_supply_total_gross_area_py: Math.round(newSupplyTotalGrossAreaPy * 10) / 10,
+        transaction_cases: transactionCount,
+        latest_cap_rate: latestCapRate,
+      },
+      charts: {
+        lease_rent_by_region: aggregateArea(latestLeases, 'region', 'rent_manwon_per_py', 'leasable_area_py'),
+        lease_vacancy_by_region: aggregateArea(latestLeases, 'region', 'vacancy_rate', 'leasable_area_py'),
+        supply_by_period: supplyPeriodSeries,
+        transactions_by_year: transactionYearSeries,
+        cap_rate_series: publicCapRates,
+      },
+    },
+    lease: {
+      latest_period: latestLeasePeriod,
+      regions: [...new Set(publicLeases.map((row) => safeText(row.region)).filter(Boolean))],
+      temperature_types: [...new Set(publicLeases.map((row) => safeText(row.temperature_type)).filter(Boolean))],
+      latest_rows: latestLeasePublicRows,
+      all_rows: publicLeases,
+      map_points: latestLeasePublicRows.map((row, index) => marketPoint(row, index, 'lease', 'center_name')),
+      charts: {
+        rent_by_region: aggregateArea(latestLeases, 'region', 'rent_manwon_per_py', 'leasable_area_py'),
+        vacancy_by_region: aggregateArea(latestLeases, 'region', 'vacancy_rate', 'leasable_area_py'),
+        rent_by_temperature: aggregateArea(latestLeases, 'temperature_type', 'rent_manwon_per_py', 'leasable_area_py'),
+      },
+    },
+    supply: {
+      rows: publicSupply,
+      new_supply_rows: publicSupply.filter((row) => row.supply_kind === 'new_supply'),
+      pipeline_rows: publicSupply.filter((row) => row.supply_kind === 'pipeline'),
+      cumulative_new_rows: publicSupply.filter((row) => row.supply_kind === 'new_supply' && Number(row.expected_year || row.completion_year || 0) >= 2024),
+      map_points: publicSupply.map((row, index) => marketPoint(row, index, 'supply', 'center_name')),
+      charts: {
+        supply_by_period: supplyPeriodSeries,
+        supply_by_region: aggregateSum(publicSupply, 'region', 'gross_area_py'),
+        supply_by_status: aggregateSum(publicSupply, 'status', 'gross_area_py', '미정'),
+      },
+    },
+    transactions: {
+      rows: publicTransactions,
+      map_points: publicTransactions.map((row, index) => marketPoint(row, index, 'transaction', 'asset_name')),
+      regions: [...new Set(publicTransactions.map((row) => safeText(row.region)).filter(Boolean))],
+      temperature_types: [...new Set(publicTransactions.map((row) => safeText(row.temperature_type)).filter(Boolean))],
+      transaction_types: [...new Set(publicTransactions.map((row) => safeText(firstDefined(row.transaction_type, row.deal_type))).filter(Boolean))],
+      charts: {
+        amount_by_year: transactionYearSeries,
+        amount_by_region: aggregateSum(publicTransactions, 'region', 'transaction_amount_krw'),
+        unit_price_by_region: aggregateArea(publicTransactions, 'region', 'unit_price_krw_per_py', 'area_py'),
+        unit_price_by_size: aggregateArea(publicTransactions, 'size_bucket', 'unit_price_krw_per_py', 'area_py'),
+        cap_rate_series: publicCapRates,
+      },
+    },
+    source: {
+      sources: sources.map((row) => ({
+        source_domain: row.source_domain,
+        source_version: row.source_version,
+        file_name: row.file_name,
+        active_version: row.active_version,
+        parse_status: row.parse_status,
+        report_period: row.report_period,
+        as_of_date: row.as_of_date,
+        row_counts: row.row_counts,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      })),
+      sheet_readback: sheetReadback,
+      chapter_checks: {
+        lease_market_statistics_rows: sheetReadback.find((row) => safeText(row.sheet_name).includes('임대') && safeText(row.sheet_name).includes('통계')) || null,
+        lease_market_current_rows: sheetReadback.find((row) => safeText(row.sheet_name).includes('임대') && safeText(row.sheet_name).includes('현황')) || null,
+        supply_market_statistics_rows: sheetReadback.find((row) => safeText(row.sheet_name).includes('공급') && safeText(row.sheet_name).includes('통계')) || null,
+        new_supply_normalized_rows: newSupplyCount,
+        pipeline_supply_normalized_rows: pipelineSupplyCount,
+        transaction_statistics_rows: sheetReadback.find((row) => safeText(row.sheet_name).includes('매매') && safeText(row.sheet_name).includes('통계')) || null,
+        transaction_cases_normalized_rows: transactionCount,
+        cap_rate_series_rows: capRateSeriesCount,
+      },
+    },
+  };
+  const dataQuality = {
+    lease_area_fill_rate: fillRate(latestLeases, ['gross_area_py', 'leasable_area_py']),
+    lease_rent_fill_rate: fillRate(latestLeases, ['rent_manwon_per_py']),
+    transaction_area_fill_rate: fillRate(transactions, ['gross_area_py', 'building_area_py', 'land_area_py', 'area_py']),
+    transaction_unit_price_fill_rate: fillRate(publicTransactions, ['unit_price_krw_per_py', 'unit_price_thousand_krw_per_py']),
+    supply_area_fill_rate: fillRate(supply, ['gross_area_py']),
+    supply_expected_period_fill_rate: fillRate(supply.filter((row) => row.supply_kind === 'pipeline'), ['expected_year', 'completion_year']),
+  };
+  const marketDataReady = readbackOk
+    && sheetReadback.every((row) => row.ok)
+    && dataQuality.lease_area_fill_rate >= 95
+    && dataQuality.lease_rent_fill_rate >= 50
+    && dataQuality.transaction_area_fill_rate >= 95
+    && dataQuality.transaction_unit_price_fill_rate >= 95
+    && dataQuality.supply_area_fill_rate >= 95;
   const summary = {
-    status: readbackOk ? 'ready' : 'readback_mismatch',
+    status: marketDataReady ? 'ready' : 'readback_mismatch',
     source: activeSource,
     latest_lease_period: latestLeasePeriod,
     lease_observation_count: leaseCount,
@@ -3905,6 +4086,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     expected_counts: expectedCounts,
     check_values: checkValues,
     readback,
+    data_quality: dataQuality,
     sample_limit: sampleLimit,
     sample_counts: {
       leases: leases.length,
@@ -3930,18 +4112,19 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   };
   return jsonResponse({ ok: true, data: {
     summary,
-    leases,
-    supply,
-    transactions,
-    cap_rates: capRates,
+    leases: publicLeases,
+    supply: publicSupply,
+    transactions: publicTransactions,
+    cap_rates: publicCapRates,
     sources,
     charts: {
-      lease_rent_by_region: aggregateArea(latestLeases, 'region', 'rent_manwon_per_py', 'leasable_area_py'),
-      lease_vacancy_by_region: aggregateArea(latestLeases, 'region', 'vacancy_rate', 'leasable_area_py'),
-      lease_rent_by_temperature: aggregateArea(latestLeases, 'temperature_type', 'rent_manwon_per_py', 'leasable_area_py'),
-      supply_by_period: aggregateArea(supply, 'completion_period', 'gross_area_py', 'gross_area_py'),
-      transactions_by_region: aggregateArea(transactions, 'region', 'transaction_amount_krw', 'area_py'),
+      lease_rent_by_region: marketViews.overview.charts.lease_rent_by_region,
+      lease_vacancy_by_region: marketViews.overview.charts.lease_vacancy_by_region,
+      lease_rent_by_temperature: marketViews.lease.charts.rent_by_temperature,
+      supply_by_period: marketViews.overview.charts.supply_by_period,
+      transactions_by_region: marketViews.transactions.charts.amount_by_region,
     },
+    views: marketViews,
   } }, 200, ctx.origin);
 }
 
@@ -4232,23 +4415,49 @@ async function callOperatingCostsRead(ctx: Context, _payload: Record<string, unk
 async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const rowLimit = Math.min(Math.max(Number(payload.row_limit || 120), 20), 300);
   const [sourcesResult, sheetsResult, columnsResult, rowsResult, editsResult] = await Promise.all([
     ctx.serviceClient.from('ll_source_files').select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at').order('created_at', { ascending: false }).limit(80),
     ctx.serviceClient.from('ll_source_sheets').select('source_sheet_id,source_file_id,sheet_name,sheet_index,header_row_number,row_count,column_count').limit(240),
     managerView
       ? ctx.serviceClient.from('ll_source_columns').select('source_column_id,source_sheet_id,column_index,column_letter,header_label,normalized_header,value_type,unit_label,target_table,target_field,edit_group,is_required,is_user_editable').limit(800)
       : Promise.resolve({ data: [], error: null }),
-    managerView
-      ? ctx.serviceClient.from('ll_source_rows').select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,row_hash,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.row_limit || 120), 20), 300))
-      : Promise.resolve({ data: [], error: null }),
+    ctx.serviceClient.from('ll_source_rows').select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,row_hash,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at').order('created_at', { ascending: false }).limit(rowLimit),
     ctx.serviceClient.from('ll_edit_requests').select('id,source_table,target_type,target_name,target_row_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,write_status,write_error,write_result,requested_by,approved_by,approved_at,rejected_by,rejected_at,created_at,updated_at,written_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.limit || 60), 10), 120)),
   ]);
   const hardError = [sourcesResult, sheetsResult, columnsResult, rowsResult, editsResult].find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return fail(500, 'Failed to read data management status', ctx.origin, { error: hardError.error.message });
   const sources = (sourcesResult.data || []) as Record<string, unknown>[];
   const sheets = (sheetsResult.data || []) as Record<string, unknown>[];
-  const sourceRows = (rowsResult.data || []) as Record<string, unknown>[];
-  const edits = (editsResult.data || []) as Record<string, unknown>[];
+  const rawSourceRows = (rowsResult.data || []) as Record<string, unknown>[];
+  const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
+  const sourceRows = managerView ? rawSourceRows : rawSourceRows.filter((row) => {
+    if (!managedRefs.length) return false;
+    const haystack = normalizeKey([
+      row.natural_key,
+      row.sheet_name,
+      JSON.stringify(row.row_values || {}),
+      JSON.stringify(row.normalized_values || {}),
+    ].join(' '));
+    return managedRefs.some((ref) => ref && haystack.includes(ref));
+  });
+  const rawEdits = (editsResult.data || []) as Record<string, unknown>[];
+  const canSeeEdit = (row: Record<string, unknown>) => {
+    if (managerView) return true;
+    if (row.requested_by === ctx.user.id) return true;
+    if (!managedRefs.length) return false;
+    const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload as Record<string, unknown> : {};
+    const haystack = normalizeKey([
+      row.target_name,
+      row.target_type,
+      row.field_name,
+      row.before_value,
+      row.requested_value,
+      JSON.stringify(payload),
+    ].join(' '));
+    return managedRefs.some((ref) => ref && haystack.includes(ref));
+  };
+  const edits = rawEdits.filter(canSeeEdit);
   const sourceDomainKeys = ['lease_contracts', 'fund_info', 'sector_market', 'permissions', 'asset_specs', 'operating_costs'];
   const domainStats = sources.reduce((acc: Record<string, Record<string, unknown>>, row) => {
     const domain = safeText(row.source_domain) || 'unknown';
@@ -4305,9 +4514,38 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     if (updatedAt && (!current.latest_edit_at || updatedAt > safeText(current.latest_edit_at))) current.latest_edit_at = updatedAt;
     domainStats[domain] = current;
   });
-  const editHistory = edits.map((row) => stripUndefined({
-    ...row,
+  const editHistory = edits.map((row) => {
+    const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload as Record<string, unknown> : {};
+    return stripUndefined({
+    request_id: row.id,
     source_domain: domainFromEdit(row),
+    target_type: row.target_type,
+    target_name: row.target_name,
+    field_name: row.field_name,
+    reason_code: row.reason_code,
+    before_value: row.before_value,
+    requested_value: row.requested_value,
+    readback_value: row.readback_value,
+    status: row.status,
+    write_status: row.write_status,
+    write_error: row.write_error,
+    write_result: redactSensitivePayload(row.write_result),
+    request_payload: {
+      source_domain: payload.source_domain,
+      sheet_name: payload.sheet_name,
+      row_number: payload.row_number,
+      impact_summary: payload.impact_summary,
+      reason: payload.reason,
+      auto_write_enabled: payload.auto_write_enabled,
+      submit_readbacks: payload.submit_readbacks,
+    },
+    requester_label: row.requested_by === ctx.user.id ? '내 요청' : '요청자',
+    approver_label: row.approved_by ? '승인자' : '',
+    approved_at: row.approved_at,
+    rejected_at: row.rejected_at,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    written_at: row.written_at,
     before_after_diff: {
       before: row.before_value,
       after: row.requested_value,
@@ -4315,9 +4553,12 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
       changed: !valuesEqual(row.before_value, row.requested_value),
       readback_matches: row.readback_value ? valuesEqual(row.readback_value, row.requested_value) : null,
     },
-  }));
+  });
+  });
   return jsonResponse({ ok: true, data: {
     access_scope: managerView ? 'manager_full_source' : 'asset_limited',
+    can_approve: managerView,
+    managed_asset_codes: managerView ? ['ALL'] : managedAssetCodes(ctx.permission),
     sources,
     sheets,
     columns: columnsResult.data || [],
@@ -4325,6 +4566,136 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     domain_stats: Object.values(domainStats),
     edit_requests: editHistory,
     generated_at: new Date().toISOString(),
+  } }, 200, ctx.origin);
+}
+
+async function callDataManagementPreviewEdit(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'data-management/preview-edit', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const sourceRowId = safeText(payload.source_row_id || payload.sourceRowId || payload.target_row_id || payload.targetRowId);
+  const fieldName = safeText(payload.field_name || payload.fieldName);
+  const requestedValue = firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  if (!sourceRowId || !fieldName) return fail(400, 'source_row_id and field_name are required', ctx.origin);
+  const { data: sourceRow, error: sourceError } = await ctx.serviceClient
+    .from('ll_source_rows')
+    .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values,validation_flags,source_locator')
+    .eq('source_row_id', sourceRowId)
+    .maybeSingle();
+  if (sourceError && !isMissingRelationError(sourceError)) return fail(500, 'Failed to read source row', ctx.origin, { error: sourceError.message });
+  if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
+
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  if (!managerView) {
+    const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
+    const haystack = normalizeKey([
+      sourceRow.natural_key,
+      sourceRow.sheet_name,
+      JSON.stringify(sourceRow.row_values || {}),
+      JSON.stringify(sourceRow.normalized_values || {}),
+    ].join(' '));
+    if (!managedRefs.length || !managedRefs.some((ref) => ref && haystack.includes(ref))) {
+      return fail(403, 'Source row is outside the assigned asset scope', ctx.origin);
+    }
+  }
+
+  const rowValues = sourceRow.row_values && typeof sourceRow.row_values === 'object' ? sourceRow.row_values as Record<string, unknown> : {};
+  const beforeValue = firstDefined(payload.before_value, payload.beforeValue, rowValues[fieldName]);
+  let targetTable = safeText(payload.target_table || payload.targetTable);
+  let targetField = safeText(payload.target_field || payload.targetField);
+  let targetRowId = safeText(payload.target_record_id || payload.targetRecordId || payload.resolved_target_row_id || payload.resolvedTargetRowId);
+  let primaryKeyField = safeText(payload.primary_key_field || payload.primaryKeyField || 'id');
+  let sourceColumn: Record<string, unknown> | null = null;
+  if (!targetTable || !targetField) {
+    const { data: columns } = await ctx.serviceClient
+      .from('ll_source_columns')
+      .select('source_column_id,header_label,normalized_header,target_table,target_field,is_required,is_user_editable,value_type,unit_label')
+      .eq('source_sheet_id', sourceRow.source_sheet_id)
+      .limit(500);
+    sourceColumn = ((columns || []) as Record<string, unknown>[]).find((column) => (
+      safeText(column.normalized_header) === fieldName || safeText(column.header_label) === fieldName
+    )) || null;
+    targetTable = targetTable || safeText(sourceColumn?.target_table);
+    targetField = targetField || safeText(sourceColumn?.target_field);
+  }
+  const normalizedTargetTable = targetTable ? normalizePublicLlTable(targetTable) : '';
+  const autoWriteEnabled = Boolean(normalizedTargetTable && EDIT_TARGET_TABLE_ALLOWLIST.has(normalizedTargetTable) && targetField && targetRowId);
+  const validations: Record<string, unknown>[] = [];
+  if (valuesEqual(beforeValue, requestedValue)) {
+    validations.push({ level: 'error', code: 'no_change', message: '변경 전후 값이 같습니다.' });
+  }
+  if (safeText(sourceColumn?.is_required) === 'true' && safeText(requestedValue) === '') {
+    validations.push({ level: 'error', code: 'required_blank', message: '필수값은 비울 수 없습니다.' });
+  }
+  let targetReadback: Record<string, unknown> | null = null;
+  if (autoWriteEnabled) {
+    const cell = {
+      targetTable: normalizedTargetTable,
+      primaryKeyField,
+      targetRowId,
+      targetCellId: '',
+      sourceRowId,
+      sourceCellId: '',
+      fieldName: targetField,
+      operation: '수정',
+      beforeValue,
+      afterValue: requestedValue,
+      assetId: safeText(payload.asset_id || payload.assetId),
+      assetName: safeText(payload.asset_name || payload.assetName),
+      leaseSpaceId: '',
+      leaseId: '',
+      tenantId: '',
+      sourceOnly: false,
+      sourceSheet: safeText(sourceRow.sheet_name),
+      sourceColumnLetter: '',
+      sourceHeader: fieldName,
+    };
+    const validationError = validateEditCell(ctx, cell);
+    if (validationError) {
+      validations.push({ level: 'error', code: 'target_validation_failed', message: validationError });
+    } else {
+      try {
+        const currentValue = await readTargetCell(ctx, cell);
+        targetReadback = {
+          target_table: normalizedTargetTable,
+          target_row_id: targetRowId,
+          field_name: targetField,
+          current_value: currentValue,
+          stale: !valuesEqual(currentValue, beforeValue),
+        };
+        if (targetReadback.stale) {
+          validations.push({ level: 'warning', code: 'stale_current_value', message: '현재 DB값이 원천의 변경 전 값과 다릅니다. 승인 전 확인이 필요합니다.' });
+        }
+      } catch (error) {
+        validations.push({ level: 'error', code: 'target_readback_failed', message: error instanceof Error ? error.message : 'Target readback failed' });
+      }
+    }
+  } else {
+    validations.push({ level: 'info', code: 'source_request_only', message: '자동 반영 대상 매핑이 없어 승인 요청으로만 저장됩니다.' });
+  }
+
+  const canSubmit = !validations.some((item) => item.level === 'error');
+  return jsonResponse({ ok: true, data: {
+    source_row: {
+      sheet_name: sourceRow.sheet_name,
+      row_number: sourceRow.row_number,
+      natural_key: sourceRow.natural_key,
+    },
+    diff: {
+      field_name: fieldName,
+      before_value: beforeValue,
+      requested_value: requestedValue,
+      changed: !valuesEqual(beforeValue, requestedValue),
+    },
+    auto_write_enabled: autoWriteEnabled,
+    target: autoWriteEnabled ? {
+      target_table: normalizedTargetTable,
+      primary_key_field: primaryKeyField,
+      target_row_id: targetRowId,
+      target_field: targetField,
+      readback: targetReadback,
+    } : null,
+    validations,
+    can_submit: canSubmit,
   } }, 200, ctx.origin);
 }
 
@@ -4340,6 +4711,50 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
   if (!requestedValue || beforeValue === requestedValue) return fail(400, 'A changed requested value is required', ctx.origin);
   const sourceTable = safeText(payload.source_table || payload.sourceTable || 'public.ll_source_rows');
   if (!sourceTable.startsWith('public.ll_')) return fail(403, 'Source table is not allowed', ctx.origin);
+  const requestedTargetTable = safeText(payload.target_table || payload.targetTable);
+  const normalizedTargetTable = requestedTargetTable ? normalizePublicLlTable(requestedTargetTable) : '';
+  const targetField = safeText(payload.target_field || payload.targetField || fieldName);
+  const targetRecordId = safeText(payload.target_record_id || payload.targetRecordId || payload.resolved_target_row_id || payload.resolvedTargetRowId);
+  const primaryKeyField = safeText(payload.primary_key_field || payload.primaryKeyField || 'id');
+  const autoWriteEnabled = Boolean(normalizedTargetTable && EDIT_TARGET_TABLE_ALLOWLIST.has(normalizedTargetTable) && targetField && targetRecordId);
+  const cellEdits = autoWriteEnabled ? [{
+    target_table: normalizedTargetTable,
+    primary_key_field: primaryKeyField,
+    target_row_id: targetRecordId,
+    field_name: targetField,
+    before_value: beforeValue,
+    after_value: requestedValue,
+    asset_id: payload.asset_id || payload.assetId || null,
+    asset_name: payload.asset_name || payload.assetName || null,
+    source_row_id: targetRowId,
+    source_sheet: payload.sheet_name || payload.sheetName || null,
+    source_header: fieldName,
+  }] : [];
+  const submitReadbacks: Record<string, unknown>[] = [];
+  for (const rawCell of cellEdits) {
+    const cells = normalizeEditCells({
+      source_table: normalizedTargetTable,
+      target_row_id: targetRecordId,
+      field_name: targetField,
+      before_value: beforeValue,
+      requested_value: requestedValue,
+      request_payload: { cell_edits: [rawCell] },
+    });
+    const validationError = cells.map((cell) => validateEditCell(ctx, cell)).find(Boolean);
+    if (validationError) return fail(400, validationError, ctx.origin);
+    for (const cell of cells) {
+      const row = await readTargetRow(ctx.serviceClient, cell);
+      if (!await assertTargetRowPermission(ctx, row, cell)) return fail(403, 'Insufficient asset write permission for target row', ctx.origin);
+      assertRowTemporalWriteAllowed(cell, row);
+      submitReadbacks.push({
+        target_table: cell.targetTable,
+        target_row_id: cell.targetRowId,
+        field_name: cell.fieldName,
+        submit_readback_value: row[cell.fieldName],
+        stale_at_submit: !valuesEqual(row[cell.fieldName], cell.beforeValue),
+      });
+    }
+  }
   const requestPayload = redactSensitivePayload({
     kind: 'data_management_edit_request',
     source_domain: payload.source_domain || payload.sourceDomain || null,
@@ -4349,22 +4764,25 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     after: payload.after || requestedValue,
     impact_summary: payload.impact_summary || payload.impactSummary || null,
     reason: payload.reason || null,
+    auto_write_enabled: autoWriteEnabled,
+    submit_readbacks: submitReadbacks,
+    cell_edits: cellEdits,
   }) as Record<string, unknown>;
   const { data, error } = await ctx.serviceClient
     .from('ll_edit_requests')
     .insert({
-      source_table: sourceTable,
+      source_table: autoWriteEnabled ? normalizedTargetTable : sourceTable,
       target_type: targetType,
       target_name: payload.target_name || payload.targetName || null,
-      target_row_id: targetRowId,
-      field_name: fieldName,
+      target_row_id: autoWriteEnabled ? targetRecordId : targetRowId,
+      field_name: autoWriteEnabled ? targetField : fieldName,
       reason_code: payload.reason_code || payload.reasonCode || 'data_management_update',
       before_value: beforeValue,
       requested_value: requestedValue,
       request_payload: requestPayload,
       requested_by: ctx.user.id,
       status: 'submitted',
-      write_status: 'approval_required',
+      write_status: autoWriteEnabled ? 'approval_required' : 'source_review_required',
     })
     .select('id,status,write_status,created_at')
     .single();
@@ -4374,7 +4792,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
 }
 
 const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v4-strict-24h-balanced';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v5-strict-window-balanced-market';
 const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NEWS_HOUR_MS = 60 * 60 * 1000;
 const NEWS_GOOGLE_RSS_URL = 'https://news.google.com/rss/search';
@@ -4404,6 +4822,11 @@ const NEWS_SEARCH_QUERIES = [
   'DHL 물류 OR DHL 물류센터',
   '로젠택배 물류 OR 로젠 물류센터',
   'GS리테일 물류 OR BGF 물류 OR 우체국 물류',
+  '"물류센터" "거래면적" OR "물류센터" "평당가" OR "물류센터" "매입"',
+  '"물류센터" "공급예정" OR "물류센터" "인허가" OR "물류센터" "착공"',
+  '"물류센터" "임대시장" OR "물류센터" "공실률" OR "물류센터" "렌트프리"',
+  '"물류센터" "캡레이트" OR "물류부동산" "투자" OR "물류부동산" "거래"',
+  '쿠팡 CJ대한통운 한진 컬리 롯데글로벌로지스 물류 배송 택배 투자 실적',
 ];
 const NEWS_LOGISTICS_CONTEXT_TERMS = ['물류센터', '물류 창고', '물류창고', '풀필먼트', 'fulfillment', '저온물류', '저온 물류', '상온물류', '택배', '배송', '3PL', '창고', '허브', '콜드체인', 'cold chain', '냉장', '냉동'];
 const NEWS_MARKET_DEAL_TERMS = ['매매', '거래', '선매입', '매각', '인수', '매수', '매도', '자산운용', '리츠', '펀드', '투자', '캡레이트', 'cap rate', 'PF'];
@@ -4433,6 +4856,7 @@ const NEWS_CATEGORY_TARGETS: Record<string, number> = {
 const NEWS_CATEGORY_ORDER = ['market_deal', 'lease_market', 'supply_development', 'major_company', 'other'];
 const NEWS_MAX_ITEMS_PER_COMPANY = 2;
 const NEWS_MAX_MAJOR_COMPANY_ONLY_ITEMS = 5;
+const NEWS_COMPANY_BUSINESS_TERMS = ['실적', '투자', '배송', '택배', '물류', '센터', '풀필먼트', '창고', '허브', '운송', '로봇', '자동화', '커머스', '신선', '새벽배송', 'parcel', 'delivery', 'logistics', 'fulfillment', 'robot', 'automation'];
 
 type NewsCollectorItem = {
   dedupe_key: string;
@@ -4557,7 +4981,8 @@ function newsScore(item: { title: string; summary: string }) {
   const hasMarketSignal = dealMatches.length || leaseMatches.length || reportMatches.length;
   const hasSupplySignal = supplyMatches.length;
   const companyLogisticsSignal = company && /물류|센터|창고|풀필먼트|허브|택배|배송|터미널|fulfillment/iu.test(combined);
-  if ((!hasLogisticsContext || (!hasMarketSignal && !hasSupplySignal)) && !companyLogisticsSignal) {
+  const companyBusinessSignal = company && newsMatchTerms(combined, NEWS_COMPANY_BUSINESS_TERMS).length > 0;
+  if ((!hasLogisticsContext || (!hasMarketSignal && !hasSupplySignal)) && !companyLogisticsSignal && !companyBusinessSignal) {
     return { score: 0, matched: [], category: 'noise', company: null };
   }
   let category = 'major_company';
@@ -4578,7 +5003,8 @@ function newsScore(item: { title: string; summary: string }) {
     + (leaseMatches.length * 3)
     + (supplyMatches.length * 1.5)
     + (reportMatches.length * 3)
-    + (company ? 2 : 0);
+    + (company ? 2 : 0)
+    + (companyBusinessSignal ? 1 : 0);
   return { score, matched, category, company };
 }
 
@@ -4664,7 +5090,7 @@ function newsWindowForDate(dateText: string) {
   const match = String(dateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/u);
   if (!match) throw new Error('date must look like YYYY-MM-DD');
   const windowEnd = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), -2, 0, 0));
-  const windowHours = 24;
+  const windowHours = new Date(windowEnd.getTime() + NEWS_KST_OFFSET_MS).getUTCDay() === 1 ? 72 : 24;
   const windowStart = new Date(windowEnd.getTime() - windowHours * NEWS_HOUR_MS);
   return { windowStart, windowEnd, windowHours };
 }
@@ -4686,6 +5112,17 @@ async function fetchGoogleNewsRows(query: string, days: number) {
   url.searchParams.set('gl', 'KR');
   url.searchParams.set('ceid', 'KR:ko');
   return newsParseRssItems(await fetchNewsRss(url), 'google_news_rss', query);
+}
+
+async function fetchGoogleNewsRowsForDateRange(query: string, windowStart: Date, windowEnd: Date) {
+  const startKey = windowStart.toISOString().slice(0, 10);
+  const endKey = new Date(windowEnd.getTime() + NEWS_HOUR_MS * 24).toISOString().slice(0, 10);
+  const url = new URL(NEWS_GOOGLE_RSS_URL);
+  url.searchParams.set('q', `${query} after:${startKey} before:${endKey}`);
+  url.searchParams.set('hl', 'ko');
+  url.searchParams.set('gl', 'KR');
+  url.searchParams.set('ceid', 'KR:ko');
+  return newsParseRssItems(await fetchNewsRss(url), 'google_news_rss_backfill', query);
 }
 
 async function fetchBingNewsRows(query: string) {
@@ -4755,6 +5192,63 @@ async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days
   };
 }
 
+async function collectNewsRowsForHistoricalWindow(windowStart: Date, windowEnd: Date) {
+  const seen = new Map<string, NewsCollectorItem>();
+  const sourceStats: Record<string, number> = {};
+  for (const query of NEWS_SEARCH_QUERIES) {
+    const rows = await fetchGoogleNewsRowsForDateRange(query, windowStart, windowEnd).catch(() => []);
+    for (const row of rows) {
+      sourceStats[String(row.source_name)] = (sourceStats[String(row.source_name)] || 0) + 1;
+      const publishedAt = new Date(row.pubDate);
+      if (Number.isNaN(publishedAt.getTime())) continue;
+      if (publishedAt < windowStart || publishedAt > windowEnd) continue;
+      const publisher = newsPublisher(row as Record<string, unknown>);
+      const title = newsCleanTitle(row.title, publisher);
+      const summary = newsStripHtml(row.description).slice(0, 500);
+      const canonical = newsCanonicalUrl(row.link);
+      const titleHash = await sha256Text(newsNormalizeTitle(title));
+      const urlHash = canonical ? await sha256Text(canonical) : '';
+      const dedupeKey = urlHash ? `url:${urlHash}` : `title:${titleHash}`;
+      const fallbackDedupeKey = `publisher-title-time:${await sha256Text(`${publisher}:${titleHash}:${publishedAt.toISOString().slice(0, 13)}`)}`;
+      const scored = newsScore({ title, summary });
+      if (scored.score < 2) continue;
+      const next: NewsCollectorItem = {
+        dedupe_key: dedupeKey,
+        canonical_url: canonical,
+        original_url: canonical,
+        title,
+        publisher,
+        published_at: publishedAt.toISOString(),
+        summary,
+        importance_score: scored.score,
+        matched_keywords: scored.matched,
+        source_name: safeText(row.source_name),
+        payload: {
+          query: row.query,
+          raw_pub_date: row.pubDate,
+          fallback_dedupe_key: fallbackDedupeKey,
+          category: scored.category,
+          company_key: scored.company?.key || '',
+          company_label: scored.company?.label || '',
+          restoration_mode: 'historical_rss_reconstruction',
+          restoration_note: '원본 10건 상세 artifact를 찾지 못해 2026-06-17 07:00 KST 직전 24시간 기준으로 재수집 기반 재구성했습니다.',
+        },
+      };
+      const current = seen.get(dedupeKey) || seen.get(fallbackDedupeKey);
+      if (!current || Number(next.importance_score) > Number(current.importance_score)) {
+        seen.set(dedupeKey, next);
+        seen.set(fallbackDedupeKey, next);
+      }
+    }
+  }
+  const candidates = [...new Map([...seen.values()].map((item) => [item.dedupe_key, item])).values()];
+  return {
+    items: newsSelectBalancedItems(candidates, 10),
+    sourceStats,
+    candidateCount: candidates.length,
+  };
+}
+
 async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10) {
   const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(dateText) ? dateText : newsTodayKstDateKey();
   const strictWindow = newsWindowForDate(selectedDate);
@@ -4780,7 +5274,7 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
         strict_window_end: strictWindow.windowEnd.toISOString(),
         strict_item_count: strictItemCount,
         expanded_to_recent_7d: false,
-        strict_24h_window: true,
+        strict_24h_window: strictWindow.windowHours === 24,
         candidate_count: collected.candidateCount || collected.items.length,
         selection_policy: {
           limit: 10,
@@ -4799,10 +5293,9 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
     .single();
   if (runError || !runRow) throw new Error(runError?.message || 'Failed to upsert news run');
   const newsRunId = safeText((runRow as Record<string, unknown>).news_run_id);
-  if (newsRunId) await ctx.serviceClient.from('ll_news_items').delete().eq('news_run_id', newsRunId);
   const itemRows = collected.items.slice(0, Math.max(limit, 10)).map((item) => ({ news_run_id: newsRunId, ...item }));
   if (itemRows.length) {
-    const { error: itemError } = await ctx.serviceClient.from('ll_news_items').insert(itemRows);
+    const { error: itemError } = await ctx.serviceClient.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
     if (itemError) throw new Error(itemError.message);
   }
   return { run: runRow, item_count: itemRows.length };
@@ -4823,7 +5316,12 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   if (runResult.error && !isMissingRelationError(runResult.error)) return fail(500, 'Failed to read logistics news run', ctx.origin, { error: runResult.error.message });
   let latestRun = runResult.data || null;
   const runSummary = (latestRun as Record<string, unknown> | null)?.source_summary as Record<string, unknown> | undefined;
-  if (hasDateFilter && (!latestRun || safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION || payload.refresh === true || payload.force_refresh === true)) {
+  const todayKey = newsTodayKstDateKey();
+  const isMostRecentDate = !hasDateFilter || selectedDate === todayKey;
+  const requestedRefresh = payload.refresh === true || payload.force_refresh === true || payload.forceRefresh === true;
+  const shouldCollectMissingRun = hasDateFilter && !latestRun;
+  const shouldRefreshMostRecentRun = hasDateFilter && isMostRecentDate && (safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION || requestedRefresh);
+  if (shouldCollectMissingRun || shouldRefreshMostRecentRun) {
     try {
       const refreshed = await collectAndStoreNewsRun(ctx, selectedDate, limit);
       latestRun = refreshed.run;
@@ -4846,21 +5344,113 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
     .from('ll_news_items')
     .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,created_at')
     .order('published_at', { ascending: false, nullsFirst: false })
-    .limit(limit);
+    .limit(Math.min(Math.max(limit * 3, limit), 30));
   if (latestRun?.news_run_id) itemQuery = itemQuery.eq('news_run_id', latestRun.news_run_id);
   const { data, error } = await itemQuery;
   if (error) {
     if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
     return fail(500, 'Failed to read logistics news', ctx.origin, { error: error.message });
   }
+  const visibleItems = newsRemoveNearDuplicateStories((data || []) as NewsCollectorItem[]).slice(0, limit);
   return jsonResponse({ ok: true, data: {
     status: latestRun ? safeText((latestRun as Record<string, unknown>).run_status || 'completed') : 'no_run',
     selected_date: hasDateFilter ? selectedDate : safeText((latestRun as Record<string, unknown> | null)?.run_key).match(/daily-news:(\d{4}-\d{2}-\d{2}):0700KST/u)?.[1] || '',
     latest_run: latestRun,
-    items: data || [],
-    item_count: (data || []).length,
+    items: visibleItems,
+    item_count: visibleItems.length,
     empty_message: NEWS_EMPTY_MESSAGE,
     generated_at: new Date().toISOString(),
+  } }, 200, ctx.origin);
+}
+
+async function callNewsRestore20260617(ctx: Context) {
+  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'news/restore-20260617', 6, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const targetDate = '2026-06-17';
+  const runKey = `daily-news:${targetDate}:0700KST`;
+  const { data: runRow, error: runError } = await ctx.serviceClient
+    .from('ll_news_runs')
+    .select('news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at')
+    .eq('run_key', runKey)
+    .maybeSingle();
+  if (runError) return fail(500, 'Failed to read logistics news run', ctx.origin, { error: runError.message });
+  if (!runRow?.news_run_id) return fail(404, 'Target logistics news run not found', ctx.origin, { run_key: runKey });
+
+  const beforeResult = await ctx.serviceClient
+    .from('ll_news_items')
+    .select('dedupe_key,title,publisher,published_at,canonical_url')
+    .eq('news_run_id', runRow.news_run_id)
+    .order('published_at', { ascending: false, nullsFirst: false });
+  if (beforeResult.error) return fail(500, 'Failed to read logistics news items', ctx.origin, { error: beforeResult.error.message });
+
+  const strictWindow = newsWindowForDate(targetDate);
+  const collected = await collectNewsRowsForHistoricalWindow(strictWindow.windowStart, strictWindow.windowEnd);
+  const itemRows = collected.items.slice(0, 10).map((item) => ({
+    news_run_id: runRow.news_run_id,
+    ...item,
+    payload: {
+      ...item.payload,
+      restoration_run_key: runKey,
+      restoration_generated_at: new Date().toISOString(),
+    },
+  }));
+  if (itemRows.length < 8) {
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'news/restore-20260617/insufficient_candidates', 409, {
+      run_key: runKey,
+      before_count: beforeResult.data?.length || 0,
+      candidate_count: collected.candidateCount,
+      selected_count: itemRows.length,
+      source_stats: collected.sourceStats,
+    });
+    return jsonResponse({ ok: false, message: 'Insufficient reconstruction candidates', data: {
+      run_key: runKey,
+      news_run_id: runRow.news_run_id,
+      completed_at: runRow.completed_at,
+      before_count: beforeResult.data?.length || 0,
+      candidate_count: collected.candidateCount,
+      selected_count: itemRows.length,
+      source_stats: collected.sourceStats,
+      note: '원본 10건 상세 artifact를 찾지 못했고, 재구성 후보도 8건 미만입니다.',
+    } }, 409, ctx.origin);
+  }
+
+  const { error: itemError } = await ctx.serviceClient
+    .from('ll_news_items')
+    .upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
+  if (itemError) return fail(500, 'Failed to restore logistics news items', ctx.origin, { error: itemError.message });
+
+  const afterResult = await ctx.serviceClient
+    .from('ll_news_items')
+    .select('dedupe_key,title,publisher,published_at,canonical_url')
+    .eq('news_run_id', runRow.news_run_id)
+    .order('published_at', { ascending: false, nullsFirst: false });
+  if (afterResult.error) return fail(500, 'Failed to read restored logistics news items', ctx.origin, { error: afterResult.error.message });
+
+  const beforeKeys = new Set((beforeResult.data || []).map((item) => safeText((item as Record<string, unknown>).dedupe_key)).filter(Boolean));
+  await audit(ctx.serviceClient, ctx.user.id, 'news/restore-20260617', 200, {
+    run_key: runKey,
+    news_run_id: runRow.news_run_id,
+    completed_at: runRow.completed_at,
+    before_count: beforeResult.data?.length || 0,
+    after_count: afterResult.data?.length || 0,
+    inserted_or_updated: itemRows.length,
+  });
+  return jsonResponse({ ok: true, data: {
+    run_key: runKey,
+    news_run_id: runRow.news_run_id,
+    completed_at: runRow.completed_at,
+    before_count: beforeResult.data?.length || 0,
+    after_count: afterResult.data?.length || 0,
+    inserted_or_updated: itemRows.length,
+    preserved_existing_keys: [...beforeKeys],
+    restored_items: (afterResult.data || []).map((item) => ({
+      dedupe_key: safeText((item as Record<string, unknown>).dedupe_key),
+      title: safeText((item as Record<string, unknown>).title),
+      publisher: safeText((item as Record<string, unknown>).publisher),
+      published_at: safeText((item as Record<string, unknown>).published_at),
+      canonical_url: safeText((item as Record<string, unknown>).canonical_url),
+    })),
+    note: '원본 10건 상세 artifact를 찾지 못해 2026-06-17 07:00 KST 직전 24시간 기준으로 재수집 기반 재구성했습니다.',
   } }, 200, ctx.origin);
 }
 
@@ -15382,8 +15972,10 @@ Deno.serve(async (request) => {
   if (action === 'asset-spec/read') return callAssetSpecRead(ctx, payload);
   if (action === 'operating-costs/read') return callOperatingCostsRead(ctx, payload);
   if (action === 'data-management/status') return callDataManagementStatus(ctx, payload);
+  if (action === 'data-management/preview-edit') return callDataManagementPreviewEdit(ctx, payload);
   if (action === 'data-management/submit-edit') return callDataManagementSubmitEdit(ctx, payload);
   if (action === 'news/list') return callNewsList(ctx, payload);
+  if (action === 'news/restore-20260617') return callNewsRestore20260617(ctx);
   if (action === 'lease-events/list') return listLeaseEvents(ctx, payload);
   if (action === 'lease-events/preview') return previewLeaseEvent(ctx, payload);
   if (action === 'lease-events/submit') return submitLeaseEvent(ctx, payload);

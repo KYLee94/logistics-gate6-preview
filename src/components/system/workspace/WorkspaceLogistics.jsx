@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
+import { invokeDashboardApi } from '../../../utils/supabaseSession';
 import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -273,6 +274,11 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
     : (cachedForCurrentRequest
       ? { cacheKey, status: 'primary', payload: cachedForCurrentRequest.payload, raw: cachedForCurrentRequest.raw, blocked: false, message: '' }
       : { cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' });
+  const [refreshNonce, setRefreshNonce] = useState(0);
+  const effectiveStateRef = useRef(effectiveState);
+  useEffect(() => {
+    effectiveStateRef.current = effectiveState;
+  }, [effectiveState]);
 
   useEffect(() => {
     if (!enabled || mode === 'off') {
@@ -300,9 +306,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       try {
         let inflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
         if (!inflight) {
-          inflight = supabase.functions.invoke('ll-dashboard-api', {
-            body: { action, payload: requestPayload },
-          }).finally(() => DASHBOARD_READ_INFLIGHT.delete(cacheKey));
+          inflight = invokeDashboardApi(action, requestPayload).finally(() => DASHBOARD_READ_INFLIGHT.delete(cacheKey));
           DASHBOARD_READ_INFLIGHT.set(cacheKey, inflight);
         }
         const { data, error } = await inflight;
@@ -403,7 +407,30 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
     return () => {
       cancelled = true;
     };
-  }, [action, enabled, mode, payloadKey, primaryMode, summaryKey, adapter, cacheKey]);
+  }, [action, enabled, mode, payloadKey, primaryMode, summaryKey, adapter, cacheKey, refreshNonce]);
+
+  useEffect(() => {
+    if (!enabled || mode === 'off') return undefined;
+    const refreshIfNeeded = () => {
+      if (document.visibilityState && document.visibilityState !== 'visible') return;
+      const current = effectiveStateRef.current;
+      if (current?.status === 'loading') return;
+      const cached = DASHBOARD_READ_CACHE.get(cacheKey);
+      const stale = cached?.checkedAt
+        ? Date.now() - Date.parse(cached.checkedAt) > DASHBOARD_READ_CACHE_TTL_MS
+        : true;
+      if (current?.status === 'blocked' || !current?.payload || stale) {
+        DASHBOARD_READ_INFLIGHT.delete(cacheKey);
+        setRefreshNonce((value) => value + 1);
+      }
+    };
+    window.addEventListener('focus', refreshIfNeeded);
+    document.addEventListener('visibilitychange', refreshIfNeeded);
+    return () => {
+      window.removeEventListener('focus', refreshIfNeeded);
+      document.removeEventListener('visibilitychange', refreshIfNeeded);
+    };
+  }, [cacheKey, enabled, mode]);
 
   return {
     ...effectiveState,
