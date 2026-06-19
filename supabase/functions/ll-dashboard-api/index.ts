@@ -4074,14 +4074,28 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     management_fee_per_py: row.management_fee_manwon_per_py,
     temperature_type: row.temperature_type || '미분류',
   }));
-  const supply = ((supplyResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
-    ...row,
-    center_name: firstDefined(row.warehouse_name, row.center_name),
-    status: firstDefined(row.progress_status, row.status),
-    completion_period: [row.expected_year, row.expected_quarter].filter(Boolean).join(' '),
-    area_py: row.gross_area_py,
-    temperature_type: row.temperature_type || '미분류',
-  }));
+  const supply = ((supplyResult.data || []) as Record<string, unknown>[]).map((row) => {
+    const payloadAddress = firstDefined(
+      row.legal_address,
+      row.address,
+      typeof row.payload === 'object' && row.payload ? (row.payload as Record<string, unknown>)['법정동주소'] : '',
+      typeof row.payload === 'object' && row.payload ? (row.payload as Record<string, unknown>)['주소'] : '',
+      typeof row.payload === 'object' && row.payload ? (row.payload as Record<string, unknown>)['소재지'] : '',
+      typeof row.payload === 'object' && row.payload ? (row.payload as Record<string, unknown>)['기타주소'] : '',
+    );
+    const fallbackAddress = firstDefined(payloadAddress, row.supply_kind === 'new_supply' ? firstDefined(row.center_name, row.warehouse_name) : '');
+    return stripUndefined({
+      ...row,
+      center_name: firstDefined(row.warehouse_name, row.center_name),
+      legal_address: fallbackAddress,
+      address: fallbackAddress,
+      address_source: safeText(payloadAddress) ? 'source_address' : (safeText(fallbackAddress) ? 'center_name_fallback' : 'missing'),
+      status: firstDefined(row.progress_status, row.status),
+      completion_period: [row.expected_year, row.expected_quarter].filter(Boolean).join(' '),
+      area_py: row.gross_area_py,
+      temperature_type: row.temperature_type || '미분류',
+    });
+  });
   const transactions = ((transactionResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
     ...row,
     asset_name: firstDefined(row.warehouse_name, row.asset_name, row.center_name),

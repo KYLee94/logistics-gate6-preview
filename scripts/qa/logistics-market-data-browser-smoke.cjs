@@ -102,6 +102,30 @@ function hasRequiredRows(apiBody, key) {
   return false;
 }
 
+async function waitForStableMarketDataPage(page, tab) {
+  const result = {
+    shell_ready: false,
+    loading_gone: false,
+    chart_ready: tab.key === 'source-update',
+    naver_ready: !tab.needsMap,
+    table_ready: false,
+  };
+  result.shell_ready = await page.waitForFunction(() => /Market\s*Data/iu.test(document.body?.innerText || ''), { timeout: 60000 }).then(() => true).catch(() => false);
+  result.loading_gone = await page.waitForFunction(() => {
+    const text = document.body?.innerText || '';
+    return !text.includes('\uc2dc\uc7a5\uc790\ub8cc\ub97c \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.');
+  }, { timeout: 90000 }).then(() => true).catch(() => false);
+  result.table_ready = await page.waitForFunction(() => document.querySelectorAll('table tbody tr').length > 0, { timeout: 90000 }).then(() => true).catch(() => false);
+  if (tab.key !== 'source-update') {
+    result.chart_ready = await page.waitForFunction(() => document.querySelector('[data-chart-role][data-chart-empty="false"]'), { timeout: 90000 }).then(() => true).catch(() => false);
+  }
+  if (tab.needsMap) {
+    result.naver_ready = await page.waitForFunction(() => document.querySelector('[data-naver-map-ready="true"]'), { timeout: 90000 }).then(() => true).catch(() => false);
+  }
+  await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
+  return result;
+}
+
 async function invokeMarketData(session) {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
@@ -164,11 +188,7 @@ async function main() {
     for (const tab of tabs) {
       const url = joinUrl(baseUrl, tab.route);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForFunction(() => document.body?.innerText?.includes('Market Data'), { timeout: 30000 }).catch(() => null);
-      await page.waitForFunction(() => !document.body?.innerText?.includes('\uC2DC\uC7A5\uC790\uB8CC\uB97C \uBD88\uB7EC\uC624\uB294 \uC911\uC785\uB2C8\uB2E4.'), { timeout: 45000 }).catch(() => null);
-      if (tab.needsMap) {
-        await page.waitForFunction(() => document.querySelectorAll('div[aria-label] button[title]').length > 0, { timeout: 45000 }).catch(() => null);
-      }
+      const waitState = await waitForStableMarketDataPage(page, tab);
       const body = await page.locator('body').innerText({ timeout: 20000 });
       const screenshot = path.join(OUT_DIR, `market-data-${tab.key}-${stamp}.png`);
       await page.screenshot({ path: screenshot, fullPage: false });
@@ -178,15 +198,46 @@ async function main() {
       const mapWarningPresent = body.includes('지도 API 미설정') || body.includes('좌표 부족');
       const tableCount = await page.locator('table').count().catch(() => 0);
       const sortableTableCount = await page.locator('[data-sortable-table="true"]').count().catch(() => 0);
+      const tableHeaderCount = await page.locator('table thead th').count().catch(() => 0);
+      const sortableHeaderCount = await page.locator('table thead th[data-sortable-column="true"]').count().catch(() => 0);
+      const passiveHeaderCount = await page.locator('table thead th[data-sortable-column="false"]').count().catch(() => 0);
+      const nonSortableHeaders = await page.evaluate(() => Array.from(document.querySelectorAll('table thead th'))
+        .filter((th) => !th.hasAttribute('data-sortable-column'))
+        .map((th) => (th.textContent || '').trim())
+        .filter(Boolean)).catch(() => []);
+      let sortableHeaderClickOk = true;
+      const firstSortableHeaderButton = page.locator('table thead th[data-sortable-column="true"] button').first();
+      if (await firstSortableHeaderButton.count().catch(() => 0)) {
+        await firstSortableHeaderButton.click().catch(() => null);
+        const headerTextAfterClick = await firstSortableHeaderButton.innerText({ timeout: 5000 }).catch(() => '');
+        sortableHeaderClickOk = /[\u25b2\u25bc\u2191\u2193]/u.test(headerTextAfterClick);
+      }
       const chartCount = await page.locator('[data-chart-role]').count().catch(() => 0);
       const emptyChartCount = await page.locator('[data-chart-empty="true"]').count().catch(() => 0);
+      const chartVisualCount = await page.locator('[data-chart-role] rect, [data-chart-role] circle, [data-chart-role] polyline, [data-chart-role] [style*="width:"]').count().catch(() => 0);
       const titleDomCount = await page.getByText(/market\s*data/iu).count().catch(() => 0);
       const regionPrefixDomCount = await page.getByText(/\((수도권|지방)\)/u).count().catch(() => 0);
       const titlePresent = /market\s*data/iu.test(body) || titleDomCount > 0;
       const regionPrefixPresent = /\((수도권|지방)\)/u.test(body) || regionPrefixDomCount > 0;
       const leaseSlicerPresent = body.includes('상/저온') && body.includes('지표');
-      const supplySlicerPresent = body.includes('유형') && body.includes('기간');
+      const supplySlicerPresent = body.includes('유형') && body.includes('기간') && (await page.locator('[data-supply-range-slicer="true"] button').count().catch(() => 0)) > 0;
       const transactionSlicerPresent = body.includes('기간') && body.includes('권역') && body.includes('상/저온') && body.includes('실물/선매입');
+      const transactionSizeSlicerPresent = tab.key !== 'transactions' || (body.includes('규모별 평당 거래가') && body.includes('규모별 평당 거래가 및 거래시장 규모') && body.includes('규모'));
+      const loadingStillPresent = body.includes('시장자료를 불러오는 중입니다.');
+      const leaseSlicerPresentClean = tab.key !== 'lease-market'
+        || ((await page.getByText('상/저온 구분').count().catch(() => 0)) > 0
+          && (await page.getByText('지표').count().catch(() => 0)) > 0
+          && (await page.getByText('시점').count().catch(() => 0)) > 0);
+      const supplySlicerPresentClean = tab.key !== 'supply-pipeline'
+        || ((await page.locator('[data-supply-range-slicer="true"] button').count().catch(() => 0)) >= 2
+          && (await page.getByText('기간 slicer').count().catch(() => 0)) > 0);
+      const transactionSlicerPresentClean = tab.key !== 'transactions'
+        || ((await page.getByText('기간').count().catch(() => 0)) > 0
+          && (await page.getByText('권역').count().catch(() => 0)) > 0
+          && (await page.getByText('상/저온').count().catch(() => 0)) > 0);
+      const transactionSizeSlicerPresentClean = tab.key !== 'transactions'
+        || ((await page.getByText('규모별 평당 거래가').count().catch(() => 0)) > 0
+          && (await page.getByText('규모').count().catch(() => 0)) > 0);
       const row = {
         key: tab.key,
         url: page.url(),
@@ -195,6 +246,8 @@ async function main() {
         view_present: Boolean(apiBody?.data?.views?.[tab.viewKey]),
         view_has_rows: hasRequiredRows(apiBody, tab.viewKey),
         api_data_quality: apiBody?.data?.summary?.data_quality || null,
+        wait_state: waitState,
+        loading_still_present: loadingStillPresent,
         title_present: titlePresent,
         has_broken_question_marks: /\?{4,}/u.test(body),
         internal_tokens_visible: /\bll_|source_row_id|source_file_id|payload|natural_key|natural\s+key|row_hash|row\s+hash|\bPNU\b|\bpnu\b|법정동코드/iu.test(body),
@@ -204,28 +257,45 @@ async function main() {
         map_warning_present: mapWarningPresent,
         table_count: tableCount,
         sortable_table_count: sortableTableCount,
+        table_header_count: tableHeaderCount,
+        sortable_header_count: sortableHeaderCount,
+        passive_header_count: passiveHeaderCount,
+        non_sortable_headers: nonSortableHeaders,
+        sortable_header_click_ok: sortableHeaderClickOk,
         chart_count: chartCount,
         empty_chart_count: emptyChartCount,
+        chart_visual_count: chartVisualCount,
         region_prefix_present: regionPrefixPresent,
-        lease_slicer_present: leaseSlicerPresent,
-        supply_slicer_present: supplySlicerPresent,
-        transaction_slicer_present: transactionSlicerPresent,
+        lease_slicer_present: leaseSlicerPresentClean,
+        supply_slicer_present: supplySlicerPresentClean,
+        transaction_slicer_present: transactionSlicerPresentClean,
+        transaction_size_slicer_present: transactionSizeSlicerPresentClean,
       };
       row.ok = row.api_ok
+        && waitState.shell_ready
+        && waitState.loading_gone
+        && waitState.table_ready
+        && waitState.chart_ready
+        && waitState.naver_ready
+        && !row.loading_still_present
         && row.view_present
         && row.view_has_rows
         && row.title_present
         && !row.has_broken_question_marks
         && !row.internal_tokens_visible
         && tableCount > 0
-        && sortableTableCount > 0
-        && (!tab.needsMap || naverMapCount > 0 || fallbackMapCount > 0)
+        && sortableTableCount === tableCount
+        && sortableHeaderCount + passiveHeaderCount === tableHeaderCount
+        && nonSortableHeaders.length === 0
+        && sortableHeaderClickOk
+        && (!tab.needsMap || naverMapCount > 0)
         && (tab.key === 'source-update' || chartCount > 0)
         && emptyChartCount === 0
-        && (tab.key === 'source-update' || regionPrefixPresent)
-        && (tab.key !== 'lease-market' || leaseSlicerPresent)
-        && (tab.key !== 'supply-pipeline' || supplySlicerPresent)
-        && (tab.key !== 'transactions' || transactionSlicerPresent);
+        && (tab.key === 'source-update' || chartVisualCount > 0)
+        && (tab.key === 'source-update' || row.region_prefix_present)
+        && (tab.key !== 'lease-market' || row.lease_slicer_present)
+        && (tab.key !== 'supply-pipeline' || row.supply_slicer_present)
+        && (tab.key !== 'transactions' || (row.transaction_slicer_present && row.transaction_size_slicer_present));
       report.tabs.push(row);
     }
     report.ok = report.tabs.every((tab) => tab.ok) && report.errors.length === 0;

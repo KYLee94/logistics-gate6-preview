@@ -2182,10 +2182,22 @@ function renderTableCell(cell, meta) {
 }
 
 function DataTable({ headers, rows, onRowClick, compact = false, columnWidths = null, minTableWidth: minTableWidthProp, tight = false }) {
+  const [sortConfig, setSortConfig] = useState(null);
   const defaultMetas = normalizeTableColumnWidths(headers.map((header, index) => getTableColumnMeta(header, index, headers.length)));
   const metas = Array.isArray(columnWidths) && columnWidths.length
     ? defaultMetas.map((meta, index) => ({ ...meta, width: columnWidths[index] || meta.width }))
     : defaultMetas;
+  const visibleRows = useMemo(() => {
+    const indexedRows = (rows || []).map((row, sourceIndex) => ({ row, sourceIndex }));
+    if (!Number.isInteger(sortConfig?.index)) return indexedRows;
+    return indexedRows.sort((left, right) => compareSortableCells(left.row?.[sortConfig.index], right.row?.[sortConfig.index], sortConfig.direction));
+  }, [rows, sortConfig]);
+  const toggleSort = (index) => {
+    setSortConfig((current) => ({
+      index,
+      direction: current?.index === index && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
   const computedMinTableWidth = headers.length >= 8
     ? `${Math.max(980, headers.length * 122)}px`
     : undefined;
@@ -2194,23 +2206,39 @@ function DataTable({ headers, rows, onRowClick, compact = false, columnWidths = 
   const bodyPaddingClass = tight ? 'px-2 first:pl-3 last:pr-3' : 'px-3 first:pl-4 last:pr-4';
   const bodyTextClass = tight ? 'text-[12px]' : 'text-[13px]';
   return (
-    <div className="custom-scrollbar overflow-x-auto rounded-[10px] border border-[#333333]">
+    <div className="custom-scrollbar max-h-[520px] overflow-auto rounded-[10px] border border-[#333333]" data-sortable-table="true">
       <table className="w-full min-w-full table-fixed border-collapse text-left" style={minTableWidth ? { minWidth: minTableWidth } : undefined}>
         <colgroup>
           {metas.map((meta, index) => <col key={`${tableHeaderText(headers[index])}-${index}`} style={{ width: meta.width }} />)}
         </colgroup>
-        <thead className="bg-[#1F1F1E] text-[#86868B] text-[12px]">
+        <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#86868B] text-[12px]">
           <tr>
-            {headers.map((header, index) => (
-              <th key={`${tableHeaderText(header)}-${index}`} className={`${headerPaddingClass} py-2 font-semibold ${metas[index].numeric ? 'text-right' : 'text-left'} ${metas[index].compact || metas[index].dateLike ? 'whitespace-nowrap' : 'break-keep'}`}>{header}</th>
-            ))}
+            {headers.map((header, index) => {
+              const primitiveHeader = typeof header === 'string' || typeof header === 'number';
+              const active = sortConfig?.index === index;
+              return (
+                <th key={`${tableHeaderText(header)}-${index}`} className={`${headerPaddingClass} py-2 font-semibold ${metas[index].numeric ? 'text-right' : 'text-left'} ${metas[index].compact || metas[index].dateLike ? 'whitespace-nowrap' : 'break-keep'}`} data-sortable-column="true">
+                  {primitiveHeader ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(index)}
+                      className={`flex w-full items-center gap-1 text-[12px] font-semibold transition-colors hover:text-white ${metas[index].numeric ? 'justify-end' : 'justify-start'}`}
+                      title={`${header} 기준 정렬`}
+                    >
+                      <span className="truncate">{header}</span>
+                      <span className={`text-[10px] ${active ? 'text-white' : 'text-[#5f5f64]'}`}>{active ? (sortConfig.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
+                    </button>
+                  ) : header}
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, rowIndex) => (
+          {visibleRows.map(({ row, sourceIndex }) => (
             <tr
-              key={rowIndex}
-              onClick={() => onRowClick?.(rowIndex)}
+              key={sourceIndex}
+              onClick={() => onRowClick?.(sourceIndex)}
               className={`border-b border-[#333333] last:border-b-0 ${onRowClick ? 'cursor-pointer hover:bg-white/[0.04]' : ''}`}
             >
               {row.map((cell, cellIndex) => (
@@ -2252,9 +2280,45 @@ function compareSortableCells(left, right, direction) {
   return direction === 'asc' ? result : -result;
 }
 
-function PortfolioAssetTable({ rows, onAssetClick = null }) {
+function SortableHeaderButton({ label, active = false, direction = 'asc', onClick, align = 'left', disabled = false }) {
+  const justifyClass = align === 'right' ? 'justify-end text-right' : align === 'center' ? 'justify-center text-center' : 'justify-start text-left';
   return (
-    <div className="overflow-hidden rounded-[10px] border border-[#333333]">
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={`flex w-full items-center gap-1 text-[12px] font-semibold transition-colors ${justifyClass} ${disabled ? 'cursor-default text-[#86868B]' : 'cursor-pointer hover:text-white'}`}
+      title={disabled ? undefined : `${label} 기준 정렬`}
+    >
+      <span className="truncate">{label}</span>
+      {!disabled ? <span className={`text-[10px] ${active ? 'text-white' : 'text-[#5f5f64]'}`}>{active ? (direction === 'asc' ? '▲' : '▼') : '↕'}</span> : null}
+    </button>
+  );
+}
+
+function PortfolioAssetTable({ rows, onAssetClick = null }) {
+  const headers = [
+    { label: 'No.', value: (row) => row.no },
+    { label: '자산명', value: (row) => row.assetName },
+    { label: '주소(시군구)', value: (row) => row.address },
+    { label: '연면적(평)', value: (row) => row.grossFloorAreaPy, align: 'right' },
+    { label: '저온창고 비율', value: (row) => row.coldRatio, align: 'right' },
+    { label: 'E. NOC', value: (row) => row.eNoc, align: 'right' },
+    { label: '평당 임대료', value: (row) => row.rentPerPy, align: 'right' },
+    { label: 'WALE', value: (row) => row.wale, align: 'right' },
+  ];
+  const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
+  const toggleSort = (index) => {
+    setSortConfig((current) => ({
+      index,
+      direction: current.index === index && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+  const sortedRows = useMemo(() => [...(rows || [])].sort((left, right) => (
+    compareSortableCells(headers[sortConfig.index].value(left), headers[sortConfig.index].value(right), sortConfig.direction)
+  )), [headers, rows, sortConfig]);
+  return (
+    <div className="overflow-hidden rounded-[10px] border border-[#333333]" data-sortable-table="true">
       <table className="w-full table-fixed border-collapse text-left">
         <colgroup>
           <col className="w-[42px]" />
@@ -2268,16 +2332,15 @@ function PortfolioAssetTable({ rows, onAssetClick = null }) {
         </colgroup>
         <thead className="bg-[#1F1F1E] text-[12px] text-[#86868B]">
           <tr>
-            {['No.', '자산명', '주소(시군구)', '연면적(평)', '저온창고 비율', 'E. NOC'].map((header) => (
-              <th key={header} className="whitespace-nowrap px-2 py-2 text-[11px] font-semibold first:pl-3 last:pr-3">{header}</th>
-            ))}
-            {['평당 임대료', 'WALE'].map((header) => (
-              <th key={header} className="whitespace-nowrap px-2 py-2 text-right text-[11px] font-semibold last:pr-3">{header}</th>
+            {headers.map((header, index) => (
+              <th key={header.label} className={`whitespace-nowrap px-2 py-2 text-[11px] font-semibold first:pl-3 last:pr-3 ${header.align === 'right' ? 'text-right' : 'text-left'}`} data-sortable-column="true">
+                <SortableHeaderButton label={header.label} active={sortConfig.index === index} direction={sortConfig.direction} align={header.align} onClick={() => toggleSort(index)} />
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {sortedRows.map((row) => (
             <tr
               key={`${row.no}-${row.assetName}`}
               onClick={() => onAssetClick?.(row.assetId || row.assetCode || row.assetName)}
@@ -2348,6 +2411,7 @@ function LogisticsModal({ modal, onClose }) {
 function TenantContractFullView({ rows }) {
   const [assetFilter, setAssetFilter] = useState('all');
   const [tenantFilter, setTenantFilter] = useState('all');
+  const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
   const assetOptions = useMemo(() => [...new Set((rows || []).map((row) => row.assetName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko-KR')), [rows]);
   const tenantOptions = useMemo(() => [...new Set((rows || []).map((row) => row.tenantMasterName).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko-KR')), [rows]);
   const visibleRows = useMemo(() => (rows || []).filter((row) => (
@@ -2355,7 +2419,7 @@ function TenantContractFullView({ rows }) {
     && (tenantFilter === 'all' || row.tenantMasterName === tenantFilter)
   )), [assetFilter, rows, tenantFilter]);
   const headers = ['임차인명', '자산명', '펀드명', '주소/권역', '층/구역', '계약개시', '계약만기', '잔여개월', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', '평당 월 임대료', '평당 월 관리비', '평당 월 임관리비', 'E. NOC', '보증금', '용도', '저온/상온', '계약기간'];
-  const bodyRows = visibleRows.map((row) => {
+  const baseBodyRows = visibleRows.map((row) => {
     const expiry = firstDefined(row.currentEndDate, row.latestExpiry, row.earliestExpiry);
     return [
       row.tenantMasterName || '-',
@@ -2380,6 +2444,13 @@ function TenantContractFullView({ rows }) {
       [formatDate(row.currentStartDate), formatDate(expiry)].filter((value) => value && value !== '-').join(' ~ ') || '-',
     ];
   });
+  const bodyRows = [...baseBodyRows].sort((left, right) => compareSortableCells(left[sortConfig.index], right[sortConfig.index], sortConfig.direction));
+  const toggleSort = (index) => {
+    setSortConfig((current) => ({
+      index,
+      direction: current.index === index && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2397,13 +2468,13 @@ function TenantContractFullView({ rows }) {
           </select>
         </div>
       </div>
-      <div className="custom-scrollbar max-h-[70vh] overflow-auto rounded-[10px] border border-[#333333]">
+      <div className="custom-scrollbar max-h-[70vh] overflow-auto rounded-[10px] border border-[#333333]" data-sortable-table="true">
         <table className="min-w-[2850px] border-collapse text-left text-[12px]">
           <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#86868B]">
             <tr>
               {headers.map((header, index) => (
-                <th key={header} className={`border-b border-[#333333] px-3 py-2 font-semibold ${index === 0 ? 'sticky left-0 z-30 w-[180px] bg-[#1F1F1E]' : index === 1 ? 'sticky left-[180px] z-30 w-[280px] bg-[#1F1F1E]' : index === 2 ? 'min-w-[240px]' : index === 3 ? 'min-w-[220px]' : 'whitespace-nowrap'}`}>
-                  {header}
+                <th key={header} className={`border-b border-[#333333] px-3 py-2 font-semibold ${index === 0 ? 'sticky left-0 z-30 w-[180px] bg-[#1F1F1E]' : index === 1 ? 'sticky left-[180px] z-30 w-[280px] bg-[#1F1F1E]' : index === 2 ? 'min-w-[240px]' : index === 3 ? 'min-w-[220px]' : 'whitespace-nowrap'} ${index >= 8 && index <= 16 ? 'text-right' : 'text-left'}`} data-sortable-column="true">
+                  <SortableHeaderButton label={header} active={sortConfig.index === index} direction={sortConfig.direction} align={index >= 8 && index <= 16 ? 'right' : 'left'} onClick={() => toggleSort(index)} />
                 </th>
               ))}
             </tr>
@@ -2741,21 +2812,35 @@ function normalizeFundLoanRowsForUi(rows) {
 }
 
 function AssetProjectToggleTable({ id, title, rows, openSections, onToggle, isEditing = false, onCellChange, onAddRow, onDeleteRow }) {
-  const groupedRows = rows.map((row, index) => {
+  const headers = ['구분', '항목', '내용'];
+  const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
+  const sortableRows = useMemo(() => {
+    const entries = (rows || []).map((row, originalIndex) => ({ row, originalIndex }));
+    if (isEditing) return entries;
+    return entries.sort((left, right) => compareSortableCells(left.row?.[sortConfig.index], right.row?.[sortConfig.index], sortConfig.direction));
+  }, [isEditing, rows, sortConfig]);
+  const toggleSort = (index) => {
+    if (isEditing) return;
+    setSortConfig((current) => ({
+      index,
+      direction: current.index === index && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+  const groupedRows = sortableRows.map(({ row, originalIndex }, index) => {
     const [group] = row;
     const shouldMergeGroup = true;
-    const isFirst = !shouldMergeGroup || index === 0 || rows[index - 1]?.[0] !== group;
+    const isFirst = !shouldMergeGroup || index === 0 || sortableRows[index - 1]?.row?.[0] !== group;
     let rowSpan = 0;
     if (isFirst) {
       if (!shouldMergeGroup) {
         rowSpan = 1;
       } else {
-        for (let cursor = index; cursor < rows.length && rows[cursor]?.[0] === group; cursor += 1) {
+        for (let cursor = index; cursor < sortableRows.length && sortableRows[cursor]?.row?.[0] === group; cursor += 1) {
           rowSpan += 1;
         }
       }
     }
-    return { row, isFirst, rowSpan, originalIndex: index };
+    return { row, isFirst, rowSpan, originalIndex };
   });
 
   return (
@@ -2769,7 +2854,7 @@ function AssetProjectToggleTable({ id, title, rows, openSections, onToggle, isEd
         <span className="rounded-[6px] border border-[#3A3A3C] bg-[#252524] px-2 py-1 text-[12px] font-semibold text-[#D1D1D6]">{openSections[id] ? '접기' : '펼치기'}</span>
       </button>
       {openSections[id] ? (
-        <div className="overflow-hidden rounded-[10px] border border-[#333333]">
+        <div className="overflow-hidden rounded-[10px] border border-[#333333]" data-sortable-table="true">
           <table className="w-full table-fixed border-collapse text-left">
             <colgroup>
               <col className="w-[86px]" />
@@ -2779,10 +2864,12 @@ function AssetProjectToggleTable({ id, title, rows, openSections, onToggle, isEd
             </colgroup>
             <thead className="bg-[#252524] text-[12px] font-semibold text-[#86868B]">
               <tr>
-                <th className="border-b border-[#333333] px-3 py-2">구분</th>
-                <th className="border-b border-[#333333] px-3 py-2">항목</th>
-                <th className="border-b border-[#333333] px-3 py-2">내용</th>
-                {isEditing ? <th className="border-b border-[#333333] px-3 py-2 text-center">관리</th> : null}
+                {headers.map((header, index) => (
+                  <th key={header} className="border-b border-[#333333] px-3 py-2" data-sortable-column="true">
+                    <SortableHeaderButton label={header} active={sortConfig.index === index} direction={sortConfig.direction} disabled={isEditing} onClick={() => toggleSort(index)} />
+                  </th>
+                ))}
+                {isEditing ? <th className="border-b border-[#333333] px-3 py-2 text-center" data-sortable-column="false">관리</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -2839,13 +2926,27 @@ function AssetProjectToggleTable({ id, title, rows, openSections, onToggle, isEd
 }
 
 function FundTrancheTable({ title, columns, rows, isEditing, onChange, onAdd, onDelete }) {
+  const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
+  const rowEntries = useMemo(() => {
+    const entries = (rows || []).map((row, originalIndex) => ({ row, originalIndex }));
+    if (isEditing || !columns[sortConfig.index]) return entries;
+    const column = columns[sortConfig.index];
+    return entries.sort((left, right) => compareSortableCells(left.row?.[column.key], right.row?.[column.key], sortConfig.direction));
+  }, [columns, isEditing, rows, sortConfig]);
+  const toggleSort = (index) => {
+    if (isEditing) return;
+    setSortConfig((current) => ({
+      index,
+      direction: current.index === index && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
   return (
     <div className="overflow-hidden rounded-[10px] border border-[#333333]">
       <div className="flex items-center justify-between border-b border-[#333333] bg-[#252524] px-3 py-2">
         <div className="text-[12px] font-bold text-white">{title}</div>
         {isEditing ? <button type="button" onClick={onAdd} className={`h-7 rounded-[7px] border px-2 text-[11px] font-bold ${DARK_BUTTON_CLASS}`}>행 추가</button> : null}
       </div>
-      <div className="custom-scrollbar overflow-x-auto">
+      <div className="custom-scrollbar overflow-x-auto" data-sortable-table="true">
         <table className="w-full min-w-max table-auto border-collapse text-left">
           <colgroup>
             {columns.map((column) => <col key={column.key} style={{ width: column.width || 128, minWidth: column.width || 128 }} />)}
@@ -2853,20 +2954,24 @@ function FundTrancheTable({ title, columns, rows, isEditing, onChange, onAdd, on
           </colgroup>
           <thead className="bg-[#1F1F1E] text-[12px] font-semibold text-[#86868B]">
             <tr>
-              {columns.map((column) => <th key={column.key} className="border-b border-[#333333] px-2 py-2">{column.label}</th>)}
-              {isEditing ? <th className="border-b border-[#333333] px-2 py-2 text-center">관리</th> : null}
+              {columns.map((column, index) => (
+                <th key={column.key} className="border-b border-[#333333] px-2 py-2" data-sortable-column="true">
+                  <SortableHeaderButton label={column.label} active={sortConfig.index === index} direction={sortConfig.direction} disabled={isEditing} onClick={() => toggleSort(index)} />
+                </th>
+              ))}
+              {isEditing ? <th className="border-b border-[#333333] px-2 py-2 text-center" data-sortable-column="false">관리</th> : null}
             </tr>
           </thead>
           <tbody>
-            {rows.length ? rows.map((row, rowIndex) => (
-              <tr key={row.row_key || rowIndex} className="border-b border-[#333333] last:border-b-0">
+            {rowEntries.length ? rowEntries.map(({ row, originalIndex }) => (
+              <tr key={row.row_key || originalIndex} className="border-b border-[#333333] last:border-b-0">
                 {columns.map((column) => (
                   <td key={column.key} className="px-2 py-2 align-top text-[12px] leading-5 text-[#E5E5E5]">
                     {isEditing ? (
                       <input
                         value={row[column.key] || ''}
                         title={String(row[column.key] || '')}
-                        onChange={(event) => onChange(rowIndex, column.key, event.target.value)}
+                        onChange={(event) => onChange(originalIndex, column.key, event.target.value)}
                         className="h-9 w-full rounded-[7px] border border-[#3A3A3C] bg-[#111] px-2 text-[12px] text-white outline-none focus:border-[#8E8E93]"
                       />
                     ) : column.format ? column.format(row[column.key]) : (row[column.key] || <span className="text-[#555]">-</span>)}
@@ -2874,7 +2979,7 @@ function FundTrancheTable({ title, columns, rows, isEditing, onChange, onAdd, on
                 ))}
                 {isEditing ? (
                   <td className="px-2 py-2 text-center align-top">
-                    <button type="button" onClick={() => onDelete(rowIndex)} className="h-8 rounded-[7px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-2 text-[12px] font-bold text-[#ef4444] hover:bg-[#ef4444]/20">삭제</button>
+                    <button type="button" onClick={() => onDelete(originalIndex)} className="h-8 rounded-[7px] border border-[#ef4444]/30 bg-[#ef4444]/10 px-2 text-[12px] font-bold text-[#ef4444] hover:bg-[#ef4444]/20">삭제</button>
                   </td>
                 ) : null}
               </tr>
@@ -3356,12 +3461,22 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
 }
 
 function WeeklyAssetStatusFullTable({ rows, headers, columnWidths, numericStartIndex = 3, numericEndIndex = 13 }) {
+  const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
+  const sortedRows = useMemo(() => [...(rows || [])].sort((left, right) => (
+    compareSortableCells(left.cells?.[sortConfig.index], right.cells?.[sortConfig.index], sortConfig.direction)
+  )), [rows, sortConfig]);
+  const toggleSort = (index) => {
+    setSortConfig((current) => ({
+      index,
+      direction: current.index === index && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-[13px] font-semibold text-[#A1A1AA]">전체 {formatNumber(rows.length)}개 자산 · 자산명 열고정 · 가로/세로 스크롤 지원</div>
       </div>
-      <div className="custom-scrollbar h-[calc(100vh-190px)] overflow-auto rounded-[12px] border border-[#333333] bg-[#1F1F1E]">
+      <div className="custom-scrollbar h-[calc(100vh-190px)] overflow-auto rounded-[12px] border border-[#333333] bg-[#1F1F1E]" data-sortable-table="true">
         <table className="min-w-[2240px] table-fixed border-collapse text-left">
           <colgroup>
             {columnWidths.map((width, index) => <col key={`${headers[index]}-${width}`} style={{ width }} />)}
@@ -3369,14 +3484,14 @@ function WeeklyAssetStatusFullTable({ rows, headers, columnWidths, numericStartI
           <thead className="sticky top-0 z-20 bg-[#141414] text-[12px] text-[#B0B0B6]">
             <tr>
               {headers.map((header, index) => (
-                <th key={header} className={`border-b border-[#333333] px-3 py-3 font-semibold ${index === 0 ? 'sticky left-0 z-30 bg-[#141414] pl-4 text-left' : index >= numericStartIndex && index <= numericEndIndex ? 'text-right' : 'text-left'}`}>
-                  {header}
+                <th key={header} className={`border-b border-[#333333] px-3 py-3 font-semibold ${index === 0 ? 'sticky left-0 z-30 bg-[#141414] pl-4 text-left' : index >= numericStartIndex && index <= numericEndIndex ? 'text-right' : 'text-left'}`} data-sortable-column="true">
+                  <SortableHeaderButton label={header} active={sortConfig.index === index} direction={sortConfig.direction} align={index >= numericStartIndex && index <= numericEndIndex ? 'right' : 'left'} onClick={() => toggleSort(index)} />
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ source, cells }, rowIndex) => (
+            {sortedRows.map(({ source, cells }, rowIndex) => (
               <tr key={`${source.assetName}-${rowIndex}`} className="border-b border-[#303030] last:border-b-0 hover:bg-white/[0.04]">
                 {cells.map((cell, cellIndex) => (
                   <td key={`${source.assetName}-${cellIndex}`} className={`px-3 py-2.5 align-top text-[13px] leading-5 text-[#E5E5E5] ${cellIndex === 0 ? 'sticky left-0 z-10 bg-[#1F1F1E] pl-4 font-semibold shadow-[8px_0_12px_rgba(0,0,0,0.24)]' : ''} ${cellIndex >= numericStartIndex && cellIndex <= numericEndIndex ? 'text-right tabular-nums' : 'text-left'} ${cellIndex === headers.length - 1 ? '' : 'whitespace-nowrap'}`}>
@@ -3601,7 +3716,7 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
           {saveStatus.message}
         </div>
       ) : null}
-      <div className="custom-scrollbar max-h-[540px] overflow-auto rounded-[10px] border border-[#333333]">
+      <div className="custom-scrollbar max-h-[540px] overflow-auto rounded-[10px] border border-[#333333]" data-sortable-table="true">
         <table className={`${isEditing ? 'min-w-[2340px]' : 'min-w-[2240px]'} table-fixed border-collapse text-left`}>
           <colgroup>
             {visibleColumnWidths.map((width, index) => <col key={`${visibleHeaders[index]}-${width}`} style={{ width }} />)}
@@ -3609,7 +3724,7 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
           <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[12px] text-[#86868B]">
             <tr>
               {visibleHeaders.map((header, index) => (
-                <th key={header} className={`px-3 py-2 font-semibold ${index === 0 ? 'sticky left-0 z-30 bg-[#1F1F1E] pl-4 text-left' : index >= 3 && index <= 13 ? 'text-right' : 'text-left'}`}>
+                <th key={header} className={`px-3 py-2 font-semibold ${index === 0 ? 'sticky left-0 z-30 bg-[#1F1F1E] pl-4 text-left' : index >= 3 && index <= 13 ? 'text-right' : 'text-left'}`} data-sortable-column={index < fullHeaders.length ? 'true' : 'false'}>
                   {index < fullHeaders.length ? (
                     <button
                       type="button"

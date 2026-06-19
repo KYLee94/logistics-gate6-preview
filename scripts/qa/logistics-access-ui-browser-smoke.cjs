@@ -291,6 +291,22 @@ async function main() {
     const editableFeatureKey = await editableRow.getAttribute('data-feature-key');
     const beforePressed = await editableRow.getAttribute('aria-pressed');
     const selector = `[data-testid="logistics-feature-access-user"][data-feature-key="${editableFeatureKey}"][data-user-email="${editableEmail}"]`;
+    const ensureFeatureAccessModal = async () => {
+      let currentModal = page.getByTestId('logistics-feature-access-modal');
+      if (!(await currentModal.isVisible().catch(() => false))) {
+        await featureButton.click();
+        currentModal = page.getByTestId('logistics-feature-access-modal');
+        await currentModal.waitFor({ state: 'visible', timeout: 25000 });
+      }
+      return currentModal;
+    };
+    const refreshFeatureAccessModal = async () => {
+      const currentModal = await ensureFeatureAccessModal();
+      const refreshButton = currentModal.getByTestId('logistics-feature-access-refresh');
+      await refreshButton.waitFor({ state: 'visible', timeout: 25000 });
+      await refreshButton.click();
+      return currentModal;
+    };
     report.metrics.editable_row = {
       feature_key: editableFeatureKey,
       email: editableEmail,
@@ -314,14 +330,14 @@ async function main() {
       && button.getAttribute('data-saving') === 'false'
       && button.getAttribute('data-dirty') === 'false'
     ), await saveButton.elementHandle(), { timeout: 25000 });
-    await modal.getByTestId('logistics-feature-access-refresh').click();
+    await refreshFeatureAccessModal();
     await page.waitForFunction(({ selector: rowSelector, expected }) => {
       const row = document.querySelector(rowSelector);
       return row && row.getAttribute('aria-pressed') === expected;
     }, { selector, expected: toggledPressed }, { timeout: 30000 });
     await page.waitForFunction((button) => button && button.getAttribute('data-loading') === 'false', await saveButton.elementHandle(), { timeout: 25000 });
     report.checks.permission_save_persists_after_refresh = true;
-    const refreshedEditable = modal.locator(selector).first();
+    const refreshedEditable = page.locator(selector).first();
     await refreshedEditable.click();
     await saveButton.waitFor({ state: 'visible', timeout: 10000 });
     await saveButton.click();
@@ -331,14 +347,14 @@ async function main() {
       && button.getAttribute('data-saving') === 'false'
       && button.getAttribute('data-dirty') === 'false'
     ), await saveButton.elementHandle(), { timeout: 25000 });
-    await modal.getByTestId('logistics-feature-access-refresh').click();
+    const refreshedModal = await refreshFeatureAccessModal();
     await page.waitForFunction(({ selector: rowSelector, expected }) => {
       const row = document.querySelector(rowSelector);
       return row && row.getAttribute('aria-pressed') === expected;
     }, { selector, expected: beforePressed }, { timeout: 30000 });
     report.checks.permission_restore_persists_after_refresh = true;
-    await modal.screenshot({ path: modalScreenshot });
-    await modal.getByTestId('logistics-feature-access-close').click();
+    await refreshedModal.screenshot({ path: modalScreenshot });
+    await refreshedModal.getByTestId('logistics-feature-access-close').click();
 
     const chatOpenButton = page.getByTestId('logistics-ai-dock-open');
     if (await chatOpenButton.count()) {
