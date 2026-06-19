@@ -122,10 +122,10 @@ async function main() {
     }, { email: uiEmail, session: auth.session });
     const page = await context.newPage();
     await page.goto(joinUrl(baseUrl, 'asset-spec'), { waitUntil: 'domcontentloaded', timeout: 60000 });
-    report.checks.shell_ready = await page.getByText('자산 스펙 데이터 입력').waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
+    report.checks.shell_ready = await page.getByText('자산 스펙 데이터 입력 및 수정').waitFor({ timeout: 90000 }).then(() => true).catch(() => false);
     report.checks.error_hidden = (await page.locator('text=Dashboard read blocked').count().catch(() => 0)) === 0;
-    report.checks.input_cta_present = (await page.getByRole('button', { name: '데이터 입력' }).count().catch(() => 0)) > 0;
-    report.checks.compare_tables_present = (await page.locator('[data-sortable-table="true"]').count().catch(() => 0)) >= 2;
+    report.checks.input_cta_present = (await page.getByRole('button', { name: '자산 스펙 데이터 입력 및 수정' }).count().catch(() => 0)) > 0;
+    report.checks.compare_tables_present = (await page.locator('[data-asset-spec-compare-panel="true"]').count().catch(() => 0)) >= 2;
     report.checks.component_submessages_removed = await page.evaluate(() => {
       const text = document.body?.innerText || '';
       return !text.includes('권한이 있는 자산만 선택해')
@@ -149,7 +149,7 @@ async function main() {
       await page.locator('[role="dialog"] button').filter({ hasText: '×' }).click().catch(() => null);
     }
 
-    await page.getByRole('button', { name: '데이터 입력' }).click();
+    await page.getByRole('button', { name: '자산 스펙 데이터 입력 및 수정' }).click();
     report.checks.input_modal_open = await page.locator('[role="dialog"]').waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
     report.checks.input_modal_fullscreen = await page.locator('[role="dialog"] > div').first().evaluate((node) => {
       const box = node.getBoundingClientRect();

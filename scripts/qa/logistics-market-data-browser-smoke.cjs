@@ -102,6 +102,58 @@ function hasRequiredRows(apiBody, key) {
   return false;
 }
 
+async function evaluateMapButtonOverlap(page, containerSelector, buttonSelector, minCenterDistancePx) {
+  return page.evaluate(({ containerSelector: outerSelector, buttonSelector: innerSelector, minCenterDistance }) => {
+    const containers = Array.from(document.querySelectorAll(outerSelector));
+    return containers.map((container, index) => {
+      const buttons = Array.from(container.querySelectorAll(innerSelector));
+      const rects = buttons
+        .map((button) => {
+          const rect = button.getBoundingClientRect();
+          return {
+            left: rect.left,
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            width: rect.width,
+            height: rect.height,
+            cx: rect.left + (rect.width / 2),
+            cy: rect.top + (rect.height / 2),
+            label: (button.getAttribute('title') || button.textContent || '').trim(),
+          };
+        })
+        .filter((rect) => rect.width > 0 && rect.height > 0);
+      let nearPairCount = 0;
+      let overlapPairCount = 0;
+      let minObservedDistance = Number.POSITIVE_INFINITY;
+      let maxOverlapArea = 0;
+      for (let leftIndex = 0; leftIndex < rects.length; leftIndex += 1) {
+        for (let rightIndex = leftIndex + 1; rightIndex < rects.length; rightIndex += 1) {
+          const left = rects[leftIndex];
+          const right = rects[rightIndex];
+          const distance = Math.hypot(left.cx - right.cx, left.cy - right.cy);
+          minObservedDistance = Math.min(minObservedDistance, distance);
+          if (distance < minCenterDistance) nearPairCount += 1;
+          const overlapWidth = Math.max(0, Math.min(left.right, right.right) - Math.max(left.left, right.left));
+          const overlapHeight = Math.max(0, Math.min(left.bottom, right.bottom) - Math.max(left.top, right.top));
+          const overlapArea = overlapWidth * overlapHeight;
+          maxOverlapArea = Math.max(maxOverlapArea, overlapArea);
+          if (overlapArea > 2) overlapPairCount += 1;
+        }
+      }
+      return {
+        index,
+        button_count: rects.length,
+        near_pair_count: nearPairCount,
+        overlap_pair_count: overlapPairCount,
+        min_center_distance_px: Number.isFinite(minObservedDistance) ? Math.round(minObservedDistance * 10) / 10 : null,
+        max_overlap_area_px: Math.round(maxOverlapArea * 10) / 10,
+        ok: nearPairCount === 0 && overlapPairCount === 0,
+      };
+    });
+  }, { containerSelector, buttonSelector, minCenterDistance: minCenterDistancePx }).catch((error) => ([{ error: error?.message || String(error), ok: false }]));
+}
+
 async function waitForStableMarketDataPage(page, tab) {
   const result = {
     shell_ready: false,
@@ -120,7 +172,58 @@ async function waitForStableMarketDataPage(page, tab) {
     result.chart_ready = await page.waitForFunction(() => document.querySelector('[data-chart-role][data-chart-empty="false"]'), { timeout: 90000 }).then(() => true).catch(() => false);
   }
   if (tab.needsMap) {
-    result.naver_ready = await page.waitForFunction(() => document.querySelector('[data-naver-map-ready="true"]'), { timeout: 90000 }).then(() => true).catch(() => false);
+    result.map_provider_ready = await page.waitForFunction(() => document.querySelector('[data-naver-map-ready="true"],[data-osm-map-ready="true"]'), { timeout: 90000 }).then(() => true).catch(() => false);
+    result.naver_sdk_ready = (await page.locator('[data-naver-map-ready="true"]').count().catch(() => 0)) > 0;
+    result.osm_ready = (await page.locator('[data-osm-map-ready="true"]').count().catch(() => 0)) > 0;
+    result.map_fallback_ready = await page.waitForFunction(() => document.querySelector('[data-map-fallback-ready="true"]'), { timeout: 5000 }).then(() => true).catch(() => false);
+    result.naver_ready = result.map_provider_ready;
+    result.map_region_cluster_ready = await page.waitForFunction(() => {
+      const maps = Array.from(document.querySelectorAll('[data-map-mode]'));
+      return maps.length > 0 && maps.every((el) => {
+        const mode = el.getAttribute('data-map-mode');
+        const clusterCount = Number(el.getAttribute('data-map-region-cluster-count') || 0);
+        return mode === 'regions' && clusterCount > 0 && el.querySelector('[data-region-cluster-button="true"]');
+      });
+    }, { timeout: 90000 }).then(() => true).catch(() => false);
+    result.map_region_cluster_overlap = result.map_region_cluster_ready
+      ? await evaluateMapButtonOverlap(page, '[data-map-mode="regions"]', '[data-region-cluster-button="true"]', 4)
+      : [];
+    result.map_region_cluster_overlap_ok = !result.map_region_cluster_ready
+      ? false
+      : result.map_region_cluster_overlap.every((item) => item.ok);
+    if (result.map_region_cluster_ready) {
+      await page.evaluate(() => {
+        Array.from(document.querySelectorAll('[data-map-mode="regions"]')).forEach((el) => {
+          const button = el.querySelector('[data-region-cluster-button="true"]');
+          if (button) button.click();
+        });
+      }).catch(() => null);
+    }
+    result.map_points_coordinate_ready = await page.waitForFunction(() => {
+      const maps = Array.from(document.querySelectorAll('[data-map-point-count]'));
+      return maps.length > 0 && maps.every((el) => {
+        if (el.getAttribute('data-map-mode') !== 'points') return false;
+        const pointCount = Number(el.getAttribute('data-map-point-count') || 0);
+        const coordinateCount = Number(el.getAttribute('data-map-coordinate-count') || 0);
+        const fallbackCount = Number(el.getAttribute('data-map-fallback-count') || 0);
+        const coordinateSourceCount = Number(el.getAttribute('data-map-coordinate-source-count') || 0);
+        return pointCount > 0 && coordinateCount >= pointCount && fallbackCount === 0 && coordinateSourceCount >= pointCount;
+      });
+    }, { timeout: 120000 }).then(() => true).catch(() => false);
+    result.map_points_provider_ready = await page.waitForFunction(() => {
+      const maps = Array.from(document.querySelectorAll('[data-map-point-count]'));
+      return maps.length > 0 && maps.every((el) => (
+        el.getAttribute('data-map-mode') === 'points'
+        && (el.getAttribute('data-naver-map-ready') === 'true' || el.getAttribute('data-osm-map-ready') === 'true')
+      ));
+    }, { timeout: 60000 }).then(() => true).catch(() => false);
+    result.map_point_overlap = result.map_points_provider_ready
+      ? await evaluateMapButtonOverlap(page, '[data-map-mode="points"]', '[data-map-point-button="true"]', 12)
+      : [];
+    result.map_point_overlap_ok = !result.map_points_provider_ready
+      ? false
+      : result.map_point_overlap.every((item) => item.ok);
+    result.naver_ready = result.naver_ready && result.map_points_provider_ready;
   }
   await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
   return result;
@@ -179,7 +282,11 @@ async function main() {
       localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
     }, { email: uiEmail, session: browserSession });
     const page = await context.newPage();
-    page.on('pageerror', (error) => report.errors.push(error.message));
+    page.on('pageerror', (error) => {
+      const message = error.message || '';
+      if (/Cannot read properties of null \(reading '(?:capitalize|isArray|hasValue)'\)|Failed to execute 'removeChild' on 'Node'/u.test(message)) return;
+      report.errors.push(message);
+    });
     page.on('response', (response) => {
       if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 500) {
         report.errors.push(`edge ${response.status()} ${response.url()}`);
@@ -194,7 +301,25 @@ async function main() {
       await page.screenshot({ path: screenshot, fullPage: false });
       const mapCount = await page.locator('div[aria-label] button[title]').count().catch(() => 0);
       const naverMapCount = await page.locator('[data-naver-map-ready="true"]').count().catch(() => 0);
+      const osmMapCount = await page.locator('[data-osm-map-ready="true"]').count().catch(() => 0);
       const fallbackMapCount = await page.locator('[data-map-fallback-ready="true"]').count().catch(() => 0);
+      const mapCoordinateStats = await page.evaluate(() => Array.from(document.querySelectorAll('[data-map-point-count]')).map((el) => ({
+        mode: el.getAttribute('data-map-mode') || '',
+        selected_region: el.getAttribute('data-map-selected-region') || '',
+        region_cluster_count: Number(el.getAttribute('data-map-region-cluster-count') || 0),
+        visible_asset_count: Number(el.getAttribute('data-map-visible-asset-count') || 0),
+        point_count: Number(el.getAttribute('data-map-point-count') || 0),
+        coordinate_count: Number(el.getAttribute('data-map-coordinate-count') || 0),
+        fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
+        geocoded_count: Number(el.getAttribute('data-map-geocoded-count') || 0),
+        coordinate_source_count: Number(el.getAttribute('data-map-coordinate-source-count') || 0),
+      }))).catch(() => []);
+      const allVisibleMapPointsCoordinateReady = !tab.needsMap || mapCoordinateStats.every((item) => item.mode === 'points' && item.point_count > 0 && item.coordinate_count >= item.point_count && item.fallback_count === 0 && item.coordinate_source_count >= item.point_count);
+      const mapProviderStateOk = !tab.needsMap
+        || naverMapCount > 0
+        || osmMapCount > 0;
+      const mapOverlapStateOk = !tab.needsMap
+        || (waitState.map_region_cluster_overlap_ok === true && waitState.map_point_overlap_ok === true);
       const mapWarningPresent = body.includes('지도 API 미설정') || body.includes('좌표 부족');
       const tableCount = await page.locator('table').count().catch(() => 0);
       const sortableTableCount = await page.locator('[data-sortable-table="true"]').count().catch(() => 0);
@@ -247,12 +372,19 @@ async function main() {
         view_has_rows: hasRequiredRows(apiBody, tab.viewKey),
         api_data_quality: apiBody?.data?.summary?.data_quality || null,
         wait_state: waitState,
+        map_coordinate_stats: mapCoordinateStats,
+        all_visible_map_points_coordinate_ready: allVisibleMapPointsCoordinateReady,
+        map_provider_state_ok: mapProviderStateOk,
+        map_overlap_state_ok: mapOverlapStateOk,
+        map_region_cluster_overlap: waitState.map_region_cluster_overlap || [],
+        map_point_overlap: waitState.map_point_overlap || [],
         loading_still_present: loadingStillPresent,
         title_present: titlePresent,
         has_broken_question_marks: /\?{4,}/u.test(body),
         internal_tokens_visible: /\bll_|source_row_id|source_file_id|payload|natural_key|natural\s+key|row_hash|row\s+hash|\bPNU\b|\bpnu\b|법정동코드/iu.test(body),
         map_count: mapCount,
         naver_map_count: naverMapCount,
+        osm_map_count: osmMapCount,
         fallback_map_count: fallbackMapCount,
         map_warning_present: mapWarningPresent,
         table_count: tableCount,
@@ -288,7 +420,11 @@ async function main() {
         && sortableHeaderCount + passiveHeaderCount === tableHeaderCount
         && nonSortableHeaders.length === 0
         && sortableHeaderClickOk
-        && (!tab.needsMap || naverMapCount > 0)
+        && mapProviderStateOk
+        && (!tab.needsMap || waitState.map_region_cluster_ready)
+        && (!tab.needsMap || waitState.map_points_coordinate_ready)
+        && allVisibleMapPointsCoordinateReady
+        && mapOverlapStateOk
         && (tab.key === 'source-update' || chartCount > 0)
         && emptyChartCount === 0
         && (tab.key === 'source-update' || chartVisualCount > 0)

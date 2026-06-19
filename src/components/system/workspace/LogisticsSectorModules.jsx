@@ -300,6 +300,10 @@ function regionDisplay(value) {
   return scope ? `(${scope}) ${region}` : region;
 }
 
+function compactRegionLabel(value) {
+  return text(value).replace(/^\([^)]+\)\s*/u, '');
+}
+
 function regionMatches(selected, rowRegion) {
   return selected === '전체' || regionValue(rowRegion) === selected;
 }
@@ -694,10 +698,11 @@ function SortableTable({
   const [sort, setSort] = useState(defaultSort || null);
   const visibleRows = useMemo(() => {
     const source = safeArray(rows);
-    if (!sort?.key) return source;
-    const column = columns.find((item) => item.key === sort.key);
-    const sortValue = column?.sortValue || ((row) => row?.[sort.key]);
-    return source.slice().sort((a, b) => {
+    const criteria = Array.isArray(sort) ? sort.filter((item) => item?.key) : (sort?.key ? [sort] : []);
+    if (!criteria.length) return source;
+    const compareBy = (criterion, a, b) => {
+      const column = columns.find((item) => item.key === criterion.key);
+      const sortValue = column?.sortValue || ((row) => row?.[criterion.key]);
       const left = sortValue(a);
       const right = sortValue(b);
       const leftNumber = Number(left);
@@ -708,7 +713,14 @@ function SortableTable({
       } else {
         result = String(left ?? '').localeCompare(String(right ?? ''), 'ko');
       }
-      return sort.direction === 'desc' ? -result : result;
+      return criterion.direction === 'desc' ? -result : result;
+    };
+    return source.slice().sort((a, b) => {
+      for (const criterion of criteria) {
+        const result = compareBy(criterion, a, b);
+        if (result !== 0) return result;
+      }
+      return 0;
     });
   }, [columns, rows, sort]);
   const nextSort = (column) => {
@@ -726,6 +738,7 @@ function SortableTable({
           <tr>
             {columns.map((column, index) => {
               const sticky = index < stickyCount;
+              const activeSort = Array.isArray(sort) ? sort.find((item) => item?.key === column.key) : (sort?.key === column.key ? sort : null);
               return (
                 <th
                   key={column.key}
@@ -741,7 +754,7 @@ function SortableTable({
                     title={column.sortable === false ? undefined : `${column.label} 기준 정렬`}
                   >
                     {column.label}
-                    {column.sortable === false ? null : <span className={`text-[10px] ${sort?.key === column.key ? 'text-white' : 'text-[#5f5f64]'}`}>{sort?.key === column.key ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>}
+                    {column.sortable === false ? null : <span className={`text-[10px] ${activeSort ? 'text-white' : 'text-[#5f5f64]'}`}>{activeSort ? (activeSort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>}
                   </button>
                 </th>
               );
@@ -821,23 +834,31 @@ function FilterPills({ label, options, value, onChange }) {
 }
 
 function loadNaverMapsSdk(clientId) {
-  if (window.naver?.maps?.Map) return Promise.resolve();
-  if (window.__logisticsNaverMapsSdkPromise) return window.__logisticsNaverMapsSdkPromise;
+  const mapReady = () => window.naver?.maps?.Map;
+  const sdkReady = () => mapReady() && window.naver?.maps?.Service?.geocode;
+  if (sdkReady()) return Promise.resolve();
+  if (window.__logisticsNaverMapsSdkPromise) {
+    return window.__logisticsNaverMapsSdkPromise.then(() => {
+      if (sdkReady()) return undefined;
+      window.__logisticsNaverMapsSdkPromise = null;
+      return loadNaverMapsSdk(clientId);
+    });
+  }
   window.__logisticsNaverMapsSdkPromise = new Promise((resolve, reject) => {
-    const existing = document.getElementById('logistics-naver-map-sdk') || document.querySelector('script[data-logistics-naver-map="true"]');
+    const existing = document.querySelector('script[data-logistics-naver-map="geocoder"]');
     const script = existing || document.createElement('script');
     const settleReady = () => {
-      if (window.naver?.maps?.Map) resolve();
+      if (mapReady()) resolve();
       else {
         window.__logisticsNaverMapsSdkPromise = null;
-        reject(new Error('Naver Maps SDK unavailable'));
+        reject(new Error('Naver Maps SDK geocoder unavailable'));
       }
     };
     const timeoutId = window.setTimeout(() => {
-      if (window.naver?.maps?.Map) resolve();
+      if (mapReady()) resolve();
       else {
         window.__logisticsNaverMapsSdkPromise = null;
-        reject(new Error('Naver Maps SDK timeout'));
+        reject(new Error('Naver Maps SDK geocoder timeout'));
       }
     }, 30000);
     const complete = () => {
@@ -849,31 +870,190 @@ function loadNaverMapsSdk(clientId) {
       window.__logisticsNaverMapsSdkPromise = null;
       reject(new Error('Naver Maps SDK load failed'));
     };
-    script.id = script.id || 'logistics-naver-map-sdk';
-    script.setAttribute('data-logistics-naver-map', 'true');
+    script.id = script.id || 'logistics-naver-map-sdk-geocoder';
+    script.setAttribute('data-logistics-naver-map', 'geocoder');
     script.async = true;
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`;
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder`;
     script.addEventListener('load', complete, { once: true });
     script.addEventListener('error', fail, { once: true });
     if (!existing) document.head.appendChild(script);
-    if (existing && window.naver?.maps?.Map) complete();
+    if (existing && mapReady()) complete();
   });
   return window.__logisticsNaverMapsSdkPromise;
 }
 
+const OSM_TILE_SIZE = 256;
+const OSM_VIEW_WIDTH = 960;
+const OSM_VIEW_HEIGHT = 520;
+
+function osmWorldPoint(lat, lng, zoom) {
+  const safeLat = Math.max(-85.05112878, Math.min(85.05112878, Number(lat)));
+  const safeLng = Number(lng);
+  if (!Number.isFinite(safeLat) || !Number.isFinite(safeLng)) return null;
+  const scale = 2 ** zoom;
+  const latRad = (safeLat * Math.PI) / 180;
+  return {
+    x: ((safeLng + 180) / 360) * scale * OSM_TILE_SIZE,
+    y: ((1 - Math.log(Math.tan(latRad) + (1 / Math.cos(latRad))) / Math.PI) / 2) * scale * OSM_TILE_SIZE,
+  };
+}
+
+function clampPercent(value, min = 2, max = 98) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function spreadPercentPositions(items, minDistance, bounds = {}) {
+  const leftMin = bounds.leftMin ?? 2;
+  const leftMax = bounds.leftMax ?? 98;
+  const topMin = bounds.topMin ?? 2;
+  const topMax = bounds.topMax ?? 98;
+  const positions = safeArray(items).map((item, index) => ({
+    ...item,
+    index,
+    left: clampPercent(Number(item.left), leftMin, leftMax),
+    top: clampPercent(Number(item.top), topMin, topMax),
+  }));
+  for (let iteration = 0; iteration < 100; iteration += 1) {
+    let moved = false;
+    for (let leftIndex = 0; leftIndex < positions.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < positions.length; rightIndex += 1) {
+        const left = positions[leftIndex];
+        const right = positions[rightIndex];
+        let dx = right.left - left.left;
+        let dy = right.top - left.top;
+        let distance = Math.hypot(dx, dy);
+        if (!Number.isFinite(distance) || distance < 0.001) {
+          const angle = ((Math.PI * 2) * (leftIndex + rightIndex + 1)) / Math.max(positions.length, 1);
+          dx = Math.cos(angle);
+          dy = Math.sin(angle);
+          distance = 1;
+        }
+        if (distance >= minDistance) continue;
+        const push = (minDistance - distance) / 2;
+        const ux = dx / distance;
+        const uy = dy / distance;
+        left.left = clampPercent(left.left - (ux * push), leftMin, leftMax);
+        left.top = clampPercent(left.top - (uy * push), topMin, topMax);
+        right.left = clampPercent(right.left + (ux * push), leftMin, leftMax);
+        right.top = clampPercent(right.top + (uy * push), topMin, topMax);
+        left.collisionAdjusted = true;
+        right.collisionAdjusted = true;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  return positions;
+}
+
+function buildOsmTileLayout(rows, zoom) {
+  const points = safeArray(rows)
+    .map((row) => ({ row, point: osmWorldPoint(row.lat, row.lng, zoom) }))
+    .filter((item) => item.point);
+  if (!points.length) return { zoom, tiles: [], pointPositions: new Map() };
+  const centerX = points.reduce((sum, item) => sum + item.point.x, 0) / points.length;
+  const centerY = points.reduce((sum, item) => sum + item.point.y, 0) / points.length;
+  const startX = centerX - (OSM_VIEW_WIDTH / 2);
+  const startY = centerY - (OSM_VIEW_HEIGHT / 2);
+  const scale = 2 ** zoom;
+  const maxTile = scale - 1;
+  const tiles = [];
+  const startTileX = Math.floor(startX / OSM_TILE_SIZE);
+  const endTileX = Math.floor((startX + OSM_VIEW_WIDTH) / OSM_TILE_SIZE);
+  const startTileY = Math.floor(startY / OSM_TILE_SIZE);
+  const endTileY = Math.floor((startY + OSM_VIEW_HEIGHT) / OSM_TILE_SIZE);
+  for (let x = startTileX; x <= endTileX; x += 1) {
+    for (let y = startTileY; y <= endTileY; y += 1) {
+      if (y < 0 || y > maxTile) continue;
+      const wrappedX = ((x % scale) + scale) % scale;
+      tiles.push({
+        key: `${zoom}-${wrappedX}-${y}`,
+        src: `https://tile.openstreetmap.org/${zoom}/${wrappedX}/${y}.png`,
+        left: ((x * OSM_TILE_SIZE - startX) / OSM_VIEW_WIDTH) * 100,
+        top: ((y * OSM_TILE_SIZE - startY) / OSM_VIEW_HEIGHT) * 100,
+        width: (OSM_TILE_SIZE / OSM_VIEW_WIDTH) * 100,
+        height: (OSM_TILE_SIZE / OSM_VIEW_HEIGHT) * 100,
+      });
+    }
+  }
+  const rawPositions = points.map(({ row, point }) => ({
+    row,
+    left: ((point.x - startX) / OSM_VIEW_WIDTH) * 100,
+    top: ((point.y - startY) / OSM_VIEW_HEIGHT) * 100,
+  }));
+  const collisionGroups = [];
+  rawPositions
+    .slice()
+    .sort((a, b) => a.left - b.left || a.top - b.top)
+    .forEach((position) => {
+      const group = collisionGroups.find((items) => items.some((item) => Math.hypot(item.left - position.left, item.top - position.top) < 1.45));
+      if (group) group.push(position);
+      else collisionGroups.push([position]);
+    });
+  const pointPositions = new Map();
+  collisionGroups.forEach((group) => {
+    if (group.length === 1) {
+      const item = group[0];
+      pointPositions.set(item.row, {
+        left: Math.max(-8, Math.min(108, item.left)),
+        top: Math.max(-8, Math.min(108, item.top)),
+        collisionAdjusted: false,
+      });
+      return;
+    }
+    const centerLeft = group.reduce((sum, item) => sum + item.left, 0) / group.length;
+    const centerTop = group.reduce((sum, item) => sum + item.top, 0) / group.length;
+    const radius = Math.min(6.8, 1.8 + (group.length * 0.22));
+    group
+      .slice()
+      .sort((a, b) => text(a.row?.label || a.row?.row?.asset_name || a.row?.row?.center_name).localeCompare(text(b.row?.label || b.row?.row?.asset_name || b.row?.row?.center_name), 'ko'))
+      .forEach((item, index) => {
+        const angle = ((Math.PI * 2) * index) / group.length - (Math.PI / 2);
+        pointPositions.set(item.row, {
+          left: clampPercent(centerLeft + (Math.cos(angle) * radius)),
+          top: clampPercent(centerTop + (Math.sin(angle) * radius)),
+          collisionAdjusted: true,
+        });
+      });
+  });
+  const hasClusterRows = rawPositions.some((item) => item.row?.isCluster);
+  const spreadedPositions = spreadPercentPositions(
+    Array.from(pointPositions.entries()).map(([row, position]) => ({ row, ...position })),
+    hasClusterRows ? 18.5 : 3.6,
+    hasClusterRows
+      ? { leftMin: 8, leftMax: 92, topMin: 12, topMax: 88 }
+      : { leftMin: 2, leftMax: 98, topMin: 3, topMax: 97 },
+  );
+  pointPositions.clear();
+  spreadedPositions.forEach((item) => {
+    pointPositions.set(item.row, {
+      left: item.left,
+      top: item.top,
+      collisionAdjusted: Boolean(item.collisionAdjusted),
+    });
+  });
+  return { zoom, tiles, pointPositions };
+}
+
 function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'region', onSelect }) {
   const sourceRows = safeArray(rows);
-  const visibleRows = useMemo(() => sourceRows.slice(0, 120), [sourceRows]);
-  const excludedCount = Math.max(0, sourceRows.length - visibleRows.length);
-  const mapRef = useRef(null);
+  const mapCanvasRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const mapProviderRef = useRef('');
+  const mapZoomListenerRef = useRef(null);
   const markersRef = useRef([]);
   const cadastralLayerRef = useRef(null);
   const onSelectRef = useRef(onSelect);
   const [mapStatus, setMapStatus] = useState({ status: 'checking', message: '지도 설정 확인 중' });
   const [mapDisplayType, setMapDisplayType] = useState('normal');
+  const [geocodedCoords, setGeocodedCoords] = useState({});
+  const [geocodeFailures, setGeocodeFailures] = useState({});
+  const [selectedMapRegion, setSelectedMapRegion] = useState('');
+  const [mapZoom, setMapZoom] = useState(8);
+  const [forceOsm, setForceOsm] = useState(false);
+  const detailPointLimit = mapZoom >= 12 ? 120 : mapZoom >= 11 ? 80 : mapZoom >= 10 ? 45 : mapZoom >= 9 ? 25 : 15;
   const applyMapDisplayType = (map, nextType) => {
-    if (!map || !window.naver?.maps) return;
+    if (!map || mapProviderRef.current !== 'naver' || !window.naver?.maps || typeof map.setMapTypeId !== 'function') return;
     if (cadastralLayerRef.current) cadastralLayerRef.current.setMap(null);
     cadastralLayerRef.current = null;
     if (nextType === 'satellite') {
@@ -890,93 +1070,354 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
     const code = String(label || '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
     return 18 + ((code * (axis === 'x' ? 17 : 29)) % 64);
   };
-  const plotRows = useMemo(() => visibleRows.map((row, index) => {
-    const region = regionValue(row[regionKey]);
-    const position = REGION_MAP_POSITIONS[region] || [hashPosition(region || row[labelKey], 'x'), hashPosition(region || row[labelKey], 'y')];
-    const xValue = Number(row.x_percent);
-    const yValue = Number(row.y_percent);
-    const rawLat = Number(row.latitude ?? row.lat ?? row.y_coord);
-    const rawLng = Number(row.longitude ?? row.lng ?? row.x_coord);
-    const regionCenter = REGION_CENTER_COORDS[region];
-    const offsetLat = ((index % 7) - 3) * 0.008;
-    const offsetLng = ((Math.floor(index / 7) % 7) - 3) * 0.01;
+  const areaValue = (row) => number(firstText(row.gross_area_py, row.area_py, row.leasable_area_py, row.building_area_py, row.land_area_py, 0));
+  const regionRows = useMemo(() => {
+    const grouped = new Map();
+    sourceRows.forEach((row) => {
+      const region = regionValue(row[regionKey]) || '기타';
+      const current = grouped.get(region) || { region, regionLabel: regionDisplay(region), count: 0, area: 0, rows: [] };
+      current.count += 1;
+      current.area += areaValue(row);
+      current.rows.push(row);
+      grouped.set(region, current);
+    });
+    const rows = Array.from(grouped.values())
+      .sort((a, b) => b.area - a.area || b.count - a.count || a.regionLabel.localeCompare(b.regionLabel, 'ko'))
+      .map((item, index) => {
+        const center = REGION_CENTER_COORDS[item.region] || [36.4 + ((index % 5) - 2) * 0.7, 127.8 + ((Math.floor(index / 5) % 4) - 1.5) * 0.9];
+        const position = REGION_MAP_POSITIONS[item.region] || [hashPosition(item.region, 'x'), hashPosition(item.region, 'y')];
+        return {
+          ...item,
+          row: item.rows[0] || {},
+          index,
+          label: item.regionLabel,
+          address: '',
+          left: position[0],
+          top: position[1],
+          lat: center[0],
+          lng: center[1],
+          coordinateSource: 'region.cluster',
+          fallback: false,
+          isCluster: true,
+        };
+      });
+    const spreadedRows = spreadPercentPositions(rows, 18.5, { leftMin: 8, leftMax: 92, topMin: 12, topMax: 88 });
+    return rows.map((row, index) => ({
+      ...row,
+      left: spreadedRows[index]?.left ?? row.left,
+      top: spreadedRows[index]?.top ?? row.top,
+    }));
+  }, [sourceRows, regionKey]);
+  const selectedRegionRows = useMemo(() => {
+    if (!selectedMapRegion) return [];
+    return sourceRows
+      .filter((row) => regionValue(row[regionKey]) === selectedMapRegion)
+      .slice()
+      .sort((a, b) => areaValue(b) - areaValue(a) || text(a[labelKey] || a.label).localeCompare(text(b[labelKey] || b.label), 'ko'));
+  }, [sourceRows, regionKey, labelKey, selectedMapRegion]);
+  const visibleRows = useMemo(() => selectedRegionRows.slice(0, detailPointLimit), [selectedRegionRows, detailPointLimit]);
+  const excludedCount = selectedMapRegion ? Math.max(0, selectedRegionRows.length - visibleRows.length) : Math.max(0, sourceRows.length - regionRows.length);
+  const plotRows = useMemo(() => {
+    const rows = visibleRows.map((row, index) => {
+      const region = regionValue(row[regionKey]);
+      const position = REGION_MAP_POSITIONS[region] || [hashPosition(region || row[labelKey], 'x'), hashPosition(region || row[labelKey], 'y')];
+      const xValue = Number(row.x_percent);
+      const yValue = Number(row.y_percent);
+      const addressCandidates = Array.from(new Set([
+        text(row.address),
+        text(row.legal_address),
+        text(row.generated_address),
+      ].filter(Boolean)));
+      const address = addressCandidates[0] || '';
+      const geocoded = addressCandidates
+        .map((candidate) => geocodedCoords[candidate])
+        .find((candidate) => candidate && Number.isFinite(candidate.lat) && Number.isFinite(candidate.lng));
+      const rawLat = Number(row.latitude ?? row.lat ?? row.y_coord);
+      const rawLng = Number(row.longitude ?? row.lng ?? row.x_coord);
+      const hasRawCoords = Number.isFinite(rawLat) && Number.isFinite(rawLng) && rawLat !== 0 && rawLng !== 0;
+      const hasGeocodedCoords = Boolean(geocoded && Number.isFinite(geocoded.lat) && Number.isFinite(geocoded.lng));
+      const coordinateSource = hasRawCoords
+        ? text(row.coordinate_source || 'server.coordinates')
+        : (hasGeocodedCoords ? 'client.naver.geocode' : text(row.coordinate_source));
+      const regionCenter = REGION_CENTER_COORDS[region];
+      const offsetLat = ((index % 7) - 3) * 0.008;
+      const offsetLng = ((Math.floor(index / 7) % 7) - 3) * 0.01;
+      return {
+        row,
+        index,
+        label: text(row[labelKey] || row.label),
+        region,
+        regionLabel: regionDisplay(region),
+        address,
+        addressCandidates,
+        coordinateSource,
+        coordinateAddress: text(row.coordinate_address),
+        addressRule: text(row.address_rule),
+        left: Number.isFinite(xValue) ? xValue : Math.max(8, Math.min(92, position[0] + ((index % 5) - 2) * 2.3)),
+        top: Number.isFinite(yValue) ? yValue : Math.max(8, Math.min(90, position[1] + ((Math.floor(index / 5) % 5) - 2) * 2.2)),
+        lat: hasRawCoords ? rawLat : (hasGeocodedCoords ? geocoded.lat : (regionCenter ? regionCenter[0] + offsetLat : null)),
+        lng: hasRawCoords ? rawLng : (hasGeocodedCoords ? geocoded.lng : (regionCenter ? regionCenter[1] + offsetLng : null)),
+        geocoded: !hasRawCoords && hasGeocodedCoords,
+        fallback: !(hasRawCoords || hasGeocodedCoords),
+      };
+    });
+    const spreadedRows = spreadPercentPositions(rows, 3.6, { leftMin: 2, leftMax: 98, topMin: 3, topMax: 97 });
+    return rows.map((row, index) => ({
+      ...row,
+      left: spreadedRows[index]?.left ?? row.left,
+      top: spreadedRows[index]?.top ?? row.top,
+    }));
+  }, [visibleRows, regionKey, labelKey, geocodedCoords]);
+  const markerRows = useMemo(() => (
+    selectedMapRegion
+      ? plotRows.filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+      : regionRows
+  ), [plotRows, regionRows, selectedMapRegion]);
+  const osmZoom = selectedMapRegion ? Math.max(9, Math.min(13, mapZoom)) : 7;
+  const osmLayout = useMemo(() => buildOsmTileLayout(markerRows, osmZoom), [markerRows, osmZoom]);
+  const mapPointStyle = (item) => {
+    const osmPosition = mapStatus.status === 'osm' ? osmLayout.pointPositions.get(item) : null;
     return {
-      row,
-      index,
-      label: text(row[labelKey] || row.label),
-      region,
-      regionLabel: regionDisplay(region),
-      left: Number.isFinite(xValue) ? xValue : Math.max(8, Math.min(92, position[0] + ((index % 5) - 2) * 2.3)),
-      top: Number.isFinite(yValue) ? yValue : Math.max(8, Math.min(90, position[1] + ((Math.floor(index / 5) % 5) - 2) * 2.2)),
-      lat: Number.isFinite(rawLat) ? rawLat : (regionCenter ? regionCenter[0] + offsetLat : null),
-      lng: Number.isFinite(rawLng) ? rawLng : (regionCenter ? regionCenter[1] + offsetLng : null),
-      fallback: !(Number.isFinite(rawLat) && Number.isFinite(rawLng)),
+      left: `${Number.isFinite(osmPosition?.left) ? osmPosition.left : item.left}%`,
+      top: `${Number.isFinite(osmPosition?.top) ? osmPosition.top : item.top}%`,
     };
-  }), [visibleRows, regionKey, labelKey]);
+  };
 
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
 
   useEffect(() => {
+    const handleMapRuntimeError = (event) => {
+      const message = String(event?.message || event?.error?.message || '');
+      if (/Cannot read properties of null \(reading '(?:capitalize|isArray|hasValue|TransitionQueue)'\)|Failed to execute 'removeChild' on 'Node'/u.test(message)) {
+        event.preventDefault?.();
+        setForceOsm(true);
+      }
+    };
+    window.addEventListener('error', handleMapRuntimeError);
+    return () => window.removeEventListener('error', handleMapRuntimeError);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
-    markersRef.current.forEach((marker) => marker?.setMap?.(null));
-    markersRef.current = [];
-    const mappableRows = plotRows.filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng));
-    if (!mappableRows.length) {
+    const targetMap = new Map();
+    plotRows
+      .filter((item) => item.fallback && item.addressCandidates?.length)
+      .forEach((item) => {
+        item.addressCandidates.forEach((candidate) => {
+          if (!geocodedCoords[candidate] && !geocodeFailures[candidate]) {
+            targetMap.set(candidate, candidate);
+          }
+        });
+      });
+    const targets = Array.from(targetMap.values()).slice(0, 120);
+    if (!targets.length) return () => {
+      cancelled = true;
+    };
+    const geocodeVisibleAddresses = async () => {
+      try {
+        if (cancelled) return;
+        const batchResult = await invoke('naver/geocode-batch', { queries: targets });
+        if (cancelled) return;
+        const rows = Array.isArray(batchResult?.rows) ? batchResult.rows : [];
+        const nextCoords = {};
+        const nextFailures = {};
+        rows.forEach((result) => {
+          const address = text(result.query);
+          const lat = Number(result.latitude ?? result.y ?? result.lat);
+          const lng = Number(result.longitude ?? result.x ?? result.lng);
+          if (address && Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+            nextCoords[address] = { lat, lng };
+          } else if (address) {
+            nextFailures[address] = true;
+          }
+        });
+        targets.forEach((address) => {
+          if (!nextCoords[address]) nextFailures[address] = true;
+        });
+        if (Object.keys(nextCoords).length) {
+          setGeocodedCoords((current) => ({ ...current, ...nextCoords }));
+        }
+        if (Object.keys(nextFailures).length) {
+          setGeocodeFailures((current) => ({ ...current, ...nextFailures }));
+        }
+      } catch {
+        // Map rendering still falls back to region centers when geocoding is unavailable.
+      }
+    };
+    geocodeVisibleAddresses();
+    return () => {
+      cancelled = true;
+    };
+  }, [plotRows, geocodedCoords, geocodeFailures]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const clearMarkers = () => {
+      markersRef.current.forEach((marker) => {
+        try {
+          marker?.setMap?.(null);
+        } catch {
+          // Naver SDK can throw while detaching an unauthorized marker.
+        }
+        try {
+          marker?.remove?.();
+        } catch {
+          // Leaflet marker cleanup should not be allowed to blank the app.
+        }
+      });
+      markersRef.current = [];
+    };
+    const clearZoomListener = () => {
+      if (!mapZoomListenerRef.current) return;
+      if (mapProviderRef.current === 'naver' && window.naver?.maps?.Event) {
+        try {
+          window.naver.maps.Event.removeListener(mapZoomListenerRef.current);
+        } catch {
+          // Ignore provider cleanup errors and keep the React tree alive.
+        }
+      }
+      if (mapProviderRef.current === 'osm' && mapInstanceRef.current?.off) {
+        try {
+          mapInstanceRef.current.off('zoomend', mapZoomListenerRef.current);
+        } catch {
+          // Ignore provider cleanup errors and keep the React tree alive.
+        }
+      }
+      mapZoomListenerRef.current = null;
+    };
+    const destroyCurrentMap = () => {
+      clearMarkers();
+      clearZoomListener();
+      if (cadastralLayerRef.current) {
+        try {
+          cadastralLayerRef.current.setMap(null);
+        } catch {
+          // Ignore provider cleanup errors and continue fallback.
+        }
+      }
+      cadastralLayerRef.current = null;
+      if (mapProviderRef.current === 'osm' && mapInstanceRef.current?.remove) {
+        try {
+          mapInstanceRef.current.remove();
+        } catch {
+          // Ignore provider cleanup errors and continue fallback.
+        }
+      } else if (mapProviderRef.current === 'naver' && typeof mapInstanceRef.current?.destroy === 'function') {
+        try {
+          mapInstanceRef.current.destroy();
+        } catch {
+          // Ignore provider cleanup errors and continue fallback.
+        }
+      }
       mapInstanceRef.current = null;
+      mapProviderRef.current = '';
+      if (mapCanvasRef.current) mapCanvasRef.current.innerHTML = '';
+    };
+    clearMarkers();
+    const mappableRows = markerRows.filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng));
+    if (!mappableRows.length) {
       setMapStatus({ status: 'fallback', message: '지도 API 미설정/좌표 부족 · 권역 기준 표시' });
       return () => {
         cancelled = true;
       };
     }
+    const mapMessage = (providerLabel) => (!selectedMapRegion
+      ? `${providerLabel} · 권역 ${formatNumber(regionRows.length)}개 표시`
+      : mappableRows.some((item) => item.fallback)
+        ? `${providerLabel} · 주소 좌표 ${formatNumber(mappableRows.filter((item) => !item.fallback).length)}건 / 일부 권역 기준`
+        : `${providerLabel} · 전체 주소 좌표 표시`);
+    const mountLeafletMap = async () => {
+      try {
+        if (cancelled) return;
+        destroyCurrentMap();
+        mapProviderRef.current = 'osm';
+        setMapStatus({ status: 'osm', message: mapMessage('OpenStreetMap') });
+      } catch {
+        if (!cancelled) {
+          destroyCurrentMap();
+          setMapStatus({ status: 'fallback', message: '지도 API 미설정/OSM 로드 실패 · 권역 기준 표시' });
+        }
+      }
+    };
     const ensureNaverMaps = async () => {
       try {
+        if (forceOsm) {
+          await mountLeafletMap();
+          return;
+        }
         setMapStatus({ status: 'checking', message: 'Naver Maps SDK 로딩 중' });
         const config = await invoke('naver/maps-config', {});
         const clientId = config?.ncp_key_id || config?.client_id || config?.ncp_client_id || config?.ncpKeyId || config?.key_id;
         if (!clientId) {
-          if (!cancelled) setMapStatus({ status: 'fallback', message: '지도 API 미설정/좌표 부족 · 권역 기준 표시' });
+          if (!cancelled) await mountLeafletMap();
           return;
         }
         await loadNaverMapsSdk(clientId);
-        if (cancelled || !mapRef.current || !window.naver?.maps) return;
+        if (cancelled || !mapCanvasRef.current || !window.naver?.maps) return;
+        if (mapProviderRef.current && mapProviderRef.current !== 'naver') destroyCurrentMap();
         const first = mappableRows[0];
         const center = new window.naver.maps.LatLng(first.lat, first.lng);
-        const map = new window.naver.maps.Map(mapRef.current, {
-          center,
-          zoom: 8,
-          minZoom: 6,
-          background: '#151515',
-        });
+        let map = mapInstanceRef.current;
+        if (!map) {
+          map = new window.naver.maps.Map(mapCanvasRef.current, {
+            center,
+            zoom: selectedMapRegion ? Math.max(9, mapZoom) : 7,
+            minZoom: 6,
+            background: '#151515',
+          });
+        } else {
+          map.setCenter(center);
+          if (selectedMapRegion) map.setZoom(Math.max(9, mapZoom));
+          else map.setZoom(7);
+        }
         mapInstanceRef.current = map;
+        mapProviderRef.current = 'naver';
         applyMapDisplayType(map, mapDisplayType);
+        clearZoomListener();
+        mapZoomListenerRef.current = window.naver.maps.Event.addListener(map, 'zoom_changed', () => {
+          const nextZoom = Number(map.getZoom?.());
+          if (Number.isFinite(nextZoom)) setMapZoom(nextZoom);
+        });
         markersRef.current = mappableRows.map((item) => {
           const marker = new window.naver.maps.Marker({
             position: new window.naver.maps.LatLng(item.lat, item.lng),
             map,
-            title: `${item.label} · ${item.regionLabel}${item.fallback ? ' · 권역 기준' : ''}`,
+            title: item.isCluster
+              ? `${item.regionLabel} · ${formatNumber(item.count)}건 · ${formatNumber(item.area, 1)}평`
+              : `${item.label} · ${item.regionLabel}${item.fallback ? ' · 권역 기준' : (item.geocoded ? ' · 주소 좌표' : '')}`,
           });
-          window.naver.maps.Event.addListener(marker, 'click', () => onSelectRef.current?.(item.row));
+          window.naver.maps.Event.addListener(marker, 'click', () => {
+            if (item.isCluster) {
+              setSelectedMapRegion(item.region);
+              setMapZoom((current) => Math.max(9, current));
+            } else {
+              onSelectRef.current?.(item.row);
+            }
+          });
           return marker;
         });
-        setMapStatus({
-          status: 'ready',
-          message: mappableRows.some((item) => item.fallback) ? 'Naver Maps · 일부 권역 기준 표시' : 'Naver Maps',
-        });
+        setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
       } catch {
-        if (!cancelled) setMapStatus({ status: 'fallback', message: '지도 API 미설정/좌표 부족 · 권역 기준 표시' });
+        if (!cancelled) await mountLeafletMap();
       }
     };
     ensureNaverMaps();
     return () => {
       cancelled = true;
-      markersRef.current.forEach((marker) => marker?.setMap?.(null));
-      markersRef.current = [];
-      if (cadastralLayerRef.current) cadastralLayerRef.current.setMap(null);
+      clearMarkers();
+      clearZoomListener();
+      if (cadastralLayerRef.current) {
+        try {
+          cadastralLayerRef.current.setMap(null);
+        } catch {
+          // Ignore provider cleanup errors and keep the React tree alive.
+        }
+      }
       cadastralLayerRef.current = null;
     };
-  }, [plotRows]);
+  }, [markerRows, selectedMapRegion, regionRows.length, mapDisplayType, forceOsm]);
 
   useEffect(() => {
     applyMapDisplayType(mapInstanceRef.current, mapDisplayType);
@@ -986,20 +1427,53 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
     <div className={`${INNER} p-4`}>
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="text-[14px] font-semibold text-white">{title}</div>
-        <div className="text-[11px] text-[#86868B]">{formatNumber(visibleRows.length)}건 표시{excludedCount ? ` / ${formatNumber(excludedCount)}건 축약` : ''}</div>
+        <div className="flex items-center gap-2 text-[11px] text-[#86868B]">
+          {selectedMapRegion ? (
+            <button type="button" onClick={() => setSelectedMapRegion('')} className="rounded-[7px] border border-[#3A3A3C] px-2 py-1 text-[#E5E5E5] hover:bg-white/[0.04]">
+              전체 권역
+            </button>
+          ) : null}
+          <span>{selectedMapRegion ? `${regionDisplay(selectedMapRegion)} · ${formatNumber(visibleRows.length)}건 표시` : `권역 ${formatNumber(regionRows.length)}개 표시`}{excludedCount ? ` / ${formatNumber(excludedCount)}건 축약` : ''}</span>
+        </div>
       </div>
       <div
-        ref={mapRef}
         className="relative h-[520px] overflow-hidden rounded-[12px] border border-[#333333] bg-[#151515]"
         aria-label={`${title} 지도`}
+        data-map-mode={selectedMapRegion ? 'points' : 'regions'}
+        data-map-selected-region={selectedMapRegion}
+        data-map-region-cluster-count={regionRows.length}
+        data-map-visible-asset-count={visibleRows.length}
+        data-map-provider={mapStatus.status === 'ready' ? 'naver' : (mapStatus.status === 'osm' ? 'osm' : 'fallback')}
         data-naver-map-ready={mapStatus.status === 'ready' ? 'true' : 'false'}
-        data-map-fallback-ready={mapStatus.status !== 'ready' && plotRows.length ? 'true' : 'false'}
+        data-osm-map-ready={mapStatus.status === 'osm' ? 'true' : 'false'}
+        data-map-fallback-ready={mapStatus.status === 'fallback' && markerRows.length ? 'true' : 'false'}
+        data-map-point-count={selectedMapRegion ? plotRows.length : regionRows.length}
+        data-map-coordinate-count={selectedMapRegion ? plotRows.filter((item) => !item.fallback).length : regionRows.length}
+        data-map-fallback-count={selectedMapRegion ? plotRows.filter((item) => item.fallback).length : 0}
+        data-map-geocoded-count={selectedMapRegion ? plotRows.filter((item) => item.geocoded).length : 0}
+        data-map-coordinate-source-count={selectedMapRegion ? plotRows.filter((item) => !item.fallback && item.coordinateSource).length : regionRows.length}
       >
+        <div ref={mapCanvasRef} className="absolute inset-0" aria-hidden="true" />
+        {mapStatus.status === 'osm' ? (
+          <div className="absolute inset-0 overflow-hidden bg-[#1A1A1A]" aria-hidden="true">
+            {osmLayout.tiles.map((tile) => (
+              <img
+                key={tile.key}
+                src={tile.src}
+                alt=""
+                className="absolute select-none"
+                draggable={false}
+                style={{ left: `${tile.left}%`, top: `${tile.top}%`, width: `${tile.width}%`, height: `${tile.height}%` }}
+              />
+            ))}
+            <div className="absolute bottom-2 right-2 rounded-[6px] bg-white/80 px-2 py-1 text-[10px] text-[#1F1F1E]">Map data © OpenStreetMap contributors</div>
+          </div>
+        ) : null}
         <div className="absolute right-3 top-3 z-10 flex overflow-hidden rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/90">
           {[
             ['normal', '일반'],
             ['satellite', '위성'],
-            ['cadastral', '지적'],
+            ['cadastral', '지적편집도'],
           ].map(([value, label]) => (
             <button
               key={value}
@@ -1011,7 +1485,11 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
             </button>
           ))}
         </div>
-        {mapStatus.status !== 'ready' ? (
+        <div className="absolute left-3 bottom-3 z-10 flex overflow-hidden rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/90">
+          <button type="button" onClick={() => setMapZoom((current) => Math.min(13, current + 1))} className="h-8 w-9 text-[15px] font-semibold text-[#E5E5E5] hover:bg-white/[0.06]">+</button>
+          <button type="button" onClick={() => setMapZoom((current) => Math.max(7, current - 1))} className="h-8 w-9 border-l border-[#3A3A3C] text-[15px] font-semibold text-[#E5E5E5] hover:bg-white/[0.06]">-</button>
+        </div>
+        {mapStatus.status !== 'ready' && mapStatus.status !== 'osm' ? (
           <>
             <div className="absolute inset-0 opacity-45" style={{ backgroundImage: 'linear-gradient(#2B2B2D 1px, transparent 1px), linear-gradient(90deg, #2B2B2D 1px, transparent 1px)', backgroundSize: '38px 38px' }} />
             {Object.entries(REGION_MAP_POSITIONS).map(([region, position]) => (
@@ -1020,21 +1498,52 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
             <div className="absolute left-3 top-3 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/90 px-3 py-2 text-[11px] text-[#FFD479]">
               {mapStatus.message}
             </div>
-            {plotRows.map((item) => (
+            {(selectedMapRegion ? plotRows : regionRows).map((item) => (
             <button
-              key={item.row.row_key || item.row.id || item.index}
+              key={item.isCluster ? `cluster-${item.region}` : (item.row.row_key || item.row.id || item.index)}
               type="button"
-              title={`${item.label} · ${item.regionLabel}${item.fallback ? ' · 권역 기준' : ''}`}
-              onClick={() => onSelect?.(item.row)}
-              className="absolute h-3 w-3 rounded-full border border-white bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.14)] hover:bg-[#A1A1AA]"
-              style={{ left: `${item.left}%`, top: `${item.top}%` }}
-            />
+              data-region-cluster-button={item.isCluster ? 'true' : undefined}
+              data-map-point-button={!item.isCluster ? 'true' : undefined}
+              title={item.isCluster ? `${item.regionLabel} · ${formatNumber(item.count)}건` : `${item.label} · ${item.regionLabel}${item.fallback ? ' · 권역 기준' : ''}`}
+              onClick={() => item.isCluster ? (setSelectedMapRegion(item.region), setMapZoom((current) => Math.max(9, current))) : onSelect?.(item.row)}
+              className={item.isCluster
+                ? 'absolute flex h-[54px] w-[54px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#8CC8FF]/60 bg-[#123A5A]/90 px-1 py-1 text-center text-[10px] font-semibold leading-tight text-[#DDF0FF] shadow-lg hover:bg-[#1E5B86]'
+                : 'absolute h-3 w-3 rounded-full border border-white bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.14)] hover:bg-[#A1A1AA]'}
+              style={mapPointStyle(item)}
+            >
+              {item.isCluster ? <span className="block w-full"><span className="block truncate">{compactRegionLabel(item.regionLabel)}</span><span className="block text-[9px] text-[#9FD5FF]">{formatNumber(item.count)}건</span></span> : null}
+            </button>
             ))}
           </>
         ) : (
-          <div className="absolute left-3 top-3 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/80 px-3 py-2 text-[11px] text-[#E5E5E5]">{mapStatus.message}</div>
+          <>
+            <div className="absolute left-3 top-3 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/80 px-3 py-2 text-[11px] text-[#E5E5E5]">{mapStatus.message}</div>
+            {(selectedMapRegion ? plotRows : regionRows).map((item) => (
+              <button
+                key={item.isCluster ? `ready-cluster-${item.region}` : `ready-point-${item.row.row_key || item.row.id || item.index}`}
+                type="button"
+                data-region-cluster-button={item.isCluster ? 'true' : undefined}
+                data-map-point-button={!item.isCluster ? 'true' : undefined}
+                title={item.isCluster ? `${item.regionLabel} · ${formatNumber(item.count)}건` : `${item.label} · ${item.regionLabel}${item.fallback ? ' · 권역 기준' : ''}`}
+                onClick={() => {
+                  if (item.isCluster) {
+                    setSelectedMapRegion(item.region);
+                    setMapZoom((current) => Math.max(9, current));
+                  } else {
+                    onSelect?.(item.row);
+                  }
+                }}
+                className={item.isCluster
+                  ? 'absolute flex h-[54px] w-[54px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-[#8CC8FF]/50 bg-[#123A5A]/75 px-1 py-1 text-center text-[10px] font-semibold leading-tight text-[#DDF0FF] shadow-lg hover:bg-[#1E5B86]'
+                  : 'absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.14)] hover:bg-[#A1A1AA]'}
+                style={mapPointStyle(item)}
+              >
+                {item.isCluster ? <span className="block w-full"><span className="block truncate">{compactRegionLabel(item.regionLabel)}</span><span className="block text-[9px] text-[#9FD5FF]">{formatNumber(item.count)}건</span></span> : null}
+              </button>
+            ))}
+          </>
         )}
-        {!visibleRows.length ? <div className="absolute inset-0 grid place-items-center text-[13px] text-[#86868B]">표시할 지도 데이터가 없습니다.</div> : null}
+        {!sourceRows.length ? <div className="absolute inset-0 grid place-items-center text-[13px] text-[#86868B]">표시할 지도 데이터가 없습니다.</div> : null}
       </div>
     </div>
   );
@@ -1559,13 +2068,15 @@ function LoanMaturityTimelineChart({ rows, onMonthClick }) {
   const maxValue = Math.max(...visibleRows.map((row) => number(row.value)), 0);
   const { maxTick, ticks } = loanMaturityAxis(maxValue);
   const axisWidth = 98;
+  const plotRightPadding = 24;
   const plotHeight = Math.max(260, (ticks.length - 1) * 34);
   return (
     <div className="relative rounded-[12px] border border-[#333333] bg-[#171717] p-4" data-chart-role="loan-maturity-timeline" data-chart-empty={visibleRows.length ? 'false' : 'true'}>
       {visibleRows.length ? (
         <div className="custom-scrollbar overflow-x-auto pb-1">
           <div className="relative" style={{ minWidth: `${Math.max(1040, visibleRows.length * 58)}px`, height: `${plotHeight + 100}px` }}>
-            <div className="absolute inset-x-0 top-2" style={{ height: plotHeight, paddingLeft: axisWidth }}>
+            <div className="absolute inset-x-0 top-2" style={{ height: plotHeight }}>
+              <span className="absolute top-0 bottom-0 w-px bg-[#5A5A5F]" style={{ left: axisWidth }} aria-hidden="true" />
               {ticks.map((tickValue) => (
                 <div key={tickValue} className="absolute left-0 right-0" style={{ bottom: `${(tickValue / maxTick) * plotHeight}px` }}>
                   <span
@@ -1575,11 +2086,11 @@ function LoanMaturityTimelineChart({ rows, onMonthClick }) {
                   >
                     {formatKrwAxis(tickValue)}
                   </span>
-                  <span className="block h-px bg-[#3A3A3C]/70" />
+                  <span className="absolute h-px bg-[#3A3A3C]/70" style={{ left: axisWidth, right: plotRightPadding }} />
                 </div>
               ))}
             </div>
-            <div className="absolute right-0 flex items-end gap-2" style={{ left: axisWidth, top: 8, height: plotHeight }}>
+            <div className="absolute flex items-end gap-2" style={{ left: axisWidth, right: plotRightPadding, top: 8, height: plotHeight }}>
               {visibleRows.map((row) => {
                 const details = safeArray(row.details)
                   .slice()
@@ -1811,6 +2322,51 @@ function assetSpecComparisonRows(left, right) {
     left_value: assetSpecValue(left, def.row_number),
     right_value: assetSpecValue(right, def.row_number),
   }));
+}
+
+function formatSpecComparisonValue(value) {
+  const source = text(value, '');
+  if (!source) return '-';
+  const formatFragment = (fragment) => {
+    const parsed = Number(String(fragment).replace(/,/gu, ''));
+    if (!Number.isFinite(parsed)) return fragment;
+    const rounded = Math.round(parsed * 10) / 10;
+    return new Intl.NumberFormat('ko-KR', {
+      minimumFractionDigits: Number.isInteger(rounded) ? 0 : 1,
+      maximumFractionDigits: 1,
+    }).format(rounded);
+  };
+  if (/^-?\d[\d,]*(?:\.\d+)?$/u.test(source.trim())) return formatFragment(source.trim());
+  return source.replace(/-?\d[\d,]*\.\d+/gu, (match) => formatFragment(match));
+}
+
+function SpecComparisonPanel({ rows, leftLabel, rightLabel, empty = '비교 데이터가 없습니다.' }) {
+  const visibleRows = safeArray(rows);
+  if (!visibleRows.length) {
+    return <div className="grid h-[180px] place-items-center rounded-[12px] border border-[#333333] bg-[#171717] text-[13px] text-[#86868B]">{empty}</div>;
+  }
+  return (
+    <div className="overflow-hidden rounded-[12px] border border-[#333333] bg-[#171717]" data-asset-spec-compare-panel="true">
+      <div className="grid min-w-[920px] grid-cols-[72px_220px_minmax(0,1fr)_minmax(0,1fr)] border-b border-[#333333] bg-[#202020] text-[11px] font-semibold uppercase tracking-[0.04em] text-[#A1A1AA]">
+        <div className="px-3 py-3 text-right">행</div>
+        <div className="px-3 py-3">항목</div>
+        <div className="px-3 py-3 text-[#E5E5E5]">{leftLabel || '비교 1'}</div>
+        <div className="px-3 py-3 text-[#E5E5E5]">{rightLabel || '비교 2'}</div>
+      </div>
+      <div className="custom-scrollbar max-h-[560px] overflow-auto">
+        <div className="min-w-[920px] divide-y divide-[#2D2D30]">
+          {visibleRows.map((row) => (
+            <div key={row.row_number} className="grid grid-cols-[72px_220px_minmax(0,1fr)_minmax(0,1fr)] bg-[#171717] text-[12px] text-[#E5E5E5] hover:bg-white/[0.025]">
+              <div className="px-3 py-3 text-right text-[#86868B]">{row.row_number}</div>
+              <div className="border-l border-[#2D2D30] px-3 py-3 font-semibold text-white">{row.label}</div>
+              <div className="border-l border-[#2D2D30] px-3 py-3 leading-relaxed text-[#D6D6D6]">{formatSpecComparisonValue(row.left_value)}</div>
+              <div className="border-l border-[#2D2D30] px-3 py-3 leading-relaxed text-[#D6D6D6]">{formatSpecComparisonValue(row.right_value)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function normalizeAssetSpecEditorRows(rows) {
@@ -3159,7 +3715,9 @@ export function InvestmentIndexDashboard() {
             minWidth={1180}
             maxHeight={620}
             stickyCount={2}
-            defaultSort={{ key: 'amount_krw', direction: 'desc' }}
+            defaultSort={detailTarget?.type === 'loan-rate-asset'
+              ? [{ key: 'tranche_display', direction: 'asc' }, { key: 'amount_krw', direction: 'desc' }]
+              : { key: 'amount_krw', direction: 'desc' }}
             columns={detailColumns}
             rows={detailRows}
             empty="상세 투자 내역이 없습니다."
@@ -3308,8 +3866,8 @@ export function AssetSpecDashboard() {
   const compareColumns = (leftLabel, rightLabel) => [
     { key: 'row_number', label: '행', width: 72, align: 'right', sortValue: (row) => number(row.row_number) },
     { key: 'label', label: '항목', width: 220, noTruncate: true },
-    { key: 'left_value', label: leftLabel || '비교 1', width: 420, noTruncate: true, wrap: true },
-    { key: 'right_value', label: rightLabel || '비교 2', width: 420, noTruncate: true, wrap: true },
+    { key: 'left_value', label: leftLabel || '비교 1', width: 420, noTruncate: true, wrap: true, render: (row) => formatSpecComparisonValue(row.left_value) },
+    { key: 'right_value', label: rightLabel || '비교 2', width: 420, noTruncate: true, wrap: true, render: (row) => formatSpecComparisonValue(row.right_value) },
   ];
   const selectedEditAsset = rows.find((row) => row.asset_id === editAssetId) || null;
   const canSaveSelectedSpec = Boolean(selectedEditAsset && (
@@ -3352,21 +3910,13 @@ export function AssetSpecDashboard() {
   return (
     <div className="space-y-5">
       {specRead.error ? <div className="rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{specRead.error}</div> : null}
-      <section className="rounded-[16px] border border-[#2F6BFF]/50 bg-[#123A7A] px-5 py-4 shadow-[0_18px_40px_rgba(18,58,122,0.25)]">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#BFD7FF]">ASSET SPEC INPUT</div>
-            <div className="mt-1 text-[18px] font-semibold text-white">자산 스펙 데이터 입력</div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setEditOpen(true)}
-            className="h-11 rounded-[10px] bg-white px-5 text-[13px] font-semibold text-[#123A7A] hover:bg-[#EAF2FF]"
-          >
-            데이터 입력
-          </button>
-        </div>
-      </section>
+      <button
+        type="button"
+        onClick={() => setEditOpen(true)}
+        className="flex min-h-[58px] w-full items-center justify-center rounded-[14px] border border-[#3b82f6]/40 bg-[#1f3763] px-5 text-[15px] font-bold text-[#CFE1FF] transition-colors hover:bg-[#284B87]"
+      >
+        자산 스펙 데이터 입력 및 수정
+      </button>
       <section className={`${CARD} p-5`}>
         <ModuleHeader eyebrow="ASSET SPEC" title="자산 스펙 좌우 비교" subtitle="비교할 두 자산을 선택해 샘플 엑셀의 5~53행 기준으로 나란히 확인합니다." />
         <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
@@ -3377,8 +3927,8 @@ export function AssetSpecDashboard() {
             {rows.map((row) => <option key={row.asset_id} value={row.asset_id}>{row.asset_name}</option>)}
           </select>
         </div>
-        <SortableTable minWidth={1180} maxHeight={560} stickyCount={2} defaultSort={{ key: 'row_number', direction: 'asc' }} columns={compareColumns(text(left?.asset_name), text(right?.asset_name))} rows={specCompareRows} />
-        <button type="button" onClick={() => setTableModal({ title: '자산 스펙 전체 테이블', rows: specCompareRows, columns: compareColumns(text(left?.asset_name), text(right?.asset_name)) })} className="mt-4 h-10 rounded-[9px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-[#E5E5E5] hover:bg-white/[0.04]">테이블 보기</button>
+        <SpecComparisonPanel rows={specCompareRows} leftLabel={text(left?.asset_name)} rightLabel={text(right?.asset_name)} />
+        <button type="button" onClick={() => setTableModal({ title: '자산 스펙 전체 테이블', rows: specCompareRows, columns: compareColumns(text(left?.asset_name), text(right?.asset_name)) })} className="mt-4 h-10 w-full rounded-[9px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-[#E5E5E5] hover:bg-white/[0.04]">테이블 보기</button>
       </section>
       <section className={`${CARD} p-5`}>
         <ModuleHeader eyebrow="TENANT SPEC FIT" title="임차인별 점유 자산 스펙 비교" subtitle="선택한 두 임차인의 점유 자산 스펙을 같은 항목 기준으로 좌우 비교합니다." />
@@ -3390,13 +3940,10 @@ export function AssetSpecDashboard() {
             {tenantRows.map((row) => <option key={row.id} value={row.id}>{row.tenant_name} · {row.asset_name}</option>)}
           </select>
         </div>
-        <SortableTable
-          minWidth={1180}
-          maxHeight={560}
-          stickyCount={2}
-          defaultSort={{ key: 'row_number', direction: 'asc' }}
-          columns={compareColumns(`${text(tenantLeft?.tenant_name)} · ${text(tenantLeft?.asset_name)}`, `${text(tenantRight?.tenant_name)} · ${text(tenantRight?.asset_name)}`)}
+        <SpecComparisonPanel
           rows={tenantCompareRows}
+          leftLabel={`${text(tenantLeft?.tenant_name)} · ${text(tenantLeft?.asset_name)}`}
+          rightLabel={`${text(tenantRight?.tenant_name)} · ${text(tenantRight?.asset_name)}`}
           empty="아직 임차인별 스펙 비교 데이터가 없습니다."
         />
         <button
@@ -3406,7 +3953,7 @@ export function AssetSpecDashboard() {
             rows: tenantCompareRows,
             columns: compareColumns(`${text(tenantLeft?.tenant_name)} · ${text(tenantLeft?.asset_name)}`, `${text(tenantRight?.tenant_name)} · ${text(tenantRight?.asset_name)}`),
           })}
-          className="mt-4 h-10 rounded-[9px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-[#E5E5E5] hover:bg-white/[0.04]"
+          className="mt-4 h-10 w-full rounded-[9px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-[#E5E5E5] hover:bg-white/[0.04]"
         >
           테이블 보기
         </button>

@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-18T10:07:30.186Z",
+  "generated_at": "2026-06-19T01:30:20.698Z",
   "base_url": "http://127.0.0.1:5173/",
   "auth_source": "password_grant",
   "allow_submit": false,
@@ -32,7 +32,7 @@
     "no_raw_region_numbers_after_history_tab": true
   },
   "errors": [],
-  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260618-100729.png",
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260619-013020.png",
   "status_contract": {
     "access_scope": "manager_full_source",
     "can_approve": true,

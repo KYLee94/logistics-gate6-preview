@@ -190,6 +190,43 @@ function cell(row, candidates) {
   return null;
 }
 
+function addressPart(value) {
+  const source = clean(value).replace(/\.0$/u, '');
+  if (!source || source === '-' || source === '0' || source === '0.0') return '';
+  return source;
+}
+
+function lotAddress(values) {
+  const main = addressPart(cell(values, ['본번']));
+  const sub = addressPart(cell(values, ['부번']));
+  if (!main) return '';
+  return sub ? `${main}-${sub}` : main;
+}
+
+function fullMarketAddress(values, mode) {
+  const legalBase = addressPart(cell(values, ['법정동주소']));
+  const lot = lotAddress(values);
+  if (legalBase && lot && !legalBase.endsWith(lot) && !legalBase.includes(` ${lot}`)) return `${legalBase} ${lot}`;
+  if (legalBase) return legalBase;
+  const provinceKeys = mode === 'transaction' ? ['시_도', '도', '법정도'] : ['도', '시_도', '법정도'];
+  const parts = [
+    addressPart(cell(values, provinceKeys)),
+    addressPart(cell(values, ['시_군'])),
+    addressPart(cell(values, ['구_읍_면'])),
+    addressPart(cell(values, ['동_리'])),
+    lot,
+  ].filter(Boolean);
+  return parts.join(' ');
+}
+
+function marketPayloadWithAddress(values, address, rule) {
+  return {
+    ...values,
+    generated_address: address || '',
+    generated_address_rule: rule,
+  };
+}
+
 function sourceLocator(sheetName, rowNumber) {
   return { sheet_name: sheetName, row_number: rowNumber };
 }
@@ -352,6 +389,7 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
     const sourceRow = sourceRowIndex.get(`2:${rowNumber}`);
     const year = integerValue(cell(values, ['년도']));
     const quarter = normalizeQuarter(cell(values, ['분기']));
+    const generatedAddress = addressPart(cell(values, ['주소'])) || addressPart(cell(values, ['법정동주소', '기타주소']));
     return {
       observation_id: uuidFromHash(`lease_observation:${sourceRow?.source_row_id}`),
       source_row_id: sourceRow?.source_row_id,
@@ -362,7 +400,7 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
       center_name: clean(cell(values, ['물류센터명'])),
       pnu: clean(cell(values, ['pnu'])),
       legal_dong_code: clean(cell(values, ['법정동코드'])),
-      legal_address: clean(cell(values, ['법정동주소', '기타주소'])),
+      legal_address: generatedAddress,
       region_group: clean(cell(values, ['수도권_지방'])),
       region: clean(cell(values, ['권역'])),
       province: clean(cell(values, ['시_도', '법정도'])),
@@ -381,7 +419,7 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
       leasable_area_py: numberValue(cell(values, ['보관면적_평', '보관면적평'])),
       vacancy_area_py: numberValue(cell(values, ['창고_공실면적_평', '창고공실면적_평', '창고공실면적평'])),
       vacancy_rate: numberValue(cell(values, ['공실률'])),
-      payload: values,
+      payload: marketPayloadWithAddress(values, generatedAddress, 'lease_sheet_address_column_p'),
     };
   }).filter((row) => row.source_row_id && row.center_name);
 
@@ -410,6 +448,7 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
   const transactionCases = getSheetRows(8, 3).map(({ rowNumber, values }) => {
     const sourceRow = sourceRowIndex.get(`8:${rowNumber}`);
     const transactionAmountThousand = numberValue(cell(values, ['거래가_천원', '거래가천원']));
+    const generatedAddress = fullMarketAddress(values, 'transaction');
     return {
       transaction_case_id: uuidFromHash(`transaction_case:${sourceRow?.source_row_id}`),
       source_row_id: sourceRow?.source_row_id,
@@ -418,7 +457,7 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
       transaction_code: clean(cell(values, ['code', 'code_1'])),
       warehouse_name: clean(cell(values, ['창고명'])),
       pnu: clean(cell(values, ['pnu'])),
-      legal_address: clean(cell(values, ['법정동주소'])),
+      legal_address: generatedAddress || clean(cell(values, ['법정동주소'])),
       national_region: clean(cell(values, ['전국권역'])),
       capital_region: clean(cell(values, ['수도권역'])),
       size_bucket: clean(cell(values, ['규모'])),
@@ -457,7 +496,7 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
       initial_cap_rate: numberValue(cell(values, ['최종_initial_cap', '계산_initial_cap'])),
       stabilized_cap_rate: numberValue(cell(values, ['최종_stablized_cap', '계산_going_cap_공실률_5_이상은_5_렌트프리는_0으로_가정'])),
       cap_rate: numberValue(cell(values, ['cap_rate'])),
-      payload: values,
+      payload: marketPayloadWithAddress(values, generatedAddress, 'transaction_sheet_province_city_district_dong_lot'),
     };
   }).filter((row) => row.source_row_id && row.warehouse_name);
 
@@ -489,6 +528,7 @@ function supplyRow(sourceRow, sourceFileId, values, supplyKind) {
   const expectedYear = integerValue(cell(values, ['준공예정_연도']));
   const expectedQuarter = normalizeQuarter(cell(values, ['준공예정_분기']));
   const progressStatus = clean(cell(values, ['진행_상황_26_1q', '진행_상황_25_4q', '비고']));
+  const generatedAddress = fullMarketAddress(values, 'supply');
   return {
     supply_case_id: uuidFromHash(`supply_case:${sourceRow?.source_row_id}`),
     source_row_id: sourceRow?.source_row_id,
@@ -500,7 +540,7 @@ function supplyRow(sourceRow, sourceFileId, values, supplyKind) {
     initial_expected_quarter: normalizeQuarter(cell(values, ['초기_준공예정_분기'])),
     warehouse_name: clean(cell(values, ['창고명'])),
     pnu: clean(cell(values, ['pnu'])),
-    legal_address: clean(cell(values, ['법정동주소'])),
+    legal_address: generatedAddress || clean(cell(values, ['법정동주소'])),
     region_group: clean(cell(values, ['권역'])),
     region: clean(cell(values, ['세부_권역', '세부권역'])),
     province: clean(cell(values, ['도'])),
@@ -523,7 +563,7 @@ function supplyRow(sourceRow, sourceFileId, values, supplyKind) {
     construction_company: clean(cell(values, ['시공사'])),
     progress_status: progressStatus,
     schedule_confidence: expectedYear && expectedQuarter && !/미정|-/.test(`${expectedYear} ${expectedQuarter}`) ? 'dated' : 'undated',
-    payload: values,
+    payload: marketPayloadWithAddress(values, generatedAddress, 'supply_sheet_province_city_district_dong_lot'),
   };
 }
 

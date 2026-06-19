@@ -3829,6 +3829,257 @@ async function dismissLogisticsNotifications(ctx: Context, payload: Record<strin
   return jsonResponse({ ok: true, data: { dismissed: count || 0 } }, 200, ctx.origin);
 }
 
+function marketPayload(row: Record<string, unknown>): Record<string, unknown> {
+  return row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+    ? row.payload as Record<string, unknown>
+    : {};
+}
+
+function marketAddressPart(value: unknown) {
+  const source = safeText(value).replace(/\.0$/u, '');
+  if (!source || source === '-' || source === '0' || source === '0.0') return '';
+  return source;
+}
+
+function marketPayloadValue(payload: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = payload[key];
+    if (value !== undefined && value !== null && marketAddressPart(value)) return value;
+  }
+  return '';
+}
+
+function marketLotAddress(payload: Record<string, unknown>) {
+  const main = marketAddressPart(marketPayloadValue(payload, ['본번']));
+  const sub = marketAddressPart(marketPayloadValue(payload, ['부번']));
+  if (!main) return '';
+  return sub ? `${main}-${sub}` : main;
+}
+
+function marketAddressWithLot(base: unknown, payload: Record<string, unknown>) {
+  const source = marketAddressPart(base);
+  const lot = marketLotAddress(payload);
+  if (source && lot && !source.endsWith(lot) && !source.includes(` ${lot}`)) return `${source} ${lot}`;
+  return source;
+}
+
+function marketComposedAddress(payload: Record<string, unknown>, kind: string) {
+  const provinceKeys = kind === 'transaction' ? ['시_도', '시/도', '도', '법정도'] : ['도', '시_도', '시/도', '법정도'];
+  const parts = [
+    marketAddressPart(marketPayloadValue(payload, provinceKeys)),
+    marketAddressPart(marketPayloadValue(payload, ['시_군', '시/군'])),
+    marketAddressPart(marketPayloadValue(payload, ['구_읍_면', '구/읍/면'])),
+    marketAddressPart(marketPayloadValue(payload, ['동_리', '동/리'])),
+    marketLotAddress(payload),
+  ].filter(Boolean);
+  return parts.join(' ');
+}
+
+function marketNumeric(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  const parsed = Number(safeText(value).replace(/,/gu, ''));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function marketPayloadObject(payload: Record<string, unknown>, key: string) {
+  const value = payload[key];
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function marketCoordinateNumber(value: unknown): number | null {
+  const parsed = marketNumeric(value);
+  if (parsed === null || parsed === 0) return null;
+  return parsed;
+}
+
+function marketCoordinate(row: Record<string, unknown>, payload: Record<string, unknown>, axis: 'lat' | 'lng') {
+  return marketCoordinateInfo(row, payload, axis).value;
+}
+
+function marketCoordinateInfo(row: Record<string, unknown>, payload: Record<string, unknown>, axis: 'lat' | 'lng') {
+  const geocode = marketPayloadObject(payload, 'market_geocode');
+  const legacyGeocode = marketPayloadObject(payload, 'geocoding');
+  const keys = axis === 'lat'
+    ? ['latitude', 'lat', 'y', 'geocode_latitude', 'naver_latitude']
+    : ['longitude', 'lng', 'x', 'geocode_longitude', 'naver_longitude'];
+  for (const key of keys) {
+    const fromRow = marketCoordinateNumber(row[key]);
+    if (fromRow !== null) return { value: fromRow, source: `row.${key}` };
+    const fromPayload = marketCoordinateNumber(payload[key]);
+    if (fromPayload !== null) return { value: fromPayload, source: `payload.${key}` };
+    const fromGeocode = marketCoordinateNumber(geocode[key]);
+    if (fromGeocode !== null) return { value: fromGeocode, source: `market_geocode.${key}` };
+    const fromLegacyGeocode = marketCoordinateNumber(legacyGeocode[key]);
+    if (fromLegacyGeocode !== null) return { value: fromLegacyGeocode, source: `geocoding.${key}` };
+  }
+  return { value: null, source: '' };
+}
+
+function marketAddressInfo(row: Record<string, unknown>, kind: string) {
+  const payload = marketPayload(row);
+  const storedGenerated = safeText(firstDefined(payload.generated_address, payload._generated_full_address));
+  const leaseAddress = marketAddressPart(firstDefined(payload['주소'], payload.address, row.legal_address, payload['법정동주소'], payload['기타주소']));
+  const baseAddress = firstDefined(row.legal_address, payload['법정동주소'], payload.legal_address);
+  const baseWithLot = marketAddressWithLot(baseAddress, payload);
+  const composed = marketComposedAddress(payload, kind);
+  const generated = kind === 'lease'
+    ? leaseAddress
+    : safeText(firstDefined(storedGenerated, baseWithLot, composed, row.legal_address));
+  const fallback = safeText(firstDefined(row.legal_address, payload['법정동주소'], payload['주소'], payload['기타주소']));
+  const address = safeText(firstDefined(generated, fallback));
+  const rule = safeText(firstDefined(
+    payload.generated_address_rule,
+    kind === 'lease' ? 'lease_sheet_address_column_p' : `${kind}_sheet_province_city_district_dong_lot`,
+  ));
+  const latitudeInfo = marketCoordinateInfo(row, payload, 'lat');
+  const longitudeInfo = marketCoordinateInfo(row, payload, 'lng');
+  const geocode = marketPayloadObject(payload, 'market_geocode');
+  const legacyGeocode = marketPayloadObject(payload, 'geocoding');
+  const coordinateAddress = safeText(firstDefined(
+    geocode.query,
+    geocode.address,
+    geocode.roadAddress,
+    geocode.jibunAddress,
+    legacyGeocode.query,
+    legacyGeocode.address,
+    address,
+  ));
+  return stripUndefined({
+    address,
+    generated_address: generated || address,
+    address_source: address ? (generated ? 'generated_source_address' : 'source_address') : 'missing',
+    address_rule: rule,
+    latitude: latitudeInfo.value,
+    longitude: longitudeInfo.value,
+    coordinate_source: latitudeInfo.value !== null && longitudeInfo.value !== null
+      ? `${latitudeInfo.source || 'unknown'}|${longitudeInfo.source || 'unknown'}`
+      : 'missing',
+    coordinate_address: coordinateAddress,
+  }) as Record<string, unknown>;
+}
+
+async function marketBackfillGeocode(ctx: Context, address: string) {
+  const response = await callNaverGeocode(ctx, { query: address });
+  const body = await response.clone().json().catch(() => ({})) as Record<string, unknown>;
+  if (!response.ok || body.ok === false) {
+    return {
+      status: 'failed',
+      provider_status: response.status,
+      message: safeText(firstDefined(body.message, body.error, 'geocode failed')),
+    };
+  }
+  const rows = Array.isArray(body.data) ? body.data as Record<string, unknown>[] : [];
+  const first = rows[0] || {};
+  const latitude = marketNumeric(first.y);
+  const longitude = marketNumeric(first.x);
+  return stripUndefined({
+    status: latitude !== null && longitude !== null ? 'ok' : 'empty',
+    provider_status: body.provider_status || response.status,
+    latitude,
+    longitude,
+    road_address: first.road_address,
+    jibun_address: first.jibun_address,
+  }) as Record<string, unknown>;
+}
+
+async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<string, unknown>) {
+  if (!canManageFeatureAccess(ctx) && !hasRole(ctx.role, 'Admin')) return fail(403, 'Management permission required', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'sector-market/address-backfill', 10)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const dryRun = payload.dry_run !== false;
+  const limit = Math.min(Math.max(Number(payload.limit || 500), 1), 1200);
+  const offset = Math.max(Number(payload.offset || 0), 0);
+  const shouldGeocode = payload.geocode === true;
+  const geocodeLimit = Math.min(Math.max(Number(payload.geocode_limit || 0), 0), 25);
+  let geocodeCount = 0;
+  const requestedKind = safeText(payload.kind || payload.table || 'all');
+  const sourceResult = await ctx.serviceClient
+    .from('ll_source_files')
+    .select('source_file_id,file_name,active_version,created_at')
+    .eq('source_domain', 'sector_market')
+    .eq('active_version', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (sourceResult.error && !isMissingRelationError(sourceResult.error)) return fail(500, 'Failed to read active market source', ctx.origin, { error: sourceResult.error.message });
+  const activeSourceId = safeText(sourceResult.data?.source_file_id);
+  if (!activeSourceId) return fail(404, 'Active market source is missing', ctx.origin);
+
+  const configs = [
+    { kind: 'lease', table: 'll_sector_market_lease_observations', idColumn: 'observation_id' },
+    { kind: 'supply', table: 'll_sector_market_supply_cases', idColumn: 'supply_case_id' },
+    { kind: 'transaction', table: 'll_sector_market_transaction_cases', idColumn: 'transaction_case_id' },
+  ].filter((config) => requestedKind === 'all' || requestedKind === config.kind || requestedKind === config.table);
+  const generatedAt = new Date().toISOString();
+  const results = [];
+  for (const config of configs) {
+    const { data, error } = await ctx.serviceClient
+      .from(config.table)
+      .select('*')
+      .eq('source_file_id', activeSourceId)
+      .order(config.idColumn, { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (error) {
+      if (isMissingRelationError(error)) {
+        results.push({ ...config, skipped: 'missing_table' });
+        continue;
+      }
+      return fail(500, 'Failed to read market address rows', ctx.origin, { table: config.table, error: error.message });
+    }
+    let changed = 0;
+    let missing = 0;
+    const samples: Record<string, unknown>[] = [];
+    for (const row of (data || []) as Record<string, unknown>[]) {
+      const info = marketAddressInfo(row, config.kind);
+      const address = safeText(info.generated_address || info.address);
+      if (!address) {
+        missing += 1;
+        continue;
+      }
+      const currentPayload = marketPayload(row);
+      const nextPayload = {
+        ...currentPayload,
+        generated_address: address,
+        generated_address_rule: info.address_rule || `${config.kind}_sheet_address_rule`,
+        generated_address_source: info.address_source || 'generated_source_address',
+        generated_address_updated_at: generatedAt,
+      };
+      const hasCoordinates = marketNumeric(info.latitude) !== null && marketNumeric(info.longitude) !== null;
+      let geocodeApplied = false;
+      if (!dryRun && shouldGeocode && !hasCoordinates && geocodeCount < geocodeLimit) {
+        geocodeCount += 1;
+        nextPayload.market_geocode = {
+          ...(marketPayloadObject(currentPayload, 'market_geocode')),
+          ...(await marketBackfillGeocode(ctx, address)),
+          query: address,
+          updated_at: generatedAt,
+        };
+        geocodeApplied = true;
+      }
+      if (geocodeApplied || safeText(currentPayload.generated_address) !== address || safeText(currentPayload.generated_address_rule) !== safeText(nextPayload.generated_address_rule)) {
+        changed += 1;
+        if (samples.length < 5) {
+          samples.push({
+            row_id: row[config.idColumn],
+            before: currentPayload.generated_address || row.legal_address || null,
+            after: address,
+            rule: nextPayload.generated_address_rule,
+          });
+        }
+        if (!dryRun) {
+          const { error: updateError } = await ctx.serviceClient
+            .from(config.table)
+            .update({ payload: nextPayload })
+            .eq(config.idColumn, row[config.idColumn]);
+          if (updateError) return fail(500, 'Failed to update market address payload', ctx.origin, { table: config.table, error: updateError.message });
+        }
+      }
+    }
+    results.push({ ...config, offset, limit, scanned: (data || []).length, changed, missing, dry_run: dryRun, samples });
+  }
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'sector-market/address-backfill', 200, { dry_run: dryRun, limit, offset, requestedKind, results });
+  return jsonResponse({ ok: true, data: { source_file_id: activeSourceId, source_file_name: sourceResult.data?.file_name || null, dry_run: dryRun, offset, limit, results } }, 200, ctx.origin);
+}
+
 async function callSectorMarketRead(ctx: Context, payload: Record<string, unknown>) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) return fail(403, 'Market research permission required', ctx.origin);
   const sampleLimit = Math.min(Math.max(Number(payload.limit || 500), 50), 12000);
@@ -4077,47 +4328,69 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const results = [leaseResult, supplyResult, transactionResult, capRateResult];
   const hardError = results.find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return fail(500, 'Failed to read sector market data', ctx.origin, { error: hardError.error.message });
-  const leases = ((leaseResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
-    ...row,
-    period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
-    center_name: firstDefined(row.center_name, row.warehouse_name),
-    area_py: firstDefined(row.leasable_area_py, row.gross_area_py),
-    rent_per_py: row.rent_manwon_per_py,
-    management_fee_per_py: row.management_fee_manwon_per_py,
-    temperature_type: row.temperature_type || '미분류',
-  }));
+  const leases = ((leaseResult.data || []) as Record<string, unknown>[]).map((row) => {
+    const addressInfo = marketAddressInfo(row, 'lease');
+    return stripUndefined({
+      ...row,
+      legal_address: addressInfo.address,
+      address: addressInfo.address,
+      address_source: addressInfo.address_source,
+      address_rule: addressInfo.address_rule,
+      generated_address: addressInfo.generated_address,
+      latitude: addressInfo.latitude,
+      longitude: addressInfo.longitude,
+      coordinate_source: addressInfo.coordinate_source,
+      coordinate_address: addressInfo.coordinate_address,
+      period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
+      center_name: firstDefined(row.center_name, row.warehouse_name),
+      area_py: firstDefined(row.leasable_area_py, row.gross_area_py),
+      rent_per_py: row.rent_manwon_per_py,
+      management_fee_per_py: row.management_fee_manwon_per_py,
+      temperature_type: row.temperature_type || '미분류',
+    });
+  });
   const supply = ((supplyResult.data || []) as Record<string, unknown>[]).map((row) => {
-    const payloadAddress = firstDefined(
-      row.legal_address,
-      row.address,
-      typeof row.payload === 'object' && row.payload ? (row.payload as Record<string, unknown>)['법정동주소'] : '',
-      typeof row.payload === 'object' && row.payload ? (row.payload as Record<string, unknown>)['주소'] : '',
-      typeof row.payload === 'object' && row.payload ? (row.payload as Record<string, unknown>)['소재지'] : '',
-      typeof row.payload === 'object' && row.payload ? (row.payload as Record<string, unknown>)['기타주소'] : '',
-    );
-    const fallbackAddress = firstDefined(payloadAddress, row.supply_kind === 'new_supply' ? firstDefined(row.center_name, row.warehouse_name) : '');
+    const addressInfo = marketAddressInfo(row, 'supply');
     return stripUndefined({
       ...row,
       center_name: firstDefined(row.warehouse_name, row.center_name),
-      legal_address: fallbackAddress,
-      address: fallbackAddress,
-      address_source: safeText(payloadAddress) ? 'source_address' : (safeText(fallbackAddress) ? 'center_name_fallback' : 'missing'),
+      legal_address: addressInfo.address,
+      address: addressInfo.address,
+      address_source: addressInfo.address_source,
+      address_rule: addressInfo.address_rule,
+      generated_address: addressInfo.generated_address,
+      latitude: addressInfo.latitude,
+      longitude: addressInfo.longitude,
+      coordinate_source: addressInfo.coordinate_source,
+      coordinate_address: addressInfo.coordinate_address,
       status: firstDefined(row.progress_status, row.status),
       completion_period: [row.expected_year, row.expected_quarter].filter(Boolean).join(' '),
       area_py: row.gross_area_py,
       temperature_type: row.temperature_type || '미분류',
     });
   });
-  const transactions = ((transactionResult.data || []) as Record<string, unknown>[]).map((row) => stripUndefined({
-    ...row,
-    asset_name: firstDefined(row.warehouse_name, row.asset_name, row.center_name),
-    region: firstDefined(row.capital_region, row.national_region, row.region),
-    transaction_date: firstDefined(row.closing_date, row.contract_date),
-    transaction_period: [row.transaction_year, row.transaction_quarter].filter(Boolean).join(' '),
-    area_py: firstDefined(row.gross_area_py, row.building_area_py, row.land_area_py),
-    unit_price_krw_per_py: Number(row.unit_price_thousand_krw_per_py || 0) ? Number(row.unit_price_thousand_krw_per_py) * 1000 : null,
-    temperature_type: row.temperature_type || '미분류',
-  }));
+  const transactions = ((transactionResult.data || []) as Record<string, unknown>[]).map((row) => {
+    const addressInfo = marketAddressInfo(row, 'transaction');
+    return stripUndefined({
+      ...row,
+      legal_address: addressInfo.address,
+      address: addressInfo.address,
+      address_source: addressInfo.address_source,
+      address_rule: addressInfo.address_rule,
+      generated_address: addressInfo.generated_address,
+      latitude: addressInfo.latitude,
+      longitude: addressInfo.longitude,
+      coordinate_source: addressInfo.coordinate_source,
+      coordinate_address: addressInfo.coordinate_address,
+      asset_name: firstDefined(row.warehouse_name, row.asset_name, row.center_name),
+      region: firstDefined(row.capital_region, row.national_region, row.region),
+      transaction_date: firstDefined(row.closing_date, row.contract_date),
+      transaction_period: [row.transaction_year, row.transaction_quarter].filter(Boolean).join(' '),
+      area_py: firstDefined(row.gross_area_py, row.building_area_py, row.land_area_py),
+      unit_price_krw_per_py: Number(row.unit_price_thousand_krw_per_py || 0) ? Number(row.unit_price_thousand_krw_per_py) * 1000 : null,
+      temperature_type: row.temperature_type || '미분류',
+    });
+  });
   const capRatesRaw = (capRateResult.data || []) as Record<string, unknown>[];
   const capRates = capRatesRaw.flatMap((row) => [
     stripUndefined({
@@ -4228,12 +4501,17 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       label,
       kind,
       region,
-      address: safeText(row.legal_address, ''),
+      address: safeText(firstDefined(row.legal_address, row.address), ''),
+      generated_address: safeText(row.generated_address),
+      address_rule: safeText(row.address_rule),
+      address_source: safeText(row.address_source),
+      coordinate_source: safeText(row.coordinate_source),
+      coordinate_address: safeText(row.coordinate_address),
       x_percent: Math.max(8, Math.min(92, anchor[0] + jitterX)),
       y_percent: Math.max(8, Math.min(90, anchor[1] + jitterY)),
-      latitude: row.latitude,
-      longitude: row.longitude,
-      source: row.latitude && row.longitude ? 'coordinates' : 'region-fallback',
+      latitude: firstDefined(row.latitude, row.geocode_latitude, row.naver_latitude),
+      longitude: firstDefined(row.longitude, row.geocode_longitude, row.naver_longitude),
+      source: firstDefined(row.latitude, row.geocode_latitude, row.naver_latitude) && firstDefined(row.longitude, row.geocode_longitude, row.naver_longitude) ? 'coordinates' : 'region-fallback',
     });
   };
   const publicLeases = leases.map((row, index) => publicMarketRow(row, index, 'lease'));
@@ -9627,6 +9905,79 @@ async function callNaverGeocode(ctx: Context, payload: Record<string, unknown>) 
     if (stale) return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, { hit: true, stale: true, fetched_at: stale.fetchedAt, provider_error: safeProviderError(error) });
     return fail(502, 'Naver geocoding provider request failed', ctx.origin);
   }
+}
+
+async function naverGeocodeAddressForBatch(ctx: Context, queryText: string, clientId: string, clientSecret: string) {
+  const cacheKey = await cacheKeyFor('naver/geocode', { query: queryText });
+  const cached = await readExternalApiCache(ctx, 'naver/geocode', cacheKey);
+  if (cached) {
+    const cachedRows = Array.isArray(cached.responsePayload) ? cached.responsePayload as Record<string, unknown>[] : [];
+    const first = cachedRows[0] || {};
+    return stripUndefined({
+      query: queryText,
+      cache_hit: true,
+      provider_status: cached.providerStatus,
+      latitude: marketCoordinateNumber(first.y),
+      longitude: marketCoordinateNumber(first.x),
+      road_address: first.road_address,
+      jibun_address: first.jibun_address,
+    });
+  }
+  const query = new URLSearchParams({ query: queryText });
+  const { response, body } = await fetchJsonWithTimeout(`https://maps.apigw.ntruss.com/map-geocode/v2/geocode?${query.toString()}`, {
+    headers: {
+      'x-ncp-apigw-api-key-id': clientId,
+      'x-ncp-apigw-api-key': clientSecret,
+    },
+  }, 10_000, 1);
+  const providerOk = naverGeocodeProviderOk(response, body as Record<string, unknown>);
+  const addresses = Array.isArray(body.addresses) ? body.addresses.slice(0, 5).map((item: Record<string, unknown>) => ({
+    road_address: item.roadAddress,
+    jibun_address: item.jibunAddress,
+    x: item.x,
+    y: item.y,
+    distance: item.distance,
+  })) : [];
+  if (providerOk) await writeExternalApiCache(ctx, 'naver/geocode', cacheKey, { query: queryText }, addresses, response.status).catch(() => null);
+  const first = addresses[0] || {};
+  return stripUndefined({
+    query: queryText,
+    cache_hit: false,
+    provider_status: response.status,
+    status: providerOk ? 'ok' : 'failed',
+    latitude: marketCoordinateNumber(first.y),
+    longitude: marketCoordinateNumber(first.x),
+    road_address: first.road_address,
+    jibun_address: first.jibun_address,
+  });
+}
+
+async function callNaverGeocodeBatch(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) return fail(403, 'Market research permission required', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'naver/geocode-batch', 12, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const clientId = (Deno.env.get('NAVER_CLOUD_CLIENT_ID') || Deno.env.get('NAVER_MAPS_CLIENT_ID') || '').trim();
+  const clientSecret = (Deno.env.get('NAVER_CLOUD_CLIENT_SECRET') || Deno.env.get('NAVER_MAPS_CLIENT_SECRET') || '').trim();
+  if (!clientId || !clientSecret) return fail(503, 'Naver geocoding key is not configured', ctx.origin);
+  const rawQueries = Array.isArray(payload.queries) ? payload.queries : [];
+  const queries = [...new Set(rawQueries.map((item) => safeText(item)).filter(Boolean))].slice(0, 160);
+  if (!queries.length) return fail(400, 'queries are required', ctx.origin);
+  const results: Record<string, unknown>[] = [];
+  const errors: Record<string, unknown>[] = [];
+  const batchSize = 8;
+  for (let index = 0; index < queries.length; index += batchSize) {
+    const batch = queries.slice(index, index + batchSize);
+    const batchResults = await Promise.all(batch.map(async (queryText) => {
+      try {
+        return await naverGeocodeAddressForBatch(ctx, queryText, clientId, clientSecret);
+      } catch (error) {
+        errors.push({ query: queryText, error: safeProviderError(error) });
+        return { query: queryText, status: 'failed' };
+      }
+    }));
+    results.push(...batchResults);
+  }
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'naver/geocode-batch', 200, { query_count: queries.length, result_count: results.length, error_count: errors.length });
+  return jsonResponse({ ok: true, data: { rows: results, errors } }, 200, ctx.origin);
 }
 
 async function callNaverReverseGeocode(ctx: Context, payload: Record<string, unknown>) {
@@ -16492,6 +16843,7 @@ Deno.serve(async (request) => {
   if (action === 'edits/reject') return rejectEdit(ctx, payload);
   if (action === 'notifications/list') return listLogisticsNotifications(ctx, payload);
   if (action === 'notifications/dismiss') return dismissLogisticsNotifications(ctx, payload);
+  if (action === 'sector-market/address-backfill') return callSectorMarketAddressBackfill(ctx, payload);
   if (action === 'sector-market/read' || action === 'sector-market/status') return callSectorMarketRead(ctx, payload);
   if (action === 'investment-index/read') return callInvestmentIndexRead(ctx, payload);
   if (action === 'investment-index/cleanup-empty-loans') return callInvestmentIndexCleanupEmptyLoans(ctx, payload);
@@ -16533,6 +16885,7 @@ Deno.serve(async (request) => {
   if (action === 'opendart/company') return callOpenDart(ctx, payload);
   if (action === 'building-register/summary') return callBuildingRegister(ctx, payload);
   if (action === 'naver/geocode') return callNaverGeocode(ctx, payload);
+  if (action === 'naver/geocode-batch') return callNaverGeocodeBatch(ctx, payload);
   if (action === 'naver/reverse-geocode') return callNaverReverseGeocode(ctx, payload);
   if (action === 'dashboard/home/read') return callDashboardHomeRead(ctx, payload);
   if (action === 'dashboard/asset/read') return callDashboardAssetRead(ctx, payload);

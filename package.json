@@ -42,6 +42,7 @@
     "qa:investment-index:loan-integrity": "node scripts/qa/logistics-investment-index-loan-integrity.cjs",
     "ops:investment-index:cleanup-empty-loans": "node scripts/ops/logistics-investment-index-cleanup-empty-loans.cjs",
     "ops:asset-spec:sample-backfill": "node scripts/ops/logistics-asset-spec-sample-backfill.cjs",
+    "ops:market-data:address-backfill": "node scripts/ops/logistics-market-address-backfill.cjs",
     "qa:asset-spec:readback": "node scripts/qa/logistics-asset-spec-readback-smoke.cjs",
     "qa:asset-spec:browser": "node scripts/qa/logistics-asset-spec-browser-smoke.cjs",
     "qa:market-rag:preflight": "node scripts/ops/logistics-market-rag-preflight.cjs",

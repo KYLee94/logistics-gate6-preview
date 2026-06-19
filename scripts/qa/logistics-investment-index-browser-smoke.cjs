@@ -191,6 +191,27 @@ async function main() {
       await firstLoanRateRow.click();
       report.checks.loan_rate_asset_popup = await page.locator('[role="dialog"] [data-sortable-table="true"]').waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
       report.checks.loan_rate_popup_tranche = await page.waitForFunction(() => (document.querySelector('[role="dialog"]')?.innerText || '').includes('Tranche'), { timeout: 5000 }).then(() => true).catch(() => false);
+      report.checks.loan_rate_popup_default_sort = await page.evaluate(() => {
+        const table = document.querySelector('[role="dialog"] [data-sortable-table="true"] table');
+        if (!table) return false;
+        const headers = Array.from(table.querySelectorAll('thead th')).map((node) => (node.textContent || '').trim());
+        const trancheIndex = headers.findIndex((label) => /Tranche/iu.test(label));
+        const amountIndex = headers.findIndex((label) => /금액|대출금액/iu.test(label));
+        if (trancheIndex < 0 || amountIndex < 0) return false;
+        const rows = Array.from(table.querySelectorAll('tbody tr'))
+          .map((tr) => Array.from(tr.querySelectorAll('td')).map((td) => (td.textContent || '').trim()))
+          .filter((cells) => cells.length > Math.max(trancheIndex, amountIndex));
+        if (rows.length < 2) return rows.length > 0;
+        const amountValue = (value) => Number(String(value || '').replace(/[^\d.-]/gu, '')) || 0;
+        return rows.every((cells, index) => {
+          if (index === 0) return true;
+          const prev = rows[index - 1];
+          const trancheCompare = String(prev[trancheIndex] || '').localeCompare(String(cells[trancheIndex] || ''), 'ko');
+          if (trancheCompare < 0) return true;
+          if (trancheCompare > 0) return false;
+          return amountValue(prev[amountIndex]) >= amountValue(cells[amountIndex]);
+        });
+      }).catch(() => false);
       await page.locator('[role="dialog"] button').filter({ hasText: '×' }).click().catch(() => null);
     }
     await page.screenshot({ path: screenshot, fullPage: false });
