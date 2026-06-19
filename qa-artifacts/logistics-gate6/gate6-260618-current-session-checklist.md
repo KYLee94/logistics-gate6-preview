@@ -3,7 +3,7 @@
 기준 repo: `C:\tmp\IGIS-Fund-Production-DP`  
 기준 remote/branch: `KYLee94/logistics-gate6-preview` / `main`  
 작성일: 2026-06-18 KST  
-완료 현황: 19 / 19 완료
+완료 현황: 20 / 20 완료
 
 | # | 요구사항 | 구현 파일 | 검증 명령 | artifact | subagent 판정 | 상태 |
 |---:|---|---|---|---|---|---|
@@ -26,6 +26,7 @@
 | 17 | 로그아웃 세션 삭제, `/auth-setup` 이동, 보호 route 차단 회귀 확인 | 기존 auth/logout flow | `npm run qa:logout:browser -- --base-url http://127.0.0.1:5173/` | `qa-artifacts/logistics-gate6/logout-browser-smoke-20260618-100825.json` | QA/릴리즈 OK | [x] |
 | 18 | Supabase Edge deploy 및 GitHub Pages build 준비 | `supabase/functions/ll-dashboard-api/index.ts`, `dist/` | `npx supabase functions deploy ll-dashboard-api --project-ref qvegpozwrcmspdvjokiz`, `npm run build:preview` | Supabase deploy log, build log | 인프라/릴리즈 OK | [x] |
 | 19 | 기능 권한 관리 modal 저장/새로고침/복원 회귀 확인 | `scripts/qa/logistics-access-ui-browser-smoke.cjs`, `src/components/system/IotaLeftNav.jsx` | `npm run qa:access-ui:browser -- --base-url http://127.0.0.1:5173/` | `qa-artifacts/logistics-gate6/access-ui-browser-smoke-20260619-003330.json` | QA/릴리즈 OK | [x] |
+| 20 | GitHub Pages live URL cache-bust 브라우저 확인 | 배포본 `https://kylee94.github.io/logistics-gate6-preview/` | `npm run qa:market-data:browser -- --base-url https://kylee94.github.io/logistics-gate6-preview/`, `npm run qa:sector-tabs:browser -- --base-url https://kylee94.github.io/logistics-gate6-preview/` | `qa-artifacts/logistics-gate6/market-data-browser-smoke-20260619-003850.json`, `qa-artifacts/logistics-gate6/sector-tabs-browser-smoke-20260619-003851.json` | QA/릴리즈 OK | [x] |
 
 ## Subagent 운영
 - 프론트/UI 담당: 기존 Helmholtz 재사용. UI table sorting, Naver map, chart/slicer 점검.
