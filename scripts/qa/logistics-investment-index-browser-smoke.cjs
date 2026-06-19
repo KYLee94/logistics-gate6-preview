@@ -131,8 +131,8 @@ async function main() {
     report.checks.loan_maturity_section = (await page.getByText('대출 만기 일정').count().catch(() => 0)) > 0;
     report.checks.loan_rate_section = (await page.getByText('대출 금리 비교').count().catch(() => 0)) > 0;
     report.checks.sortable_tables = (await page.locator('[data-sortable-table="true"]').count().catch(() => 0)) >= 3;
-    const firstCapitalRow = page.locator('[data-chart-role="capital-stack"] > div').first();
-    report.checks.capital_row_present = (await firstCapitalRow.count().catch(() => 0)) > 0;
+    const firstCapitalRow = page.locator('[data-chart-row="capital"]').first();
+    report.checks.capital_row_present = (await page.locator('[data-chart-row="capital"]').count().catch(() => 0)) >= 3;
     if (report.checks.capital_row_present) {
       await firstCapitalRow.hover();
       report.checks.tooltip_has_hidden_detail = await page.waitForFunction(() => {
@@ -141,7 +141,38 @@ async function main() {
       }, { timeout: 5000 }).then(() => true).catch(() => false);
       await firstCapitalRow.click();
       report.checks.detail_modal_open = await page.locator('[role="dialog"]').waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
-      report.checks.detail_modal_table = (await page.locator('[role="dialog"] [data-sortable-table="true"]').count().catch(() => 0)) > 0;
+      report.checks.detail_modal_fullscreen = await page.locator('[role="dialog"] > div').first().evaluate((node) => {
+        const box = node.getBoundingClientRect();
+        return box.width >= window.innerWidth * 0.9 && box.height >= window.innerHeight * 0.85;
+      }).catch(() => false);
+      report.checks.detail_modal_split_tables = await page.waitForFunction(() => {
+        const text = document.querySelector('[role="dialog"]')?.innerText || '';
+        return text.includes('수익자 테이블') && text.includes('대주 테이블');
+      }, { timeout: 5000 }).then(() => true).catch(() => false);
+      report.checks.detail_modal_table = (await page.locator('[role="dialog"] [data-sortable-table="true"]').count().catch(() => 0)) >= 2;
+      report.checks.detail_modal_tranche_header = await page.waitForFunction(() => (document.querySelector('[role="dialog"]')?.innerText || '').includes('Tranche'), { timeout: 5000 }).then(() => true).catch(() => false);
+      await page.locator('[role="dialog"] button').filter({ hasText: '×' }).click().catch(() => null);
+    }
+    report.checks.loan_maturity_months_complete = (await page.locator('[data-chart-row="loan-maturity-month"]').count().catch(() => 0)) >= 12;
+    report.checks.loan_maturity_y_axis = (await page.locator('[data-y-axis-label="loan-maturity"]').count().catch(() => 0)) >= 4;
+    const firstMaturityMonth = page.locator('[data-chart-row="loan-maturity-month"]').first();
+    if ((await firstMaturityMonth.count().catch(() => 0)) > 0) {
+      await firstMaturityMonth.click();
+      report.checks.loan_maturity_month_popup = await page.locator('[role="dialog"] [data-sortable-table="true"]').waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+      report.checks.loan_maturity_tranche_header = await page.waitForFunction(() => (document.querySelector('[role="dialog"]')?.innerText || '').includes('Tranche'), { timeout: 5000 }).then(() => true).catch(() => false);
+      await page.locator('[role="dialog"] button').filter({ hasText: '×' }).click().catch(() => null);
+    }
+    report.checks.loan_rate_tranche_slicer = await page.waitForFunction(() => {
+      const text = document.body?.innerText || '';
+      return text.includes('Tranche') && text.includes('전체 평균') && /\bA\b/u.test(text);
+    }, { timeout: 5000 }).then(() => true).catch(() => false);
+    report.checks.loan_rate_asset_rows = (await page.locator('[data-chart-row="loan-rate-asset"]').count().catch(() => 0)) >= 3;
+    const firstLoanRateRow = page.locator('[data-chart-row="loan-rate-asset"]').first();
+    if ((await firstLoanRateRow.count().catch(() => 0)) > 0) {
+      await firstLoanRateRow.click();
+      report.checks.loan_rate_asset_popup = await page.locator('[role="dialog"] [data-sortable-table="true"]').waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+      report.checks.loan_rate_popup_tranche = await page.waitForFunction(() => (document.querySelector('[role="dialog"]')?.innerText || '').includes('Tranche'), { timeout: 5000 }).then(() => true).catch(() => false);
+      await page.locator('[role="dialog"] button').filter({ hasText: '×' }).click().catch(() => null);
     }
     await page.screenshot({ path: screenshot, fullPage: false });
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;

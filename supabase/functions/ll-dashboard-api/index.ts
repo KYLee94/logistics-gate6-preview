@@ -4432,6 +4432,7 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
     safeText(row.fund_id),
     safeText(row.asset_id),
     trancheKind(row),
+    safeText(row.tranche),
     safeText(firstDefined(row.tranche_name, row.tranche_label, row.party_name, row.counterparty_name, row.lender_name, row.beneficiary_name)),
     safeText(firstDefined(row.committed_amount_krw, row.drawn_amount_krw, row.amount_krw)),
     safeText(row.drawdown_date),
@@ -4524,6 +4525,7 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
     .map((row) => ({
       fund_id: row.fund_id,
       fund_display_name: row.fund_display_name,
+      tranche: row.tranche,
       counterparty_name: row.counterparty_name,
       drawdown_date: row.drawdown_date,
       maturity_date: row.maturity_date,
