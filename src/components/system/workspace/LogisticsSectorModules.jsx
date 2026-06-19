@@ -170,6 +170,15 @@ function formatNumber(value, digits = 0) {
 function formatKrw(value) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed === 0) return '-';
+  if (Math.abs(parsed) >= 1000000000000) {
+    const sign = parsed < 0 ? '-' : '';
+    const abs = Math.abs(parsed);
+    const jo = Math.floor(abs / 1000000000000);
+    const remainderEok = (abs - (jo * 1000000000000)) / 100000000;
+    return remainderEok >= 0.05
+      ? `${sign}${formatNumber(jo, 0)}조 ${formatNumber(remainderEok, 1)}억원`
+      : `${sign}${formatNumber(jo, 0)}조원`;
+  }
   if (Math.abs(parsed) >= 100000000) return `${formatNumber(parsed / 100000000, 1)}억원`;
   if (Math.abs(parsed) >= 10000) return `${formatNumber(parsed / 10000, 0)}만원`;
   return `${formatNumber(parsed, 0)}원`;
@@ -182,6 +191,16 @@ function formatKrwAxis(value) {
   if (Math.abs(parsed) >= 100000000) return `${formatNumber(parsed / 100000000, parsed >= 1000000000 ? 0 : 1)}억`;
   if (Math.abs(parsed) >= 10000) return `${formatNumber(parsed / 10000, 0)}만`;
   return formatNumber(parsed, 0);
+}
+
+const LOAN_MATURITY_AXIS_STEP_KRW = 50000000000;
+
+function loanMaturityAxis(maxValue) {
+  const safeMax = Math.max(number(maxValue), LOAN_MATURITY_AXIS_STEP_KRW);
+  const maxTick = Math.ceil(safeMax / LOAN_MATURITY_AXIS_STEP_KRW) * LOAN_MATURITY_AXIS_STEP_KRW;
+  const ticks = [];
+  for (let value = 0; value <= maxTick; value += LOAN_MATURITY_AXIS_STEP_KRW) ticks.push(value);
+  return { maxTick, ticks };
 }
 
 function formatRate(value) {
@@ -544,13 +563,12 @@ function useEdgeData(action, payload = {}, deps = []) {
   return { ...state, reload };
 }
 
-function ModuleHeader({ eyebrow, title, subtitle, right = null }) {
+function ModuleHeader({ eyebrow, title, right = null }) {
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
         <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{eyebrow}</div>
         <h2 className="mt-1 text-[24px] font-semibold tracking-tight text-white">{title}</h2>
-        {subtitle ? <p className="mt-2 max-w-[860px] text-[13px] leading-5 text-[#A1A1AA]">{subtitle}</p> : null}
       </div>
       {right}
     </div>
@@ -1418,9 +1436,12 @@ function trancheLabel(row) {
 }
 
 function normalizeInvestmentDetailRow(row, funds) {
+  const assetLabel = text(firstText(row.asset_name, row.asset_display_name, assetLabelForFundId(row.fund_id, funds)));
+  const assetKey = text(firstText(row.asset_id, row.asset_code, assetLabel), '');
   return {
     ...row,
-    asset_display_label: text(firstText(row.asset_name, row.asset_display_name, assetLabelForFundId(row.fund_id, funds))),
+    asset_display_label: assetLabel,
+    asset_match_key: assetKey,
     rate_display_value: rateValue(row),
     tranche_display: trancheLabel(row),
   };
@@ -1535,30 +1556,30 @@ function loanMaturityTimelineRows(rows) {
 function LoanMaturityTimelineChart({ rows, onMonthClick }) {
   const [hover, setHover] = useState(null);
   const visibleRows = safeArray(rows);
-  const maxValue = Math.max(...visibleRows.map((row) => number(row.value)), 1);
-  const ticks = [1, 0.75, 0.5, 0.25, 0];
-  const axisWidth = 76;
-  const plotHeight = 220;
+  const maxValue = Math.max(...visibleRows.map((row) => number(row.value)), 0);
+  const { maxTick, ticks } = loanMaturityAxis(maxValue);
+  const axisWidth = 98;
+  const plotHeight = Math.max(260, (ticks.length - 1) * 34);
   return (
     <div className="relative rounded-[12px] border border-[#333333] bg-[#171717] p-4" data-chart-role="loan-maturity-timeline" data-chart-empty={visibleRows.length ? 'false' : 'true'}>
       {visibleRows.length ? (
         <div className="custom-scrollbar overflow-x-auto pb-1">
-          <div className="relative h-[320px]" style={{ minWidth: `${Math.max(980, visibleRows.length * 58)}px` }}>
-            <div className="absolute inset-x-0 top-0 h-[250px]" style={{ paddingLeft: axisWidth }}>
-              {ticks.map((tick) => (
-                <div key={tick} className="absolute left-0 right-0" style={{ bottom: `${tick * plotHeight}px` }}>
+          <div className="relative" style={{ minWidth: `${Math.max(1040, visibleRows.length * 58)}px`, height: `${plotHeight + 100}px` }}>
+            <div className="absolute inset-x-0 top-2" style={{ height: plotHeight, paddingLeft: axisWidth }}>
+              {ticks.map((tickValue) => (
+                <div key={tickValue} className="absolute left-0 right-0" style={{ bottom: `${(tickValue / maxTick) * plotHeight}px` }}>
                   <span
-                    className="absolute left-0 -translate-y-1/2 pr-3 text-right text-[10px] leading-none text-[#86868B]"
+                    className="absolute left-0 -translate-y-1/2 whitespace-nowrap pr-3 text-right text-[10px] leading-none text-[#A1A1AA]"
                     style={{ width: axisWidth }}
                     data-y-axis-label="loan-maturity"
                   >
-                    {formatKrwAxis(maxValue * tick)}
+                    {formatKrwAxis(tickValue)}
                   </span>
                   <span className="block h-px bg-[#3A3A3C]/70" />
                 </div>
               ))}
             </div>
-            <div className="absolute bottom-8 right-0 top-0 flex items-end gap-2" style={{ left: axisWidth }}>
+            <div className="absolute right-0 flex items-end gap-2" style={{ left: axisWidth, top: 8, height: plotHeight }}>
               {visibleRows.map((row) => {
                 const details = safeArray(row.details)
                   .slice()
@@ -1586,7 +1607,7 @@ function LoanMaturityTimelineChart({ rows, onMonthClick }) {
                   >
                     <span
                       className="block w-full rounded-t-[5px] transition-opacity group-hover:opacity-80"
-                      style={{ height: `${value ? Math.max(10, Math.min(plotHeight, (value / maxValue) * plotHeight)) : 2}px`, backgroundColor: value ? CHART_COLORS.primary : '#4A4A4F' }}
+                      style={{ height: `${value ? Math.max(10, Math.min(plotHeight, (value / maxTick) * plotHeight)) : 2}px`, backgroundColor: value ? CHART_COLORS.primary : '#4A4A4F' }}
                     />
                     <span className="max-w-full truncate text-[10px] text-[#86868B]" title={row.label}>{row.label}</span>
                   </button>
@@ -1675,8 +1696,10 @@ function groupLoanRateRows(rows, trancheFilter) {
   const grouped = new Map();
   source.forEach((row) => {
     const label = text(row.asset_display_label, '자산 미기재');
-    const current = grouped.get(label) || {
-      row_key: `loan-rate-${label}-${trancheFilter}`,
+    const assetKey = text(row.asset_match_key, label);
+    const current = grouped.get(assetKey) || {
+      row_key: `loan-rate-${assetKey}-${trancheFilter}`,
+      asset_match_key: assetKey,
       asset_display_label: label,
       tranche_label: trancheFilter,
       tranche_filter: trancheFilter,
@@ -1685,7 +1708,7 @@ function groupLoanRateRows(rows, trancheFilter) {
     };
     current.weighted_amount_krw += number(row.amount_krw);
     current.details.push(row);
-    grouped.set(label, current);
+    grouped.set(assetKey, current);
   });
   return [...grouped.values()]
     .map((row) => ({ ...row, rate_display_value: weightedRate(row.details) }))
@@ -1708,6 +1731,99 @@ function trancheSummaryRows(rows) {
 function trancheSummaryText(rows) {
   const summary = trancheSummaryRows(rows);
   return summary.length ? summary.map((row) => `${row.label} ${formatNumber(row.count)}건`).join(', ') : '-';
+}
+
+const ASSET_SPEC_DEFAULT_ROWS = [
+  [5, '주소'],
+  [6, '건물규모'],
+  [7, '대지면적(평)'],
+  [8, 'GFA(㎡)'],
+  [9, 'GFA(평)'],
+  [10, '상온창고 면적'],
+  [11, '상온창고 면적(평)'],
+  [12, '저온창고 면적'],
+  [13, '저온창고 면적(평)'],
+  [14, 'Net Storage Area/연면적'],
+  [15, 'Net Storage Area'],
+  [16, '시공사'],
+  [17, '건폐율 / 용적률'],
+  [18, '건물높이'],
+  [19, '준공년도'],
+  [20, '주차대수'],
+  [21, '화물차량 접안 대수'],
+  [22, '화물차량 접안 효율'],
+  [23, 'Net Storage Area / 화물접안대수'],
+  [24, '연면적/일반차량 주차대수'],
+  [25, 'Type'],
+  [26, '설계 하중 - 창고'],
+  [27, '설계 하중 - 창고 비고'],
+  [28, '설계 하중 - 하역장'],
+  [29, '설계 하중 - 램프'],
+  [30, '구조'],
+  [31, '내마모도 기준'],
+  [32, '평활도 기준(TR34 4th edition)'],
+  [33, '외부마감 - 판넬'],
+  [34, '외부마감 - 지붕'],
+  [35, '구조 기둥 간격'],
+  [36, '전기용량 - Kva'],
+  [37, '전기용량 - 연면적평당 공급용량'],
+  [38, '전기용량 - 평당 공급용량'],
+  [39, '발전기 용량'],
+  [40, '저수조 물탱크용량'],
+  [41, '엘리베이터 대수'],
+  [42, '엘리베이터 SPEC'],
+  [43, '스노우멜팅'],
+  [44, '층고 - 기준층'],
+  [45, '층고 - 최고 높이층'],
+  [46, '오버헤드 도어'],
+  [47, '저온창고 (방열공사) - 벽'],
+  [48, '저온창고 (방열공사) - 기둥'],
+  [49, '저온창고 (방열공사) - 천장'],
+  [50, '저온창고 (방열공사) - 바닥'],
+  [51, '상온창고 환기'],
+  [52, '냉동설비냉매'],
+  [53, '소방설비 (기계소방, 전기소방)'],
+].map(([row_number, label]) => ({ row_number, label, value: '' }));
+
+function assetSpecRowsFor(row) {
+  const payloadRows = safeArray(row?.spec?.payload?.spec_rows);
+  const byNumber = new Map(payloadRows.map((item) => [number(item.row_number), item]));
+  return ASSET_SPEC_DEFAULT_ROWS.map((def) => {
+    const stored = byNumber.get(def.row_number) || {};
+    return {
+      ...def,
+      ...stored,
+      label: text(stored.label, def.label),
+      value: text(stored.value, ''),
+    };
+  });
+}
+
+function assetSpecValue(row, rowNumber, fallback = '') {
+  const specRow = assetSpecRowsFor(row).find((item) => number(item.row_number) === rowNumber);
+  return text(specRow?.value, fallback);
+}
+
+function assetSpecComparisonRows(left, right) {
+  return ASSET_SPEC_DEFAULT_ROWS.map((def) => ({
+    row_number: def.row_number,
+    label: def.label,
+    left_value: assetSpecValue(left, def.row_number),
+    right_value: assetSpecValue(right, def.row_number),
+  }));
+}
+
+function normalizeAssetSpecEditorRows(rows) {
+  const incoming = safeArray(rows);
+  const byNumber = new Map(incoming.map((item) => [number(item.row_number), item]));
+  return ASSET_SPEC_DEFAULT_ROWS.map((def) => {
+    const row = byNumber.get(def.row_number) || {};
+    return {
+      row_number: def.row_number,
+      label: text(row.label, def.label),
+      value: text(row.value, ''),
+    };
+  });
 }
 
 function domainSources(sources, domain) {
@@ -2797,15 +2913,17 @@ export function InvestmentIndexDashboard() {
   const funds = safeArray(data?.funds);
   const assets = safeArray(data?.assets);
   const tranches = safeArray(data?.tranches);
+  const summary = data?.summary || {};
   const rows = useMemo(() => (mode === 'fund' ? funds : assets)
     .slice()
     .sort((a, b) => (
       number(b.total_capital_krw) - number(a.total_capital_krw)
     )), [assets, funds, mode]);
-  const totals = rows.reduce((acc, row) => ({
-    equity: acc.equity + number(row.equity_krw),
-    loan: acc.loan + number(row.loan_krw),
-  }), { equity: 0, loan: 0 });
+  const fundBasisTotals = {
+    equity: number(summary.funds?.equity_krw) || funds.reduce((sum, row) => sum + number(row.equity_krw), 0),
+    loan: number(summary.funds?.loan_krw) || funds.reduce((sum, row) => sum + number(row.loan_krw), 0),
+  };
+  const assetBasisReferenceTotal = number(summary.assets?.reference_total_capital_krw);
   const loanMaturityRows = useMemo(() => normalizeLoanTrancheRows(tranches, funds), [funds, tranches]);
   const loanMaturityChartRows = useMemo(() => loanMaturityTimelineRows(loanMaturityRows), [loanMaturityRows]);
   const loanRateBaseRows = useMemo(() => normalizeLoanRateRows(tranches, funds), [funds, tranches]);
@@ -2845,9 +2963,9 @@ export function InvestmentIndexDashboard() {
   const detailRows = useMemo(() => {
     if (!detailTarget) return [];
     if (detailTarget.type === 'loan-rate-asset') {
-      const assetLabel = text(detailTarget.row?.asset_display_label);
+      const assetKey = text(detailTarget.row?.asset_match_key, detailTarget.row?.asset_display_label);
       return loanRateBaseRows
-        .filter((row) => text(row.asset_display_label) === assetLabel)
+        .filter((row) => text(row.asset_match_key, row.asset_display_label) === assetKey)
         .sort((a, b) => text(a.tranche_display, trancheLabel(a)).localeCompare(text(b.tranche_display, trancheLabel(b)), 'ko') || number(b.amount_krw) - number(a.amount_krw));
     }
     if (detailTarget.type === 'loan-maturity-month') return safeArray(detailTarget.row?.details);
@@ -2888,15 +3006,15 @@ export function InvestmentIndexDashboard() {
       {error ? <div className="rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
       {loading && !data ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>투자지표를 불러오는 중입니다.</div> : null}
       <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
-        <MetricCard label="Equity" value={formatKrw(totals.equity)} detail={mode === 'asset' ? '자산에 확정 배분된 금액' : '펀드 기준 합계'} />
-        <MetricCard label="Loan" value={formatKrw(totals.loan)} detail={mode === 'asset' ? '자산에 확정 배분된 금액' : '펀드 기준 합계'} />
-        <MetricCard label="합계" value={formatKrw(totals.equity + totals.loan)} detail="Equity + Loan" />
+        <MetricCard label="Equity" value={formatKrw(fundBasisTotals.equity)} detail="펀드 기준 전체 합계" />
+        <MetricCard label="Loan" value={formatKrw(fundBasisTotals.loan)} detail="펀드 기준 전체 합계" />
+        <MetricCard label="합계" value={formatKrw(fundBasisTotals.equity + fundBasisTotals.loan)} detail="Equity + Loan" />
       </section>
       <section className={`${CARD} p-5`}>
         <ModuleHeader
           eyebrow="CAPITAL STACK"
           title={mode === 'fund' ? '펀드별 Equity / Loan 구성' : '자산별 Equity / Loan 구성'}
-          subtitle="합계 금액 기준 내림차순"
+          subtitle={mode === 'asset' && assetBasisReferenceTotal ? '공동펀드는 중복 합산하지 않고 자산별 확정 배분 금액만 표시합니다.' : '합계 금액 기준 내림차순'}
         />
         <StackedCapitalChart
           rows={rows}
@@ -2978,7 +3096,7 @@ export function InvestmentIndexDashboard() {
               { key: 'maturity_date', label: '만기', render: (row) => formatDate(row.maturity_date) },
             ]}
             rows={loanRateTableRows}
-            onRowClick={(row) => setDetailTarget({ type: 'loan-rate', row })}
+            onRowClick={(row) => setDetailTarget({ type: 'loan-rate-asset', row })}
           />
         </div>
       </section>
@@ -3112,12 +3230,10 @@ function AssetSpecDashboardLegacy() {
 
 export function AssetSpecDashboard() {
   const specRead = useEdgeData('asset-spec/read', {}, []);
-  const costRead = useEdgeData('operating-costs/read', {}, []);
   const assets = safeArray(specRead.data?.assets);
   const specs = safeArray(specRead.data?.specs);
   const files = safeArray(specRead.data?.files);
   const tenantSummary = safeArray(specRead.data?.tenant_summary);
-  const costs = safeArray(costRead.data?.rows);
   const specsByAsset = new Map(specs.map((row) => [row.asset_id, row]));
   const filesByAsset = new Map();
   files.forEach((row) => filesByAsset.set(row.asset_id, (filesByAsset.get(row.asset_id) || 0) + 1));
@@ -3127,39 +3243,29 @@ export function AssetSpecDashboard() {
     assetRows.push(row);
     tenantsByAsset.set(row.asset_id, assetRows);
   });
-  const latestCostByAsset = new Map();
-  costs.forEach((row) => {
-    if (!latestCostByAsset.has(row.asset_id)) latestCostByAsset.set(row.asset_id, row);
-  });
   const rows = assets.map((asset) => ({
     ...asset,
     spec: specsByAsset.get(asset.asset_id) || {},
-    cost: latestCostByAsset.get(asset.asset_id) || {},
     file_count: filesByAsset.get(asset.asset_id) || 0,
     tenants: tenantsByAsset.get(asset.asset_id) || [],
-  }));
+  })).sort((a, b) => text(a.asset_name).localeCompare(text(b.asset_name), 'ko'));
+  const editableAssets = rows.filter((row) => row.can_create || row.can_update || row.can_delete);
   const [leftId, setLeftId] = useState('');
   const [rightId, setRightId] = useState('');
-  const left = rows.find((row) => row.asset_id === leftId) || rows[0] || null;
-  const right = rows.find((row) => row.asset_id === rightId) || rows[1] || rows[0] || null;
-  const specItems = [
-    ['상/저온', (row) => row?.spec?.temperature_type],
-    ['권역', (row) => row?.region || row?.capital_region || row?.national_region || row?.region_group || row?.spec?.region],
-    ['연면적(평)', (row) => row?.gross_floor_area_py || row?.spec?.gross_area_py],
-    ['층고(m)', (row) => row?.spec?.clear_height_m],
-    ['통로 폭(m)', (row) => row?.spec?.corridor_width_m || row?.spec?.aisle_width_m],
-    ['램프 폭(m)', (row) => row?.spec?.ramp_width_m],
-    ['창고 바닥하중', (row) => row?.spec?.floor_load_warehouse_kg_sqm],
-    ['통로 바닥하중', (row) => row?.spec?.floor_load_corridor_kg_sqm],
-    ['도면/면적표 파일', (row) => `${formatNumber(row?.file_count || 0)}건`],
-    ['현재 임차인', (row) => row?.tenants?.length ? row.tenants.slice(0, 4).map((tenant) => text(tenant.tenant_name)).join(', ') : '-'],
-  ];
+  const [tenantLeftId, setTenantLeftId] = useState('');
+  const [tenantRightId, setTenantRightId] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
+  const [editAssetId, setEditAssetId] = useState('');
+  const [editRows, setEditRows] = useState(ASSET_SPEC_DEFAULT_ROWS);
+  const [editStatus, setEditStatus] = useState(null);
+  const [tableModal, setTableModal] = useState(null);
   const tenantRows = tenantSummary.map((tenant) => {
     const asset = rows.find((row) => row.asset_id === tenant.asset_id) || {};
     return {
       id: `${tenant.asset_id}:${tenant.tenant_name}`,
       tenant_name: tenant.tenant_name,
       asset_name: asset.asset_name,
+      asset_row: asset,
       region: asset.region || asset.capital_region || asset.national_region || asset.region_group || asset.spec?.region,
       leased_area_sqm: tenant.leased_area_sqm,
       temperature_type: asset.spec?.temperature_type,
@@ -3168,63 +3274,183 @@ export function AssetSpecDashboard() {
       ramp_width_m: asset.spec?.ramp_width_m,
       floor_load: [asset.spec?.floor_load_warehouse_kg_sqm, asset.spec?.floor_load_corridor_kg_sqm].filter(Boolean).join(' / '),
     };
-  });
+  }).sort((a, b) => text(a.tenant_name).localeCompare(text(b.tenant_name), 'ko') || text(a.asset_name).localeCompare(text(b.asset_name), 'ko'));
+  const rowsVersion = rows.map((row) => `${row.asset_id}:${row.spec?.asset_spec_id || ''}:${row.spec?.updated_at || ''}`).join('|');
+  const tenantRowsVersion = tenantRows.map((row) => row.id).join('|');
+  const editableAssetsVersion = editableAssets.map((row) => `${row.asset_id}:${row.can_create ? 'c' : ''}${row.can_update ? 'u' : ''}${row.can_delete ? 'd' : ''}`).join('|');
+  useEffect(() => {
+    if (!rows.length) return;
+    if (!rows.some((row) => row.asset_id === leftId)) setLeftId(rows[0]?.asset_id || '');
+    if (!rows.some((row) => row.asset_id === rightId)) setRightId(rows[1]?.asset_id || rows[0]?.asset_id || '');
+  }, [leftId, rightId, rowsVersion]);
+  useEffect(() => {
+    if (!tenantRows.length) return;
+    if (!tenantRows.some((row) => row.id === tenantLeftId)) setTenantLeftId(tenantRows[0]?.id || '');
+    if (!tenantRows.some((row) => row.id === tenantRightId)) setTenantRightId(tenantRows[1]?.id || tenantRows[0]?.id || '');
+  }, [tenantLeftId, tenantRightId, tenantRowsVersion]);
+  useEffect(() => {
+    if (!editOpen) return;
+    const fallbackAssetId = editableAssets[0]?.asset_id || '';
+    if (!editableAssets.some((row) => row.asset_id === editAssetId)) setEditAssetId(fallbackAssetId);
+  }, [editableAssetsVersion, editAssetId, editOpen]);
+  useEffect(() => {
+    if (!editOpen) return;
+    const selected = rows.find((row) => row.asset_id === editAssetId);
+    setEditRows(normalizeAssetSpecEditorRows(selected ? assetSpecRowsFor(selected) : ASSET_SPEC_DEFAULT_ROWS));
+    setEditStatus(null);
+  }, [editAssetId, editOpen, rowsVersion]);
+  const left = rows.find((row) => row.asset_id === leftId) || rows[0] || null;
+  const right = rows.find((row) => row.asset_id === rightId) || rows[1] || rows[0] || null;
+  const tenantLeft = tenantRows.find((row) => row.id === tenantLeftId) || tenantRows[0] || null;
+  const tenantRight = tenantRows.find((row) => row.id === tenantRightId) || tenantRows[1] || tenantRows[0] || null;
+  const specCompareRows = assetSpecComparisonRows(left, right);
+  const tenantCompareRows = assetSpecComparisonRows(tenantLeft?.asset_row, tenantRight?.asset_row);
+  const compareColumns = (leftLabel, rightLabel) => [
+    { key: 'row_number', label: '행', width: 72, align: 'right', sortValue: (row) => number(row.row_number) },
+    { key: 'label', label: '항목', width: 220, noTruncate: true },
+    { key: 'left_value', label: leftLabel || '비교 1', width: 420, noTruncate: true, wrap: true },
+    { key: 'right_value', label: rightLabel || '비교 2', width: 420, noTruncate: true, wrap: true },
+  ];
+  const selectedEditAsset = rows.find((row) => row.asset_id === editAssetId) || null;
+  const canSaveSelectedSpec = Boolean(selectedEditAsset && (
+    selectedEditAsset.spec?.asset_spec_id ? selectedEditAsset.can_update : selectedEditAsset.can_create
+  ));
+  const setEditValue = (rowNumber, value) => {
+    setEditRows((current) => current.map((row) => (
+      number(row.row_number) === number(rowNumber) ? { ...row, value } : row
+    )));
+  };
+  const saveAssetSpec = async () => {
+    if (!selectedEditAsset) return;
+    setEditStatus({ type: 'loading', message: '저장 중입니다.' });
+    try {
+      const saved = await invoke('asset-spec/save', {
+        asset_id: selectedEditAsset.asset_id,
+        rows: editRows,
+      });
+      setEditStatus({ type: 'success', message: `저장 완료 · readback ${saved?.readback_ok ? '확인' : '대기'}` });
+      await specRead.reload({}, { force: true });
+    } catch (error) {
+      setEditStatus({ type: 'warning', message: `저장 실패: ${error.message || '권한 또는 Supabase 반영 상태를 확인해야 합니다.'}` });
+    }
+  };
+  const deleteAssetSpec = async () => {
+    if (!selectedEditAsset) return;
+    setEditStatus({ type: 'loading', message: '삭제 중입니다.' });
+    try {
+      const saved = await invoke('asset-spec/save', {
+        asset_id: selectedEditAsset.asset_id,
+        mode: 'delete',
+      });
+      setEditRows(normalizeAssetSpecEditorRows([]));
+      setEditStatus({ type: 'success', message: `삭제 완료 · readback ${saved?.readback_ok ? '확인' : '대기'}` });
+      await specRead.reload({}, { force: true });
+    } catch (error) {
+      setEditStatus({ type: 'warning', message: `삭제 실패: ${error.message || '권한 또는 Supabase 반영 상태를 확인해야 합니다.'}` });
+    }
+  };
   return (
     <div className="space-y-5">
-      {specRead.error || costRead.error ? <div className="rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{specRead.error || costRead.error}</div> : null}
-      <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-        <MetricCard label="자산" value={`${formatNumber(assets.length)}개`} detail="비교 가능한 자산" />
-        <MetricCard label="스펙 입력" value={`${formatNumber(specs.length)}건`} detail="상/저온, 층고, 통로 폭 등" />
-        <MetricCard label="첨부 파일" value={`${formatNumber(files.length)}건`} detail="평면도, 면적표, 사진" />
-        <MetricCard label="임차인 점유" value={`${formatNumber(tenantSummary.length)}건`} detail="임차인별 스펙 비교 기준" />
-      </section>
-      <section className={`${CARD} p-5`}>
-        <ModuleHeader eyebrow="ASSET SPEC" title="자산 스펙 좌우 비교" subtitle="비교할 두 자산을 선택해 상/저온, 층고, 통로 폭, 램프 폭, 바닥하중, 임차인 점유를 나란히 확인합니다." />
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {[['left', left, leftId, setLeftId], ['right', right, rightId, setRightId]].map(([side, selected, selectedId, setSelected]) => (
-            <div key={side} className={`${INNER} p-4`}>
-              <select
-                value={selected?.asset_id || selectedId || ''}
-                onChange={(event) => setSelected(event.target.value)}
-                className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none"
-              >
-                {rows.map((row) => <option key={row.asset_id} value={row.asset_id}>{row.asset_name}</option>)}
-              </select>
-              <div className="mt-4 text-[18px] font-semibold text-white">{text(selected?.asset_name)}</div>
-              <div className="mt-1 text-[12px] text-[#86868B]">{text(selected?.current_manager_name, '담당자 미입력')}</div>
-              <div className="mt-4 divide-y divide-[#303033] rounded-[12px] border border-[#333333]">
-                {specItems.map(([label, getter]) => (
-                  <div key={label} className="grid grid-cols-[132px_minmax(0,1fr)] gap-3 px-3 py-2">
-                    <div className="text-[12px] font-semibold text-[#86868B]">{label}</div>
-                    <div className="min-w-0 break-words text-[12px] text-white">{label === '권역' ? formatRegionLabel(getter(selected)) : text(getter(selected))}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+      {specRead.error ? <div className="rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{specRead.error}</div> : null}
+      <section className="rounded-[16px] border border-[#2F6BFF]/50 bg-[#123A7A] px-5 py-4 shadow-[0_18px_40px_rgba(18,58,122,0.25)]">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#BFD7FF]">ASSET SPEC INPUT</div>
+            <div className="mt-1 text-[18px] font-semibold text-white">자산 스펙 데이터 입력</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setEditOpen(true)}
+            className="h-11 rounded-[10px] bg-white px-5 text-[13px] font-semibold text-[#123A7A] hover:bg-[#EAF2FF]"
+          >
+            데이터 입력
+          </button>
         </div>
       </section>
       <section className={`${CARD} p-5`}>
-        <ModuleHeader eyebrow="TENANT SPEC FIT" title="임차인별 점유 자산 스펙 비교" subtitle="추후 임차인 요구 스펙과 실제 점유 자산의 스펙 차이를 비교하기 위한 작업 영역입니다." />
+        <ModuleHeader eyebrow="ASSET SPEC" title="자산 스펙 좌우 비교" subtitle="비교할 두 자산을 선택해 샘플 엑셀의 5~53행 기준으로 나란히 확인합니다." />
+        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <select value={left?.asset_id || leftId || ''} onChange={(event) => setLeftId(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
+            {rows.map((row) => <option key={row.asset_id} value={row.asset_id}>{row.asset_name}</option>)}
+          </select>
+          <select value={right?.asset_id || rightId || ''} onChange={(event) => setRightId(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
+            {rows.map((row) => <option key={row.asset_id} value={row.asset_id}>{row.asset_name}</option>)}
+          </select>
+        </div>
+        <SortableTable minWidth={1180} maxHeight={560} stickyCount={2} defaultSort={{ key: 'row_number', direction: 'asc' }} columns={compareColumns(text(left?.asset_name), text(right?.asset_name))} rows={specCompareRows} />
+        <button type="button" onClick={() => setTableModal({ title: '자산 스펙 전체 테이블', rows: specCompareRows, columns: compareColumns(text(left?.asset_name), text(right?.asset_name)) })} className="mt-4 h-10 rounded-[9px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-[#E5E5E5] hover:bg-white/[0.04]">테이블 보기</button>
+      </section>
+      <section className={`${CARD} p-5`}>
+        <ModuleHeader eyebrow="TENANT SPEC FIT" title="임차인별 점유 자산 스펙 비교" subtitle="선택한 두 임차인의 점유 자산 스펙을 같은 항목 기준으로 좌우 비교합니다." />
+        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+          <select value={tenantLeft?.id || tenantLeftId || ''} onChange={(event) => setTenantLeftId(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
+            {tenantRows.map((row) => <option key={row.id} value={row.id}>{row.tenant_name} · {row.asset_name}</option>)}
+          </select>
+          <select value={tenantRight?.id || tenantRightId || ''} onChange={(event) => setTenantRightId(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
+            {tenantRows.map((row) => <option key={row.id} value={row.id}>{row.tenant_name} · {row.asset_name}</option>)}
+          </select>
+        </div>
         <SortableTable
-          minWidth={1190}
+          minWidth={1180}
+          maxHeight={560}
           stickyCount={2}
-          defaultSort={{ key: 'tenant_name', direction: 'asc' }}
-          columns={[
-            { key: 'tenant_name', label: '임차인', width: 168 },
-            { key: 'asset_name', label: '점유 자산', width: 168 },
-            { key: 'region', label: '권역', width: 150, render: (row) => row.region ? formatRegionLabel(row.region) : '-', sortValue: (row) => regionValue(row.region) },
-            { key: 'temperature_type', label: '상/저온' },
-            { key: 'leased_area_sqm', label: '임대면적(㎡)', align: 'right', render: (row) => formatNumber(row.leased_area_sqm, 1), sortValue: (row) => number(row.leased_area_sqm) },
-            { key: 'clear_height_m', label: '층고(m)', align: 'right', render: (row) => text(row.clear_height_m), sortValue: (row) => number(row.clear_height_m) },
-            { key: 'corridor_width_m', label: '통로 폭(m)', align: 'right', render: (row) => text(row.corridor_width_m), sortValue: (row) => number(row.corridor_width_m) },
-            { key: 'ramp_width_m', label: '램프 폭(m)', align: 'right', render: (row) => text(row.ramp_width_m), sortValue: (row) => number(row.ramp_width_m) },
-            { key: 'floor_load', label: '바닥하중(창고/통로)' },
-          ]}
-          rows={tenantRows}
+          defaultSort={{ key: 'row_number', direction: 'asc' }}
+          columns={compareColumns(`${text(tenantLeft?.tenant_name)} · ${text(tenantLeft?.asset_name)}`, `${text(tenantRight?.tenant_name)} · ${text(tenantRight?.asset_name)}`)}
+          rows={tenantCompareRows}
           empty="아직 임차인별 스펙 비교 데이터가 없습니다."
         />
+        <button
+          type="button"
+          onClick={() => setTableModal({
+            title: '임차인별 점유 자산 스펙 전체 테이블',
+            rows: tenantCompareRows,
+            columns: compareColumns(`${text(tenantLeft?.tenant_name)} · ${text(tenantLeft?.asset_name)}`, `${text(tenantRight?.tenant_name)} · ${text(tenantRight?.asset_name)}`),
+          })}
+          className="mt-4 h-10 rounded-[9px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-[#E5E5E5] hover:bg-white/[0.04]"
+        >
+          테이블 보기
+        </button>
       </section>
+      <Modal title={editOpen ? '자산 스펙 데이터 입력' : ''} onClose={() => setEditOpen(false)} width="max-w-[calc(100vw-32px)]" fullscreen>
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
+            <label className="block">
+              <span className="mb-1 block text-[12px] font-semibold text-[#A1A1AA]">자산 선택</span>
+              <select value={editAssetId} onChange={(event) => setEditAssetId(event.target.value)} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
+                {editableAssets.length ? editableAssets.map((row) => <option key={row.asset_id} value={row.asset_id}>{row.asset_name}</option>) : <option value="">수정 권한이 있는 자산 없음</option>}
+              </select>
+            </label>
+            <button type="button" disabled={!canSaveSelectedSpec} onClick={saveAssetSpec} className="h-10 rounded-[9px] bg-[#2F6BFF] px-5 text-[13px] font-semibold text-white hover:bg-[#3E7BFF] disabled:cursor-not-allowed disabled:opacity-40">Supabase 저장</button>
+            <button type="button" disabled={!selectedEditAsset?.can_delete} onClick={deleteAssetSpec} className="h-10 rounded-[9px] border border-[#5A4420] px-5 text-[13px] font-semibold text-[#FFD479] hover:bg-[#2A2115] disabled:cursor-not-allowed disabled:opacity-40">선택 자산 스펙 삭제</button>
+          </div>
+          {editStatus ? <div className={`rounded-[10px] border px-4 py-3 text-[13px] ${editStatus.type === 'success' ? 'border-[#2F6B3C] bg-[#152A1A] text-[#A7F3D0]' : editStatus.type === 'loading' ? 'border-[#34547A] bg-[#142033] text-[#BFD7FF]' : 'border-[#5A4420] bg-[#2A2115] text-[#FFD479]'}`}>{editStatus.message}</div> : null}
+          <div className="custom-scrollbar max-h-[calc(100vh-260px)] overflow-auto rounded-[12px] border border-[#333333]">
+            <table className="w-full min-w-[980px] border-collapse text-left text-[12px]">
+              <thead className="sticky top-0 z-10 bg-[#1F1F1E] text-[#A1A1AA]">
+                <tr>
+                  <th className="w-[72px] px-3 py-2 text-right font-semibold">행</th>
+                  <th className="w-[240px] px-3 py-2 font-semibold">항목</th>
+                  <th className="px-3 py-2 font-semibold">값</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#303033]">
+                {editRows.map((row) => (
+                  <tr key={row.row_number} className="bg-[#171717] text-[#E5E5E5]">
+                    <td className="px-3 py-2 text-right text-[#A1A1AA]">{row.row_number}</td>
+                    <td className="px-3 py-2 font-semibold">{row.label}</td>
+                    <td className="px-3 py-2">
+                      <textarea value={text(row.value, '')} onChange={(event) => setEditValue(row.row_number, event.target.value)} className="min-h-[36px] w-full resize-y rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-white outline-none focus:border-[#7DD3FC]" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </Modal>
+      <Modal title={tableModal?.title || ''} onClose={() => setTableModal(null)} width="max-w-[calc(100vw-32px)]" fullscreen>
+        <SortableTable minWidth={1180} maxHeight="calc(100vh - 150px)" stickyCount={2} defaultSort={{ key: 'row_number', direction: 'asc' }} columns={tableModal?.columns || []} rows={tableModal?.rows || []} />
+      </Modal>
     </div>
   );
 }

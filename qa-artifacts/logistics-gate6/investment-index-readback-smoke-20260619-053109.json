@@ -1,0 +1,30 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-19T05:31:09.115Z",
+  "auth_source": "password_grant",
+  "checks": {
+    "fund_count": true,
+    "asset_count": true,
+    "tranche_non_empty": true,
+    "equity_and_loan_present": true,
+    "display_names_present": true,
+    "joint_assets_found": true,
+    "joint_assets_reference_flagged": true,
+    "asset_confirmed_total_not_tripled": true
+  },
+  "observed": {
+    "fund_count": 17,
+    "asset_count": 19,
+    "raw_tranche_count": 107,
+    "tranche_count": 103,
+    "deduped_tranche_count": 4,
+    "joint_asset_reference_count": 3,
+    "fund_total": 3098630277680,
+    "asset_confirmed_total": 2887030277680,
+    "joint_asset_names": [
+      "동산물류센터",
+      "부국물류센터",
+      "에이블로지스물류센터"
+    ]
+  }
+}

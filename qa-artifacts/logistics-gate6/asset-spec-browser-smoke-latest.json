@@ -1,0 +1,24 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-19T05:44:36.731Z",
+  "base_url": "http://127.0.0.1:5173/",
+  "auth_source": "password_grant",
+  "checks": {
+    "shell_ready": true,
+    "error_hidden": true,
+    "input_cta_present": true,
+    "compare_tables_present": true,
+    "component_submessages_removed": true,
+    "core_rows_visible": true,
+    "table_view_buttons": true,
+    "full_table_modal": true,
+    "full_table_modal_fullscreen": true,
+    "input_modal_open": true,
+    "input_modal_fullscreen": true,
+    "permission_asset_select": true,
+    "input_rows_5_53": true,
+    "save_delete_controls": true
+  },
+  "errors": [],
+  "screenshot": "qa-artifacts/logistics-gate6/asset-spec-browser-smoke-20260619-054436.png"
+}

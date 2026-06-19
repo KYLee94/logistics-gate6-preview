@@ -127,6 +127,14 @@ async function main() {
     report.checks.loading_gone = await page.waitForFunction(() => !(document.body?.innerText || '').includes('투자지표를 불러오는 중입니다.'), { timeout: 90000 }).then(() => true).catch(() => false);
     report.checks.capital_chart_ready = await page.waitForSelector('[data-chart-role="capital-stack"][data-chart-empty="false"]', { timeout: 90000 }).then(() => true).catch(() => false);
     report.checks.removed_top_exposure = !(await page.getByText('상위 노출액 비교').count().catch(() => 0));
+    report.checks.component_submessages_removed = await page.evaluate(() => {
+      const text = document.body?.innerText || '';
+      return !text.includes('합계 금액 기준 내림차순')
+        && !text.includes('공동펀드는 중복 합산하지 않고')
+        && !text.includes('x축 시작:')
+        && !text.includes('자산별 대출금액 가중평균 기준');
+    }).catch(() => false);
+    report.checks.top_metrics_use_jo_unit = await page.waitForFunction(() => /[0-9]조\s*[0-9,.]+억원/u.test(document.body?.innerText || ''), { timeout: 10000 }).then(() => true).catch(() => false);
     const structureToggle = page.getByRole('button', { name: /상세 투자 구조 보기|상세 투자 구조 닫기/u });
     const sortableCountBeforeStructureOpen = await page.locator('[data-sortable-table="true"]').count().catch(() => 0);
     report.checks.collapsible_table_button = (await structureToggle.count().catch(() => 0)) > 0;
@@ -162,6 +170,10 @@ async function main() {
     }
     report.checks.loan_maturity_months_complete = (await page.locator('[data-chart-row="loan-maturity-month"]').count().catch(() => 0)) >= 12;
     report.checks.loan_maturity_y_axis = (await page.locator('[data-y-axis-label="loan-maturity"]').count().catch(() => 0)) >= 4;
+    report.checks.loan_maturity_y_axis_500_eok = await page.waitForFunction(() => {
+      const labels = Array.from(document.querySelectorAll('[data-y-axis-label="loan-maturity"]')).map((node) => (node.textContent || '').trim());
+      return labels.includes('500억');
+    }, { timeout: 5000 }).then(() => true).catch(() => false);
     const firstMaturityMonth = page.locator('[data-chart-row="loan-maturity-month"]').first();
     if ((await firstMaturityMonth.count().catch(() => 0)) > 0) {
       await firstMaturityMonth.click();

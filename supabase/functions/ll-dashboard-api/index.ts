@@ -4652,7 +4652,7 @@ async function callInvestmentIndexCleanupEmptyLoans(ctx: Context, payload: Recor
 async function callAssetSpecRead(ctx: Context, _payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const [assetsResult, specsResult, filesResult, linksResult] = await Promise.all([
-    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,gross_floor_area_sqm,gross_floor_area_py,current_manager_name,current_manager_email').limit(1000),
+    ctx.serviceClient.from('ll_assets').select('*').limit(1000),
     ctx.serviceClient.from('ll_asset_specs').select('*').limit(2000),
     ctx.serviceClient.from('ll_asset_spec_files').select('*').limit(1000),
     ctx.serviceClient.from('ll_fund_asset_links').select('asset_id,asset_name,asset_code,fund_id').limit(1000),
@@ -4674,7 +4674,13 @@ async function callAssetSpecRead(ctx: Context, _payload: Record<string, unknown>
       current_manager_email: null,
     }];
   }).filter(([key]) => key) as Array<[string, Record<string, unknown>]>).values()];
-  const visibleAssetIds = new Set(assets.map((row) => safeText(row.asset_id)).filter(Boolean));
+  const publicAssets = assets.map((asset) => ({
+    ...asset,
+    can_create: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'create', asset.asset_id, asset.asset_name),
+    can_update: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'update', asset.asset_id, asset.asset_name),
+    can_delete: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'delete', asset.asset_id, asset.asset_name),
+  }));
+  const visibleAssetIds = new Set(publicAssets.map((row) => safeText(row.asset_id)).filter(Boolean));
   const specs = ((specsResult.data || []) as Record<string, unknown>[]).filter((row) => visibleAssetIds.has(safeText(row.asset_id)));
   const files = ((filesResult.data || []) as Record<string, unknown>[]).filter((row) => visibleAssetIds.has(safeText(row.asset_id)));
   let tenantSummary: Record<string, unknown>[] = [];
@@ -4724,7 +4730,139 @@ async function callAssetSpecRead(ctx: Context, _payload: Record<string, unknown>
     });
     tenantSummary = [...tenantMap.values()];
   }
-  return jsonResponse({ ok: true, data: { assets, specs, files, tenant_summary: tenantSummary, generated_at: new Date().toISOString() } }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: { assets: publicAssets, specs, files, tenant_summary: tenantSummary, generated_at: new Date().toISOString() } }, 200, ctx.origin);
+}
+
+function assetSpecEditorRows(payloadRows: unknown) {
+  const rows = Array.isArray(payloadRows) ? payloadRows : [];
+  return rows
+    .map((raw) => {
+      const row = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+      return {
+        row_number: Math.trunc(Number(row.row_number || row.rowNumber || 0)),
+        label: safeText(row.label),
+        value: safeText(row.value, ''),
+      };
+    })
+    .filter((row) => row.row_number >= 5 && row.row_number <= 53 && row.label);
+}
+
+function assetSpecValueByLabel(rows: Array<Record<string, unknown>>, labels: string[]) {
+  const labelSet = new Set(labels.map((label) => normalizeText(label).replace(/\s+/gu, '').toLowerCase()));
+  const found = rows.find((row) => labelSet.has(normalizeText(row.label).replace(/\s+/gu, '').toLowerCase()));
+  return safeText(found?.value, '');
+}
+
+function assetSpecNumeric(value: unknown) {
+  const normalized = normalizeText(value).replace(/,/gu, '').match(/-?\d+(?:\.\d+)?/u)?.[0] || '';
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+async function callAssetSpecSave(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'asset-spec/save', 40, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const assetId = safeText(firstDefined(payload.asset_id, payload.assetId));
+  if (!assetId) return fail(400, 'asset_id is required', ctx.origin);
+  const { data: asset, error: assetError } = await ctx.serviceClient
+    .from('ll_assets')
+    .select('asset_id,asset_code,asset_name')
+    .eq('asset_id', assetId)
+    .maybeSingle();
+  if (assetError && !isMissingRelationError(assetError)) return fail(500, 'Failed to read asset for asset spec save', ctx.origin, { error: assetError.message });
+  const assetName = safeText(firstDefined(asset?.asset_name, payload.asset_name, payload.assetName));
+  const { data: existingRows, error: existingError } = await ctx.serviceClient
+    .from('ll_asset_specs')
+    .select('*')
+    .eq('asset_id', assetId)
+    .eq('spec_scope', 'asset')
+    .order('updated_at', { ascending: false })
+    .limit(1);
+  if (existingError && !isMissingRelationError(existingError)) return fail(500, 'Failed to read existing asset spec', ctx.origin, { error: existingError.message });
+  const existing = ((existingRows || []) as Record<string, unknown>[])[0] || null;
+  const mode = safeText(payload.mode).toLowerCase();
+  const requiredAction = mode === 'delete' ? 'delete' : (existing ? 'update' : 'create');
+  if (!hasRole(ctx.role, 'Manager') && !canMutateRelatedAsset(ctx, requiredAction, assetId, assetName)) {
+    return fail(403, `Insufficient asset ${requiredAction} permission for asset spec`, ctx.origin);
+  }
+
+  if (mode === 'delete') {
+    if (existing?.asset_spec_id) {
+      const { error: deleteError } = await ctx.serviceClient
+        .from('ll_asset_specs')
+        .delete()
+        .eq('asset_spec_id', existing.asset_spec_id);
+      if (deleteError) return fail(500, 'Failed to delete asset spec', ctx.origin, { error: deleteError.message });
+    }
+    const { data: readbackRows, error: readbackError } = await ctx.serviceClient
+      .from('ll_asset_specs')
+      .select('asset_spec_id')
+      .eq('asset_id', assetId)
+      .eq('spec_scope', 'asset')
+      .limit(1);
+    if (readbackError && !isMissingRelationError(readbackError)) return fail(500, 'Failed to read back deleted asset spec', ctx.origin, { error: readbackError.message });
+    await audit(ctx.serviceClient, ctx.user.id, 'asset-spec/delete', 200, { asset_id: assetId, asset_name: assetName });
+    return jsonResponse({ ok: true, data: { asset_id: assetId, deleted: Boolean(existing?.asset_spec_id), readback_ok: !(readbackRows || []).length } }, 200, ctx.origin);
+  }
+
+  const rows = assetSpecEditorRows(payload.rows);
+  if (!rows.length) return fail(400, 'spec rows are required', ctx.origin);
+  const nowIso = new Date().toISOString();
+  const specPayload = {
+    ...(existing?.payload && typeof existing.payload === 'object' && !Array.isArray(existing.payload) ? existing.payload as Record<string, unknown> : {}),
+    spec_rows: rows,
+    source: safeText(payload.source, 'asset_spec_editor'),
+    source_workbook: safeText(payload.source_workbook, ''),
+    updated_at: nowIso,
+  };
+  const writePayload = {
+    asset_id: assetId,
+    spec_scope: 'asset',
+    floor_label: '전체',
+    area_label: '전체',
+    temperature_type: assetSpecValueByLabel(rows, ['Type', '상/저온']),
+    clear_height_m: assetSpecNumeric(assetSpecValueByLabel(rows, ['층고 - 기준층'])),
+    corridor_width_m: assetSpecNumeric(assetSpecValueByLabel(rows, ['차량 통로 너비', '통로 폭'])),
+    ramp_width_m: assetSpecNumeric(assetSpecValueByLabel(rows, ['램프 너비', '램프 폭'])),
+    floor_load_warehouse_kg_sqm: assetSpecNumeric(assetSpecValueByLabel(rows, ['설계 하중 - 창고', '바닥 하중'])),
+    floor_load_corridor_kg_sqm: assetSpecNumeric(assetSpecValueByLabel(rows, ['설계 하중 - 하역장'])),
+    dock_count: assetSpecNumeric(assetSpecValueByLabel(rows, ['화물차량 접안 대수', '(동시) 도크 접안 수'])),
+    power_capacity_kw: assetSpecNumeric(assetSpecValueByLabel(rows, ['전기용량 - Kva', '요구 전력량'])),
+    lighting_spec: assetSpecValueByLabel(rows, ['조명']),
+    wall_material: assetSpecValueByLabel(rows, ['외부마감 - 판넬', '외벽자재']),
+    payload: specPayload,
+    updated_by: ctx.user.id,
+    updated_at: nowIso,
+  };
+  let saved: Record<string, unknown> | null = null;
+  if (existing?.asset_spec_id) {
+    const { data, error } = await ctx.serviceClient
+      .from('ll_asset_specs')
+      .update(writePayload)
+      .eq('asset_spec_id', existing.asset_spec_id)
+      .select('*')
+      .maybeSingle();
+    if (error) return fail(500, 'Failed to update asset spec', ctx.origin, { error: error.message });
+    saved = data as Record<string, unknown> | null;
+  } else {
+    const { data, error } = await ctx.serviceClient
+      .from('ll_asset_specs')
+      .insert({ ...writePayload, created_by: ctx.user.id })
+      .select('*')
+      .maybeSingle();
+    if (error) return fail(500, 'Failed to insert asset spec', ctx.origin, { error: error.message });
+    saved = data as Record<string, unknown> | null;
+  }
+  const { data: readback, error: readbackError } = await ctx.serviceClient
+    .from('ll_asset_specs')
+    .select('*')
+    .eq('asset_spec_id', saved?.asset_spec_id)
+    .maybeSingle();
+  if (readbackError) return fail(500, 'Failed to read back asset spec', ctx.origin, { error: readbackError.message });
+  const readbackRows = assetSpecEditorRows((readback?.payload as Record<string, unknown> | undefined)?.spec_rows);
+  const readbackOk = safeText(readback?.asset_id) === assetId && readbackRows.length === rows.length;
+  await audit(ctx.serviceClient, ctx.user.id, 'asset-spec/save', 200, { asset_id: assetId, asset_name: assetName, row_count: rows.length, readback_ok: readbackOk });
+  return jsonResponse({ ok: true, data: { row: saved, readback, readback_ok: readbackOk, row_count: rows.length } }, 200, ctx.origin);
 }
 
 async function callOperatingCostsRead(ctx: Context, _payload: Record<string, unknown>) {
@@ -16358,6 +16496,7 @@ Deno.serve(async (request) => {
   if (action === 'investment-index/read') return callInvestmentIndexRead(ctx, payload);
   if (action === 'investment-index/cleanup-empty-loans') return callInvestmentIndexCleanupEmptyLoans(ctx, payload);
   if (action === 'asset-spec/read') return callAssetSpecRead(ctx, payload);
+  if (action === 'asset-spec/save') return callAssetSpecSave(ctx, payload);
   if (action === 'operating-costs/read') return callOperatingCostsRead(ctx, payload);
   if (action === 'data-management/status') return callDataManagementStatus(ctx, payload);
   if (action === 'data-management/preview-edit') return callDataManagementPreviewEdit(ctx, payload);

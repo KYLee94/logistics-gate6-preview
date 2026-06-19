@@ -1,0 +1,126 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-19T05:26:21.875Z",
+  "auth_source": "password_grant",
+  "checks": {
+    "아레나스양지물류센터_asset_found": true,
+    "아레나스양지물류센터_spec_found": true,
+    "아레나스양지물류센터_rows_5_53_present": true,
+    "아레나스양지물류센터_core_values_present": true,
+    "인천석남물류센터_asset_found": true,
+    "인천석남물류센터_spec_found": true,
+    "인천석남물류센터_rows_5_53_present": true,
+    "인천석남물류센터_core_values_present": true,
+    "아레나스안성_asset_found": true,
+    "아레나스안성_spec_found": true,
+    "아레나스안성_rows_5_53_present": true,
+    "아레나스안성_core_values_present": true
+  },
+  "observed": {
+    "아레나스양지물류센터": {
+      "asset_id": "asset_a112127001",
+      "asset_name": "아레나스양지물류센터",
+      "can_update": true,
+      "spec_id": "98b34253-3e0f-46e9-a5f7-2009bc7869ed",
+      "row_count": 49,
+      "missing_rows": [],
+      "core_rows": [
+        {
+          "label": "주소",
+          "value": "경기도 용인시 처인구 양지읍 남평로 111-73",
+          "row_number": 5
+        },
+        {
+          "label": "건물규모",
+          "value": "10F / B2",
+          "row_number": 6
+        },
+        {
+          "label": "대지면적(평)",
+          "value": "93,748.2 sqm / 28,358.83 py",
+          "row_number": 7
+        },
+        {
+          "label": "GFA(㎡)",
+          "value": "349,722.00",
+          "row_number": 8
+        },
+        {
+          "label": "GFA(평)",
+          "value": "105,790.91",
+          "row_number": 9
+        }
+      ]
+    },
+    "인천석남물류센터": {
+      "asset_id": "asset_a112721001",
+      "asset_name": "인천석남물류센터",
+      "can_update": true,
+      "spec_id": "c84164e1-7351-4a15-b506-4a9d8bbcb88b",
+      "row_count": 49,
+      "missing_rows": [],
+      "core_rows": [
+        {
+          "label": "주소",
+          "value": "인천광역시 서구 봉수대로 370",
+          "row_number": 5
+        },
+        {
+          "label": "건물규모",
+          "value": "8F / B1",
+          "row_number": 6
+        },
+        {
+          "label": "대지면적(평)",
+          "value": "54,193.0 sqm / 16,393.38 py",
+          "row_number": 7
+        },
+        {
+          "label": "GFA(㎡)",
+          "value": "299,308.30",
+          "row_number": 8
+        },
+        {
+          "label": "GFA(평)",
+          "value": "90,540.76",
+          "row_number": 9
+        }
+      ]
+    },
+    "아레나스안성": {
+      "asset_id": "asset_a112505001",
+      "asset_name": "아레나스안성",
+      "can_update": true,
+      "spec_id": "6e80c20b-61d1-4f37-991c-fd2234976894",
+      "row_count": 49,
+      "missing_rows": [],
+      "core_rows": [
+        {
+          "label": "주소",
+          "value": "경기도 안성시 양성면 양성로 301",
+          "row_number": 5
+        },
+        {
+          "label": "건물규모",
+          "value": "4F / B2",
+          "row_number": 6
+        },
+        {
+          "label": "대지면적(평)",
+          "value": "49,884.0 sqm / 15,089.91 py",
+          "row_number": 7
+        },
+        {
+          "label": "GFA(㎡)",
+          "value": "124,498.93",
+          "row_number": 8
+        },
+        {
+          "label": "GFA(평)",
+          "value": "37,660.93",
+          "row_number": 9
+        }
+      ]
+    }
+  }
+}
