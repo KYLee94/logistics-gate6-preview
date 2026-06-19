@@ -127,7 +127,14 @@ async function main() {
     report.checks.loading_gone = await page.waitForFunction(() => !(document.body?.innerText || '').includes('투자지표를 불러오는 중입니다.'), { timeout: 90000 }).then(() => true).catch(() => false);
     report.checks.capital_chart_ready = await page.waitForSelector('[data-chart-role="capital-stack"][data-chart-empty="false"]', { timeout: 90000 }).then(() => true).catch(() => false);
     report.checks.removed_top_exposure = !(await page.getByText('상위 노출액 비교').count().catch(() => 0));
-    report.checks.collapsible_table_button = (await page.getByRole('button', { name: /표 접기|표 펼치기/u }).count().catch(() => 0)) > 0;
+    const structureToggle = page.getByRole('button', { name: /상세 투자 구조 보기|상세 투자 구조 닫기/u });
+    const sortableCountBeforeStructureOpen = await page.locator('[data-sortable-table="true"]').count().catch(() => 0);
+    report.checks.collapsible_table_button = (await structureToggle.count().catch(() => 0)) > 0;
+    report.checks.structure_table_collapsed_default = sortableCountBeforeStructureOpen <= 2;
+    if (report.checks.collapsible_table_button) {
+      await structureToggle.first().click();
+    }
+    report.checks.structure_table_opens = (await page.locator('[data-sortable-table="true"]').count().catch(() => 0)) > sortableCountBeforeStructureOpen;
     report.checks.loan_maturity_section = (await page.getByText('대출 만기 일정').count().catch(() => 0)) > 0;
     report.checks.loan_rate_section = (await page.getByText('대출 금리 비교').count().catch(() => 0)) > 0;
     report.checks.sortable_tables = (await page.locator('[data-sortable-table="true"]').count().catch(() => 0)) >= 3;

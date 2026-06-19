@@ -39,6 +39,8 @@
     "qa:data-management:browser-readback": "node scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
     "qa:investment-index:readback": "node scripts/qa/logistics-investment-index-readback-smoke.cjs",
     "qa:investment-index:browser": "node scripts/qa/logistics-investment-index-browser-smoke.cjs",
+    "qa:investment-index:loan-integrity": "node scripts/qa/logistics-investment-index-loan-integrity.cjs",
+    "ops:investment-index:cleanup-empty-loans": "node scripts/ops/logistics-investment-index-cleanup-empty-loans.cjs",
     "qa:market-rag:preflight": "node scripts/ops/logistics-market-rag-preflight.cjs",
     "qa:market-retrieval": "node scripts/qa/logistics-market-retrieval-qa.cjs",
     "qa:market-chatbot": "node scripts/qa/logistics-market-chatbot-qa.cjs",

@@ -419,6 +419,18 @@ function firstDefined(...values: unknown[]) {
   return values.find((value) => value !== undefined && value !== null && value !== '');
 }
 
+function hasMeaningfulInvestmentLoanData(row: Record<string, unknown>) {
+  const kind = safeText(firstDefined(row.tranche_type, row.capital_kind));
+  if (kind && kind !== 'loan') return true;
+  const amount = Number(firstDefined(row.committed_amount_krw, row.drawn_amount_krw, row.amount_krw) || 0);
+  return amount > 0
+    || !!safeText(firstDefined(row.party_name, row.counterparty_name, row.lender_name))
+    || !!safeText(row.drawdown_date)
+    || !!safeText(row.maturity_date)
+    || !!safeText(firstDefined(row.interest_rate, row.loan_rate, row.all_in_rate, row.spread_rate))
+    || !!safeText(firstDefined(row.loan_type, row.loan_period));
+}
+
 function normalizePublicLlTable(value: unknown) {
   const raw = String(value || '').trim();
   const table = raw.startsWith('public.') ? raw : `public.${raw}`;
@@ -4440,7 +4452,7 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
     safeText(firstDefined(row.interest_rate, row.loan_rate, row.all_in_rate, row.spread_rate)),
   ].join('|').toLowerCase();
   const seenTrancheIdentities = new Set<string>();
-  const tranches = rawTranches.filter((row) => {
+  const tranches = rawTranches.filter((row) => hasMeaningfulInvestmentLoanData(row)).filter((row) => {
     const identity = trancheIdentity(row);
     if (seenTrancheIdentities.has(identity)) return false;
     seenTrancheIdentities.add(identity);
@@ -4572,6 +4584,67 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
     tranches: publicTranches,
     loan_rates: loanRates,
     empty_message: '투자 지표 데이터가 없습니다.',
+    generated_at: new Date().toISOString(),
+  } }, 200, ctx.origin);
+}
+
+async function callInvestmentIndexCleanupEmptyLoans(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Manager')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const dryRun = payload.dry_run === true;
+  const { data: loanRows, error: readError } = await ctx.serviceClient
+    .from('ll_fund_capital_tranches')
+    .select('id,fund_id,tranche_type,row_key,tranche,party_name,committed_amount_krw,drawdown_date,maturity_date,loan_period,loan_type,interest_type,base_rate,spread_rate,loan_rate,interest_rate,fee,fee_rate,all_in,all_in_rate,display_order,is_active,deleted_at,source_sheet_name,source_row_number,updated_at')
+    .eq('tranche_type', 'loan')
+    .eq('is_active', true)
+    .limit(2000);
+  if (readError) return fail(500, 'Failed to read loan tranches', ctx.origin, { error: readError.message });
+
+  const emptyRows = ((loanRows || []) as Record<string, unknown>[]).filter((row) => !hasMeaningfulInvestmentLoanData(row));
+  const targetIds = emptyRows.map((row) => safeText(row.id)).filter(Boolean);
+  if (!targetIds.length || dryRun) {
+    return jsonResponse({ ok: true, data: {
+      dry_run: dryRun,
+      target_count: targetIds.length,
+      before_rows: emptyRows,
+      readback_rows: emptyRows,
+      updated_count: 0,
+      generated_at: new Date().toISOString(),
+    } }, 200, ctx.origin);
+  }
+
+  const removedAt = new Date().toISOString();
+  const { data: updatedRows, error: updateError } = await ctx.serviceClient
+    .from('ll_fund_capital_tranches')
+    .update({
+      is_active: false,
+      deleted_at: removedAt,
+      updated_by: ctx.user.id,
+      updated_at: removedAt,
+    })
+    .in('id', targetIds)
+    .select('id,fund_id,tranche_type,row_key,tranche,party_name,committed_amount_krw,drawdown_date,maturity_date,loan_period,loan_type,interest_type,base_rate,spread_rate,loan_rate,interest_rate,fee,fee_rate,all_in,all_in_rate,display_order,is_active,deleted_at,source_sheet_name,source_row_number,updated_at');
+  if (updateError) return fail(500, 'Failed to deactivate empty loan tranches', ctx.origin, { error: updateError.message, target_ids: targetIds });
+
+  const { data: readbackRows, error: readbackError } = await ctx.serviceClient
+    .from('ll_fund_capital_tranches')
+    .select('id,fund_id,tranche_type,row_key,tranche,party_name,committed_amount_krw,drawdown_date,maturity_date,loan_period,loan_type,interest_type,base_rate,spread_rate,loan_rate,interest_rate,fee,fee_rate,all_in,all_in_rate,display_order,is_active,deleted_at,source_sheet_name,source_row_number,updated_at')
+    .in('id', targetIds);
+  if (readbackError) return fail(500, 'Failed to read back empty loan cleanup', ctx.origin, { error: readbackError.message, target_ids: targetIds });
+
+  await audit(ctx.serviceClient, ctx.user.id, 'investment-index/cleanup-empty-loans', 200, {
+    target_ids: targetIds,
+    target_count: targetIds.length,
+    removed_at: removedAt,
+  });
+
+  return jsonResponse({ ok: true, data: {
+    dry_run: false,
+    target_count: targetIds.length,
+    before_rows: emptyRows,
+    updated_count: Array.isArray(updatedRows) ? updatedRows.length : 0,
+    updated_rows: updatedRows || [],
+    readback_rows: readbackRows || [],
+    readback_ok: ((readbackRows || []) as Record<string, unknown>[]).every((row) => row.is_active === false && !!row.deleted_at),
     generated_at: new Date().toISOString(),
   } }, 200, ctx.origin);
 }
@@ -16283,6 +16356,7 @@ Deno.serve(async (request) => {
   if (action === 'notifications/dismiss') return dismissLogisticsNotifications(ctx, payload);
   if (action === 'sector-market/read' || action === 'sector-market/status') return callSectorMarketRead(ctx, payload);
   if (action === 'investment-index/read') return callInvestmentIndexRead(ctx, payload);
+  if (action === 'investment-index/cleanup-empty-loans') return callInvestmentIndexCleanupEmptyLoans(ctx, payload);
   if (action === 'asset-spec/read') return callAssetSpecRead(ctx, payload);
   if (action === 'operating-costs/read') return callOperatingCostsRead(ctx, payload);
   if (action === 'data-management/status') return callDataManagementStatus(ctx, payload);

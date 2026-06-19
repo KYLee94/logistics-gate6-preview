@@ -14731,7 +14731,6 @@ function DashboardShell({ activeModule }) {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
-  const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission));
   const [modal, setModal] = useState(null);
   const visibleModules = useMemo(() => (
     MODULES.filter((item) => {
@@ -14740,7 +14739,8 @@ function DashboardShell({ activeModule }) {
     })
   ), [featureAccess]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
-  const canUseExternalApiRefresh = featureAccess.buildingRegisterRefresh;
+  const shouldShowExternalApiRefresh = selected?.id !== 'investment-index' && featureAccess.buildingRegisterRefresh;
+  const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission) && shouldShowExternalApiRefresh);
   const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
   useEffect(() => {
     if (!selected?.id) return undefined;
@@ -14775,7 +14775,7 @@ function DashboardShell({ activeModule }) {
       <LogisticsModal modal={modal} onClose={() => setModal(null)} />
       <SectionHeader
         title={selected.label}
-        right={canUseExternalApiRefresh ? (
+        right={shouldShowExternalApiRefresh ? (
           <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={{ ...featureAccess, openDartRefresh: false }} />
         ) : null}
       />
