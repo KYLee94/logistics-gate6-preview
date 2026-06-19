@@ -1,0 +1,16 @@
+# Gate 6 Investment Index / Loading Performance Checklist - 2026-06-19
+
+| Status | Requirement | Implementation file | Verification command | Artifact | Subagent verdict |
+|---|---|---|---|---|---|
+| [x] | Tab switching must not refetch identical Market Data, Investment Index, and Data Management payloads or blank existing data. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run build -- --base=/logistics-gate6-preview/` | build output PASS 2026-06-19 10:39 KST | Frontend/UI OK |
+| [x] | Edge data reads must reuse cache and de-duplicate concurrent requests. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:sector-tabs:browser -- --base-url http://127.0.0.1:5173/` | `qa-artifacts/logistics-gate6/sector-tabs-browser-smoke-20260619-013809.json` | Frontend/UI OK |
+| [x] | Hover tooltips must show hidden useful detail, not only duplicate visible chart values. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:investment-index:browser` | `qa-artifacts/logistics-gate6/investment-index-browser-smoke-20260619-014416.json` | Frontend/UI OK |
+| [x] | Investment Index capital stack must sort by total amount descending and display fund plus asset names. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:investment-index:readback` | `qa-artifacts/logistics-gate6/investment-index-readback-smoke-20260619-012934.json` | Data/API OK |
+| [x] | Remove Top Exposure comparison and merge capital chart with sortable collapsible table. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:investment-index:browser` | `qa-artifacts/logistics-gate6/investment-index-browser-smoke-20260619-014416.json` | Frontend/UI OK |
+| [x] | Capital rows must open a detail popup with investor, lender, tranche, amount, rate, and maturity fields. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:investment-index:browser` | `qa-artifacts/logistics-gate6/investment-index-browser-smoke-20260619-014416.json` | Frontend/UI OK |
+| [x] | Maturity section must show loan maturities only, starting from the current month, and remove drawdown/equity rows. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:investment-index:readback` | `qa-artifacts/logistics-gate6/investment-index-readback-smoke-20260619-012934.json` | Data/API OK |
+| [x] | Loan rate comparison must move to bottom and use fund plus asset names in a horizontal chart. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:investment-index:browser` | `qa-artifacts/logistics-gate6/investment-index-browser-smoke-20260619-014416.json` | Frontend/UI OK |
+| [x] | Naver Maps loader must not prematurely fallback on first Lease Market map load. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:market-data:browser` | `qa-artifacts/logistics-gate6/market-data-browser-smoke-20260619-013506.json` | QA/Release OK |
+| [x] | Data Management tab switching must still read data after common loading hook changes. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:data-management:browser-readback` | `qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260619-013020.json` | QA/Release OK |
+
+Completed: 10 / 10

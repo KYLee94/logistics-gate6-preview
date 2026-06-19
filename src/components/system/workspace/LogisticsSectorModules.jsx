@@ -436,8 +436,9 @@ function userFacingLoadError() {
 }
 
 const USER_FACING_LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다. 탭을 다시 열거나 잠시 후 재시도해 주세요.';
-const EDGE_DATA_CACHE_TTL_MS = 5 * 60 * 1000;
+const EDGE_DATA_CACHE_TTL_MS = 15 * 60 * 1000;
 const EDGE_DATA_CACHE = new Map();
+const EDGE_DATA_INFLIGHT = new Map();
 
 function edgeCacheKey(action, payload = {}) {
   try {
@@ -451,7 +452,7 @@ function useEdgeData(action, payload = {}, deps = []) {
   const payloadKey = edgeCacheKey(action, payload);
   const cachedState = EDGE_DATA_CACHE.get(payloadKey);
   const [state, setState] = useState(() => (
-    cachedState && Date.now() - cachedState.loadedAt < EDGE_DATA_CACHE_TTL_MS
+    cachedState
       ? { loading: false, error: '', data: cachedState.data, loadedAt: cachedState.loadedAt }
       : { loading: true, error: '', data: null, loadedAt: 0 }
   ));
@@ -473,9 +474,16 @@ function useEdgeData(action, payload = {}, deps = []) {
     }
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
-    if (!options.silent && mountedRef.current) setState((current) => ({ ...current, loading: true, error: '' }));
+    if (!options.silent && mountedRef.current) setState((current) => ({ ...current, loading: !current.data, error: '' }));
     try {
-      const data = await invoke(action, requestPayload);
+      let requestPromise = EDGE_DATA_INFLIGHT.get(requestKey);
+      if (!requestPromise) {
+        requestPromise = invoke(action, requestPayload).finally(() => {
+          EDGE_DATA_INFLIGHT.delete(requestKey);
+        });
+        EDGE_DATA_INFLIGHT.set(requestKey, requestPromise);
+      }
+      const data = await requestPromise;
       const loadedAt = Date.now();
       EDGE_DATA_CACHE.set(requestKey, { data, loadedAt });
       if (mountedRef.current && requestRef.current === requestId) {
@@ -498,9 +506,9 @@ function useEdgeData(action, payload = {}, deps = []) {
   useEffect(() => {
     mountedRef.current = true;
     const cached = EDGE_DATA_CACHE.get(payloadKey);
-    if (cached && Date.now() - cached.loadedAt < EDGE_DATA_CACHE_TTL_MS) {
+    if (cached) {
       setState({ loading: false, error: '', data: cached.data, loadedAt: cached.loadedAt });
-      reload({}, { silent: true, force: true });
+      if (Date.now() - cached.loadedAt >= EDGE_DATA_CACHE_TTL_MS) reload({}, { silent: true, force: true });
       return () => {
         mountedRef.current = false;
       };
@@ -785,6 +793,47 @@ function FilterPills({ label, options, value, onChange }) {
   );
 }
 
+function loadNaverMapsSdk(clientId) {
+  if (window.naver?.maps?.Map) return Promise.resolve();
+  if (window.__logisticsNaverMapsSdkPromise) return window.__logisticsNaverMapsSdkPromise;
+  window.__logisticsNaverMapsSdkPromise = new Promise((resolve, reject) => {
+    const existing = document.getElementById('logistics-naver-map-sdk') || document.querySelector('script[data-logistics-naver-map="true"]');
+    const script = existing || document.createElement('script');
+    const settleReady = () => {
+      if (window.naver?.maps?.Map) resolve();
+      else {
+        window.__logisticsNaverMapsSdkPromise = null;
+        reject(new Error('Naver Maps SDK unavailable'));
+      }
+    };
+    const timeoutId = window.setTimeout(() => {
+      if (window.naver?.maps?.Map) resolve();
+      else {
+        window.__logisticsNaverMapsSdkPromise = null;
+        reject(new Error('Naver Maps SDK timeout'));
+      }
+    }, 30000);
+    const complete = () => {
+      window.clearTimeout(timeoutId);
+      settleReady();
+    };
+    const fail = () => {
+      window.clearTimeout(timeoutId);
+      window.__logisticsNaverMapsSdkPromise = null;
+      reject(new Error('Naver Maps SDK load failed'));
+    };
+    script.id = script.id || 'logistics-naver-map-sdk';
+    script.setAttribute('data-logistics-naver-map', 'true');
+    script.async = true;
+    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`;
+    script.addEventListener('load', complete, { once: true });
+    script.addEventListener('error', fail, { once: true });
+    if (!existing) document.head.appendChild(script);
+    if (existing && window.naver?.maps?.Map) complete();
+  });
+  return window.__logisticsNaverMapsSdkPromise;
+}
+
 function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'region', onSelect }) {
   const sourceRows = safeArray(rows);
   const visibleRows = useMemo(() => sourceRows.slice(0, 120), [sourceRows]);
@@ -863,29 +912,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           if (!cancelled) setMapStatus({ status: 'fallback', message: '지도 API 미설정/좌표 부족 · 권역 기준 표시' });
           return;
         }
-        if (!window.naver?.maps) {
-          const existing = document.getElementById('logistics-naver-map-sdk') || document.querySelector('script[data-logistics-naver-map="true"]');
-          await new Promise((resolve, reject) => {
-            const timeoutId = window.setTimeout(() => reject(new Error('Naver Maps SDK timeout')), 7000);
-            const resolveWhenReady = () => {
-              window.clearTimeout(timeoutId);
-              if (window.naver?.maps?.Map) resolve();
-              else reject(new Error('Naver Maps SDK unavailable'));
-            };
-            const script = existing || document.createElement('script');
-            script.id = script.id || 'logistics-naver-map-sdk';
-            script.setAttribute('data-logistics-naver-map', 'true');
-            script.async = true;
-            script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`;
-            script.onload = resolveWhenReady;
-            script.onerror = () => {
-              window.clearTimeout(timeoutId);
-              reject(new Error('Naver Maps SDK load failed'));
-            };
-            if (!existing) document.head.appendChild(script);
-            if (existing && window.naver?.maps?.Map) resolveWhenReady();
-          });
-        }
+        await loadNaverMapsSdk(clientId);
         if (cancelled || !mapRef.current || !window.naver?.maps) return;
         const first = mappableRows[0];
         const center = new window.naver.maps.LatLng(first.lat, first.lng);
@@ -988,14 +1015,21 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
 
 function ChartTooltip({ hover }) {
   if (!hover) return null;
+  const details = Array.isArray(hover.detail)
+    ? hover.detail
+    : String(hover.detail || '').split('\n').filter(Boolean);
   return (
     <div
-      className="pointer-events-none fixed z-[120] max-w-[260px] rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[11px] leading-5 text-[#E5E5E5] shadow-2xl"
+      className="pointer-events-none fixed z-[120] max-w-[340px] rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[11px] leading-5 text-[#E5E5E5] shadow-2xl"
       style={{ left: hover.x + 12, top: hover.y + 12 }}
     >
       <div className="font-semibold text-white">{hover.title}</div>
       <div className="text-[#A1A1AA]">{hover.value}</div>
-      {hover.detail ? <div className="text-[#86868B]">{hover.detail}</div> : null}
+      {details.length ? (
+        <div className="mt-1 space-y-0.5 text-[#86868B]">
+          {details.map((detail, index) => <div key={`${detail}-${index}`}>{detail}</div>)}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -1258,28 +1292,47 @@ function periodBucket(value) {
   return '미입력';
 }
 
-function StackedCapitalChart({ rows, labelKey = 'display_name', equityKey = 'equity_krw', loanKey = 'loan_krw', referenceKey = '' }) {
+function StackedCapitalChart({
+  rows,
+  labelKey = 'display_name',
+  equityKey = 'equity_krw',
+  loanKey = 'loan_krw',
+  referenceKey = '',
+  maxRows = 24,
+  labelForRow = null,
+  tooltipForRow = null,
+  onRowClick = null,
+}) {
   const [hover, setHover] = useState(null);
   const visibleRows = safeArray(rows)
     .filter((row) => number(row[equityKey]) + number(row[loanKey]) + number(referenceKey ? row[referenceKey] : 0) !== 0)
-    .slice(0, 14);
+    .sort((a, b) => (
+      number(b[equityKey]) + number(b[loanKey]) + number(referenceKey ? b[referenceKey] : 0)
+      - number(a[equityKey]) - number(a[loanKey]) - number(referenceKey ? a[referenceKey] : 0)
+    ))
+    .slice(0, maxRows);
   const maxValue = Math.max(...visibleRows.map((row) => number(row[equityKey]) + number(row[loanKey]) + number(referenceKey ? row[referenceKey] : 0)), 1);
   return (
-    <div className="relative space-y-2" data-chart-role="capital-stack" data-chart-empty={visibleRows.length ? 'false' : 'true'}>
+    <div className="custom-scrollbar relative max-h-[520px] space-y-2 overflow-auto pr-1" data-chart-role="capital-stack" data-chart-empty={visibleRows.length ? 'false' : 'true'}>
       {visibleRows.length ? visibleRows.map((row) => {
         const equity = number(row[equityKey]);
         const loan = number(row[loanKey]);
         const reference = number(referenceKey ? row[referenceKey] : 0);
         const total = equity + loan + reference;
+        const label = labelForRow ? labelForRow(row) : text(row[labelKey]);
+        const tooltip = tooltipForRow
+          ? tooltipForRow(row, { equity, loan, reference, total, label })
+          : { title: label, value: `합계 ${formatKrw(total)}`, detail: `Equity ${formatKrw(equity)} · Loan ${formatKrw(loan)}${referenceKey ? ` · 참고 ${formatKrw(reference)}` : ''}` };
         return (
           <div
             key={row.id || row.asset_id || row.fund_id || row[labelKey]}
-            className={`${INNER} px-3 py-2`}
-            onMouseMove={(event) => setHover({ x: event.clientX, y: event.clientY, title: text(row[labelKey]), value: `합계 ${formatKrw(total)}`, detail: `Equity ${formatKrw(equity)} · Loan ${formatKrw(loan)}${referenceKey ? ` · 참고 ${formatKrw(reference)}` : ''}` })}
+            className={`${INNER} px-3 py-2 ${onRowClick ? 'cursor-pointer hover:bg-[#242424]' : ''}`}
+            onClick={() => onRowClick?.(row)}
+            onMouseMove={(event) => setHover({ x: event.clientX, y: event.clientY, ...tooltip })}
             onMouseLeave={() => setHover(null)}
           >
             <div className="mb-1 flex items-center justify-between gap-3">
-              <span className="truncate text-[12px] font-semibold text-white">{text(row[labelKey])}</span>
+              <span className="truncate text-[12px] font-semibold text-white" title={label}>{label}</span>
               <span className="shrink-0 text-[12px] font-semibold text-[#E5E5E5]">{formatKrw(total)}</span>
             </div>
             <div className="flex h-2 overflow-hidden rounded-full bg-[#2C2C2E]">
@@ -1295,6 +1348,202 @@ function StackedCapitalChart({ rows, labelKey = 'display_name', equityKey = 'equ
           </div>
         );
       }) : <div className={`${INNER} px-4 py-5 text-center text-[13px] text-[#86868B]`}>표시할 투자 데이터가 없습니다.</div>}
+      <ChartTooltip hover={hover} />
+    </div>
+  );
+}
+
+function summarizeNames(values, max = 2) {
+  const names = safeArray(values).map((value) => text(value, '')).filter(Boolean);
+  if (!names.length) return '-';
+  if (names.length <= max) return names.join(', ');
+  return `${names.slice(0, max).join(', ')} 외 ${formatNumber(names.length - max)}개`;
+}
+
+function investmentDisplayLabel(row, mode) {
+  if (mode === 'fund') return `${text(row.display_name)} · ${summarizeNames(row.asset_names)}`;
+  return `${text(row.display_name)} · ${summarizeNames(row.fund_names)}`;
+}
+
+function rateValue(row) {
+  return firstText(row.interest_rate, row.loan_rate, row.all_in_rate, row.spread_rate, null);
+}
+
+function isLoanTranche(row) {
+  return text(row.capital_kind, '') === 'loan' || /loan|대출/iu.test(text(row.tranche_type_label, ''));
+}
+
+function investmentDetailRows(row, mode, tranches) {
+  const fundId = text(row.fund_id, '');
+  const assetId = text(row.asset_id, '');
+  const assetName = text(firstText(row.asset_name, row.display_name, ''), '');
+  return safeArray(tranches).filter((tranche) => {
+    if (mode === 'fund') return fundId && text(tranche.fund_id, '') === fundId;
+    const trancheAssetId = text(tranche.asset_id, '');
+    const trancheAssetName = text(firstText(tranche.asset_name, tranche.asset_display_name, ''), '');
+    return (assetId && trancheAssetId === assetId) || (assetName && trancheAssetName && trancheAssetName === assetName);
+  });
+}
+
+function topCounterpartyLines(rows, label, max = 3) {
+  const source = safeArray(rows)
+    .slice()
+    .sort((a, b) => number(b.amount_krw) - number(a.amount_krw));
+  if (!source.length) return [`${label}: 세부 내역 없음`];
+  const lines = source.slice(0, max).map((row) => `${label}: ${text(row.counterparty_name, '미기재')} ${formatKrw(row.amount_krw)}`);
+  if (source.length > max) lines.push(`${label}: 외 ${formatNumber(source.length - max)}건`);
+  return lines;
+}
+
+function investmentTooltip(row, mode, tranches, metrics) {
+  const details = investmentDetailRows(row, mode, tranches);
+  const equityRows = details.filter((item) => !isLoanTranche(item));
+  const loanRows = details.filter(isLoanTranche);
+  return {
+    title: metrics.label,
+    value: `합계 ${formatKrw(metrics.total)}`,
+    detail: [
+      mode === 'fund' ? `연결 자산: ${summarizeNames(row.asset_names, 3)}` : `연결 펀드: ${summarizeNames(row.fund_names, 3)}`,
+      ...topCounterpartyLines(equityRows, 'Equity 투자자', 2),
+      ...topCounterpartyLines(loanRows, 'Loan 대주', 2),
+      metrics.reference ? `공동펀드 참고: ${formatKrw(metrics.reference)}` : '',
+    ].filter(Boolean),
+  };
+}
+
+function monthKey(value) {
+  const source = text(value, '');
+  const match = source.match(/^(20\d{2})[-.](\d{1,2})/u);
+  if (!match) return '';
+  return `${match[1]}-${String(Number(match[2])).padStart(2, '0')}`;
+}
+
+function currentMonthKey() {
+  return dateKey().slice(0, 7);
+}
+
+function formatMonthKey(value) {
+  const source = text(value, '');
+  const match = source.match(/^(20\d{2})-(\d{2})$/u);
+  return match ? `${match[1]}.${match[2]}` : source || '-';
+}
+
+function assetLabelForFundId(fundId, funds) {
+  const fund = safeArray(funds).find((row) => text(row.fund_id, '') === text(fundId, ''));
+  return summarizeNames(fund?.asset_names);
+}
+
+function normalizeLoanTrancheRows(tranches, funds) {
+  const startMonth = currentMonthKey();
+  return safeArray(tranches)
+    .filter((row) => isLoanTranche(row) && row.maturity_date && monthKey(row.maturity_date) >= startMonth)
+    .map((row) => ({
+      ...row,
+      asset_display_label: text(firstText(row.asset_name, row.asset_display_name, assetLabelForFundId(row.fund_id, funds))),
+      month_key: monthKey(row.maturity_date),
+      rate_display_value: rateValue(row),
+    }))
+    .sort((a, b) => String(a.maturity_date || '').localeCompare(String(b.maturity_date || '')) || number(b.amount_krw) - number(a.amount_krw));
+}
+
+function loanMaturityTimelineRows(rows) {
+  const grouped = new Map();
+  safeArray(rows).forEach((row) => {
+    const key = row.month_key || monthKey(row.maturity_date);
+    if (!key) return;
+    const current = grouped.get(key) || { month_key: key, label: formatMonthKey(key), value: 0, count: 0, details: [] };
+    current.value += number(row.amount_krw);
+    current.count += 1;
+    current.details.push(row);
+    grouped.set(key, current);
+  });
+  return [...grouped.values()].sort((a, b) => String(a.month_key).localeCompare(String(b.month_key))).slice(0, 18);
+}
+
+function LoanMaturityTimelineChart({ rows }) {
+  const [hover, setHover] = useState(null);
+  const visibleRows = safeArray(rows);
+  const maxValue = Math.max(...visibleRows.map((row) => number(row.value)), 1);
+  return (
+    <div className="relative rounded-[12px] border border-[#333333] bg-[#171717] p-4" data-chart-role="loan-maturity-timeline" data-chart-empty={visibleRows.length ? 'false' : 'true'}>
+      {visibleRows.length ? (
+        <div className="flex h-[260px] items-end gap-2 overflow-x-auto pb-2">
+          {visibleRows.map((row) => {
+            const details = safeArray(row.details)
+              .slice()
+              .sort((a, b) => number(b.amount_krw) - number(a.amount_krw))
+              .slice(0, 4)
+              .map((item) => `${text(item.asset_display_label)} · ${text(item.counterparty_name, '대주 미기재')} · ${formatKrw(item.amount_krw)}`);
+            if (safeArray(row.details).length > 4) details.push(`외 ${formatNumber(safeArray(row.details).length - 4)}건`);
+            return (
+              <div key={row.month_key} className="flex min-w-[72px] flex-1 flex-col items-center justify-end gap-2">
+                <button
+                  type="button"
+                  className="w-full rounded-t-[5px] transition-opacity hover:opacity-80"
+                  style={{ height: `${Math.max(12, Math.min(190, (number(row.value) / maxValue) * 190))}px`, backgroundColor: CHART_COLORS.primary }}
+                  onMouseMove={(event) => setHover({
+                    x: event.clientX,
+                    y: event.clientY,
+                    title: row.label,
+                    value: `만기 ${formatKrw(row.value)} · ${formatNumber(row.count)}건`,
+                    detail: details,
+                  })}
+                  onMouseLeave={() => setHover(null)}
+                  aria-label={`${row.label} 대출 만기 ${formatKrw(row.value)}`}
+                />
+                <div className="max-w-full truncate text-[10px] text-[#86868B]" title={row.label}>{row.label}</div>
+              </div>
+            );
+          })}
+        </div>
+      ) : <div className="grid h-[180px] place-items-center text-[13px] text-[#86868B]">현재 월 이후 대출 만기 데이터가 없습니다.</div>}
+      <ChartTooltip hover={hover} />
+    </div>
+  );
+}
+
+function LoanRateHorizontalChart({ rows, onRowClick }) {
+  const [hover, setHover] = useState(null);
+  const visibleRows = safeArray(rows)
+    .filter((row) => rateValue(row) !== null && rateValue(row) !== '')
+    .slice()
+    .sort((a, b) => number(rateValue(b)) - number(rateValue(a)))
+    .slice(0, 24);
+  const maxRate = Math.max(...visibleRows.map((row) => Math.abs(number(rateValue(row)))), 1);
+  return (
+    <div className="relative space-y-2" data-chart-role="loan-rate-horizontal" data-chart-empty={visibleRows.length ? 'false' : 'true'}>
+      {visibleRows.length ? visibleRows.map((row) => {
+        const rate = number(rateValue(row));
+        const label = `${text(row.fund_display_name)} · ${text(row.asset_display_label)}`;
+        return (
+          <button
+            key={`${row.fund_id}-${row.counterparty_name}-${row.maturity_date}-${row.amount_krw}`}
+            type="button"
+            onClick={() => onRowClick?.(row)}
+            className={`${INNER} block w-full px-3 py-2 text-left hover:bg-[#242424]`}
+            onMouseMove={(event) => setHover({
+              x: event.clientX,
+              y: event.clientY,
+              title: label,
+              value: formatRate(rate),
+              detail: [
+                `대주: ${text(row.counterparty_name, '미기재')}`,
+                `대출금액: ${formatKrw(row.amount_krw)}`,
+                `만기: ${formatDate(row.maturity_date)}`,
+              ],
+            })}
+            onMouseLeave={() => setHover(null)}
+          >
+            <div className="mb-1 flex items-center justify-between gap-3">
+              <span className="truncate text-[12px] font-semibold text-white" title={label}>{label}</span>
+              <span className="shrink-0 text-[12px] font-semibold text-[#E5E5E5]">{formatRate(rate)}</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-[#2C2C2E]">
+              <div className="h-full rounded-full" style={{ width: `${Math.max(5, Math.min(100, (Math.abs(rate) / maxRate) * 100))}%`, backgroundColor: CHART_COLORS.warning }} />
+            </div>
+          </button>
+        );
+      }) : <div className={`${INNER} px-4 py-5 text-center text-[13px] text-[#86868B]`}>표시할 대출 금리 데이터가 없습니다.</div>}
       <ChartTooltip hover={hover} />
     </div>
   );
@@ -1467,7 +1716,7 @@ export function DailyLogisticsNewsCard() {
 
 function MarketDataDashboardLegacy({ activeTab = 'overview', onNavigate }) {
   const currentTab = MARKET_TABS.some((tab) => tab.id === activeTab) ? activeTab : 'overview';
-  const { loading, error, data, reload } = useEdgeData('sector-market/read', { limit: 2000 }, [currentTab]);
+  const { loading, error, data, reload } = useEdgeData('sector-market/read', { limit: 2000 }, []);
   const summary = data?.summary || {};
   const leases = safeArray(data?.leases);
   const supply = safeArray(data?.supply);
@@ -1674,7 +1923,7 @@ function MarketDataDashboardLegacy({ activeTab = 'overview', onNavigate }) {
 
 export function MarketDataDashboard({ activeTab = 'overview', onNavigate = null }) {
   const currentTab = MARKET_TABS.find((tab) => tab.id === activeTab || tab.route === activeTab)?.id || 'overview';
-  const { loading, error, data, reload } = useEdgeData('sector-market/read', { limit: 12000 }, [currentTab]);
+  const { loading, error, data, reload } = useEdgeData('sector-market/read', { limit: 12000 }, []);
   const [modal, setModal] = useState(null);
   const [txnWindow, setTxnWindow] = useState('3y');
   const [txnRegion, setTxnRegion] = useState('전체');
@@ -2275,7 +2524,7 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate = null 
 
 function InvestmentIndexDashboardLegacy() {
   const [mode, setMode] = useState('fund');
-  const { loading, error, data, reload } = useEdgeData('investment-index/read', {}, [mode]);
+  const { loading, error, data, reload } = useEdgeData('investment-index/read', {}, []);
   const summary = data?.summary || {};
   const funds = safeArray(data?.funds);
   const assets = safeArray(data?.assets);
@@ -2380,51 +2629,80 @@ function InvestmentIndexDashboardLegacy() {
 
 export function InvestmentIndexDashboard() {
   const [mode, setMode] = useState('fund');
-  const { loading, error, data, reload } = useEdgeData('investment-index/read', {}, [mode]);
+  const [showStructureTable, setShowStructureTable] = useState(true);
+  const [detailTarget, setDetailTarget] = useState(null);
+  const { loading, error, data, reload } = useEdgeData('investment-index/read', {}, []);
+  const summary = data?.summary || {};
   const funds = safeArray(data?.funds);
   const assets = safeArray(data?.assets);
   const tranches = safeArray(data?.tranches);
   const loanRates = safeArray(data?.loan_rates);
-  const rows = mode === 'fund' ? funds : assets;
+  const rows = useMemo(() => (mode === 'fund' ? funds : assets)
+    .slice()
+    .sort((a, b) => (
+      number(b.total_capital_krw) + number(b.reference_total_capital_krw)
+      - number(a.total_capital_krw) - number(a.reference_total_capital_krw)
+    )), [assets, funds, mode]);
   const totals = rows.reduce((acc, row) => ({
     equity: acc.equity + number(row.equity_krw),
     loan: acc.loan + number(row.loan_krw),
     reference: acc.reference + number(row.reference_total_capital_krw),
   }), { equity: 0, loan: 0, reference: 0 });
-  const drawdownChartRows = aggregateRows(
-    tranches.filter((row) => row.drawdown_date),
-    (row) => periodBucket(row.drawdown_date),
-    (row) => row.amount_krw,
-  ).sort((a, b) => String(a.label).localeCompare(String(b.label))).slice(-12);
-  const maturityChartRows = aggregateRows(
-    tranches.filter((row) => row.maturity_date),
-    (row) => periodBucket(row.maturity_date),
-    (row) => row.amount_krw,
-  ).sort((a, b) => String(a.label).localeCompare(String(b.label))).slice(0, 12);
-  const topExposureRows = rows
-    .map((row) => ({ ...row, value: number(row.total_capital_krw) + number(row.reference_total_capital_krw), label: row.display_name }))
-    .sort((a, b) => number(b.value) - number(a.value))
-    .slice(0, 10);
+  const loanMaturityRows = useMemo(() => normalizeLoanTrancheRows(tranches, funds), [funds, tranches]);
+  const loanMaturityChartRows = useMemo(() => loanMaturityTimelineRows(loanMaturityRows), [loanMaturityRows]);
+  const loanRateRows = useMemo(() => loanRates.map((row) => ({
+    ...row,
+    asset_display_label: assetLabelForFundId(row.fund_id, funds),
+    rate_display_value: rateValue(row),
+  })).sort((a, b) => number(rateValue(b)) - number(rateValue(a))), [funds, loanRates]);
   const hasAssetRegion = mode === 'asset' && rows.some((row) => row.region || row.capital_region || row.national_region || row.region_group);
   const tableColumns = mode === 'fund'
     ? [
       { key: 'display_name', label: '펀드명', width: 188 },
-      { key: 'asset_names', label: '연결 자산', render: (row) => safeArray(row.asset_names).join(', ') || '-' },
+      { key: 'asset_names', label: '연결 자산', width: 320, noTruncate: true, render: (row) => safeArray(row.asset_names).join(', ') || '-' },
       { key: 'equity_krw', label: 'Equity', align: 'right', render: (row) => formatKrw(row.equity_krw), sortValue: (row) => number(row.equity_krw) },
       { key: 'loan_krw', label: 'Loan', align: 'right', render: (row) => formatKrw(row.loan_krw), sortValue: (row) => number(row.loan_krw) },
       { key: 'total_capital_krw', label: '합계', align: 'right', render: (row) => formatKrw(row.total_capital_krw), sortValue: (row) => number(row.total_capital_krw) },
       { key: 'loan_ratio', label: 'Loan 비중', align: 'right', render: (row) => formatRate(number(row.loan_krw) / Math.max(1, number(row.total_capital_krw))), sortValue: (row) => number(row.loan_krw) / Math.max(1, number(row.total_capital_krw)) },
+      { key: 'tranche_count', label: 'Tranche', align: 'right', render: (row) => formatNumber(row.tranche_count), sortValue: (row) => number(row.tranche_count) },
     ]
     : [
       { key: 'display_name', label: '자산명', width: 188 },
       ...(hasAssetRegion ? [{ key: 'region', label: '권역', width: 150, render: (row) => formatRegionLabel(row.region || row.capital_region || row.national_region || row.region_group), sortValue: (row) => regionValue(row.region || row.capital_region || row.national_region || row.region_group) }] : []),
-      { key: 'fund_names', label: '연결 펀드', render: (row) => safeArray(row.fund_names).join(', ') || '-' },
+      { key: 'fund_names', label: '연결 펀드', width: 280, noTruncate: true, render: (row) => safeArray(row.fund_names).join(', ') || '-' },
       { key: 'equity_krw', label: '확정 Equity', align: 'right', render: (row) => formatKrw(row.equity_krw), sortValue: (row) => number(row.equity_krw) },
       { key: 'loan_krw', label: '확정 Loan', align: 'right', render: (row) => formatKrw(row.loan_krw), sortValue: (row) => number(row.loan_krw) },
       { key: 'total_capital_krw', label: '확정 합계', align: 'right', render: (row) => formatKrw(row.total_capital_krw), sortValue: (row) => number(row.total_capital_krw) },
       { key: 'reference_total_capital_krw', label: '공동펀드 참조', align: 'right', render: (row) => row.joint_fund_reference ? formatKrw(row.reference_total_capital_krw) : '-', sortValue: (row) => number(row.reference_total_capital_krw) },
       { key: 'current_manager_name', label: '담당자', render: (row) => text(row.current_manager_name) },
     ];
+  const detailRows = useMemo(() => {
+    if (!detailTarget) return [];
+    if (detailTarget.type === 'loan-rate' || detailTarget.type === 'loan-maturity') return [detailTarget.row];
+    return investmentDetailRows(detailTarget.row, detailTarget.mode, tranches)
+      .map((row) => ({
+        ...row,
+        asset_display_label: text(firstText(row.asset_name, row.asset_display_name, assetLabelForFundId(row.fund_id, funds))),
+        rate_display_value: rateValue(row),
+      }));
+  }, [detailTarget, funds, tranches]);
+  const detailEquity = detailRows.filter((row) => !isLoanTranche(row)).reduce((sum, row) => sum + number(row.amount_krw), 0);
+  const detailLoan = detailRows.filter(isLoanTranche).reduce((sum, row) => sum + number(row.amount_krw), 0);
+  const detailTitle = detailTarget
+    ? detailTarget.type === 'loan-rate' || detailTarget.type === 'loan-maturity'
+      ? `${text(detailTarget.row.fund_display_name)} · ${text(detailTarget.row.asset_display_label)}`
+      : investmentDisplayLabel(detailTarget.row, detailTarget.mode)
+    : '';
+  const detailColumns = [
+    { key: 'tranche_type_label', label: '구분', width: 130 },
+    { key: 'fund_display_name', label: '펀드명', width: 160 },
+    { key: 'asset_display_label', label: '자산명', width: 190, noTruncate: true },
+    { key: 'counterparty_name', label: '투자자/대주', width: 250, noTruncate: true },
+    { key: 'tranche_name', label: 'Tranche', width: 120, noTruncate: true, render: (row) => text(firstText(row.tranche_name, row.tranche_label, row.tranche_code, '-')) },
+    { key: 'amount_krw', label: '금액', width: 130, noTruncate: true, align: 'right', render: (row) => formatKrw(row.amount_krw), sortValue: (row) => number(row.amount_krw) },
+    { key: 'rate_display_value', label: '금리', width: 90, noTruncate: true, align: 'right', render: (row) => row.rate_display_value == null || row.rate_display_value === '' ? '-' : formatRate(row.rate_display_value), sortValue: (row) => number(row.rate_display_value) },
+    { key: 'maturity_date', label: '만기일', width: 110, noTruncate: true, render: (row) => formatDate(row.maturity_date) },
+  ];
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2432,80 +2710,113 @@ export function InvestmentIndexDashboard() {
         <button type="button" onClick={reload} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[13px] font-semibold text-white hover:bg-white/5">새로고침</button>
       </div>
       {error ? <div className="rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
-      {loading ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>투자지표를 불러오는 중입니다.</div> : null}
+      {loading && !data ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>투자지표를 불러오는 중입니다.</div> : null}
       <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
         <MetricCard label="Equity" value={formatKrw(totals.equity)} detail={mode === 'asset' ? '자산에 확정 배분된 금액' : '펀드 기준 합계'} />
         <MetricCard label="Loan" value={formatKrw(totals.loan)} detail={mode === 'asset' ? '자산에 확정 배분된 금액' : '펀드 기준 합계'} />
         <MetricCard label="합계" value={formatKrw(totals.equity + totals.loan)} detail={mode === 'asset' ? '공동펀드 참조금액 제외' : 'Equity + Loan'} />
-        <MetricCard label="공동펀드 참조" value={formatKrw(totals.reference)} detail="1펀드-다자산 금액은 중복 합산하지 않습니다." />
-      </section>
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-        <div className={`${CARD} p-5`}>
-          <ModuleHeader eyebrow="CAPITAL STACK" title={mode === 'fund' ? '펀드별 Equity / Loan 구성' : '자산별 확정금액 / 공동펀드 참조'} />
-          <StackedCapitalChart rows={rows} referenceKey={mode === 'asset' ? 'reference_total_capital_krw' : ''} />
-        </div>
-        <div className={`${CARD} p-5`}>
-          <ModuleHeader eyebrow="CONCENTRATION" title="상위 노출액 비교" />
-          <BarList rows={topExposureRows} formatter={formatKrw} color={CHART_COLORS.accent} maxRows={10} />
-        </div>
+        <MetricCard label="공동펀드 참조" value={formatKrw(totals.reference)} detail={`${formatNumber(summary.joint_asset_reference_count || 0)}개 자산은 참고금액 분리`} />
       </section>
       <section className={`${CARD} p-5`}>
-        <ModuleHeader eyebrow="COMPARISON TABLE" title={mode === 'fund' ? '펀드별 투자 구조' : '자산별 투자 구조'} />
-        <SortableTable
-          minWidth={mode === 'fund' ? 1080 : hasAssetRegion ? 1320 : 1180}
-          stickyCount={1}
-          defaultSort={{ key: 'total_capital_krw', direction: 'desc' }}
-          columns={tableColumns}
-          rows={rows}
+        <ModuleHeader
+          eyebrow="CAPITAL STACK"
+          title={mode === 'fund' ? '펀드별 Equity / Loan 구성' : '자산별 확정금액 / 공동펀드 참조'}
+          subtitle="합계 금액 기준 내림차순"
+          right={(
+            <button
+              type="button"
+              onClick={() => setShowStructureTable((current) => !current)}
+              className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
+            >
+              {showStructureTable ? '표 접기' : '표 펼치기'}
+            </button>
+          )}
         />
-      </section>
-      <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-        <div className={`${CARD} p-5`}>
-          <ModuleHeader eyebrow="DRAWDOWN / MATURITY" title="인출·만기 일정" />
-          <div className="mb-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
-            <div>
-              <div className="mb-2 text-[12px] font-semibold text-[#A1A1AA]">인출 금액 추이</div>
-              <BarList rows={drawdownChartRows} formatter={formatKrw} color={CHART_COLORS.secondary} maxRows={12} />
-            </div>
-            <div>
-              <div className="mb-2 text-[12px] font-semibold text-[#A1A1AA]">만기 금액 분포</div>
-              <BarList rows={maturityChartRows} formatter={formatKrw} color={CHART_COLORS.primary} maxRows={12} />
-            </div>
+        <StackedCapitalChart
+          rows={rows}
+          referenceKey={mode === 'asset' ? 'reference_total_capital_krw' : ''}
+          maxRows={24}
+          labelForRow={(row) => investmentDisplayLabel(row, mode)}
+          tooltipForRow={(row, metrics) => investmentTooltip(row, mode, tranches, metrics)}
+          onRowClick={(row) => setDetailTarget({ type: 'structure', mode, row })}
+        />
+        {showStructureTable ? (
+          <div className="mt-5">
+            <SortableTable
+              minWidth={mode === 'fund' ? 1080 : hasAssetRegion ? 1320 : 1180}
+              maxHeight={420}
+              stickyCount={1}
+              defaultSort={{ key: 'total_capital_krw', direction: 'desc' }}
+              columns={tableColumns}
+              rows={rows}
+              onRowClick={(row) => setDetailTarget({ type: 'structure', mode, row })}
+            />
           </div>
+        ) : null}
+      </section>
+      <section className={`${CARD} p-5`}>
+        <ModuleHeader eyebrow="LOAN MATURITY" title="대출 만기 일정" subtitle={`x축 시작: ${formatMonthKey(currentMonthKey())}`} />
+        <LoanMaturityTimelineChart rows={loanMaturityChartRows} />
+        <div className="mt-5">
           <SortableTable
-            minWidth={1160}
+            minWidth={1060}
+            maxHeight={420}
             stickyCount={2}
             defaultSort={{ key: 'maturity_date', direction: 'asc' }}
             columns={[
-              { key: 'tranche_type_label', label: '구분', width: 150 },
+              { key: 'month_key', label: '만기월', width: 110, render: (row) => formatMonthKey(row.month_key), sortValue: (row) => row.month_key },
               { key: 'fund_display_name', label: '펀드명', width: 180 },
-              { key: 'counterparty_name', label: '투자자/대주' },
-              { key: 'amount_krw', label: '금액', align: 'right', render: (row) => formatKrw(row.amount_krw), sortValue: (row) => number(row.amount_krw) },
-              { key: 'drawdown_date', label: '인출일', render: (row) => formatDate(row.drawdown_date) },
+              { key: 'asset_display_label', label: '자산명', width: 260, noTruncate: true },
+              { key: 'counterparty_name', label: '대주', width: 220, noTruncate: true },
+              { key: 'amount_krw', label: '대출금액', align: 'right', render: (row) => formatKrw(row.amount_krw), sortValue: (row) => number(row.amount_krw) },
               { key: 'maturity_date', label: '만기일', render: (row) => formatDate(row.maturity_date) },
-              { key: 'rate', label: '금리', align: 'right', render: (row) => row.interest_rate == null && row.loan_rate == null && row.all_in_rate == null ? '-' : formatRate(row.interest_rate || row.loan_rate || row.all_in_rate), sortValue: (row) => number(row.interest_rate || row.loan_rate || row.all_in_rate) },
+              { key: 'rate_display_value', label: '금리', align: 'right', render: (row) => row.rate_display_value == null || row.rate_display_value === '' ? '-' : formatRate(row.rate_display_value), sortValue: (row) => number(row.rate_display_value) },
             ]}
-            rows={tranches}
+            rows={loanMaturityRows}
+            onRowClick={(row) => setDetailTarget({ type: 'loan-maturity', row })}
           />
         </div>
-        <div className={`${CARD} p-5`}>
-          <ModuleHeader eyebrow="LOAN RATE" title="대출 금리 비교" />
-          <BarList rows={loanRates.map((row) => ({ ...row, label: `${text(row.fund_display_name)} · ${text(row.counterparty_name)}`, value: row.interest_rate }))} formatter={formatRate} color={CHART_COLORS.warning} maxRows={12} />
-          <div className="mt-5">
-            <SortableTable
-              minWidth={760}
-              defaultSort={{ key: 'interest_rate', direction: 'desc' }}
-              columns={[
-                { key: 'fund_display_name', label: '펀드명' },
-                { key: 'counterparty_name', label: '대주' },
-                { key: 'interest_rate', label: '금리', align: 'right', render: (row) => formatRate(row.interest_rate), sortValue: (row) => number(row.interest_rate) },
-                { key: 'maturity_date', label: '만기', render: (row) => formatDate(row.maturity_date) },
-              ]}
-              rows={loanRates}
-            />
-          </div>
+      </section>
+      <section className={`${CARD} p-5`}>
+        <ModuleHeader eyebrow="LOAN RATE" title="대출 금리 비교" subtitle="펀드명과 자산명을 함께 표시" />
+        <LoanRateHorizontalChart rows={loanRateRows} onRowClick={(row) => setDetailTarget({ type: 'loan-rate', row })} />
+        <div className="mt-5">
+          <SortableTable
+            minWidth={920}
+            maxHeight={420}
+            stickyCount={2}
+            defaultSort={{ key: 'rate_display_value', direction: 'desc' }}
+            columns={[
+              { key: 'fund_display_name', label: '펀드명', width: 180 },
+              { key: 'asset_display_label', label: '자산명', width: 260, noTruncate: true },
+              { key: 'counterparty_name', label: '대주', width: 220, noTruncate: true },
+              { key: 'amount_krw', label: '대출금액', align: 'right', render: (row) => formatKrw(row.amount_krw), sortValue: (row) => number(row.amount_krw) },
+              { key: 'rate_display_value', label: '금리', align: 'right', render: (row) => row.rate_display_value == null || row.rate_display_value === '' ? '-' : formatRate(row.rate_display_value), sortValue: (row) => number(row.rate_display_value) },
+              { key: 'maturity_date', label: '만기', render: (row) => formatDate(row.maturity_date) },
+            ]}
+            rows={loanRateRows}
+            onRowClick={(row) => setDetailTarget({ type: 'loan-rate', row })}
+          />
         </div>
       </section>
+      <Modal title={detailTitle} onClose={() => setDetailTarget(null)} width="max-w-[1180px]">
+        {detailTarget?.type === 'structure' ? (
+          <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <MetricCard label="Equity" value={formatKrw(detailEquity)} detail="선택 항목의 수익자 지분" />
+            <MetricCard label="Loan" value={formatKrw(detailLoan)} detail="선택 항목의 대출" />
+            <MetricCard label="Tranche" value={`${formatNumber(detailRows.length)}건`} detail="active 기준" />
+          </div>
+        ) : null}
+        <SortableTable
+          minWidth={1180}
+          maxHeight={620}
+          stickyCount={2}
+          defaultSort={{ key: 'amount_krw', direction: 'desc' }}
+          columns={detailColumns}
+          rows={detailRows}
+          empty="상세 투자 내역이 없습니다."
+        />
+      </Modal>
     </div>
   );
 }
@@ -2700,7 +3011,7 @@ export function DataManagementDashboard() {
   const [submitStatus, setSubmitStatus] = useState(null);
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 100, row_limit: 160 }, [tab]);
+  const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 100, row_limit: 160 }, []);
   const sources = safeArray(data?.sources);
   const sheets = safeArray(data?.sheets);
   const columns = safeArray(data?.columns);

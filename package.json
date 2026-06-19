@@ -38,6 +38,7 @@
     "qa:market-data:browser": "node scripts/qa/logistics-market-data-browser-smoke.cjs",
     "qa:data-management:browser-readback": "node scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
     "qa:investment-index:readback": "node scripts/qa/logistics-investment-index-readback-smoke.cjs",
+    "qa:investment-index:browser": "node scripts/qa/logistics-investment-index-browser-smoke.cjs",
     "qa:market-rag:preflight": "node scripts/ops/logistics-market-rag-preflight.cjs",
     "qa:market-retrieval": "node scripts/qa/logistics-market-retrieval-qa.cjs",
     "qa:market-chatbot": "node scripts/qa/logistics-market-chatbot-qa.cjs",

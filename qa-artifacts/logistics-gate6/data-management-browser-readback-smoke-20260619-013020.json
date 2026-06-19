@@ -1,0 +1,53 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-19T01:30:20.698Z",
+  "base_url": "http://127.0.0.1:5173/",
+  "auth_source": "password_grant",
+  "allow_submit": false,
+  "checks": {
+    "status_api_ok": true,
+    "access_scope_present": true,
+    "status_arrays_present": true,
+    "manager_has_rows": true,
+    "no_broken_question_marks": true,
+    "no_internal_tokens": true,
+    "no_permission_explanation_banner": true,
+    "has_workflow_tabs": true,
+    "has_sortable_tables": true,
+    "no_internal_tokens_after_workflow_tab": true,
+    "no_raw_region_numbers_after_workflow_tab": true,
+    "target_selector_visible": true,
+    "target_selector_has_options": true,
+    "workflow_selection_visible": true,
+    "workflow_validation_visible": true,
+    "workflow_diff_visible": true,
+    "workflow_approval_visible": true,
+    "editable_or_scoped_message": true,
+    "manager_can_edit": true,
+    "preview_api_ok": true,
+    "preview_visible": true,
+    "submit_guarded": true,
+    "history_readback_visible": true,
+    "no_internal_tokens_after_history_tab": true,
+    "no_raw_region_numbers_after_history_tab": true
+  },
+  "errors": [],
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260619-013020.png",
+  "status_contract": {
+    "access_scope": "manager_full_source",
+    "can_approve": true,
+    "source_rows": 160,
+    "columns": 800,
+    "edits": 100,
+    "managed_asset_codes": [
+      "ALL"
+    ]
+  },
+  "preview_contract": {
+    "http_status": 200,
+    "ok": true,
+    "auto_write_enabled": false,
+    "validation_count": 1,
+    "has_target": false
+  }
+}
