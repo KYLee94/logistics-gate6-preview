@@ -12,5 +12,7 @@
 | [x] | Loan rate comparison must move to bottom and use fund plus asset names in a horizontal chart. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:investment-index:browser` | `qa-artifacts/logistics-gate6/investment-index-browser-smoke-20260619-014416.json` | Frontend/UI OK |
 | [x] | Naver Maps loader must not prematurely fallback on first Lease Market map load. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:market-data:browser` | `qa-artifacts/logistics-gate6/market-data-browser-smoke-20260619-013506.json` | QA/Release OK |
 | [x] | Data Management tab switching must still read data after common loading hook changes. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:data-management:browser-readback` | `qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260619-013020.json` | QA/Release OK |
+| [x] | Post-deploy live Investment Index must show the new chart, tooltip, popup, and table behavior. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:investment-index:browser -- --base-url https://kylee94.github.io/logistics-gate6-preview/` | `qa-artifacts/logistics-gate6/investment-index-browser-smoke-20260619-014902.json` | QA/Release OK |
+| [x] | Post-deploy live sector routes must remain accessible without internal tokens or broken route state. | `src/components/system/workspace/LogisticsSectorModules.jsx` | `npm run qa:sector-tabs:browser` | `qa-artifacts/logistics-gate6/sector-tabs-browser-smoke-20260619-014902.json` | QA/Release OK |
 
-Completed: 10 / 10
+Completed: 12 / 12
