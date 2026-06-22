@@ -1069,7 +1069,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
   const geocodePendingRef = useRef({});
   const [selectedMapRegion, setSelectedMapRegion] = useState('');
   const [mapZoom, setMapZoom] = useState(8);
-  const [forceOsm, setForceOsm] = useState(false);
+  const [forceOsm, setForceOsm] = useState(() => !showLargeButton);
   const [largeMapOpen, setLargeMapOpen] = useState(false);
   const detailPointLimit = mapZoom >= 12 ? 120 : mapZoom >= 11 ? 80 : mapZoom >= 10 ? 45 : mapZoom >= 9 ? 25 : 15;
   const applyMapDisplayType = (map, nextType) => {
@@ -1506,14 +1506,14 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           }
         }
         setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
-        [80, 260, 700, 1200].forEach((delay) => window.setTimeout(() => {
+        [80, 260, 600].forEach((delay) => window.setTimeout(() => {
           if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) refreshNaverMap(map);
         }, delay));
         window.setTimeout(() => {
           if (cancelled || mapProviderRef.current !== 'naver' || forceOsm) return;
           refreshNaverMap(map);
           if (!hasSufficientVisibleMapTiles(mapCanvasRef.current)) setForceOsm(true);
-        }, 1800);
+        }, 900);
       } catch {
         if (!cancelled) await mountLeafletMap();
       }
