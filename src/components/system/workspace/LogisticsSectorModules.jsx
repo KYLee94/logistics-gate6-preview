@@ -250,17 +250,17 @@ const REGION_CENTER_COORDS = {
   '지방 기타권': [35.871, 128.601],
 };
 const REGION_CLUSTER_COORDS = {
-  서북권: [37.93, 126.58],
-  서부권: [37.32, 126.43],
-  중앙권: [37.47, 127.15],
-  동남권: [37.08, 127.72],
-  남부권: [36.72, 127.05],
-  '수도권 기타권': [38.07, 127.42],
-  충청권: [36.34, 127.42],
-  전라권: [35.15, 126.78],
-  경북권: [36.18, 128.96],
-  경남권: [35.05, 128.42],
-  '지방 기타권': [35.55, 129.35],
+  서북권: [38.24, 125.95],
+  서부권: [37.34, 125.92],
+  중앙권: [37.78, 127.22],
+  동남권: [36.96, 128.08],
+  남부권: [36.38, 126.78],
+  '수도권 기타권': [38.36, 128.1],
+  충청권: [36.18, 127.46],
+  전라권: [34.94, 126.5],
+  경북권: [36.05, 129.28],
+  경남권: [34.82, 128.36],
+  '지방 기타권': [35.46, 129.9],
 };
 const INTERNAL_FIELD_PATTERN = /^ll_|^source_|(^|_)(id|uuid)$|source_row_id|source_file_id|source_sheet_id|row_hash|natural_key|payload|pnu|법정동|법정동코드|adm_code|legal_dong_code|geom|geometry|created_at|updated_at/iu;
 const FIELD_LABELS = {
@@ -1461,8 +1461,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
               icon: L.divIcon({
                 className: 'market-map-region-cluster-icon',
                 html: clusterIconHtml(item),
-                iconSize: [92, 58],
-                iconAnchor: [46, 29],
+                iconSize: [104, 58],
+                iconAnchor: [52, 29],
               }),
             }
             : {};
@@ -1602,8 +1602,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           if (item.isCluster) {
             markerOptions.icon = {
               content: clusterIconHtml(item),
-              size: new window.naver.maps.Size(92, 58),
-              anchor: new window.naver.maps.Point(46, 29),
+              size: new window.naver.maps.Size(104, 58),
+              anchor: new window.naver.maps.Point(52, 29),
             };
           }
           const marker = new window.naver.maps.Marker(markerOptions);
@@ -1712,7 +1712,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           .market-map-region-cluster-marker {
             display: grid;
             place-items: center;
-            width: 86px;
+            width: 96px;
             min-height: 52px;
             border-radius: 999px;
             border: 1px solid rgba(154, 215, 255, 0.72);
@@ -1726,7 +1726,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           }
           .market-map-region-cluster-marker span {
             display: block;
-            max-width: 70px;
+            max-width: 86px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
