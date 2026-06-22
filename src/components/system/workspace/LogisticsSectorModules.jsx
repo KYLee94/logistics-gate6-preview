@@ -1479,7 +1479,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           });
           return marker;
         });
-        if (isRegionMode) map.setView([36.45, 127.55], 7);
+        if (isRegionMode) map.setView([36.45, 127.55], 6);
         else if (latLngs.length > 1) map.fitBounds(latLngs, { padding: [28, 28] });
         else map.setView(latLngs[0], selectedMapRegion ? Math.max(9, mapZoom) : 7);
         mapProviderRef.current = 'osm';
@@ -1575,14 +1575,14 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
         if (!map) {
           map = new window.naver.maps.Map(mapCanvasRef.current, {
             center,
-            zoom: selectedMapRegion ? Math.max(10, mapZoom) : Math.max(7, Math.min(9, mapZoom)),
+            zoom: selectedMapRegion ? Math.max(10, mapZoom) : 6,
             minZoom: 6,
             background: '#151515',
           });
         } else {
           map.setCenter(center);
           if (selectedMapRegion) map.setZoom(Math.max(10, mapZoom));
-          else map.setZoom(Math.max(7, Math.min(9, mapZoom)));
+          else map.setZoom(6);
         }
         mapInstanceRef.current = map;
         mapProviderRef.current = 'naver';
@@ -1617,7 +1617,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
         if (isRegionMode) {
           fittedCenter = new window.naver.maps.LatLng(36.45, 127.55);
           map.setCenter(fittedCenter);
-          map.setZoom(7);
+          map.setZoom(6);
         } else if (mappableRows.length > 1 && window.naver.maps.LatLngBounds && typeof map.fitBounds === 'function') {
           try {
             const bounds = new window.naver.maps.LatLngBounds(
