@@ -1479,7 +1479,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           });
           return marker;
         });
-        if (latLngs.length > 1) map.fitBounds(latLngs, { padding: [28, 28] });
+        if (isRegionMode) map.setView([36.45, 127.55], 7);
+        else if (latLngs.length > 1) map.fitBounds(latLngs, { padding: [28, 28] });
         else map.setView(latLngs[0], selectedMapRegion ? Math.max(9, mapZoom) : 7);
         mapProviderRef.current = 'osm';
         mapInstanceRef.current = map;
@@ -1613,7 +1614,11 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           return marker;
         });
         let fittedCenter = center;
-        if (mappableRows.length > 1 && window.naver.maps.LatLngBounds && typeof map.fitBounds === 'function') {
+        if (isRegionMode) {
+          fittedCenter = new window.naver.maps.LatLng(36.45, 127.55);
+          map.setCenter(fittedCenter);
+          map.setZoom(7);
+        } else if (mappableRows.length > 1 && window.naver.maps.LatLngBounds && typeof map.fitBounds === 'function') {
           try {
             const bounds = new window.naver.maps.LatLngBounds(
               new window.naver.maps.LatLng(mappableRows[0].lat, mappableRows[0].lng),
