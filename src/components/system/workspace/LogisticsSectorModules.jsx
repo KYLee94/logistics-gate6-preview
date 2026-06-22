@@ -1053,6 +1053,15 @@ function hasSufficientVisibleMapTiles(container) {
   return stats.count >= 3 && stats.coverage >= 0.65;
 }
 
+function escapeMapHtml(value) {
+  return String(value ?? '')
+    .replace(/&/gu, '&amp;')
+    .replace(/</gu, '&lt;')
+    .replace(/>/gu, '&gt;')
+    .replace(/"/gu, '&quot;')
+    .replace(/'/gu, '&#39;');
+}
+
 function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'region', onSelect, showLargeButton = true, mapHeightClass = 'h-[520px]' }) {
   const sourceRows = safeArray(rows);
   const mapCanvasRef = useRef(null);
@@ -1069,8 +1078,9 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
   const geocodePendingRef = useRef({});
   const [selectedMapRegion, setSelectedMapRegion] = useState('');
   const [mapZoom, setMapZoom] = useState(8);
-  const [forceOsm, setForceOsm] = useState(() => !showLargeButton);
+  const [forceOsm, setForceOsm] = useState(false);
   const [largeMapOpen, setLargeMapOpen] = useState(false);
+  const isRegionMode = !selectedMapRegion;
   const detailPointLimit = mapZoom >= 12 ? 120 : mapZoom >= 11 ? 80 : mapZoom >= 10 ? 45 : mapZoom >= 9 ? 25 : 15;
   const applyMapDisplayType = (map, nextType) => {
     if (!map || mapProviderRef.current !== 'naver' || !window.naver?.maps || typeof map.setMapTypeId !== 'function') return;
@@ -1135,19 +1145,40 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
       .slice()
       .sort((a, b) => areaValue(b) - areaValue(a) || text(a[labelKey] || a.label).localeCompare(text(b[labelKey] || b.label), 'ko'));
   }, [sourceRows, regionKey, labelKey, selectedMapRegion]);
-  const fullMapPointLimit = mapZoom >= 12 ? 180 : mapZoom >= 11 ? 140 : mapZoom >= 10 ? 100 : mapZoom >= 9 ? 70 : 45;
-  const mapRowLimit = selectedMapRegion ? detailPointLimit : fullMapPointLimit;
+  const mapRowLimit = isRegionMode ? regionRows.length : detailPointLimit;
   const candidateRows = useMemo(() => (
-    selectedMapRegion
-      ? selectedRegionRows
-      : sourceRows
-        .slice()
-        .sort((a, b) => areaValue(b) - areaValue(a) || text(a[labelKey] || a.label).localeCompare(text(b[labelKey] || b.label), 'ko'))
-  ), [sourceRows, selectedRegionRows, selectedMapRegion, labelKey]);
+    isRegionMode
+      ? regionRows
+      : selectedRegionRows
+  ), [isRegionMode, regionRows, selectedRegionRows]);
   const visibleRows = useMemo(() => candidateRows.slice(0, mapRowLimit), [candidateRows, mapRowLimit]);
   const excludedCount = Math.max(0, candidateRows.length - visibleRows.length);
   const plotRows = useMemo(() => {
     const rows = visibleRows.map((row, index) => {
+      if (row?.isCluster) {
+        return {
+          row,
+          index,
+          label: row.label || row.regionLabel,
+          region: row.region,
+          regionLabel: row.regionLabel,
+          address: '',
+          addressCandidates: [],
+          coordinateSource: row.coordinateSource || 'region.cluster',
+          coordinateAddress: '',
+          addressRule: '',
+          left: Number.isFinite(Number(row.left)) ? Number(row.left) : hashPosition(row.region, 'x'),
+          top: Number.isFinite(Number(row.top)) ? Number(row.top) : hashPosition(row.region, 'y'),
+          lat: Number(row.lat),
+          lng: Number(row.lng),
+          geocoded: false,
+          fallback: false,
+          isCluster: true,
+          count: row.count,
+          area: row.area,
+          rows: row.rows,
+        };
+      }
       const region = regionValue(row[regionKey]);
       const position = REGION_MAP_POSITIONS[region] || [hashPosition(region || row[labelKey], 'x'), hashPosition(region || row[labelKey], 'y')];
       const xValue = Number(row.x_percent);
@@ -1190,13 +1221,19 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
         fallback: !(hasRawCoords || hasGeocodedCoords),
       };
     });
-    const spreadedRows = spreadPercentPositions(rows, 3.6, { leftMin: 2, leftMax: 98, topMin: 3, topMax: 97 });
+    const spreadedRows = spreadPercentPositions(
+      rows,
+      isRegionMode ? 18.5 : 3.6,
+      isRegionMode
+        ? { leftMin: 8, leftMax: 92, topMin: 12, topMax: 88 }
+        : { leftMin: 2, leftMax: 98, topMin: 3, topMax: 97 },
+    );
     return rows.map((row, index) => ({
       ...row,
       left: spreadedRows[index]?.left ?? row.left,
       top: spreadedRows[index]?.top ?? row.top,
     }));
-  }, [visibleRows, regionKey, labelKey, geocodedCoords]);
+  }, [visibleRows, regionKey, labelKey, geocodedCoords, isRegionMode]);
   const markerRows = useMemo(() => (
     plotRows.filter((item) => !item.fallback && Number.isFinite(item.lat) && Number.isFinite(item.lng))
   ), [plotRows]);
@@ -1210,6 +1247,26 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
       top: `${Number.isFinite(osmPosition?.top) ? osmPosition.top : item.top}%`,
     };
   };
+  const openMapItem = (item) => {
+    if (item?.isCluster) {
+      setSelectedMapRegion(item.region);
+      setMapZoom((current) => Math.max(10, current));
+      return;
+    }
+    onSelectRef.current?.(item.row);
+  };
+  const clusterIconHtml = (item) => `
+    <button type="button" data-region-cluster-button="true" data-region-name="${escapeMapHtml(item.regionLabel)}" data-region-point-count="${escapeMapHtml(item.count)}" class="market-map-region-cluster-marker">
+      <span>${escapeMapHtml(item.regionLabel)}</span>
+      <strong>${escapeMapHtml(formatNumber(item.count))}건</strong>
+    </button>
+  `;
+
+  useEffect(() => {
+    if (selectedMapRegion && !regionRows.some((row) => row.region === selectedMapRegion)) {
+      setSelectedMapRegion('');
+    }
+  }, [selectedMapRegion, regionRows]);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -1384,20 +1441,26 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           attribution: '&copy; OpenStreetMap contributors',
         }).addTo(map);
         markersRef.current = mappableRows.map((item) => {
+          const clusterOptions = item.isCluster
+            ? {
+              icon: L.divIcon({
+                className: 'market-map-region-cluster-icon',
+                html: clusterIconHtml(item),
+                iconSize: [92, 58],
+                iconAnchor: [46, 29],
+              }),
+            }
+            : {};
           const marker = L.marker([Number(item.lat), Number(item.lng)], {
             title: item.isCluster ? `${item.regionLabel} ${formatNumber(item.count)}` : item.label,
+            ...clusterOptions,
           }).addTo(map);
           marker.bindTooltip(item.isCluster ? `${item.regionLabel} ${formatNumber(item.count)}` : `${item.label} ${item.regionLabel}`, {
             direction: 'top',
             sticky: true,
           });
           marker.on('click', () => {
-            if (item.isCluster) {
-              setSelectedMapRegion(item.region);
-              setMapZoom((current) => Math.max(9, current));
-            } else {
-              onSelectRef.current?.(item.row);
-            }
+            openMapItem(item);
           });
           return marker;
         });
@@ -1425,6 +1488,25 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
     };
     const refreshNaverMap = (map) => {
       if (!map || mapProviderRef.current !== 'naver') return;
+      const target = mapCanvasRef.current;
+      if (target) {
+        target.style.setProperty('position', 'absolute', 'important');
+        target.style.setProperty('inset', '0px', 'important');
+        target.style.setProperty('width', '100%', 'important');
+        target.style.setProperty('height', '100%', 'important');
+        target.style.setProperty('min-height', '100%', 'important');
+        target.style.setProperty('overflow', 'hidden', 'important');
+      }
+      const rect = target?.getBoundingClientRect?.();
+      const width = Math.max(1, Math.round(rect?.width || mapCanvasRef.current?.clientWidth || 0));
+      const height = Math.max(1, Math.round(rect?.height || mapCanvasRef.current?.clientHeight || 0));
+      if (width > 1 && height > 1 && typeof map.setSize === 'function' && window.naver?.maps?.Size) {
+        try {
+          map.setSize(new window.naver.maps.Size(width, height));
+        } catch {
+          // Some Naver SDK builds do not expose setSize consistently.
+        }
+      }
       try {
         map.refresh?.();
       } catch {
@@ -1435,6 +1517,23 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
       } catch {
         // Resize trigger is best effort only.
       }
+    };
+    const waitForMapCanvasSize = async () => {
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        const target = mapCanvasRef.current;
+        if (target) {
+          target.style.setProperty('position', 'absolute', 'important');
+          target.style.setProperty('inset', '0px', 'important');
+          target.style.setProperty('width', '100%', 'important');
+          target.style.setProperty('height', '100%', 'important');
+          target.style.setProperty('min-height', '100%', 'important');
+          target.style.setProperty('overflow', 'hidden', 'important');
+        }
+        const rect = target?.getBoundingClientRect?.();
+        if (rect?.width >= 240 && rect?.height >= 240) return true;
+        await new Promise((resolve) => window.requestAnimationFrame(resolve));
+      }
+      return false;
     };
     const ensureNaverMaps = async () => {
       try {
@@ -1450,6 +1549,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
         }
         await loadSharedNaverMapsSdk(clientId);
         if (cancelled || !mapCanvasRef.current || !window.naver?.maps) return;
+        const hasStableSize = await waitForMapCanvasSize();
+        if (cancelled || !hasStableSize || !mapCanvasRef.current) return;
         if (mapProviderRef.current && mapProviderRef.current !== 'naver') destroyCurrentMap();
         const centerLat = mappableRows.reduce((sum, item) => sum + Number(item.lat), 0) / Math.max(1, mappableRows.length);
         const centerLng = mappableRows.reduce((sum, item) => sum + Number(item.lng), 0) / Math.max(1, mappableRows.length);
@@ -1458,14 +1559,14 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
         if (!map) {
           map = new window.naver.maps.Map(mapCanvasRef.current, {
             center,
-            zoom: selectedMapRegion ? Math.max(9, mapZoom) : Math.max(7, Math.min(10, mapZoom)),
+            zoom: selectedMapRegion ? Math.max(10, mapZoom) : Math.max(7, Math.min(9, mapZoom)),
             minZoom: 6,
             background: '#151515',
           });
         } else {
           map.setCenter(center);
-          if (selectedMapRegion) map.setZoom(Math.max(9, mapZoom));
-          else map.setZoom(Math.max(7, Math.min(10, mapZoom)));
+          if (selectedMapRegion) map.setZoom(Math.max(10, mapZoom));
+          else map.setZoom(Math.max(7, Math.min(9, mapZoom)));
         }
         mapInstanceRef.current = map;
         mapProviderRef.current = 'naver';
@@ -1476,23 +1577,27 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           if (Number.isFinite(nextZoom)) setMapZoom(nextZoom);
         });
         markersRef.current = mappableRows.map((item) => {
-          const marker = new window.naver.maps.Marker({
+          const markerOptions = {
             position: new window.naver.maps.LatLng(item.lat, item.lng),
             map,
             title: item.isCluster
               ? `${item.regionLabel} · ${formatNumber(item.count)}건 · ${formatNumber(item.area, 1)}평`
               : `${item.label} · ${item.regionLabel}${item.fallback ? ' · 권역 기준' : (item.geocoded ? ' · 주소 좌표' : '')}`,
-          });
+          };
+          if (item.isCluster) {
+            markerOptions.icon = {
+              content: clusterIconHtml(item),
+              size: new window.naver.maps.Size(92, 58),
+              anchor: new window.naver.maps.Point(46, 29),
+            };
+          }
+          const marker = new window.naver.maps.Marker(markerOptions);
           window.naver.maps.Event.addListener(marker, 'click', () => {
-            if (item.isCluster) {
-              setSelectedMapRegion(item.region);
-              setMapZoom((current) => Math.max(9, current));
-            } else {
-              onSelectRef.current?.(item.row);
-            }
+            openMapItem(item);
           });
           return marker;
         });
+        let fittedCenter = center;
         if (mappableRows.length > 1 && window.naver.maps.LatLngBounds && typeof map.fitBounds === 'function') {
           try {
             const bounds = new window.naver.maps.LatLngBounds(
@@ -1501,19 +1606,23 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
             );
             mappableRows.forEach((item) => bounds.extend(new window.naver.maps.LatLng(item.lat, item.lng)));
             map.fitBounds(bounds);
+            fittedCenter = bounds.getCenter?.() || center;
           } catch {
             map.setCenter(center);
           }
         }
+        refreshNaverMap(map);
         setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
-        [80, 260, 600].forEach((delay) => window.setTimeout(() => {
-          if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) refreshNaverMap(map);
+        [40, 120, 260, 600, 1200, 2000].forEach((delay) => window.setTimeout(() => {
+          if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) {
+            refreshNaverMap(map);
+            try {
+              map.setCenter(fittedCenter);
+            } catch {
+              // Center correction is best effort after SDK resize.
+            }
+          }
         }, delay));
-        window.setTimeout(() => {
-          if (cancelled || mapProviderRef.current !== 'naver' || forceOsm) return;
-          refreshNaverMap(map);
-          if (!hasSufficientVisibleMapTiles(mapCanvasRef.current)) setForceOsm(true);
-        }, 900);
       } catch {
         if (!cancelled) await mountLeafletMap();
       }
@@ -1556,15 +1665,17 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
       <div
         className={`relative ${mapHeightClass} overflow-hidden rounded-[12px] border border-[#333333] bg-[#151515]`}
         aria-label={`${title} 지도`}
-        data-map-mode="points"
+        data-testid="market-map-panel"
+        data-map-mode={isRegionMode ? 'regions' : 'points'}
         data-map-selected-region={selectedMapRegion}
-        data-map-region-cluster-count="0"
-        data-map-visible-asset-count={visibleRows.length}
+        data-map-region-cluster-count={isRegionMode ? markerRows.filter((item) => item.isCluster).length : 0}
+        data-map-visible-asset-count={isRegionMode ? sourceRows.length : visibleRows.length}
         data-map-provider={mapStatus.status === 'ready' ? 'naver' : (mapStatus.status === 'osm' ? 'osm' : 'fallback')}
         data-naver-map-ready={mapStatus.status === 'ready' ? 'true' : 'false'}
         data-osm-map-ready={mapStatus.status === 'osm' ? 'true' : 'false'}
         data-map-fallback-ready={mapStatus.status === 'fallback' ? 'true' : 'false'}
-        data-map-point-count={markerRows.length}
+        data-map-point-count={markerRows.filter((item) => !item.isCluster).length}
+        data-map-native-marker-count={markerRows.length}
         data-map-coordinate-count={markerRows.length}
         data-map-fallback-count="0"
         data-map-missing-coordinate-count={missingCoordinateCount}
@@ -1572,7 +1683,48 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
         data-map-coordinate-source-count={markerRows.filter((item) => item.coordinateSource).length}
         data-map-excluded-count={excludedCount}
       >
-        <div ref={mapCanvasRef} className="absolute inset-0" aria-hidden="true" />
+        <div
+          ref={mapCanvasRef}
+          className="absolute inset-0 logistics-map-canvas [&_img]:!max-w-none [&_*]:box-content"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', minHeight: '100%', overflow: 'hidden' }}
+          aria-hidden="true"
+        />
+        <style>{`
+          .market-map-region-cluster-icon {
+            background: transparent !important;
+            border: 0 !important;
+          }
+          .market-map-region-cluster-marker {
+            display: grid;
+            place-items: center;
+            width: 86px;
+            min-height: 52px;
+            border-radius: 999px;
+            border: 1px solid rgba(154, 215, 255, 0.72);
+            background: rgba(8, 64, 104, 0.92);
+            color: #fff;
+            font: inherit;
+            line-height: 1.2;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.36);
+            cursor: pointer;
+            text-align: center;
+          }
+          .market-map-region-cluster-marker span {
+            display: block;
+            max-width: 70px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 11px;
+            font-weight: 700;
+          }
+          .market-map-region-cluster-marker strong {
+            display: block;
+            margin-top: 2px;
+            font-size: 12px;
+            font-weight: 800;
+          }
+        `}</style>
         {mapStatus.status === 'osm' ? (
           <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
             {osmLayout.tiles.map((tile) => (
@@ -1605,6 +1757,19 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           ))}
         </div>
         <MapLayerControl value={mapDisplayType} onChange={setMapDisplayType} data-testid="market-map-layer-control" />
+        {selectedMapRegion ? (
+          <button
+            type="button"
+            data-testid="market-map-region-reset"
+            onClick={() => {
+              setSelectedMapRegion('');
+              setMapZoom(8);
+            }}
+            className="absolute left-3 top-3 z-20 h-8 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/90 px-3 text-[11px] font-semibold text-white shadow-xl hover:bg-[#30302F]"
+          >
+            전체 권역
+          </button>
+        ) : null}
         <div className="absolute left-3 bottom-3 z-10 flex overflow-hidden rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/90">
           <button type="button" onClick={() => setMapZoom((current) => Math.min(13, current + 1))} className="h-8 w-9 text-[15px] font-semibold text-[#E5E5E5] hover:bg-white/[0.06]">+</button>
           <button type="button" onClick={() => setMapZoom((current) => Math.max(7, current - 1))} className="h-8 w-9 border-l border-[#3A3A3C] text-[15px] font-semibold text-[#E5E5E5] hover:bg-white/[0.06]">-</button>
@@ -1619,12 +1784,19 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
               <button
                 key={`loading-point-${item.row.row_key || item.row.id || item.index}`}
                 type="button"
-                data-map-point-button="true"
+                data-map-point-button={item.isCluster ? undefined : 'true'}
+                data-region-cluster-button={item.isCluster ? 'true' : undefined}
+                data-region-name={item.isCluster ? item.regionLabel : undefined}
+                data-region-point-count={item.isCluster ? item.count : undefined}
                 title={`${item.label} · ${item.regionLabel}`}
-                onClick={() => onSelect?.(item.row)}
-                className="absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.14)] hover:bg-[#A1A1AA]"
+                onClick={() => openMapItem(item)}
+                className={item.isCluster
+                  ? 'market-map-region-cluster-marker absolute z-10 -translate-x-1/2 -translate-y-1/2'
+                  : 'absolute z-10 h-8 w-8 -translate-x-1/2 -translate-y-full rounded-full border border-white bg-[#9AD7FF] text-[11px] font-bold text-[#111] shadow-[0_8px_18px_rgba(0,0,0,0.28)] hover:bg-white'}
                 style={mapPointStyle(item)}
-              />
+              >
+                {item.isCluster ? null : ''}
+              </button>
             ))}
           </>
         ) : (
@@ -1634,17 +1806,6 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
                 일부 자산은 주소 좌표 확인이 필요합니다.
               </div>
             ) : null}
-            {markerRows.map((item) => (
-              <button
-                key={`ready-point-${item.row.row_key || item.row.id || item.index}`}
-                type="button"
-                data-map-point-button="true"
-                title={`${item.label} · ${item.regionLabel}`}
-                onClick={() => onSelect?.(item.row)}
-                className="absolute z-10 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.14)] hover:bg-[#A1A1AA]"
-                style={mapPointStyle(item)}
-              />
-            ))}
           </>
         )}
         {!sourceRows.length ? <div className="absolute inset-0 grid place-items-center text-[13px] text-[#86868B]">표시할 지도 데이터가 없습니다.</div> : null}
