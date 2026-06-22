@@ -310,11 +310,16 @@ function fakeNaverMapsSdk() {
         constructor(el, options = {}) {
           this.el = el;
           this.zoom = options.zoom || 7;
-          const canvas = document.createElement('canvas');
-          canvas.width = 1;
-          canvas.height = 1;
-          canvas.setAttribute('data-qa-fake-naver-tile', 'true');
-          el.appendChild(canvas);
+          [0, 1, 2, 3].forEach((index) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            canvas.setAttribute('data-qa-fake-naver-tile', 'true');
+            canvas.style.cssText = 'position:absolute;width:50%;height:50%;background:#d7e8f7;';
+            canvas.style.left = index % 2 === 0 ? '0' : '50%';
+            canvas.style.top = index < 2 ? '0' : '50%';
+            el.appendChild(canvas);
+          });
         }
         setCenter(center) { this.center = center; }
         setZoom(zoom) { this.zoom = zoom; }
@@ -523,18 +528,46 @@ async function waitForContentReady(page, tab) {
     if (needsTable && document.querySelectorAll('[data-sortable-table="true"], table').length === 0) return false;
     if (needsChart && document.querySelectorAll('[data-chart-role][data-chart-empty="false"]').length === 0) return false;
     if (needsMap) {
-      const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
+      const visibleTileStats = (el) => {
+        const containerRect = el.getBoundingClientRect();
+        const containerArea = Math.max(1, containerRect.width * containerRect.height);
+        const tiles = Array.from(el.querySelectorAll('img[src], canvas, .leaflet-tile, [data-qa-fake-naver-tile="true"]')).filter((node) => {
+          const rect = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          const src = node.getAttribute('src') || '';
+          const className = typeof node.className === 'string' ? node.className : '';
+          const looksLikeControl = /marker|pin|sprite|logo|control|zoom|scale|dot\.gif|blank|transparent/iu.test(`${src} ${className}`);
+          const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+          const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+          return !looksLikeControl
+            && rect.width >= 96
+            && rect.height >= 96
+            && overlapWidth >= 96
+            && overlapHeight >= 96
+            && style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && Number(style.opacity || 1) > 0.05;
+        });
+        const coveredArea = tiles.reduce((sum, node) => {
+          const rect = node.getBoundingClientRect();
+          const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+          const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+          return sum + (overlapWidth * overlapHeight);
+        }, 0);
+        return { count: tiles.length, coverage: Math.min(1, coveredArea / containerArea) };
+      };
       const hasExpandButton = document.querySelectorAll('[data-testid="market-map-expand-button"]').length > 0;
       const hasReadyMap = Array.from(document.querySelectorAll('[data-map-provider]')).some((el) => {
         const provider = el.getAttribute('data-map-provider') || '';
         const mode = el.getAttribute('data-map-mode') || '';
         const pointCount = Number(el.getAttribute('data-map-point-count') || 0);
-        const tileDomCount = el.querySelectorAll(tileSelector).length;
+        const tileStats = visibleTileStats(el);
         const pointButtons = el.querySelectorAll('[data-map-point-button="true"]').length;
         const regionButtons = el.querySelectorAll('[data-region-cluster-button]').length;
         return ['naver', 'osm'].includes(provider)
           && mode === 'points'
-          && tileDomCount > 0
+          && tileStats.count >= 3
+          && tileStats.coverage >= 0.65
           && pointCount > 0
           && pointButtons > 0
           && regionButtons === 0;
@@ -548,26 +581,58 @@ async function waitForContentReady(page, tab) {
 async function collectPageState(page) {
   return page.evaluate(({ loadingText, errorText, internalPattern }) => {
     const body = document.body?.innerText || '';
-    const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
-    const mapStats = Array.from(document.querySelectorAll('[data-map-provider]')).map((el, index) => ({
-      index,
-      mode: el.getAttribute('data-map-mode') || '',
-      provider: el.getAttribute('data-map-provider') || '',
-      selected_region: el.getAttribute('data-map-selected-region') || '',
-      region_cluster_count: Number(el.getAttribute('data-map-region-cluster-count') || 0),
-      visible_asset_count: Number(el.getAttribute('data-map-visible-asset-count') || 0),
-      point_count: Number(el.getAttribute('data-map-point-count') || 0),
-      coordinate_count: Number(el.getAttribute('data-map-coordinate-count') || 0),
-      fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
-      geocoded_count: Number(el.getAttribute('data-map-geocoded-count') || 0),
-      coordinate_source_count: Number(el.getAttribute('data-map-coordinate-source-count') || 0),
-      naver_ready: el.getAttribute('data-naver-map-ready') === 'true',
-      osm_ready: el.getAttribute('data-osm-map-ready') === 'true',
-      fallback_ready: el.getAttribute('data-map-fallback-ready') === 'true',
-      tile_dom_count: el.querySelectorAll(tileSelector).length,
-      region_buttons: el.querySelectorAll('[data-region-cluster-button="true"]').length,
-      point_buttons: el.querySelectorAll('[data-map-point-button="true"]').length,
-    }));
+    const visibleTileStats = (el) => {
+      const containerRect = el.getBoundingClientRect();
+      const containerArea = Math.max(1, containerRect.width * containerRect.height);
+      const tiles = Array.from(el.querySelectorAll('img[src], canvas, .leaflet-tile, [data-qa-fake-naver-tile="true"]')).filter((node) => {
+        const rect = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        const src = node.getAttribute('src') || '';
+        const className = typeof node.className === 'string' ? node.className : '';
+        const looksLikeControl = /marker|pin|sprite|logo|control|zoom|scale|dot\.gif|blank|transparent/iu.test(`${src} ${className}`);
+        const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+        const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+        return !looksLikeControl
+          && rect.width >= 96
+          && rect.height >= 96
+          && overlapWidth >= 96
+          && overlapHeight >= 96
+          && style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity || 1) > 0.05;
+      });
+      const coveredArea = tiles.reduce((sum, node) => {
+        const rect = node.getBoundingClientRect();
+        const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+        const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+        return sum + (overlapWidth * overlapHeight);
+      }, 0);
+      return { count: tiles.length, coverage: Math.min(1, coveredArea / containerArea) };
+    };
+    const mapStats = Array.from(document.querySelectorAll('[data-map-provider]')).map((el, index) => {
+      const tileStats = visibleTileStats(el);
+      return {
+        index,
+        mode: el.getAttribute('data-map-mode') || '',
+        provider: el.getAttribute('data-map-provider') || '',
+        selected_region: el.getAttribute('data-map-selected-region') || '',
+        region_cluster_count: Number(el.getAttribute('data-map-region-cluster-count') || 0),
+        visible_asset_count: Number(el.getAttribute('data-map-visible-asset-count') || 0),
+        point_count: Number(el.getAttribute('data-map-point-count') || 0),
+        coordinate_count: Number(el.getAttribute('data-map-coordinate-count') || 0),
+        fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
+        geocoded_count: Number(el.getAttribute('data-map-geocoded-count') || 0),
+        coordinate_source_count: Number(el.getAttribute('data-map-coordinate-source-count') || 0),
+        naver_ready: el.getAttribute('data-naver-map-ready') === 'true',
+        osm_ready: el.getAttribute('data-osm-map-ready') === 'true',
+        fallback_ready: el.getAttribute('data-map-fallback-ready') === 'true',
+        tile_dom_count: el.querySelectorAll('img[src], canvas, .leaflet-tile, [data-qa-fake-naver-tile="true"]').length,
+        visible_tile_count: tileStats.count,
+        visible_tile_coverage: Math.round(tileStats.coverage * 1000) / 1000,
+        region_buttons: el.querySelectorAll('[data-region-cluster-button="true"]').length,
+        point_buttons: el.querySelectorAll('[data-map-point-button="true"]').length,
+      };
+    });
     return {
       loading_visible: body.includes(loadingText),
       error_visible: body.includes(errorText),
@@ -698,7 +763,8 @@ async function runDataLoadingStability() {
               && (!tab.needsMap || row.map_stats.some((item) => (
                 ['naver', 'osm'].includes(item.provider)
                 && item.mode === 'points'
-                && item.tile_dom_count > 0
+                && item.visible_tile_count >= 3
+                && item.visible_tile_coverage >= 0.65
                 && item.point_count > 0
                 && item.point_buttons > 0
                 && item.region_buttons === 0
@@ -794,16 +860,45 @@ async function runMarketMapPinpoint() {
     await waitForProvider(page, expectedProvider);
     await page.waitForFunction((provider) => {
       const maps = Array.from(document.querySelectorAll('[data-map-provider]'));
-      const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
-      return maps.some((el) => (
-        el.getAttribute('data-map-provider') === provider
-        && el.getAttribute('data-map-mode') === 'points'
-        && Number(el.getAttribute('data-map-point-count') || 0) > 0
-        && Number(el.getAttribute('data-map-fallback-count') || 0) === 0
-        && el.querySelectorAll(tileSelector).length > 0
-        && el.querySelectorAll('[data-map-point-button="true"]').length > 0
-        && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0
-      ));
+      const visibleTileStats = (el) => {
+        const containerRect = el.getBoundingClientRect();
+        const containerArea = Math.max(1, containerRect.width * containerRect.height);
+        const tiles = Array.from(el.querySelectorAll('img[src], canvas, .leaflet-tile, [data-qa-fake-naver-tile="true"]')).filter((node) => {
+          const rect = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          const src = node.getAttribute('src') || '';
+          const className = typeof node.className === 'string' ? node.className : '';
+          const looksLikeControl = /marker|pin|sprite|logo|control|zoom|scale|dot\.gif|blank|transparent/iu.test(`${src} ${className}`);
+          const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+          const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+          return !looksLikeControl
+            && rect.width >= 96
+            && rect.height >= 96
+            && overlapWidth >= 96
+            && overlapHeight >= 96
+            && style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && Number(style.opacity || 1) > 0.05;
+        });
+        const coveredArea = tiles.reduce((sum, node) => {
+          const rect = node.getBoundingClientRect();
+          const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+          const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+          return sum + (overlapWidth * overlapHeight);
+        }, 0);
+        return { count: tiles.length, coverage: Math.min(1, coveredArea / containerArea) };
+      };
+      return maps.some((el) => {
+        const tileStats = visibleTileStats(el);
+        return el.getAttribute('data-map-provider') === provider
+          && el.getAttribute('data-map-mode') === 'points'
+          && Number(el.getAttribute('data-map-point-count') || 0) > 0
+          && Number(el.getAttribute('data-map-fallback-count') || 0) === 0
+          && tileStats.count >= 3
+          && tileStats.coverage >= 0.65
+          && el.querySelectorAll('[data-map-point-button="true"]').length > 0
+          && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0;
+      });
     }, expectedProvider, { timeout: 60000 });
     const state = await collectPageState(page);
     const activeMap = state.map_stats.find((item) => item.mode === 'points' && item.provider === expectedProvider) || null;
@@ -829,15 +924,44 @@ async function runMarketMapPinpoint() {
       report.large_modal_ready = await page.waitForFunction((provider) => {
         const dialog = document.querySelector('[role="dialog"]');
         if (!dialog) return false;
-        const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
-        return Array.from(dialog.querySelectorAll('[data-map-provider]')).some((el) => (
-          el.getAttribute('data-map-provider') === provider
-          && el.getAttribute('data-map-mode') === 'points'
-          && Number(el.getAttribute('data-map-point-count') || 0) > 0
-          && el.querySelectorAll(tileSelector).length > 0
-          && el.querySelectorAll('[data-map-point-button="true"]').length > 0
-          && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0
-        ));
+        const visibleTileStats = (el) => {
+          const containerRect = el.getBoundingClientRect();
+          const containerArea = Math.max(1, containerRect.width * containerRect.height);
+          const tiles = Array.from(el.querySelectorAll('img[src], canvas, .leaflet-tile, [data-qa-fake-naver-tile="true"]')).filter((node) => {
+            const rect = node.getBoundingClientRect();
+            const style = getComputedStyle(node);
+            const src = node.getAttribute('src') || '';
+            const className = typeof node.className === 'string' ? node.className : '';
+            const looksLikeControl = /marker|pin|sprite|logo|control|zoom|scale|dot\.gif|blank|transparent/iu.test(`${src} ${className}`);
+            const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+            const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+            return !looksLikeControl
+              && rect.width >= 96
+              && rect.height >= 96
+              && overlapWidth >= 96
+              && overlapHeight >= 96
+              && style.display !== 'none'
+              && style.visibility !== 'hidden'
+              && Number(style.opacity || 1) > 0.05;
+          });
+          const coveredArea = tiles.reduce((sum, node) => {
+            const rect = node.getBoundingClientRect();
+            const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+            const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+            return sum + (overlapWidth * overlapHeight);
+          }, 0);
+          return { count: tiles.length, coverage: Math.min(1, coveredArea / containerArea) };
+        };
+        return Array.from(dialog.querySelectorAll('[data-map-provider]')).some((el) => {
+          const tileStats = visibleTileStats(el);
+          return el.getAttribute('data-map-provider') === provider
+            && el.getAttribute('data-map-mode') === 'points'
+            && Number(el.getAttribute('data-map-point-count') || 0) > 0
+            && tileStats.count >= 3
+            && tileStats.coverage >= 0.65
+            && el.querySelectorAll('[data-map-point-button="true"]').length > 0
+            && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0;
+        });
       }, expectedProvider, { timeout: 60000 }).then(() => true).catch(() => false);
     } else {
       report.large_modal_ready = false;
@@ -859,7 +983,8 @@ async function runMarketMapPinpoint() {
     && report.active_map.coordinate_count >= report.active_map.point_count
     && report.active_map.fallback_count === 0
     && report.active_map.coordinate_source_count >= report.active_map.point_count
-    && report.active_map.tile_dom_count > 0
+    && report.active_map.visible_tile_count >= 3
+    && report.active_map.visible_tile_coverage >= 0.65
     && report.active_map.region_buttons === 0
     && report.active_map.point_buttons > 0
     && report.state?.region_summary_visible === false
@@ -909,7 +1034,8 @@ async function runMapProviderMatrix() {
           && state.map_stats.every((item) => (
             item.provider === row.expected
             && item.mode === 'points'
-            && item.tile_dom_count > 0
+            && item.visible_tile_count >= 3
+            && item.visible_tile_coverage >= 0.65
             && item.point_count > 0
             && item.point_buttons > 0
             && item.region_buttons === 0

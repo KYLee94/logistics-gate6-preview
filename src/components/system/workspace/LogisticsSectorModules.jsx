@@ -1008,6 +1008,51 @@ function buildOsmTileLayout(rows, zoom) {
   return { zoom, tiles, pointPositions };
 }
 
+function visibleMapTileCoverage(container) {
+  if (!container || typeof window === 'undefined') return { count: 0, coverage: 0 };
+  const containerRect = container.getBoundingClientRect();
+  const containerArea = Math.max(1, containerRect.width * containerRect.height);
+  const candidates = Array.from(container.querySelectorAll('img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]'));
+  const tiles = candidates.filter((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = window.getComputedStyle(element);
+    const src = element.getAttribute('src') || '';
+    const background = style.backgroundImage || element.style.backgroundImage || '';
+    const className = typeof element.className === 'string' ? element.className : '';
+    const hasRasterTile = element.tagName === 'IMG'
+      || element.tagName === 'CANVAS'
+      || element.getAttribute('data-qa-fake-naver-tile') === 'true'
+      || /url\(/iu.test(background);
+    const looksLikeControl = /marker|pin|sprite|logo|control|zoom|scale|dot\.gif|blank|transparent/iu.test(`${src} ${background} ${className}`);
+    const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+    const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+    return hasRasterTile
+      && !looksLikeControl
+      && rect.width >= 96
+      && rect.height >= 96
+      && overlapWidth >= 96
+      && overlapHeight >= 96
+      && style.display !== 'none'
+      && style.visibility !== 'hidden'
+      && Number(style.opacity || 1) > 0.05;
+  });
+  const coveredArea = tiles.reduce((sum, element) => {
+    const rect = element.getBoundingClientRect();
+    const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+    const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+    return sum + (overlapWidth * overlapHeight);
+  }, 0);
+  return {
+    count: tiles.length,
+    coverage: Math.min(1, coveredArea / containerArea),
+  };
+}
+
+function hasSufficientVisibleMapTiles(container) {
+  const stats = visibleMapTileCoverage(container);
+  return stats.count >= 3 && stats.coverage >= 0.65;
+}
+
 function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'region', onSelect, showLargeButton = true, mapHeightClass = 'h-[520px]' }) {
   const sourceRows = safeArray(rows);
   const mapCanvasRef = useRef(null);
@@ -1378,6 +1423,19 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
         }
       }
     };
+    const refreshNaverMap = (map) => {
+      if (!map || mapProviderRef.current !== 'naver') return;
+      try {
+        map.refresh?.();
+      } catch {
+        // Naver may throw while refreshing a hidden or detached map container.
+      }
+      try {
+        window.naver?.maps?.Event?.trigger?.(map, 'resize');
+      } catch {
+        // Resize trigger is best effort only.
+      }
+    };
     const ensureNaverMaps = async () => {
       try {
         if (forceOsm) {
@@ -1448,11 +1506,14 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           }
         }
         setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
+        [80, 260, 700, 1200].forEach((delay) => window.setTimeout(() => {
+          if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) refreshNaverMap(map);
+        }, delay));
         window.setTimeout(() => {
           if (cancelled || mapProviderRef.current !== 'naver' || forceOsm) return;
-          const hasRenderedTile = Boolean(mapCanvasRef.current?.querySelector('img[src], canvas, [style*="background-image"]'));
-          if (!hasRenderedTile) setForceOsm(true);
-        }, 1200);
+          refreshNaverMap(map);
+          if (!hasSufficientVisibleMapTiles(mapCanvasRef.current)) setForceOsm(true);
+        }, 1800);
       } catch {
         if (!cancelled) await mountLeafletMap();
       }

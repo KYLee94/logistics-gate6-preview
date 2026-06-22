@@ -200,11 +200,39 @@ async function waitForStableMarketDataPage(page, tab) {
     }, { timeout: 120000 }).then(() => true).catch(() => false);
     result.map_points_provider_ready = await page.waitForFunction(() => {
       const maps = Array.from(document.querySelectorAll('[data-map-point-count]'));
-      const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
+      const visibleTileStats = (el) => {
+        const containerRect = el.getBoundingClientRect();
+        const containerArea = Math.max(1, containerRect.width * containerRect.height);
+        const tiles = Array.from(el.querySelectorAll('img[src], canvas, .leaflet-tile, [data-qa-fake-naver-tile="true"]')).filter((node) => {
+          const rect = node.getBoundingClientRect();
+          const style = getComputedStyle(node);
+          const src = node.getAttribute('src') || '';
+          const className = typeof node.className === 'string' ? node.className : '';
+          const looksLikeControl = /marker|pin|sprite|logo|control|zoom|scale|dot\.gif|blank|transparent/iu.test(`${src} ${className}`);
+          const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+          const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+          return !looksLikeControl
+            && rect.width >= 96
+            && rect.height >= 96
+            && overlapWidth >= 96
+            && overlapHeight >= 96
+            && style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && Number(style.opacity || 1) > 0.05;
+        });
+        const coveredArea = tiles.reduce((sum, node) => {
+          const rect = node.getBoundingClientRect();
+          const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+          const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+          return sum + (overlapWidth * overlapHeight);
+        }, 0);
+        return { count: tiles.length, coverage: Math.min(1, coveredArea / containerArea) };
+      };
       return maps.length > 0 && maps.every((el) => (
         el.getAttribute('data-map-mode') === 'points'
         && (el.getAttribute('data-naver-map-ready') === 'true' || el.getAttribute('data-osm-map-ready') === 'true')
-        && el.querySelectorAll(tileSelector).length > 0
+        && visibleTileStats(el).count >= 3
+        && visibleTileStats(el).coverage >= 0.65
         && el.querySelectorAll('[data-map-point-button="true"]').length > 0
         && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0
       ));
@@ -297,21 +325,53 @@ async function main() {
       const osmMapCount = await page.locator('[data-osm-map-ready="true"]').count().catch(() => 0);
       const fallbackMapCount = await page.locator('[data-map-fallback-ready="true"]').count().catch(() => 0);
       const mapCoordinateStats = await page.evaluate(() => {
-        const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
-        return Array.from(document.querySelectorAll('[data-map-point-count]')).map((el) => ({
-          mode: el.getAttribute('data-map-mode') || '',
-          selected_region: el.getAttribute('data-map-selected-region') || '',
-          region_cluster_count: Number(el.getAttribute('data-map-region-cluster-count') || 0),
-          visible_asset_count: Number(el.getAttribute('data-map-visible-asset-count') || 0),
-          point_count: Number(el.getAttribute('data-map-point-count') || 0),
-          coordinate_count: Number(el.getAttribute('data-map-coordinate-count') || 0),
-          fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
-          geocoded_count: Number(el.getAttribute('data-map-geocoded-count') || 0),
-          coordinate_source_count: Number(el.getAttribute('data-map-coordinate-source-count') || 0),
-          tile_dom_count: el.querySelectorAll(tileSelector).length,
-          point_button_count: el.querySelectorAll('[data-map-point-button="true"]').length,
-          region_button_count: el.querySelectorAll('[data-region-cluster-button="true"]').length,
-        }));
+        const visibleTileStats = (el) => {
+          const containerRect = el.getBoundingClientRect();
+          const containerArea = Math.max(1, containerRect.width * containerRect.height);
+          const tiles = Array.from(el.querySelectorAll('img[src], canvas, .leaflet-tile, [data-qa-fake-naver-tile="true"]')).filter((node) => {
+            const rect = node.getBoundingClientRect();
+            const style = getComputedStyle(node);
+            const src = node.getAttribute('src') || '';
+            const className = typeof node.className === 'string' ? node.className : '';
+            const looksLikeControl = /marker|pin|sprite|logo|control|zoom|scale|dot\.gif|blank|transparent/iu.test(`${src} ${className}`);
+            const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+            const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+            return !looksLikeControl
+              && rect.width >= 96
+              && rect.height >= 96
+              && overlapWidth >= 96
+              && overlapHeight >= 96
+              && style.display !== 'none'
+              && style.visibility !== 'hidden'
+              && Number(style.opacity || 1) > 0.05;
+          });
+          const coveredArea = tiles.reduce((sum, node) => {
+            const rect = node.getBoundingClientRect();
+            const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+            const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+            return sum + (overlapWidth * overlapHeight);
+          }, 0);
+          return { count: tiles.length, coverage: Math.min(1, coveredArea / containerArea) };
+        };
+        return Array.from(document.querySelectorAll('[data-map-point-count]')).map((el) => {
+          const tileStats = visibleTileStats(el);
+          return {
+            mode: el.getAttribute('data-map-mode') || '',
+            selected_region: el.getAttribute('data-map-selected-region') || '',
+            region_cluster_count: Number(el.getAttribute('data-map-region-cluster-count') || 0),
+            visible_asset_count: Number(el.getAttribute('data-map-visible-asset-count') || 0),
+            point_count: Number(el.getAttribute('data-map-point-count') || 0),
+            coordinate_count: Number(el.getAttribute('data-map-coordinate-count') || 0),
+            fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
+            geocoded_count: Number(el.getAttribute('data-map-geocoded-count') || 0),
+            coordinate_source_count: Number(el.getAttribute('data-map-coordinate-source-count') || 0),
+            tile_dom_count: el.querySelectorAll('img[src], canvas, .leaflet-tile, [data-qa-fake-naver-tile="true"]').length,
+            visible_tile_count: tileStats.count,
+            visible_tile_coverage: Math.round(tileStats.coverage * 1000) / 1000,
+            point_button_count: el.querySelectorAll('[data-map-point-button="true"]').length,
+            region_button_count: el.querySelectorAll('[data-region-cluster-button="true"]').length,
+          };
+        });
       }).catch(() => []);
       const allVisibleMapPointsCoordinateReady = !tab.needsMap || mapCoordinateStats.every((item) => (
         item.mode === 'points'
@@ -319,7 +379,8 @@ async function main() {
         && item.coordinate_count >= item.point_count
         && item.fallback_count === 0
         && item.coordinate_source_count >= item.point_count
-        && item.tile_dom_count > 0
+        && item.visible_tile_count >= 3
+        && item.visible_tile_coverage >= 0.65
         && item.point_button_count > 0
         && item.region_button_count === 0
       ));
