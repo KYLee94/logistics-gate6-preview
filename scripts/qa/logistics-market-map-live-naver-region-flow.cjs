@@ -203,21 +203,21 @@ async function main() {
       const routeKey = route.replace(/[^\w-]+/gu, '-');
       const entry = { route, ok: false, screenshots: [], errors: [] };
       await page.goto(joinUrl(baseUrl, route), { waitUntil: 'domcontentloaded', timeout: 60000 });
-      await page.waitForFunction(() => /Market\s*Data/iu.test(document.body?.innerText || ''), { timeout: 60000 });
+      await page.waitForFunction(() => /Market\s*Data/iu.test(document.body?.innerText || ''), undefined, { timeout: 60000 });
       await page.waitForFunction(() => {
         const panel = document.querySelector('[data-testid="market-map-panel"]');
         return panel
           && panel.getAttribute('data-map-provider') === 'naver'
           && panel.getAttribute('data-map-mode') === 'regions'
           && Number(panel.getAttribute('data-map-region-cluster-count') || 0) > 0;
-      }, { timeout: 120000 });
+      }, undefined, { timeout: 120000 });
       await page.waitForFunction(() => {
         const panel = document.querySelector('[data-testid="market-map-panel"]');
         if (!panel) return false;
         const sources = Array.from(panel.querySelectorAll('img[src]')).map((img) => img.getAttribute('src') || '');
         return sources.some((src) => /pstatic\.net|naver\.com/iu.test(src))
           && !sources.some((src) => /tile\.openstreetmap\.org/iu.test(src));
-      }, { timeout: 60000 });
+      }, undefined, { timeout: 60000 });
       entry.region_first_stats = (await visibleTileStats(page))[0] || {};
       const regionShot = path.join(OUT_DIR, `live-market-map-naver-region-flow-${routeKey}-01-region-first-${stamp}.png`);
       await screenshotElement(page, '[data-testid="market-map-panel"]', regionShot);
@@ -232,7 +232,7 @@ async function main() {
           && panel.getAttribute('data-map-mode') === 'points'
           && Number(panel.getAttribute('data-map-point-count') || 0) > 0
           && Number(panel.getAttribute('data-map-native-marker-count') || 0) > 0;
-      }, { timeout: 60000 });
+      }, undefined, { timeout: 60000 });
       await page.waitForFunction(() => {
         const panel = document.querySelector('[data-testid="market-map-panel"]');
         if (!panel) return false;
@@ -240,7 +240,7 @@ async function main() {
         return sources.some((src) => /marker|pin|sprite/iu.test(src))
           && sources.some((src) => /pstatic\.net|naver\.com/iu.test(src))
           && !sources.some((src) => /tile\.openstreetmap\.org/iu.test(src));
-      }, { timeout: 60000 }).catch(() => {
+      }, undefined, { timeout: 60000 }).catch(() => {
         entry.errors.push('Naver marker image was not detected after region click.');
       });
       entry.point_stats = (await visibleTileStats(page))[0] || {};

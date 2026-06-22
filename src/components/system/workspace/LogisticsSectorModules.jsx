@@ -249,6 +249,19 @@ const REGION_CENTER_COORDS = {
   경북권: [36.019, 128.343],
   '지방 기타권': [35.871, 128.601],
 };
+const REGION_CLUSTER_COORDS = {
+  서북권: [37.93, 126.58],
+  서부권: [37.32, 126.43],
+  중앙권: [37.47, 127.15],
+  동남권: [37.08, 127.72],
+  남부권: [36.72, 127.05],
+  '수도권 기타권': [38.07, 127.42],
+  충청권: [36.34, 127.42],
+  전라권: [35.15, 126.78],
+  경북권: [36.18, 128.96],
+  경남권: [35.05, 128.42],
+  '지방 기타권': [35.55, 129.35],
+};
 const INTERNAL_FIELD_PATTERN = /^ll_|^source_|(^|_)(id|uuid)$|source_row_id|source_file_id|source_sheet_id|row_hash|natural_key|payload|pnu|법정동|법정동코드|adm_code|legal_dong_code|geom|geometry|created_at|updated_at/iu;
 const FIELD_LABELS = {
   asset_name: '자산명',
@@ -1114,7 +1127,9 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
     const rows = Array.from(grouped.values())
       .sort((a, b) => b.area - a.area || b.count - a.count || a.regionLabel.localeCompare(b.regionLabel, 'ko'))
       .map((item, index) => {
-        const center = REGION_CENTER_COORDS[item.region] || [36.4 + ((index % 5) - 2) * 0.7, 127.8 + ((Math.floor(index / 5) % 4) - 1.5) * 0.9];
+        const center = REGION_CLUSTER_COORDS[item.region]
+          || REGION_CENTER_COORDS[item.region]
+          || [36.4 + ((index % 5) - 2) * 0.7, 127.8 + ((Math.floor(index / 5) % 4) - 1.5) * 0.9];
         const position = REGION_MAP_POSITIONS[item.region] || [hashPosition(item.region, 'x'), hashPosition(item.region, 'y')];
         return {
           ...item,
