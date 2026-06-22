@@ -1,14 +1,7 @@
 import React from 'react';
-import Header from './components/Header';
-import MainLayout from './components/MainLayout';
 import { useAnimations } from './hooks/useAnimations';
 import { useLanguage } from './context/LanguageContext';
 import { useAuth } from './context/AuthContext';
-import Notes from './components/Notes';
-import SystemFullChat from './components/system/SystemFullChat';
-import SystemCore from './components/system/SystemCore';
-import SystemPlan from './components/system/SystemPlan';
-import SystemLogin from './components/system/SystemLogin';
 import AuthSetup from './components/system/AuthSetup';
 import PlatformCore from './components/system/PlatformCore';
 import WorkspaceArchive from './components/system/workspace/WorkspaceArchive';
@@ -20,6 +13,8 @@ export default function App() {
   const LOGISTICS_WORKSPACE_PATH = LOGISTICS_INTERNAL_BASE;
   const normalizeGate6Page = (path) => {
       const normalized = normalizeLogisticsPath(path || LOGISTICS_WORKSPACE_PATH);
+      if (normalized === 'auth-setup') return normalized;
+      if (!normalized.startsWith('platform/iotaseoul')) return LOGISTICS_WORKSPACE_PATH;
       const isLegacyIotaPage = normalized.startsWith('platform/iotaseoul')
           && !normalized.startsWith(LOGISTICS_INTERNAL_BASE);
       return isLegacyIotaPage ? LOGISTICS_WORKSPACE_PATH : normalized;
@@ -107,8 +102,7 @@ export default function App() {
   const shouldShowAuthSetup = currentPage === 'auth-setup'
       || (!loading && !user && currentPage.startsWith('platform/iotaseoul') && !recoveryMode);
   const renderedPage = shouldShowAuthSetup ? 'auth-setup' : currentPage;
-  const isFullscreenPage = ['system-plan', 'system-bridge', 'system-chat', 'system-detail', 'system-core', 'platform', 'auth-setup', 'workspace/archive'].includes(renderedPage)
-      || renderedPage.startsWith('platform/iotaseoul');
+  const isFullscreenPage = renderedPage === 'auth-setup' || renderedPage.startsWith('platform/iotaseoul');
   const hideMobileBlocker = renderedPage === 'auth-setup' || renderedPage.startsWith('platform/iotaseoul');
 
   // Protect platform routes
@@ -177,33 +171,7 @@ export default function App() {
       </div>
 
       <div className={isFullscreenPage ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
-        {!isFullscreenPage && (
-            <Header
-              onNavigateToHome={() => setCurrentPage('home')}
-              currentPage={renderedPage}
-            />
-        )}
-
-        {renderedPage === 'home' && <MainLayout />}
-        {renderedPage === 'action-plan' && <Notes />}
-        
-        {/* Navigation Handlers overriding the inline SystemPlan internal stage logic */}
         {renderedPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo(window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_WORKSPACE_PATH)} />}
-        {renderedPage === 'system-plan' && <SystemLogin onLogin={() => navigateTo('system-bridge')} />}
-        {['system-bridge', 'system-chat', 'system-detail'].includes(renderedPage) && (
-            <SystemPlan 
-                externalStage={
-                    renderedPage === 'system-bridge' ? 0 :
-                    renderedPage === 'system-chat' ? 1 : 2
-                } 
-                onNext={() => {
-                    if (renderedPage === 'system-bridge') navigateTo('system-chat');
-                    if (renderedPage === 'system-chat') navigateTo('system-detail');
-                }} 
-            />
-        )}
-        {renderedPage === 'system-core' && <SystemCore isPlatform={false} />}
-        {renderedPage === 'platform' && <PlatformCore isPlatform={true} />}
         {renderedPage.startsWith('platform/iotaseoul') && !renderedPage.includes('/archive') && <PlatformCore isPlatform={true} isIotaWorkspaceOverride={true} currentPath={renderedPage} />}
         {(renderedPage.includes('workspace/archive') || renderedPage.endsWith('/archive')) && <WorkspaceArchive />}
       </div>

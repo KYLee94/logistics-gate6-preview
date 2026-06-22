@@ -1,0 +1,2102 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-22T06:32:07.302Z",
+  "base_url": "http://127.0.0.1:4192/logistics-gate6-preview/",
+  "browser_logs": [
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Error fetching logs: FunctionsFetchError: Failed to send a request to the Edge Function\n    at http://127.0.0.1:4192/logistics-gate6-preview/assets/vendor-supabase-0Z3IuwbE.js:1:2295"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Error fetching logs: FunctionsFetchError: Failed to send a request to the Edge Function\n    at http://127.0.0.1:4192/logistics-gate6-preview/assets/vendor-supabase-0Z3IuwbE.js:1:2295"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Error fetching logs: FunctionsFetchError: Failed to send a request to the Edge Function\n    at http://127.0.0.1:4192/logistics-gate6-preview/assets/vendor-supabase-0Z3IuwbE.js:1:2295"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Error fetching logs: FunctionsFetchError: Failed to send a request to the Edge Function\n    at http://127.0.0.1:4192/logistics-gate6-preview/assets/vendor-supabase-0Z3IuwbE.js:1:2295"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Error fetching logs: FunctionsFetchError: Failed to send a request to the Edge Function\n    at http://127.0.0.1:4192/logistics-gate6-preview/assets/vendor-supabase-0Z3IuwbE.js:1:2295"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Error fetching logs: FunctionsFetchError: Failed to send a request to the Edge Function\n    at http://127.0.0.1:4192/logistics-gate6-preview/assets/vendor-supabase-0Z3IuwbE.js:1:2295"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Error fetching logs: FunctionsFetchError: Failed to send a request to the Edge Function\n    at http://127.0.0.1:4192/logistics-gate6-preview/assets/vendor-supabase-0Z3IuwbE.js:1:2295"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Error fetching logs: FunctionsFetchError: Failed to send a request to the Edge Function\n    at http://127.0.0.1:4192/logistics-gate6-preview/assets/vendor-supabase-0Z3IuwbE.js:1:2295"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Error fetching logs: FunctionsFetchError: Failed to send a request to the Edge Function\n    at http://127.0.0.1:4192/logistics-gate6-preview/assets/vendor-supabase-0Z3IuwbE.js:1:2295"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 400 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: the server responded with a status of 401 ()"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Access to fetch at 'https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api' from origin 'http://127.0.0.1:4192' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource."
+    },
+    {
+      "type": "requestfailed",
+      "url": "https://qvegpozwrcmspdvjokiz.supabase.co/functions/v1/ll-dashboard-api",
+      "failure": "net::ERR_FAILED"
+    },
+    {
+      "type": "console",
+      "level": "error",
+      "text": "Failed to load resource: net::ERR_FAILED"
+    }
+  ],
+  "checked_routes": [
+    {
+      "route": "(base)",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "home",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "action-plan",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "system-plan",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "system-bridge",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "system-chat",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "system-detail",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "system-core",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "platform",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "platform/iotaseoul",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    },
+    {
+      "route": "platform/iotaseoul/workspace/logistics/dashboard/home",
+      "final_url": "http://127.0.0.1:4192/logistics-gate6-preview/auth-setup",
+      "found_legacy_text": [],
+      "has_logistics_shell": true,
+      "ok": true,
+      "excerpt": "Logistics\n물류센터 워크 플랫폼\n물류센터 워크 플랫폼\n@igisam.com 도메인의 회사 이메일 계정을 입력해주세요\n로그인 정보 기억\n다음"
+    }
+  ]
+}

@@ -1,0 +1,98 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-22T06:23:12.439Z",
+  "script": "qa:map-provider-matrix",
+  "simulation": "success",
+  "base_url": "http://127.0.0.1:5173/",
+  "matrix": [
+    {
+      "key": "naver-simulated",
+      "expected_provider": "naver",
+      "observed_providers": [
+        "naver"
+      ],
+      "map_stats": [
+        {
+          "index": 0,
+          "mode": "regions",
+          "provider": "naver",
+          "selected_region": "",
+          "region_cluster_count": 6,
+          "visible_asset_count": 0,
+          "point_count": 6,
+          "coordinate_count": 6,
+          "fallback_count": 0,
+          "geocoded_count": 0,
+          "coordinate_source_count": 6,
+          "naver_ready": true,
+          "osm_ready": false,
+          "fallback_ready": false,
+          "region_buttons": 6,
+          "point_buttons": 0
+        }
+      ],
+      "api_calls": [],
+      "ok": true
+    },
+    {
+      "key": "osm-config-missing",
+      "expected_provider": "osm",
+      "observed_providers": [
+        "osm"
+      ],
+      "map_stats": [
+        {
+          "index": 0,
+          "mode": "regions",
+          "provider": "osm",
+          "selected_region": "",
+          "region_cluster_count": 6,
+          "visible_asset_count": 0,
+          "point_count": 6,
+          "coordinate_count": 6,
+          "fallback_count": 0,
+          "geocoded_count": 0,
+          "coordinate_source_count": 6,
+          "naver_ready": false,
+          "osm_ready": true,
+          "fallback_ready": false,
+          "region_buttons": 6,
+          "point_buttons": 0
+        }
+      ],
+      "api_calls": [],
+      "ok": true
+    },
+    {
+      "key": "osm-config-error",
+      "expected_provider": "osm",
+      "observed_providers": [
+        "osm"
+      ],
+      "map_stats": [
+        {
+          "index": 0,
+          "mode": "regions",
+          "provider": "osm",
+          "selected_region": "",
+          "region_cluster_count": 6,
+          "visible_asset_count": 0,
+          "point_count": 6,
+          "coordinate_count": 6,
+          "fallback_count": 0,
+          "geocoded_count": 0,
+          "coordinate_source_count": 6,
+          "naver_ready": false,
+          "osm_ready": true,
+          "fallback_ready": false,
+          "region_buttons": 6,
+          "point_buttons": 0
+        }
+      ],
+      "api_calls": [],
+      "ok": true
+    }
+  ],
+  "errors": [],
+  "warnings": []
+}

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
-import { invokeDashboardApi } from '../../../utils/supabaseSession';
+import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supabaseSession';
 import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -21,6 +21,12 @@ import {
   InvestmentIndexDashboard,
   MarketDataDashboard,
 } from './LogisticsSectorModules';
+import {
+  getNaverMapsClientId as getSharedNaverMapsClientId,
+  loadLeafletSdk as loadSharedLeafletSdk,
+  loadNaverMapsSdk as loadSharedNaverMapsSdk,
+  MapLayerControl,
+} from './LogisticsMapRuntime';
 import infoIconUrl from '../../../assets/i_icon.png';
 import { avatarCandidates } from '../avatarUtils';
 
@@ -253,7 +259,7 @@ function canUseStaticDashboardFallback(mode, status, message) {
 }
 
 function dashboardReadCacheKey(action, payloadKey) {
-  return `${action}:${payloadKey || '{}'}`;
+  return `${getDashboardCacheScope()}:${action}:${payloadKey || '{}'}`;
 }
 
 function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled = true) {
@@ -6954,77 +6960,6 @@ function TrendChart({ rows, valueKey, secondaryKey, valueType = 'currency' }) {
   );
 }
 
-function loadLeafletSdk() {
-  if (typeof window === 'undefined') return Promise.reject(new Error('browser unavailable'));
-  if (window.L?.map) return Promise.resolve(window.L);
-  if (window.__logisticsLeafletPromise) return window.__logisticsLeafletPromise;
-  window.__logisticsLeafletPromise = new Promise((resolve, reject) => {
-    if (!document.getElementById('logistics-leaflet-css')) {
-      const link = document.createElement('link');
-      link.id = 'logistics-leaflet-css';
-      link.rel = 'stylesheet';
-      link.href = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css';
-      document.head.appendChild(link);
-    }
-    const script = document.createElement('script');
-    script.async = true;
-    script.src = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js';
-    script.onload = () => (window.L?.map ? resolve(window.L) : reject(new Error('Leaflet SDK unavailable')));
-    script.onerror = () => reject(new Error('Leaflet SDK load failed'));
-    document.head.appendChild(script);
-  }).catch((error) => {
-    window.__logisticsLeafletPromise = null;
-    throw error;
-  });
-  return window.__logisticsLeafletPromise;
-}
-
-async function getNaverMapsClientId() {
-  if (typeof window === 'undefined') return '';
-  if (window.__logisticsNaverMapsClientId) return window.__logisticsNaverMapsClientId;
-  if (window.__logisticsNaverMapsClientIdPromise) return window.__logisticsNaverMapsClientIdPromise;
-  window.__logisticsNaverMapsClientIdPromise = invokeDashboardApi('naver/maps-config', {})
-    .then(({ data, error }) => {
-      if (error || !data?.ok || !data?.ncp_key_id) throw new Error(error?.message || data?.message || 'Naver Maps client id unavailable');
-      window.__logisticsNaverMapsClientId = data.ncp_key_id;
-      return data.ncp_key_id;
-    })
-    .catch((error) => {
-      window.__logisticsNaverMapsClientIdPromise = null;
-      throw error;
-    });
-  return window.__logisticsNaverMapsClientIdPromise;
-}
-
-function loadNaverMapsSdk(clientId) {
-  if (typeof window === 'undefined') return Promise.reject(new Error('browser unavailable'));
-  if (!clientId) return Promise.reject(new Error('Naver Maps client id missing'));
-  if (window.naver?.maps?.Map) return Promise.resolve(window.naver);
-  if (window.__logisticsNaverMapPromise) return window.__logisticsNaverMapPromise;
-  window.__logisticsNaverMapPromise = new Promise((resolve, reject) => {
-    const timeoutId = window.setTimeout(() => reject(new Error('Naver Maps SDK timeout')), 5000);
-    const resolveWhenReady = () => {
-      window.clearTimeout(timeoutId);
-      if (window.naver?.maps?.Map) resolve(window.naver);
-      else reject(new Error('Naver Maps SDK unavailable'));
-    };
-    const script = document.createElement('script');
-    script.id = 'logistics-naver-map-sdk';
-    script.async = true;
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}`;
-    script.onload = resolveWhenReady;
-    script.onerror = () => {
-      window.clearTimeout(timeoutId);
-      reject(new Error('Naver Maps SDK load failed'));
-    };
-    document.head.appendChild(script);
-  }).catch((error) => {
-    window.__logisticsNaverMapPromise = null;
-    throw error;
-  });
-  return window.__logisticsNaverMapPromise;
-}
-
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;',
@@ -7283,7 +7218,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
       return undefined;
     }
 
-    const mountLeaflet = () => loadLeafletSdk()
+    const mountLeaflet = () => loadSharedLeafletSdk()
       .then((L) => {
         if (disposed || !containerRef.current) return;
         setMode('leaflet');
@@ -7332,8 +7267,8 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
         setStatus(`대체 지도로 ${validPoints.length}개 자산을 표시하고 있어요`);
       });
 
-    getNaverMapsClientId()
-      .then((clientId) => loadNaverMapsSdk(clientId))
+    getSharedNaverMapsClientId()
+      .then((clientId) => loadSharedNaverMapsSdk(clientId))
       .then((naver) => {
         if (disposed || !containerRef.current) return;
         setMode('naver');
@@ -7499,7 +7434,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
             white-space: nowrap;
           }
         `}</style>
-        <div className="absolute right-3 top-3 z-20 flex w-[96px] flex-col gap-1.5 rounded-[10px] border border-[#333333] bg-[#1F1F1E]/92 p-1.5 shadow-xl backdrop-blur">
+        <div className="hidden">
           {[
             ['normal', '일반'],
             ['satellite', '위성'],
@@ -7515,6 +7450,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
             </button>
           ))}
         </div>
+        <MapLayerControl value={activeMapTool} onChange={applyMapTool} data-testid="portfolio-map-layer-control" />
       </div>
     </div>
   );

@@ -37,8 +37,12 @@ function argsValue(name, fallback = '') {
   return index === -1 ? fallback : (process.argv[index + 1] || fallback);
 }
 
+function hasFlag(name) {
+  return process.argv.includes(`--${name}`);
+}
+
 function timestampForFile() {
-  return new Date().toISOString().replace(/[-:]/gu, '').replace(/\..+$/u, '').replace('T', '-');
+  return new Date().toISOString().replace(/[-:]/gu, '').replace(/\./u, '-').replace('T', '-');
 }
 
 function chromeExecutablePath() {
@@ -51,7 +55,9 @@ function chromeExecutablePath() {
 
 function joinUrl(baseUrl, route) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  return new URL(route.replace(/^\/+/u, ''), normalizedBase).toString();
+  const url = new URL(route.replace(/^\/+/u, ''), normalizedBase);
+  if (hasFlag('cache-bust')) url.searchParams.set('qa_cache_bust', timestampForFile());
+  return url.toString();
 }
 
 async function signInSession() {

@@ -6,6 +6,7 @@ import { invokeDashboardApi, signOutSupabaseLocal } from '../utils/supabaseSessi
 const AuthContext = createContext();
 
 const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const AUTH_INITIALIZATION_WARNING_MS = 15 * 1000;
 const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
 const LOGISTICS_LOCAL_AUTH_KEY = 'logistics_preview_auth';
 
@@ -151,9 +152,8 @@ export function AuthProvider({ children }) {
                 }
 
                 timeoutId = setTimeout(() => {
-                    console.error('Auth initialization timed out. Rendering fallback state.');
-                    if (mounted) setLoading(false);
-                }, 5000);
+                    console.warn('Auth initialization is taking longer than expected.');
+                }, AUTH_INITIALIZATION_WARNING_MS);
 
                 const { data: { session } } = await supabase.auth.getSession();
                 clearTimeout(timeoutId);

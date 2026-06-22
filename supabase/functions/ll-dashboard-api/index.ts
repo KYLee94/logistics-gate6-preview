@@ -39,6 +39,23 @@ const MARKET_SOURCE_MAX_BYTES = 100 * 1024 * 1024;
 const MARKET_EMBEDDING_MODEL = 'gemini-embedding-001';
 const MARKET_EMBEDDING_DIM = 768;
 const MARKET_SEMANTIC_MATCH_THRESHOLD = 0.24;
+const SECTOR_MARKET_READ_VIEWS = ['overview', 'lease', 'supply', 'transactions', 'source', 'all'] as const;
+const SECTOR_MARKET_READ_VIEW_SET = new Set<string>(SECTOR_MARKET_READ_VIEWS);
+const SECTOR_MARKET_INTERNAL_RESPONSE_KEYS = new Set([
+  'payload',
+  'source_file_id',
+  'source_row_id',
+  'source_sheet_id',
+  'source_column_id',
+  'source_hash',
+  'observation_id',
+  'supply_case_id',
+  'transaction_case_id',
+  'cap_rate_id',
+  'pnu',
+  'legal_dong_code',
+]);
+type SectorMarketReadView = typeof SECTOR_MARKET_READ_VIEWS[number];
 
 const LOGISTICS_STAFF_NAME_BY_EMAIL: Record<string, string> = {
   "ysoh@igisam.com": "오윤석",
@@ -4080,8 +4097,52 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
   return jsonResponse({ ok: true, data: { source_file_id: activeSourceId, source_file_name: sourceResult.data?.file_name || null, dry_run: dryRun, offset, limit, results } }, 200, ctx.origin);
 }
 
+function normalizeSectorMarketReadView(payload: Record<string, unknown>) {
+  const rawView = safeText(payload.view).toLowerCase();
+  if (!rawView) return { view: null as SectorMarketReadView | null, error: '' };
+  if (SECTOR_MARKET_READ_VIEW_SET.has(rawView)) return { view: rawView as SectorMarketReadView, error: '' };
+  return {
+    view: null as SectorMarketReadView | null,
+    error: `Invalid sector market view. Use one of: ${SECTOR_MARKET_READ_VIEWS.join(', ')}`,
+  };
+}
+
+function scrubSectorMarketInternalResponseKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => scrubSectorMarketInternalResponseKeys(item));
+  if (!value || typeof value !== 'object') return value;
+  const output: Record<string, unknown> = {};
+  Object.entries(value as Record<string, unknown>).forEach(([key, child]) => {
+    if (key.startsWith('ll_') || SECTOR_MARKET_INTERNAL_RESPONSE_KEYS.has(key)) return;
+    output[key] = scrubSectorMarketInternalResponseKeys(child);
+  });
+  return output;
+}
+
+function sectorMarketDataForView(fullData: Record<string, unknown>, view: SectorMarketReadView | null) {
+  if (!view) return fullData;
+  const summary = (fullData.summary && typeof fullData.summary === 'object')
+    ? fullData.summary as Record<string, unknown>
+    : {};
+  const views = (fullData.views && typeof fullData.views === 'object')
+    ? fullData.views as Record<string, unknown>
+    : {};
+  const selectedViews = view === 'all'
+    ? views
+    : { [view]: views[view] || {} };
+  return scrubSectorMarketInternalResponseKeys(stripUndefined({
+    summary,
+    readback: summary.readback || {},
+    data_quality: summary.data_quality || {},
+    view,
+    views: selectedViews,
+  }));
+}
+
 async function callSectorMarketRead(ctx: Context, payload: Record<string, unknown>) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) return fail(403, 'Market research permission required', ctx.origin);
+  const viewResult = normalizeSectorMarketReadView(payload);
+  if (viewResult.error) return fail(400, viewResult.error, ctx.origin, { allowed_views: SECTOR_MARKET_READ_VIEWS });
+  const requestedView = viewResult.view;
   const sampleLimit = Math.min(Math.max(Number(payload.limit || 500), 50), 12000);
   const sourceResult = await ctx.serviceClient
     .from('ll_source_files')
@@ -4123,7 +4184,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     sources,
     charts: {},
   };
-  if (!activeSourceId) return jsonResponse({ ok: true, data: emptyMarketData }, 200, ctx.origin);
+  if (!activeSourceId) return jsonResponse({ ok: true, data: sectorMarketDataForView(emptyMarketData, requestedView) }, 200, ctx.origin);
 
   const validationSummary = activeSource?.validation_summary && typeof activeSource.validation_summary === 'object'
     ? activeSource.validation_summary as Record<string, unknown>
@@ -4315,10 +4376,25 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     }
     return { data: out, error: null };
   };
-  const leaseQuery = fetchMarketPageRows('ll_sector_market_lease_observations', sampleLimit, [['report_year', false], ['report_quarter', false]]);
-  const supplyQuery = fetchMarketPageRows('ll_sector_market_supply_cases', sampleLimit, [['expected_year', false], ['expected_quarter', false]]);
-  const transactionQuery = fetchMarketPageRows('ll_sector_market_transaction_cases', sampleLimit, [['transaction_year', false], ['transaction_quarter', false]]);
-  const capRateQuery = fetchMarketPageRows('ll_sector_market_cap_rate_series', 120, [['report_year', false], ['report_quarter', false]]);
+  const needsFullRows = !requestedView || requestedView === 'all';
+  const needsOverviewRows = requestedView === 'overview';
+  const needsLeaseRows = needsFullRows || needsOverviewRows || requestedView === 'lease';
+  const needsSupplyRows = needsFullRows || needsOverviewRows || requestedView === 'supply';
+  const needsTransactionRows = needsFullRows || needsOverviewRows || requestedView === 'transactions';
+  const needsCapRateRows = needsFullRows || needsOverviewRows || requestedView === 'transactions';
+  const emptyMarketPageRows = { data: [] as Record<string, unknown>[], error: null };
+  const leaseQuery = needsLeaseRows
+    ? fetchMarketPageRows('ll_sector_market_lease_observations', sampleLimit, [['report_year', false], ['report_quarter', false]])
+    : Promise.resolve(emptyMarketPageRows);
+  const supplyQuery = needsSupplyRows
+    ? fetchMarketPageRows('ll_sector_market_supply_cases', sampleLimit, [['expected_year', false], ['expected_quarter', false]])
+    : Promise.resolve(emptyMarketPageRows);
+  const transactionQuery = needsTransactionRows
+    ? fetchMarketPageRows('ll_sector_market_transaction_cases', sampleLimit, [['transaction_year', false], ['transaction_quarter', false]])
+    : Promise.resolve(emptyMarketPageRows);
+  const capRateQuery = needsCapRateRows
+    ? fetchMarketPageRows('ll_sector_market_cap_rate_series', 120, [['report_year', false], ['report_quarter', false]])
+    : Promise.resolve(emptyMarketPageRows);
   const [leaseResult, supplyResult, transactionResult, capRateResult] = await Promise.all([
     leaseQuery,
     supplyQuery,
@@ -4546,6 +4622,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
         lease_vacancy_by_region: aggregateArea(latestLeases, 'region', 'vacancy_rate', 'leasable_area_py'),
         supply_by_period: supplyPeriodSeries,
         transactions_by_year: transactionYearSeries,
+        transactions_by_region: aggregateSum(publicTransactions, 'region', 'transaction_amount_krw'),
         cap_rate_series: publicCapRates,
       },
     },
@@ -4679,7 +4756,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       },
     },
   };
-  return jsonResponse({ ok: true, data: {
+  const fullMarketData = {
     summary,
     leases: publicLeases,
     supply: publicSupply,
@@ -4694,7 +4771,8 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       transactions_by_region: marketViews.transactions.charts.amount_by_region,
     },
     views: marketViews,
-  } }, 200, ctx.origin);
+  };
+  return jsonResponse({ ok: true, data: sectorMarketDataForView(fullMarketData, requestedView) }, 200, ctx.origin);
 }
 
 async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, unknown>) {

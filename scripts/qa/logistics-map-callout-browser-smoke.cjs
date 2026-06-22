@@ -7,12 +7,18 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const BASE_PATH = '/logistics-gate6-preview/';
 const DEFAULT_PORT = 4184;
+const DEFAULT_ROUTE = 'platform/iotaseoul/workspace/logistics/dashboard/home?dashboardReadMode=off';
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'map-callout-20260615');
 
 function argsValue(name, fallback = '') {
   const flag = `--${name}`;
   const index = process.argv.indexOf(flag);
   return index === -1 ? fallback : (process.argv[index + 1] || fallback);
+}
+
+function joinUrl(baseUrl, route) {
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  return new URL(route.replace(/^\/+/u, ''), normalizedBase).toString();
 }
 
 function requestUrl(url) {
@@ -207,7 +213,8 @@ async function main() {
         failure: request.failure()?.errorText || '',
       });
     });
-    await page.goto(`${baseUrl}home?dashboardReadMode=off`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+    const targetRoute = argsValue('route', DEFAULT_ROUTE);
+    await page.goto(joinUrl(baseUrl, targetRoute), { waitUntil: 'domcontentloaded', timeout: 45000 });
     await page.waitForTimeout(3000);
     if (await page.locator('.logistics-map-canvas').count() === 0) {
       const debugScreenshotPath = path.join(OUT_DIR, 'home-map-callout-debug.png');

@@ -1,0 +1,81 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-22T06:25:44.508Z",
+  "script": "qa:market-map:pinpoint",
+  "simulation": "success",
+  "map_provider": "naver-simulated",
+  "expected_provider": "naver",
+  "target_route": "market-data/lease-market",
+  "base_url": "http://127.0.0.1:5173/",
+  "errors": [],
+  "warnings": [],
+  "state": {
+    "loading_visible": false,
+    "error_visible": false,
+    "market_data_visible": true,
+    "table_count": 2,
+    "chart_ready_count": 1,
+    "internal_tokens_visible": false,
+    "broken_question_marks_visible": false,
+    "map_stats": [
+      {
+        "index": 0,
+        "mode": "points",
+        "provider": "naver",
+        "selected_region": "충청권",
+        "region_cluster_count": 6,
+        "visible_asset_count": 1,
+        "point_count": 1,
+        "coordinate_count": 1,
+        "fallback_count": 0,
+        "geocoded_count": 0,
+        "coordinate_source_count": 1,
+        "naver_ready": true,
+        "osm_ready": false,
+        "fallback_ready": false,
+        "region_buttons": 0,
+        "point_buttons": 1
+      }
+    ],
+    "excerpt": "Logistics\nLOGISTICS PLATFORM\nWork Platform\nDashboard\nHome\nAsset\nCompany\nInvestment Index\nAsset Spec\nAnalysis Tools\nPivot Table\nData Quality\nMarket Data\nOverview\nLease Market\nSupply Pipeline\nTransactions\nSource Update\nData Management\nPDF Report\n기능 권한 관리\n로그인 이력\nQA User\nQA\nMARKET DATA\nMarket Data\nOverview\nLease Market\nSupply Pipeline\nTransactions\nSource Update\n새로고침\nLEASE MARKET\n최신 임대시장 통계\n전체 기록 보기\n시점\n2026 1Q\n지표\n보증금\n임대료\n관리비\n렌트프리\n렌트프리(공실률 10% 이상)\n공실률\n상/저온 구분\n전체\n복합 상온\n복합 상온\n(수도권) 동남권\n5.8\n(수도권) 중앙권\n6.1\n(수도권) 서부권\n5.2\n(지방) 충청권\n4.7\n(지방) 경남권\n4.4\n(지방) 전라권\n4.1\nCENTER DETAIL\n권역별 물류센터 임대 현황\n권역\n전체\n수도권\n(수도권) 동남권\n(수도권) 중앙권\n(수도권) 서부권\n지방\n(지방) 경남권\n(지방) 충청권\n(지방) 전라권\n자산 검색\n권역별 센터\n전체 권역\n(지방) 충청권 · 1건 표시\n일반\n위성\n지적편집도\n+\n-\nNaver Maps · 전체 주소 좌표 표시\n센터명\n↕\n\t권역\n↕\n\t상/저온\n↕\n\t연면적(평)\n▼\n\t임대료\n↕\n\t관리비\n↕\n\t렌트프리\n↕\n\t공실률\n↕\n\t주소\n↕\n\nQA 충"
+  },
+  "active_map": {
+    "index": 0,
+    "mode": "points",
+    "provider": "naver",
+    "selected_region": "충청권",
+    "region_cluster_count": 6,
+    "visible_asset_count": 1,
+    "point_count": 1,
+    "coordinate_count": 1,
+    "fallback_count": 0,
+    "geocoded_count": 0,
+    "coordinate_source_count": 1,
+    "naver_ready": true,
+    "osm_ready": false,
+    "fallback_ready": false,
+    "region_buttons": 0,
+    "point_buttons": 1
+  },
+  "geometry": {
+    "ok": true,
+    "map": {
+      "width": 386,
+      "height": 520
+    },
+    "points": [
+      {
+        "index": 0,
+        "title": "QA 충청 허브 · (지방) 충청권",
+        "width": 12,
+        "height": 12,
+        "center_x": 167.6,
+        "center_y": 340.8,
+        "in_bounds": true
+      }
+    ],
+    "point_count": 1,
+    "min_center_distance_px": null,
+    "overlap_pairs_lt_10px": 0
+  }
+}

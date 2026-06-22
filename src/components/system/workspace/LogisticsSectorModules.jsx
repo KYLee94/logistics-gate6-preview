@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { invokeDashboardApi } from '../../../utils/supabaseSession';
+import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supabaseSession';
+import {
+  getNaverMapsClientId,
+  loadLeafletSdk,
+  loadNaverMapsSdk as loadSharedNaverMapsSdk,
+  MapLayerControl,
+} from './LogisticsMapRuntime';
 
 const CARD = 'rounded-[16px] border border-[#333333] bg-[#252524]';
 const INNER = 'rounded-[12px] border border-[#333333] bg-[#1F1F1E]';
@@ -474,10 +480,14 @@ const EDGE_DATA_INFLIGHT = new Map();
 
 function edgeCacheKey(action, payload = {}) {
   try {
-    return `${action}:${JSON.stringify(payload || {})}`;
+    return `${getDashboardCacheScope()}:${action}:${JSON.stringify(payload || {})}`;
   } catch {
-    return `${action}:unserializable`;
+    return `${getDashboardCacheScope()}:${action}:unserializable`;
   }
+}
+
+function edgeCacheActionPrefix(action) {
+  return `${getDashboardCacheScope()}:${action}:`;
 }
 
 function useEdgeData(action, payload = {}, deps = []) {
@@ -550,7 +560,7 @@ function useEdgeData(action, payload = {}, deps = []) {
       };
     }
     const compatibleCached = Array.from(EDGE_DATA_CACHE.entries())
-      .filter(([key]) => key.startsWith(`${action}:`))
+      .filter(([key]) => key.startsWith(edgeCacheActionPrefix(action)))
       .sort((a, b) => b[1].loadedAt - a[1].loadedAt)[0]?.[1];
     if (compatibleCached) {
       setState({ loading: false, error: '', data: compatibleCached.data, loadedAt: compatibleCached.loadedAt });
@@ -845,55 +855,6 @@ function FilterPills({ label, options, value, onChange }) {
   );
 }
 
-function loadNaverMapsSdk(clientId) {
-  const mapReady = () => window.naver?.maps?.Map;
-  const sdkReady = () => mapReady() && window.naver?.maps?.Service?.geocode;
-  if (sdkReady()) return Promise.resolve();
-  if (window.__logisticsNaverMapsSdkPromise) {
-    return window.__logisticsNaverMapsSdkPromise.then(() => {
-      if (sdkReady()) return undefined;
-      window.__logisticsNaverMapsSdkPromise = null;
-      return loadNaverMapsSdk(clientId);
-    });
-  }
-  window.__logisticsNaverMapsSdkPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector('script[data-logistics-naver-map="geocoder"]');
-    const script = existing || document.createElement('script');
-    const settleReady = () => {
-      if (mapReady()) resolve();
-      else {
-        window.__logisticsNaverMapsSdkPromise = null;
-        reject(new Error('Naver Maps SDK geocoder unavailable'));
-      }
-    };
-    const timeoutId = window.setTimeout(() => {
-      if (mapReady()) resolve();
-      else {
-        window.__logisticsNaverMapsSdkPromise = null;
-        reject(new Error('Naver Maps SDK geocoder timeout'));
-      }
-    }, 30000);
-    const complete = () => {
-      window.clearTimeout(timeoutId);
-      settleReady();
-    };
-    const fail = () => {
-      window.clearTimeout(timeoutId);
-      window.__logisticsNaverMapsSdkPromise = null;
-      reject(new Error('Naver Maps SDK load failed'));
-    };
-    script.id = script.id || 'logistics-naver-map-sdk-geocoder';
-    script.setAttribute('data-logistics-naver-map', 'geocoder');
-    script.async = true;
-    script.src = `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${encodeURIComponent(clientId)}&submodules=geocoder`;
-    script.addEventListener('load', complete, { once: true });
-    script.addEventListener('error', fail, { once: true });
-    if (!existing) document.head.appendChild(script);
-    if (existing && mapReady()) complete();
-  });
-  return window.__logisticsNaverMapsSdkPromise;
-}
-
 const OSM_TILE_SIZE = 256;
 const OSM_VIEW_WIDTH = 960;
 const OSM_VIEW_HEIGHT = 520;
@@ -1060,6 +1021,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
   const [mapDisplayType, setMapDisplayType] = useState('normal');
   const [geocodedCoords, setGeocodedCoords] = useState({});
   const [geocodeFailures, setGeocodeFailures] = useState({});
+  const geocodePendingRef = useRef({});
   const [selectedMapRegion, setSelectedMapRegion] = useState('');
   const [mapZoom, setMapZoom] = useState(8);
   const [forceOsm, setForceOsm] = useState(false);
@@ -1136,9 +1098,9 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
       const xValue = Number(row.x_percent);
       const yValue = Number(row.y_percent);
       const addressCandidates = Array.from(new Set([
-        text(row.address),
-        text(row.legal_address),
-        text(row.generated_address),
+        text(row.address, ''),
+        text(row.legal_address, ''),
+        text(row.generated_address, ''),
       ].filter(Boolean)));
       const address = addressCandidates[0] || '';
       const geocoded = addressCandidates
@@ -1212,57 +1174,68 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
     const targetMap = new Map();
     plotRows
       .filter((item) => item.fallback && item.addressCandidates?.length)
       .forEach((item) => {
         item.addressCandidates.forEach((candidate) => {
-          if (!geocodedCoords[candidate] && !geocodeFailures[candidate]) {
+          if (!geocodedCoords[candidate] && !geocodeFailures[candidate] && !geocodePendingRef.current[candidate]) {
             targetMap.set(candidate, candidate);
           }
         });
       });
-    const targets = Array.from(targetMap.values()).slice(0, 120);
-    if (!targets.length) return () => {
-      cancelled = true;
-    };
-    const geocodeVisibleAddresses = async () => {
-      try {
-        if (cancelled) return;
-        const batchResult = await invoke('naver/geocode-batch', { queries: targets });
-        if (cancelled) return;
-        const rows = Array.isArray(batchResult?.rows) ? batchResult.rows : [];
+    const targets = Array.from(targetMap.values()).slice(0, Math.max(1, Math.min(25, detailPointLimit)));
+    if (!targets.length) return undefined;
+    targets.forEach((address) => {
+      geocodePendingRef.current[address] = true;
+    });
+    invoke('naver/geocode-batch', { queries: targets })
+      .then((result) => {
+        const rows = safeArray(result?.rows || result?.data?.rows);
         const nextCoords = {};
-        const nextFailures = {};
-        rows.forEach((result) => {
-          const address = text(result.query);
-          const lat = Number(result.latitude ?? result.y ?? result.lat);
-          const lng = Number(result.longitude ?? result.x ?? result.lng);
-          if (address && Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
-            nextCoords[address] = { lat, lng };
-          } else if (address) {
-            nextFailures[address] = true;
+        rows.forEach((row) => {
+          const query = text(row.query, '');
+          const lat = number(row.latitude ?? row.lat ?? row.y);
+          const lng = number(row.longitude ?? row.lng ?? row.x);
+          if (query && Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0) {
+            nextCoords[query] = {
+              lat,
+              lng,
+              source: text(row.cache_hit ? 'naver.geocode.cache' : 'naver.geocode'),
+              address: text(row.road_address || row.jibun_address || query),
+            };
           }
-        });
-        targets.forEach((address) => {
-          if (!nextCoords[address]) nextFailures[address] = true;
         });
         if (Object.keys(nextCoords).length) {
           setGeocodedCoords((current) => ({ ...current, ...nextCoords }));
         }
-        if (Object.keys(nextFailures).length) {
-          setGeocodeFailures((current) => ({ ...current, ...nextFailures }));
+        const failedTargets = targets.filter((address) => !nextCoords[address]);
+        if (failedTargets.length) {
+          setGeocodeFailures((current) => {
+            const next = { ...current };
+            failedTargets.forEach((address) => {
+              next[address] = true;
+            });
+            return next;
+          });
         }
-      } catch {
-        // Map rendering still falls back to region centers when geocoding is unavailable.
-      }
-    };
-    geocodeVisibleAddresses();
-    return () => {
-      cancelled = true;
-    };
-  }, [plotRows, geocodedCoords, geocodeFailures]);
+      })
+      .catch(() => {
+        setGeocodeFailures((current) => {
+          const next = { ...current };
+          targets.forEach((address) => {
+            next[address] = true;
+          });
+          return next;
+        });
+      })
+      .finally(() => {
+        targets.forEach((address) => {
+          delete geocodePendingRef.current[address];
+        });
+      });
+    return undefined;
+  }, [plotRows, geocodedCoords, geocodeFailures, detailPointLimit]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1343,13 +1316,56 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
     const mountLeafletMap = async () => {
       try {
         if (cancelled) return;
+        const L = await loadLeafletSdk();
+        if (cancelled || !mapCanvasRef.current) return;
         destroyCurrentMap();
+        const latLngs = mappableRows.map((item) => [Number(item.lat), Number(item.lng)]);
+        const map = L.map(mapCanvasRef.current, {
+          scrollWheelZoom: true,
+          zoomControl: false,
+          attributionControl: true,
+        });
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors',
+        }).addTo(map);
+        markersRef.current = mappableRows.map((item) => {
+          const marker = L.marker([Number(item.lat), Number(item.lng)], {
+            title: item.isCluster ? `${item.regionLabel} ${formatNumber(item.count)}` : item.label,
+          }).addTo(map);
+          marker.bindTooltip(item.isCluster ? `${item.regionLabel} ${formatNumber(item.count)}` : `${item.label} ${item.regionLabel}`, {
+            direction: 'top',
+            sticky: true,
+          });
+          marker.on('click', () => {
+            if (item.isCluster) {
+              setSelectedMapRegion(item.region);
+              setMapZoom((current) => Math.max(9, current));
+            } else {
+              onSelectRef.current?.(item.row);
+            }
+          });
+          return marker;
+        });
+        if (latLngs.length > 1) map.fitBounds(latLngs, { padding: [28, 28] });
+        else map.setView(latLngs[0], selectedMapRegion ? Math.max(9, mapZoom) : 7);
         mapProviderRef.current = 'osm';
+        mapInstanceRef.current = map;
+        const zoomListener = () => {
+          const nextZoom = Number(map.getZoom?.());
+          if (Number.isFinite(nextZoom)) setMapZoom(nextZoom);
+        };
+        map.on('zoomend', zoomListener);
+        mapZoomListenerRef.current = zoomListener;
         setMapStatus({ status: 'osm', message: mapMessage('OpenStreetMap') });
+        [80, 300, 800].forEach((delay) => window.setTimeout(() => {
+          if (!cancelled && mapInstanceRef.current?.invalidateSize) mapInstanceRef.current.invalidateSize();
+        }, delay));
       } catch {
         if (!cancelled) {
           destroyCurrentMap();
-          setMapStatus({ status: 'fallback', message: '지도 API 미설정/OSM 로드 실패 · 권역 기준 표시' });
+          mapProviderRef.current = 'osm';
+          setMapStatus({ status: 'osm', message: mapMessage('OpenStreetMap') });
         }
       }
     };
@@ -1360,13 +1376,12 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           return;
         }
         setMapStatus({ status: 'checking', message: 'Naver Maps SDK 로딩 중' });
-        const config = await invoke('naver/maps-config', {});
-        const clientId = config?.ncp_key_id || config?.client_id || config?.ncp_client_id || config?.ncpKeyId || config?.key_id;
+        const clientId = await getNaverMapsClientId();
         if (!clientId) {
           if (!cancelled) await mountLeafletMap();
           return;
         }
-        await loadNaverMapsSdk(clientId);
+        await loadSharedNaverMapsSdk(clientId);
         if (cancelled || !mapCanvasRef.current || !window.naver?.maps) return;
         if (mapProviderRef.current && mapProviderRef.current !== 'naver') destroyCurrentMap();
         const first = mappableRows[0];
@@ -1472,7 +1487,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
       >
         <div ref={mapCanvasRef} className="absolute inset-0" aria-hidden="true" />
         {mapStatus.status === 'osm' ? (
-          <div className="absolute inset-0 overflow-hidden bg-[#1A1A1A]" aria-hidden="true">
+          <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
             {osmLayout.tiles.map((tile) => (
               <img
                 key={tile.key}
@@ -1486,7 +1501,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
             <div className="absolute bottom-2 right-2 rounded-[6px] bg-white/80 px-2 py-1 text-[10px] text-[#1F1F1E]">Map data © OpenStreetMap contributors</div>
           </div>
         ) : null}
-        <div className="absolute right-3 top-3 z-10 flex overflow-hidden rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/90">
+        <div className="hidden">
           {[
             ['normal', '일반'],
             ['satellite', '위성'],
@@ -1502,6 +1517,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
             </button>
           ))}
         </div>
+        <MapLayerControl value={mapDisplayType} onChange={setMapDisplayType} data-testid="market-map-layer-control" />
         <div className="absolute left-3 bottom-3 z-10 flex overflow-hidden rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/90">
           <button type="button" onClick={() => setMapZoom((current) => Math.min(13, current + 1))} className="h-8 w-9 text-[15px] font-semibold text-[#E5E5E5] hover:bg-white/[0.06]">+</button>
           <button type="button" onClick={() => setMapZoom((current) => Math.max(7, current - 1))} className="h-8 w-9 border-l border-[#3A3A3C] text-[15px] font-semibold text-[#E5E5E5] hover:bg-white/[0.06]">-</button>
@@ -1732,7 +1748,7 @@ function SupplyAreaChart({ rows, seriesType, title, formatter = (value) => `${fo
               const barWidth = Math.max(12, Math.min(34, (width - 120) / Math.max(1, periods.length) - 8));
               return (
                 <rect
-                  key={row.period_label}
+                  key={`${row.period_label}-${index}`}
                   x={x - barWidth / 2}
                   y={y}
                   width={barWidth}
@@ -1754,9 +1770,9 @@ function SupplyAreaChart({ rows, seriesType, title, formatter = (value) => `${fo
               return (
                 <g key={region}>
                   {points.length > 1 ? <polyline points={pointString} fill="none" stroke={colors[(regionIndex + 1) % colors.length]} strokeWidth="2" opacity="0.85" /> : null}
-                  {points.map(([x, y, row]) => (
+                  {points.map(([x, y, row], pointIndex) => (
                     <circle
-                      key={`${region}-${row.period_label}`}
+                      key={`${region}-${row.period_label}-${pointIndex}`}
                       cx={x}
                       cy={y}
                       r="4"
@@ -1769,7 +1785,7 @@ function SupplyAreaChart({ rows, seriesType, title, formatter = (value) => `${fo
               );
             })}
             {periods.map((period, index) => (
-              <text key={period} x={xFor(index)} y={244} textAnchor="middle" fill="#86868B" fontSize="10">{period.replace(' ', '\u00A0')}</text>
+              <text key={`${period}-${index}`} x={xFor(index)} y={244} textAnchor="middle" fill="#86868B" fontSize="10">{period.replace(' ', '\u00A0')}</text>
             ))}
           </svg>
           <div className="flex flex-wrap gap-3 text-[11px] text-[#A1A1AA]">
@@ -2835,7 +2851,8 @@ function MarketDataDashboardLegacy({ activeTab = 'overview', onNavigate }) {
 
 export function MarketDataDashboard({ activeTab = 'overview', onNavigate = null }) {
   const currentTab = MARKET_TABS.find((tab) => tab.id === activeTab || tab.route === activeTab)?.id || 'overview';
-  const { loading, error, data, reload } = useEdgeData('sector-market/read', { limit: 12000 }, []);
+  const marketReadPayload = useMemo(() => ({ view: currentTab, limit: currentTab === 'source' ? 1200 : 3000 }), [currentTab]);
+  const { loading, error, data, reload } = useEdgeData('sector-market/read', marketReadPayload, [currentTab]);
   const [modal, setModal] = useState(null);
   const [txnWindow, setTxnWindow] = useState('3y');
   const [txnRegion, setTxnRegion] = useState('전체');
@@ -2856,17 +2873,53 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate = null 
   const [supplyEnd, setSupplyEnd] = useState('2028-12-31');
   const [supplyKind, setSupplyKind] = useState('전체');
   const summary = data?.summary || {};
-  const leases = safeArray(data?.leases);
-  const supply = safeArray(data?.supply);
-  const transactions = safeArray(data?.transactions);
-  const capRates = safeArray(data?.cap_rates);
-  const sources = safeArray(data?.sources);
-  const charts = data?.charts || {};
   const marketViews = data?.views || {};
   const leaseView = marketViews.lease || {};
   const supplyView = marketViews.supply || {};
-  const leaseStatisticRows = safeArray(leaseView.statistics_rows);
-  const supplyStatisticRows = safeArray(supplyView.statistics_rows);
+  const transactionView = marketViews.transactions || {};
+  const sourceView = marketViews.source || {};
+  const leases = safeArray(data?.leases).length ? safeArray(data?.leases) : safeArray(leaseView.all_rows || leaseView.latest_rows);
+  const supply = safeArray(data?.supply).length ? safeArray(data?.supply) : safeArray(supplyView.rows);
+  const transactions = safeArray(data?.transactions).length ? safeArray(data?.transactions) : safeArray(transactionView.rows);
+  const capRates = safeArray(data?.cap_rates).length ? safeArray(data?.cap_rates) : safeArray(transactionView.charts?.cap_rate_series || marketViews.overview?.charts?.cap_rate_series);
+  const sources = safeArray(data?.sources).length ? safeArray(data?.sources) : safeArray(sourceView.sources);
+  const charts = data?.charts || marketViews[currentTab]?.charts || marketViews.overview?.charts || {};
+  const overviewLeaseStatisticFallbackRows = safeArray(charts.lease_rent_by_region).map((row) => ({
+    ...row,
+    period_label: '',
+    metric_key: 'rent_manwon_per_py',
+    dimension_type: 'region',
+    segment_label: '복합 상온',
+    is_average: false,
+    region: row.region || row.label,
+    value: row.value,
+  }));
+  const overviewSupplyStatisticFallbackRows = safeArray(charts.supply_by_period).map((row) => ({
+    ...row,
+    series_type: 'new_supply',
+    period_label: row.period_label || row.label,
+    label: row.label || '합계',
+    value: row.value,
+  }));
+  const normalizeSupplyStatisticRowsForChart = (rows) => safeArray(rows).flatMap((row) => {
+    if (text(row.series_type, '')) return [row];
+    const periodLabel = text(row.period_label || row.completion_period || row.label, '');
+    if (!periodLabel) return [];
+    const label = text(row.label, '합계');
+    const out = [];
+    const newSupplyValue = firstText(row.new_supply, row.new_supply_area_py, row.value);
+    if (newSupplyValue !== undefined && newSupplyValue !== null) {
+      out.push({ ...row, series_type: 'new_supply', period_label: periodLabel, label, value: number(newSupplyValue) });
+    }
+    const cumulativeValue = firstText(row.cumulative_supply, row.cumulative_supply_area_py);
+    if (cumulativeValue !== undefined && cumulativeValue !== null) {
+      out.push({ ...row, series_type: 'cumulative_supply', period_label: periodLabel, label, value: number(cumulativeValue) });
+    }
+    return out;
+  });
+  const leaseStatisticRows = safeArray(leaseView.statistics_rows).length ? safeArray(leaseView.statistics_rows) : overviewLeaseStatisticFallbackRows;
+  const normalizedSupplyStatisticRows = normalizeSupplyStatisticRowsForChart(supplyView.statistics_rows);
+  const supplyStatisticRows = normalizedSupplyStatisticRows.length ? normalizedSupplyStatisticRows : overviewSupplyStatisticFallbackRows;
   const sourceAudit = summary.source_audit || {};
   const expectedCounts = summary.expected_counts || {};
   const readback = summary.readback || {};
@@ -2938,6 +2991,19 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate = null 
   const overviewLeaseRentRows = leaseStatisticRows
     .filter((row) => text(row.period_label) === selectedLeaseStatisticPeriod && text(row.metric_key) === 'rent_manwon_per_py' && text(row.dimension_type) === 'region' && text(row.segment_label) === '복합 상온' && row.is_average !== true)
     .map((row) => ({ label: regionDisplay(row.region || row.label), value: row.value, count: 1 }));
+  const overviewLeaseRentChartRows = safeArray(charts.lease_rent_by_region).length ? safeArray(charts.lease_rent_by_region) : overviewLeaseRentRows;
+  const overviewTransactionRows = safeArray(charts.transactions_by_region || charts.amount_by_region).length
+    ? safeArray(charts.transactions_by_region || charts.amount_by_region)
+    : aggregateBy(transactions, (row) => regionDisplay(row.region), (row) => row.transaction_amount_krw);
+  const overviewSupplyRows = supplyStatisticRows.length
+    ? supplyStatisticRows
+    : safeArray(charts.supply_by_period).map((row) => ({
+      ...row,
+      series_type: 'new_supply',
+      period_label: row.period_label || row.label,
+      label: row.label || '합계',
+      value: row.value,
+    }));
   const leaseSegmentedRows = latestLeases.filter((row) => {
     const temp = text(row.temperature_type);
     if (leaseSegment.startsWith('복합')) return /복합/iu.test(temp);
@@ -2982,7 +3048,7 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate = null 
   });
   const datedCumulativeNewRows = newSupplyRows.filter((row) => number(row.expected_year || row.completion_year) >= 2024);
   const cumulativeNewRows = datedCumulativeNewRows.length ? datedCumulativeNewRows : newSupplyRows;
-  const aggregateBy = (rows, keyFn, valueFn, weightFn = null) => {
+  function aggregateBy(rows, keyFn, valueFn, weightFn = null) {
     const grouped = new Map();
     rows.forEach((row) => {
       const label = text(keyFn(row), '미분류');
@@ -2996,7 +3062,7 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate = null 
       grouped.set(label, current);
     });
     return [...grouped.values()].map((row) => ({ ...row, value: weightFn ? row.weighted / Math.max(1, row.weight) : row.value })).sort((a, b) => number(b.value) - number(a.value));
-  };
+  }
   const supplyPeriodRows = aggregateBy(filteredSupplyRows, supplyPeriodLabel, supplyArea).sort((a, b) => String(a.label).localeCompare(String(b.label), 'ko'));
   const transactionMetricCards = [
     { label: '거래면적', value: filteredTransactions.reduce((sum, row) => sum + number(row.area_py), 0), formatter: (value) => `${formatNumber(value, 1)}평`, detail: '필터 적용 합계' },
@@ -3138,15 +3204,15 @@ export function MarketDataDashboard({ activeTab = 'overview', onNavigate = null 
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <div className={`${CARD} p-5`}>
               <ModuleHeader eyebrow="LEASE" title="권역별 최신 임대료" />
-              <BarList rows={overviewLeaseRentRows.length ? overviewLeaseRentRows : aggregateBy(latestLeases, (row) => regionDisplay(row.region), (row) => row.rent_manwon_per_py, (row) => row.leasable_area_py)} formatter={(value) => `${formatNumber(value, 1)}만원`} />
+              <BarList rows={overviewLeaseRentChartRows.length ? overviewLeaseRentChartRows : aggregateBy(latestLeases, (row) => regionDisplay(row.region), (row) => row.rent_manwon_per_py, (row) => row.leasable_area_py)} formatter={(value) => `${formatNumber(value, 1)}만원`} />
             </div>
             <div className={`${CARD} p-5`}>
               <ModuleHeader eyebrow="TRANSACTION" title="권역별 거래금액" />
-              <BarList rows={aggregateBy(transactions, (row) => regionDisplay(row.region), (row) => row.transaction_amount_krw)} formatter={formatKrw} color={CHART_COLORS.primary} />
+              <BarList rows={overviewTransactionRows} formatter={formatKrw} color={CHART_COLORS.primary} />
             </div>
             <div className={`${CARD} p-5`}>
               <ModuleHeader eyebrow="SUPPLY" title="공급 예정 시점" />
-              <SupplyAreaChart rows={supplyStatisticRows} seriesType="new_supply" title="신규 공급 면적" />
+              <SupplyAreaChart rows={overviewSupplyRows} seriesType="new_supply" title="신규 공급 면적" />
             </div>
             <div className={`${CARD} p-5`}>
               <ModuleHeader eyebrow="SOURCE READBACK" title="원천 적재 검증" />
@@ -4342,7 +4408,7 @@ export function DataManagementDashboard() {
         impact_summary: '원본 행 변경 요청입니다. 승인 후 정규 테이블 반영 여부를 검토해야 합니다.',
       });
       setSubmitStatus({ type: 'success', message: '승인 요청이 저장되었습니다. 승인 대기 탭에서 처리 상태를 확인해 주세요.' });
-      reload();
+      reload({}, { force: true });
     } catch (submitError) {
       setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 저장에 실패했습니다.' });
     }
@@ -4356,7 +4422,7 @@ export function DataManagementDashboard() {
       if (action === 'approve') await invoke('edits/approve', { id, approval_note: 'Data Management 승인' });
       if (action === 'reject') await invoke('edits/reject', { id, rejection_note: 'Data Management 반려' });
       setSubmitStatus({ type: 'success', message: '요청 처리가 완료되었습니다.' });
-      reload();
+      reload({}, { force: true });
     } catch (reviewError) {
       setSubmitStatus({ type: 'error', message: reviewError.message || '요청 처리에 실패했습니다.' });
     }

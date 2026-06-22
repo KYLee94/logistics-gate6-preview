@@ -1,4 +1,5 @@
 export const LOGISTICS_INTERNAL_BASE = 'platform/iotaseoul/workspace/logistics';
+export const LOGISTICS_DEPLOY_BASE = 'logistics-gate6-preview';
 
 export const LOGISTICS_ROUTE_BY_KEY = {
   'work-platform': LOGISTICS_INTERNAL_BASE,
@@ -28,7 +29,11 @@ export const LOGISTICS_ROUTE_KEY_BY_INTERNAL = Object.fromEntries(
 );
 
 export function normalizeLogisticsPath(path = '') {
-  const clean = String(path || '').replace(/^\/+|\/+$/g, '');
+  let clean = String(path || '').replace(/^\/+|\/+$/g, '');
+  if (clean === LOGISTICS_DEPLOY_BASE) return LOGISTICS_INTERNAL_BASE;
+  if (clean.startsWith(`${LOGISTICS_DEPLOY_BASE}/`)) {
+    clean = clean.slice(LOGISTICS_DEPLOY_BASE.length + 1);
+  }
   if (!clean) return LOGISTICS_INTERNAL_BASE;
   if (LOGISTICS_ROUTE_BY_KEY[clean]) return LOGISTICS_ROUTE_BY_KEY[clean];
   if (clean === 'logistics-gate6-preview') return LOGISTICS_INTERNAL_BASE;
