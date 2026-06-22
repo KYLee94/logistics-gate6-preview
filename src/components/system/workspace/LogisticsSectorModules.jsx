@@ -468,7 +468,7 @@ function userFacingLoadError() {
 }
 
 const USER_FACING_LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다. 탭을 다시 열거나 잠시 후 재시도해 주세요.';
-const EDGE_DATA_CACHE_TTL_MS = 15 * 60 * 1000;
+const EDGE_DATA_CACHE_TTL_MS = 60 * 60 * 1000;
 const EDGE_DATA_CACHE = new Map();
 const EDGE_DATA_INFLIGHT = new Map();
 
@@ -506,7 +506,11 @@ function useEdgeData(action, payload = {}, deps = []) {
     }
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
-    if (!options.silent && mountedRef.current) setState((current) => ({ ...current, loading: !current.data, error: '' }));
+    if (cached && mountedRef.current) {
+      setState({ loading: false, error: '', data: cached.data, loadedAt: cached.loadedAt });
+    } else if (!options.silent && mountedRef.current) {
+      setState((current) => ({ ...current, loading: !current.data, error: '' }));
+    }
     try {
       let requestPromise = EDGE_DATA_INFLIGHT.get(requestKey);
       if (!requestPromise) {
@@ -545,7 +549,15 @@ function useEdgeData(action, payload = {}, deps = []) {
         mountedRef.current = false;
       };
     }
-    reload({}, { silent: Boolean(stateRef.current.data) });
+    const compatibleCached = Array.from(EDGE_DATA_CACHE.entries())
+      .filter(([key]) => key.startsWith(`${action}:`))
+      .sort((a, b) => b[1].loadedAt - a[1].loadedAt)[0]?.[1];
+    if (compatibleCached) {
+      setState({ loading: false, error: '', data: compatibleCached.data, loadedAt: compatibleCached.loadedAt });
+      reload({}, { silent: true, force: true });
+    } else {
+      reload({}, { silent: Boolean(stateRef.current.data) });
+    }
     return () => {
       mountedRef.current = false;
     };
@@ -1399,6 +1411,11 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           return marker;
         });
         setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
+        window.setTimeout(() => {
+          if (cancelled || mapProviderRef.current !== 'naver' || forceOsm) return;
+          const hasRenderedTile = Boolean(mapCanvasRef.current?.querySelector('img[src], canvas, [style*="background-image"]'));
+          if (!hasRenderedTile) setForceOsm(true);
+        }, 3200);
       } catch {
         if (!cancelled) await mountLeafletMap();
       }
@@ -2012,6 +2029,30 @@ function formatMonthKey(value) {
   return match ? `${match[1]}.${match[2]}` : source || '-';
 }
 
+function formatLoanMaturityMonthLabel(value) {
+  const source = text(value, '');
+  const match = source.match(/^(20\d{2})-(\d{2})$/u);
+  return match ? `${Number(match[2])}월` : source || '-';
+}
+
+function yearFromMonthKey(value) {
+  const match = text(value, '').match(/^(20\d{2})-(\d{2})$/u);
+  return match ? match[1] : '';
+}
+
+function loanMaturityYearBands(rows) {
+  return safeArray(rows).reduce((bands, row, index) => {
+    const year = yearFromMonthKey(row.month_key);
+    const last = bands[bands.length - 1];
+    if (last && last.year === year) {
+      last.count += 1;
+      return bands;
+    }
+    bands.push({ year, start: index, count: 1 });
+    return bands;
+  }, []);
+}
+
 function assetLabelForFundId(fundId, funds) {
   const fund = safeArray(funds).find((row) => text(row.fund_id, '') === text(fundId, ''));
   return summarizeNames(fund?.asset_names);
@@ -2067,20 +2108,21 @@ function LoanMaturityTimelineChart({ rows, onMonthClick }) {
   const visibleRows = safeArray(rows);
   const maxValue = Math.max(...visibleRows.map((row) => number(row.value)), 0);
   const { maxTick, ticks } = loanMaturityAxis(maxValue);
-  const axisWidth = 98;
-  const plotRightPadding = 24;
-  const plotHeight = Math.max(260, (ticks.length - 1) * 34);
+  const axisWidth = 76;
+  const plotRightPadding = 8;
+  const plotHeight = Math.max(240, (ticks.length - 1) * 32);
+  const yearBands = loanMaturityYearBands(visibleRows);
   return (
     <div className="relative rounded-[12px] border border-[#333333] bg-[#171717] p-4" data-chart-role="loan-maturity-timeline" data-chart-empty={visibleRows.length ? 'false' : 'true'}>
       {visibleRows.length ? (
-        <div className="custom-scrollbar overflow-x-auto pb-1">
-          <div className="relative" style={{ minWidth: `${Math.max(1040, visibleRows.length * 58)}px`, height: `${plotHeight + 100}px` }}>
+        <div className="overflow-hidden pb-1">
+          <div className="relative w-full" style={{ height: `${plotHeight + 78}px` }}>
             <div className="absolute inset-x-0 top-2" style={{ height: plotHeight }}>
               <span className="absolute top-0 bottom-0 w-px bg-[#5A5A5F]" style={{ left: axisWidth }} aria-hidden="true" />
               {ticks.map((tickValue) => (
                 <div key={tickValue} className="absolute left-0 right-0" style={{ bottom: `${(tickValue / maxTick) * plotHeight}px` }}>
                   <span
-                    className="absolute left-0 -translate-y-1/2 whitespace-nowrap pr-3 text-right text-[10px] leading-none text-[#A1A1AA]"
+                    className="absolute left-0 -translate-y-1/2 whitespace-nowrap pr-3 text-right text-[11px] leading-none text-[#A1A1AA]"
                     style={{ width: axisWidth }}
                     data-y-axis-label="loan-maturity"
                   >
@@ -2090,7 +2132,7 @@ function LoanMaturityTimelineChart({ rows, onMonthClick }) {
                 </div>
               ))}
             </div>
-            <div className="absolute flex items-end gap-2" style={{ left: axisWidth, right: plotRightPadding, top: 8, height: plotHeight }}>
+            <div className="absolute flex items-end gap-1" style={{ left: axisWidth, right: plotRightPadding, top: 8, height: plotHeight }}>
               {visibleRows.map((row) => {
                 const details = safeArray(row.details)
                   .slice()
@@ -2104,7 +2146,7 @@ function LoanMaturityTimelineChart({ rows, onMonthClick }) {
                     key={row.month_key}
                     type="button"
                     data-chart-row="loan-maturity-month"
-                    className="group flex min-w-[48px] flex-1 flex-col items-center justify-end gap-2"
+                    className="group flex min-w-0 flex-1 items-end justify-center"
                     onClick={() => onMonthClick?.(row)}
                     onMouseMove={(event) => setHover({
                       x: event.clientX,
@@ -2115,15 +2157,32 @@ function LoanMaturityTimelineChart({ rows, onMonthClick }) {
                     })}
                     onMouseLeave={() => setHover(null)}
                     aria-label={`${row.label} 대출 만기 ${formatKrw(value)}`}
-                  >
+                    >
                     <span
-                      className="block w-full rounded-t-[5px] transition-opacity group-hover:opacity-80"
+                      className="block w-full max-w-[28px] rounded-t-[4px] transition-opacity group-hover:opacity-80"
                       style={{ height: `${value ? Math.max(10, Math.min(plotHeight, (value / maxTick) * plotHeight)) : 2}px`, backgroundColor: value ? CHART_COLORS.primary : '#4A4A4F' }}
                     />
-                    <span className="max-w-full truncate text-[10px] text-[#86868B]" title={row.label}>{row.label}</span>
                   </button>
                 );
               })}
+            </div>
+            <div
+              className="absolute grid gap-1 border-t border-[#3A3A3C] pt-2 text-center text-[11px] leading-none text-[#C7C7CC]"
+              style={{ left: axisWidth, right: plotRightPadding, top: plotHeight + 18, gridTemplateColumns: `repeat(${visibleRows.length}, minmax(0, 1fr))` }}
+            >
+              {visibleRows.map((row) => (
+                <div key={`${row.month_key}-month`} className="truncate" title={formatLoanMaturityMonthLabel(row.month_key)}>{formatLoanMaturityMonthLabel(row.month_key)}</div>
+              ))}
+            </div>
+            <div
+              className="absolute grid gap-1 text-center text-[11px] font-semibold leading-none text-[#86868B]"
+              style={{ left: axisWidth, right: plotRightPadding, top: plotHeight + 44, gridTemplateColumns: `repeat(${visibleRows.length}, minmax(0, 1fr))` }}
+            >
+              {yearBands.map((band) => (
+                <div key={`${band.year}-${band.start}`} className="truncate border-t border-[#2D2D30] pt-2" style={{ gridColumn: `${band.start + 1} / span ${band.count}` }}>
+                  {band.year ? `${band.year}년` : '-'}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -2315,13 +2374,23 @@ function assetSpecValue(row, rowNumber, fallback = '') {
   return text(specRow?.value, fallback);
 }
 
-function assetSpecComparisonRows(left, right) {
-  return ASSET_SPEC_DEFAULT_ROWS.map((def) => ({
-    row_number: def.row_number,
-    label: def.label,
-    left_value: assetSpecValue(left, def.row_number),
-    right_value: assetSpecValue(right, def.row_number),
-  }));
+const ASSET_SPEC_COMPARE_SLOT_COUNT = 4;
+
+function assetSpecComparisonRows(targets, maybeRight) {
+  const comparisonTargets = Array.isArray(targets)
+    ? targets.slice(0, ASSET_SPEC_COMPARE_SLOT_COUNT)
+    : [targets, maybeRight].slice(0, ASSET_SPEC_COMPARE_SLOT_COUNT);
+  return ASSET_SPEC_DEFAULT_ROWS.map((def) => {
+    const values = comparisonTargets.map((target) => assetSpecValue(target, def.row_number));
+    return values.reduce((row, value, index) => ({
+      ...row,
+      [`value_${index}`]: value,
+    }), {
+      row_number: def.row_number,
+      label: def.label,
+      values,
+    });
+  });
 }
 
 function formatSpecComparisonValue(value) {
@@ -2340,27 +2409,37 @@ function formatSpecComparisonValue(value) {
   return source.replace(/-?\d[\d,]*\.\d+/gu, (match) => formatFragment(match));
 }
 
-function SpecComparisonPanel({ rows, leftLabel, rightLabel, empty = '비교 데이터가 없습니다.' }) {
+function SpecComparisonPanel({ rows, labels = [], empty = '비교 데이터가 없습니다.' }) {
   const visibleRows = safeArray(rows);
+  const compareLabels = safeArray(labels).slice(0, ASSET_SPEC_COMPARE_SLOT_COUNT);
+  const columnCount = Math.max(1, Math.min(ASSET_SPEC_COMPARE_SLOT_COUNT, compareLabels.length || visibleRows[0]?.values?.length || 1));
+  const minWidth = 68 + 230 + (columnCount * 230);
+  const gridTemplateColumns = `68px 230px repeat(${columnCount}, minmax(220px, 1fr))`;
   if (!visibleRows.length) {
     return <div className="grid h-[180px] place-items-center rounded-[12px] border border-[#333333] bg-[#171717] text-[13px] text-[#86868B]">{empty}</div>;
   }
   return (
     <div className="overflow-hidden rounded-[12px] border border-[#333333] bg-[#171717]" data-asset-spec-compare-panel="true">
-      <div className="grid min-w-[920px] grid-cols-[72px_220px_minmax(0,1fr)_minmax(0,1fr)] border-b border-[#333333] bg-[#202020] text-[11px] font-semibold uppercase tracking-[0.04em] text-[#A1A1AA]">
+      <div className="grid border-b border-[#333333] bg-[#202020] text-[12px] font-semibold uppercase text-[#A1A1AA]" style={{ gridTemplateColumns, minWidth }}>
         <div className="px-3 py-3 text-right">행</div>
         <div className="px-3 py-3">항목</div>
-        <div className="px-3 py-3 text-[#E5E5E5]">{leftLabel || '비교 1'}</div>
-        <div className="px-3 py-3 text-[#E5E5E5]">{rightLabel || '비교 2'}</div>
+        {Array.from({ length: columnCount }).map((_, index) => (
+          <div key={`header-${index}`} className="min-w-0 border-l border-[#2D2D30] px-3 py-3 text-[#E5E5E5]">
+            <span className="block truncate" title={compareLabels[index] || `비교 ${index + 1}`}>{compareLabels[index] || `비교 ${index + 1}`}</span>
+          </div>
+        ))}
       </div>
       <div className="custom-scrollbar max-h-[560px] overflow-auto">
-        <div className="min-w-[920px] divide-y divide-[#2D2D30]">
+        <div className="divide-y divide-[#2D2D30]" style={{ minWidth }}>
           {visibleRows.map((row) => (
-            <div key={row.row_number} className="grid grid-cols-[72px_220px_minmax(0,1fr)_minmax(0,1fr)] bg-[#171717] text-[12px] text-[#E5E5E5] hover:bg-white/[0.025]">
+            <div key={row.row_number} className="grid bg-[#171717] text-[12px] text-[#E5E5E5] hover:bg-white/[0.025]" style={{ gridTemplateColumns }}>
               <div className="px-3 py-3 text-right text-[#86868B]">{row.row_number}</div>
-              <div className="border-l border-[#2D2D30] px-3 py-3 font-semibold text-white">{row.label}</div>
-              <div className="border-l border-[#2D2D30] px-3 py-3 leading-relaxed text-[#D6D6D6]">{formatSpecComparisonValue(row.left_value)}</div>
-              <div className="border-l border-[#2D2D30] px-3 py-3 leading-relaxed text-[#D6D6D6]">{formatSpecComparisonValue(row.right_value)}</div>
+              <div className="min-w-0 border-l border-[#2D2D30] px-3 py-3 font-semibold leading-5 text-white"><span className="block truncate" title={row.label}>{row.label}</span></div>
+              {Array.from({ length: columnCount }).map((_, index) => (
+                <div key={`${row.row_number}-${index}`} className="min-w-0 border-l border-[#2D2D30] px-3 py-3 leading-5 text-[#D6D6D6]">
+                  <span className="block truncate" title={formatSpecComparisonValue(row.values?.[index] ?? row[`value_${index}`])}>{formatSpecComparisonValue(row.values?.[index] ?? row[`value_${index}`])}</span>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -3808,10 +3887,11 @@ export function AssetSpecDashboard() {
     tenants: tenantsByAsset.get(asset.asset_id) || [],
   })).sort((a, b) => text(a.asset_name).localeCompare(text(b.asset_name), 'ko'));
   const editableAssets = rows.filter((row) => row.can_create || row.can_update || row.can_delete);
-  const [leftId, setLeftId] = useState('');
-  const [rightId, setRightId] = useState('');
-  const [tenantLeftId, setTenantLeftId] = useState('');
-  const [tenantRightId, setTenantRightId] = useState('');
+  const [assetCompareIds, setAssetCompareIds] = useState(() => Array.from({ length: ASSET_SPEC_COMPARE_SLOT_COUNT }, () => ''));
+  const [tenantCompareSelections, setTenantCompareSelections] = useState(() => Array.from(
+    { length: ASSET_SPEC_COMPARE_SLOT_COUNT },
+    () => ({ tenantName: '', assetId: '' }),
+  ));
   const [editOpen, setEditOpen] = useState(false);
   const [editAssetId, setEditAssetId] = useState('');
   const [editRows, setEditRows] = useState(ASSET_SPEC_DEFAULT_ROWS);
@@ -3821,6 +3901,7 @@ export function AssetSpecDashboard() {
     const asset = rows.find((row) => row.asset_id === tenant.asset_id) || {};
     return {
       id: `${tenant.asset_id}:${tenant.tenant_name}`,
+      asset_id: tenant.asset_id,
       tenant_name: tenant.tenant_name,
       asset_name: asset.asset_name,
       asset_row: asset,
@@ -3836,16 +3917,59 @@ export function AssetSpecDashboard() {
   const rowsVersion = rows.map((row) => `${row.asset_id}:${row.spec?.asset_spec_id || ''}:${row.spec?.updated_at || ''}`).join('|');
   const tenantRowsVersion = tenantRows.map((row) => row.id).join('|');
   const editableAssetsVersion = editableAssets.map((row) => `${row.asset_id}:${row.can_create ? 'c' : ''}${row.can_update ? 'u' : ''}${row.can_delete ? 'd' : ''}`).join('|');
+  const tenantNames = useMemo(() => (
+    Array.from(new Set(tenantRows.map((row) => text(row.tenant_name, '')).filter(Boolean)))
+      .sort((a, b) => a.localeCompare(b, 'ko'))
+  ), [tenantRowsVersion]);
+  const tenantAssetsByName = useMemo(() => {
+    const grouped = new Map();
+    tenantRows.forEach((row) => {
+      const tenantName = text(row.tenant_name, '');
+      if (!tenantName) return;
+      const current = grouped.get(tenantName) || [];
+      if (!current.some((item) => item.asset_id === row.asset_id)) current.push(row);
+      grouped.set(tenantName, current);
+    });
+    grouped.forEach((items) => items.sort((a, b) => text(a.asset_name).localeCompare(text(b.asset_name), 'ko')));
+    return grouped;
+  }, [tenantRowsVersion]);
   useEffect(() => {
     if (!rows.length) return;
-    if (!rows.some((row) => row.asset_id === leftId)) setLeftId(rows[0]?.asset_id || '');
-    if (!rows.some((row) => row.asset_id === rightId)) setRightId(rows[1]?.asset_id || rows[0]?.asset_id || '');
-  }, [leftId, rightId, rowsVersion]);
+    setAssetCompareIds((current) => {
+      let changed = current.length !== ASSET_SPEC_COMPARE_SLOT_COUNT;
+      const next = Array.from({ length: ASSET_SPEC_COMPARE_SLOT_COUNT }, (_, index) => {
+        const currentId = current[index] || '';
+        if (rows.some((row) => row.asset_id === currentId)) return currentId;
+        changed = true;
+        return rows[index]?.asset_id || rows[0]?.asset_id || '';
+      });
+      return changed ? next : current;
+    });
+  }, [rowsVersion]);
   useEffect(() => {
     if (!tenantRows.length) return;
-    if (!tenantRows.some((row) => row.id === tenantLeftId)) setTenantLeftId(tenantRows[0]?.id || '');
-    if (!tenantRows.some((row) => row.id === tenantRightId)) setTenantRightId(tenantRows[1]?.id || tenantRows[0]?.id || '');
-  }, [tenantLeftId, tenantRightId, tenantRowsVersion]);
+    setTenantCompareSelections((current) => {
+      let changed = current.length !== ASSET_SPEC_COMPARE_SLOT_COUNT;
+      const next = Array.from({ length: ASSET_SPEC_COMPARE_SLOT_COUNT }, (_, index) => {
+        const currentSelection = current[index] || {};
+        let tenantName = currentSelection.tenantName || '';
+        if (!tenantNames.includes(tenantName)) {
+          tenantName = tenantNames[index] || tenantNames[0] || '';
+          changed = true;
+        }
+        const occupiedAssets = tenantAssetsByName.get(tenantName) || [];
+        let assetId = currentSelection.assetId || '';
+        if (!occupiedAssets.some((row) => row.asset_id === assetId)) {
+          assetId = occupiedAssets[index]?.asset_id || occupiedAssets[0]?.asset_id || '';
+          changed = true;
+        }
+        const nextSelection = { tenantName, assetId };
+        if (tenantName !== currentSelection.tenantName || assetId !== currentSelection.assetId) changed = true;
+        return nextSelection;
+      });
+      return changed ? next : current;
+    });
+  }, [tenantRowsVersion, tenantNames, tenantAssetsByName]);
   useEffect(() => {
     if (!editOpen) return;
     const fallbackAssetId = editableAssets[0]?.asset_id || '';
@@ -3857,18 +3981,47 @@ export function AssetSpecDashboard() {
     setEditRows(normalizeAssetSpecEditorRows(selected ? assetSpecRowsFor(selected) : ASSET_SPEC_DEFAULT_ROWS));
     setEditStatus(null);
   }, [editAssetId, editOpen, rowsVersion]);
-  const left = rows.find((row) => row.asset_id === leftId) || rows[0] || null;
-  const right = rows.find((row) => row.asset_id === rightId) || rows[1] || rows[0] || null;
-  const tenantLeft = tenantRows.find((row) => row.id === tenantLeftId) || tenantRows[0] || null;
-  const tenantRight = tenantRows.find((row) => row.id === tenantRightId) || tenantRows[1] || tenantRows[0] || null;
-  const specCompareRows = assetSpecComparisonRows(left, right);
-  const tenantCompareRows = assetSpecComparisonRows(tenantLeft?.asset_row, tenantRight?.asset_row);
-  const compareColumns = (leftLabel, rightLabel) => [
+  const assetCompareTargets = assetCompareIds.map((assetId, index) => (
+    rows.find((row) => row.asset_id === assetId) || rows[index] || rows[0] || null
+  ));
+  const assetCompareLabels = assetCompareTargets.map((row, index) => text(row?.asset_name, `비교 ${index + 1}`));
+  const tenantCompareTargets = tenantCompareSelections.map((selection) => {
+    const occupiedAssets = tenantAssetsByName.get(selection.tenantName) || [];
+    return occupiedAssets.find((row) => row.asset_id === selection.assetId) || occupiedAssets[0] || null;
+  });
+  const tenantCompareLabels = tenantCompareTargets.map((row, index) => (
+    row ? `${text(row.tenant_name)} · ${text(row.asset_name)}` : `비교 ${index + 1}`
+  ));
+  const specCompareRows = assetSpecComparisonRows(assetCompareTargets);
+  const tenantCompareRows = assetSpecComparisonRows(tenantCompareTargets.map((row) => row?.asset_row));
+  const compareColumns = (labels) => [
     { key: 'row_number', label: '행', width: 72, align: 'right', sortValue: (row) => number(row.row_number) },
-    { key: 'label', label: '항목', width: 220, noTruncate: true },
-    { key: 'left_value', label: leftLabel || '비교 1', width: 420, noTruncate: true, wrap: true, render: (row) => formatSpecComparisonValue(row.left_value) },
-    { key: 'right_value', label: rightLabel || '비교 2', width: 420, noTruncate: true, wrap: true, render: (row) => formatSpecComparisonValue(row.right_value) },
+    { key: 'label', label: '항목', width: 210, noTruncate: true },
+    ...safeArray(labels).slice(0, ASSET_SPEC_COMPARE_SLOT_COUNT).map((label, index) => ({
+      key: `value_${index}`,
+      label: label || `비교 ${index + 1}`,
+      width: 260,
+      noTruncate: true,
+      wrap: true,
+      render: (row) => formatSpecComparisonValue(row.values?.[index] ?? row[`value_${index}`]),
+    })),
   ];
+  const setAssetCompareId = (index, assetId) => {
+    setAssetCompareIds((current) => current.map((value, currentIndex) => (currentIndex === index ? assetId : value)));
+  };
+  const setTenantCompareTenant = (index, tenantName) => {
+    const occupiedAssets = tenantAssetsByName.get(tenantName) || [];
+    setTenantCompareSelections((current) => current.map((selection, currentIndex) => (
+      currentIndex === index
+        ? { tenantName, assetId: occupiedAssets[0]?.asset_id || '' }
+        : selection
+    )));
+  };
+  const setTenantCompareAsset = (index, assetId) => {
+    setTenantCompareSelections((current) => current.map((selection, currentIndex) => (
+      currentIndex === index ? { ...selection, assetId } : selection
+    )));
+  };
   const selectedEditAsset = rows.find((row) => row.asset_id === editAssetId) || null;
   const canSaveSelectedSpec = Boolean(selectedEditAsset && (
     selectedEditAsset.spec?.asset_spec_id ? selectedEditAsset.can_update : selectedEditAsset.can_create
@@ -3918,32 +4071,50 @@ export function AssetSpecDashboard() {
         자산 스펙 데이터 입력 및 수정
       </button>
       <section className={`${CARD} p-5`}>
-        <ModuleHeader eyebrow="ASSET SPEC" title="자산 스펙 좌우 비교" subtitle="비교할 두 자산을 선택해 샘플 엑셀의 5~53행 기준으로 나란히 확인합니다." />
-        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <select value={left?.asset_id || leftId || ''} onChange={(event) => setLeftId(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
-            {rows.map((row) => <option key={row.asset_id} value={row.asset_id}>{row.asset_name}</option>)}
-          </select>
-          <select value={right?.asset_id || rightId || ''} onChange={(event) => setRightId(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
-            {rows.map((row) => <option key={row.asset_id} value={row.asset_id}>{row.asset_name}</option>)}
-          </select>
+        <ModuleHeader eyebrow="ASSET SPEC" title="자산별 스펙 비교" subtitle="비교할 자산을 최대 4개까지 선택해 샘플 엑셀의 5~53행 기준으로 나란히 확인합니다." />
+        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-4">
+          {assetCompareIds.map((assetId, index) => (
+            <label key={`asset-compare-${index}`} className="block min-w-0">
+              <span className="mb-1 block text-[12px] font-semibold text-[#A1A1AA]">비교 {index + 1}</span>
+              <select value={assetId} onChange={(event) => setAssetCompareId(index, event.target.value)} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
+                {rows.map((row) => <option key={row.asset_id} value={row.asset_id}>{row.asset_name}</option>)}
+              </select>
+            </label>
+          ))}
         </div>
-        <SpecComparisonPanel rows={specCompareRows} leftLabel={text(left?.asset_name)} rightLabel={text(right?.asset_name)} />
-        <button type="button" onClick={() => setTableModal({ title: '자산 스펙 전체 테이블', rows: specCompareRows, columns: compareColumns(text(left?.asset_name), text(right?.asset_name)) })} className="mt-4 h-10 w-full rounded-[9px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-[#E5E5E5] hover:bg-white/[0.04]">테이블 보기</button>
+        <SpecComparisonPanel rows={specCompareRows} labels={assetCompareLabels} />
+        <button type="button" onClick={() => setTableModal({ title: '자산 스펙 전체 테이블', rows: specCompareRows, columns: compareColumns(assetCompareLabels), minWidth: 1322 })} className="mt-4 h-10 w-full rounded-[9px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-[#E5E5E5] hover:bg-white/[0.04]">테이블 보기</button>
       </section>
       <section className={`${CARD} p-5`}>
-        <ModuleHeader eyebrow="TENANT SPEC FIT" title="임차인별 점유 자산 스펙 비교" subtitle="선택한 두 임차인의 점유 자산 스펙을 같은 항목 기준으로 좌우 비교합니다." />
-        <div className="mb-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-          <select value={tenantLeft?.id || tenantLeftId || ''} onChange={(event) => setTenantLeftId(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
-            {tenantRows.map((row) => <option key={row.id} value={row.id}>{row.tenant_name} · {row.asset_name}</option>)}
-          </select>
-          <select value={tenantRight?.id || tenantRightId || ''} onChange={(event) => setTenantRightId(event.target.value)} className="h-10 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
-            {tenantRows.map((row) => <option key={row.id} value={row.id}>{row.tenant_name} · {row.asset_name}</option>)}
-          </select>
+        <ModuleHeader eyebrow="TENANT SPEC FIT" title="임차인별 점유 자산 스펙 비교" subtitle="선택한 임차인의 점유 자산 스펙을 같은 항목 기준으로 최대 4개까지 비교합니다." />
+        <div className="mb-4 space-y-3">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+            {tenantCompareSelections.map((selection, index) => (
+              <label key={`tenant-compare-tenant-${index}`} className="block min-w-0">
+                <span className="mb-1 block text-[12px] font-semibold text-[#A1A1AA]">비교 {index + 1} 임차인</span>
+                <select value={selection.tenantName} onChange={(event) => setTenantCompareTenant(index, event.target.value)} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
+                  {tenantNames.map((tenantName) => <option key={tenantName} value={tenantName}>{tenantName}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+            {tenantCompareSelections.map((selection, index) => {
+              const occupiedAssets = tenantAssetsByName.get(selection.tenantName) || [];
+              return (
+                <label key={`tenant-compare-asset-${index}`} className="block min-w-0">
+                  <span className="mb-1 block text-[12px] font-semibold text-[#A1A1AA]">점유 자산</span>
+                  <select value={selection.assetId} onChange={(event) => setTenantCompareAsset(index, event.target.value)} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] font-semibold text-white outline-none">
+                    {occupiedAssets.map((row) => <option key={row.asset_id} value={row.asset_id}>{row.asset_name}</option>)}
+                  </select>
+                </label>
+              );
+            })}
+          </div>
         </div>
         <SpecComparisonPanel
           rows={tenantCompareRows}
-          leftLabel={`${text(tenantLeft?.tenant_name)} · ${text(tenantLeft?.asset_name)}`}
-          rightLabel={`${text(tenantRight?.tenant_name)} · ${text(tenantRight?.asset_name)}`}
+          labels={tenantCompareLabels}
           empty="아직 임차인별 스펙 비교 데이터가 없습니다."
         />
         <button
@@ -3951,7 +4122,8 @@ export function AssetSpecDashboard() {
           onClick={() => setTableModal({
             title: '임차인별 점유 자산 스펙 전체 테이블',
             rows: tenantCompareRows,
-            columns: compareColumns(`${text(tenantLeft?.tenant_name)} · ${text(tenantLeft?.asset_name)}`, `${text(tenantRight?.tenant_name)} · ${text(tenantRight?.asset_name)}`),
+            columns: compareColumns(tenantCompareLabels),
+            minWidth: 1322,
           })}
           className="mt-4 h-10 w-full rounded-[9px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-[#E5E5E5] hover:bg-white/[0.04]"
         >
@@ -3996,7 +4168,7 @@ export function AssetSpecDashboard() {
         </div>
       </Modal>
       <Modal title={tableModal?.title || ''} onClose={() => setTableModal(null)} width="max-w-[calc(100vw-32px)]" fullscreen>
-        <SortableTable minWidth={1180} maxHeight="calc(100vh - 150px)" stickyCount={2} defaultSort={{ key: 'row_number', direction: 'asc' }} columns={tableModal?.columns || []} rows={tableModal?.rows || []} />
+        <SortableTable minWidth={tableModal?.minWidth || 1180} maxHeight="calc(100vh - 150px)" stickyCount={2} defaultSort={{ key: 'row_number', direction: 'asc' }} columns={tableModal?.columns || []} rows={tableModal?.rows || []} />
       </Modal>
     </div>
   );
