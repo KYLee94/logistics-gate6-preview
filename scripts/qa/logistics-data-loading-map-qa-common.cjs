@@ -320,6 +320,11 @@ function fakeNaverMapsSdk() {
         setZoom(zoom) { this.zoom = zoom; }
         getZoom() { return this.zoom; }
         setMapTypeId(type) { this.type = type; }
+        fitBounds(bounds) { this.bounds = bounds; }
+      }
+      class LatLngBounds {
+        constructor(sw, ne) { this.points = [sw, ne].filter(Boolean); }
+        extend(point) { this.points.push(point); }
       }
       class Marker {
         constructor(options = {}) {
@@ -338,6 +343,7 @@ function fakeNaverMapsSdk() {
       window.naver = {
         maps: {
           LatLng,
+          LatLngBounds,
           Map,
           Marker,
           CadastralLayer,
@@ -516,7 +522,25 @@ async function waitForContentReady(page, tab) {
     if (!/Market\s*Data/iu.test(text) || text.includes(loadingText)) return false;
     if (needsTable && document.querySelectorAll('[data-sortable-table="true"], table').length === 0) return false;
     if (needsChart && document.querySelectorAll('[data-chart-role][data-chart-empty="false"]').length === 0) return false;
-    if (needsMap && document.querySelectorAll('[data-map-provider]').length === 0) return false;
+    if (needsMap) {
+      const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
+      const hasExpandButton = document.querySelectorAll('[data-testid="market-map-expand-button"]').length > 0;
+      const hasReadyMap = Array.from(document.querySelectorAll('[data-map-provider]')).some((el) => {
+        const provider = el.getAttribute('data-map-provider') || '';
+        const mode = el.getAttribute('data-map-mode') || '';
+        const pointCount = Number(el.getAttribute('data-map-point-count') || 0);
+        const tileDomCount = el.querySelectorAll(tileSelector).length;
+        const pointButtons = el.querySelectorAll('[data-map-point-button="true"]').length;
+        const regionButtons = el.querySelectorAll('[data-region-cluster-button]').length;
+        return ['naver', 'osm'].includes(provider)
+          && mode === 'points'
+          && tileDomCount > 0
+          && pointCount > 0
+          && pointButtons > 0
+          && regionButtons === 0;
+      });
+      if (!hasExpandButton || !hasReadyMap) return false;
+    }
     return true;
   }, { loadingText: LOAD_TEXT, needsTable: tab.needsTable, needsChart: tab.needsChart, needsMap: tab.needsMap }, { timeout: 45000 });
 }
@@ -524,6 +548,7 @@ async function waitForContentReady(page, tab) {
 async function collectPageState(page) {
   return page.evaluate(({ loadingText, errorText, internalPattern }) => {
     const body = document.body?.innerText || '';
+    const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
     const mapStats = Array.from(document.querySelectorAll('[data-map-provider]')).map((el, index) => ({
       index,
       mode: el.getAttribute('data-map-mode') || '',
@@ -539,6 +564,7 @@ async function collectPageState(page) {
       naver_ready: el.getAttribute('data-naver-map-ready') === 'true',
       osm_ready: el.getAttribute('data-osm-map-ready') === 'true',
       fallback_ready: el.getAttribute('data-map-fallback-ready') === 'true',
+      tile_dom_count: el.querySelectorAll(tileSelector).length,
       region_buttons: el.querySelectorAll('[data-region-cluster-button="true"]').length,
       point_buttons: el.querySelectorAll('[data-map-point-button="true"]').length,
     }));
@@ -550,6 +576,8 @@ async function collectPageState(page) {
       chart_ready_count: document.querySelectorAll('[data-chart-role][data-chart-empty="false"]').length,
       internal_tokens_visible: new RegExp(internalPattern, 'iu').test(body),
       broken_question_marks_visible: /\?{4,}/u.test(body),
+      region_summary_visible: /권역\s*\d+개\s*표시|\d+건\s*축약/u.test(body),
+      map_expand_button_count: document.querySelectorAll('[data-testid="market-map-expand-button"]').length,
       map_stats: mapStats,
       excerpt: body.slice(0, 800),
     };
@@ -667,7 +695,16 @@ async function runDataLoadingStability() {
             : (!row.error_visible
               && row.table_count > 0
               && (!tab.needsChart || row.chart_ready_count > 0)
-              && (!tab.needsMap || row.map_stats.some((item) => ['naver', 'osm', 'fallback'].includes(item.provider)))))
+              && (!tab.needsMap || row.map_stats.some((item) => (
+                ['naver', 'osm'].includes(item.provider)
+                && item.mode === 'points'
+                && item.tile_dom_count > 0
+                && item.point_count > 0
+                && item.point_buttons > 0
+                && item.region_buttons === 0
+              )))
+              && (!tab.needsMap || row.map_expand_button_count > 0)
+              && (!tab.needsMap || !row.region_summary_visible)))
           && (simulation === 'failure' || elapsedMs <= 15000);
         report.routes.push(row);
       }
@@ -755,14 +792,56 @@ async function runMarketMapPinpoint() {
     await waitForMarketShell(page);
     await waitForContentReady(page, { needsTable: true, needsChart: true, needsMap: true });
     await waitForProvider(page, expectedProvider);
-    await page.locator('[data-region-cluster-button="true"]').first().click({ timeout: 15000 });
-    await page.waitForFunction(() => {
+    await page.waitForFunction((provider) => {
       const maps = Array.from(document.querySelectorAll('[data-map-provider]'));
-      return maps.some((el) => el.getAttribute('data-map-mode') === 'points' && Number(el.getAttribute('data-map-point-count') || 0) > 0);
-    }, { timeout: 30000 });
+      const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
+      return maps.some((el) => (
+        el.getAttribute('data-map-provider') === provider
+        && el.getAttribute('data-map-mode') === 'points'
+        && Number(el.getAttribute('data-map-point-count') || 0) > 0
+        && Number(el.getAttribute('data-map-fallback-count') || 0) === 0
+        && el.querySelectorAll(tileSelector).length > 0
+        && el.querySelectorAll('[data-map-point-button="true"]').length > 0
+        && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0
+      ));
+    }, expectedProvider, { timeout: 60000 });
     const state = await collectPageState(page);
-    const activeMap = state.map_stats.find((item) => item.mode === 'points') || null;
+    const activeMap = state.map_stats.find((item) => item.mode === 'points' && item.provider === expectedProvider) || null;
     const geometry = await collectPointGeometry(page);
+    const firstPoint = page.locator('[data-map-provider][data-map-mode="points"] [data-map-point-button="true"]').first();
+    report.point_button_visible = await firstPoint.isVisible({ timeout: 10000 }).catch(() => false);
+    report.point_button_title = report.point_button_visible ? await firstPoint.getAttribute('title').catch(() => '') : '';
+    if (report.point_button_visible) {
+      await firstPoint.click();
+      report.point_click_detail_ready = await page.locator('[role="dialog"]').first().isVisible({ timeout: 10000 }).catch(() => false);
+      if (report.point_click_detail_ready) {
+        const dialog = page.locator('[role="dialog"]').first();
+        await dialog.locator('button').first().click({ timeout: 10000 }).catch(() => null);
+        await dialog.waitFor({ state: 'detached', timeout: 10000 }).catch(() => null);
+      }
+    } else {
+      report.point_click_detail_ready = false;
+    }
+    const expandButton = page.locator('[data-testid="market-map-expand-button"]').first();
+    report.large_button_visible = await expandButton.isVisible({ timeout: 10000 }).catch(() => false);
+    if (report.large_button_visible) {
+      await expandButton.click();
+      report.large_modal_ready = await page.waitForFunction((provider) => {
+        const dialog = document.querySelector('[role="dialog"]');
+        if (!dialog) return false;
+        const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
+        return Array.from(dialog.querySelectorAll('[data-map-provider]')).some((el) => (
+          el.getAttribute('data-map-provider') === provider
+          && el.getAttribute('data-map-mode') === 'points'
+          && Number(el.getAttribute('data-map-point-count') || 0) > 0
+          && el.querySelectorAll(tileSelector).length > 0
+          && el.querySelectorAll('[data-map-point-button="true"]').length > 0
+          && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0
+        ));
+      }, expectedProvider, { timeout: 60000 }).then(() => true).catch(() => false);
+    } else {
+      report.large_modal_ready = false;
+    }
     report.state = state;
     report.active_map = activeMap;
     report.geometry = geometry;
@@ -780,6 +859,14 @@ async function runMarketMapPinpoint() {
     && report.active_map.coordinate_count >= report.active_map.point_count
     && report.active_map.fallback_count === 0
     && report.active_map.coordinate_source_count >= report.active_map.point_count
+    && report.active_map.tile_dom_count > 0
+    && report.active_map.region_buttons === 0
+    && report.active_map.point_buttons > 0
+    && report.state?.region_summary_visible === false
+    && report.point_button_visible === true
+    && report.point_click_detail_ready === true
+    && report.large_button_visible === true
+    && report.large_modal_ready === true
     && report.geometry?.ok === true
     && report.errors.length === 0;
   report.artifact = writeReport('market-map-pinpoint', report);
@@ -819,7 +906,17 @@ async function runMapProviderMatrix() {
         map_stats: state.map_stats,
         api_calls: [],
         ok: providers.includes(row.expected)
-          && state.map_stats.every((item) => item.point_count > 0 && item.coordinate_count >= item.point_count),
+          && state.map_stats.every((item) => (
+            item.provider === row.expected
+            && item.mode === 'points'
+            && item.tile_dom_count > 0
+            && item.point_count > 0
+            && item.point_buttons > 0
+            && item.region_buttons === 0
+            && item.coordinate_count >= item.point_count
+          ))
+          && state.map_expand_button_count > 0
+          && !state.region_summary_visible,
       };
       report.matrix.push(result);
       report.errors.push(...runtime.errors.map((message) => `${row.key}: ${message}`));

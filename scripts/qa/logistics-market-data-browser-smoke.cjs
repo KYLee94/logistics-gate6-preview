@@ -179,32 +179,14 @@ async function waitForStableMarketDataPage(page, tab) {
   }
   if (tab.needsMap) {
     result.map_provider_ready = await page.waitForFunction(() => document.querySelector('[data-naver-map-ready="true"],[data-osm-map-ready="true"]'), { timeout: 90000 }).then(() => true).catch(() => false);
+    await page.waitForTimeout(1700);
     result.naver_sdk_ready = (await page.locator('[data-naver-map-ready="true"]').count().catch(() => 0)) > 0;
     result.osm_ready = (await page.locator('[data-osm-map-ready="true"]').count().catch(() => 0)) > 0;
-    result.map_fallback_ready = await page.waitForFunction(() => document.querySelector('[data-map-fallback-ready="true"]'), { timeout: 5000 }).then(() => true).catch(() => false);
+    result.map_fallback_ready = (await page.locator('[data-map-fallback-ready="true"]').count().catch(() => 0)) > 0;
     result.naver_ready = result.map_provider_ready;
-    result.map_region_cluster_ready = await page.waitForFunction(() => {
-      const maps = Array.from(document.querySelectorAll('[data-map-mode]'));
-      return maps.length > 0 && maps.every((el) => {
-        const mode = el.getAttribute('data-map-mode');
-        const clusterCount = Number(el.getAttribute('data-map-region-cluster-count') || 0);
-        return mode === 'regions' && clusterCount > 0 && el.querySelector('[data-region-cluster-button="true"]');
-      });
-    }, { timeout: 90000 }).then(() => true).catch(() => false);
-    result.map_region_cluster_overlap = result.map_region_cluster_ready
-      ? await evaluateMapButtonOverlap(page, '[data-map-mode="regions"]', '[data-region-cluster-button="true"]', 4)
-      : [];
-    result.map_region_cluster_overlap_ok = !result.map_region_cluster_ready
-      ? false
-      : result.map_region_cluster_overlap.every((item) => item.ok);
-    if (result.map_region_cluster_ready) {
-      await page.evaluate(() => {
-        Array.from(document.querySelectorAll('[data-map-mode="regions"]')).forEach((el) => {
-          const button = el.querySelector('[data-region-cluster-button="true"]');
-          if (button) button.click();
-        });
-      }).catch(() => null);
-    }
+    result.map_region_cluster_ready = false;
+    result.map_region_cluster_overlap = [];
+    result.map_region_cluster_overlap_ok = true;
     result.map_points_coordinate_ready = await page.waitForFunction(() => {
       const maps = Array.from(document.querySelectorAll('[data-map-point-count]'));
       return maps.length > 0 && maps.every((el) => {
@@ -218,11 +200,16 @@ async function waitForStableMarketDataPage(page, tab) {
     }, { timeout: 120000 }).then(() => true).catch(() => false);
     result.map_points_provider_ready = await page.waitForFunction(() => {
       const maps = Array.from(document.querySelectorAll('[data-map-point-count]'));
+      const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
       return maps.length > 0 && maps.every((el) => (
         el.getAttribute('data-map-mode') === 'points'
         && (el.getAttribute('data-naver-map-ready') === 'true' || el.getAttribute('data-osm-map-ready') === 'true')
+        && el.querySelectorAll(tileSelector).length > 0
+        && el.querySelectorAll('[data-map-point-button="true"]').length > 0
+        && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0
       ));
     }, { timeout: 60000 }).then(() => true).catch(() => false);
+    result.map_large_button_ready = await page.locator('[data-testid="market-map-expand-button"]').count().then((count) => count > 0).catch(() => false);
     result.map_point_overlap = result.map_points_provider_ready
       ? await evaluateMapButtonOverlap(page, '[data-map-mode="points"]', '[data-map-point-button="true"]', 12)
       : [];
@@ -309,24 +296,41 @@ async function main() {
       const naverMapCount = await page.locator('[data-naver-map-ready="true"]').count().catch(() => 0);
       const osmMapCount = await page.locator('[data-osm-map-ready="true"]').count().catch(() => 0);
       const fallbackMapCount = await page.locator('[data-map-fallback-ready="true"]').count().catch(() => 0);
-      const mapCoordinateStats = await page.evaluate(() => Array.from(document.querySelectorAll('[data-map-point-count]')).map((el) => ({
-        mode: el.getAttribute('data-map-mode') || '',
-        selected_region: el.getAttribute('data-map-selected-region') || '',
-        region_cluster_count: Number(el.getAttribute('data-map-region-cluster-count') || 0),
-        visible_asset_count: Number(el.getAttribute('data-map-visible-asset-count') || 0),
-        point_count: Number(el.getAttribute('data-map-point-count') || 0),
-        coordinate_count: Number(el.getAttribute('data-map-coordinate-count') || 0),
-        fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
-        geocoded_count: Number(el.getAttribute('data-map-geocoded-count') || 0),
-        coordinate_source_count: Number(el.getAttribute('data-map-coordinate-source-count') || 0),
-      }))).catch(() => []);
-      const allVisibleMapPointsCoordinateReady = !tab.needsMap || mapCoordinateStats.every((item) => item.mode === 'points' && item.point_count > 0 && item.coordinate_count >= item.point_count && item.fallback_count === 0 && item.coordinate_source_count >= item.point_count);
+      const mapCoordinateStats = await page.evaluate(() => {
+        const tileSelector = 'img[src], canvas, [style*="background-image"], .leaflet-tile, [data-qa-fake-naver-tile="true"]';
+        return Array.from(document.querySelectorAll('[data-map-point-count]')).map((el) => ({
+          mode: el.getAttribute('data-map-mode') || '',
+          selected_region: el.getAttribute('data-map-selected-region') || '',
+          region_cluster_count: Number(el.getAttribute('data-map-region-cluster-count') || 0),
+          visible_asset_count: Number(el.getAttribute('data-map-visible-asset-count') || 0),
+          point_count: Number(el.getAttribute('data-map-point-count') || 0),
+          coordinate_count: Number(el.getAttribute('data-map-coordinate-count') || 0),
+          fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
+          geocoded_count: Number(el.getAttribute('data-map-geocoded-count') || 0),
+          coordinate_source_count: Number(el.getAttribute('data-map-coordinate-source-count') || 0),
+          tile_dom_count: el.querySelectorAll(tileSelector).length,
+          point_button_count: el.querySelectorAll('[data-map-point-button="true"]').length,
+          region_button_count: el.querySelectorAll('[data-region-cluster-button="true"]').length,
+        }));
+      }).catch(() => []);
+      const allVisibleMapPointsCoordinateReady = !tab.needsMap || mapCoordinateStats.every((item) => (
+        item.mode === 'points'
+        && item.point_count > 0
+        && item.coordinate_count >= item.point_count
+        && item.fallback_count === 0
+        && item.coordinate_source_count >= item.point_count
+        && item.tile_dom_count > 0
+        && item.point_button_count > 0
+        && item.region_button_count === 0
+      ));
       const mapProviderStateOk = !tab.needsMap
         || naverMapCount > 0
         || osmMapCount > 0;
       const mapOverlapStateOk = !tab.needsMap
-        || (waitState.map_region_cluster_overlap_ok === true && waitState.map_point_overlap_ok === true);
+        || waitState.map_point_overlap_ok === true;
       const mapWarningPresent = body.includes('지도 API 미설정') || body.includes('좌표 부족');
+      const mapRegionSummaryVisible = /권역\s*\d+개\s*표시|\d+건\s*축약/u.test(body);
+      const mapExpandButtonCount = await page.locator('[data-testid="market-map-expand-button"]').count().catch(() => 0);
       const tableCount = await page.locator('table').count().catch(() => 0);
       const sortableTableCount = await page.locator('[data-sortable-table="true"]').count().catch(() => 0);
       const tableHeaderCount = await page.locator('table thead th').count().catch(() => 0);
@@ -382,6 +386,8 @@ async function main() {
         all_visible_map_points_coordinate_ready: allVisibleMapPointsCoordinateReady,
         map_provider_state_ok: mapProviderStateOk,
         map_overlap_state_ok: mapOverlapStateOk,
+        map_region_summary_visible: mapRegionSummaryVisible,
+        map_expand_button_count: mapExpandButtonCount,
         map_region_cluster_overlap: waitState.map_region_cluster_overlap || [],
         map_point_overlap: waitState.map_point_overlap || [],
         loading_still_present: loadingStillPresent,
@@ -427,9 +433,11 @@ async function main() {
         && nonSortableHeaders.length === 0
         && sortableHeaderClickOk
         && mapProviderStateOk
-        && (!tab.needsMap || waitState.map_region_cluster_ready)
+        && (!tab.needsMap || waitState.map_large_button_ready)
         && (!tab.needsMap || waitState.map_points_coordinate_ready)
         && allVisibleMapPointsCoordinateReady
+        && (!tab.needsMap || !mapRegionSummaryVisible)
+        && (!tab.needsMap || mapExpandButtonCount > 0)
         && mapOverlapStateOk
         && (tab.key === 'source-update' || chartCount > 0)
         && emptyChartCount === 0

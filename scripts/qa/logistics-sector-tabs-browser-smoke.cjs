@@ -147,6 +147,7 @@ async function main() {
   };
   const probes = [
     { key: 'home', route: 'platform/iotaseoul/workspace/logistics/dashboard/home', patterns: [/E\.?\s*NOC/u, /WALE/u] },
+    { key: 'asset', route: 'platform/iotaseoul/workspace/logistics/dashboard/asset', patterns: [/면적 구성/u, /자산 3D 모델 열기/u] },
     { key: 'investment_index', route: 'platform/iotaseoul/workspace/logistics/dashboard/investment-index', patterns: [/Investment Index/u, /Equity/u, /Loan/u] },
     { key: 'asset_spec', route: 'platform/iotaseoul/workspace/logistics/dashboard/asset-spec', patterns: [/Asset Spec/u] },
     { key: 'market_data', route: 'platform/iotaseoul/workspace/logistics/market-data', patterns: [/Market Data/u] },
@@ -189,6 +190,21 @@ async function main() {
         && !routeReport.has_question_marks
         && !routeReport.internal_tokens_visible
         && !routeReport.raw_region_numbers_visible;
+
+      if (probe.key === 'asset') {
+        const modelLink = page.locator('[data-testid="asset-3d-model-link"]').first();
+        routeReport.asset_3d_model_link = {
+          visible: await modelLink.isVisible({ timeout: 5000 }).catch(() => false),
+          href: await modelLink.getAttribute('href').catch(() => ''),
+          target: await modelLink.getAttribute('target').catch(() => ''),
+          text: await modelLink.innerText().catch(() => ''),
+        };
+        routeReport.ok = routeReport.ok
+          && routeReport.asset_3d_model_link.visible
+          && routeReport.asset_3d_model_link.href === 'https://sjleeigisam-ra-ieo.github.io/drawer/'
+          && routeReport.asset_3d_model_link.target === '_blank'
+          && /자산\s*3D\s*모델\s*열기/u.test(routeReport.asset_3d_model_link.text || '');
+      }
 
       if (probe.key === 'work_platform_news') {
         const today = kstDateKey();

@@ -13977,6 +13977,16 @@ function AssetDashboard() {
               content: <FloorplanCarousel slides={floorplanSlides} assetName={overview.assetName} modalMode />,
             })}
           />
+          <a
+            href="https://sjleeigisam-ra-ieo.github.io/drawer/"
+            target="_blank"
+            rel="noreferrer"
+            data-testid="asset-3d-model-link"
+            aria-label="자산 3D 모델 열기"
+            className="mt-3 flex h-12 w-full items-center justify-center rounded-[12px] border border-[#3b82f6]/40 bg-[#1f3763] text-[13px] font-bold text-[#CFE1FF] shadow-lg transition-colors hover:bg-[#284B87]"
+          >
+            자산 3D 모델 열기
+          </a>
         </div>
       </section>
 
