@@ -49,6 +49,7 @@ import{r as i,j as e,R as Wt,a as no,c as q6}from"./vendor-react-BHTQDIKj.js";im
             border: 0 !important;
           }
           .market-map-region-cluster-marker {
+            box-sizing: border-box !important;
             display: grid;
             place-items: center;
             width: 52px;
