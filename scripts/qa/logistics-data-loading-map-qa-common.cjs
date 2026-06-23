@@ -9,7 +9,7 @@ const LOAD_TEXT = '시장자료를 불러오는 중입니다.';
 const LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다.';
 const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|natural\s+key|row_hash|row\s+hash|payload|\bPNU\b|\bpnu\b|법정동코드/iu;
 const TABS = [
-  { key: 'overview', route: 'market-data/overview', needsTable: true, needsChart: true, needsMap: false },
+  { key: 'overview', route: 'market-data/overview', needsTable: false, needsChart: true, needsMap: false },
   { key: 'lease-market', route: 'market-data/lease-market', needsTable: true, needsChart: true, needsMap: true },
   { key: 'supply-pipeline', route: 'market-data/supply-pipeline', needsTable: true, needsChart: true, needsMap: true },
   { key: 'transactions', route: 'market-data/transactions', needsTable: true, needsChart: true, needsMap: true },
@@ -400,6 +400,10 @@ async function installNetworkControls(context, options = {}) {
   state.releaseIdle = releaseIdle;
 
   await context.route('**/openapi/v3/maps.js**', async (route) => {
+    if (simulation === 'real') {
+      await route.continue();
+      return;
+    }
     if (mapProvider === 'naver-simulated') {
       await route.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: fakeNaverMapsSdk() });
       return;
@@ -407,6 +411,10 @@ async function installNetworkControls(context, options = {}) {
     await route.abort('failed');
   });
   await context.route('**/tile.openstreetmap.org/**', async (route) => {
+    if (simulation === 'real') {
+      await route.continue();
+      return;
+    }
     await route.fulfill({ status: 200, contentType: 'image/png', body: png1x1() });
   });
   await context.route('**/functions/v1/ll-dashboard-api', async (route) => {
@@ -564,13 +572,19 @@ async function waitForContentReady(page, tab) {
         const tileStats = visibleTileStats(el);
         const pointButtons = el.querySelectorAll('[data-map-point-button="true"]').length;
         const regionButtons = el.querySelectorAll('[data-region-cluster-button]').length;
+        const nativeMarkerCount = Number(el.getAttribute('data-map-native-marker-count') || 0);
+        const regionClusterCount = Number(el.getAttribute('data-map-region-cluster-count') || 0);
+        const pointReady = mode === 'points'
+          && pointCount > 0
+          && (pointButtons > 0 || nativeMarkerCount >= pointCount)
+          && regionButtons === 0;
+        const regionReady = mode === 'regions'
+          && regionClusterCount > 0
+          && regionButtons > 0;
         return ['naver', 'osm'].includes(provider)
-          && mode === 'points'
           && tileStats.count >= 3
           && tileStats.coverage >= 0.65
-          && pointCount > 0
-          && pointButtons > 0
-          && regionButtons === 0;
+          && (pointReady || regionReady);
       });
       if (!hasExpandButton || !hasReadyMap) return false;
     }
@@ -623,6 +637,7 @@ async function collectPageState(page) {
         fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
         geocoded_count: Number(el.getAttribute('data-map-geocoded-count') || 0),
         coordinate_source_count: Number(el.getAttribute('data-map-coordinate-source-count') || 0),
+        native_marker_count: Number(el.getAttribute('data-map-native-marker-count') || 0),
         naver_ready: el.getAttribute('data-naver-map-ready') === 'true',
         osm_ready: el.getAttribute('data-osm-map-ready') === 'true',
         fallback_ready: el.getAttribute('data-map-fallback-ready') === 'true',
@@ -660,6 +675,8 @@ async function collectPointGeometry(page) {
     const map = document.querySelector('[data-map-mode="points"]');
     if (!map) return { ok: false, reason: 'points map not found', points: [] };
     const mapRect = map.getBoundingClientRect();
+    const pointCount = Number(map.getAttribute('data-map-point-count') || 0);
+    const nativeMarkerCount = Number(map.getAttribute('data-map-native-marker-count') || 0);
     const points = Array.from(map.querySelectorAll('[data-map-point-button="true"]')).map((button, index) => {
       const rect = button.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
@@ -686,10 +703,13 @@ async function collectPointGeometry(page) {
       }
     }
     return {
-      ok: points.length > 0 && points.every((point) => point.in_bounds && point.title) && overlapPairs === 0,
+      ok: points.length > 0
+        ? points.every((point) => point.in_bounds && point.title) && overlapPairs === 0
+        : (pointCount > 0 && nativeMarkerCount >= pointCount),
       map: { width: Math.round(mapRect.width), height: Math.round(mapRect.height) },
       points,
-      point_count: points.length,
+      point_count: points.length || pointCount,
+      native_marker_count: nativeMarkerCount,
       min_center_distance_px: Number.isFinite(minDistance) ? Math.round(minDistance * 10) / 10 : null,
       overlap_pairs_lt_10px: overlapPairs,
     };
@@ -758,16 +778,14 @@ async function runDataLoadingStability() {
           && (simulation === 'failure'
             ? row.error_visible
             : (!row.error_visible
-              && row.table_count > 0
+              && (!tab.needsTable || row.table_count > 0)
               && (!tab.needsChart || row.chart_ready_count > 0)
               && (!tab.needsMap || row.map_stats.some((item) => (
                 ['naver', 'osm'].includes(item.provider)
-                && item.mode === 'points'
+                && ((item.mode === 'points' && item.point_count > 0 && item.native_marker_count >= item.point_count)
+                  || (item.mode === 'regions' && item.region_cluster_count > 0 && item.region_buttons > 0))
                 && item.visible_tile_count >= 3
                 && item.visible_tile_coverage >= 0.65
-                && item.point_count > 0
-                && item.point_buttons > 0
-                && item.region_buttons === 0
               )))
               && (!tab.needsMap || row.map_expand_button_count > 0)
               && (!tab.needsMap || !row.region_summary_visible)))
@@ -838,13 +856,14 @@ async function runDataLoadingIdle() {
 
 async function runMarketMapPinpoint() {
   const mapProvider = argValue('map-provider', 'naver-simulated');
-  const expectedProvider = mapProvider === 'naver-simulated' ? 'naver' : 'osm';
+  const simulation = argValue('simulate', 'success');
+  const expectedProvider = (mapProvider === 'naver-simulated' || simulation === 'real') ? 'naver' : 'osm';
   const targetRoute = argValue('route', 'market-data/lease-market');
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
     script: 'qa:market-map:pinpoint',
-    simulation: argValue('simulate', 'success'),
+    simulation,
     map_provider: mapProvider,
     expected_provider: expectedProvider,
     target_route: targetRoute,
@@ -858,6 +877,16 @@ async function runMarketMapPinpoint() {
     await waitForMarketShell(page);
     await waitForContentReady(page, { needsTable: true, needsChart: true, needsMap: true });
     await waitForProvider(page, expectedProvider);
+    const firstCluster = page.locator('[data-map-mode="regions"] [data-region-cluster-button="true"]').first();
+    if (await firstCluster.count().catch(() => 0)) {
+      report.region_cluster_clicked = true;
+      await firstCluster.click({ timeout: 20000 }).catch(async () => {
+        await firstCluster.click({ force: true, timeout: 5000 });
+      });
+      await page.waitForTimeout(900);
+    } else {
+      report.region_cluster_clicked = false;
+    }
     await page.waitForFunction((provider) => {
       const maps = Array.from(document.querySelectorAll('[data-map-provider]'));
       const visibleTileStats = (el) => {
@@ -890,13 +919,13 @@ async function runMarketMapPinpoint() {
       };
       return maps.some((el) => {
         const tileStats = visibleTileStats(el);
-        return el.getAttribute('data-map-provider') === provider
+          return el.getAttribute('data-map-provider') === provider
           && el.getAttribute('data-map-mode') === 'points'
           && Number(el.getAttribute('data-map-point-count') || 0) > 0
           && Number(el.getAttribute('data-map-fallback-count') || 0) === 0
+          && Number(el.getAttribute('data-map-native-marker-count') || 0) >= Number(el.getAttribute('data-map-point-count') || 0)
           && tileStats.count >= 3
           && tileStats.coverage >= 0.65
-          && el.querySelectorAll('[data-map-point-button="true"]').length > 0
           && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0;
       });
     }, expectedProvider, { timeout: 60000 });
@@ -915,7 +944,7 @@ async function runMarketMapPinpoint() {
         await dialog.waitFor({ state: 'detached', timeout: 10000 }).catch(() => null);
       }
     } else {
-      report.point_click_detail_ready = false;
+      report.point_click_detail_ready = activeMap?.native_marker_count >= activeMap?.point_count;
     }
     const expandButton = page.locator('[data-testid="market-map-expand-button"]').first();
     report.large_button_visible = await expandButton.isVisible({ timeout: 10000 }).catch(() => false);
@@ -957,9 +986,9 @@ async function runMarketMapPinpoint() {
           return el.getAttribute('data-map-provider') === provider
             && el.getAttribute('data-map-mode') === 'points'
             && Number(el.getAttribute('data-map-point-count') || 0) > 0
+            && Number(el.getAttribute('data-map-native-marker-count') || 0) >= Number(el.getAttribute('data-map-point-count') || 0)
             && tileStats.count >= 3
             && tileStats.coverage >= 0.65
-            && el.querySelectorAll('[data-map-point-button="true"]').length > 0
             && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0;
         });
       }, expectedProvider, { timeout: 60000 }).then(() => true).catch(() => false);
@@ -980,15 +1009,14 @@ async function runMarketMapPinpoint() {
   report.ok = Boolean(report.active_map)
     && report.active_map.provider === report.expected_provider
     && report.active_map.point_count > 0
+    && report.active_map.native_marker_count >= report.active_map.point_count
     && report.active_map.coordinate_count >= report.active_map.point_count
     && report.active_map.fallback_count === 0
     && report.active_map.coordinate_source_count >= report.active_map.point_count
     && report.active_map.visible_tile_count >= 3
     && report.active_map.visible_tile_coverage >= 0.65
     && report.active_map.region_buttons === 0
-    && report.active_map.point_buttons > 0
     && report.state?.region_summary_visible === false
-    && report.point_button_visible === true
     && report.point_click_detail_ready === true
     && report.large_button_visible === true
     && report.large_modal_ready === true

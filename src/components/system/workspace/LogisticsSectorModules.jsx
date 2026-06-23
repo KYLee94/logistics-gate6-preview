@@ -1350,7 +1350,7 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
   const clusterIconHtml = (item) => `
     <button type="button" data-region-cluster-button="true" data-region-name="${escapeMapHtml(item.regionLabel)}" data-region-point-count="${escapeMapHtml(item.count)}" class="market-map-region-cluster-marker">
       <span>
-        <em>${escapeMapHtml(regionDisplayParts(item.region).scope || '')}</em>
+        <em>${escapeMapHtml(regionDisplayParts(item.region).scope ? `(${regionDisplayParts(item.region).scope})` : '')}</em>
         <b>${escapeMapHtml(regionDisplayParts(item.region).region)}</b>
       </span>
       <strong>${escapeMapHtml(formatNumber(item.count))}건</strong>
@@ -1541,8 +1541,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
               icon: L.divIcon({
                 className: 'market-map-region-cluster-icon',
                 html: clusterIconHtml(item),
-                iconSize: [44, 44],
-                iconAnchor: [22, 22],
+                iconSize: [48, 48],
+                iconAnchor: [24, 24],
               }),
             }
             : {};
@@ -1689,8 +1689,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           if (item.isCluster) {
             markerOptions.icon = {
               content: clusterIconHtml(item),
-              size: new window.naver.maps.Size(44, 44),
-              anchor: new window.naver.maps.Point(22, 22),
+              size: new window.naver.maps.Size(48, 48),
+              anchor: new window.naver.maps.Point(24, 24),
             };
           }
           const marker = new window.naver.maps.Marker(markerOptions);
@@ -1822,15 +1822,18 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           .market-map-region-cluster-marker {
             box-sizing: border-box !important;
             display: grid;
+            grid-template-rows: auto auto;
+            align-content: center;
             place-items: center;
-            width: 44px;
-            height: 44px;
+            row-gap: 0;
+            width: 48px;
+            height: 48px;
             border-radius: 999px;
             border: 1px solid rgba(150, 205, 245, 0.58);
             background: rgba(8, 68, 108, 0.82);
             color: #fff;
             font: inherit;
-            line-height: 0.86;
+            line-height: 1;
             box-shadow: 0 8px 18px rgba(0, 0, 0, 0.30);
             cursor: pointer;
             text-align: center;
@@ -1838,8 +1841,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           }
           .market-map-region-cluster-marker span {
             display: grid;
-            gap: 0;
-            max-width: 39px;
+            gap: 2px;
+            max-width: 43px;
             overflow: hidden;
             font-size: 7px;
             font-weight: 700;
@@ -1854,18 +1857,20 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           }
           .market-map-region-cluster-marker em {
             color: rgba(236, 242, 247, 0.82);
-            font-size: 6px;
+            font-size: 7px;
             font-weight: 700;
           }
           .market-map-region-cluster-marker b {
-            font-size: 9px;
+            font-size: 10px;
+            line-height: 0.96;
             font-weight: 800;
           }
           .market-map-region-cluster-marker strong {
             display: block;
-            margin-top: 0;
+            margin-top: -2px;
             color: rgba(200, 210, 219, 0.70);
-            font-size: 6px;
+            font-size: 7px;
+            line-height: 0.9;
             font-weight: 800;
           }
           .market-map-region-cluster-tooltip {

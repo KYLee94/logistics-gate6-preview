@@ -1,0 +1,14 @@
+{
+  "ok": false,
+  "generated_at": "2026-06-23T02:27:14.811Z",
+  "script": "qa:market-map:pinpoint",
+  "simulation": "real",
+  "map_provider": "naver-simulated",
+  "expected_provider": "naver",
+  "target_route": "market-data/lease-market",
+  "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
+  "errors": [
+    "page.waitForFunction: Timeout 30000ms exceeded."
+  ],
+  "warnings": []
+}

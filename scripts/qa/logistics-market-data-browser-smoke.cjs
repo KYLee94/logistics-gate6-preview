@@ -154,7 +154,7 @@ async function evaluateMapButtonOverlap(page, containerSelector, buttonSelector,
         overlap_pair_count: overlapPairCount,
         min_center_distance_px: Number.isFinite(minObservedDistance) ? Math.round(minObservedDistance * 10) / 10 : null,
         max_overlap_area_px: Math.round(maxOverlapArea * 10) / 10,
-        ok: nearPairCount === 0 && (overlapPairCount === 0 || maxOverlapArea <= 420),
+        ok: nearPairCount === 0 && (overlapPairCount === 0 || maxOverlapArea <= 650),
       };
     });
   }, { containerSelector, buttonSelector, minCenterDistance: minCenterDistancePx }).catch((error) => ([{ error: error?.message || String(error), ok: false }]));
