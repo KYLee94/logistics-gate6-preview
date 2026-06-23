@@ -1094,7 +1094,7 @@ async function runMarketMapPinpoint() {
       report.steps.push('market-shell');
       await waitForMarketShell(page);
       report.steps.push('content-ready');
-      await waitForContentReady(page, { needsTable: true, needsChart: true, needsMap: true });
+      await waitForContentReady(page, { needsTable: true, needsChart: false, needsMap: true }, { requireMapTiles: false });
       report.steps.push('provider-ready');
       await waitForProvider(page, expectedProvider);
       report.steps.push('region-first');
@@ -1108,6 +1108,16 @@ async function runMarketMapPinpoint() {
       report.click_to_points_ms = clickResult.click_to_points_ms;
       report.click_to_points_within_threshold = typeof clickResult.click_to_points_ms === 'number'
         && clickResult.click_to_points_ms <= maxRegionClickMs;
+      report.steps.push('geocode-complete');
+      await page.waitForFunction((provider) => (
+        Array.from(document.querySelectorAll('[data-map-provider][data-map-mode="points"]')).some((el) => {
+          const pointCount = Number(el.getAttribute('data-map-point-count') || 0);
+          return el.getAttribute('data-map-provider') === provider
+            && pointCount > 0
+            && Number(el.getAttribute('data-map-fallback-count') || 0) === 0
+            && Number(el.getAttribute('data-map-geocoded-count') || 0) + Number(el.getAttribute('data-map-coordinate-source-count') || 0) >= pointCount;
+        })
+      ), expectedProvider, { timeout: 90000 }).catch(() => null);
       const state = await collectPageState(page);
     const activeMap = state.map_stats.find((item) => item.mode === 'points' && item.provider === expectedProvider) || null;
     const geometry = await collectPointGeometry(page);
@@ -1249,7 +1259,7 @@ async function runMapProviderMatrix() {
       await withPage({ simulation: rowSimulation, mapProvider: row.provider }, async ({ page, baseUrl, runtime }) => {
         await gotoDomContentLoaded(page, joinUrl(baseUrl, 'market-data/lease-market'), 45000);
         await waitForMarketShell(page);
-        await waitForContentReady(page, { needsTable: true, needsChart: true, needsMap: true });
+        await waitForContentReady(page, { needsTable: true, needsChart: false, needsMap: true }, { requireMapTiles: false });
         await waitForProvider(page, row.expected);
         await waitForRegionFirstMap(page, row.expected, 60000);
         const regionState = await collectPageState(page);

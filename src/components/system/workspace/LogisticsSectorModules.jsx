@@ -1217,7 +1217,17 @@ function buildMarketMapCalloutHtml(item, index) {
   `;
 }
 
-function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'region', onSelect, showLargeButton = true, mapHeightClass = 'h-[520px]' }) {
+function MarketMapPanel({
+  title,
+  rows,
+  labelKey = 'asset_name',
+  regionKey = 'region',
+  onSelect,
+  showLargeButton = true,
+  mapHeightClass = 'h-[520px]',
+  initialSelectedRegion = '',
+  initialZoom = 8,
+}) {
   const sourceRows = useMemo(() => safeArray(rows), [rows]);
   const mapCanvasRef = useRef(null);
   const mapInstanceRef = useRef(null);
@@ -1233,8 +1243,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
   const [geocodedCoords, setGeocodedCoords] = useState({});
   const [geocodeFailures, setGeocodeFailures] = useState({});
   const geocodePendingRef = useRef({});
-  const [selectedMapRegion, setSelectedMapRegion] = useState('');
-  const [mapZoom, setMapZoom] = useState(8);
+  const [selectedMapRegion, setSelectedMapRegion] = useState(initialSelectedRegion || '');
+  const [mapZoom, setMapZoom] = useState(initialZoom || 8);
   const [forceOsm, setForceOsm] = useState(false);
   const [largeMapOpen, setLargeMapOpen] = useState(false);
   const isRegionMode = !selectedMapRegion;
@@ -1531,7 +1541,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
           }
         });
       });
-    const targets = Array.from(targetMap.values()).slice(0, Math.max(1, Math.min(50, mapRowLimit)));
+    const geocodeBatchLimit = selectedMapRegion ? Math.min(120, mapRowLimit) : Math.min(50, mapRowLimit);
+    const targets = Array.from(targetMap.values()).slice(0, Math.max(1, geocodeBatchLimit));
     if (!targets.length) return undefined;
     targets.forEach((address) => {
       geocodePendingRef.current[address] = true;
@@ -2222,6 +2233,8 @@ function MarketMapPanel({ title, rows, labelKey = 'asset_name', regionKey = 'reg
             onSelect={onSelect}
             showLargeButton={false}
             mapHeightClass="h-[calc(100vh-170px)]"
+            initialSelectedRegion={selectedMapRegion}
+            initialZoom={mapZoom}
           />
         </Modal>
       ) : null}
@@ -4065,7 +4078,11 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const supplyView = marketViews.supply || {};
   const transactionView = marketViews.transactions || {};
   const sourceView = marketViews.source || {};
-  const leases = safeArray(data?.leases).length ? safeArray(data?.leases) : safeArray(leaseView.all_rows || leaseView.latest_rows);
+  const leases = safeArray(data?.leases).length
+    ? safeArray(data?.leases)
+    : (safeArray(leaseView.history_rows).length
+      ? safeArray(leaseView.history_rows)
+      : safeArray(leaseView.all_rows || leaseView.latest_rows));
   const supply = safeArray(data?.supply).length
     ? safeArray(data?.supply)
     : (safeArray(supplyView.rows).length ? safeArray(supplyView.rows) : safeArray(overviewView.supply_rows));
@@ -4383,6 +4400,53 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     const endDate = supplyDate(row, true);
     return !startDate || (endDate >= supplyStart && startDate <= supplyEnd);
   });
+  const supplyStatisticRowsInRange = supplyStatisticRows.filter((row) => {
+    const period = text(row.period_label, '');
+    if (!period) return false;
+    if (isUnknownPeriodLabel(period)) return supplyStartIndex === 0 && supplyEndIndex >= supplyTimelinePeriods.length - 1;
+    const startDate = periodDate(period);
+    const endDate = periodDate(period, true);
+    return Boolean(startDate && endDate && endDate >= supplyStart && startDate <= supplyEnd);
+  });
+  const selectedSupplyPeriods = supplyTimelinePeriods.filter((period) => {
+    const startDate = periodDate(period);
+    const endDate = periodDate(period, true);
+    return startDate && endDate && endDate >= supplyStart && startDate <= supplyEnd;
+  });
+  const supplyAreaRowsFromCases = (rows, periods, seriesType, cumulative = false) => {
+    const grouped = new Map();
+    periods.forEach((period) => {
+      const targetSort = periodSortValue(period);
+      rows.forEach((row) => {
+        const rowPeriod = supplyPeriodLabel(row);
+        if (!rowPeriod || isUnknownPeriodLabel(rowPeriod)) return;
+        const rowSort = periodSortValue(rowPeriod);
+        const inPeriod = cumulative ? rowSort <= targetSort : rowPeriod === period;
+        if (!inPeriod) return;
+        const region = regionValue(row.region || row.region_group || '미분류');
+        const key = `${seriesType}|${period}|${region}`;
+        const current = grouped.get(key) || {
+          series_type: seriesType,
+          period_label: period,
+          label: region,
+          region,
+          value: 0,
+          count: 0,
+        };
+        current.value += supplyArea(row);
+        current.count += 1;
+        grouped.set(key, current);
+      });
+    });
+    return [...grouped.values()].filter((row) => row.value > 0);
+  };
+  const fallbackNewSupplyChartRows = supplyAreaRowsFromCases(rangedPipelineRows, selectedSupplyPeriods, 'new_supply', false);
+  const fallbackCumulativeSupplyChartRows = supplyAreaRowsFromCases(filteredSupplyRows, selectedSupplyPeriods, 'cumulative_supply', true);
+  const supplyChartRowsInRange = [
+    ...supplyStatisticRowsInRange,
+    ...(supplyStatisticRowsInRange.some((row) => row.series_type === 'new_supply') ? [] : fallbackNewSupplyChartRows),
+    ...(supplyStatisticRowsInRange.some((row) => row.series_type === 'cumulative_supply') ? [] : fallbackCumulativeSupplyChartRows),
+  ];
   const datedCumulativeNewRows = newSupplyRows.filter((row) => number(row.expected_year || row.completion_year) >= 2024);
   const cumulativeNewRows = datedCumulativeNewRows.length ? datedCumulativeNewRows : newSupplyRows;
   function aggregateBy(rows, keyFn, valueFn, weightFn = null) {
@@ -4698,12 +4762,12 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               <FilterPills label="시점" value={txnSizePeriod} onChange={setTxnSizePeriod} options={transactionPeriodOptions.map((item) => ({ value: item, label: item === '전체' ? '전체' : `${item}년` }))} />
               <FilterPills label="규모" value={txnSizeBucket} onChange={setTxnSizeBucket} options={transactionSizeOptions.map((item) => ({ value: item, label: item }))} />
             </div>
-            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-              <div>
+            <div className="grid grid-cols-1 gap-5">
+              <div className="min-w-0">
                 <div className="mb-2 text-[13px] font-semibold text-white">평당 거래가</div>
                 <BarList rows={sizeUnitPriceRows} formatter={formatKrw} color={CHART_COLORS.secondary} />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="mb-2 text-[13px] font-semibold text-white">거래시장 규모</div>
                 <BarList rows={sizeMarketRows} formatter={formatKrw} color={CHART_COLORS.primary} />
               </div>
@@ -4911,10 +4975,10 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
           </section>
           <section className="space-y-5">
             <div className={`${CARD} p-4`}>
-              <SupplyAreaChart rows={supplyStatisticRows} seriesType="new_supply" title="신규 공급 면적" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
+              <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="new_supply" title="신규 공급 면적" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
             </div>
             <div className={`${CARD} p-4`}>
-              <SupplyAreaChart rows={supplyStatisticRows} seriesType="cumulative_supply" title="누적 공급 면적" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
+              <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="cumulative_supply" title="누적 공급 면적" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
             </div>
           </section>
         </div>

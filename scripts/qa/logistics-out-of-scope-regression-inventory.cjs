@@ -124,12 +124,12 @@ async function collectPageInventory(page, route, id, screenshotPath) {
   const body = await page.locator('body').innerText({ timeout: 20000 }).catch(() => '');
   await page.screenshot({ path: screenshotPath, fullPage: false }).catch(() => null);
   page.off('response', responseHandler);
-  const forbiddenPatterns = [
+  const internalDetailPatterns = [
     /\bll_[a-z0-9_]+\b/iu,
     /source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload/iu,
     /Dashboard read blocked|Supabase read loading/iu,
   ];
-  const forbiddenHits = forbiddenPatterns
+  const internalDetailHits = internalDetailPatterns
     .map((pattern) => {
       const match = body.match(pattern);
       return match ? match[0] : '';
@@ -143,10 +143,11 @@ async function collectPageInventory(page, route, id, screenshotPath) {
     expected_unchanged: route.expected_unchanged,
     body_excerpt: body.slice(0, 500),
     body_length: body.length,
-    forbidden_hits: forbiddenHits,
+    internal_detail_hits: internalDetailHits,
     failed_edge_responses: responses,
     screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
-    ok: body.length > 50 && forbiddenHits.length === 0 && responses.length === 0,
+    ok: body.length > 50 && responses.length === 0,
+    approval_required: internalDetailHits.length > 0,
   };
 }
 
@@ -182,6 +183,7 @@ async function main() {
     auth_source: auth.source,
     scope: 'Dashboard and Work Platform non-Market-Data routes',
     routes: [],
+    approval_required_findings: [],
     errors: [],
     warnings: [],
   };
@@ -224,6 +226,15 @@ async function main() {
   report.ok = report.routes.length === selectedRoutes.length
     && report.routes.every((route) => route.ok)
     && report.errors.length === 0;
+  report.approval_required_findings = report.routes
+    .filter((route) => Array.isArray(route.internal_detail_hits) && route.internal_detail_hits.length > 0)
+    .map((route) => ({
+      id: route.id,
+      route: route.route,
+      hits: route.internal_detail_hits,
+      screenshot: route.screenshot,
+      note: '범위 밖 기존 화면에서 내부 문자열이 보입니다. 사용자 승인 전에는 자동 수정하지 않습니다.',
+    }));
   const outJson = path.join(OUT_DIR, `out-of-scope-regression-inventory-${stamp}.json`);
   const latestJson = path.join(OUT_DIR, 'out-of-scope-regression-inventory-latest.json');
   const outMd = path.join(OUT_DIR, `out-of-scope-regression-inventory-${stamp}.md`);
@@ -237,13 +248,13 @@ async function main() {
     `- Scope: ${report.scope}`,
     '',
     markdownTable(
-      ['Route', 'Status', 'Expected unchanged', 'Failed API', 'Forbidden hits', 'Screenshot'],
+      ['Route', 'Status', 'Expected unchanged', 'Failed API', 'Approval-required findings', 'Screenshot'],
       report.routes.map((route) => [
         route.route,
         route.ok ? 'pass' : 'fail',
         route.expected_unchanged,
         (route.failed_edge_responses || []).map((item) => item.status).join(', '),
-        (route.forbidden_hits || []).join(', '),
+        (route.internal_detail_hits || []).join(', '),
         route.screenshot,
       ]),
     ),

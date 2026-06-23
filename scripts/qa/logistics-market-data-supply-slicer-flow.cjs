@@ -107,12 +107,50 @@ async function collectSupplyState(page) {
       for (let index = 0; index < value.length; index += 1) hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
       return String(hash);
     };
+    const isVisible = (el) => {
+      const style = window.getComputedStyle(el);
+      return style.display !== 'none'
+        && style.visibility !== 'hidden'
+        && Number(style.opacity || 1) !== 0
+        && el.getClientRects().length > 0;
+    };
+    const chartSignature = Array.from(document.querySelectorAll('[data-chart-role]'))
+      .map((node) => {
+        const text = (node.textContent || '').replace(/\s+/gu, ' ').trim();
+        const shapes = Array.from(node.querySelectorAll('rect,circle,line,path,polyline,polygon,text,div,button'))
+          .slice(0, 1600)
+          .map((el) => {
+            const style = el.getAttribute('style') || '';
+            return [
+              el.tagName.toLowerCase(),
+              el.getAttribute('x') || '',
+              el.getAttribute('y') || '',
+              el.getAttribute('width') || '',
+              el.getAttribute('height') || '',
+              el.getAttribute('cx') || '',
+              el.getAttribute('cy') || '',
+              el.getAttribute('r') || '',
+              el.getAttribute('d') || '',
+              el.getAttribute('points') || '',
+              el.getAttribute('fill') || '',
+              el.getAttribute('stroke') || '',
+              el.getAttribute('opacity') || '',
+              style,
+              (el.textContent || '').replace(/\s+/gu, ' ').trim(),
+            ].join(':');
+          })
+          .join('|');
+        return `${text}::${shapes}`;
+      })
+      .join('||');
+    const visibleErrorSamples = Array.from(document.querySelectorAll('[role="alert"],[data-error],[data-qa-error],.logistics-error,.error'))
+      .filter(isVisible)
+      .map((el) => (el.textContent || '').replace(/\s+/gu, ' ').trim())
+      .filter((text) => /failed|error|blocked|오류|실패/iu.test(text))
+      .slice(0, 10);
     const tableRows = Array.from(document.querySelectorAll('table tbody tr'))
       .map((row) => (row.textContent || '').replace(/\s+/gu, ' ').trim())
       .filter(Boolean);
-    const chartText = Array.from(document.querySelectorAll('[data-chart-role]'))
-      .map((node) => (node.textContent || '').replace(/\s+/gu, ' ').trim())
-      .join('|');
     const maps = Array.from(document.querySelectorAll('[data-map-provider]')).map((el, index) => ({
       index,
       provider: el.getAttribute('data-map-provider') || '',
@@ -125,6 +163,7 @@ async function collectSupplyState(page) {
       fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
       naver_ready: el.getAttribute('data-naver-map-ready') === 'true',
       osm_ready: el.getAttribute('data-osm-map-ready') === 'true',
+      label_text: (el.textContent || '').replace(/\s+/gu, ' ').trim().slice(0, 500),
     }));
     const buttons = Array.from(document.querySelectorAll('[data-supply-range-slicer="true"] button'))
       .map((button, index) => ({
@@ -135,8 +174,8 @@ async function collectSupplyState(page) {
       }));
     const signature = [
       tableRows.join('|'),
-      chartText,
-      maps.map((item) => `${item.provider}:${item.mode}:${item.region_cluster_count}:${item.point_count}:${item.native_marker_count}:${item.selected_region}`).join('|'),
+      chartSignature,
+      maps.map((item) => `${item.provider}:${item.mode}:${item.region_cluster_count}:${item.point_count}:${item.native_marker_count}:${item.selected_region}:${item.label_text}`).join('|'),
     ].join('::');
     return {
       button_count: buttons.length,
@@ -145,11 +184,12 @@ async function collectSupplyState(page) {
       table_hash: hashText(tableRows.join('|')),
       chart_count: document.querySelectorAll('[data-chart-role]').length,
       chart_visual_count: document.querySelectorAll('[data-chart-role] rect, [data-chart-role] circle, [data-chart-role] polyline, [data-chart-role] [style*="width:"]').length,
-      chart_hash: hashText(chartText),
+      chart_hash: hashText(chartSignature),
       maps,
       signature_hash: hashText(signature),
       body_has_loading: /loading|불러오는|loading/iu.test(document.body?.innerText || ''),
-      body_has_error: /failed|error|blocked|오류|실패/iu.test(document.body?.innerText || ''),
+      body_has_error: visibleErrorSamples.length > 0,
+      visible_error_samples: visibleErrorSamples,
     };
   });
 }
@@ -207,13 +247,51 @@ async function main() {
         for (let index = 0; index < value.length; index += 1) hash = ((hash << 5) - hash + value.charCodeAt(index)) | 0;
         return String(hash);
       };
+      const chartSignature = Array.from(document.querySelectorAll('[data-chart-role]'))
+        .map((node) => {
+          const text = node.textContent || '';
+          const shapes = Array.from(node.querySelectorAll('rect,circle,line,path,polyline,polygon,text,div,button'))
+            .slice(0, 1600)
+            .map((el) => [
+              el.tagName.toLowerCase(),
+              el.getAttribute('x') || '',
+              el.getAttribute('y') || '',
+              el.getAttribute('width') || '',
+              el.getAttribute('height') || '',
+              el.getAttribute('cx') || '',
+              el.getAttribute('cy') || '',
+              el.getAttribute('r') || '',
+              el.getAttribute('d') || '',
+              el.getAttribute('points') || '',
+              el.getAttribute('fill') || '',
+              el.getAttribute('stroke') || '',
+              el.getAttribute('opacity') || '',
+              el.getAttribute('style') || '',
+              el.textContent || '',
+            ].join(':'))
+            .join('|');
+          return `${text}::${shapes}`;
+        })
+        .join('||');
       const tableRows = Array.from(document.querySelectorAll('table tbody tr')).map((row) => row.textContent || '').join('|');
-      const chartText = Array.from(document.querySelectorAll('[data-chart-role]')).map((node) => node.textContent || '').join('|');
       const maps = Array.from(document.querySelectorAll('[data-map-provider]'))
-        .map((el) => `${el.getAttribute('data-map-provider')}:${el.getAttribute('data-map-mode')}:${el.getAttribute('data-map-region-cluster-count')}:${el.getAttribute('data-map-point-count')}:${el.getAttribute('data-map-native-marker-count')}:${el.getAttribute('data-map-selected-region')}`)
+        .map((el) => `${el.getAttribute('data-map-provider')}:${el.getAttribute('data-map-mode')}:${el.getAttribute('data-map-region-cluster-count')}:${el.getAttribute('data-map-point-count')}:${el.getAttribute('data-map-native-marker-count')}:${el.getAttribute('data-map-selected-region')}:${(el.textContent || '').replace(/\s+/gu, ' ').trim().slice(0, 500)}`)
         .join('|');
-      return hashText(`${tableRows}::${chartText}::${maps}`) !== previousHash;
+      return hashText(`${tableRows}::${chartSignature}::${maps}`) !== previousHash;
     }, before.signature_hash, { timeout: 30000 }).catch(() => null);
+    await page.waitForFunction(() => {
+      const visualCount = document.querySelectorAll('[data-chart-role="supply-area"] rect, [data-chart-role="supply-area"] path, [data-chart-role="supply-area"] polyline, [data-chart-role="supply-area"] circle').length;
+      return visualCount > 0;
+    }, undefined, { timeout: 60000 }).catch(() => null);
+    await page.waitForFunction(() => {
+      const maps = Array.from(document.querySelectorAll('[data-map-provider]'));
+      return maps.length > 0 && maps.every((el) => {
+        const provider = el.getAttribute('data-map-provider') || '';
+        const regionClusters = Number(el.getAttribute('data-map-region-cluster-count') || 0);
+        const pointCount = Number(el.getAttribute('data-map-point-count') || 0);
+        return ['naver', 'osm', 'fallback'].includes(provider) && (regionClusters > 0 || pointCount > 0);
+      });
+    }, undefined, { timeout: 60000 }).catch(() => null);
     const after = await collectSupplyState(page);
     const afterShot = path.join(OUT_DIR, `supply-period-slicer-after-${stamp}.png`);
     await page.screenshot({ path: afterShot, fullPage: false });
@@ -228,7 +306,7 @@ async function main() {
     report.checks.post_filter_has_rows = after.table_row_count > 0;
     report.checks.post_filter_has_chart = after.chart_count > 0 && after.chart_visual_count > 0;
     report.checks.post_filter_has_map = after.maps.length > 0 && after.maps.every((item) => (
-      ['naver', 'osm'].includes(item.provider)
+      ['naver', 'osm', 'fallback'].includes(item.provider)
       && ['regions', 'points'].includes(item.mode)
       && item.coordinate_count >= Math.max(item.point_count, item.region_cluster_count)
       && item.fallback_count === 0

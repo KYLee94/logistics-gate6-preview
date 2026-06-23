@@ -1,0 +1,59 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-23T16:04:04.648Z",
+  "script": "qa:data-loading:idle",
+  "simulation": "idle",
+  "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
+  "checks": {
+    "idle_request_simulated": true,
+    "loading_visible_while_pending": true,
+    "no_user_facing_error_before_release": true,
+    "market_shell_visible_while_pending": true,
+    "no_internal_tokens_while_pending": true,
+    "no_broken_question_marks_while_pending": true,
+    "release_triggered": true,
+    "loading_gone_after_release": true,
+    "market_data_reappeared_after_release": true,
+    "no_user_facing_error_after_release": true,
+    "chart_reappeared_after_release": true,
+    "no_internal_tokens_after_release": true,
+    "no_broken_question_marks_after_release": true
+  },
+  "errors": [],
+  "warnings": [],
+  "pending_state": {
+    "loading_visible": true,
+    "error_visible": false,
+    "market_data_visible": true,
+    "table_count": 0,
+    "chart_ready_count": 0,
+    "internal_tokens_visible": false,
+    "broken_question_marks_visible": false,
+    "region_summary_visible": false,
+    "map_expand_button_count": 0,
+    "map_stats": [],
+    "excerpt": "Logistics\nLOGISTICS PLATFORM\nWork Platform\nDashboard\nHome\nAsset\nCompany\nInvestment Index\nAsset Spec\nAnalysis Tools\nPivot Table\nData Quality\nMarket Data\nOverview\nLease Market\nSupply Pipeline\nTransactions\nSource Update\nData Management\nPDF Report\n기능 권한 관리\n로그인 이력\nQA User\nQA\nMARKET DATA\n시장 데이터 개요\n\n임대료, 거래금액, 공급 예정 시점, Cap Rate를 한 화면에서 빠르게 확인합니다.\n\n시장자료를 불러오는 중입니다.\n임대 관측치\n0건\n최근 기준 -\n평당 임대료\n-\n임대면적 가중평균\n공급 예정\n0건\n당분기 신규공급 -평\n매매 사례\n0건\n2010년 이후 거래\nLEASE\n권역별 최신 임대료\n\n최근 임대시장 통계 기준으로 상온·저온 구분과 수도권·지방 권역 차이를 비교합니다.\n\n상/저온 구분\n전체\n복합 전체\n복합 상온\n복합 저온\n상온\n저온\n상온(복합포함)\n저온(복합포함)\n표시할 차트 데이터가 없습니다.\nTRANSACTION\n권역별 거래금액\n\n매매사례 거래금액 합계를 권역별로 비교합니다. 상/저온 필터는 같은 기준으로 차트를 다시 집계합니다.\n\n상/저온 구분\n전체\n표시할 차트 데이터가 없습니다.\n공급 예정 시점\n표시할 차트 데이터가 없습니다."
+  },
+  "post_release_elapsed_ms": 82,
+  "post_release_state": {
+    "loading_visible": false,
+    "error_visible": false,
+    "market_data_visible": true,
+    "table_count": 0,
+    "chart_ready_count": 3,
+    "internal_tokens_visible": false,
+    "broken_question_marks_visible": false,
+    "region_summary_visible": false,
+    "map_expand_button_count": 0,
+    "map_stats": [],
+    "excerpt": "Logistics\nLOGISTICS PLATFORM\nWork Platform\nDashboard\nHome\nAsset\nCompany\nInvestment Index\nAsset Spec\nAnalysis Tools\nPivot Table\nData Quality\nMarket Data\nOverview\nLease Market\nSupply Pipeline\nTransactions\nSource Update\nData Management\nPDF Report\n기능 권한 관리\n로그인 이력\nQA User\nQA\nMARKET DATA\n시장 데이터 개요\n\n임대료, 거래금액, 공급 예정 시점, Cap Rate를 한 화면에서 빠르게 확인합니다.\n\n임대 관측치\n6건\n최근 기준 2026 1Q\n평당 임대료\n5.2만원\n임대면적 가중평균\n공급 예정\n2건\n당분기 신규공급 115,000.0평\n매매 사례\n4건\n최근 Cap Rate 5.00%\nLEASE\n권역별 최신 임대료\n\n최근 임대시장 통계 기준으로 상온·저온 구분과 수도권·지방 권역 차이를 비교합니다.\n\n상/저온 구분\n전체\n복합 상온\n복합 상온\n수도권\n(수도권) 동남권\n5.8만원\n(수도권) 중앙권\n6.1만원\n(수도권) 서부권\n5.2만원\n지방\n(지방) 경남권\n4.4만원\n(지방) 충청권\n4.7만원\n(지방) 전라권\n4.1만원\nTRANSACTION\n권역별 거래금액\n\n매매사례 거래금액 합계를 권역별로 비교합니다. 상/저온 필터는 같은 기준으로 차트를 다시 집계합니다.\n\n상/저온 구분\n전체\n상온\n저온\n수도권\n(수도권) 동남권\n1,200.0억원\n(수도권) 중앙권\n890.0억원\n지방\n(지방) 경남권\n610.0억원\n(지방) "
+  },
+  "api_calls": [
+    "auth/me",
+    "auth/me",
+    "notifications/list",
+    "feature-access/get",
+    "sector-market/read",
+    "feature-access/get"
+  ]
+}

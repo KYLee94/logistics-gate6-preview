@@ -180,6 +180,11 @@ const SECTOR_MARKET_SELECT_COLUMNS: Record<string, string> = {
     'payload',
   ].join(','),
 };
+const SECTOR_MARKET_ADDRESS_BACKFILL_COLUMNS: Record<string, string> = {
+  ll_sector_market_lease_observations: `observation_id,${SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_lease_observations}`,
+  ll_sector_market_supply_cases: `supply_case_id,${SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_supply_cases}`,
+  ll_sector_market_transaction_cases: `transaction_case_id,${SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_transaction_cases}`,
+};
 
 const LOGISTICS_STAFF_NAME_BY_EMAIL: Record<string, string> = {
   "ysoh@igisam.com": "오윤석",
@@ -4149,9 +4154,13 @@ function marketAddressInfo(row: Record<string, unknown>, kind: string) {
     geocode.query,
     geocode.address,
     geocode.roadAddress,
+    geocode.road_address,
     geocode.jibunAddress,
+    geocode.jibun_address,
     legacyGeocode.query,
     legacyGeocode.address,
+    legacyGeocode.road_address,
+    legacyGeocode.jibun_address,
     address,
   ));
   return stripUndefined({
@@ -4224,7 +4233,7 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
   for (const config of configs) {
     const { data, error } = await ctx.serviceClient
       .from(config.table)
-      .select('*')
+      .select(SECTOR_MARKET_ADDRESS_BACKFILL_COLUMNS[config.table] || '*')
       .eq('source_file_id', activeSourceId)
       .order(config.idColumn, { ascending: true })
       .range(offset, offset + limit - 1);
@@ -4799,6 +4808,9 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     } = row;
     return stripUndefined({ row_key: `${kind}-${index + 1}`, ...rest });
   };
+  const compactMarketRow = (row: Record<string, unknown>) => Object.fromEntries(
+    Object.entries(row).filter(([, value]) => value !== undefined && value !== null && safeText(value) !== ''),
+  );
   const regionAnchors: Record<string, [number, number]> = {
     동남권: [58, 56],
     남부권: [48, 64],
@@ -4843,7 +4855,52 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const publicSupply = supply.map((row, index) => publicMarketRow({ ...row, completion_period: periodForSupply(row) }, index, 'supply'));
   const publicTransactions = transactions.map((row, index) => publicMarketRow(row, index, 'transaction'));
   const publicCapRates = capRates.map((row, index) => publicMarketRow(row, index, 'cap_rate'));
+  const leaseHistoryRows = publicLeases.map((row) => compactMarketRow({
+    row_key: row.row_key,
+    report_year: row.report_year,
+    report_quarter: row.report_quarter,
+    report_period: row.report_period,
+    period_label: row.period_label,
+    center_name: row.center_name,
+    legal_address: row.legal_address || row.address,
+    address: row.address || row.legal_address,
+    region_group: row.region_group,
+    region: row.region,
+    gross_area_py: row.gross_area_py,
+    completion_year: row.completion_year,
+    temperature_type: row.temperature_type,
+    size_bucket: row.size_bucket,
+    deposit_manwon_per_py: row.deposit_manwon_per_py,
+    rent_manwon_per_py: row.rent_manwon_per_py,
+    management_fee_manwon_per_py: row.management_fee_manwon_per_py,
+    rent_free_months_per_year: row.rent_free_months_per_year,
+    fit_out_months: row.fit_out_months,
+    tenant_improvement_manwon_per_py: row.tenant_improvement_manwon_per_py,
+    leasable_area_py: row.leasable_area_py,
+    vacancy_area_py: row.vacancy_area_py,
+    vacancy_rate: row.vacancy_rate,
+  }));
+  const leaseStatisticPublicRows = leaseStatisticRows.map((row) => compactMarketRow({
+    row_key: row.row_key,
+    source_row_number: row.source_row_number,
+    scope: row.scope,
+    period_label: row.period_label,
+    period_key: row.period_key,
+    category: row.category,
+    subcategory: row.subcategory,
+    segment_key: row.segment_key,
+    segment_label: row.segment_label,
+    metric_key: row.metric_key,
+    metric_label: row.metric_label,
+    dimension_type: row.dimension_type,
+    label: row.label,
+    region: row.region,
+    size_bucket: row.size_bucket,
+    is_average: row.is_average,
+    value: row.value,
+  }));
   const latestLeasePublicRows = publicLeases.filter((row) => !latestLeasePeriod || safeText(row.report_period) === latestLeasePeriod);
+  const latestLeaseCompactRows = latestLeasePublicRows.map((row) => compactMarketRow(row));
   const transactionYearSeries = aggregateSum(publicTransactions, 'transaction_year', 'transaction_amount_krw').filter((row) => row.label !== '미정');
   const supplyPeriodSeries = aggregateSum(publicSupply.map((row) => ({ ...row, period_bucket: periodForSupply(row) })), 'period_bucket', 'gross_area_py');
   const latestLeaseStatisticPeriod = MARKET_LEASE_CAPITAL_PERIODS.at(-1) || safeText(leaseStatisticRows.at(-1)?.period_label);
@@ -4875,9 +4932,9 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
         cap_rate_series: publicCapRates,
       },
       lease_statistics_latest_period: latestLeaseStatisticPeriod,
-      lease_statistics_rows: leaseStatisticRows,
-      lease_statistics_periods: [...new Set(leaseStatisticRows.map((row) => safeText(row.period_label)).filter(Boolean))],
-      lease_statistics_segments: [...new Set(leaseStatisticRows.map((row) => safeText(row.segment_label)).filter(Boolean))],
+      lease_statistics_rows: leaseStatisticPublicRows,
+      lease_statistics_periods: [...new Set(leaseStatisticPublicRows.map((row) => safeText(row.period_label)).filter(Boolean))],
+      lease_statistics_segments: [...new Set(leaseStatisticPublicRows.map((row) => safeText(row.segment_label)).filter(Boolean))],
       supply_statistics_rows: supplyStatisticRows,
       supply_rows: publicSupply,
       transaction_rows: publicTransactions,
@@ -4885,16 +4942,16 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     lease: {
       latest_period: latestLeasePeriod,
       statistics_latest_period: latestLeaseStatisticPeriod,
-      statistics_rows: leaseStatisticRows,
-      statistics_latest_rows: latestLeaseStatisticRows,
-      statistics_periods: [...new Set(leaseStatisticRows.map((row) => safeText(row.period_label)).filter(Boolean))],
-      statistics_segments: [...new Set(leaseStatisticRows.map((row) => safeText(row.segment_label)).filter(Boolean))],
+      statistics_rows: leaseStatisticPublicRows,
+      statistics_latest_rows: leaseStatisticPublicRows.filter((row) => safeText(row.period_label) === latestLeaseStatisticPeriod),
+      statistics_periods: [...new Set(leaseStatisticPublicRows.map((row) => safeText(row.period_label)).filter(Boolean))],
+      statistics_segments: [...new Set(leaseStatisticPublicRows.map((row) => safeText(row.segment_label)).filter(Boolean))],
       temperature_semantics: temperatureSegmentSemantics,
       regions: [...new Set(publicLeases.map((row) => safeText(row.region)).filter(Boolean))],
       temperature_types: [...new Set(publicLeases.map((row) => safeText(row.temperature_type)).filter(Boolean))],
-      latest_rows: latestLeasePublicRows,
-      all_rows: publicLeases,
-      map_points: latestLeasePublicRows.map((row, index) => marketPoint(row, index, 'lease', 'center_name')),
+      latest_rows: latestLeaseCompactRows,
+      history_rows: leaseHistoryRows,
+      map_points: latestLeaseCompactRows.map((row, index) => marketPoint(row, index, 'lease', 'center_name')),
       charts: {
         rent_by_region: aggregateArea(latestLeases, 'region', 'rent_manwon_per_py', 'leasable_area_py'),
         vacancy_by_region: aggregateArea(latestLeases, 'region', 'vacancy_rate', 'leasable_area_py'),
