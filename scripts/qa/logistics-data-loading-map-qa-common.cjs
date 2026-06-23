@@ -5,6 +5,8 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'http://127.0.0.1:5173/';
+const LIVE_RELEASE_URL_PATTERN = /https:\/\/kylee94\.github\.io\/logistics-gate6-preview\/?/iu;
+const DEFAULT_MAX_REGION_CLICK_MS = 800;
 const LOAD_TEXT = '시장자료를 불러오는 중입니다.';
 const LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다.';
 const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|natural\s+key|row_hash|row\s+hash|payload|\bPNU\b|\bpnu\b|법정동코드/iu;
@@ -31,6 +33,43 @@ function hasFlag(name) {
 function numberArg(name, fallback) {
   const value = Number(argValue(name, String(fallback)));
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
+}
+
+function isLiveReleaseUrl(baseUrl) {
+  return LIVE_RELEASE_URL_PATTERN.test(String(baseUrl || ''));
+}
+
+function shouldApplyLiveReleaseGate(baseUrl) {
+  return hasFlag('release-gate') || isLiveReleaseUrl(baseUrl);
+}
+
+function isForcedOsmProvider(mapProvider) {
+  return ['osm-config-missing', 'osm-config-error'].includes(mapProvider);
+}
+
+function readEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return {};
+  return Object.fromEntries(fs.readFileSync(filePath, 'utf8')
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#') && line.includes('='))
+    .map((line) => {
+      const index = line.indexOf('=');
+      return [line.slice(0, index).trim(), line.slice(index + 1).trim().replace(/^['"]|['"]$/gu, '')];
+    }));
+}
+
+const fileEnv = {
+  ...readEnvFile(path.join(ROOT, '.env')),
+  ...readEnvFile(path.join(ROOT, '.env.local')),
+};
+
+function envValue(...keys) {
+  for (const key of keys) {
+    if (process.env[key]) return process.env[key];
+    if (fileEnv[key]) return fileEnv[key];
+  }
+  return '';
 }
 
 function timestampForFile() {
@@ -123,6 +162,45 @@ function authMeBody(email = 'kylee@igisam.com') {
       feature_permissions: {},
     },
   };
+}
+
+async function signInSession() {
+  const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
+  const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
+  const accessToken = envValue('LOGISTICS_SUPABASE_ACCESS_TOKEN');
+  if (supabaseUrl && anonKey && accessToken) {
+    const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/auth/v1/user`, {
+      headers: { apikey: anonKey, authorization: `Bearer ${accessToken}` },
+    });
+    const user = await response.json().catch(() => null);
+    if (!response.ok || !user?.id) throw new Error(`Supabase access token validation failed (${response.status}).`);
+    return {
+      session: {
+        access_token: accessToken,
+        token_type: 'bearer',
+        expires_in: 3600,
+        expires_at: Math.round(Date.now() / 1000) + 3600,
+        refresh_token: '',
+        user,
+      },
+      email: user.email || envValue('LOGISTICS_SUPABASE_EMAIL', 'LOGISTICS_SUPABASE_AUTH_EMAIL') || 'kylee@igisam.com',
+      source: 'LOGISTICS_SUPABASE_ACCESS_TOKEN',
+    };
+  }
+  const email = envValue('LOGISTICS_SUPABASE_EMAIL', 'LOGISTICS_SUPABASE_AUTH_EMAIL');
+  const password = envValue('LOGISTICS_SUPABASE_PASSWORD', 'LOGISTICS_SUPABASE_AUTH_PASSWORD');
+  if (!supabaseUrl || !anonKey || !email || !password) {
+    throw new Error('Set LOGISTICS_SUPABASE_ACCESS_TOKEN, or set LOGISTICS_SUPABASE_EMAIL and LOGISTICS_SUPABASE_PASSWORD.');
+  }
+  const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/auth/v1/token?grant_type=password`, {
+    method: 'POST',
+    headers: { apikey: anonKey, 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  const session = await response.json().catch(() => null);
+  if (!response.ok || !session?.access_token) throw new Error(`Supabase Auth login failed (${response.status}).`);
+  if (!session.expires_at && session.expires_in) session.expires_at = Math.round(Date.now() / 1000) + Number(session.expires_in);
+  return { session, email, source: 'password_grant' };
 }
 
 function marketFixture() {
@@ -361,8 +439,10 @@ function fakeNaverMapsSdk() {
   `;
 }
 
-async function installSession(context, email) {
-  const session = buildSession(email);
+async function installSession(context, email, options = {}) {
+  const auth = options.real ? await signInSession() : { session: buildSession(email), email, source: 'qa_fake_session' };
+  const session = auth.session;
+  const sessionEmail = auth.email || email;
   await context.addInitScript(({ session: browserSession, email: userEmail }) => {
     try {
       Object.defineProperty(navigator, 'locks', {
@@ -382,25 +462,28 @@ async function installSession(context, email) {
     sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email: userEmail }));
     sessionStorage.setItem('iota_last_activity', String(Date.now()));
     localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
-  }, { session, email });
+  }, { session, email: sessionEmail });
+  return auth;
 }
 
 async function installNetworkControls(context, options = {}) {
   const simulation = options.simulation || 'success';
   const mapProvider = options.mapProvider || 'osm-config-missing';
   const email = options.email || 'kylee@igisam.com';
+  const forceOsmFallback = isForcedOsmProvider(mapProvider);
   const state = {
     calls: [],
     idleRoutes: [],
     idleSeen: false,
     releaseIdle: null,
+    released: false,
   };
   let releaseIdle;
   const idleGate = new Promise((resolve) => { releaseIdle = resolve; });
   state.releaseIdle = releaseIdle;
 
   await context.route('**/openapi/v3/maps.js**', async (route) => {
-    if (simulation === 'real') {
+    if (simulation === 'real' && !forceOsmFallback) {
       await route.continue();
       return;
     }
@@ -420,7 +503,7 @@ async function installNetworkControls(context, options = {}) {
   await context.route('**/functions/v1/ll-dashboard-api', async (route) => {
     const action = normalizeActionFromPostData(route.request().postData());
     state.calls.push({ action, url: route.request().url(), method: route.request().method(), at: new Date().toISOString() });
-    if (simulation === 'real') {
+    if (simulation === 'real' && !(action === 'naver/maps-config' && forceOsmFallback)) {
       await route.continue();
       return;
     }
@@ -469,7 +552,7 @@ async function installNetworkControls(context, options = {}) {
         state.idleSeen = true;
         state.idleRoutes.push(route);
         await idleGate;
-        await route.abort('failed').catch(() => {});
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: marketFixture() }) }).catch(() => {});
         return;
       }
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: marketFixture() }) });
@@ -481,8 +564,9 @@ async function installNetworkControls(context, options = {}) {
 }
 
 async function releaseNetworkControls(state) {
-  if (state?.releaseIdle) state.releaseIdle();
-  await Promise.allSettled((state?.idleRoutes || []).map((route) => route.abort('failed')));
+  if (!state || state.released) return;
+  state.released = true;
+  if (state.releaseIdle) state.releaseIdle();
 }
 
 async function withPage(options, callback) {
@@ -495,7 +579,7 @@ async function withPage(options, callback) {
   const reportRuntime = { errors: [], warnings: [] };
   let controls;
   try {
-    await installSession(context, email);
+    await installSession(context, email, { real: simulation === 'real' });
     controls = await installNetworkControls(context, { simulation, mapProvider, email });
     const page = await context.newPage();
     page.on('pageerror', (error) => {
@@ -522,19 +606,23 @@ async function withPage(options, callback) {
 }
 
 async function waitForMarketShell(page) {
-  await page.waitForFunction(() => /Market\s*Data/iu.test(document.body?.innerText || ''), { timeout: 45000 });
+  await page.waitForFunction(() => Boolean(document.querySelector('[data-testid="market-data-dashboard"]')), undefined, { timeout: 45000 });
 }
 
 async function waitForLoadingGone(page) {
   await page.waitForFunction((loadingText) => !(document.body?.innerText || '').includes(loadingText), LOAD_TEXT, { timeout: 45000 });
 }
 
-async function waitForContentReady(page, tab) {
-  await page.waitForFunction(({ loadingText, needsTable, needsChart, needsMap }) => {
+async function waitForContentReady(page, tab, options = {}) {
+  await page.waitForFunction(({ loadingText, needsTable, needsChart, needsMap, requireMapTiles }) => {
     const text = document.body?.innerText || '';
-    if (!/Market\s*Data/iu.test(text) || text.includes(loadingText)) return false;
+    if (!document.querySelector('[data-testid="market-data-dashboard"]') || text.includes(loadingText)) return false;
     if (needsTable && document.querySelectorAll('[data-sortable-table="true"], table').length === 0) return false;
     if (needsChart && document.querySelectorAll('[data-chart-role][data-chart-empty="false"]').length === 0) return false;
+    if (needsMap && !requireMapTiles) {
+      return document.querySelectorAll('[data-testid="market-map-expand-button"]').length > 0
+        && document.querySelectorAll('[data-map-provider]').length > 0;
+    }
     if (needsMap) {
       const visibleTileStats = (el) => {
         const containerRect = el.getBoundingClientRect();
@@ -589,7 +677,13 @@ async function waitForContentReady(page, tab) {
       if (!hasExpandButton || !hasReadyMap) return false;
     }
     return true;
-  }, { loadingText: LOAD_TEXT, needsTable: tab.needsTable, needsChart: tab.needsChart, needsMap: tab.needsMap }, { timeout: 45000 });
+  }, {
+    loadingText: LOAD_TEXT,
+    needsTable: tab.needsTable,
+    needsChart: tab.needsChart,
+    needsMap: tab.needsMap,
+    requireMapTiles: options.requireMapTiles !== false,
+  }, { timeout: 45000 });
 }
 
 async function collectPageState(page) {
@@ -651,7 +745,7 @@ async function collectPageState(page) {
     return {
       loading_visible: body.includes(loadingText),
       error_visible: body.includes(errorText),
-      market_data_visible: /Market\s*Data/iu.test(body),
+      market_data_visible: Boolean(document.querySelector('[data-testid="market-data-dashboard"]')),
       table_count: document.querySelectorAll('[data-sortable-table="true"], table').length,
       chart_ready_count: document.querySelectorAll('[data-chart-role][data-chart-empty="false"]').length,
       internal_tokens_visible: new RegExp(internalPattern, 'iu').test(body),
@@ -668,6 +762,79 @@ async function waitForProvider(page, expectedProvider) {
   await page.waitForFunction((provider) => (
     Array.from(document.querySelectorAll('[data-map-provider]')).some((el) => el.getAttribute('data-map-provider') === provider)
   ), expectedProvider, { timeout: 45000 });
+}
+
+function stateHasRegionFirstMap(state, expectedProvider) {
+  return (state?.map_stats || []).some((item) => (
+    item.provider === expectedProvider
+    && item.mode === 'regions'
+    && item.region_cluster_count > 0
+    && item.region_buttons > 0
+    && item.point_count === 0
+    && (expectedProvider !== 'naver' || (item.naver_ready && !item.osm_ready))
+    && (expectedProvider !== 'osm' || (item.osm_ready && !item.naver_ready))
+  ));
+}
+
+function stateHasPointsMap(state, expectedProvider) {
+  return (state?.map_stats || []).some((item) => (
+    item.provider === expectedProvider
+    && item.mode === 'points'
+    && item.point_count > 0
+    && item.coordinate_count >= item.point_count
+    && item.coordinate_source_count >= item.point_count
+    && item.native_marker_count >= item.point_count
+    && item.region_buttons === 0
+    && (expectedProvider !== 'naver' || (item.naver_ready && !item.osm_ready))
+    && (expectedProvider !== 'osm' || (item.osm_ready && !item.naver_ready))
+  ));
+}
+
+async function waitForRegionFirstMap(page, expectedProvider, timeout = 60000) {
+  await page.waitForFunction((provider) => (
+    Array.from(document.querySelectorAll('[data-map-provider]')).some((el) => (
+      el.getAttribute('data-map-provider') === provider
+      && el.getAttribute('data-map-mode') === 'regions'
+      && Number(el.getAttribute('data-map-region-cluster-count') || 0) > 0
+      && Number(el.getAttribute('data-map-point-count') || 0) === 0
+      && el.querySelectorAll('[data-region-cluster-button="true"]').length > 0
+      && (provider !== 'naver' || (el.getAttribute('data-naver-map-ready') === 'true' && el.getAttribute('data-osm-map-ready') !== 'true'))
+      && (provider !== 'osm' || (el.getAttribute('data-osm-map-ready') === 'true' && el.getAttribute('data-naver-map-ready') !== 'true'))
+    ))
+  ), expectedProvider, { timeout });
+}
+
+async function waitForPointsMap(page, expectedProvider, timeout = 60000) {
+  await page.waitForFunction((provider) => (
+    Array.from(document.querySelectorAll('[data-map-provider]')).some((el) => {
+      const pointCount = Number(el.getAttribute('data-map-point-count') || 0);
+      return el.getAttribute('data-map-provider') === provider
+        && el.getAttribute('data-map-mode') === 'points'
+        && pointCount > 0
+        && Number(el.getAttribute('data-map-native-marker-count') || 0) >= pointCount
+        && Number(el.getAttribute('data-map-coordinate-count') || 0) >= pointCount
+        && Number(el.getAttribute('data-map-coordinate-source-count') || 0) >= pointCount
+        && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0
+        && (provider !== 'naver' || (el.getAttribute('data-naver-map-ready') === 'true' && el.getAttribute('data-osm-map-ready') !== 'true'))
+        && (provider !== 'osm' || (el.getAttribute('data-osm-map-ready') === 'true' && el.getAttribute('data-naver-map-ready') !== 'true'));
+    })
+  ), expectedProvider, { timeout });
+}
+
+async function clickFirstRegionClusterAndWaitForPoints(page, expectedProvider) {
+  const firstCluster = page.locator('[data-map-mode="regions"] [data-region-cluster-button="true"]').first();
+  if (!(await firstCluster.count().catch(() => 0))) {
+    return { clicked: false, click_to_points_ms: null };
+  }
+  const startedAt = Date.now();
+  await firstCluster.click({ timeout: 20000 }).catch(async () => {
+    await firstCluster.click({ force: true, timeout: 5000 });
+  });
+  await waitForPointsMap(page, expectedProvider, 60000);
+  return {
+    clicked: true,
+    click_to_points_ms: Date.now() - startedAt,
+  };
 }
 
 async function collectPointGeometry(page) {
@@ -727,22 +894,35 @@ function writeReport(slug, report) {
 }
 
 async function runDataLoadingStability() {
-  const simulation = argValue('simulate', 'success');
   const cycles = numberArg('cycles', 50);
+  const baseUrl = argValue('base-url', process.env.QA_BASE_URL || DEFAULT_BASE_URL);
+  const liveReleaseGate = shouldApplyLiveReleaseGate(baseUrl);
+  const simulation = argValue('simulate', liveReleaseGate ? 'real' : 'success');
+  const requireMapProvider = hasFlag('require-map-provider');
+  const requiredProvider = argValue('require-provider', requireMapProvider ? 'naver' : '');
+  const mapProvider = argValue('map-provider', liveReleaseGate && simulation === 'real' ? 'live-naver' : 'naver-simulated');
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
     script: 'qa:data-loading:stability',
     simulation,
     cycles,
-    base_url: argValue('base-url', process.env.QA_BASE_URL || DEFAULT_BASE_URL),
+    base_url: baseUrl,
+    release_gate: liveReleaseGate,
+    release_requirements: {
+      live_url: isLiveReleaseUrl(baseUrl),
+      real_network: simulation === 'real',
+      cycles_at_least_50: cycles >= 50,
+      required_provider: requiredProvider || 'not-required-in-data-loading',
+      map_provider_checked_by: requiredProvider ? 'qa:data-loading:stability' : 'qa:market-map:live-naver',
+    },
     routes: [],
     errors: [],
     warnings: [],
     summary: {},
   };
   try {
-    await withPage({ simulation, mapProvider: argValue('map-provider', 'naver-simulated') }, async ({ page, baseUrl, runtime }) => {
+    await withPage({ simulation, mapProvider }, async ({ page, baseUrl, runtime }) => {
       if (simulation === 'success' && !hasFlag('no-warmup')) {
         const warmupTab = TABS[0];
         await gotoDomContentLoaded(page, joinUrl(baseUrl, warmupTab.route), 45000);
@@ -759,7 +939,7 @@ async function runDataLoadingStability() {
         if (simulation === 'failure') {
           await waitForLoadingGone(page);
         } else {
-          await waitForContentReady(page, tab);
+          await waitForContentReady(page, tab, { requireMapTiles: Boolean(requiredProvider) });
           await waitForLoadingGone(page);
         }
         const elapsedMs = Date.now() - startedAt;
@@ -771,6 +951,14 @@ async function runDataLoadingStability() {
           elapsed_ms: elapsedMs,
           ...state,
         };
+        row.release_region_first_provider_ok = !tab.needsMap
+          || !liveReleaseGate
+          || !requiredProvider
+          || stateHasRegionFirstMap(state, requiredProvider);
+        row.release_no_osm_or_fallback_ok = !tab.needsMap
+          || !liveReleaseGate
+          || !requiredProvider
+          || state.map_stats.every((item) => item.provider === requiredProvider && !item.osm_ready && !item.fallback_ready);
         row.ok = row.market_data_visible
           && !row.loading_visible
           && !row.internal_tokens_visible
@@ -780,15 +968,19 @@ async function runDataLoadingStability() {
             : (!row.error_visible
               && (!tab.needsTable || row.table_count > 0)
               && (!tab.needsChart || row.chart_ready_count > 0)
-              && (!tab.needsMap || row.map_stats.some((item) => (
-                ['naver', 'osm'].includes(item.provider)
-                && ((item.mode === 'points' && item.point_count > 0 && item.native_marker_count >= item.point_count)
-                  || (item.mode === 'regions' && item.region_cluster_count > 0 && item.region_buttons > 0))
-                && item.visible_tile_count >= 3
-                && item.visible_tile_coverage >= 0.65
-              )))
+              && (!tab.needsMap || (requiredProvider
+                ? row.map_stats.some((item) => (
+                  item.provider === requiredProvider
+                  && ((item.mode === 'points' && item.point_count > 0 && item.native_marker_count >= item.point_count)
+                    || (item.mode === 'regions' && item.region_cluster_count > 0 && item.region_buttons > 0))
+                  && item.visible_tile_count >= 3
+                  && item.visible_tile_coverage >= 0.65
+                ))
+                : row.map_stats.length > 0))
               && (!tab.needsMap || row.map_expand_button_count > 0)
-              && (!tab.needsMap || !row.region_summary_visible)))
+              && (!tab.needsMap || !row.region_summary_visible)
+              && row.release_region_first_provider_ok
+              && row.release_no_osm_or_fallback_ok))
           && (simulation === 'failure' || elapsedMs <= 15000);
         report.routes.push(row);
       }
@@ -807,7 +999,10 @@ async function runDataLoadingStability() {
     max_elapsed_ms: elapsedValues.length ? Math.max(...elapsedValues) : null,
     avg_elapsed_ms: elapsedValues.length ? Math.round(elapsedValues.reduce((sum, value) => sum + value, 0) / elapsedValues.length) : null,
   };
-  report.ok = report.routes.length >= cycles && report.routes.every((route) => route.ok) && report.errors.length === 0;
+  report.ok = report.routes.length >= cycles
+    && report.routes.every((route) => route.ok)
+    && report.errors.length === 0
+    && (!liveReleaseGate || (report.release_requirements.live_url && report.release_requirements.real_network && report.release_requirements.cycles_at_least_50));
   report.artifact = writeReport('data-loading-stability', report);
   console.log(`data loading stability ${report.ok ? 'PASS' : 'FAIL'}: ${report.artifact}`);
   if (!report.ok) process.exitCode = 1;
@@ -825,21 +1020,36 @@ async function runDataLoadingIdle() {
     warnings: [],
   };
   try {
-    await withPage({ simulation: report.simulation, mapProvider: argValue('map-provider', 'osm-config-missing') }, async ({ page, baseUrl, controls, runtime }) => {
-    await gotoDomContentLoaded(page, joinUrl(baseUrl, 'market-data/overview'), 45000);
-    await waitForMarketShell(page);
-    await page.waitForFunction((loadingText) => (document.body?.innerText || '').includes(loadingText), LOAD_TEXT, { timeout: 45000 });
-    const state = await collectPageState(page);
-    report.checks = {
-      idle_request_simulated: controls.idleSeen || report.simulation !== 'idle',
-      loading_visible_while_pending: state.loading_visible,
-      no_user_facing_error_before_release: !state.error_visible,
-      market_shell_visible: state.market_data_visible,
-      no_internal_tokens: !state.internal_tokens_visible,
-      no_broken_question_marks: !state.broken_question_marks_visible,
-    };
-    report.state = state;
-    report.api_calls = controls.calls.map((call) => call.action);
+    await withPage({ simulation: report.simulation, mapProvider: argValue('map-provider', 'naver-simulated') }, async ({ page, baseUrl, controls, runtime }) => {
+      const tab = TABS[0];
+      await gotoDomContentLoaded(page, joinUrl(baseUrl, tab.route), 45000);
+      await waitForMarketShell(page);
+      await page.waitForFunction((loadingText) => (document.body?.innerText || '').includes(loadingText), LOAD_TEXT, { timeout: 45000 });
+      const pendingState = await collectPageState(page);
+      report.checks = {
+        idle_request_simulated: controls.idleSeen || report.simulation !== 'idle',
+        loading_visible_while_pending: pendingState.loading_visible,
+        no_user_facing_error_before_release: !pendingState.error_visible,
+        market_shell_visible_while_pending: pendingState.market_data_visible,
+        no_internal_tokens_while_pending: !pendingState.internal_tokens_visible,
+        no_broken_question_marks_while_pending: !pendingState.broken_question_marks_visible,
+      };
+      report.pending_state = pendingState;
+      const releaseStartedAt = Date.now();
+      await releaseNetworkControls(controls);
+      await waitForContentReady(page, tab);
+      await waitForLoadingGone(page);
+      const postReleaseState = await collectPageState(page);
+      report.post_release_elapsed_ms = Date.now() - releaseStartedAt;
+      report.post_release_state = postReleaseState;
+      report.checks.release_triggered = controls.released === true;
+      report.checks.loading_gone_after_release = !postReleaseState.loading_visible;
+      report.checks.market_data_reappeared_after_release = postReleaseState.market_data_visible;
+      report.checks.no_user_facing_error_after_release = !postReleaseState.error_visible;
+      report.checks.chart_reappeared_after_release = postReleaseState.chart_ready_count > 0;
+      report.checks.no_internal_tokens_after_release = !postReleaseState.internal_tokens_visible;
+      report.checks.no_broken_question_marks_after_release = !postReleaseState.broken_question_marks_visible;
+      report.api_calls = controls.calls.map((call) => call.action);
       report.errors.push(...runtime.errors);
       report.warnings.push(...runtime.warnings);
     });
@@ -859,6 +1069,9 @@ async function runMarketMapPinpoint() {
   const simulation = argValue('simulate', 'success');
   const expectedProvider = (mapProvider === 'naver-simulated' || simulation === 'real') ? 'naver' : 'osm';
   const targetRoute = argValue('route', 'market-data/lease-market');
+  const baseUrl = argValue('base-url', process.env.QA_BASE_URL || DEFAULT_BASE_URL);
+  const liveReleaseGate = shouldApplyLiveReleaseGate(baseUrl);
+  const maxRegionClickMs = numberArg('max-click-ms', DEFAULT_MAX_REGION_CLICK_MS);
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
@@ -867,69 +1080,35 @@ async function runMarketMapPinpoint() {
     map_provider: mapProvider,
     expected_provider: expectedProvider,
     target_route: targetRoute,
-    base_url: argValue('base-url', process.env.QA_BASE_URL || DEFAULT_BASE_URL),
+    base_url: baseUrl,
+    release_gate: liveReleaseGate,
+    max_region_click_ms: maxRegionClickMs,
+    steps: [],
     errors: [],
     warnings: [],
   };
   try {
     await withPage({ simulation: report.simulation, mapProvider }, async ({ page, baseUrl, runtime }) => {
-    await gotoDomContentLoaded(page, joinUrl(baseUrl, targetRoute), 45000);
-    await waitForMarketShell(page);
-    await waitForContentReady(page, { needsTable: true, needsChart: true, needsMap: true });
-    await waitForProvider(page, expectedProvider);
-    const firstCluster = page.locator('[data-map-mode="regions"] [data-region-cluster-button="true"]').first();
-    if (await firstCluster.count().catch(() => 0)) {
-      report.region_cluster_clicked = true;
-      await firstCluster.click({ timeout: 20000 }).catch(async () => {
-        await firstCluster.click({ force: true, timeout: 5000 });
-      });
-      await page.waitForTimeout(900);
-    } else {
-      report.region_cluster_clicked = false;
-    }
-    await page.waitForFunction((provider) => {
-      const maps = Array.from(document.querySelectorAll('[data-map-provider]'));
-      const visibleTileStats = (el) => {
-        const containerRect = el.getBoundingClientRect();
-        const containerArea = Math.max(1, containerRect.width * containerRect.height);
-        const tiles = Array.from(el.querySelectorAll('img[src], canvas, .leaflet-tile, [data-qa-fake-naver-tile="true"]')).filter((node) => {
-          const rect = node.getBoundingClientRect();
-          const style = getComputedStyle(node);
-          const src = node.getAttribute('src') || '';
-          const className = typeof node.className === 'string' ? node.className : '';
-          const looksLikeControl = /marker|pin|sprite|logo|control|zoom|scale|dot\.gif|blank|transparent/iu.test(`${src} ${className}`);
-          const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
-          const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
-          return !looksLikeControl
-            && rect.width >= 96
-            && rect.height >= 96
-            && overlapWidth >= 96
-            && overlapHeight >= 96
-            && style.display !== 'none'
-            && style.visibility !== 'hidden'
-            && Number(style.opacity || 1) > 0.05;
-        });
-        const coveredArea = tiles.reduce((sum, node) => {
-          const rect = node.getBoundingClientRect();
-          const overlapWidth = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
-          const overlapHeight = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
-          return sum + (overlapWidth * overlapHeight);
-        }, 0);
-        return { count: tiles.length, coverage: Math.min(1, coveredArea / containerArea) };
-      };
-      return maps.some((el) => {
-        const tileStats = visibleTileStats(el);
-          return el.getAttribute('data-map-provider') === provider
-          && el.getAttribute('data-map-mode') === 'points'
-          && Number(el.getAttribute('data-map-point-count') || 0) > 0
-          && Number(el.getAttribute('data-map-fallback-count') || 0) === 0
-          && Number(el.getAttribute('data-map-native-marker-count') || 0) >= Number(el.getAttribute('data-map-point-count') || 0)
-          && tileStats.count >= 3
-          && tileStats.coverage >= 0.65
-          && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0;
-      });
-    }, expectedProvider, { timeout: 60000 });
-    const state = await collectPageState(page);
+      report.steps.push('goto');
+      await gotoDomContentLoaded(page, joinUrl(baseUrl, targetRoute), 45000);
+      report.steps.push('market-shell');
+      await waitForMarketShell(page);
+      report.steps.push('content-ready');
+      await waitForContentReady(page, { needsTable: true, needsChart: true, needsMap: true });
+      report.steps.push('provider-ready');
+      await waitForProvider(page, expectedProvider);
+      report.steps.push('region-first');
+      await waitForRegionFirstMap(page, expectedProvider, 60000);
+      const regionState = await collectPageState(page);
+      report.region_first_state = regionState;
+      report.region_first_before_click = stateHasRegionFirstMap(regionState, expectedProvider);
+      report.steps.push('region-click-to-points');
+      const clickResult = await clickFirstRegionClusterAndWaitForPoints(page, expectedProvider);
+      report.region_cluster_clicked = clickResult.clicked;
+      report.click_to_points_ms = clickResult.click_to_points_ms;
+      report.click_to_points_within_threshold = typeof clickResult.click_to_points_ms === 'number'
+        && clickResult.click_to_points_ms <= maxRegionClickMs;
+      const state = await collectPageState(page);
     const activeMap = state.map_stats.find((item) => item.mode === 'points' && item.provider === expectedProvider) || null;
     const geometry = await collectPointGeometry(page);
     const firstPoint = page.locator('[data-map-provider][data-map-mode="points"] [data-map-point-button="true"]').first();
@@ -1007,6 +1186,10 @@ async function runMarketMapPinpoint() {
     report.warnings.push(...(error?.qaRuntime?.warnings || []));
   }
   report.ok = Boolean(report.active_map)
+    && (!liveReleaseGate || (isLiveReleaseUrl(report.base_url) && report.simulation === 'real'))
+    && report.region_first_before_click === true
+    && report.region_cluster_clicked === true
+    && report.click_to_points_within_threshold === true
     && report.active_map.provider === report.expected_provider
     && report.active_map.point_count > 0
     && report.active_map.native_marker_count >= report.active_map.point_count
@@ -1028,52 +1211,78 @@ async function runMarketMapPinpoint() {
 }
 
 async function runMapProviderMatrix() {
-  const matrix = [
+  const baseUrl = argValue('base-url', process.env.QA_BASE_URL || DEFAULT_BASE_URL);
+  const defaultSimulation = argValue('simulate', 'success');
+  const liveReleaseGate = shouldApplyLiveReleaseGate(baseUrl) || defaultSimulation === 'real';
+  const devMatrix = [
     { key: 'naver-simulated', provider: 'naver-simulated', expected: 'naver' },
     { key: 'osm-config-missing', provider: 'osm-config-missing', expected: 'osm' },
     { key: 'osm-config-error', provider: 'osm-config-error', expected: 'osm' },
   ];
+  const releaseMatrix = [
+    { key: 'live-naver', provider: 'live-naver', expected: 'naver', simulation: 'real' },
+    { key: 'forced-osm-config-missing', provider: 'osm-config-missing', expected: 'osm', simulation: 'real' },
+    { key: 'forced-osm-config-error', provider: 'osm-config-error', expected: 'osm', simulation: 'real' },
+  ];
+  const scenarioFilter = argValue('scenario', '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const allMatrix = [...releaseMatrix, ...devMatrix];
+  const matrix = scenarioFilter.length
+    ? allMatrix.filter((row) => scenarioFilter.includes(row.key))
+    : (liveReleaseGate ? releaseMatrix : devMatrix);
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
     script: 'qa:map-provider-matrix',
-    simulation: argValue('simulate', 'success'),
-    base_url: argValue('base-url', process.env.QA_BASE_URL || DEFAULT_BASE_URL),
+    simulation: defaultSimulation,
+    base_url: baseUrl,
+    release_gate: liveReleaseGate,
     matrix: [],
     errors: [],
     warnings: [],
   };
   for (const row of matrix) {
     try {
-      await withPage({ simulation: report.simulation, mapProvider: row.provider }, async ({ page, baseUrl, runtime }) => {
-      await gotoDomContentLoaded(page, joinUrl(baseUrl, 'market-data/lease-market'), 45000);
-      await waitForMarketShell(page);
-      await waitForContentReady(page, { needsTable: true, needsChart: true, needsMap: true });
-      await waitForProvider(page, row.expected);
-      const state = await collectPageState(page);
-      const providers = [...new Set(state.map_stats.map((item) => item.provider))];
-      const result = {
-        key: row.key,
-        expected_provider: row.expected,
-        observed_providers: providers,
-        map_stats: state.map_stats,
-        api_calls: [],
-        ok: providers.includes(row.expected)
-          && state.map_stats.every((item) => (
-            item.provider === row.expected
-            && item.mode === 'points'
-            && item.visible_tile_count >= 3
-            && item.visible_tile_coverage >= 0.65
-            && item.point_count > 0
-            && item.point_buttons > 0
-            && item.region_buttons === 0
-            && item.coordinate_count >= item.point_count
-          ))
-          && state.map_expand_button_count > 0
-          && !state.region_summary_visible,
-      };
-      report.matrix.push(result);
-      report.errors.push(...runtime.errors.map((message) => `${row.key}: ${message}`));
+      const rowSimulation = row.simulation || defaultSimulation;
+      await withPage({ simulation: rowSimulation, mapProvider: row.provider }, async ({ page, baseUrl, runtime }) => {
+        await gotoDomContentLoaded(page, joinUrl(baseUrl, 'market-data/lease-market'), 45000);
+        await waitForMarketShell(page);
+        await waitForContentReady(page, { needsTable: true, needsChart: true, needsMap: true });
+        await waitForProvider(page, row.expected);
+        await waitForRegionFirstMap(page, row.expected, 60000);
+        const regionState = await collectPageState(page);
+        const clickResult = await clickFirstRegionClusterAndWaitForPoints(page, row.expected);
+        const state = await collectPageState(page);
+        const providers = [...new Set(state.map_stats.map((item) => item.provider))];
+        const regionProviders = [...new Set(regionState.map_stats.map((item) => item.provider))];
+        const providerSeparationOk = row.expected === 'naver'
+          ? state.map_stats.every((item) => item.provider === 'naver' && item.naver_ready && !item.osm_ready && !item.fallback_ready)
+          : state.map_stats.every((item) => item.provider === 'osm' && item.osm_ready && !item.naver_ready);
+        const result = {
+          key: row.key,
+          simulation: rowSimulation,
+          map_provider: row.provider,
+          expected_provider: row.expected,
+          observed_region_providers: regionProviders,
+          observed_providers: providers,
+          region_first_map_stats: regionState.map_stats,
+          point_map_stats: state.map_stats,
+          region_first_ok: stateHasRegionFirstMap(regionState, row.expected),
+          click_result: clickResult,
+          points_ok: stateHasPointsMap(state, row.expected),
+          provider_separation_ok: providerSeparationOk,
+          api_calls: [],
+          ok: stateHasRegionFirstMap(regionState, row.expected)
+            && clickResult.clicked === true
+            && stateHasPointsMap(state, row.expected)
+            && providerSeparationOk
+            && state.map_expand_button_count > 0
+            && !state.region_summary_visible,
+        };
+        report.matrix.push(result);
+        report.errors.push(...runtime.errors.map((message) => `${row.key}: ${message}`));
         report.warnings.push(...runtime.warnings.map((message) => `${row.key}: ${message}`));
       });
     } catch (error) {
@@ -1090,7 +1299,7 @@ async function runMapProviderMatrix() {
       report.warnings.push(...(error?.qaRuntime?.warnings || []).map((message) => `${row.key}: ${message}`));
     }
   }
-  report.ok = report.matrix.every((row) => row.ok) && report.errors.length === 0;
+  report.ok = report.matrix.length > 0 && report.matrix.every((row) => row.ok) && report.errors.length === 0;
   report.artifact = writeReport('map-provider-matrix', report);
   console.log(`map provider matrix ${report.ok ? 'PASS' : 'FAIL'}: ${report.artifact}`);
   if (!report.ok) process.exitCode = 1;

@@ -196,10 +196,30 @@ function addressPart(value) {
   return source;
 }
 
+function pnuLotAddress(value) {
+  const pnu = clean(value).replace(/\D/gu, '');
+  if (pnu.length < 19) return '';
+  const landCode = pnu.slice(10, 11);
+  const main = Number(pnu.slice(11, 15));
+  const sub = Number(pnu.slice(15, 19));
+  if (!Number.isFinite(main) || main <= 0) return '';
+  const lot = sub > 0 ? `${main}-${sub}` : `${main}`;
+  return landCode === '2' ? `산 ${lot}` : lot;
+}
+
+function addressHasLot(value) {
+  return /(?:^|\s)(?:산\s*)?\d{1,5}(?:-\d{1,5})?\s*$/u.test(addressPart(value));
+}
+
+function bestAddress(candidates) {
+  const normalized = candidates.map((candidate) => addressPart(candidate)).filter(Boolean);
+  return normalized.find((candidate) => addressHasLot(candidate)) || normalized[0] || '';
+}
+
 function lotAddress(values) {
   const main = addressPart(cell(values, ['본번']));
   const sub = addressPart(cell(values, ['부번']));
-  if (!main) return '';
+  if (!main) return pnuLotAddress(cell(values, ['pnu', 'PNU']));
   return sub ? `${main}-${sub}` : main;
 }
 
@@ -389,7 +409,11 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
     const sourceRow = sourceRowIndex.get(`2:${rowNumber}`);
     const year = integerValue(cell(values, ['년도']));
     const quarter = normalizeQuarter(cell(values, ['분기']));
-    const generatedAddress = addressPart(cell(values, ['주소'])) || addressPart(cell(values, ['법정동주소', '기타주소']));
+    const generatedAddress = bestAddress([
+      addressPart(cell(values, ['주소'])),
+      fullMarketAddress(values, 'lease'),
+      addressPart(cell(values, ['법정동주소', '기타주소'])),
+    ]);
     return {
       observation_id: uuidFromHash(`lease_observation:${sourceRow?.source_row_id}`),
       source_row_id: sourceRow?.source_row_id,
@@ -500,21 +524,42 @@ function normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) {
     };
   }).filter((row) => row.source_row_id && row.warehouse_name);
 
-  const capRateSeries = getSheetRows(7, 4).map(({ rowNumber, values }) => {
-    const sourceRow = sourceRowIndex.get(`7:${rowNumber}`);
-    const year = integerValue(cell(values, ['년도']));
-    const quarter = normalizeQuarter(cell(values, ['분기']));
-    return {
-      cap_rate_id: uuidFromHash(`cap_rate:${sourceRow?.source_row_id}`),
-      source_row_id: sourceRow?.source_row_id,
-      source_file_id: sourceFileId,
-      report_year: year,
-      report_quarter: quarter,
-      capital_area_cap_rate: numberValue(cell(values, ['수도권'])),
-      national_cap_rate: numberValue(cell(values, ['전국'])),
-      payload: values,
-    };
-  }).filter((row) => row.source_row_id && row.report_year && row.report_quarter);
+  const capRateSheet = wb.Sheets[wb.SheetNames[7]];
+  const capRateRange = capRateSheet?.['!ref'] ? XLSX.utils.decode_range(capRateSheet['!ref']) : null;
+  const capRateCell = (rowNumber, columnNumber) => capRateSheet?.[XLSX.utils.encode_cell({ r: rowNumber - 1, c: columnNumber - 1 })]?.v;
+  const capRateSeries = [];
+  let currentCapRateYear = null;
+  if (capRateRange) {
+    for (let rowNumber = 6; rowNumber <= capRateRange.e.r + 1; rowNumber += 1) {
+      const marker = clean(capRateCell(rowNumber, 2));
+      if (/^※/u.test(marker)) break;
+      const year = integerValue(capRateCell(rowNumber, 2));
+      if (year) currentCapRateYear = year;
+      const quarter = normalizeQuarter(capRateCell(rowNumber, 3));
+      const capitalAreaCapRate = numberValue(capRateCell(rowNumber, 4));
+      const nationalCapRate = numberValue(capRateCell(rowNumber, 5));
+      if (!currentCapRateYear || !quarter || (capitalAreaCapRate === null && nationalCapRate === null)) continue;
+      const sourceRow = sourceRowIndex.get(`7:${rowNumber}`);
+      if (!sourceRow?.source_row_id) continue;
+      capRateSeries.push({
+        cap_rate_id: uuidFromHash(`cap_rate:${sourceRow.source_row_id}`),
+        source_row_id: sourceRow.source_row_id,
+        source_file_id: sourceFileId,
+        report_year: currentCapRateYear,
+        report_quarter: quarter,
+        capital_area_cap_rate: capitalAreaCapRate,
+        national_cap_rate: nationalCapRate,
+        payload: {
+          source_section: 'Cap.rate 추이 _ 베이지안',
+          row_number: rowNumber,
+          year: currentCapRateYear,
+          quarter,
+          capital_area_cap_rate: capitalAreaCapRate,
+          national_cap_rate: nationalCapRate,
+        },
+      });
+    }
+  }
 
   return {
     leaseObservations,
@@ -710,6 +755,23 @@ function dollarJson(value, tag) {
   return `$${tag}$${json}$${tag}$::jsonb`;
 }
 
+function staleDeleteFromJsonSql(table, rows, sourceFileId, tag) {
+  if (!rows.length) {
+    return `
+delete from public.${table}
+where source_file_id = ${sqlLiteral(sourceFileId)};
+`;
+  }
+  return `
+delete from public.${table}
+where source_file_id = ${sqlLiteral(sourceFileId)}
+  and source_row_id not in (
+    select source_row_id
+    from jsonb_populate_recordset(null::public.${table}, ${dollarJson(rows, tag)})
+  );
+`;
+}
+
 function upsertFromJsonSql(table, rows, conflictColumns, tag) {
   if (!rows.length) return '';
   const columns = Object.keys(rows.reduce((acc, row) => Object.assign(acc, row), {}));
@@ -752,6 +814,7 @@ function buildSqlExport(parsed, options = {}) {
     upsertFromJsonSql('ll_sector_market_lease_observations', parsed.normalized.leaseObservations || [], ['source_row_id'], 'lease_observations_json'),
     upsertFromJsonSql('ll_sector_market_supply_cases', parsed.normalized.supplyCases || [], ['source_row_id'], 'supply_cases_json'),
     upsertFromJsonSql('ll_sector_market_transaction_cases', parsed.normalized.transactionCases || [], ['source_row_id'], 'transaction_cases_json'),
+    staleDeleteFromJsonSql('ll_sector_market_cap_rate_series', parsed.normalized.capRateSeries || [], parsed.sourceFile.source_file_id, 'cap_rate_series_stale_json'),
     upsertFromJsonSql('ll_sector_market_cap_rate_series', parsed.normalized.capRateSeries || [], ['source_row_id'], 'cap_rate_series_json'),
     'commit;',
   ];
@@ -796,9 +859,12 @@ function writeSqlChunkFiles(parsed, options = {}) {
     batch(rows, chunkSize).forEach((chunk, index) => {
       write(`${label}_${String(index + 1).padStart(3, '0')}`, [
         'begin;',
+        table === 'll_sector_market_cap_rate_series' && index === 0
+          ? staleDeleteFromJsonSql(table, rows, parsed.sourceFile.source_file_id, `chunk_${label}_all_json`)
+          : '',
         upsertFromJsonSql(table, chunk, conflict, `chunk_${label}_${index + 1}_json`),
         'commit;',
-      ].join('\n'));
+      ].filter(Boolean).join('\n'));
     });
   });
   return files;

@@ -3,6 +3,10 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
+const EXPECTED_CAP_RATE_SERIES_ROWS = 84;
+const EXPECTED_CAP_RATE_CHART_ROWS = EXPECTED_CAP_RATE_SERIES_ROWS * 2;
+const EXPECTED_2026_Q1_CAPITAL_CAP_RATE = 0.05283229917850053;
+const EXPECTED_2026_Q1_NATIONAL_CAP_RATE = 0.05317220564523085;
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -123,6 +127,13 @@ async function main() {
   const mapPointCoordinateFillRate = fillRate(mapPoints, (row) => text(row.address) && validCoordinate(row.latitude) && validCoordinate(row.longitude) && text(row.source) !== 'region-fallback');
   const mapPointCoordinateSourceFillRate = fillRate(mapPoints, (row) => text(row.coordinate_source) && text(row.coordinate_address));
   const capRateValueFillRate = fillRate(capRateRows, (row) => number(row.cap_rate || row.value) !== 0);
+  const capRateValuesInRange = capRateRows.every((row) => {
+    const value = number(row.cap_rate || row.value);
+    return value > 0 && value < 0.2;
+  });
+  const latestCapRateRows = capRateRows.filter((row) => Number(row.report_year) === 2026 && text(row.report_quarter) === 'Q1');
+  const latestCapitalCapRate = latestCapRateRows.find((row) => text(row.region).includes('수도권'));
+  const latestNationalCapRate = latestCapRateRows.find((row) => text(row.region).includes('전국'));
   const mapPointCoordinateSamples = mapPoints
     .filter((row) => text(row.address) && validCoordinate(row.latitude) && validCoordinate(row.longitude))
     .slice(0, 20)
@@ -150,7 +161,7 @@ async function main() {
     pipeline_supply_count: summary.pipeline_supply_count === 267,
     supply_total_count: summary.supply_case_count === 276,
     new_supply_count: summary.new_supply_count === 9,
-    cap_rate_series_count: summary.cap_rate_series_count === 90,
+    cap_rate_series_count: summary.cap_rate_series_count === EXPECTED_CAP_RATE_SERIES_ROWS,
     new_supply_total_gross_area_py: approxEqual(summary.new_supply_total_gross_area_py, 111517.9),
     readback_all_pass: Object.values(readback).every((item) => item && item.ok !== false),
     sample_non_empty: Array.isArray(data.leases) && data.leases.length > 0
@@ -173,6 +184,10 @@ async function main() {
     transaction_unit_price_by_size_non_empty: Array.isArray(transactionCharts.unit_price_by_size) && transactionCharts.unit_price_by_size.length > 0,
     cap_rate_chart_non_empty: Array.isArray(transactionCharts.cap_rate_series) && transactionCharts.cap_rate_series.length > 0,
     cap_rate_value_fill_rate: capRateValueFillRate >= 95,
+    cap_rate_chart_count: Array.isArray(transactionCharts.cap_rate_series) && transactionCharts.cap_rate_series.length === EXPECTED_CAP_RATE_CHART_ROWS,
+    cap_rate_values_in_reasonable_range: capRateValuesInRange,
+    cap_rate_2026_q1_capital_matches_excel: approxEqual(latestCapitalCapRate?.cap_rate, EXPECTED_2026_Q1_CAPITAL_CAP_RATE, 0.000000000001),
+    cap_rate_2026_q1_national_matches_excel: approxEqual(latestNationalCapRate?.cap_rate, EXPECTED_2026_Q1_NATIONAL_CAP_RATE, 0.000000000001),
     views_present: Boolean(data.views?.overview && data.views?.lease && data.views?.supply && data.views?.transactions && data.views?.source),
   };
   const report = {
@@ -207,6 +222,10 @@ async function main() {
         transaction_amount_by_region: Array.isArray(transactionCharts.amount_by_region) ? transactionCharts.amount_by_region.length : 0,
         transaction_unit_price_by_size: Array.isArray(transactionCharts.unit_price_by_size) ? transactionCharts.unit_price_by_size.length : 0,
         cap_rate_series: Array.isArray(transactionCharts.cap_rate_series) ? transactionCharts.cap_rate_series.length : 0,
+      },
+      cap_rate_latest_2026_q1: {
+        capital_area: latestCapitalCapRate || null,
+        national: latestNationalCapRate || null,
       },
       readback,
       source_audit: sourceAudit,

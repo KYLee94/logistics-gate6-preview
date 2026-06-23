@@ -56,6 +56,130 @@ const SECTOR_MARKET_INTERNAL_RESPONSE_KEYS = new Set([
   'legal_dong_code',
 ]);
 type SectorMarketReadView = typeof SECTOR_MARKET_READ_VIEWS[number];
+const SECTOR_MARKET_READBACK_VIEWS = new Set<SectorMarketReadView | null>([null, 'all', 'source']);
+const SECTOR_MARKET_LEASE_TEMPERATURE_SEGMENT_LABELS = [
+  '\uBCF5\uD569 \uC0C1\uC628',
+  '\uBCF5\uD569 \uC800\uC628',
+  '\uC0C1\uC628(\uBCF5\uD569\uD3EC\uD568)',
+  '\uC800\uC628(\uBCF5\uD569\uD3EC\uD568)',
+] as const;
+const SECTOR_MARKET_SELECT_COLUMNS: Record<string, string> = {
+  ll_sector_market_lease_observations: [
+    'report_year',
+    'report_quarter',
+    'report_period',
+    'center_name',
+    'pnu',
+    'legal_dong_code',
+    'legal_address',
+    'region_group',
+    'region',
+    'province',
+    'city',
+    'district',
+    'gross_area_py',
+    'completion_year',
+    'temperature_type',
+    'size_bucket',
+    'deposit_manwon_per_py',
+    'rent_manwon_per_py',
+    'management_fee_manwon_per_py',
+    'rent_free_months_per_year',
+    'fit_out_months',
+    'tenant_improvement_manwon_per_py',
+    'leasable_area_py',
+    'vacancy_area_py',
+    'vacancy_rate',
+    'payload',
+  ].join(','),
+  ll_sector_market_supply_cases: [
+    'supply_kind',
+    'expected_year',
+    'expected_quarter',
+    'initial_expected_year',
+    'initial_expected_quarter',
+    'warehouse_name',
+    'pnu',
+    'legal_address',
+    'region_group',
+    'region',
+    'province',
+    'city',
+    'district',
+    'construction_type',
+    'site_area_sqm',
+    'site_area_py',
+    'building_area_sqm',
+    'building_area_py',
+    'gross_area_sqm',
+    'gross_area_py',
+    'main_use',
+    'temperature_type',
+    'permit_date',
+    'start_date',
+    'completion_date',
+    'owner_name',
+    'owner_type',
+    'construction_company',
+    'progress_status',
+    'schedule_confidence',
+    'payload',
+  ].join(','),
+  ll_sector_market_transaction_cases: [
+    'transaction_type',
+    'transaction_code',
+    'warehouse_name',
+    'pnu',
+    'legal_address',
+    'national_region',
+    'capital_region',
+    'size_bucket',
+    'temperature_type',
+    'province',
+    'city',
+    'district',
+    'building_area_sqm',
+    'building_area_py',
+    'gross_area_sqm',
+    'gross_area_py',
+    'land_area_sqm',
+    'land_area_py',
+    'contract_date',
+    'closing_date',
+    'transaction_year',
+    'transaction_quarter',
+    'transaction_amount_thousand_krw',
+    'transaction_amount_krw',
+    'unit_price_thousand_krw_per_py',
+    'seller_name',
+    'seller_type',
+    'buyer_name',
+    'buyer_type',
+    'senior_loan_rate',
+    'tenant_name',
+    'lease_start_date',
+    'lease_end_date',
+    'remaining_lease_months',
+    'leased_area_sqm',
+    'target_area_sqm',
+    'deposit_thousand_krw_per_py',
+    'rent_thousand_krw_per_py',
+    'management_fee_thousand_krw_per_py',
+    'vacancy_rate',
+    'initial_cap_rate',
+    'stabilized_cap_rate',
+    'cap_rate',
+    'payload',
+  ].join(','),
+  ll_sector_market_cap_rate_series: [
+    'cap_rate_id',
+    'report_year',
+    'report_quarter',
+    'capital_area_cap_rate',
+    'national_cap_rate',
+    'payload',
+  ].join(','),
+};
 
 const LOGISTICS_STAFF_NAME_BY_EMAIL: Record<string, string> = {
   "ysoh@igisam.com": "오윤석",
@@ -277,11 +401,13 @@ const FREE_TIER_GOOGLE_AI_MODELS = new Set([
   'gemini-2.5-flash-lite',
 ]);
 const SENSITIVE_KEY_PATTERN = /(authorization|password|secret|service[_-]?role|token|api[_-]?key|apikey|crtfc[_-]?key|client[_-]?secret|serviceKey|x-ncp)/iu;
-const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
+const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용', '이승훈', '이철승']);
 const DEFAULT_FEATURE_ACCESS_EMAIL_BY_NAME: Record<string, string> = {
   '이관용': 'kylee@igisam.com',
   '이시정': 'sjlee@igisam.com',
   '전기영': 'jk.jeon@igisam.com',
+  '이승훈': 'seunghoon.lee@igisam.com',
+  '이철승': 'ethan.lee@igisam.com',
   '\uC815\uD558\uC724': 'hayun.jeong@igisam.com',
 };
 const LOGISTICS_FEATURE_ACCESS_CACHE_TYPE = 'logistics_feature_access';
@@ -2429,6 +2555,49 @@ function parseLeaseStatisticRows(rows: Record<string, unknown>[], columns: Recor
   return out;
 }
 
+function marketLeaseTemperatureSegmentSemantics(rows: Record<string, unknown>[], enabled: boolean) {
+  const expectedSegments = [...SECTOR_MARKET_LEASE_TEMPERATURE_SEGMENT_LABELS];
+  if (!enabled) {
+    return {
+      status: 'skipped',
+      reason: 'lease_statistic_rows_not_requested',
+      expected_segments: expectedSegments,
+      ok: null,
+    };
+  }
+  const expectedSegmentSet = new Set(expectedSegments);
+  const checks = expectedSegments.map((segmentLabel) => {
+    const segmentRows = rows.filter((row) => safeText(row.segment_label) === segmentLabel);
+    const metricKeys = [...new Set(segmentRows.map((row) => safeText(row.metric_key)).filter(Boolean))].sort();
+    const periodLabels = [...new Set(segmentRows.map((row) => safeText(row.period_label)).filter(Boolean))].sort();
+    const sourceRowNumbers = [...new Set(segmentRows.map((row) => Number(row.source_row_number || 0)).filter(Boolean))].sort((a, b) => a - b);
+    const hasRegionValues = segmentRows.some((row) => safeText(row.dimension_type) === 'region');
+    const hasSizeBucketValues = segmentRows.some((row) => safeText(row.dimension_type) === 'size');
+    return {
+      segment_label: segmentLabel,
+      row_count: segmentRows.length,
+      source_row_numbers: sourceRowNumbers,
+      period_count: periodLabels.length,
+      metric_keys: metricKeys,
+      has_region_values: hasRegionValues,
+      has_size_bucket_values: hasSizeBucketValues,
+      ok: segmentRows.length > 0 && metricKeys.length > 0 && hasRegionValues && hasSizeBucketValues,
+    };
+  });
+  const foundSegments = [...new Set(rows.map((row) => safeText(row.segment_label)).filter((label) => expectedSegmentSet.has(label)))].sort();
+  const missingSegments = checks.filter((row) => !row.row_count).map((row) => row.segment_label);
+  const ok = checks.every((row) => row.ok);
+  return {
+    status: ok ? 'ok' : 'mismatch',
+    basis: 'parsed ll_source_rows lease statistics segment_label',
+    expected_segments: expectedSegments,
+    found_segments: foundSegments,
+    missing_segments: missingSegments,
+    checks,
+    ok,
+  };
+}
+
 function parseSupplyStatisticRows(rows: Record<string, unknown>[], columns: Record<string, unknown>[]) {
   const columnIndexByKey = marketColumnIndexByHeader(columns);
   const sortedRows = rows.slice().sort((a, b) => Number(a.row_number || 0) - Number(b.row_number || 0));
@@ -3866,28 +4035,49 @@ function marketPayloadValue(payload: Record<string, unknown>, keys: string[]) {
   return '';
 }
 
-function marketLotAddress(payload: Record<string, unknown>) {
+function marketPnuLotAddress(value: unknown) {
+  const pnu = safeText(value).replace(/\D/gu, '');
+  if (pnu.length < 19) return '';
+  const landCode = pnu.slice(10, 11);
+  const main = Number(pnu.slice(11, 15));
+  const sub = Number(pnu.slice(15, 19));
+  if (!Number.isFinite(main) || main <= 0) return '';
+  const lot = sub > 0 ? `${main}-${sub}` : `${main}`;
+  return landCode === '2' ? `산 ${lot}` : lot;
+}
+
+function marketAddressHasLot(value: unknown) {
+  return /(?:^|\s)(?:산\s*)?\d{1,5}(?:-\d{1,5})?\s*$/u.test(marketAddressPart(value));
+}
+
+function marketBestAddress(candidates: unknown[]) {
+  const normalized = candidates.map((candidate) => marketAddressPart(candidate)).filter(Boolean);
+  return normalized.find((candidate) => marketAddressHasLot(candidate)) || normalized[0] || '';
+}
+
+function marketLotAddress(payload: Record<string, unknown>, row: Record<string, unknown> = {}) {
   const main = marketAddressPart(marketPayloadValue(payload, ['본번']));
   const sub = marketAddressPart(marketPayloadValue(payload, ['부번']));
-  if (!main) return '';
+  if (!main) return marketPnuLotAddress(firstDefined(row.pnu, payload.pnu, payload.PNU));
   return sub ? `${main}-${sub}` : main;
 }
 
-function marketAddressWithLot(base: unknown, payload: Record<string, unknown>) {
+function marketAddressWithLot(base: unknown, payload: Record<string, unknown>, row: Record<string, unknown> = {}) {
   const source = marketAddressPart(base);
-  const lot = marketLotAddress(payload);
+  const lot = marketLotAddress(payload, row);
   if (source && lot && !source.endsWith(lot) && !source.includes(` ${lot}`)) return `${source} ${lot}`;
   return source;
 }
 
-function marketComposedAddress(payload: Record<string, unknown>, kind: string) {
+function marketComposedAddress(payload: Record<string, unknown>, kind: string, row: Record<string, unknown> = {}) {
   const provinceKeys = kind === 'transaction' ? ['시_도', '시/도', '도', '법정도'] : ['도', '시_도', '시/도', '법정도'];
+  const lot = marketLotAddress(payload, row);
   const parts = [
     marketAddressPart(marketPayloadValue(payload, provinceKeys)),
     marketAddressPart(marketPayloadValue(payload, ['시_군', '시/군'])),
     marketAddressPart(marketPayloadValue(payload, ['구_읍_면', '구/읍/면'])),
     marketAddressPart(marketPayloadValue(payload, ['동_리', '동/리'])),
-    marketLotAddress(payload),
+    lot,
   ].filter(Boolean);
   return parts.join(' ');
 }
@@ -3937,17 +4127,20 @@ function marketAddressInfo(row: Record<string, unknown>, kind: string) {
   const storedGenerated = safeText(firstDefined(payload.generated_address, payload._generated_full_address));
   const leaseAddress = marketAddressPart(firstDefined(payload['주소'], payload.address, row.legal_address, payload['법정동주소'], payload['기타주소']));
   const baseAddress = firstDefined(row.legal_address, payload['법정동주소'], payload.legal_address);
-  const baseWithLot = marketAddressWithLot(baseAddress, payload);
-  const composed = marketComposedAddress(payload, kind);
+  const payloadAddressWithLot = marketAddressWithLot(firstDefined(payload['주소'], payload.address), payload, row);
+  const baseWithLot = marketAddressWithLot(baseAddress, payload, row);
+  const composed = marketComposedAddress(payload, kind, row);
   const generated = kind === 'lease'
-    ? leaseAddress
-    : safeText(firstDefined(storedGenerated, baseWithLot, composed, row.legal_address));
-  const fallback = safeText(firstDefined(row.legal_address, payload['법정동주소'], payload['주소'], payload['기타주소']));
-  const address = safeText(firstDefined(generated, fallback));
-  const rule = safeText(firstDefined(
-    payload.generated_address_rule,
-    kind === 'lease' ? 'lease_sheet_address_column_p' : `${kind}_sheet_province_city_district_dong_lot`,
-  ));
+    ? marketBestAddress([storedGenerated, payloadAddressWithLot, baseWithLot, composed, leaseAddress, row.legal_address])
+    : marketBestAddress([storedGenerated, payloadAddressWithLot, baseWithLot, composed, row.legal_address]);
+  const fallback = marketBestAddress([baseWithLot, composed, row.legal_address, payload['법정동주소'], payload['주소'], payload['기타주소']]);
+  const address = marketBestAddress([generated, fallback]);
+  const derivedAddressRule = marketAddressHasLot(address)
+    ? `${kind}_sheet_address_with_lot_or_pnu`
+    : (kind === 'lease' ? 'lease_sheet_address_column_p' : `${kind}_sheet_province_city_district_dong_lot`);
+  const rule = safeText(marketAddressHasLot(address)
+    ? derivedAddressRule
+    : firstDefined(payload.generated_address_rule, derivedAddressRule));
   const latitudeInfo = marketCoordinateInfo(row, payload, 'lat');
   const longitudeInfo = marketCoordinateInfo(row, payload, 'lng');
   const geocode = marketPayloadObject(payload, 'market_geocode');
@@ -4133,6 +4326,7 @@ function sectorMarketDataForView(fullData: Record<string, unknown>, view: Sector
     summary,
     readback: summary.readback || {},
     data_quality: summary.data_quality || {},
+    data_semantics: summary.data_semantics || {},
     view,
     views: selectedViews,
   }));
@@ -4161,8 +4355,10 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const needsSupplyRows = needsFullRows || needsOverviewRows || requestedView === 'supply';
   const needsTransactionRows = needsFullRows || needsOverviewRows || requestedView === 'transactions';
   const needsCapRateRows = needsFullRows || needsOverviewRows || requestedView === 'transactions';
-  const needsSourceAudit = needsFullRows || requestedView === 'source';
-  const needsStatisticRows = needsFullRows || needsOverviewRows || requestedView === 'lease' || requestedView === 'supply';
+  const needsSourceAudit = SECTOR_MARKET_READBACK_VIEWS.has(requestedView);
+  const needsReadbackCounts = needsSourceAudit;
+  const needsStatisticRows = needsFullRows || needsOverviewRows || requestedView === 'lease' || requestedView === 'supply' || requestedView === 'source';
+  const includeRawRowHashes = payload.include_raw_row_hashes === true && needsSourceAudit;
 
   const emptyMarketData = {
     summary: {
@@ -4184,6 +4380,10 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       expected_counts: {},
       check_values: {},
       readback: {},
+      readback_status: 'skipped',
+      data_semantics: {
+        temperature_segments: marketLeaseTemperatureSegmentSemantics([], false),
+      },
     },
     leases: [],
     supply: [],
@@ -4236,44 +4436,61 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     return { expected, actual, ok: expected === null ? null : Math.abs(expected - actual) <= tolerance };
   };
 
-  const [
-    leaseCount,
-    supplyCount,
-    pipelineSupplyCount,
-    newSupplyCount,
-    transactionCount,
-    capRateSeriesCount,
-    newSupplyRowsResult,
-  ] = await Promise.all([
-    countMarketRows('ll_sector_market_lease_observations'),
-    countMarketRows('ll_sector_market_supply_cases'),
-    countMarketRows('ll_sector_market_supply_cases', [['supply_kind', 'pipeline']]),
-    countMarketRows('ll_sector_market_supply_cases', [['supply_kind', 'new_supply']]),
-    countMarketRows('ll_sector_market_transaction_cases'),
-    countMarketRows('ll_sector_market_cap_rate_series'),
-    ctx.serviceClient
-      .from('ll_sector_market_supply_cases')
-      .select('gross_area_py')
-      .eq('source_file_id', activeSourceId)
-      .eq('supply_kind', 'new_supply')
-      .limit(500),
-  ]);
-  if (newSupplyRowsResult.error && !isMissingRelationError(newSupplyRowsResult.error)) {
-    return fail(500, 'Failed to read sector market check values', ctx.origin, { error: newSupplyRowsResult.error.message });
+  let leaseCount = numericExpected('lease_observations') ?? 0;
+  let supplyCount = numericExpected('supply_cases') ?? 0;
+  let pipelineSupplyCount = numericExpected('pipeline_supply_cases') ?? 0;
+  let newSupplyCount = numericExpected('new_supply_cases') ?? 0;
+  let transactionCount = numericExpected('transaction_cases') ?? 0;
+  let capRateSeriesCount = numericExpected('cap_rate_series') ?? 0;
+  let newSupplyTotalGrossAreaPy = valueExpected('new_supply_total_gross_area_py') ?? 0;
+  let readback: Record<string, { expected: number | null; actual: number; ok: boolean | null }> = {};
+  let readbackOk = true;
+  const readbackStatus = needsReadbackCounts ? 'checked' : 'skipped';
+  if (needsReadbackCounts) {
+    const [
+      actualLeaseCount,
+      actualSupplyCount,
+      actualPipelineSupplyCount,
+      actualNewSupplyCount,
+      actualTransactionCount,
+      actualCapRateSeriesCount,
+      newSupplyRowsResult,
+    ] = await Promise.all([
+      countMarketRows('ll_sector_market_lease_observations'),
+      countMarketRows('ll_sector_market_supply_cases'),
+      countMarketRows('ll_sector_market_supply_cases', [['supply_kind', 'pipeline']]),
+      countMarketRows('ll_sector_market_supply_cases', [['supply_kind', 'new_supply']]),
+      countMarketRows('ll_sector_market_transaction_cases'),
+      countMarketRows('ll_sector_market_cap_rate_series'),
+      ctx.serviceClient
+        .from('ll_sector_market_supply_cases')
+        .select('gross_area_py')
+        .eq('source_file_id', activeSourceId)
+        .eq('supply_kind', 'new_supply')
+        .limit(500),
+    ]);
+    if (newSupplyRowsResult.error && !isMissingRelationError(newSupplyRowsResult.error)) {
+      return fail(500, 'Failed to read sector market check values', ctx.origin, { error: newSupplyRowsResult.error.message });
+    }
+    leaseCount = actualLeaseCount;
+    supplyCount = actualSupplyCount;
+    pipelineSupplyCount = actualPipelineSupplyCount;
+    newSupplyCount = actualNewSupplyCount;
+    transactionCount = actualTransactionCount;
+    capRateSeriesCount = actualCapRateSeriesCount;
+    newSupplyTotalGrossAreaPy = ((newSupplyRowsResult.data || []) as Record<string, unknown>[])
+      .reduce((sum, row) => sum + Number(row.gross_area_py || 0), 0);
+    readback = {
+      lease_observations: countCheck('lease_observations', leaseCount),
+      supply_cases: countCheck('supply_cases', supplyCount),
+      pipeline_supply_cases: countCheck('pipeline_supply_cases', pipelineSupplyCount),
+      new_supply_cases: countCheck('new_supply_cases', newSupplyCount),
+      transaction_cases: countCheck('transaction_cases', transactionCount),
+      cap_rate_series: countCheck('cap_rate_series', capRateSeriesCount),
+      new_supply_total_gross_area_py: valueCheck('new_supply_total_gross_area_py', Math.round(newSupplyTotalGrossAreaPy * 10) / 10),
+    };
+    readbackOk = Object.values(readback).every((item) => item.ok !== false);
   }
-  const newSupplyTotalGrossAreaPy = ((newSupplyRowsResult.data || []) as Record<string, unknown>[])
-    .reduce((sum, row) => sum + Number(row.gross_area_py || 0), 0);
-
-  const readback = {
-    lease_observations: countCheck('lease_observations', leaseCount),
-    supply_cases: countCheck('supply_cases', supplyCount),
-    pipeline_supply_cases: countCheck('pipeline_supply_cases', pipelineSupplyCount),
-    new_supply_cases: countCheck('new_supply_cases', newSupplyCount),
-    transaction_cases: countCheck('transaction_cases', transactionCount),
-    cap_rate_series: countCheck('cap_rate_series', capRateSeriesCount),
-    new_supply_total_gross_area_py: valueCheck('new_supply_total_gross_area_py', Math.round(newSupplyTotalGrossAreaPy * 10) / 10),
-  };
-  const readbackOk = Object.values(readback).every((item) => item.ok !== false);
 
   const [sourceSheetsResult, sourceRowsCountResult] = await Promise.all([
     needsSourceAudit || needsStatisticRows
@@ -4293,6 +4510,26 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   ]);
   if (sourceSheetsResult.error && !isMissingRelationError(sourceSheetsResult.error)) return fail(500, 'Failed to read source sheets', ctx.origin, { error: sourceSheetsResult.error.message });
   const sourceSheets = (sourceSheetsResult.data || []) as Record<string, unknown>[];
+  const rawRowHashes: Record<string, unknown>[] = [];
+  if (includeRawRowHashes) {
+    const pageSize = 1000;
+    for (let offset = 0; offset < sampleLimit; offset += pageSize) {
+      const { data: rawRows, error } = await ctx.serviceClient
+        .from('ll_source_rows')
+        .select('sheet_name,row_number,row_hash')
+        .eq('source_file_id', activeSourceId)
+        .order('sheet_name', { ascending: true })
+        .order('row_number', { ascending: true })
+        .range(offset, Math.min(offset + pageSize - 1, sampleLimit - 1));
+      if (error) {
+        if (isMissingRelationError(error)) break;
+        return fail(500, 'Failed to read source row hashes', ctx.origin, { error: error.message });
+      }
+      const rows = (rawRows || []) as Record<string, unknown>[];
+      rawRowHashes.push(...rows);
+      if (rows.length < pageSize) break;
+    }
+  }
   let sourceColumnCount = 0;
   if (needsSourceAudit && sourceSheets.length) {
     const sheetIds = sourceSheets.map((row) => safeText(row.source_sheet_id)).filter(Boolean);
@@ -4361,18 +4598,20 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     sourceStatisticRows.filter((row) => safeText(row.source_sheet_id) === supplyStatisticSheetId),
     sourceStatisticColumns.filter((column) => safeText(column.source_sheet_id) === supplyStatisticSheetId),
   );
+  const temperatureSegmentSemantics = marketLeaseTemperatureSegmentSemantics(leaseStatisticRows, needsStatisticRows);
 
   const fetchMarketPageRows = async (
     table: string,
     limit: number,
     orders: Array<[string, boolean]>,
+    columns: string,
   ) => {
     const out: Record<string, unknown>[] = [];
     const pageSize = 1000;
     for (let offset = 0; offset < limit; offset += pageSize) {
       let query = ctx.serviceClient
         .from(table)
-        .select('*')
+        .select(columns)
         .eq('source_file_id', activeSourceId);
       orders.forEach(([column, ascending]) => {
         query = query.order(column, { ascending });
@@ -4390,16 +4629,16 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   };
   const emptyMarketPageRows = { data: [] as Record<string, unknown>[], error: null };
   const leaseQuery = needsLeaseRows
-    ? fetchMarketPageRows('ll_sector_market_lease_observations', sampleLimit, [['report_year', false], ['report_quarter', false]])
+    ? fetchMarketPageRows('ll_sector_market_lease_observations', sampleLimit, [['report_year', false], ['report_quarter', false]], SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_lease_observations)
     : Promise.resolve(emptyMarketPageRows);
   const supplyQuery = needsSupplyRows
-    ? fetchMarketPageRows('ll_sector_market_supply_cases', sampleLimit, [['expected_year', false], ['expected_quarter', false]])
+    ? fetchMarketPageRows('ll_sector_market_supply_cases', sampleLimit, [['expected_year', false], ['expected_quarter', false]], SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_supply_cases)
     : Promise.resolve(emptyMarketPageRows);
   const transactionQuery = needsTransactionRows
-    ? fetchMarketPageRows('ll_sector_market_transaction_cases', sampleLimit, [['transaction_year', false], ['transaction_quarter', false]])
+    ? fetchMarketPageRows('ll_sector_market_transaction_cases', sampleLimit, [['transaction_year', false], ['transaction_quarter', false]], SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_transaction_cases)
     : Promise.resolve(emptyMarketPageRows);
   const capRateQuery = needsCapRateRows
-    ? fetchMarketPageRows('ll_sector_market_cap_rate_series', 120, [['report_year', false], ['report_quarter', false]])
+    ? fetchMarketPageRows('ll_sector_market_cap_rate_series', 120, [['report_year', false], ['report_quarter', false]], SECTOR_MARKET_SELECT_COLUMNS.ll_sector_market_cap_rate_series)
     : Promise.resolve(emptyMarketPageRows);
   const [leaseResult, supplyResult, transactionResult, capRateResult] = await Promise.all([
     leaseQuery,
@@ -4473,6 +4712,10 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       temperature_type: row.temperature_type || '미분류',
     });
   });
+  const isReasonableMarketCapRate = (value: unknown) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 && parsed < 0.2;
+  };
   const capRatesRaw = (capRateResult.data || []) as Record<string, unknown>[];
   const capRates = capRatesRaw.flatMap((row) => [
     stripUndefined({
@@ -4489,7 +4732,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       cap_rate: row.national_cap_rate,
       period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
     }),
-  ]).filter((row) => row.cap_rate !== null && row.cap_rate !== undefined && row.cap_rate !== '');
+  ]).filter((row) => isReasonableMarketCapRate(row.cap_rate));
   const latestLeasePeriod = leases.map((row) => safeText(row.report_period)).filter(Boolean).sort().at(-1) || '';
   const latestLeases = latestLeasePeriod ? leases.filter((row) => safeText(row.report_period) === latestLeasePeriod) : leases;
   const leaseArea = latestLeases.reduce((sum, row) => sum + Number(row.leasable_area_py || 0), 0);
@@ -4631,6 +4874,13 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
         transactions_by_region: aggregateSum(publicTransactions, 'region', 'transaction_amount_krw'),
         cap_rate_series: publicCapRates,
       },
+      lease_statistics_latest_period: latestLeaseStatisticPeriod,
+      lease_statistics_rows: leaseStatisticRows,
+      lease_statistics_periods: [...new Set(leaseStatisticRows.map((row) => safeText(row.period_label)).filter(Boolean))],
+      lease_statistics_segments: [...new Set(leaseStatisticRows.map((row) => safeText(row.segment_label)).filter(Boolean))],
+      supply_statistics_rows: supplyStatisticRows,
+      supply_rows: publicSupply,
+      transaction_rows: publicTransactions,
     },
     lease: {
       latest_period: latestLeasePeriod,
@@ -4639,6 +4889,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       statistics_latest_rows: latestLeaseStatisticRows,
       statistics_periods: [...new Set(leaseStatisticRows.map((row) => safeText(row.period_label)).filter(Boolean))],
       statistics_segments: [...new Set(leaseStatisticRows.map((row) => safeText(row.segment_label)).filter(Boolean))],
+      temperature_semantics: temperatureSegmentSemantics,
       regions: [...new Set(publicLeases.map((row) => safeText(row.region)).filter(Boolean))],
       temperature_types: [...new Set(publicLeases.map((row) => safeText(row.temperature_type)).filter(Boolean))],
       latest_rows: latestLeasePublicRows,
@@ -4692,6 +4943,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
         updated_at: row.updated_at,
       })),
       sheet_readback: sheetReadback,
+      temperature_semantics: temperatureSegmentSemantics,
       chapter_checks: {
         lease_market_statistics_rows: sheetReadback.find((row) => safeText(row.sheet_name).includes('임대') && safeText(row.sheet_name).includes('통계')) || null,
         lease_market_current_rows: sheetReadback.find((row) => safeText(row.sheet_name).includes('임대') && safeText(row.sheet_name).includes('현황')) || null,
@@ -4712,13 +4964,15 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     supply_area_fill_rate: fillRate(supply, ['gross_area_py']),
     supply_expected_period_fill_rate: fillRate(supply.filter((row) => row.supply_kind === 'pipeline'), ['expected_year', 'completion_year']),
   };
+  const dataQualityChecks = [
+    { enabled: needsLeaseRows, ok: dataQuality.lease_area_fill_rate >= 95 && dataQuality.lease_rent_fill_rate >= 50 },
+    { enabled: needsTransactionRows, ok: dataQuality.transaction_area_fill_rate >= 95 && dataQuality.transaction_unit_price_fill_rate >= 95 },
+    { enabled: needsSupplyRows, ok: dataQuality.supply_area_fill_rate >= 95 },
+  ];
+  const dataQualityOk = dataQualityChecks.filter((check) => check.enabled).every((check) => check.ok);
   const marketDataReady = readbackOk
-    && sheetReadback.every((row) => row.ok)
-    && dataQuality.lease_area_fill_rate >= 95
-    && dataQuality.lease_rent_fill_rate >= 50
-    && dataQuality.transaction_area_fill_rate >= 95
-    && dataQuality.transaction_unit_price_fill_rate >= 95
-    && dataQuality.supply_area_fill_rate >= 95;
+    && (!needsSourceAudit || sheetReadback.every((row) => row.ok))
+    && dataQualityOk;
   const summary = {
     status: marketDataReady ? 'ready' : 'readback_mismatch',
     source: activeSource,
@@ -4738,7 +4992,12 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     expected_counts: expectedCounts,
     check_values: checkValues,
     readback,
+    readback_status: readbackStatus,
     data_quality: dataQuality,
+    data_quality_status: dataQualityOk ? 'ok' : 'mismatch',
+    data_semantics: {
+      temperature_segments: temperatureSegmentSemantics,
+    },
     sample_limit: sampleLimit,
     sample_counts: {
       leases: leases.length,
@@ -4750,8 +5009,11 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       sheet_count: sourceSheets.length,
       source_row_count: sourceRowsCountResult.count || 0,
       source_column_count: sourceColumnCount,
+      raw_row_hash_count: rawRowHashes.length,
+      raw_row_hashes: includeRawRowHashes ? rawRowHashes : undefined,
       sheet_readback: sheetReadback,
       sheet_readback_ok: sheetReadback.every((row) => row.ok),
+      readback_status: readbackStatus,
       chapter_checks: {
         lease_market_statistics_rows: sheetReadback.find((row) => safeText(row.sheet_name).includes('임대') && safeText(row.sheet_name).includes('통계')) || null,
         new_supply_normalized_rows: newSupplyCount,
@@ -5266,10 +5528,137 @@ async function callOperatingCostsRead(ctx: Context, _payload: Record<string, unk
   return jsonResponse({ ok: true, data: { rows: enrichedRows, summary: { ...totals, row_count: rows.length } } }, 200, ctx.origin);
 }
 
+const DATA_MANAGEMENT_EXPECTED_ASSET_COUNT = 19;
+const DATA_MANAGEMENT_EXPECTED_FUND_COUNT = 17;
+
+type DataManagementScope = {
+  assets: Record<string, unknown>[];
+  funds: Record<string, unknown>[];
+  readableAssets: Record<string, unknown>[];
+  readableFunds: Record<string, unknown>[];
+  allRefs: string[];
+  readableRefs: string[];
+};
+
+function dataManagementRefValues(row: Record<string, unknown>, keys: string[]) {
+  return keys.map((key) => safeText(row[key])).filter(Boolean);
+}
+
+function dataManagementRowHaystack(row: Record<string, unknown>) {
+  return normalizeKey([
+    row.natural_key,
+    row.sheet_name,
+    JSON.stringify(row.row_values || {}),
+    JSON.stringify(row.normalized_values || {}),
+  ].join(' '));
+}
+
+function dataManagementRowMatchesRefs(row: Record<string, unknown>, refs: string[]) {
+  if (!refs.length) return false;
+  const haystack = dataManagementRowHaystack(row);
+  return refs.some((ref) => ref && haystack.includes(ref));
+}
+
+function dataManagementEditMatchesRefs(row: Record<string, unknown>, refs: string[]) {
+  if (!refs.length) return false;
+  const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload as Record<string, unknown> : {};
+  const haystack = normalizeKey([
+    row.target_name,
+    row.target_type,
+    row.field_name,
+    row.before_value,
+    row.requested_value,
+    JSON.stringify(payload),
+  ].join(' '));
+  return refs.some((ref) => ref && haystack.includes(ref));
+}
+
+function dataManagementScopeRefs(assets: Record<string, unknown>[], funds: Record<string, unknown>[]) {
+  return uniqueStrings([
+    ...assets.flatMap((row) => dataManagementRefValues(row, ['asset_id', 'asset_code', 'asset_name', 'display_name'])),
+    ...funds.flatMap((row) => dataManagementRefValues(row, ['fund_id', 'fund_code', 'fund_name', 'short_name', 'display_name'])),
+  ], 500).map((item) => normalizeKey(item)).filter(Boolean);
+}
+
+async function readDataManagementScope(ctx: Context, managerView: boolean): Promise<{ scope?: DataManagementScope; error?: string }> {
+  const [fundsResult, linksResult, assetsResult] = await Promise.all([
+    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,display_name').limit(500),
+    ctx.serviceClient.from('ll_fund_asset_links').select('asset_id,asset_code,asset_name,fund_id,source_payload').limit(1000),
+    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name').limit(1000),
+  ]);
+  const hardError = [fundsResult, linksResult, assetsResult].find((result) => result.error && !isMissingRelationError(result.error));
+  if (hardError?.error) return { error: hardError.error.message };
+  const funds = (fundsResult.data || []) as Record<string, unknown>[];
+  const links = (linksResult.data || []) as Record<string, unknown>[];
+  const assets = (assetsResult.data || []) as Record<string, unknown>[];
+  const fundById = new Map(funds.map((fund) => [safeText(fund.fund_id), fund]));
+  const assetById = new Map(assets.map((asset) => [safeText(asset.asset_id), asset]));
+  const scopeAssetMap = new Map<string, Record<string, unknown>>();
+  links.forEach((link) => {
+    const assetId = safeText(link.asset_id);
+    const assetName = safeText(link.asset_name);
+    const assetCode = safeText(link.asset_code);
+    const key = assetId || assetCode || assetName;
+    if (!key) return;
+    scopeAssetMap.set(key, {
+      ...(assetById.get(assetId) || {}),
+      asset_id: assetId || safeText(assetById.get(assetId)?.asset_id),
+      asset_code: assetCode || safeText(assetById.get(assetId)?.asset_code),
+      asset_name: assetName || safeText(assetById.get(assetId)?.asset_name),
+    });
+  });
+  const scopeFundMap = new Map<string, Record<string, unknown>>();
+  links.forEach((link) => {
+    const fundId = safeText(link.fund_id);
+    const fund = fundById.get(fundId);
+    const sourcePayload = link.source_payload && typeof link.source_payload === 'object' ? link.source_payload as Record<string, unknown> : {};
+    const sourceValues = sourcePayload.values && typeof sourcePayload.values === 'object' ? sourcePayload.values as Record<string, unknown> : {};
+    const fallbackFund = {
+      fund_id: fundId,
+      fund_code: safeText(firstDefined(sourceValues['펀드코드'], fundId.replace(/^fund_/u, ''))),
+      fund_name: safeText(sourceValues['펀드명']),
+      short_name: safeText(sourceValues['약칭']),
+      display_name: safeText(firstDefined(sourceValues['약칭'], sourceValues['펀드명'], fundId)),
+    };
+    if (fundId) scopeFundMap.set(fundId, fund || fallbackFund);
+  });
+  const scopeAssets = [...scopeAssetMap.values()]
+    .sort((a, b) => safeText(a.asset_name || a.asset_code).localeCompare(safeText(b.asset_name || b.asset_code), 'ko'));
+  const scopeFunds = [...scopeFundMap.values()]
+    .sort((a, b) => safeText(firstDefined(a.display_name, a.short_name, a.fund_name, a.fund_code)).localeCompare(safeText(firstDefined(b.display_name, b.short_name, b.fund_name, b.fund_code)), 'ko'));
+  const readableAssets = managerView ? scopeAssets : scopeAssets.filter((asset) => canReadRelatedAsset(ctx, asset.asset_id || asset.asset_code || asset.asset_name));
+  const readableAssetIds = new Set(readableAssets.map((asset) => safeText(asset.asset_id)).filter(Boolean));
+  const readableAssetNames = new Set(readableAssets.map((asset) => safeText(asset.asset_name)).filter(Boolean));
+  const readableFunds = managerView ? scopeFunds : scopeFunds.filter((fund) => links.some((link) => (
+    safeText(link.fund_id) === safeText(fund.fund_id)
+    && (readableAssetIds.has(safeText(link.asset_id)) || readableAssetNames.has(safeText(link.asset_name)))
+  )));
+  return {
+    scope: {
+      assets: scopeAssets,
+      funds: scopeFunds,
+      readableAssets,
+      readableFunds,
+      allRefs: dataManagementScopeRefs(scopeAssets, scopeFunds),
+      readableRefs: dataManagementScopeRefs(readableAssets, readableFunds),
+    },
+  };
+}
+
 async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const rowLimit = Math.min(Math.max(Number(payload.row_limit || 120), 20), 300);
+  const scopeResult = await readDataManagementScope(ctx, managerView);
+  if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+  const managementScope = scopeResult.scope || {
+    assets: [],
+    funds: [],
+    readableAssets: [],
+    readableFunds: [],
+    allRefs: [],
+    readableRefs: [],
+  };
   const [sourcesResult, sheetsResult, columnsResult, rowsResult, editsResult] = await Promise.all([
     ctx.serviceClient.from('ll_source_files').select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at').order('created_at', { ascending: false }).limit(80),
     ctx.serviceClient.from('ll_source_sheets').select('source_sheet_id,source_file_id,sheet_name,sheet_index,header_row_number,row_count,column_count').limit(240),
@@ -5285,31 +5674,21 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   const sheets = (sheetsResult.data || []) as Record<string, unknown>[];
   const rawSourceRows = (rowsResult.data || []) as Record<string, unknown>[];
   const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
-  const sourceRows = managerView ? rawSourceRows : rawSourceRows.filter((row) => {
+  const sourceRows = rawSourceRows.filter((row) => {
+    if (!dataManagementRowMatchesRefs(row, managementScope.allRefs)) return false;
+    if (managerView) return true;
+    if (dataManagementRowMatchesRefs(row, managementScope.readableRefs)) return true;
     if (!managedRefs.length) return false;
-    const haystack = normalizeKey([
-      row.natural_key,
-      row.sheet_name,
-      JSON.stringify(row.row_values || {}),
-      JSON.stringify(row.normalized_values || {}),
-    ].join(' '));
-    return managedRefs.some((ref) => ref && haystack.includes(ref));
+    return dataManagementRowMatchesRefs(row, managedRefs);
   });
   const rawEdits = (editsResult.data || []) as Record<string, unknown>[];
   const canSeeEdit = (row: Record<string, unknown>) => {
+    if (!dataManagementEditMatchesRefs(row, managementScope.allRefs)) return false;
     if (managerView) return true;
     if (row.requested_by === ctx.user.id) return true;
+    if (dataManagementEditMatchesRefs(row, managementScope.readableRefs)) return true;
     if (!managedRefs.length) return false;
-    const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload as Record<string, unknown> : {};
-    const haystack = normalizeKey([
-      row.target_name,
-      row.target_type,
-      row.field_name,
-      row.before_value,
-      row.requested_value,
-      JSON.stringify(payload),
-    ].join(' '));
-    return managedRefs.some((ref) => ref && haystack.includes(ref));
+    return dataManagementEditMatchesRefs(row, managedRefs);
   };
   const edits = rawEdits.filter(canSeeEdit);
   const sourceDomainKeys = ['lease_contracts', 'fund_info', 'sector_market', 'permissions', 'asset_specs', 'operating_costs'];
@@ -5412,7 +5791,28 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   return jsonResponse({ ok: true, data: {
     access_scope: managerView ? 'manager_full_source' : 'asset_limited',
     can_approve: managerView,
-    managed_asset_codes: managerView ? ['ALL'] : managedAssetCodes(ctx.permission),
+    managed_asset_codes: managementScope.readableAssets.map((row) => safeText(firstDefined(row.asset_code, row.asset_name, row.asset_id))).filter(Boolean),
+    management_scope: {
+      owner: 'IGIS Asset Management',
+      expected_asset_count: DATA_MANAGEMENT_EXPECTED_ASSET_COUNT,
+      expected_fund_count: DATA_MANAGEMENT_EXPECTED_FUND_COUNT,
+      asset_count: managementScope.assets.length,
+      fund_count: managementScope.funds.length,
+      readable_asset_count: managementScope.readableAssets.length,
+      readable_fund_count: managementScope.readableFunds.length,
+      assets: managementScope.readableAssets.map((row) => stripUndefined({
+        asset_id: row.asset_id,
+        asset_code: row.asset_code,
+        asset_name: row.asset_name,
+      })),
+      funds: managementScope.readableFunds.map((row) => stripUndefined({
+        fund_id: row.fund_id,
+        fund_code: row.fund_code,
+        fund_name: row.fund_name,
+        short_name: row.short_name,
+        display_name: firstDefined(row.display_name, row.short_name, row.fund_name, row.fund_code),
+      })),
+    },
     sources,
     sheets,
     columns: columnsResult.data || [],
@@ -5439,15 +5839,17 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
   if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
 
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const scopeResult = await readDataManagementScope(ctx, managerView);
+  if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+  const managementScope = scopeResult.scope;
+  if (!managementScope || !dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs)) {
+    return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);
+  }
   if (!managerView) {
     const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
-    const haystack = normalizeKey([
-      sourceRow.natural_key,
-      sourceRow.sheet_name,
-      JSON.stringify(sourceRow.row_values || {}),
-      JSON.stringify(sourceRow.normalized_values || {}),
-    ].join(' '));
-    if (!managedRefs.length || !managedRefs.some((ref) => ref && haystack.includes(ref))) {
+    const readable = dataManagementRowMatchesRefs(sourceRow, managementScope.readableRefs)
+      || dataManagementRowMatchesRefs(sourceRow, managedRefs);
+    if (!readable) {
       return fail(403, 'Source row is outside the assigned asset scope', ctx.origin);
     }
   }
@@ -5571,6 +5973,30 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
   const targetRecordId = safeText(payload.target_record_id || payload.targetRecordId || payload.resolved_target_row_id || payload.resolvedTargetRowId);
   const primaryKeyField = safeText(payload.primary_key_field || payload.primaryKeyField || 'id');
   const autoWriteEnabled = Boolean(normalizedTargetTable && EDIT_TARGET_TABLE_ALLOWLIST.has(normalizedTargetTable) && targetField && targetRecordId);
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const scopeResult = await readDataManagementScope(ctx, managerView);
+  if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+  const managementScope = scopeResult.scope;
+  if (!managementScope) return fail(500, 'Failed to resolve data management scope', ctx.origin);
+  const normalizedSourceTable = normalizePublicLlTable(sourceTable);
+  if (normalizedSourceTable === 'public.ll_source_rows') {
+    const { data: sourceRow, error: sourceError } = await ctx.serviceClient
+      .from('ll_source_rows')
+      .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values')
+      .eq('source_row_id', targetRowId)
+      .maybeSingle();
+    if (sourceError && !isMissingRelationError(sourceError)) return fail(500, 'Failed to read source row', ctx.origin, { error: sourceError.message });
+    if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
+    if (!dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs)) {
+      return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);
+    }
+    if (!managerView) {
+      const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
+      const readable = dataManagementRowMatchesRefs(sourceRow, managementScope.readableRefs)
+        || dataManagementRowMatchesRefs(sourceRow, managedRefs);
+      if (!readable) return fail(403, 'Source row is outside the assigned asset scope', ctx.origin);
+    }
+  }
   const cellEdits = autoWriteEnabled ? [{
     target_table: normalizedTargetTable,
     primary_key_field: primaryKeyField,

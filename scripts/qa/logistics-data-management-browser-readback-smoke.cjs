@@ -154,11 +154,19 @@ async function main() {
       columns: columns.length,
       edits: edits.length,
       managed_asset_codes: statusData.managed_asset_codes || [],
+      management_scope: statusData.management_scope || null,
     };
     report.checks.status_api_ok = statusBody?.ok === true;
     report.checks.access_scope_present = Boolean(statusData.access_scope);
     report.checks.status_arrays_present = Array.isArray(statusData.source_rows) && Array.isArray(statusData.columns) && Array.isArray(statusData.edit_requests);
     report.checks.manager_has_rows = statusData.access_scope === 'manager_full_source' ? sourceRows.length > 0 && columns.length > 0 : true;
+    report.checks.igis_management_scope_api = statusData.management_scope?.asset_count === 19
+      && statusData.management_scope?.fund_count === 17
+      && Array.isArray(statusData.management_scope?.assets)
+      && Array.isArray(statusData.management_scope?.funds);
+    report.checks.manager_scope_not_all = statusData.access_scope === 'manager_full_source'
+      ? !Array.isArray(statusData.managed_asset_codes) || !statusData.managed_asset_codes.includes('ALL')
+      : true;
     report.checks.no_broken_question_marks = !/\?{4,}/u.test(body);
     report.checks.no_internal_tokens = !INTERNAL_TOKEN_PATTERN.test(body);
     report.checks.no_permission_explanation_banner = !body.includes('이관용, 전기영, 이시정, 이승훈, 이철승 계정은 모든 자산의 데이터 관리 권한으로 처리됩니다');
@@ -174,12 +182,16 @@ async function main() {
     await page.waitForFunction(() => document.body?.innerText?.includes('\uC785\uB825 \uB9C8\uBC95\uC0AC'), { timeout: 15000 }).catch(() => null);
     const workflowBody = await page.locator('body').innerText({ timeout: 10000 });
     const selectorCountText = await page.locator('[data-data-management-selector-count="true"]').innerText({ timeout: 5000 }).catch(() => '');
+    const scopeText = await page.locator('[data-data-management-igis-scope="true"]').innerText({ timeout: 5000 }).catch(() => '');
     const targetSelectCount = await page.locator('select').count().catch(() => 0);
     const targetSelectOptionCounts = await page.evaluate(() => Array.from(document.querySelectorAll('select')).map((select) => select.options.length)).catch(() => []);
     report.checks.has_sortable_tables = await page.locator('[data-sortable-table="true"]').count().catch(() => 0) > 0;
     report.checks.no_internal_tokens_after_workflow_tab = !INTERNAL_TOKEN_PATTERN.test(workflowBody);
     report.checks.no_raw_region_numbers_after_workflow_tab = !RAW_REGION_NUMBER_PATTERN.test(workflowBody);
     report.checks.target_selector_visible = workflowBody.includes('\uAD00\uB9AC \uB300\uC0C1 \uC120\uD0DD') && Boolean(selectorCountText);
+    report.checks.igis_management_scope_visible = /이지스자산운용/u.test(`${scopeText} ${selectorCountText}`)
+      && /자산\s*19개/u.test(`${scopeText} ${selectorCountText}`)
+      && /펀드\s*17개/u.test(`${scopeText} ${selectorCountText}`);
     report.checks.target_selector_has_options = targetSelectCount >= 4 && targetSelectOptionCounts.some((count) => count > 1);
     report.checks.workflow_selection_visible = workflowBody.includes('\uC6D0\uBCF8 \uD589') && workflowBody.includes('\uC218\uC815 \uD544\uB4DC');
     report.checks.workflow_validation_visible = workflowBody.includes('\uC800\uC7A5 \uC804 \uAC80\uC99D') || workflowBody.includes('\uC800\uC7A5 \uC804 \uC601\uD5A5 \uBC94\uC704') || workflowBody.includes('\uD544\uC218\uAC12') || workflowBody.includes('\uAC80\uC99D \uC911') || workflowBody.includes('\uAC80\uC99D \uC624\uB958');

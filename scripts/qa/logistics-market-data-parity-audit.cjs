@@ -5,6 +5,7 @@ const XLSX = require('xlsx');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const WORKBOOK_PATH = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'source-workbook-ingest', 'storage-upload', 'source-workbook.xlsx');
+const EXTRACTED_WORKBOOK_PATH = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'source-workbook-ingest', 'source-workbook-ingest-sector_market-2026Q1.extracted.json');
 
 const CAPITAL_PERIODS = ['2022 2H', '2023 1H', '2023 2H', '2024 1Q', '2024 2Q', '2024 3Q', '2024 4Q', '2025 1Q', '2025 2Q', '2025 3Q', '2025 4Q', '2026 1Q'];
 const LOCAL_PERIODS = ['2024 1Q', '2025 1Q', '2025 2Q', '2025 3Q', '2025 4Q', '2026 1Q'];
@@ -15,6 +16,7 @@ const SUPPLY_CAPITAL = ['동남권', '남부권', '중앙권', '서부권', '서
 const SUPPLY_LOCAL = ['경남권', '충청권', '전라권', '경북권', '지방 기타권', '소계'];
 const SENTINEL_KEY = 'lease|수도권|2026 1Q|복합 상온|rent_manwon_per_py|region|동남권';
 const SENTINEL_EXPECTED = 3.0361600000000006;
+const EXPECTED_CAP_RATE_ROWS = 84;
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -58,6 +60,12 @@ function numberOrNull(value) {
 
 function periodKey(value) {
   return text(value).replace(/\s+/gu, '');
+}
+
+function quarterKey(value) {
+  const source = text(value).toUpperCase().replace(/\s+/gu, '');
+  const match = source.match(/^Q?([1-4])Q?$/u);
+  return match ? `Q${match[1]}` : source;
 }
 
 function metricKey(label) {
@@ -179,6 +187,50 @@ function parseSupplyWorkbook(wb) {
   return out;
 }
 
+function parseCapRateWorkbook(wb) {
+  const ws = wb.Sheets[wb.SheetNames[7]];
+  const out = [];
+  let currentYear = '';
+  for (let row = 6; row <= 230; row += 1) {
+    const marker = text(cell(ws, row, 2));
+    if (marker.charCodeAt(0) === 8251) break;
+    const yearCell = numberOrNull(cell(ws, row, 2));
+    if (yearCell) currentYear = String(yearCell);
+    const quarter = quarterKey(cell(ws, row, 3));
+    const capitalValue = numberOrNull(cell(ws, row, 4));
+    const nationalValue = numberOrNull(cell(ws, row, 5));
+    if (!currentYear || !quarter || (capitalValue === null && nationalValue === null)) continue;
+    if (capitalValue !== null) {
+      out.push({
+        key: ['cap_rate', currentYear, quarter, 'capital_area'].join('|'),
+        report_year: Number(currentYear),
+        report_quarter: quarter,
+        region_key: 'capital_area',
+        value: capitalValue,
+        source_row: row,
+      });
+    }
+    if (nationalValue !== null) {
+      out.push({
+        key: ['cap_rate', currentYear, quarter, 'national'].join('|'),
+        report_year: Number(currentYear),
+        report_quarter: quarter,
+        region_key: 'national',
+        value: nationalValue,
+        source_row: row,
+      });
+    }
+  }
+  return out;
+}
+
+function capRateRegionKey(value) {
+  const label = text(value).toLowerCase();
+  if (label.includes('수도권') || label.includes('capital')) return 'capital_area';
+  if (label.includes('전국') || label.includes('national')) return 'national';
+  return label;
+}
+
 async function signIn(supabaseUrl, anonKey) {
   const accessToken = envValue('LOGISTICS_SUPABASE_ACCESS_TOKEN');
   if (accessToken) return { token: accessToken, source: 'LOGISTICS_SUPABASE_ACCESS_TOKEN' };
@@ -204,7 +256,7 @@ async function invoke(supabaseUrl, anonKey, token) {
       'content-type': 'application/json',
       origin: 'https://kylee94.github.io',
     },
-    body: JSON.stringify({ action: 'sector-market/read', payload: { limit: 12000 } }),
+    body: JSON.stringify({ action: 'sector-market/read', payload: { limit: 12000, include_raw_row_hashes: true } }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body?.ok === false) throw new Error(`sector-market/read failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
@@ -233,12 +285,43 @@ function compareRows(excelRows, apiRows, tolerance = 0.000001) {
   return { checked: excelRows.length, matched, mismatches };
 }
 
+function compareHashRows(excelRows, apiRows) {
+  const apiByKey = new Map(apiRows.map((row) => [row.key, row]));
+  const excelKeys = new Set(excelRows.map((row) => row.key));
+  const mismatches = [];
+  let matched = 0;
+  excelRows.forEach((excel) => {
+    const actual = apiByKey.get(excel.key);
+    if (!actual) {
+      mismatches.push({ type: 'missing_api_row_hash', key: excel.key, expected_hash: excel.row_hash });
+      return;
+    }
+    matched += 1;
+    if (excel.row_hash !== actual.row_hash) {
+      mismatches.push({ type: 'row_hash_mismatch', key: excel.key, expected_hash: excel.row_hash, actual_hash: actual.row_hash });
+    }
+  });
+  apiRows.forEach((api) => {
+    if (!excelKeys.has(api.key)) mismatches.push({ type: 'extra_api_row_hash', key: api.key, actual_hash: api.row_hash });
+  });
+  return { checked: excelRows.length, matched, mismatches };
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   if (!fs.existsSync(WORKBOOK_PATH)) throw new Error(`Workbook not found: ${WORKBOOK_PATH}`);
+  if (!fs.existsSync(EXTRACTED_WORKBOOK_PATH)) throw new Error(`Extracted workbook artifact not found: ${EXTRACTED_WORKBOOK_PATH}`);
   const wb = XLSX.readFile(WORKBOOK_PATH, { cellDates: false });
+  const extractedWorkbook = JSON.parse(fs.readFileSync(EXTRACTED_WORKBOOK_PATH, 'utf8'));
   const excelLeaseRows = parseLeaseWorkbook(wb);
   const excelSupplyRows = parseSupplyWorkbook(wb);
+  const excelCapRateRows = parseCapRateWorkbook(wb);
+  const excelRawHashRows = (extractedWorkbook.rows || []).map((row) => ({
+    key: [row.sheet_name, row.row_number].join('|'),
+    sheet_name: row.sheet_name,
+    row_number: row.row_number,
+    row_hash: row.row_hash,
+  }));
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
@@ -252,12 +335,26 @@ async function main() {
     ...row,
     key: ['supply', row.series_type, row.period_label, row.scope, row.label].join('|'),
   }));
+  const apiCapRateRows = (data.cap_rates || []).map((row) => ({
+    ...row,
+    key: ['cap_rate', row.report_year, quarterKey(row.report_quarter), capRateRegionKey(row.region)].join('|'),
+    value: Number(row.cap_rate),
+  }));
+  const apiRawHashRows = (data.summary?.source_audit?.raw_row_hashes || []).map((row) => ({
+    key: [row.sheet_name, row.row_number].join('|'),
+    sheet_name: row.sheet_name,
+    row_number: row.row_number,
+    row_hash: row.row_hash,
+  }));
   const leaseCompare = compareRows(excelLeaseRows, apiLeaseRows);
   const supplyCompare = compareRows(excelSupplyRows, apiSupplyRows);
+  const capRateCompare = compareRows(excelCapRateRows, apiCapRateRows, 0.000000000001);
+  const rawRowHashCompare = compareHashRows(excelRawHashRows, apiRawHashRows);
   const sentinel = apiLeaseRows.find((row) => row.key === SENTINEL_KEY);
   const sentinelOk = Math.abs(Number(sentinel?.value) - SENTINEL_EXPECTED) < 0.000001;
+  const capRateCountOk = excelCapRateRows.length === EXPECTED_CAP_RATE_ROWS * 2 && apiCapRateRows.length === EXPECTED_CAP_RATE_ROWS * 2;
   const report = {
-    ok: leaseCompare.mismatches.length === 0 && supplyCompare.mismatches.length === 0 && sentinelOk,
+    ok: leaseCompare.mismatches.length === 0 && supplyCompare.mismatches.length === 0 && capRateCompare.mismatches.length === 0 && rawRowHashCompare.mismatches.length === 0 && sentinelOk && capRateCountOk,
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
     workbook: WORKBOOK_PATH,
@@ -272,11 +369,20 @@ async function main() {
       api_lease_rows: apiLeaseRows.length,
       excel_supply_rows: excelSupplyRows.length,
       api_supply_rows: apiSupplyRows.length,
+      excel_cap_rate_rows: excelCapRateRows.length,
+      api_cap_rate_rows: apiCapRateRows.length,
+      excel_raw_row_hashes: excelRawHashRows.length,
+      api_raw_row_hashes: apiRawHashRows.length,
       lease_mismatches: leaseCompare.mismatches.length,
       supply_mismatches: supplyCompare.mismatches.length,
+      cap_rate_mismatches: capRateCompare.mismatches.length,
+      raw_row_hash_mismatches: rawRowHashCompare.mismatches.length,
+      cap_rate_count_ok: capRateCountOk,
     },
     lease_compare: leaseCompare,
     supply_compare: supplyCompare,
+    cap_rate_compare: capRateCompare,
+    raw_row_hash_compare: rawRowHashCompare,
   };
   const stamp = timestampForFile();
   const outJson = path.join(OUT_DIR, `market-data-parity-audit-${stamp}.json`);
