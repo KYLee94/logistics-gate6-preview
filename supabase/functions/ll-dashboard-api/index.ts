@@ -4155,6 +4155,14 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const sources = (sourceResult.data || []) as Record<string, unknown>[];
   const activeSource = sources.find((row) => row.active_version) || null;
   const activeSourceId = safeText(activeSource?.source_file_id);
+  const needsFullRows = !requestedView || requestedView === 'all';
+  const needsOverviewRows = requestedView === 'overview';
+  const needsLeaseRows = needsFullRows || needsOverviewRows || requestedView === 'lease';
+  const needsSupplyRows = needsFullRows || needsOverviewRows || requestedView === 'supply';
+  const needsTransactionRows = needsFullRows || needsOverviewRows || requestedView === 'transactions';
+  const needsCapRateRows = needsFullRows || needsOverviewRows || requestedView === 'transactions';
+  const needsSourceAudit = needsFullRows || requestedView === 'source';
+  const needsStatisticRows = needsFullRows || needsOverviewRows || requestedView === 'lease' || requestedView === 'supply';
 
   const emptyMarketData = {
     summary: {
@@ -4268,21 +4276,25 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const readbackOk = Object.values(readback).every((item) => item.ok !== false);
 
   const [sourceSheetsResult, sourceRowsCountResult] = await Promise.all([
-    ctx.serviceClient
-      .from('ll_source_sheets')
-      .select('source_sheet_id,sheet_name,sheet_index,header_row_number,row_count,column_count')
-      .eq('source_file_id', activeSourceId)
-      .order('sheet_index', { ascending: true })
-      .limit(40),
-    ctx.serviceClient
-      .from('ll_source_rows')
-      .select('source_row_id', { count: 'exact', head: true })
-      .eq('source_file_id', activeSourceId),
+    needsSourceAudit || needsStatisticRows
+      ? ctx.serviceClient
+        .from('ll_source_sheets')
+        .select('source_sheet_id,sheet_name,sheet_index,header_row_number,row_count,column_count')
+        .eq('source_file_id', activeSourceId)
+        .order('sheet_index', { ascending: true })
+        .limit(40)
+      : Promise.resolve({ data: [], error: null }),
+    needsSourceAudit
+      ? ctx.serviceClient
+        .from('ll_source_rows')
+        .select('source_row_id', { count: 'exact', head: true })
+        .eq('source_file_id', activeSourceId)
+      : Promise.resolve({ count: 0, error: null }),
   ]);
   if (sourceSheetsResult.error && !isMissingRelationError(sourceSheetsResult.error)) return fail(500, 'Failed to read source sheets', ctx.origin, { error: sourceSheetsResult.error.message });
   const sourceSheets = (sourceSheetsResult.data || []) as Record<string, unknown>[];
   let sourceColumnCount = 0;
-  if (sourceSheets.length) {
+  if (needsSourceAudit && sourceSheets.length) {
     const sheetIds = sourceSheets.map((row) => safeText(row.source_sheet_id)).filter(Boolean);
     const columnCountResult = await ctx.serviceClient
       .from('ll_source_columns')
@@ -4292,7 +4304,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     sourceColumnCount = columnCountResult.count || 0;
   }
   if (sourceRowsCountResult.error && !isMissingRelationError(sourceRowsCountResult.error)) return fail(500, 'Failed to count source rows', ctx.origin, { error: sourceRowsCountResult.error.message });
-  const sheetReadback = await Promise.all(sourceSheets.map(async (sheet) => {
+  const sheetReadback = needsSourceAudit ? await Promise.all(sourceSheets.map(async (sheet) => {
     const { count, error } = await ctx.serviceClient
       .from('ll_source_rows')
       .select('source_row_id', { count: 'exact', head: true })
@@ -4312,11 +4324,11 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       status: expectedRows === actualRows ? '통과' : '불일치',
       ok: expectedRows === actualRows,
     };
-  }));
-  const statisticSheetIds = sourceSheets
+  })) : [];
+  const statisticSheetIds = needsStatisticRows ? sourceSheets
     .filter((sheet) => ['임대시장 통계', '공급시장 통계'].includes(safeText(sheet.sheet_name)))
     .map((sheet) => safeText(sheet.source_sheet_id))
-    .filter(Boolean);
+    .filter(Boolean) : [];
   const [sourceStatisticRowsResult, sourceStatisticColumnsResult] = statisticSheetIds.length ? await Promise.all([
     ctx.serviceClient
       .from('ll_source_rows')
@@ -4376,12 +4388,6 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     }
     return { data: out, error: null };
   };
-  const needsFullRows = !requestedView || requestedView === 'all';
-  const needsOverviewRows = requestedView === 'overview';
-  const needsLeaseRows = needsFullRows || needsOverviewRows || requestedView === 'lease';
-  const needsSupplyRows = needsFullRows || needsOverviewRows || requestedView === 'supply';
-  const needsTransactionRows = needsFullRows || needsOverviewRows || requestedView === 'transactions';
-  const needsCapRateRows = needsFullRows || needsOverviewRows || requestedView === 'transactions';
   const emptyMarketPageRows = { data: [] as Record<string, unknown>[], error: null };
   const leaseQuery = needsLeaseRows
     ? fetchMarketPageRows('ll_sector_market_lease_observations', sampleLimit, [['report_year', false], ['report_quarter', false]])

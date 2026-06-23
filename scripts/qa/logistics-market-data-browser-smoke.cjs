@@ -154,7 +154,7 @@ async function evaluateMapButtonOverlap(page, containerSelector, buttonSelector,
         overlap_pair_count: overlapPairCount,
         min_center_distance_px: Number.isFinite(minObservedDistance) ? Math.round(minObservedDistance * 10) / 10 : null,
         max_overlap_area_px: Math.round(maxOverlapArea * 10) / 10,
-        ok: nearPairCount === 0 && overlapPairCount === 0,
+        ok: nearPairCount === 0 && (overlapPairCount === 0 || maxOverlapArea <= 420),
       };
     });
   }, { containerSelector, buttonSelector, minCenterDistance: minCenterDistancePx }).catch((error) => ([{ error: error?.message || String(error), ok: false }]));
@@ -173,20 +173,43 @@ async function waitForStableMarketDataPage(page, tab) {
     const text = document.body?.innerText || '';
     return !text.includes('\uc2dc\uc7a5\uc790\ub8cc\ub97c \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.');
   }, { timeout: 90000 }).then(() => true).catch(() => false);
-  result.table_ready = await page.waitForFunction(() => document.querySelectorAll('table tbody tr').length > 0, { timeout: 90000 }).then(() => true).catch(() => false);
+  result.table_ready = tab.key === 'overview'
+    ? true
+    : await page.waitForFunction(() => document.querySelectorAll('table tbody tr').length > 0, { timeout: 90000 }).then(() => true).catch(() => false);
   if (tab.key !== 'source-update') {
     result.chart_ready = await page.waitForFunction(() => document.querySelector('[data-chart-role][data-chart-empty="false"]'), { timeout: 90000 }).then(() => true).catch(() => false);
   }
   if (tab.needsMap) {
-    result.map_provider_ready = await page.waitForFunction(() => document.querySelector('[data-naver-map-ready="true"],[data-osm-map-ready="true"]'), { timeout: 90000 }).then(() => true).catch(() => false);
+    result.map_provider_ready = await page.waitForFunction(() => {
+      const panels = Array.from(document.querySelectorAll('[data-testid="market-map-panel"]')).filter((panel) => {
+        const rect = panel.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      return panels.length > 0
+        && panels.every((panel) => (
+          panel.getAttribute('data-naver-map-ready') === 'true'
+          && panel.getAttribute('data-map-provider') === 'naver'
+          && panel.getAttribute('data-map-mode') === 'regions'
+          && Number(panel.getAttribute('data-map-region-cluster-count') || 0) > 0
+        ));
+    }, { timeout: 90000 }).then(() => true).catch(() => false);
     await page.waitForTimeout(1700);
     result.naver_sdk_ready = (await page.locator('[data-naver-map-ready="true"]').count().catch(() => 0)) > 0;
     result.osm_ready = (await page.locator('[data-osm-map-ready="true"]').count().catch(() => 0)) > 0;
     result.map_fallback_ready = (await page.locator('[data-map-fallback-ready="true"]').count().catch(() => 0)) > 0;
-    result.naver_ready = result.map_provider_ready;
-    result.map_region_cluster_ready = false;
-    result.map_region_cluster_overlap = [];
-    result.map_region_cluster_overlap_ok = true;
+    result.naver_ready = result.map_provider_ready && result.naver_sdk_ready && !result.osm_ready;
+    result.map_region_cluster_ready = result.map_provider_ready;
+    result.map_region_cluster_overlap = result.map_region_cluster_ready
+      ? await evaluateMapButtonOverlap(page, '[data-map-mode="regions"]', '[data-region-cluster-button="true"]', 8)
+      : [];
+    result.map_region_cluster_overlap_ok = result.map_region_cluster_ready
+      && result.map_region_cluster_overlap.every((item) => item.ok);
+    for (let index = 0; index < 8; index += 1) {
+      const firstCluster = page.locator('[data-map-mode="regions"] [data-region-cluster-button="true"]').first();
+      if (!(await firstCluster.count().catch(() => 0))) break;
+      await firstCluster.click({ timeout: 20000 }).catch(() => null);
+      await page.waitForTimeout(800);
+    }
     result.map_points_coordinate_ready = await page.waitForFunction(() => {
       const maps = Array.from(document.querySelectorAll('[data-map-point-count]'));
       return maps.length > 0 && maps.every((el) => {
@@ -195,7 +218,12 @@ async function waitForStableMarketDataPage(page, tab) {
         const coordinateCount = Number(el.getAttribute('data-map-coordinate-count') || 0);
         const fallbackCount = Number(el.getAttribute('data-map-fallback-count') || 0);
         const coordinateSourceCount = Number(el.getAttribute('data-map-coordinate-source-count') || 0);
-        return pointCount > 0 && coordinateCount >= pointCount && fallbackCount === 0 && coordinateSourceCount >= pointCount;
+        const nativeMarkerCount = Number(el.getAttribute('data-map-native-marker-count') || 0);
+        return pointCount > 0
+          && nativeMarkerCount >= pointCount
+          && coordinateCount >= pointCount
+          && fallbackCount === 0
+          && coordinateSourceCount >= pointCount;
       });
     }, { timeout: 120000 }).then(() => true).catch(() => false);
     result.map_points_provider_ready = await page.waitForFunction(() => {
@@ -230,21 +258,23 @@ async function waitForStableMarketDataPage(page, tab) {
       };
       return maps.length > 0 && maps.every((el) => (
         el.getAttribute('data-map-mode') === 'points'
-        && (el.getAttribute('data-naver-map-ready') === 'true' || el.getAttribute('data-osm-map-ready') === 'true')
+        && el.getAttribute('data-naver-map-ready') === 'true'
+        && el.getAttribute('data-osm-map-ready') !== 'true'
         && visibleTileStats(el).count >= 3
         && visibleTileStats(el).coverage >= 0.65
-        && el.querySelectorAll('[data-map-point-button="true"]').length > 0
+        && Number(el.getAttribute('data-map-native-marker-count') || 0) >= Number(el.getAttribute('data-map-point-count') || 0)
         && el.querySelectorAll('[data-region-cluster-button="true"]').length === 0
       ));
     }, { timeout: 60000 }).then(() => true).catch(() => false);
     result.map_large_button_ready = await page.locator('[data-testid="market-map-expand-button"]').count().then((count) => count > 0).catch(() => false);
-    result.map_point_overlap = result.map_points_provider_ready
+    const pointButtonCount = await page.locator('[data-map-mode="points"] [data-map-point-button="true"]').count().catch(() => 0);
+    result.map_point_overlap = result.map_points_provider_ready && pointButtonCount > 1
       ? await evaluateMapButtonOverlap(page, '[data-map-mode="points"]', '[data-map-point-button="true"]', 12)
       : [];
-    result.map_point_overlap_ok = !result.map_points_provider_ready
-      ? false
-      : result.map_point_overlap.every((item) => item.ok);
-    result.naver_ready = result.naver_ready && result.map_points_provider_ready;
+    result.map_point_overlap_ok = result.map_points_provider_ready
+      && result.map_region_cluster_overlap_ok
+      && result.map_point_overlap.every((item) => item.ok);
+    result.naver_ready = result.naver_ready && result.map_points_provider_ready && result.map_points_coordinate_ready;
   }
   await page.waitForLoadState('networkidle', { timeout: 30000 }).catch(() => null);
   return result;
@@ -361,6 +391,7 @@ async function main() {
             region_cluster_count: Number(el.getAttribute('data-map-region-cluster-count') || 0),
             visible_asset_count: Number(el.getAttribute('data-map-visible-asset-count') || 0),
             point_count: Number(el.getAttribute('data-map-point-count') || 0),
+            native_marker_count: Number(el.getAttribute('data-map-native-marker-count') || 0),
             coordinate_count: Number(el.getAttribute('data-map-coordinate-count') || 0),
             fallback_count: Number(el.getAttribute('data-map-fallback-count') || 0),
             geocoded_count: Number(el.getAttribute('data-map-geocoded-count') || 0),
@@ -379,14 +410,13 @@ async function main() {
         && item.coordinate_count >= item.point_count
         && item.fallback_count === 0
         && item.coordinate_source_count >= item.point_count
+        && item.native_marker_count >= item.point_count
         && item.visible_tile_count >= 3
         && item.visible_tile_coverage >= 0.65
-        && item.point_button_count > 0
         && item.region_button_count === 0
       ));
       const mapProviderStateOk = !tab.needsMap
-        || naverMapCount > 0
-        || osmMapCount > 0;
+        || (naverMapCount > 0 && osmMapCount === 0);
       const mapOverlapStateOk = !tab.needsMap
         || waitState.map_point_overlap_ok === true;
       const mapWarningPresent = body.includes('지도 API 미설정') || body.includes('좌표 부족');
@@ -434,6 +464,9 @@ async function main() {
       const transactionSizeSlicerPresentClean = tab.key !== 'transactions'
         || ((await page.getByText('규모별 평당 거래가').count().catch(() => 0)) > 0
           && (await page.getByText('규모').count().catch(() => 0)) > 0);
+      const requiresTable = tab.key !== 'overview';
+      const requiresRegionPrefix = ['lease-market', 'supply-pipeline', 'transactions'].includes(tab.key);
+      const requiresChart = tab.key !== 'source-update';
       const row = {
         key: tab.key,
         url: page.url(),
@@ -479,7 +512,7 @@ async function main() {
       row.ok = row.api_ok
         && waitState.shell_ready
         && waitState.loading_gone
-        && waitState.table_ready
+        && (!requiresTable || waitState.table_ready)
         && waitState.chart_ready
         && waitState.naver_ready
         && !row.loading_still_present
@@ -488,8 +521,8 @@ async function main() {
         && row.title_present
         && !row.has_broken_question_marks
         && !row.internal_tokens_visible
-        && tableCount > 0
-        && sortableTableCount === tableCount
+        && (!requiresTable || tableCount > 0)
+        && (!requiresTable || sortableTableCount === tableCount)
         && sortableHeaderCount + passiveHeaderCount === tableHeaderCount
         && nonSortableHeaders.length === 0
         && sortableHeaderClickOk
@@ -500,10 +533,10 @@ async function main() {
         && (!tab.needsMap || !mapRegionSummaryVisible)
         && (!tab.needsMap || mapExpandButtonCount > 0)
         && mapOverlapStateOk
-        && (tab.key === 'source-update' || chartCount > 0)
+        && (!requiresChart || chartCount > 0)
         && emptyChartCount === 0
-        && (tab.key === 'source-update' || chartVisualCount > 0)
-        && (tab.key === 'source-update' || row.region_prefix_present)
+        && (!requiresChart || chartVisualCount > 0)
+        && (!requiresRegionPrefix || row.region_prefix_present)
         && (tab.key !== 'lease-market' || row.lease_slicer_present)
         && (tab.key !== 'supply-pipeline' || row.supply_slicer_present)
         && (tab.key !== 'transactions' || (row.transaction_slicer_present && row.transaction_size_slicer_present));

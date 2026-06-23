@@ -7248,8 +7248,8 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
         validPoints.forEach((point, index) => {
           const marker = L.marker([Number(point.latitude), Number(point.longitude)], { title: point.assetName || `자산 ${index + 1}` }).addTo(map);
           marker.bindTooltip(
-            buildMapCalloutHtml(point, index),
-            { direction: 'top', offset: [-16, -18], opacity: 1, sticky: false, interactive: true, className: 'logistics-map-tooltip' },
+            buildMapCalloutHtml(point, index, { centered: true }),
+            { direction: 'top', offset: [0, -18], opacity: 1, sticky: false, interactive: true, className: 'logistics-map-tooltip' },
           );
           marker.on('mouseover', () => marker.openTooltip());
           marker.on('mouseout', () => window.setTimeout(() => marker.closeTooltip(), 650));
@@ -7303,7 +7303,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
             borderWidth: 0,
             disableAnchor: true,
             anchorSize: new naver.maps.Size(0, 0),
-            pixelOffset: new naver.maps.Point(0, -38),
+            pixelOffset: new naver.maps.Point(0, -30),
           });
           let closeTimer = null;
           naver.maps.Event.addListener(marker, 'mouseover', () => {
