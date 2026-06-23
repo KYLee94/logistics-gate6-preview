@@ -70,7 +70,7 @@ import{r as i,j as e,R as Wt,a as no,c as q6}from"./vendor-react-BHTQDIKj.js";im
           }
           .market-map-region-cluster-marker span {
             display: grid;
-            gap: 1px;
+            gap: 2px;
             max-width: 43px;
             overflow: hidden;
             font-size: 7px;
@@ -96,7 +96,7 @@ import{r as i,j as e,R as Wt,a as no,c as q6}from"./vendor-react-BHTQDIKj.js";im
           }
           .market-map-region-cluster-marker strong {
             display: block;
-            margin-top: -1px;
+            margin-top: -2px;
             color: rgba(200, 210, 219, 0.70);
             font-size: 7px;
             line-height: 0.9;
