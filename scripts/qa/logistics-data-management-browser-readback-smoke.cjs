@@ -179,7 +179,10 @@ async function main() {
 
     const leaseTab = page.getByRole('button', { name: '\uC784\uB300\uCC28', exact: true }).first();
     await leaseTab.click();
-    await page.waitForFunction(() => document.body?.innerText?.includes('\uC785\uB825 \uB9C8\uBC95\uC0AC'), { timeout: 15000 }).catch(() => null);
+    await page.waitForFunction(() => {
+      const text = document.body?.innerText || '';
+      return text.includes('\uBCC0\uACBD \uC694\uCCAD') || text.includes('\uC785\uB825 \uB9C8\uBC95\uC0AC');
+    }, { timeout: 15000 }).catch(() => null);
     const workflowBody = await page.locator('body').innerText({ timeout: 10000 });
     const selectorCountText = await page.locator('[data-data-management-selector-count="true"]').innerText({ timeout: 5000 }).catch(() => '');
     const scopeText = await page.locator('[data-data-management-igis-scope="true"]').innerText({ timeout: 5000 }).catch(() => '');
@@ -188,13 +191,20 @@ async function main() {
     report.checks.has_sortable_tables = await page.locator('[data-sortable-table="true"]').count().catch(() => 0) > 0;
     report.checks.no_internal_tokens_after_workflow_tab = !INTERNAL_TOKEN_PATTERN.test(workflowBody);
     report.checks.no_raw_region_numbers_after_workflow_tab = !RAW_REGION_NUMBER_PATTERN.test(workflowBody);
-    report.checks.target_selector_visible = workflowBody.includes('\uAD00\uB9AC \uB300\uC0C1 \uC120\uD0DD') && Boolean(selectorCountText);
+    report.checks.target_selector_visible = (
+      workflowBody.includes('\uC790\uC0B0/\uD380\uB4DC \uC120\uD0DD')
+      || workflowBody.includes('\uAD00\uB9AC \uB300\uC0C1 \uC120\uD0DD')
+      || workflowBody.includes('\uAD00\uB9AC\uD560 \uC790\uC0B0 \uBA3C\uC800 \uC120\uD0DD')
+    ) && Boolean(selectorCountText);
     report.checks.igis_management_scope_visible = /이지스자산운용/u.test(`${scopeText} ${selectorCountText}`)
       && /자산\s*19개/u.test(`${scopeText} ${selectorCountText}`)
       && /펀드\s*17개/u.test(`${scopeText} ${selectorCountText}`);
     report.checks.target_selector_has_options = targetSelectCount >= 3 && targetSelectOptionCounts.some((count) => count > 1);
     report.checks.no_sector_market_source_selector = !workflowBody.includes('\uC2DC\uC7A5\uC790\uB8CC') && !workflowBody.includes('sector_market');
-    report.checks.workflow_selection_visible = workflowBody.includes('\uC6D0\uBCF8 \uD589') && workflowBody.includes('\uC218\uC815 \uD544\uB4DC');
+    report.checks.workflow_selection_visible = (
+      workflowBody.includes('\uC218\uC815 \uB300\uC0C1')
+      || workflowBody.includes('\uC6D0\uBCF8 \uD589')
+    ) && workflowBody.includes('\uC218\uC815 \uD544\uB4DC');
     report.checks.workflow_validation_visible = workflowBody.includes('\uC800\uC7A5 \uC804 \uAC80\uC99D') || workflowBody.includes('\uC800\uC7A5 \uC804 \uC601\uD5A5 \uBC94\uC704') || workflowBody.includes('\uD544\uC218\uAC12') || workflowBody.includes('\uAC80\uC99D \uC911') || workflowBody.includes('\uAC80\uC99D \uC624\uB958');
     report.checks.workflow_diff_visible = (workflowBody.includes('Before') && workflowBody.includes('After'))
       || (workflowBody.includes('\uBCC0\uACBD \uC804') && workflowBody.includes('\uBCC0\uACBD \uD6C4'));

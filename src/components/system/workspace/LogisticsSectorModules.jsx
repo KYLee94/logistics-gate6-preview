@@ -28,6 +28,14 @@ const CHART_SERIES_COLORS = [
   '#86EFAC',
   '#E5E5E5',
 ];
+const TRANSACTION_SIZE_BUCKET_RULES = [
+  { value: '소형', min: 0, max: 10000, description: '10,000평 미만' },
+  { value: '중형', min: 10000, max: 30000, description: '10,000평 이상, 30,000평 미만' },
+  { value: '대형', min: 30000, max: 50000, description: '30,000평 이상, 50,000평 미만' },
+  { value: '초대형', min: 50000, max: Infinity, description: '50,000평 이상' },
+];
+const TRANSACTION_SIZE_BUCKET_VALUES = TRANSACTION_SIZE_BUCKET_RULES.map((rule) => rule.value);
+const TRANSACTION_TEMPERATURE_OPTIONS = ['전체', '상온', '저온', '복합'];
 const REGION_SERIES_COLORS = {
   동남권: '#9AD7FF',
   남부권: '#B5E48C',
@@ -221,6 +229,26 @@ function sourceRowDisplaySummary(row) {
 function number(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function transactionSizeBucketFor(rowOrArea) {
+  const area = typeof rowOrArea === 'object' ? number(rowOrArea?.area_py) : number(rowOrArea);
+  const rule = TRANSACTION_SIZE_BUCKET_RULES.find((item) => area >= item.min && area < item.max);
+  return rule?.value || '미분류';
+}
+
+function normalizeMarketTemperature(value) {
+  const raw = text(value, '').trim();
+  const normalized = raw.toUpperCase();
+  if (!raw) return '미분류';
+  if (/MIX|복합/u.test(normalized)) return '복합';
+  if (/COLD|저온|냉장|냉동/u.test(normalized)) return '저온';
+  if (/DRY|상온|AMBIENT/u.test(normalized)) return '상온';
+  return raw;
+}
+
+function transactionTemperatureFor(row) {
+  return normalizeMarketTemperature(firstText(row?.temperature_type, row?.storage_type, row?.warehouse_type));
 }
 
 function formatNumber(value, digits = 0) {
@@ -749,8 +777,8 @@ function ModuleHeader({ eyebrow, title, subtitle = '', right = null }) {
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
-        <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{eyebrow}</div>
-        <h2 className="mt-1 text-[24px] font-semibold tracking-tight text-white">{title}</h2>
+        {eyebrow ? <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{eyebrow}</div> : null}
+        <h2 className={`${eyebrow ? 'mt-1' : ''} text-[24px] font-semibold tracking-tight text-white`}>{title}</h2>
         {subtitle ? <p className="mt-1 max-w-[860px] text-[12px] leading-5 text-[#A1A1AA]">{subtitle}</p> : null}
       </div>
       {right}
@@ -2595,10 +2623,10 @@ function MultiLineChart({
   const axisMax = Number.isFinite(Number(yMax)) && Number(yMax) > axisMin ? Number(yMax) : rawMax;
   const axisRange = Math.max(1e-9, axisMax - axisMin);
   const tickStep = Number(yStep);
-  const width = 1040;
+  const width = 1320;
   const chartHeight = Math.max(300, Number(height) || 320);
-  const left = 70;
-  const right = 26;
+  const left = 54;
+  const right = 8;
   const top = 24;
   const bottom = chartHeight - (splitPeriodAxis ? 78 : 62);
   const xFor = (index) => labels.length <= 1 ? (left + width - right) / 2 : left + (index * (width - left - right)) / (labels.length - 1);
@@ -4096,7 +4124,8 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const [txnSizeRegion, setTxnSizeRegion] = useState('전체');
   const [txnSizePeriod, setTxnSizePeriod] = useState('2026');
   const [txnSizeBucket, setTxnSizeBucket] = useState('전체');
-  const [leaseSegment, setLeaseSegment] = useState('전체');
+  const [txnSizeTemp, setTxnSizeTemp] = useState('전체');
+  const [leaseSegment, setLeaseSegment] = useState('복합 전체');
   const [leaseMeasure, setLeaseMeasure] = useState('rent_manwon_per_py');
   const [leaseRegion, setLeaseRegion] = useState('전체');
   const [leaseSearch, setLeaseSearch] = useState('');
@@ -4274,18 +4303,18 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   };
   const leaseMetricFormatter = leaseMeasure === 'vacancy_rate' ? formatRate : (value) => formatNumber(value, 1);
   const leaseStatisticAvailableSegments = new Set(leaseStatisticRows.map((row) => text(row.segment_label, '')).filter(Boolean));
-  const leaseSegmentOptions = ['전체', '복합 전체', '복합 상온', '복합 저온', '상온', '저온', '상온(복합포함)', '저온(복합포함)']
-    .filter((option) => option === '전체' || leaseStatisticAvailableSegments.size === 0 || leaseStatisticAvailableSegments.has(option));
+  const leaseSegmentOptions = ['복합 전체', '복합 상온', '복합 저온', '상온', '저온', '상온(복합포함)', '저온(복합포함)']
+    .filter((option) => leaseStatisticAvailableSegments.size === 0 || leaseStatisticAvailableSegments.has(option));
+  useEffect(() => {
+    if (leaseSegmentOptions.length && !leaseSegmentOptions.includes(leaseSegment)) setLeaseSegment(leaseSegmentOptions[0]);
+  }, [leaseSegment, leaseSegmentOptions.join('|')]);
   const leaseStatisticBaseRows = leaseStatisticRows.filter((row) => (
     text(row.period_label) === selectedLeaseStatisticPeriod
     && text(row.metric_key) === leaseMeasure
     && text(row.dimension_type) === 'region'
     && row.is_average !== true
   ));
-  const leaseStatisticDisplayRows = (leaseSegment === '전체'
-    ? leaseStatisticBaseRows
-    : leaseStatisticBaseRows.filter((row) => text(row.segment_label) === leaseSegment)
-  );
+  const leaseStatisticDisplayRows = leaseStatisticBaseRows.filter((row) => text(row.segment_label) === leaseSegment);
   const leaseComparisonSegmentGroups = [
     ['상온(복합포함)', '저온(복합포함)'],
     ['복합 상온', '복합 저온'],
@@ -4338,16 +4367,16 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     };
   });
   const openLeaseStatisticModal = (row) => {
-    const regionLabel = regionValue(row.region || row.label);
-    const seriesLabel = text(row.series || row.segment_label, '');
+    const seriesLabel = currentTab === 'overview' ? text(row.series || row.segment_label, '') : leaseSegment;
     const rows = leaseStatisticRows
       .filter((item) => text(item.period_label) === selectedLeaseStatisticPeriod)
       .filter((item) => text(item.metric_key) === leaseMeasure)
-      .filter((item) => regionValue(item.region || item.label) === regionLabel)
-      .filter((item) => !seriesLabel || text(item.segment_label) === seriesLabel)
-      .sort((a, b) => text(a.segment_label).localeCompare(text(b.segment_label), 'ko'));
+      .filter((item) => text(item.dimension_type) === 'region')
+      .filter((item) => item.is_average !== true)
+      .filter((item) => !seriesLabel || seriesLabel === '전체' || text(item.segment_label) === seriesLabel)
+      .sort((a, b) => regionDisplay(a.region || a.label).localeCompare(regionDisplay(b.region || b.label), 'ko'));
     setModal({
-      title: `${selectedLeaseStatisticPeriod} ${regionDisplay(regionLabel)} ${leaseMeasureOptions.find((item) => item.value === leaseMeasure)?.label || '임대시장 통계'} 상세`,
+      title: `${selectedLeaseStatisticPeriod} ${seriesLabel || '전체'} ${leaseMeasureOptions.find((item) => item.value === leaseMeasure)?.label || '임대시장 통계'} 권역별 상세`,
       rows,
       columns: [
         { key: 'period_label', label: '시점', width: 120 },
@@ -4363,6 +4392,13 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       defaultSort: [{ key: 'segment_label', direction: 'asc' }, { key: 'value', direction: 'desc' }],
     });
   };
+  const leaseStatisticTableColumns = [
+    { key: 'period_label', label: '시점', width: 110 },
+    { key: 'region', label: '권역', width: 160, render: (item) => regionDisplay(item.region || item.label), sortValue: (item) => regionDisplay(item.region || item.label) },
+    { key: 'segment_label', label: '상/저온 구분', width: 160 },
+    { key: 'metric_label', label: '지표', width: 190 },
+    { key: 'value', label: '값', align: 'right', render: (item) => leaseMetricFormatter(item.value), sortValue: (item) => number(item.value) },
+  ];
   const overviewLeaseTempOptions = ['전체', ...leaseSegmentOptions.filter((option) => option !== '전체')];
   const overviewLeaseRentBaseRows = leaseStatisticRows
     .filter((row) => text(row.period_label) === selectedLeaseStatisticPeriod && text(row.metric_key) === 'rent_manwon_per_py' && text(row.dimension_type) === 'region' && row.is_average !== true);
@@ -4528,26 +4564,27 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     { label: '평당 거래가격', value: aggregateBy(filteredTransactions, () => 'weighted', (row) => row.unit_price_krw_per_py, (row) => row.area_py)[0]?.value || 0, formatter: formatKrw, detail: '연면적 가중평균' },
     { label: '총거래가격', value: filteredTransactions.reduce((sum, row) => sum + number(row.transaction_amount_krw), 0), formatter: formatKrw, detail: '필터 적용 합계' },
   ];
-  const transactionPeriodOptions = [...new Set(['2026', ...transactions.map((row) => text(row.transaction_year || String(row.transaction_period || '').slice(0, 4), '')).filter(Boolean).sort()])];
-  const transactionSizeBuckets = [...new Set(transactions.map((row) => text(row.size_bucket, '')).filter(Boolean).sort((a, b) => stripLeadingNumberLabel(a).localeCompare(stripLeadingNumberLabel(b), 'ko')))];
-  const transactionSizeOptions = ['전체', ...transactionSizeBuckets];
-  const sizeBucketRows = transactionSizeBuckets.map((bucket) => {
-    const rows = transactions.filter((row) => text(row.size_bucket) === bucket);
-    const areas = rows.map((row) => number(row.area_py)).filter((value) => Number.isFinite(value) && value > 0);
-    return {
-      bucket,
-      label: stripLeadingNumberLabel(bucket),
-      min: areas.length ? Math.min(...areas) : null,
-      max: areas.length ? Math.max(...areas) : null,
-    };
-  });
-  const sizeBucketNote = sizeBucketRows.length
-    ? sizeBucketRows.map((row) => `${row.label} ${row.min == null ? '기준 확인 필요' : `${formatNumber(row.min, 0)}~${formatNumber(row.max, 0)}평`}`).join(' · ')
-    : '규모 구분 기준은 매매사례 연면적 범위로 확인합니다.';
+  const transactionPeriodOptions = [...new Set(transactions
+    .map((row) => yearFrom(row))
+    .filter((year) => year >= 2010)
+    .sort((a, b) => a - b)
+    .map(String))];
+  if (!transactionPeriodOptions.includes('2026')) transactionPeriodOptions.push('2026');
+  transactionPeriodOptions.sort((a, b) => Number(a) - Number(b));
+  const transactionSizeOptions = ['전체', ...TRANSACTION_SIZE_BUCKET_VALUES];
+  const transactionSizeTempOptions = TRANSACTION_TEMPERATURE_OPTIONS;
+  const sizeBucketNote = (
+    <ul className="list-disc space-y-1 pl-4">
+      {TRANSACTION_SIZE_BUCKET_RULES.map((rule) => (
+        <li key={rule.value}>{rule.value}: {rule.description}</li>
+      ))}
+    </ul>
+  );
   const sizeFilteredTransactions = transactions
     .filter((row) => regionMatches(txnSizeRegion, row.region))
     .filter((row) => String(yearFrom(row)) === txnSizePeriod)
-    .filter((row) => txnSizeBucket === '전체' || text(row.size_bucket) === txnSizeBucket);
+    .filter((row) => txnSizeBucket === '전체' || transactionSizeBucketFor(row) === txnSizeBucket)
+    .filter((row) => txnSizeTemp === '전체' || transactionTemperatureFor(row) === txnSizeTemp);
   const transactionTrendRows = transactions.filter((row) => {
     const year = yearFrom(row);
     const regionOk = regionMatches(txnRegion, row.region);
@@ -4591,15 +4628,25 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       return { year, region, count: row.count, area, amount: row.value };
     })
     .sort((a, b) => Number(a.year) - Number(b.year) || regionValue(a.region).localeCompare(regionValue(b.region), 'ko'));
+  const transactionMarketAssetRows = transactionTrendRows
+    .map((row) => ({
+      ...row,
+      year: String(yearFrom(row)),
+      region_display: regionDisplay(row.region),
+      size_bucket_label: transactionSizeBucketFor(row),
+      temperature_label: transactionTemperatureFor(row),
+    }))
+    .filter((row) => Number(row.year) >= 2020)
+    .sort((a, b) => Number(a.year) - Number(b.year) || number(b.transaction_amount_krw) - number(a.transaction_amount_krw));
   const sizeUnitPriceRows = aggregateBy(
     sizeFilteredTransactions,
-    (row) => (txnSizeBucket === '전체' ? text(row.size_bucket, '미정') : regionDisplay(row.region)),
+    (row) => (txnSizeBucket === '전체' ? transactionSizeBucketFor(row) : regionDisplay(row.region)),
     (row) => row.unit_price_krw_per_py,
     (row) => row.area_py,
   );
   const sizeMarketRows = aggregateBy(
     sizeFilteredTransactions,
-    (row) => (txnSizeBucket === '전체' ? text(row.size_bucket, '미정') : regionDisplay(row.region)),
+    (row) => (txnSizeBucket === '전체' ? transactionSizeBucketFor(row) : regionDisplay(row.region)),
     (row) => row.transaction_amount_krw,
   );
   const sizeUnitPriceChartRows = sizeUnitPriceRows.map((row) => ({
@@ -4616,7 +4663,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     const rawLabel = text(row.raw_label || row.label, '');
     const rows = sizeFilteredTransactions.filter((item) => (
       txnSizeBucket === '전체'
-        ? text(item.size_bucket, '미정') === rawLabel
+        ? transactionSizeBucketFor(item) === rawLabel
         : regionDisplay(item.region) === rawLabel
     ));
     setModal({
@@ -4707,12 +4754,17 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     { key: 'transaction_period', label: '거래시점', width: 120, render: (row) => text(row.transaction_period || row.transaction_date) },
     { key: 'asset_name', label: '자산명', width: 190, render: (row) => text(row.asset_name) },
     { key: 'region', label: '권역', width: 150, render: (row) => regionDisplay(row.region), sortValue: (row) => regionDisplay(row.region) },
-    { key: 'temperature_type', label: '상/저온', width: 110 },
+    { key: 'temperature_type', label: '상/저온', width: 110, render: (row) => transactionTemperatureFor(row), sortValue: (row) => transactionTemperatureFor(row) },
+    { key: 'size_bucket_label', label: '규모', width: 110, render: (row) => transactionSizeBucketFor(row), sortValue: (row) => TRANSACTION_SIZE_BUCKET_VALUES.indexOf(transactionSizeBucketFor(row)) },
     { key: 'area_py', label: '면적(평)', align: 'right', render: (row) => formatNumber(row.area_py, 1), sortValue: (row) => number(row.area_py) },
     { key: 'transaction_amount_krw', label: '거래금액', align: 'right', render: (row) => formatKrw(row.transaction_amount_krw), sortValue: (row) => number(row.transaction_amount_krw) },
     { key: 'unit_price_krw_per_py', label: '평당가', align: 'right', render: (row) => formatKrw(row.unit_price_krw_per_py), sortValue: (row) => number(row.unit_price_krw_per_py) },
     { key: 'buyer_name', label: '매수인', render: (row) => text(row.buyer_name) },
     { key: 'seller_name', label: '매도인', render: (row) => text(row.seller_name) },
+  ];
+  const transactionMarketAssetColumns = [
+    { key: 'year', label: '연도', width: 90, render: (row) => text(row.year || yearFrom(row)), sortValue: (row) => number(row.year || yearFrom(row)) },
+    ...transactionColumns,
   ];
   const leaseColumns = [
     { key: 'center_name', label: '센터명', width: 190, render: (row) => text(row.center_name) },
@@ -4757,7 +4809,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       data-market-tab={currentTab}
     >
       <ModuleHeader
-        eyebrow="MARKET DATA"
+        eyebrow=""
         title={MARKET_TAB_TITLES[currentTab] || 'Market Data'}
       />
       {error ? <div className="mb-4 rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
@@ -4827,19 +4879,13 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
                   type="button"
                   onClick={() => setModal({
                     title: '2020년 이후 권역별 거래시장 규모 상세',
-                    rows: transactionMarketDetailRows,
-                    columns: [
-                      { key: 'year', label: '연도', width: 110 },
-                      { key: 'region', label: '권역', width: 170 },
-                      { key: 'count', label: '거래건수', align: 'right', render: (row) => `${formatNumber(row.count)}건`, sortValue: (row) => number(row.count) },
-                      { key: 'area', label: '거래면적(평)', align: 'right', render: (row) => formatNumber(row.area, 1), sortValue: (row) => number(row.area) },
-                      { key: 'amount', label: '거래금액', align: 'right', render: (row) => formatKrw(row.amount), sortValue: (row) => number(row.amount) },
-                    ],
+                    rows: transactionMarketAssetRows,
+                    columns: transactionMarketAssetColumns,
                     width: 'max-w-[calc(100vw-32px)]',
-                    minWidth: 980,
+                    minWidth: 1280,
                     maxHeight: 'calc(100vh - 150px)',
                     fullscreen: true,
-                    defaultSort: [{ key: 'year', direction: 'asc' }, { key: 'amount', direction: 'desc' }],
+                    defaultSort: [{ key: 'year', direction: 'asc' }, { key: 'transaction_amount_krw', direction: 'desc' }],
                   })}
                   className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
                 >
@@ -4858,29 +4904,24 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               showTotalLabels
               onPeriodClick={(period) => setModal({
                 title: `${period}년 거래시장 규모 상세`,
-                rows: transactionMarketDetailRows.filter((row) => String(row.year) === String(period)),
-                columns: [
-                  { key: 'year', label: '연도', width: 110 },
-                  { key: 'region', label: '권역', width: 170 },
-                  { key: 'count', label: '거래건수', align: 'right', render: (row) => `${formatNumber(row.count)}건`, sortValue: (row) => number(row.count) },
-                  { key: 'area', label: '거래면적(평)', align: 'right', render: (row) => formatNumber(row.area, 1), sortValue: (row) => number(row.area) },
-                  { key: 'amount', label: '거래금액', align: 'right', render: (row) => formatKrw(row.amount), sortValue: (row) => number(row.amount) },
-                ],
+                rows: transactionMarketAssetRows.filter((row) => String(row.year) === String(period)),
+                columns: transactionMarketAssetColumns,
                 width: 'max-w-[calc(100vw-32px)]',
-                minWidth: 980,
+                minWidth: 1280,
                 maxHeight: 'calc(100vh - 150px)',
                 fullscreen: true,
-                defaultSort: { key: 'amount', direction: 'desc' },
+                defaultSort: { key: 'transaction_amount_krw', direction: 'desc' },
               })}
             />
           </section>
           <section className={`${CARD} p-5`}>
             <ModuleHeader eyebrow="SIZE ANALYSIS" title="규모별 평당 거래가 및 거래시장 규모" subtitle="권역, 시점, 규모 구간을 바꾸면 아래 두 차트가 함께 바뀝니다." />
-            <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-4">
               <RegionFilterGroups label="권역" value={txnSizeRegion} onChange={setTxnSizeRegion} options={regions} />
               <FilterPills label="시점" value={txnSizePeriod} onChange={setTxnSizePeriod} options={transactionPeriodOptions.map((item) => ({ value: item, label: `${item}년` }))} />
               <FilterPills label="규모" value={txnSizeBucket} onChange={setTxnSizeBucket} options={transactionSizeOptions.map((item) => ({ value: item, label: item === '전체' ? '전체' : stripLeadingNumberLabel(item) }))} />
-              <div className="xl:col-span-3 text-[12px] leading-5 text-[#A1A1AA]">{sizeBucketNote}</div>
+              <FilterPills label="상/저온" value={txnSizeTemp} onChange={setTxnSizeTemp} options={transactionSizeTempOptions} />
+              <div className="xl:col-span-4 rounded-[10px] border border-[#333333] bg-[#171717] px-4 py-3 text-[12px] leading-5 text-[#A1A1AA]">{sizeBucketNote}</div>
             </div>
             <div className="grid grid-cols-1 gap-5">
               <div className="min-w-0">
@@ -4934,8 +4975,8 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               legendAlign="center"
               height={360}
               onPointClick={(row) => setModal({
-                title: `${row.label} ${row.series} Cap Rate 상세`,
-                rows: capRateTableRows.filter((item) => item.label === row.label && item.series === row.series),
+                title: 'Cap Rate 추이 전체 상세',
+                rows: capRateTableRows,
                 columns: [
                   { key: 'label', label: '시점', width: 140 },
                   { key: 'series', label: '구분', width: 140 },
@@ -4960,7 +5001,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
             <ModuleHeader
               eyebrow="LEASE MARKET"
               title="최신 임대시장 통계"
-              subtitle="임대시장 통계 시트의 선택 시점 기준입니다. 전체 선택 시 상온·저온 계열을 함께 비교합니다."
+              subtitle="임대시장 통계 시트의 선택 시점 기준입니다. 기본값은 복합 전체이며, 선택한 상/저온 구분을 수도권과 지방으로 나눠 비교합니다."
               right={(
                 <button
                   type="button"
@@ -4989,20 +5030,23 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <div>
                 <div className="mb-2 text-[13px] font-semibold text-white">수도권</div>
-                {leaseSegment === '전체' ? (
-                  <ScopedGroupedBarChart rows={leaseStatisticComparisonRows.filter((row) => isCapitalRegion(row.region || row.label))} formatter={leaseMetricFormatter} onRowClick={openLeaseStatisticModal} />
-                ) : (
-                  <ScopedBarList rows={leaseStatisticCapitalChartRows.length ? leaseStatisticCapitalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={chartSeriesColor(leaseSegment)} onRowClick={openLeaseStatisticModal} />
-                )}
+                <ScopedBarList rows={leaseStatisticCapitalChartRows.length ? leaseStatisticCapitalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={CHART_COLORS.primary} onRowClick={openLeaseStatisticModal} />
               </div>
               <div>
                 <div className="mb-2 text-[13px] font-semibold text-white">지방</div>
-                {leaseSegment === '전체' ? (
-                  <ScopedGroupedBarChart rows={leaseStatisticComparisonRows.filter((row) => isLocalRegion(row.region || row.label))} formatter={leaseMetricFormatter} onRowClick={openLeaseStatisticModal} />
-                ) : (
-                  <ScopedBarList rows={leaseStatisticLocalChartRows.length ? leaseStatisticLocalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={chartSeriesColor(leaseSegment)} onRowClick={openLeaseStatisticModal} />
-                )}
+                <ScopedBarList rows={leaseStatisticLocalChartRows.length ? leaseStatisticLocalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={CHART_COLORS.secondary} onRowClick={openLeaseStatisticModal} />
               </div>
+            </div>
+            <div className="mt-5">
+              <SortableTable
+                minWidth={920}
+                maxHeight={340}
+                stickyCount={1}
+                defaultSort={{ key: 'value', direction: 'desc' }}
+                columns={leaseStatisticTableColumns}
+                rows={leaseStatisticDisplayRows}
+                onRowClick={openLeaseStatisticModal}
+              />
             </div>
             {!leaseStatisticRows.length ? (
               <div className="mt-3 rounded-[8px] border border-[#5A4420] bg-[#2A2115] px-3 py-2 text-[12px] text-[#FFD479]">
@@ -6013,9 +6057,9 @@ export function DataManagementDashboard() {
     : `이지스자산운용 관리 범위 중 내 권한: 자산 ${formatNumber(scopeReadableAssetCount)}개 / 펀드 ${formatNumber(scopeReadableFundCount)}개`;
   const rowAccessMessage = !sourceRows.length
     ? (accessScope === 'manager_full_source'
-      ? '아직 조회 가능한 원천 행이 없습니다. 원천 파일 업로드 또는 active source 상태를 확인해 주세요.'
+      ? '아직 조회 가능한 수정 대상 데이터가 없습니다. Source Update의 active 상태 또는 관리 권한을 확인해 주세요.'
       : `현재 계정은 담당 자산 범위만 조회할 수 있습니다.${managedAssetCodes.length ? ` 담당 자산: ${managedAssetCodes.join(', ')}` : ' 담당 자산이 배정되지 않았습니다.'}`)
-    : (!filteredRows.length ? '선택한 이지스자산운용 관리 범위에 해당하는 원천 행이 없습니다. 다른 업무 탭이나 자산/펀드 필터를 확인해 주세요.' : '');
+    : (!filteredRows.length ? '선택한 이지스자산운용 관리 범위에 해당하는 수정 대상 데이터가 없습니다. 다른 업무 탭이나 자산/펀드 필터를 확인해 주세요.' : '');
   const selectedRow = filteredRows.find((row) => row.source_row_id === selectedRowId) || filteredRows[0] || null;
   const rowValues = selectedRow?.row_values && typeof selectedRow.row_values === 'object' ? selectedRow.row_values : {};
   const editableFields = Object.keys(rowValues).filter(isUserVisibleField).slice(0, 80);
@@ -6105,7 +6149,7 @@ export function DataManagementDashboard() {
         reason,
         sheet_name: selectedRow.sheet_name,
         row_number: selectedRow.row_number,
-        impact_summary: '원본 행 변경 요청입니다. 승인 후 정규 테이블 반영 여부를 검토해야 합니다.',
+        impact_summary: '수정 대상 데이터 변경 요청입니다. 승인 후 정규 테이블 반영 여부를 검토해야 합니다.',
       });
       setSubmitStatus({ type: 'success', message: '승인 요청이 저장되었습니다. 승인 대기 탭에서 처리 상태를 확인해 주세요.' });
       reload({}, { force: true });
@@ -6137,14 +6181,14 @@ export function DataManagementDashboard() {
   ]);
   return (
     <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
-      <ModuleHeader eyebrow="DATA MANAGEMENT" title="데이터 관리" subtitle="Data Management: 이지스자산운용 19개 자산과 17개 펀드의 원천, 검증, 변경 전후 비교, 승인 요청, 반영 이력을 관리합니다." right={<button type="button" onClick={reload} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[13px] font-semibold text-white hover:bg-white/5">새로고침</button>} />
+      <ModuleHeader eyebrow="" title="데이터 관리" right={<button type="button" onClick={reload} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[13px] font-semibold text-white hover:bg-white/5">새로고침</button>} />
       <div className="mb-5">
         <Tabs tabs={tabs} value={tab} onChange={setTab} />
       </div>
       {tab === 'my' ? (
         <section className={`${CARD} mb-5 p-5`}>
           <ModuleHeader
-            eyebrow="TARGET SELECTOR"
+            eyebrow="STEP 0"
             title="관리할 자산 먼저 선택"
             right={(
               <button
@@ -6185,10 +6229,10 @@ export function DataManagementDashboard() {
       <section className={`${CARD} mb-5 p-5`}>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           {[
-            ['1. 데이터 종류 선택', '임대차, 펀드/금융, 권한, 자산 스펙, 운영비용 중 고칠 업무를 먼저 고릅니다.'],
-            ['2. 원천 행 선택', '엑셀에서 들어온 원본 행을 선택해 어떤 값이 현재 저장돼 있는지 확인합니다.'],
-            ['3. 변경값 입력', '현재값과 변경값을 나란히 보면서 단위, 필수값, 중복 여부를 확인합니다.'],
-            ['4. 승인 요청', '바로 DB를 바꾸지 않고 승인 대기에 올린 뒤, 관리자가 반영합니다.'],
+            ['1. 자산/펀드 선택', '권한이 있는 IGIS 자산 19개와 펀드 17개 범위에서 관리 대상을 먼저 좁힙니다.'],
+            ['2. 업무 선택', '임대차, 펀드/금융, 권한, 자산 스펙, 운영비용 중 고칠 데이터를 고릅니다.'],
+            ['3. 변경 검증', '현재값과 변경값을 나란히 보고 필수값, 단위, 중복, 권한 검증을 확인합니다.'],
+            ['4. 승인/반영', '승인 요청 후 승인 대기와 반영 이력에서 readback 결과까지 확인합니다.'],
           ].map(([title, body]) => (
             <div key={title} className={`${INNER} px-4 py-4`}>
               <div className="text-[13px] font-semibold text-white">{title}</div>
@@ -6196,33 +6240,30 @@ export function DataManagementDashboard() {
             </div>
           ))}
         </div>
-        <div className="mt-3 text-[12px] leading-5 text-[#86868B]">
-          선택한 원천과 자산 범위에 맞춰 수정 가능한 행과 필드를 보여주고, 저장 전 검증과 변경 전후 비교를 먼저 확인합니다.
-        </div>
       </section>
       {error ? <div className="mb-4 rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
       {loading ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>데이터 관리 현황을 불러오는 중입니다.</div> : null}
       {tab === 'my' ? (
         <div className="space-y-5">
           <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <MetricCard label="원천 파일" value={`${formatNumber(managementSources.length)}개`} detail="Data Management 대상 active/draft 버전" />
+            <MetricCard label="대상 데이터" value={`${formatNumber(managementSources.length)}개`} detail="Data Management에서 수정 가능한 업무 묶음" />
             <MetricCard label="시트" value={`${formatNumber(sheets.length)}개`} detail="header, row count 추적" />
             <MetricCard label="컬럼" value={`${formatNumber(columns.length)}개`} detail="원본 컬럼 및 매핑 정보" />
             <MetricCard label="승인 대기" value={`${formatNumber(edits.filter((row) => row.status === 'submitted').length)}건`} detail="검토 후 반영" />
           </section>
-          <section className="grid grid-cols-1 gap-3 xl:grid-cols-6">
-            {sourceCards.map((item) => (
-              <button key={item.key} type="button" onClick={() => setTab(item.key === 'lease_contracts' ? 'lease' : item.key === 'fund_info' ? 'fund' : item.key === 'permissions' ? 'permission' : item.key === 'operating_costs' ? 'cost' : 'spec')} className={`${INNER} px-4 py-4 text-left hover:bg-[#262626]`}>
+          <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            {[
+              { id: 'lease', label: '임대차 데이터 수정', detail: '임차인, 계약조건, 면적, 상/저온 등 운영 데이터' },
+              { id: 'fund', label: '펀드/금융 데이터 수정', detail: '펀드명, 대주, tranche, 금리, 만기 등 금융 데이터' },
+              { id: 'spec', label: '자산 스펙 수정', detail: '주소, 규모, Dock, 층고, 설비 등 자산 스펙 데이터' },
+              { id: 'cost', label: '운영비용 수정', detail: 'PM/FM, 보험료, Utility 등 비용 데이터' },
+              { id: 'permission', label: '권한/사용자 수정', detail: '담당자, 외부 PM, 승인 권한 관리' },
+              { id: 'approval', label: '승인 대기 확인', detail: '요청된 변경의 승인, 반려, readback 처리' },
+            ].map((item) => (
+              <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`${INNER} px-4 py-4 text-left hover:bg-[#262626]`}>
                 <div className="text-[13px] font-semibold text-white">{item.label}</div>
-                <div className="mt-2 min-h-[40px] text-[12px] leading-5 text-[#A1A1AA]">{text(item.active.file_name, '아직 업로드 없음')}</div>
-                <div className="mt-3 flex items-center justify-between text-[11px] text-[#86868B]">
-                  <span>{formatNumber(item.count)} versions</span>
-                  <span>{item.active.active_version ? 'Active' : 'Draft'}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between text-[11px] text-[#86868B]">
-                  <span>승인대기 {formatNumber(item.stats.pending_edits || 0)}건</span>
-                  <span>{item.stats.latest_edit_at ? formatDate(item.stats.latest_edit_at) : '이력 없음'}</span>
-                </div>
+                <div className="mt-2 text-[12px] leading-5 text-[#A1A1AA]">{item.detail}</div>
+                <div className="mt-3 text-[11px] font-semibold text-[#9AD7FF]">선택한 자산/펀드 범위에서 열기</div>
               </button>
             ))}
           </section>
@@ -6232,7 +6273,7 @@ export function DataManagementDashboard() {
       {['lease', 'fund', 'permission', 'spec', 'cost'].includes(tab) ? (
         <div className="space-y-5">
           <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="TARGET SELECTOR" title="관리 대상 선택" subtitle="자산, 펀드, 검색어를 먼저 고르면 아래 수정 대상 행과 미리보기가 즉시 좁혀집니다." />
+            <ModuleHeader eyebrow="STEP 1" title="자산/펀드 선택" />
             <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
               <label className="text-[12px] font-semibold text-[#A1A1AA]">
                 자산
@@ -6256,7 +6297,7 @@ export function DataManagementDashboard() {
             </div>
           </section>
           <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="INPUT WIZARD" title={`${tabs.find((item) => item.id === tab)?.label} 입력 마법사`} subtitle="대형 표 직접 수정은 보조 기능으로 두고, 행 선택, 필드 선택, 값 검증, 변경 전후 비교, 승인 요청 순서로 처리합니다." />
+            <ModuleHeader eyebrow="STEP 2" title={`${tabs.find((item) => item.id === tab)?.label} 변경 요청`} />
             {rowAccessMessage ? (
               <div className={`${INNER} px-4 py-5 text-[13px] leading-6 text-[#A1A1AA]`}>
                 {rowAccessMessage}
@@ -6266,7 +6307,7 @@ export function DataManagementDashboard() {
                 <div className={`${INNER} p-4`}>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                      원본 행
+                      수정 대상
                       <select value={selectedRow?.source_row_id || ''} onChange={(event) => setSelectedRowId(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
                         {filteredRows.slice(0, 200).map((row) => (
                           <option key={row.source_row_id} value={row.source_row_id}>{row.sheet_name} · {row.row_number}행</option>
@@ -6309,7 +6350,7 @@ export function DataManagementDashboard() {
                 <div className={`${INNER} p-4`}>
                   <div className="text-[13px] font-semibold text-white">저장 전 영향 범위</div>
                   <div className="mt-3 space-y-2 text-[12px] leading-5 text-[#A1A1AA]">
-                    <div>원천: {sourceDomainLabel(selectedSource.source_domain || domainForTab)}</div>
+                    <div>업무: {sourceDomainLabel(selectedSource.source_domain || domainForTab)}</div>
                     <div>시트/행: {selectedRow ? `${selectedRow.sheet_name} ${selectedRow.row_number}행` : '-'}</div>
                     <div>필드: {selectedField ? fieldDisplayLabel(selectedField) : '-'}</div>
                     <div>상태: {hasPendingChange ? '변경 감지' : '변경 없음'}</div>
@@ -6349,13 +6390,13 @@ export function DataManagementDashboard() {
             )}
           </section>
           <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="SOURCE PREVIEW" title="원본 행 미리보기" />
+            <ModuleHeader eyebrow="STEP 3" title="수정 대상 목록" />
             <Table
               minWidth={1180}
               maxHeight={460}
               stickyCount={1}
               columnWidths={[120, 180, 92, 240, 420, 120]}
-              headers={['원천', '시트', '행', '대표 값', '요약', '검증']}
+              headers={['업무', '시트', '행', '대표 값', '요약', '검증']}
               rows={sourcePreviewRows}
             />
           </section>

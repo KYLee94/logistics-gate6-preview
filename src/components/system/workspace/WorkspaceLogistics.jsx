@@ -14685,6 +14685,16 @@ function DashboardShell({ activeModule }) {
     })
   ), [featureAccess]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
+  const selectedTitle = {
+    home: '홈',
+    asset: '자산',
+    company: '기업',
+    'investment-index': '투자 지수',
+    'asset-spec': '자산 스펙',
+    tools: '분석 도구',
+    playground: '피벗 테이블',
+    quality: '데이터 품질',
+  }[selected?.id] || selected?.label;
   const shouldShowExternalApiRefresh = selected?.id !== 'investment-index' && featureAccess.buildingRegisterRefresh;
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission) && shouldShowExternalApiRefresh);
   const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
@@ -14720,7 +14730,7 @@ function DashboardShell({ activeModule }) {
     <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
       <LogisticsModal modal={modal} onClose={() => setModal(null)} />
       <SectionHeader
-        title={selected.label}
+        title={selectedTitle}
         right={shouldShowExternalApiRefresh ? (
           <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={{ ...featureAccess, openDartRefresh: false }} />
         ) : null}
