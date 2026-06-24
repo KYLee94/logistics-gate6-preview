@@ -5,6 +5,7 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
+const NAVER_MAP_AUTH_FAILURE_RE = /네이버\s*지도\s*Open\s*API\s*인증|Open API 인증|인증.*실패|unauthorized|authentication|forbidden|invalid\s*client/iu;
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -136,9 +137,12 @@ async function visibleTileStats(page, selector = '[data-testid="market-map-panel
       }, 0);
       const tileSources = Array.from(el.querySelectorAll('img[src]')).map((img) => img.getAttribute('src') || '');
       const markerSources = tileSources.filter((src) => /marker|pin|sprite/iu.test(src));
+      const panelText = el.innerText || el.textContent || '';
+      const authFailureRe = /네이버\s*지도\s*Open\s*API\s*인증|Open API 인증|인증.*실패|unauthorized|authentication|forbidden|invalid\s*client/iu;
       return {
         mode: el.getAttribute('data-map-mode') || '',
         provider: el.getAttribute('data-map-provider') || '',
+        auth_failure_visible: authFailureRe.test(panelText),
         naver_ready: el.getAttribute('data-naver-map-ready') === 'true',
         osm_ready: el.getAttribute('data-osm-map-ready') === 'true',
         region_cluster_count: Number(el.getAttribute('data-map-region-cluster-count') || 0),
@@ -255,7 +259,11 @@ async function main() {
       report.errors.push(message);
     });
     page.on('console', (message) => {
-      if (message.type() === 'error' && !/favicon/iu.test(message.text())) report.warnings.push(`console: ${message.text()}`);
+      if (message.type() === 'error' && !/favicon/iu.test(message.text())) {
+        const text = message.text();
+        if (NAVER_MAP_AUTH_FAILURE_RE.test(text)) report.errors.push(`console: ${text}`);
+        else report.warnings.push(`console: ${text}`);
+      }
     });
     for (const route of routes) {
       const routeKey = route.replace(/[^\w-]+/gu, '-');
@@ -397,6 +405,7 @@ async function main() {
       entry.ok = entry.errors.length === 0
         && entry.region_first_stats.provider === 'naver'
         && entry.region_first_stats.mode === 'regions'
+        && !entry.region_first_stats.auth_failure_visible
         && entry.region_first_stats.region_cluster_count > 0
         && entry.region_first_stats.point_count === 0
         && entry.region_first_stats.naver_tile_count > 0
@@ -405,6 +414,7 @@ async function main() {
         && entry.click_to_points_within_threshold
         && entry.point_stats.provider === 'naver'
         && entry.point_stats.mode === 'points'
+        && !entry.point_stats.auth_failure_visible
         && entry.point_stats.point_count > 0
         && entry.point_stats.native_marker_count > 0
         && entry.point_stats.naver_tile_count > 0
@@ -412,9 +422,11 @@ async function main() {
         && entry.point_stats.marker_image_count > 0
         && entry.wheel_zoom_changed
         && entry.wheel_zoom_kept_naver_points
+        && !entry.after_wheel_zoom_stats.auth_failure_visible
         && entry.button_zoom_out_changed
         && entry.button_zoom_in_changed
-        && entry.button_zoom_kept_naver_points;
+        && entry.button_zoom_kept_naver_points
+        && !entry.after_button_zoom_in_stats.auth_failure_visible;
       report.routes.push(entry);
     }
   } catch (error) {

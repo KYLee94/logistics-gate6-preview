@@ -33,6 +33,7 @@ function envValue(...keys) {
 
 const MIN_NAVER_TILE_COUNT = 2;
 const MIN_NAVER_TILE_COVERAGE = 0.6;
+const NAVER_MAP_AUTH_FAILURE_RE = /네이버\s*지도\s*Open\s*API\s*인증|Open API 인증|인증.*실패|unauthorized|authentication|forbidden|invalid\s*client/iu;
 
 function argsValue(name, fallback = '') {
   const flag = `--${name}`;
@@ -190,8 +191,10 @@ async function waitForStableMarketDataPage(page, tab) {
       });
       return panels.length > 0
         && panels.every((panel) => (
-          panel.getAttribute('data-naver-map-ready') === 'true'
-          && panel.getAttribute('data-map-provider') === 'naver'
+          (
+            (panel.getAttribute('data-naver-map-ready') === 'true' && panel.getAttribute('data-map-provider') === 'naver')
+            || (panel.getAttribute('data-osm-map-ready') === 'true' && panel.getAttribute('data-map-provider') === 'osm')
+          )
           && panel.getAttribute('data-map-mode') === 'regions'
           && Number(panel.getAttribute('data-map-region-cluster-count') || 0) > 0
         ));
@@ -206,7 +209,7 @@ async function waitForStableMarketDataPage(page, tab) {
     result.naver_sdk_ready = (await page.locator('[data-naver-map-ready="true"]').count().catch(() => 0)) > 0;
     result.osm_ready = (await page.locator('[data-osm-map-ready="true"]').count().catch(() => 0)) > 0;
     result.map_fallback_ready = (await page.locator('[data-map-fallback-ready="true"]').count().catch(() => 0)) > 0;
-    result.naver_ready = result.map_provider_ready && result.naver_sdk_ready && !result.osm_ready;
+    result.naver_ready = result.map_provider_ready && (result.naver_sdk_ready || result.osm_ready) && !result.map_fallback_ready;
     result.map_region_cluster_ready = result.map_provider_ready;
     result.map_region_cluster_overlap = result.map_region_cluster_ready
       ? await evaluateMapButtonOverlap(page, '[data-map-mode="regions"]', '[data-region-cluster-button="true"]', 8)
@@ -272,8 +275,10 @@ async function waitForStableMarketDataPage(page, tab) {
       };
       return maps.length > 0 && maps.every((el) => (
         el.getAttribute('data-map-mode') === 'points'
-        && el.getAttribute('data-naver-map-ready') === 'true'
-        && el.getAttribute('data-osm-map-ready') !== 'true'
+        && (
+          el.getAttribute('data-naver-map-ready') === 'true'
+          || el.getAttribute('data-osm-map-ready') === 'true'
+        )
         && visibleTileStats(el).count >= 2
         && visibleTileStats(el).coverage >= 0.6
         && Number(el.getAttribute('data-map-native-marker-count') || 0) >= Number(el.getAttribute('data-map-point-count') || 0)
@@ -519,6 +524,22 @@ async function main() {
         axis_ok: false,
         legend_focus_ok: false,
       };
+      const transactionSizeExplorer = {
+        required: tab.key === 'transactions',
+        ok: tab.key !== 'transactions',
+        trigger_count: 0,
+        dialog_visible: false,
+        slicer_visible: false,
+        detail_row_count: 0,
+      };
+      const leaseStatisticExplorer = {
+        required: tab.key === 'lease-market',
+        ok: tab.key !== 'lease-market',
+        trigger_count: 0,
+        dialog_visible: false,
+        slicer_visible: false,
+        detail_row_count: 0,
+      };
       const supplyAreaCharts = {
         required: tab.key === 'supply-pipeline',
         ok: tab.key !== 'supply-pipeline',
@@ -560,6 +581,24 @@ async function main() {
           && supplyChartClick.dialog_visible
           && supplyChartClick.fullscreen_width_ok
           && supplyChartClick.detail_row_count > 0;
+      }
+      if (tab.key === 'lease-market') {
+        const leaseTriggers = page.locator('[data-scoped-bar-clickable="true"], [data-scoped-grouped-bar-clickable="true"]');
+        leaseStatisticExplorer.trigger_count = await leaseTriggers.count().catch(() => 0);
+        if (leaseStatisticExplorer.trigger_count > 0) {
+          await leaseTriggers.first().click({ timeout: 20000, force: true }).catch(() => null);
+          const dialog = page.locator('[role="dialog"]').last();
+          leaseStatisticExplorer.dialog_visible = await dialog.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
+          if (leaseStatisticExplorer.dialog_visible) {
+            leaseStatisticExplorer.slicer_visible = await dialog.locator('[data-testid="lease-statistic-explorer"]').count().then((count) => count > 0).catch(() => false);
+            leaseStatisticExplorer.detail_row_count = await dialog.locator('table tbody tr').count().catch(() => 0);
+            await page.keyboard.press('Escape').catch(() => null);
+          }
+        }
+        leaseStatisticExplorer.ok = leaseStatisticExplorer.trigger_count > 0
+          && leaseStatisticExplorer.dialog_visible
+          && leaseStatisticExplorer.slicer_visible
+          && leaseStatisticExplorer.detail_row_count > 0;
       }
       if (tab.key === 'transactions') {
         const marketChart = page.locator('[data-chart-role="stacked-period-bar"]').first();
@@ -617,6 +656,22 @@ async function main() {
           await capRateLegends.first().click({ timeout: 10000 }).catch(() => null);
         }
         capRateChart.ok = capRateChart.title_ok && capRateChart.axis_ok && capRateChart.legend_focus_ok;
+        const sizeTriggers = page.locator('[data-bar-list-clickable="true"]');
+        transactionSizeExplorer.trigger_count = await sizeTriggers.count().catch(() => 0);
+        if (transactionSizeExplorer.trigger_count > 0) {
+          await sizeTriggers.first().click({ timeout: 20000 }).catch(() => null);
+          const dialog = page.locator('[role="dialog"]').last();
+          transactionSizeExplorer.dialog_visible = await dialog.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
+          if (transactionSizeExplorer.dialog_visible) {
+            transactionSizeExplorer.slicer_visible = await dialog.locator('[data-testid="transaction-size-explorer"]').count().then((count) => count > 0).catch(() => false);
+            transactionSizeExplorer.detail_row_count = await dialog.locator('table tbody tr').count().catch(() => 0);
+            await page.keyboard.press('Escape').catch(() => null);
+          }
+        }
+        transactionSizeExplorer.ok = transactionSizeExplorer.trigger_count > 0
+          && transactionSizeExplorer.dialog_visible
+          && transactionSizeExplorer.slicer_visible
+          && transactionSizeExplorer.detail_row_count > 0;
       }
       if (tab.key === 'supply-pipeline') {
         const supplyChartLabels = await page.locator('[data-chart-role="supply-area"]').evaluateAll((nodes) => nodes
@@ -652,6 +707,7 @@ async function main() {
         title_present: titlePresent,
         has_broken_question_marks: /\?{4,}/u.test(body),
         internal_tokens_visible: /\bll_|source_row_id|source_file_id|payload|natural_key|natural\s+key|row_hash|row\s+hash|\bPNU\b|\bpnu\b|법정동코드/iu.test(body),
+        naver_auth_failure_present: NAVER_MAP_AUTH_FAILURE_RE.test(body),
         map_count: mapCount,
         naver_map_count: naverMapCount,
         osm_map_count: osmMapCount,
@@ -675,6 +731,8 @@ async function main() {
         supply_chart_click: supplyChartClick,
         supply_legend_focus: supplyLegendFocus,
         transaction_market_chart: transactionMarketChart,
+        transaction_size_explorer: transactionSizeExplorer,
+        lease_statistic_explorer: leaseStatisticExplorer,
         cap_rate_chart: capRateChart,
         supply_area_charts: supplyAreaCharts,
       };
@@ -690,6 +748,8 @@ async function main() {
         && row.title_present
         && !row.has_broken_question_marks
         && !row.internal_tokens_visible
+        && !row.naver_auth_failure_present
+        && !row.map_warning_present
         && (!requiresTable || tableCount > 0)
         && (!requiresTable || sortableTableCount === tableCount)
         && sortableHeaderCount + passiveHeaderCount === tableHeaderCount
@@ -711,7 +771,8 @@ async function main() {
         && (tab.key !== 'supply-pipeline' || row.supply_slicer_present)
         && (tab.key !== 'supply-pipeline' || row.supply_area_charts.ok)
         && (tab.key !== 'overview' || row.supply_chart_click.ok)
-        && (tab.key !== 'transactions' || (row.transaction_slicer_present && row.transaction_size_slicer_present && row.transaction_market_chart.ok && row.cap_rate_chart.ok));
+        && (tab.key !== 'lease-market' || row.lease_statistic_explorer.ok)
+        && (tab.key !== 'transactions' || (row.transaction_slicer_present && row.transaction_size_slicer_present && row.transaction_market_chart.ok && row.transaction_size_explorer.ok && row.cap_rate_chart.ok));
       report.tabs.push(row);
     }
     report.ok = report.tabs.every((tab) => tab.ok) && report.errors.length === 0;

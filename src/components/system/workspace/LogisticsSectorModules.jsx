@@ -215,7 +215,7 @@ function sourceRowDisplayTitle(row) {
   const values = row?.row_values && typeof row.row_values === 'object' ? row.row_values : {};
   const titleKeys = ['물류센터명', '자산명', '센터명', '펀드명', '임차인명', '회사명', '주소', 'asset_name', 'center_name', 'fund_name'];
   const key = titleKeys.find((item) => text(values[item], '') !== '');
-  return key ? formatDisplayValue(values[key], key) : `${text(row?.sheet_name, '원천')} ${formatNumber(row?.row_number)}행`;
+  return key ? formatDisplayValue(values[key], key) : text(row?.natural_key, '관리 대상');
 }
 
 function sourceRowDisplaySummary(row) {
@@ -1258,6 +1258,13 @@ function hasSufficientVisibleMapTiles(container) {
   return stats.count >= 3 && stats.coverage >= 0.65;
 }
 
+const NAVER_MAP_AUTH_FAILURE_RE = /네이버\s*지도\s*Open\s*API\s*인증|Open API 인증|인증.*실패|unauthorized|authentication|forbidden|invalid\s*client/iu;
+
+function hasNaverMapAuthFailure(container) {
+  if (!container) return false;
+  return NAVER_MAP_AUTH_FAILURE_RE.test(String(container.textContent || ''));
+}
+
 function escapeMapHtml(value) {
   return String(value ?? '')
     .replace(/&/gu, '&amp;')
@@ -1356,6 +1363,25 @@ function MarketMapPanel({
       cadastralLayerRef.current = new window.naver.maps.CadastralLayer();
       cadastralLayerRef.current.setMap(map);
     }
+  };
+  const handleMapWheel = (event) => {
+    if (!mapInstanceRef.current) return;
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+    event.stopPropagation();
+    const map = mapInstanceRef.current;
+    let currentZoom = Number(mapZoom) || (isRegionMode ? 8 : 10);
+    if (typeof map.getZoom === 'function') {
+      try {
+        const providerZoom = Number(map.getZoom());
+        if (Number.isFinite(providerZoom)) currentZoom = providerZoom;
+      } catch {
+        // Use the React state zoom when the provider cannot report its current zoom.
+      }
+    }
+    const delta = Number(event.deltaY) < 0 ? 1 : -1;
+    applyMapZoom(currentZoom + delta, { regionMode: isRegionMode });
   };
   const hashPosition = (label, axis) => {
     const code = String(label || '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -1661,6 +1687,15 @@ function MarketMapPanel({
 
   useEffect(() => {
     let cancelled = false;
+    let naverHealthInterval = null;
+    let naverHealthTimeout = null;
+    let switchingToOsm = false;
+    const clearNaverHealthMonitor = () => {
+      if (naverHealthInterval) window.clearInterval(naverHealthInterval);
+      if (naverHealthTimeout) window.clearTimeout(naverHealthTimeout);
+      naverHealthInterval = null;
+      naverHealthTimeout = null;
+    };
     const clearMarkers = () => {
       markersRef.current.forEach((marker) => {
         try {
@@ -1695,6 +1730,7 @@ function MarketMapPanel({
       mapZoomListenerRef.current = null;
     };
     const destroyCurrentMap = () => {
+      clearNaverHealthMonitor();
       clearMarkers();
       clearZoomListener();
       if (cadastralLayerRef.current) {
@@ -1882,6 +1918,47 @@ function MarketMapPanel({
       }
       return false;
     };
+    const switchToLeafletBecauseNaverFailed = async (reason) => {
+      if (cancelled || switchingToOsm) return;
+      switchingToOsm = true;
+      clearNaverHealthMonitor();
+      setForceOsm(true);
+      setMapStatus({ status: 'checking', message: `Naver Maps ${reason} · OpenStreetMap 전환 중` });
+      await mountLeafletMap();
+      switchingToOsm = false;
+    };
+    const startNaverHealthMonitor = (map) => {
+      clearNaverHealthMonitor();
+      const startedAt = Date.now();
+      naverHealthInterval = window.setInterval(() => {
+        if (cancelled || mapProviderRef.current !== 'naver' || !mapCanvasRef.current) {
+          clearNaverHealthMonitor();
+          return;
+        }
+        refreshNaverMap(map);
+        const failedByText = hasNaverMapAuthFailure(mapCanvasRef.current);
+        const stats = visibleMapTileCoverage(mapCanvasRef.current);
+        const healthyTiles = stats.count >= 2 && stats.coverage >= 0.45;
+        if (failedByText) {
+          switchToLeafletBecauseNaverFailed('인증 실패 감지');
+          return;
+        }
+        if (healthyTiles) {
+          clearNaverHealthMonitor();
+          setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
+          return;
+        }
+        if (Date.now() - startedAt > 3200) {
+          switchToLeafletBecauseNaverFailed('타일 확인 실패');
+        }
+      }, 360);
+      naverHealthTimeout = window.setTimeout(() => {
+        if (!cancelled && mapProviderRef.current === 'naver' && !hasNaverMapAuthFailure(mapCanvasRef.current) && hasSufficientVisibleMapTiles(mapCanvasRef.current)) {
+          setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
+        }
+        clearNaverHealthMonitor();
+      }, 9000);
+    };
     const ensureNaverMaps = async () => {
       try {
         if (forceOsm) {
@@ -2003,6 +2080,7 @@ function MarketMapPanel({
           if (!cancelled && Number.isFinite(nextZoom)) setMapZoom(nextZoom);
         });
         setMapStatus({ status: 'ready', message: mapMessage('Naver Maps') });
+        startNaverHealthMonitor(map);
         [80, 260].forEach((delay) => window.setTimeout(() => {
           if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) {
             refreshNaverMap(map);
@@ -2015,6 +2093,7 @@ function MarketMapPanel({
     ensureNaverMaps();
     return () => {
       cancelled = true;
+      clearNaverHealthMonitor();
       clearMarkers();
       clearZoomListener();
       if (cadastralLayerRef.current) {
@@ -2068,6 +2147,7 @@ function MarketMapPanel({
         data-map-coordinate-source-count={markerRows.filter((item) => item.coordinateSource).length}
         data-map-excluded-count={excludedCount}
         data-map-zoom={mapZoom}
+        onWheel={handleMapWheel}
         style={{
           '--market-cluster-size': `${clusterSize}px`,
           '--market-cluster-visual-scale': `${clusterScale}`,
@@ -2369,6 +2449,8 @@ function BarList({ rows, labelKey = 'label', valueKey = 'value', formatter = for
         return (
           <div
             key={row.id || row[labelKey]}
+            data-bar-list-row="true"
+            data-bar-list-clickable={onRowClick ? 'true' : 'false'}
             className={`${INNER} px-3 py-2 ${onRowClick ? 'cursor-pointer hover:bg-[#262626]' : ''}`}
             onClick={() => onRowClick?.(row)}
             onMouseMove={(event) => setHover({ x: event.clientX, y: event.clientY, title: text(row[labelKey]), value: formatter(value), detail: row.count ? `${formatNumber(row.count)}건` : '' })}
@@ -2506,6 +2588,8 @@ function ScopedBarList({ rows, labelKey = 'label', valueKey = 'value', formatter
               return (
                 <div
                   key={row.id || `${section.scope}-${row[labelKey]}`}
+                  data-scoped-bar-row="true"
+                  data-scoped-bar-clickable={onRowClick ? 'true' : 'false'}
                   className={`${INNER} px-3 py-2 ${onRowClick ? 'cursor-pointer hover:bg-[#262626]' : ''}`}
                   onClick={() => onRowClick?.(row)}
                   onMouseMove={(event) => setHover({
@@ -2575,7 +2659,7 @@ function ScopedGroupedBarChart({ rows, formatter = formatNumber, onRowClick = nu
                         const row = rowsForLabel(label, item);
                         const value = number(row?.value);
                         return (
-                          <div key={`${label}-${item}`} className={`flex items-center gap-2 ${row && onRowClick ? 'cursor-pointer' : ''}`} onClick={() => row && onRowClick?.(row)}>
+                          <div key={`${label}-${item}`} data-scoped-grouped-bar-row="true" data-scoped-grouped-bar-clickable={row && onRowClick ? 'true' : 'false'} className={`flex items-center gap-2 ${row && onRowClick ? 'cursor-pointer' : ''}`} onClick={() => row && onRowClick?.(row)}>
                             <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#2C2C2E]">
                               <div
                                 className="h-full rounded-full"
@@ -4301,7 +4385,8 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     }
     return row[leaseMeasure];
   };
-  const leaseMetricFormatter = leaseMeasure === 'vacancy_rate' ? formatRate : (value) => formatNumber(value, 1);
+  const leaseMetricFormatterFor = (metric) => (metric === 'vacancy_rate' ? formatRate : (value) => formatNumber(value, 1));
+  const leaseMetricFormatter = leaseMetricFormatterFor(leaseMeasure);
   const leaseStatisticAvailableSegments = new Set(leaseStatisticRows.map((row) => text(row.segment_label, '')).filter(Boolean));
   const leaseSegmentOptions = ['복합 전체', '복합 상온', '복합 저온', '상온', '저온', '상온(복합포함)', '저온(복합포함)']
     .filter((option) => leaseStatisticAvailableSegments.size === 0 || leaseStatisticAvailableSegments.has(option));
@@ -4368,22 +4453,24 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   });
   const openLeaseStatisticModal = (row) => {
     const seriesLabel = currentTab === 'overview' ? text(row.series || row.segment_label, '') : leaseSegment;
-    const rows = leaseStatisticRows
-      .filter((item) => text(item.period_label) === selectedLeaseStatisticPeriod)
-      .filter((item) => text(item.metric_key) === leaseMeasure)
-      .filter((item) => text(item.dimension_type) === 'region')
-      .filter((item) => item.is_average !== true)
-      .filter((item) => !seriesLabel || seriesLabel === '전체' || text(item.segment_label) === seriesLabel)
-      .sort((a, b) => regionDisplay(a.region || a.label).localeCompare(regionDisplay(b.region || b.label), 'ko'));
+    const clickedRegion = regionValue(row?.region || row?.label || '');
     setModal({
-      title: `${selectedLeaseStatisticPeriod} ${seriesLabel || '전체'} ${leaseMeasureOptions.find((item) => item.value === leaseMeasure)?.label || '임대시장 통계'} 권역별 상세`,
-      rows,
+      type: 'lease-statistic-explorer',
+      title: '최신 임대시장 통계 상세',
+      baseRows: leaseStatisticRows,
+      filters: {
+        period: selectedLeaseStatisticPeriod,
+        metric: leaseMeasure,
+        segment: seriesLabel && seriesLabel !== '전체' ? seriesLabel : leaseSegment,
+        scope: '전체',
+        region: clickedRegion || '전체',
+      },
       columns: [
         { key: 'period_label', label: '시점', width: 120 },
         { key: 'region', label: '권역', width: 160, render: (item) => regionDisplay(item.region || item.label), sortValue: (item) => regionDisplay(item.region || item.label) },
         { key: 'segment_label', label: '상/저온 구분', width: 180 },
         { key: 'metric_label', label: '지표', width: 220 },
-        { key: 'value', label: '값', align: 'right', render: (item) => leaseMetricFormatter(item.value), sortValue: (item) => number(item.value) },
+        { key: 'value', label: '값', align: 'right', render: (item) => leaseMetricFormatterFor(text(item.metric_key, leaseMeasure))(item.value), sortValue: (item) => number(item.value) },
       ],
       width: 'max-w-[calc(100vw-32px)]',
       minWidth: 940,
@@ -4661,14 +4748,19 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   }));
   const openTransactionSizeModal = (row, metricTitle) => {
     const rawLabel = text(row.raw_label || row.label, '');
-    const rows = sizeFilteredTransactions.filter((item) => (
-      txnSizeBucket === '전체'
-        ? transactionSizeBucketFor(item) === rawLabel
-        : regionDisplay(item.region) === rawLabel
-    ));
+    const clickedBucket = TRANSACTION_SIZE_BUCKET_VALUES.includes(rawLabel) ? rawLabel : '';
+    const clickedRegion = clickedBucket ? txnSizeRegion : rawLabel;
     setModal({
-      title: `${metricTitle} 상세 · ${text(row.label)}`,
-      rows,
+      type: 'transaction-size-explorer',
+      title: `${metricTitle} 상세`,
+      baseRows: transactions,
+      filters: {
+        year: txnSizePeriod || '2026',
+        region: clickedRegion || txnSizeRegion || '전체',
+        bucket: clickedBucket || txnSizeBucket || '전체',
+        temp: txnSizeTemp || '전체',
+        dealType: txnType || '전체',
+      },
       columns: transactionColumns,
       width: 'max-w-[calc(100vw-32px)]',
       minWidth: 1180,
@@ -4801,7 +4893,59 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       sortValue: (row) => text(firstText(row.legal_address, row.address, row.center_name, row.warehouse_name), ''),
     },
   ];
-  const popupRows = modal?.type === 'lease-history' ? filteredLeaseHistoryRows : (modal?.rows || (modal?.row ? [modal.row] : []));
+  const updateModalFilter = (key, value) => {
+    setModal((current) => (current ? {
+      ...current,
+      filters: {
+        ...(current.filters || {}),
+        [key]: value,
+      },
+    } : current));
+  };
+  const transactionExplorerRows = modal?.type === 'transaction-size-explorer'
+    ? safeArray(modal.baseRows)
+      .map((row) => ({
+        ...row,
+        size_bucket_label: transactionSizeBucketFor(row),
+        temperature_label: transactionTemperatureFor(row),
+      }))
+      .filter((row) => !modal.filters?.year || modal.filters.year === '전체' || String(yearFrom(row)) === String(modal.filters.year))
+      .filter((row) => regionMatches(modal.filters?.region || '전체', row.region))
+      .filter((row) => !modal.filters?.bucket || modal.filters.bucket === '전체' || transactionSizeBucketFor(row) === modal.filters.bucket)
+      .filter((row) => !modal.filters?.temp || modal.filters.temp === '전체' || transactionTemperatureFor(row) === modal.filters.temp)
+      .filter((row) => {
+        const dealType = text(row.transaction_type || row.deal_type, '');
+        return !modal.filters?.dealType || modal.filters.dealType === '전체' || dealType === modal.filters.dealType;
+      })
+      .sort((a, b) => number(b.transaction_amount_krw) - number(a.transaction_amount_krw))
+    : [];
+  const leaseStatisticExplorerRows = modal?.type === 'lease-statistic-explorer'
+    ? safeArray(modal.baseRows)
+      .filter((row) => !modal.filters?.period || text(row.period_label) === modal.filters.period)
+      .filter((row) => !modal.filters?.metric || text(row.metric_key) === modal.filters.metric)
+      .filter((row) => text(row.dimension_type) === 'region')
+      .filter((row) => row.is_average !== true)
+      .filter((row) => !modal.filters?.segment || text(row.segment_label) === modal.filters.segment)
+      .filter((row) => {
+        const region = row.region || row.label;
+        if (modal.filters?.scope === '수도권') return isCapitalRegion(region);
+        if (modal.filters?.scope === '지방') return isLocalRegion(region);
+        return true;
+      })
+      .filter((row) => regionMatches(modal.filters?.region || '전체', row.region || row.label))
+      .sort((a, b) => regionDisplay(a.region || a.label).localeCompare(regionDisplay(b.region || b.label), 'ko') || number(b.value) - number(a.value))
+    : [];
+  const leaseStatisticModalPeriodOptions = [...new Set(safeArray(modal?.baseRows).map((row) => text(row.period_label, '')).filter(Boolean))]
+    .sort((a, b) => periodSortValue(a) - periodSortValue(b));
+  const leaseStatisticModalSegmentOptions = [...new Set(safeArray(modal?.baseRows).map((row) => text(row.segment_label, '')).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko'));
+  const popupRows = modal?.type === 'lease-history'
+    ? filteredLeaseHistoryRows
+    : (modal?.type === 'transaction-size-explorer'
+      ? transactionExplorerRows
+      : (modal?.type === 'lease-statistic-explorer'
+        ? leaseStatisticExplorerRows
+        : (modal?.rows || (modal?.row ? [modal.row] : []))));
   return (
     <div
       className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14"
@@ -5186,6 +5330,36 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               센터명/주소 검색
               <input value={leaseHistorySearch} onChange={(event) => setLeaseHistorySearch(event.target.value)} className="mt-2 h-9 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="센터명 또는 주소" />
             </label>
+          </div>
+        ) : null}
+        {modal?.type === 'transaction-size-explorer' ? (
+          <div data-testid="transaction-size-explorer" className="mb-4 space-y-4">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
+              <FilterPills label="연도" value={modal.filters?.year || '전체'} onChange={(value) => updateModalFilter('year', value)} options={['전체', ...transactionPeriodOptions].map((item) => ({ value: item, label: item === '전체' ? '전체' : `${item}년` }))} />
+              <RegionFilterGroups label="권역" value={modal.filters?.region || '전체'} onChange={(value) => updateModalFilter('region', value)} options={regions} />
+              <FilterPills label="규모" value={modal.filters?.bucket || '전체'} onChange={(value) => updateModalFilter('bucket', value)} options={transactionSizeOptions.map((item) => ({ value: item, label: item === '전체' ? '전체' : stripLeadingNumberLabel(item) }))} />
+              <FilterPills label="상/저온" value={modal.filters?.temp || '전체'} onChange={(value) => updateModalFilter('temp', value)} options={transactionSizeTempOptions} />
+              <FilterPills label="거래유형" value={modal.filters?.dealType || '전체'} onChange={(value) => updateModalFilter('dealType', value)} options={transactionTypes.map((item) => ({ value: item, label: item }))} />
+            </div>
+            <div className={`${INNER} px-3 py-2 text-[12px] text-[#A1A1AA]`}>
+              선택 조건에 맞는 자산별 거래 내역 {formatNumber(transactionExplorerRows.length)}건을 표시합니다. 규모는 원본 분류가 아니라 연면적 기준으로 다시 계산합니다.
+            </div>
+          </div>
+        ) : null}
+        {modal?.type === 'lease-statistic-explorer' ? (
+          <div data-testid="lease-statistic-explorer" className="mb-4 space-y-4">
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr_1.3fr]">
+              <FilterPills label="시점" value={modal.filters?.period || selectedLeaseStatisticPeriod} onChange={(value) => updateModalFilter('period', value)} options={leaseStatisticModalPeriodOptions.map((period) => ({ value: period, label: period }))} />
+              <FilterPills label="지표" value={modal.filters?.metric || leaseMeasure} onChange={(value) => updateModalFilter('metric', value)} options={leaseMeasureOptions} />
+              <FilterPills label="상/저온 구분" value={modal.filters?.segment || leaseSegment} onChange={(value) => updateModalFilter('segment', value)} options={leaseStatisticModalSegmentOptions.map((segment) => ({ value: segment, label: segment }))} />
+            </div>
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[320px_1fr]">
+              <FilterPills label="수도권/지방" value={modal.filters?.scope || '전체'} onChange={(value) => updateModalFilter('scope', value)} options={['전체', '수도권', '지방']} />
+              <RegionFilterGroups label="세부 권역" value={modal.filters?.region || '전체'} onChange={(value) => updateModalFilter('region', value)} options={regions} />
+            </div>
+            <div className={`${INNER} px-3 py-2 text-[12px] text-[#A1A1AA]`}>
+              선택 조건에 맞는 권역별 통계 {formatNumber(leaseStatisticExplorerRows.length)}건을 표시합니다.
+            </div>
           </div>
         ) : null}
         <SortableTable
@@ -6137,7 +6311,7 @@ export function DataManagementDashboard() {
         source_table: 'public.ll_source_rows',
         source_domain: source.source_domain,
         target_type: `${source.source_domain || 'source'}_edit`,
-        target_name: `${selectedRow.sheet_name} ${selectedRow.row_number}행`,
+        target_name: sourceRowDisplayTitle(selectedRow),
         target_row_id: selectedRow.source_row_id,
         field_name: selectedField,
         before_value: currentBeforeValue,
@@ -6173,8 +6347,6 @@ export function DataManagementDashboard() {
   };
   const sourcePreviewRows = filteredRows.slice(0, 80).map((row) => [
     sourceDomainLabel(sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain),
-    text(row.sheet_name),
-    `${formatNumber(row.row_number)}행`,
     sourceRowDisplayTitle(row),
     sourceRowDisplaySummary(row),
     safeArray(row.validation_flags).length ? `${safeArray(row.validation_flags).length}건` : '통과',
@@ -6222,7 +6394,7 @@ export function DataManagementDashboard() {
           <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px] text-[#86868B]" data-data-management-initial-selector="true">
             <span data-data-management-igis-scope="true">{scopeLabel}</span>
             <span>표시 {formatNumber(filteredRows.length)}행 / IGIS 범위 {formatNumber(scopedDomainRows.length)}행</span>
-            <span>{selectedRow ? `${selectedRow.sheet_name} ${formatNumber(selectedRow.row_number)}행 선택 가능` : '선택 가능한 행 없음'}</span>
+            <span>{selectedRow ? `${sourceRowDisplayTitle(selectedRow)} 선택 가능` : '선택 가능한 대상 없음'}</span>
           </div>
         </section>
       ) : null}
@@ -6246,9 +6418,9 @@ export function DataManagementDashboard() {
       {tab === 'my' ? (
         <div className="space-y-5">
           <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <MetricCard label="대상 데이터" value={`${formatNumber(managementSources.length)}개`} detail="Data Management에서 수정 가능한 업무 묶음" />
-            <MetricCard label="시트" value={`${formatNumber(sheets.length)}개`} detail="header, row count 추적" />
-            <MetricCard label="컬럼" value={`${formatNumber(columns.length)}개`} detail="원본 컬럼 및 매핑 정보" />
+            <MetricCard label="관리 자산" value={`${formatNumber(scopeAssetCount)}개`} detail="이지스자산운용 수정 대상" />
+            <MetricCard label="관리 펀드" value={`${formatNumber(scopeFundCount)}개`} detail="연결 펀드 수정 대상" />
+            <MetricCard label="표시 대상" value={`${formatNumber(filteredRows.length)}건`} detail="현재 선택 조건 기준" />
             <MetricCard label="승인 대기" value={`${formatNumber(edits.filter((row) => row.status === 'submitted').length)}건`} detail="검토 후 반영" />
           </section>
           <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -6310,7 +6482,7 @@ export function DataManagementDashboard() {
                       수정 대상
                       <select value={selectedRow?.source_row_id || ''} onChange={(event) => setSelectedRowId(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
                         {filteredRows.slice(0, 200).map((row) => (
-                          <option key={row.source_row_id} value={row.source_row_id}>{row.sheet_name} · {row.row_number}행</option>
+                          <option key={row.source_row_id} value={row.source_row_id}>{sourceDomainLabel(sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain)} · {sourceRowDisplayTitle(row)}</option>
                         ))}
                       </select>
                     </label>
@@ -6351,7 +6523,7 @@ export function DataManagementDashboard() {
                   <div className="text-[13px] font-semibold text-white">저장 전 영향 범위</div>
                   <div className="mt-3 space-y-2 text-[12px] leading-5 text-[#A1A1AA]">
                     <div>업무: {sourceDomainLabel(selectedSource.source_domain || domainForTab)}</div>
-                    <div>시트/행: {selectedRow ? `${selectedRow.sheet_name} ${selectedRow.row_number}행` : '-'}</div>
+                    <div>관리 대상: {selectedRow ? sourceRowDisplayTitle(selectedRow) : '-'}</div>
                     <div>필드: {selectedField ? fieldDisplayLabel(selectedField) : '-'}</div>
                     <div>상태: {hasPendingChange ? '변경 감지' : '변경 없음'}</div>
                     <div>승인 대기: {formatNumber(selectedDomainStats.pending_edits || 0)}건</div>
@@ -6395,8 +6567,8 @@ export function DataManagementDashboard() {
               minWidth={1180}
               maxHeight={460}
               stickyCount={1}
-              columnWidths={[120, 180, 92, 240, 420, 120]}
-              headers={['업무', '시트', '행', '대표 값', '요약', '검증']}
+              columnWidths={[140, 300, 620, 120]}
+              headers={['업무', '관리 대상', '현재값 요약', '검증']}
               rows={sourcePreviewRows}
             />
           </section>
@@ -6459,22 +6631,6 @@ export function DataManagementDashboard() {
                 text(row.write_status || row.status),
                 text(row.approver_label),
                 formatDate(row.written_at || row.updated_at || row.created_at),
-              ])}
-            />
-          </section>
-          <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="SOURCE HISTORY" title="원천 파일 반영 이력" />
-            <Table
-              minWidth={980}
-              headers={['구분', '파일', '버전', 'Active', '상태', '행수', '업데이트']}
-              rows={managementSources.map((row) => [
-                sourceDomainLabel(row.source_domain),
-                text(row.file_name),
-                text(row.source_version),
-                row.active_version ? 'Y' : 'N',
-                text(row.parse_status),
-                formatNumber(Object.values(row.row_counts || {}).reduce((sum, value) => sum + number(value), 0)),
-                formatDate(row.updated_at || row.created_at),
               ])}
             />
           </section>
