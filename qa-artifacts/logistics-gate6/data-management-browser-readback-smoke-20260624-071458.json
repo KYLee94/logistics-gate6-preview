@@ -1,0 +1,302 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-24T07:14:59.299Z",
+  "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
+  "auth_source": "password_grant",
+  "allow_submit": false,
+  "checks": {
+    "status_api_ok": true,
+    "access_scope_present": true,
+    "status_arrays_present": true,
+    "manager_has_rows": true,
+    "igis_management_scope_api": true,
+    "manager_scope_not_all": true,
+    "no_broken_question_marks": true,
+    "no_internal_tokens": true,
+    "no_permission_explanation_banner": true,
+    "has_workflow_tabs": true,
+    "has_sortable_tables": true,
+    "no_internal_tokens_after_workflow_tab": true,
+    "no_raw_region_numbers_after_workflow_tab": true,
+    "target_selector_visible": true,
+    "igis_management_scope_visible": true,
+    "target_selector_has_options": true,
+    "no_sector_market_source_selector": true,
+    "workflow_selection_visible": true,
+    "workflow_validation_visible": true,
+    "workflow_diff_visible": true,
+    "workflow_approval_visible": true,
+    "editable_or_scoped_message": true,
+    "manager_can_edit": true,
+    "preview_api_ok": true,
+    "preview_visible": true,
+    "submit_guarded": true,
+    "history_readback_visible": true,
+    "no_internal_tokens_after_history_tab": true,
+    "no_raw_region_numbers_after_history_tab": true
+  },
+  "errors": [],
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260624-071458.png",
+  "status_contract": {
+    "access_scope": "manager_full_source",
+    "can_approve": true,
+    "source_rows": 55,
+    "columns": 800,
+    "edits": 100,
+    "managed_asset_codes": [
+      "A120085001",
+      "A112527001",
+      "A112755001",
+      "A112527002",
+      "A112109001",
+      "A190002001",
+      "A112299001",
+      "A112505001",
+      "A112127001",
+      "AP00014001",
+      "A112500003",
+      "S00002001",
+      "A112527003",
+      "A112606001",
+      "A112573001",
+      "A112721001",
+      "A112500002",
+      "A190013001",
+      "A112642001"
+    ],
+    "management_scope": {
+      "owner": "IGIS Asset Management",
+      "expected_asset_count": 19,
+      "expected_fund_count": 17,
+      "asset_count": 19,
+      "fund_count": 17,
+      "readable_asset_count": 19,
+      "readable_fund_count": 17,
+      "assets": [
+        {
+          "asset_id": "asset_a120085001",
+          "asset_code": "A120085001",
+          "asset_name": "경산 쿠팡물류센터"
+        },
+        {
+          "asset_id": "asset_a112527001",
+          "asset_code": "A112527001",
+          "asset_name": "동산물류센터"
+        },
+        {
+          "asset_id": "asset_a112755001",
+          "asset_code": "A112755001",
+          "asset_name": "두동 LG전자 통합물류센터"
+        },
+        {
+          "asset_id": "asset_a112527002",
+          "asset_code": "A112527002",
+          "asset_name": "부국물류센터"
+        },
+        {
+          "asset_id": "asset_a112109001",
+          "asset_code": "A112109001",
+          "asset_name": "부산송정물류센터"
+        },
+        {
+          "asset_id": "asset_a190002001",
+          "asset_code": "A190002001",
+          "asset_name": "분당야탑물류센터"
+        },
+        {
+          "asset_id": "asset_a112299001",
+          "asset_code": "A112299001",
+          "asset_name": "스카이박스1, 스카이박스2"
+        },
+        {
+          "asset_id": "asset_a112505001",
+          "asset_code": "A112505001",
+          "asset_name": "아레나스안성"
+        },
+        {
+          "asset_id": "asset_a112127001",
+          "asset_code": "A112127001",
+          "asset_name": "아레나스양지물류센터"
+        },
+        {
+          "asset_id": "asset_ap00014001",
+          "asset_code": "AP00014001",
+          "asset_name": "안성 성은지구 물류센터"
+        },
+        {
+          "asset_id": "asset_a112500003",
+          "asset_code": "A112500003",
+          "asset_name": "안성 홈플러스 중부허브 물류센터"
+        },
+        {
+          "asset_id": "asset_s00002001",
+          "asset_code": "S00002001",
+          "asset_name": "양산 유산동 물류센터"
+        },
+        {
+          "asset_id": "asset_a112527003",
+          "asset_code": "A112527003",
+          "asset_name": "에이블로지스물류센터"
+        },
+        {
+          "asset_id": "asset_a112606001",
+          "asset_code": "A112606001",
+          "asset_name": "여주 본두리 물류센터"
+        },
+        {
+          "asset_id": "asset_a112573001",
+          "asset_code": "A112573001",
+          "asset_name": "이천 마장면 물류센터"
+        },
+        {
+          "asset_id": "asset_a112721001",
+          "asset_code": "A112721001",
+          "asset_name": "인천석남물류센터"
+        },
+        {
+          "asset_id": "asset_a112500002",
+          "asset_code": "A112500002",
+          "asset_name": "평택아디다스물류센터"
+        },
+        {
+          "asset_id": "asset_a190013001",
+          "asset_code": "A190013001",
+          "asset_name": "포천정교리물류센터"
+        },
+        {
+          "asset_id": "asset_a112642001",
+          "asset_code": "A112642001",
+          "asset_name": "화성 석포리 물류센터"
+        }
+      ],
+      "funds": [
+        {
+          "fund_id": "fund_112109",
+          "fund_code": "112109",
+          "fund_name": "이지스제114호전문투자형사모부동산투자유한회사",
+          "short_name": "114호",
+          "display_name": "114호"
+        },
+        {
+          "fund_id": "fund_112127",
+          "fund_code": "112127",
+          "fund_name": "이지스일반사모부동산모투자신탁116호",
+          "short_name": "116호",
+          "display_name": "116호"
+        },
+        {
+          "fund_id": "fund_112527",
+          "fund_code": "112527",
+          "fund_name": "이지스전문투자형사모부동산투자신탁제404호",
+          "short_name": "404호",
+          "display_name": "404호"
+        },
+        {
+          "fund_id": "fund_112573",
+          "fund_code": "112573",
+          "fund_name": "이지스일반사모부동산투자신탁제426호(운용)",
+          "short_name": "426호",
+          "display_name": "426호"
+        },
+        {
+          "fund_id": "fund_112606",
+          "fund_code": "112606",
+          "fund_name": "이지스제440호부동산일반사모투자회사",
+          "short_name": "440호",
+          "display_name": "440호"
+        },
+        {
+          "fund_id": "fund_112642",
+          "fund_code": "112642",
+          "fund_name": "이지스일반사모부동산투자신탁제451호(운용)",
+          "short_name": "451호(운용)",
+          "display_name": "451호(운용)"
+        },
+        {
+          "fund_id": "fund_112755",
+          "fund_code": "112755",
+          "fund_name": "이지스제505호부동산일반사모투자회사",
+          "short_name": "505호",
+          "display_name": "505호"
+        },
+        {
+          "fund_id": "fund_120085",
+          "fund_code": "120085",
+          "fund_name": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "short_name": "경산로지스1호",
+          "display_name": "경산로지스1호"
+        },
+        {
+          "fund_id": "fund_s00002",
+          "fund_code": "S00002",
+          "fund_name": "주식회사 석암물류(SPC)",
+          "short_name": "석암물류(SPC)",
+          "display_name": "석암물류(SPC)"
+        },
+        {
+          "fund_id": "fund_112505",
+          "fund_code": "112505",
+          "fund_name": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "short_name": "아레나스1-2호(모)",
+          "display_name": "아레나스1-2호(모)"
+        },
+        {
+          "fund_id": "fund_112299",
+          "fund_code": "112299",
+          "fund_name": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "short_name": "아레나스4호",
+          "display_name": "아레나스4호"
+        },
+        {
+          "fund_id": "fund_190002",
+          "fund_code": "190002",
+          "fund_name": "이지스부동산일반사모투자회사제543호",
+          "short_name": "",
+          "display_name": "이지스부동산일반사모투자회사제543호"
+        },
+        {
+          "fund_id": "fund_190013",
+          "fund_code": "190013",
+          "fund_name": "이지스제560호부동산일반사모투자회사",
+          "short_name": "",
+          "display_name": "이지스제560호부동산일반사모투자회사"
+        },
+        {
+          "fund_id": "fund_112604",
+          "fund_code": "112604",
+          "fund_name": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "short_name": "인컴앤그로스2-2호",
+          "display_name": "인컴앤그로스2-2호"
+        },
+        {
+          "fund_id": "fund_112703",
+          "fund_code": "112703",
+          "fund_name": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "short_name": "인컴앤그로스2-3호",
+          "display_name": "인컴앤그로스2-3호"
+        },
+        {
+          "fund_id": "fund_112751",
+          "fund_code": "112751",
+          "fund_name": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "short_name": "인컴앤그로스2-4호",
+          "display_name": "인컴앤그로스2-4호"
+        },
+        {
+          "fund_id": "fund_p00014",
+          "fund_code": "P00014",
+          "fund_name": "안성성은물류피에프브이 주식회사",
+          "short_name": "P안성성은물류",
+          "display_name": "P안성성은물류"
+        }
+      ]
+    }
+  },
+  "preview_contract": {
+    "http_status": 200,
+    "ok": true,
+    "auto_write_enabled": false,
+    "validation_count": 1,
+    "has_target": false
+  }
+}
