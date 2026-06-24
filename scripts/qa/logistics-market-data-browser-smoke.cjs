@@ -545,6 +545,8 @@ async function main() {
         ok: tab.key !== 'supply-pipeline',
         title_ok: tab.key !== 'supply-pipeline',
         quarter_axis_ok: false,
+        cumulative_modal_visible: tab.key !== 'supply-pipeline',
+        cumulative_modal_table_rows: 0,
       };
       if (tab.key === 'overview') {
         const supplyLegends = page.locator('[data-supply-chart-legend="true"]');
@@ -681,7 +683,22 @@ async function main() {
         const supplyAxisTexts = await page.locator('[data-chart-role="supply-area"] text').allTextContents().catch(() => []);
         supplyAreaCharts.quarter_axis_ok = supplyAxisTexts.some((item) => /[1-4]Q/u.test(item))
           && supplyAxisTexts.some((item) => /20\d{2}년/u.test(item));
-        supplyAreaCharts.ok = supplyAreaCharts.title_ok && supplyAreaCharts.quarter_axis_ok;
+        const cumulativeChart = page.locator('[data-chart-role="supply-area"][aria-label="누적 공급 면적"]').first();
+        const cumulativeBars = cumulativeChart.locator('[data-supply-chart-bar="true"][data-supply-chart-clickable="true"]');
+        const cumulativeBarCount = await cumulativeBars.count().catch(() => 0);
+        if (cumulativeBarCount > 0) {
+          await cumulativeBars.first().click({ timeout: 20000 }).catch(() => null);
+          const dialog = page.locator('[role="dialog"]').last();
+          supplyAreaCharts.cumulative_modal_visible = await dialog.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false);
+          if (supplyAreaCharts.cumulative_modal_visible) {
+            supplyAreaCharts.cumulative_modal_table_rows = await dialog.locator('[data-testid="supply-area-value-explorer"] ~ [data-sortable-table="true"] tbody tr').count().catch(() => 0);
+            await page.keyboard.press('Escape').catch(() => null);
+          }
+        }
+        supplyAreaCharts.ok = supplyAreaCharts.title_ok
+          && supplyAreaCharts.quarter_axis_ok
+          && supplyAreaCharts.cumulative_modal_visible
+          && supplyAreaCharts.cumulative_modal_table_rows > 0;
       }
       const requiresTable = tab.key !== 'overview';
       const requiresRegionPrefix = ['lease-market', 'supply-pipeline', 'transactions'].includes(tab.key);

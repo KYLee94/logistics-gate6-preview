@@ -431,6 +431,12 @@ function compactRegionLabel(value) {
   return text(value).replace(/^\([^)]+\)\s*/u, '');
 }
 
+function regionOrderIndex(value) {
+  const compact = compactRegionLabel(value);
+  const index = REGION_ORDER.indexOf(compact);
+  return index === -1 ? 999 : index;
+}
+
 function regionDisplayParts(value) {
   const region = regionValue(value);
   const scope = REGION_SCOPE.get(region);
@@ -1038,9 +1044,9 @@ function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen 
 
 function FilterPills({ label, options, value, onChange }) {
   return (
-    <div>
-      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{label}</div>
-      <div className="flex flex-wrap gap-1.5">
+    <div className="min-w-0">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{label}</div>
+      <div className="custom-scrollbar flex max-w-full gap-1 overflow-x-auto pb-1">
         {options.map((option) => {
           const optionValue = typeof option === 'string' ? option : option.value;
           const optionLabel = typeof option === 'string' ? option : option.label;
@@ -1049,7 +1055,7 @@ function FilterPills({ label, options, value, onChange }) {
               key={optionValue}
               type="button"
               onClick={() => onChange(optionValue)}
-              className={`h-8 rounded-[8px] border px-3 text-[12px] font-semibold ${value === optionValue ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#A1A1AA] hover:text-white'}`}
+              className={`h-7 shrink-0 rounded-full border px-2.5 text-[11px] font-semibold ${value === optionValue ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#A1A1AA] hover:text-white'}`}
             >
               {optionLabel}
             </button>
@@ -3152,13 +3158,13 @@ function RegionFilterGroups({ label, value, onChange, options }) {
   const renderGroup = (title, rows) => rows.length ? (
     <div>
       <div className="mb-1 text-[10px] font-semibold text-[#86868B]">{title}</div>
-      <div className="flex flex-wrap gap-1.5">
+      <div className="custom-scrollbar flex max-w-full gap-1 overflow-x-auto pb-1">
         {rows.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`h-8 rounded-[8px] border px-3 text-[12px] font-semibold ${value === option.value ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#A1A1AA] hover:text-white'}`}
+            className={`h-7 shrink-0 rounded-full border px-2.5 text-[11px] font-semibold ${value === option.value ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#A1A1AA] hover:text-white'}`}
           >
             {option.label}
           </button>
@@ -3173,7 +3179,7 @@ function RegionFilterGroups({ label, value, onChange, options }) {
         <button
           type="button"
           onClick={() => onChange('전체')}
-          className={`h-8 rounded-[8px] border px-3 text-[12px] font-semibold ${value === '전체' ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#A1A1AA] hover:text-white'}`}
+          className={`h-7 rounded-full border px-2.5 text-[11px] font-semibold ${value === '전체' ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#A1A1AA] hover:text-white'}`}
         >
           전체
         </button>
@@ -4816,7 +4822,49 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       })
       .sort((a, b) => periodSortValue(supplyPeriodLabel(a)) - periodSortValue(supplyPeriodLabel(b)) || number(b.gross_area_py) - number(a.gross_area_py));
   };
+  const supplyAreaValueRowsForPeriod = (periodLabel, seriesType) => safeArray(supplyChartRowsInRange)
+    .filter((row) => text(row.series_type) === seriesType)
+    .filter((row) => text(row.period_label) === periodLabel)
+    .filter((row) => !['합계', '전체'].includes(text(row.label || row.region)) && row.is_subtotal !== true)
+    .map((row) => {
+      const region = regionValue(row.region || row.label || '미분류');
+      return {
+        ...row,
+        scope_label: regionScopeOf(region) || text(row.region_group || row.scope, '-'),
+        region_label: regionDisplay(region),
+        value_py: number(row.value),
+        source_count: number(row.count || row.item_count || row.case_count),
+      };
+    })
+    .sort((a, b) => regionOrderIndex(a.region_label) - regionOrderIndex(b.region_label) || number(b.value_py) - number(a.value_py));
+  const supplyAreaValueColumns = [
+    { key: 'period_label', label: '시점', width: 120, sortValue: (row) => periodSortValue(row.period_label) },
+    { key: 'scope_label', label: '수도권/지방', width: 130, render: (row) => text(row.scope_label), sortValue: (row) => text(row.scope_label) },
+    { key: 'region_label', label: '권역', width: 190, render: (row) => text(row.region_label), sortValue: (row) => regionOrderIndex(row.region_label) },
+    { key: 'value_py', label: '누적 공급 면적(평)', align: 'right', render: (row) => formatNumber(row.value_py, 1), sortValue: (row) => number(row.value_py) },
+    { key: 'source_count', label: '자료 수', align: 'right', render: (row) => row.source_count ? `${formatNumber(row.source_count)}건` : '-', sortValue: (row) => number(row.source_count) },
+  ];
+  const supplyDetailCountForPeriod = (periodLabel, seriesType) => (
+    seriesType === 'cumulative_supply'
+      ? supplyAreaValueRowsForPeriod(periodLabel, seriesType).length
+      : supplyRowsForPeriod(periodLabel, seriesType).length
+  );
   const openSupplyPeriodModal = (periodLabel, seriesType) => {
+    if (seriesType === 'cumulative_supply') {
+      const rows = supplyAreaValueRowsForPeriod(periodLabel, seriesType);
+      setModal({
+        type: 'supply-area-value-explorer',
+        title: `${periodLabel} 누적 공급 면적 전체 값`,
+        rows,
+        columns: supplyAreaValueColumns,
+        width: 'max-w-[calc(100vw-32px)]',
+        minWidth: 940,
+        maxHeight: 'calc(100vh - 150px)',
+        fullscreen: true,
+        defaultSort: [{ key: 'scope_label', direction: 'asc' }, { key: 'value_py', direction: 'desc' }],
+      });
+      return;
+    }
     const rows = supplyRowsForPeriod(periodLabel, seriesType);
     const modalSuffix = seriesType === 'cumulative_supply'
       ? '누적 공급 자산'
@@ -4987,7 +5035,8 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               <ScopedBarList rows={overviewTransactionRows} formatter={formatKrw} color={CHART_COLORS.primary} />
             </div>
             <div className={`${CARD} p-5 xl:col-span-2`}>
-              <SupplyAreaChart rows={overviewSupplyRows} seriesType="supply_period" title="공급 예정 시점" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
+              <ModuleHeader eyebrow="SUPPLY" title="공급 예정 면적" />
+              <SupplyAreaChart rows={overviewSupplyRows} seriesType="supply_period" title="공급 예정 시점" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={supplyDetailCountForPeriod} />
             </div>
           </section>
         </div>
@@ -5248,6 +5297,9 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               <MarketMapPanel title="공급 예정 지도" rows={rangedPipelineRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
               <SortableTable minWidth={980} maxHeight={580} stickyCount={2} defaultSort={{ key: 'expected_year', direction: 'asc' }} columns={supplyColumns} rows={rangedPipelineRows} onRowClick={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
             </div>
+            <div className="mt-5">
+              <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="pipeline_supply" title="향후 공급 예정 물량" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={supplyDetailCountForPeriod} />
+            </div>
           </section>
           <section className={`${CARD} p-5`}>
             <ModuleHeader eyebrow="CUMULATIVE" title="2024년 이후 누적 신규공급 사례" subtitle="2024년 이후 신규공급 누적 기준으로 지도와 상세 표를 확인합니다." />
@@ -5255,15 +5307,8 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               <MarketMapPanel title="누적 신규공급" rows={cumulativeNewRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
               <SortableTable minWidth={980} maxHeight={580} stickyCount={2} defaultSort={{ key: 'gross_area_py', direction: 'desc' }} columns={supplyColumns} rows={cumulativeNewRows} onRowClick={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
             </div>
-          </section>
-          <section className="space-y-5">
-            <div className={`${CARD} p-5`}>
-              <ModuleHeader eyebrow="TIME SERIES" title="향후 공급 예정 물량" />
-              <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="pipeline_supply" title="향후 공급 예정 물량" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
-            </div>
-            <div className={`${CARD} p-5`}>
-              <ModuleHeader eyebrow="CUMULATIVE" title="누적 공급 면적" />
-              <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="cumulative_supply" title="누적 공급 면적" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
+            <div className="mt-5">
+              <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="cumulative_supply" title="누적 공급 면적" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={supplyDetailCountForPeriod} />
             </div>
           </section>
         </div>
@@ -5360,6 +5405,11 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
             <div className={`${INNER} px-3 py-2 text-[12px] text-[#A1A1AA]`}>
               선택 조건에 맞는 권역별 통계 {formatNumber(leaseStatisticExplorerRows.length)}건을 표시합니다.
             </div>
+          </div>
+        ) : null}
+        {modal?.type === 'supply-area-value-explorer' ? (
+          <div data-testid="supply-area-value-explorer" className={`${INNER} mb-4 px-3 py-2 text-[12px] text-[#A1A1AA]`}>
+            선택한 시점의 권역별 누적 공급 면적 전체 값 {formatNumber(popupRows.length)}건을 표시합니다.
           </div>
         ) : null}
         <SortableTable
@@ -6125,6 +6175,8 @@ export function DataManagementDashboard() {
   const [managementAsset, setManagementAsset] = useState('전체');
   const [managementFund, setManagementFund] = useState('전체');
   const [managementSearch, setManagementSearch] = useState('');
+  const [gridDrafts, setGridDrafts] = useState({});
+  const [gridReason, setGridReason] = useState('');
   const [submitStatus, setSubmitStatus] = useState(null);
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -6237,6 +6289,46 @@ export function DataManagementDashboard() {
   const selectedRow = filteredRows.find((row) => row.source_row_id === selectedRowId) || filteredRows[0] || null;
   const rowValues = selectedRow?.row_values && typeof selectedRow.row_values === 'object' ? selectedRow.row_values : {};
   const editableFields = Object.keys(rowValues).filter(isUserVisibleField).slice(0, 80);
+  const managementGridRows = filteredRows.slice(0, 60);
+  const managementGridFields = useMemo(() => {
+    const fieldCounts = new Map();
+    filteredRows.slice(0, 200).forEach((row) => {
+      const values = row?.row_values && typeof row.row_values === 'object' ? row.row_values : {};
+      Object.keys(values).filter(isUserVisibleField).forEach((field) => {
+        fieldCounts.set(field, (fieldCounts.get(field) || 0) + 1);
+      });
+    });
+    const priorityPattern = /자산|센터|펀드|임차|계약|면적|임대|관리|보증|주소|규모|gfa|dock|층고|pm|fm|보험|utility|tranche|금리|만기/iu;
+    return [...fieldCounts.entries()]
+      .sort((a, b) => {
+        const priorityDiff = Number(priorityPattern.test(b[0])) - Number(priorityPattern.test(a[0]));
+        if (priorityDiff) return priorityDiff;
+        return b[1] - a[1] || fieldDisplayLabel(a[0]).localeCompare(fieldDisplayLabel(b[0]), 'ko');
+      })
+      .map(([field]) => field)
+      .slice(0, 12);
+  }, [filteredRows]);
+  const gridCellKey = (rowId, field) => `${rowId}::${field}`;
+  const gridCellBeforeValue = (row, field) => text((row?.row_values && typeof row.row_values === 'object' ? row.row_values : {})[field], '');
+  const managementDraftEntries = useMemo(() => Object.entries(gridDrafts).map(([key, requestedValue]) => {
+    const splitIndex = key.indexOf('::');
+    const sourceRowId = splitIndex === -1 ? '' : key.slice(0, splitIndex);
+    const field = splitIndex === -1 ? '' : key.slice(splitIndex + 2);
+    const row = filteredRows.find((item) => item.source_row_id === sourceRowId);
+    if (!row || !field) return null;
+    const beforeValue = gridCellBeforeValue(row, field);
+    if (text(requestedValue, '') === beforeValue) return null;
+    const source = sources.find((item) => item.source_file_id === row.source_file_id) || {};
+    return {
+      key,
+      row,
+      source,
+      field,
+      beforeValue,
+      requestedValue: text(requestedValue, ''),
+      title: sourceRowDisplayTitle(row),
+    };
+  }).filter(Boolean), [gridDrafts, filteredRows, sources]);
   const currentBeforeValue = selectedField ? text(rowValues[selectedField], '') : '';
   const currentBeforeDisplayValue = selectedField ? formatDisplayValue(currentBeforeValue, selectedField) : '';
   const afterDisplayValue = selectedField && afterValue ? formatDisplayValue(afterValue, selectedField) : '';
@@ -6249,6 +6341,8 @@ export function DataManagementDashboard() {
     setSelectedField('');
     setAfterValue('');
     setReason('');
+    setGridDrafts({});
+    setGridReason('');
     setSubmitStatus(null);
     setPreview(null);
   }, [tab]);
@@ -6329,6 +6423,65 @@ export function DataManagementDashboard() {
       reload({}, { force: true });
     } catch (submitError) {
       setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 저장에 실패했습니다.' });
+    }
+  };
+  const setGridCellDraft = (row, field, value) => {
+    const key = gridCellKey(row.source_row_id, field);
+    const beforeValue = gridCellBeforeValue(row, field);
+    setSelectedRowId(row.source_row_id);
+    setSelectedField(field);
+    setAfterValue(value);
+    setGridDrafts((current) => {
+      const next = { ...current };
+      if (text(value, '') === beforeValue) delete next[key];
+      else next[key] = value;
+      return next;
+    });
+  };
+  const submitDraftEdits = async () => {
+    if (!managementDraftEntries.length) {
+      setSubmitStatus({ type: 'error', message: '승인 요청할 변경 셀이 없습니다.' });
+      return;
+    }
+    setSubmitStatus({ type: 'pending', message: `변경 ${formatNumber(managementDraftEntries.length)}건을 검증하고 승인 요청하는 중입니다.` });
+    try {
+      for (const entry of managementDraftEntries) {
+        const previewResult = await invoke('data-management/preview-edit', {
+          source_row_id: entry.row.source_row_id,
+          field_name: entry.field,
+          before_value: entry.beforeValue,
+          requested_value: entry.requestedValue,
+          source_domain: entry.source.source_domain,
+          sheet_name: entry.row.sheet_name,
+          row_number: entry.row.row_number,
+        });
+        const errors = safeArray(previewResult?.validations).filter((item) => item.level === 'error');
+        if (errors.length) throw new Error(`${entry.title} · ${fieldDisplayLabel(entry.field)}: ${errors[0].message}`);
+        await invoke('data-management/submit-edit', {
+          source_table: 'public.ll_source_rows',
+          source_domain: entry.source.source_domain,
+          target_type: `${entry.source.source_domain || 'source'}_edit`,
+          target_name: sourceRowDisplayTitle(entry.row),
+          target_row_id: entry.row.source_row_id,
+          field_name: entry.field,
+          before_value: entry.beforeValue,
+          requested_value: entry.requestedValue,
+          target_table: previewResult?.target?.target_table,
+          target_field: previewResult?.target?.target_field,
+          target_record_id: previewResult?.target?.target_row_id,
+          primary_key_field: previewResult?.target?.primary_key_field,
+          reason: gridReason || reason || 'Data Management 그리드 수정',
+          sheet_name: entry.row.sheet_name,
+          row_number: entry.row.row_number,
+          impact_summary: 'Data Management 그리드에서 수정한 변경 요청입니다.',
+        });
+      }
+      setGridDrafts({});
+      setGridReason('');
+      setSubmitStatus({ type: 'success', message: `변경 ${formatNumber(managementDraftEntries.length)}건의 승인 요청이 저장되었습니다.` });
+      reload({}, { force: true });
+    } catch (submitError) {
+      setSubmitStatus({ type: 'error', message: submitError.message || '그리드 변경 승인 요청 저장에 실패했습니다.' });
     }
   };
   const reviewEdit = async (action, row) => {
@@ -6475,7 +6628,78 @@ export function DataManagementDashboard() {
                 {rowAccessMessage}
               </div>
             ) : (
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+              <div className="space-y-4">
+                <div className={`${INNER} p-4`} data-data-management-edit-grid="true">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[13px] font-semibold text-white">엑셀형 빠른 편집</div>
+                      <div className="mt-1 text-[12px] text-[#86868B]">표 안의 셀을 바로 수정하면 변경분이 쌓이고, 아래 버튼으로 한 번에 승인 요청합니다.</div>
+                    </div>
+                    <div className="text-[12px] text-[#A1A1AA]">변경 대기 {formatNumber(managementDraftEntries.length)}건</div>
+                  </div>
+                  <div className="custom-scrollbar max-h-[420px] overflow-auto rounded-[12px] border border-[#333333]">
+                    <table className="min-w-[1480px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
+                      <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
+                        <tr>
+                          <th className="sticky left-0 z-40 w-[260px] border-b border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">관리 대상</th>
+                          {managementGridFields.map((field) => (
+                            <th key={field} className="w-[170px] border-b border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                              <span className="block truncate" title={fieldDisplayLabel(field)}>{fieldDisplayLabel(field)}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#303033]">
+                        {managementGridRows.length ? managementGridRows.map((row) => (
+                          <tr key={row.source_row_id} className="bg-[#171717] text-[#E5E5E5] hover:bg-[#1F1F1F]">
+                            <td className="sticky left-0 z-20 w-[260px] border-r border-[#303033] bg-inherit px-3 py-2 align-top">
+                              <button type="button" onClick={() => setSelectedRowId(row.source_row_id)} className="block max-w-[230px] truncate text-left font-semibold text-white" title={sourceRowDisplayTitle(row)}>
+                                {sourceRowDisplayTitle(row)}
+                              </button>
+                              <div className="mt-1 max-w-[230px] truncate text-[11px] text-[#86868B]" title={sourceRowDisplaySummary(row)}>{sourceRowDisplaySummary(row)}</div>
+                            </td>
+                            {managementGridFields.map((field) => {
+                              const key = gridCellKey(row.source_row_id, field);
+                              const beforeValue = gridCellBeforeValue(row, field);
+                              const draftValue = Object.prototype.hasOwnProperty.call(gridDrafts, key) ? gridDrafts[key] : beforeValue;
+                              const changed = text(draftValue, '') !== beforeValue;
+                              return (
+                                <td key={field} className={`w-[170px] border-r border-[#242426] p-1.5 align-top ${changed ? 'bg-[#1E2A1B]' : ''}`}>
+                                  <textarea
+                                    value={draftValue}
+                                    onChange={(event) => setGridCellDraft(row, field, event.target.value)}
+                                    onFocus={() => { setSelectedRowId(row.source_row_id); setSelectedField(field); setAfterValue(draftValue); }}
+                                    className={`h-12 w-full resize-none rounded-[7px] border px-2 py-1.5 text-[12px] outline-none ${changed ? 'border-[#6EA86B] bg-[#142014] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111]'}`}
+                                    title={`${fieldDisplayLabel(field)}: ${formatDisplayValue(draftValue, field)}`}
+                                  />
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        )) : (
+                          <tr>
+                            <td colSpan={managementGridFields.length + 1} className="bg-[#171717] px-3 py-8 text-center text-[#86868B]">표시할 관리 대상이 없습니다.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[1fr_auto] xl:items-end">
+                    <label className="text-[12px] font-semibold text-[#A1A1AA]">
+                      일괄 승인 요청 사유
+                      <input value={gridReason} onChange={(event) => setGridReason(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none focus:border-[#8E8E93]" placeholder="예: 분기 실사 자료 반영, PM 제출 자료 반영" />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={submitDraftEdits}
+                      disabled={!managementDraftEntries.length}
+                      className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35"
+                    >
+                      변경분 승인 요청
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
                 <div className={`${INNER} p-4`}>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                     <label className="text-[12px] font-semibold text-[#A1A1AA]">
@@ -6558,6 +6782,7 @@ export function DataManagementDashboard() {
                     </div>
                   </div>
                 </div>
+              </div>
               </div>
             )}
           </section>
