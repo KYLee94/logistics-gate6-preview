@@ -4726,12 +4726,22 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     return Number.isFinite(parsed) && parsed > 0 && parsed < 0.2;
   };
   const capRatesRaw = (capRateResult.data || []) as Record<string, unknown>[];
+  const capRateMethodForRow = (row: Record<string, unknown>) => {
+    const payload = row.payload && typeof row.payload === 'object' ? row.payload as Record<string, unknown> : {};
+    const section = safeText(payload.source_section || payload.section || row.source_section || row.metric_label);
+    if (/베이지안|bayes/iu.test(section)) return '베이지안';
+    if (/가중|weighted/iu.test(section)) return '가중평균';
+    if (/일반|general|ordinary/iu.test(section)) return '일반';
+    return '베이지안';
+  };
   const capRates = capRatesRaw.flatMap((row) => [
     stripUndefined({
       ...row,
       cap_rate_id: `${row.cap_rate_id}:capital`,
       region: '수도권',
       cap_rate: row.capital_area_cap_rate,
+      source_section: safeText((row.payload as Record<string, unknown> | undefined)?.source_section || (row.payload as Record<string, unknown> | undefined)?.section),
+      cap_rate_method: capRateMethodForRow(row),
       period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
     }),
     stripUndefined({
@@ -4739,6 +4749,8 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       cap_rate_id: `${row.cap_rate_id}:national`,
       region: '전국',
       cap_rate: row.national_cap_rate,
+      source_section: safeText((row.payload as Record<string, unknown> | undefined)?.source_section || (row.payload as Record<string, unknown> | undefined)?.section),
+      cap_rate_method: capRateMethodForRow(row),
       period_label: [row.report_year, row.report_quarter].filter(Boolean).join(' '),
     }),
   ]).filter((row) => isReasonableMarketCapRate(row.cap_rate));
@@ -5702,10 +5714,164 @@ async function readDataManagementScope(ctx: Context, managerView: boolean): Prom
   };
 }
 
+function syntheticDataManagementSources(scope: {
+  readableAssets?: Record<string, unknown>[];
+  readableFunds?: Record<string, unknown>[];
+}) {
+  const assetCount = (scope.readableAssets || []).length;
+  const fundCount = (scope.readableFunds || []).length;
+  return [
+    {
+      source_file_id: 'managed_lease',
+      source_domain: 'lease_contracts',
+      source_version: 'managed-current',
+      file_name: 'IGIS 임대차 관리 대상',
+      active_version: true,
+      parse_status: 'managed',
+      report_period: 'current',
+      as_of_date: new Date().toISOString().slice(0, 10),
+      row_counts: { '임대차 관리': assetCount },
+      validation_summary: { status: 'managed_scope', row_count: assetCount },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      source_file_id: 'managed_assets',
+      source_domain: 'asset_specs',
+      source_version: 'managed-current',
+      file_name: 'IGIS 관리 자산',
+      active_version: true,
+      parse_status: 'managed',
+      report_period: 'current',
+      as_of_date: new Date().toISOString().slice(0, 10),
+      row_counts: { '자산 기본정보': assetCount },
+      validation_summary: { status: 'managed_scope', row_count: assetCount },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+    {
+      source_file_id: 'managed_funds',
+      source_domain: 'fund_info',
+      source_version: 'managed-current',
+      file_name: 'IGIS 관리 펀드',
+      active_version: true,
+      parse_status: 'managed',
+      report_period: 'current',
+      as_of_date: new Date().toISOString().slice(0, 10),
+      row_counts: { '펀드 기본정보': fundCount },
+      validation_summary: { status: 'managed_scope', row_count: fundCount },
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    },
+  ];
+}
+
+function syntheticDataManagementRows(scope: {
+  readableAssets?: Record<string, unknown>[];
+  readableFunds?: Record<string, unknown>[];
+}) {
+  const leaseRows = (scope.readableAssets || []).map((asset, index) => {
+    const assetId = safeText(asset.asset_id || asset.asset_code || asset.asset_name);
+    const assetCode = safeText(asset.asset_code);
+    const assetName = safeText(asset.asset_name || assetCode || assetId);
+    return stripUndefined({
+      source_row_id: `managed_lease:${assetId || index + 1}`,
+      source_sheet_id: 'managed_lease_sheet',
+      source_file_id: 'managed_lease',
+      sheet_name: '임대차 관리',
+      row_number: index + 1,
+      row_hash: '',
+      natural_key: assetCode || assetName,
+      row_values: {
+        자산명: assetName,
+        자산코드: assetCode,
+        관리범위: 'IGIS Asset Management',
+      },
+      normalized_values: {
+        asset_id: safeText(asset.asset_id),
+        asset_code: assetCode,
+        asset_name: assetName,
+      },
+      validation_flags: [],
+      source_locator: 'managed_scope.assets.lease',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  });
+  const assetRows = (scope.readableAssets || []).map((asset, index) => {
+    const assetId = safeText(asset.asset_id || asset.asset_code || asset.asset_name);
+    const assetCode = safeText(asset.asset_code);
+    const assetName = safeText(asset.asset_name || assetCode || assetId);
+    return stripUndefined({
+      source_row_id: `managed_asset:${assetId || index + 1}`,
+      source_sheet_id: 'managed_assets_sheet',
+      source_file_id: 'managed_assets',
+      sheet_name: '자산 기본정보',
+      row_number: index + 1,
+      row_hash: '',
+      natural_key: assetCode || assetName,
+      row_values: {
+        자산명: assetName,
+        자산코드: assetCode,
+        관리범위: 'IGIS Asset Management',
+      },
+      normalized_values: {
+        asset_id: safeText(asset.asset_id),
+        asset_code: assetCode,
+        asset_name: assetName,
+      },
+      validation_flags: [],
+      source_locator: 'managed_scope.assets',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  });
+  const fundRows = (scope.readableFunds || []).map((fund, index) => {
+    const fundId = safeText(fund.fund_id || fund.fund_code || fund.fund_name);
+    const fundCode = safeText(fund.fund_code);
+    const fundName = safeText(firstDefined(fund.display_name, fund.short_name, fund.fund_name, fundCode, fundId));
+    return stripUndefined({
+      source_row_id: `managed_fund:${fundId || index + 1}`,
+      source_sheet_id: 'managed_funds_sheet',
+      source_file_id: 'managed_funds',
+      sheet_name: '펀드 기본정보',
+      row_number: index + 1,
+      row_hash: '',
+      natural_key: fundCode || fundName,
+      row_values: {
+        펀드명: fundName,
+        펀드코드: fundCode,
+        관리범위: 'IGIS Asset Management',
+      },
+      normalized_values: {
+        fund_id: safeText(fund.fund_id),
+        fund_code: fundCode,
+        fund_name: fundName,
+      },
+      validation_flags: [],
+      source_locator: 'managed_scope.funds',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    });
+  });
+  return [...leaseRows, ...assetRows, ...fundRows];
+}
+
+function isSyntheticDataManagementRowId(value: string) {
+  return value.startsWith('managed_lease:') || value.startsWith('managed_asset:') || value.startsWith('managed_fund:');
+}
+
+function resolveSyntheticDataManagementRow(sourceRowId: string, scope: {
+  readableAssets?: Record<string, unknown>[];
+  readableFunds?: Record<string, unknown>[];
+}) {
+  return syntheticDataManagementRows(scope).find((row) => safeText(row.source_row_id) === sourceRowId) || null;
+}
+
 async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
-  const rowLimit = Math.min(Math.max(Number(payload.row_limit || 120), 20), 300);
+  const rowLimit = Math.min(Math.max(Number(payload.row_limit || 600), 20), 1200);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || {
@@ -5716,18 +5882,31 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     allRefs: [],
     readableRefs: [],
   };
-  const [sourcesResult, sheetsResult, columnsResult, rowsResult, editsResult] = await Promise.all([
+  const dataManagementSourceDomainKeys = ['lease_contracts', 'fund_info', 'permissions', 'asset_specs', 'operating_costs'];
+  const [sourcesResult, sheetsResult, columnsResult, editsResult] = await Promise.all([
     ctx.serviceClient.from('ll_source_files').select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at').order('created_at', { ascending: false }).limit(80),
     ctx.serviceClient.from('ll_source_sheets').select('source_sheet_id,source_file_id,sheet_name,sheet_index,header_row_number,row_count,column_count').limit(240),
     managerView
       ? ctx.serviceClient.from('ll_source_columns').select('source_column_id,source_sheet_id,column_index,column_letter,header_label,normalized_header,value_type,unit_label,target_table,target_field,edit_group,is_required,is_user_editable').limit(800)
       : Promise.resolve({ data: [], error: null }),
-    ctx.serviceClient.from('ll_source_rows').select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,row_hash,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at').order('created_at', { ascending: false }).limit(rowLimit),
     ctx.serviceClient.from('ll_edit_requests').select('id,source_table,target_type,target_name,target_row_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,write_status,write_error,write_result,requested_by,approved_by,approved_at,rejected_by,rejected_at,created_at,updated_at,written_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.limit || 60), 10), 120)),
   ]);
-  const hardError = [sourcesResult, sheetsResult, columnsResult, rowsResult, editsResult].find((result) => result.error && !isMissingRelationError(result.error));
-  if (hardError?.error) return fail(500, 'Failed to read data management status', ctx.origin, { error: hardError.error.message });
+  const preRowsHardError = [sourcesResult, sheetsResult, columnsResult, editsResult].find((result) => result.error && !isMissingRelationError(result.error));
+  if (preRowsHardError?.error) return fail(500, 'Failed to read data management status', ctx.origin, { error: preRowsHardError.error.message });
   const sources = (sourcesResult.data || []) as Record<string, unknown>[];
+  const dataManagementSourceIds = sources
+    .filter((source) => dataManagementSourceDomainKeys.includes(safeText(source.source_domain)))
+    .map((source) => safeText(source.source_file_id))
+    .filter(Boolean);
+  const rowsResult = dataManagementSourceIds.length
+    ? await ctx.serviceClient
+      .from('ll_source_rows')
+      .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,row_hash,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at')
+      .in('source_file_id', dataManagementSourceIds)
+      .order('created_at', { ascending: false })
+      .limit(rowLimit)
+    : { data: [], error: null };
+  if (rowsResult.error && !isMissingRelationError(rowsResult.error)) return fail(500, 'Failed to read data management status', ctx.origin, { error: rowsResult.error.message });
   const sheets = (sheetsResult.data || []) as Record<string, unknown>[];
   const rawSourceRows = (rowsResult.data || []) as Record<string, unknown>[];
   const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
@@ -5738,6 +5917,13 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     if (!managedRefs.length) return false;
     return dataManagementRowMatchesRefs(row, managedRefs);
   });
+  const syntheticRows = syntheticDataManagementRows(managementScope);
+  const effectiveSourceRows = sourceRows.length >= Math.min(10, syntheticRows.length)
+    ? sourceRows
+    : [...sourceRows, ...syntheticRows];
+  if (effectiveSourceRows.length > sourceRows.length) {
+    sources.push(...syntheticDataManagementSources(managementScope));
+  }
   const rawEdits = (editsResult.data || []) as Record<string, unknown>[];
   const canSeeEdit = (row: Record<string, unknown>) => {
     if (!dataManagementEditMatchesRefs(row, managementScope.allRefs)) return false;
@@ -5748,7 +5934,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     return dataManagementEditMatchesRefs(row, managedRefs);
   };
   const edits = rawEdits.filter(canSeeEdit);
-  const sourceDomainKeys = ['lease_contracts', 'fund_info', 'sector_market', 'permissions', 'asset_specs', 'operating_costs'];
+  const sourceDomainKeys = dataManagementSourceDomainKeys;
   const domainStats = sources.reduce((acc: Record<string, Record<string, unknown>>, row) => {
     const domain = safeText(row.source_domain) || 'unknown';
     const current = acc[domain] || {
@@ -5873,7 +6059,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     sources,
     sheets,
     columns: columnsResult.data || [],
-    source_rows: sourceRows,
+    source_rows: effectiveSourceRows,
     domain_stats: Object.values(domainStats),
     edit_requests: editHistory,
     generated_at: new Date().toISOString(),
@@ -5887,18 +6073,24 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
   const fieldName = safeText(payload.field_name || payload.fieldName);
   const requestedValue = firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
   if (!sourceRowId || !fieldName) return fail(400, 'source_row_id and field_name are required', ctx.origin);
-  const { data: sourceRow, error: sourceError } = await ctx.serviceClient
-    .from('ll_source_rows')
-    .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values,validation_flags,source_locator')
-    .eq('source_row_id', sourceRowId)
-    .maybeSingle();
-  if (sourceError && !isMissingRelationError(sourceError)) return fail(500, 'Failed to read source row', ctx.origin, { error: sourceError.message });
-  if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
-
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope;
+  if (!managementScope) return fail(500, 'Failed to resolve data management scope', ctx.origin);
+  let sourceRow: Record<string, unknown> | null = null;
+  if (isSyntheticDataManagementRowId(sourceRowId)) {
+    sourceRow = resolveSyntheticDataManagementRow(sourceRowId, managementScope);
+  } else {
+    const { data, error: sourceError } = await ctx.serviceClient
+      .from('ll_source_rows')
+      .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values,validation_flags,source_locator')
+      .eq('source_row_id', sourceRowId)
+      .maybeSingle();
+    if (sourceError && !isMissingRelationError(sourceError)) return fail(500, 'Failed to read source row', ctx.origin, { error: sourceError.message });
+    sourceRow = data as Record<string, unknown> | null;
+  }
+  if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
   if (!managementScope || !dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs)) {
     return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);
   }
@@ -6037,12 +6229,18 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
   if (!managementScope) return fail(500, 'Failed to resolve data management scope', ctx.origin);
   const normalizedSourceTable = normalizePublicLlTable(sourceTable);
   if (normalizedSourceTable === 'public.ll_source_rows') {
-    const { data: sourceRow, error: sourceError } = await ctx.serviceClient
-      .from('ll_source_rows')
-      .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values')
-      .eq('source_row_id', targetRowId)
-      .maybeSingle();
-    if (sourceError && !isMissingRelationError(sourceError)) return fail(500, 'Failed to read source row', ctx.origin, { error: sourceError.message });
+    let sourceRow: Record<string, unknown> | null = null;
+    if (isSyntheticDataManagementRowId(targetRowId)) {
+      sourceRow = resolveSyntheticDataManagementRow(targetRowId, managementScope);
+    } else {
+      const { data, error: sourceError } = await ctx.serviceClient
+        .from('ll_source_rows')
+        .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values')
+        .eq('source_row_id', targetRowId)
+        .maybeSingle();
+      if (sourceError && !isMissingRelationError(sourceError)) return fail(500, 'Failed to read source row', ctx.origin, { error: sourceError.message });
+      sourceRow = data as Record<string, unknown> | null;
+    }
     if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
     if (!dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs)) {
       return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);

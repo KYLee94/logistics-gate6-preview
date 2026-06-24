@@ -460,7 +460,11 @@ async function main() {
       const titlePresent = /market\s*data/iu.test(body) || titleDomCount > 0;
       const regionPrefixPresent = /\((수도권|지방)\)/u.test(body) || regionPrefixDomCount > 0;
       const leaseSlicerPresent = body.includes('상/저온') && body.includes('지표');
-      const supplySlicerPresent = body.includes('유형') && body.includes('기간') && (await page.locator('[data-supply-range-slicer="true"] button').count().catch(() => 0)) > 0;
+      const supplySlicerPresent = tab.key !== 'supply-pipeline'
+        || (body.includes('유형')
+          && body.includes('기간')
+          && (await page.locator('input[type="date"]').count().catch(() => 0)) >= 2
+          && (await page.locator('[data-supply-range-slicer="true"] button').count().catch(() => 0)) === 0);
       const transactionSlicerPresent = body.includes('기간') && body.includes('권역') && body.includes('상/저온') && body.includes('실물/선매입');
       const transactionSizeSlicerPresent = tab.key !== 'transactions' || (body.includes('규모별 평당 거래가') && body.includes('규모별 평당 거래가 및 거래시장 규모') && body.includes('규모'));
       const loadingStillPresent = body.includes('시장자료를 불러오는 중입니다.');
@@ -469,8 +473,8 @@ async function main() {
           && (await page.getByText('지표').count().catch(() => 0)) > 0
           && (await page.getByText('시점').count().catch(() => 0)) > 0);
       const supplySlicerPresentClean = tab.key !== 'supply-pipeline'
-        || ((await page.locator('[data-supply-range-slicer="true"] button').count().catch(() => 0)) >= 2
-          && (await page.getByText('기간 slicer').count().catch(() => 0)) > 0);
+        || ((await page.locator('input[type="date"]').count().catch(() => 0)) >= 2
+          && (await page.locator('[data-supply-range-slicer="true"] button').count().catch(() => 0)) === 0);
       const transactionSlicerPresentClean = tab.key !== 'transactions'
         || ((await page.getByText('기간').count().catch(() => 0)) > 0
           && (await page.getByText('권역').count().catch(() => 0)) > 0
@@ -615,7 +619,10 @@ async function main() {
         capRateChart.ok = capRateChart.title_ok && capRateChart.axis_ok && capRateChart.legend_focus_ok;
       }
       if (tab.key === 'supply-pipeline') {
-        supplyAreaCharts.title_ok = body.includes('신규 공급 면적') && body.includes('누적 공급 면적');
+        const supplyChartLabels = await page.locator('[data-chart-role="supply-area"]').evaluateAll((nodes) => nodes
+          .map((node) => node.getAttribute('aria-label') || '')
+          .filter(Boolean)).catch(() => []);
+        supplyAreaCharts.title_ok = supplyChartLabels.includes('향후 공급 예정 물량') && supplyChartLabels.includes('누적 공급 면적');
         const supplyAxisTexts = await page.locator('[data-chart-role="supply-area"] text').allTextContents().catch(() => []);
         supplyAreaCharts.quarter_axis_ok = supplyAxisTexts.some((item) => /[1-4]Q/u.test(item))
           && supplyAxisTexts.some((item) => /20\d{2}년/u.test(item));

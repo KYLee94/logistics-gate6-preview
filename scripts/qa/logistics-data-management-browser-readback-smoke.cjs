@@ -177,8 +177,8 @@ async function main() {
       && body.includes('\uC2B9\uC778 \uB300\uAE30')
       && body.includes('\uBC18\uC601 \uC774\uB825');
 
-    const marketTab = page.getByRole('button', { name: '\uC2DC\uC7A5\uC790\uB8CC', exact: true }).first();
-    await marketTab.click();
+    const leaseTab = page.getByRole('button', { name: '\uC784\uB300\uCC28', exact: true }).first();
+    await leaseTab.click();
     await page.waitForFunction(() => document.body?.innerText?.includes('\uC785\uB825 \uB9C8\uBC95\uC0AC'), { timeout: 15000 }).catch(() => null);
     const workflowBody = await page.locator('body').innerText({ timeout: 10000 });
     const selectorCountText = await page.locator('[data-data-management-selector-count="true"]').innerText({ timeout: 5000 }).catch(() => '');
@@ -192,7 +192,8 @@ async function main() {
     report.checks.igis_management_scope_visible = /이지스자산운용/u.test(`${scopeText} ${selectorCountText}`)
       && /자산\s*19개/u.test(`${scopeText} ${selectorCountText}`)
       && /펀드\s*17개/u.test(`${scopeText} ${selectorCountText}`);
-    report.checks.target_selector_has_options = targetSelectCount >= 4 && targetSelectOptionCounts.some((count) => count > 1);
+    report.checks.target_selector_has_options = targetSelectCount >= 3 && targetSelectOptionCounts.some((count) => count > 1);
+    report.checks.no_sector_market_source_selector = !workflowBody.includes('\uC2DC\uC7A5\uC790\uB8CC') && !workflowBody.includes('sector_market');
     report.checks.workflow_selection_visible = workflowBody.includes('\uC6D0\uBCF8 \uD589') && workflowBody.includes('\uC218\uC815 \uD544\uB4DC');
     report.checks.workflow_validation_visible = workflowBody.includes('\uC800\uC7A5 \uC804 \uAC80\uC99D') || workflowBody.includes('\uC800\uC7A5 \uC804 \uC601\uD5A5 \uBC94\uC704') || workflowBody.includes('\uD544\uC218\uAC12') || workflowBody.includes('\uAC80\uC99D \uC911') || workflowBody.includes('\uAC80\uC99D \uC624\uB958');
     report.checks.workflow_diff_visible = (workflowBody.includes('Before') && workflowBody.includes('After'))

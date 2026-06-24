@@ -123,6 +123,8 @@ const workspaceItems = [
 
 const LOGISTICS_ADMIN_NAMES = new Set(['이관용', '전기영', '이시정', '이승훈', '이철승']);
 const LOGISTICS_ADMIN_EMAILS = new Set(['kylee@igisam.com', 'jk.jeon@igisam.com', 'sjlee@igisam.com', 'seunghoon.lee@igisam.com', 'ethan.lee@igisam.com']);
+const SOURCE_UPDATE_DATA_QUALITY_NAMES = new Set(['이관용', '전기영', '이시정']);
+const SOURCE_UPDATE_DATA_QUALITY_EMAILS = new Set(['kylee@igisam.com', 'jk.jeon@igisam.com', 'sjlee@igisam.com']);
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_ACCESS_USERS_CACHE_KEY = 'logisticsFeatureAccessUsers:v1';
 const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v2';
@@ -694,6 +696,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const memberEmail = String(memberInfo?.email || memberInfo?.logistics_permission?.email || user?.email || '').trim().toLowerCase();
     const memberName = memberInfo?.staff_name || memberInfo?.name;
     const canUseAccessAdminTools = LOGISTICS_ADMIN_EMAILS.has(memberEmail) || LOGISTICS_ADMIN_NAMES.has(memberName);
+    const canViewSourceUpdateAndDataQuality = SOURCE_UPDATE_DATA_QUALITY_EMAILS.has(memberEmail)
+        || SOURCE_UPDATE_DATA_QUALITY_NAMES.has(memberName);
     const isLogisticsAdmin = memberRole === 'System Admin'
         || canUseAccessAdminTools;
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
@@ -1024,10 +1028,15 @@ export default function IotaLeftNav({ currentPath = '' }) {
     if (isLogisticsPath) {
         const visibleDashboardItems = logisticsDashboardItems.filter((item) => {
             if (!item.adminOnly) return true;
+            if (item.path === `${LOGISTICS_INTERNAL_BASE}/dashboard/quality`) return canViewSourceUpdateAndDataQuality;
             if (isLogisticsAdmin) return true;
             const featureKey = LOGISTICS_DASHBOARD_FEATURE_BY_PATH[item.path];
             return featureKey ? memberHasFeatureAccess(featureAccessData, featureKey, memberInfo) : false;
         });
+        const visibleMarketDataItems = logisticsMarketDataItems.filter((item) => (
+            item.path !== `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`
+            || canViewSourceUpdateAndDataQuality
+        ));
         const visibleStandaloneItems = logisticsStandaloneItems;
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
         const isDashboardActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard`);
@@ -1127,7 +1136,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                             </button>
                             <div className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${!isCollapsed && isLogisticsMarketDataOpen ? 'max-h-[260px] translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0'}`}>
                                 <div className="mt-1 flex flex-col gap-0 pl-4">
-                                    {logisticsMarketDataItems.map((item) => {
+                                    {visibleMarketDataItems.map((item) => {
                                         const isActive = normalizedCurrentPath === item.path || normalizedCurrentPath.startsWith(`${item.path}/`);
                                         return (
                                             <div key={item.path} title={isCollapsed ? item.label : undefined} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>

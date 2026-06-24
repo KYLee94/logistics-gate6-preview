@@ -50,6 +50,8 @@ const SOURCE_DOMAINS = [
   { key: 'asset_specs', label: '자산 스펙' },
   { key: 'operating_costs', label: '운영비용' },
 ];
+const DATA_MANAGEMENT_DOMAINS = SOURCE_DOMAINS.filter((domain) => domain.key !== 'sector_market');
+const DATA_MANAGEMENT_DOMAIN_KEYS = new Set(DATA_MANAGEMENT_DOMAINS.map((domain) => domain.key));
 
 const MARKET_TABS = [
   { id: 'overview', route: 'overview', label: 'Overview' },
@@ -118,6 +120,13 @@ function compactLabel(value) {
 }
 
 function stripRegionNumber(value) {
+  return text(value, '')
+    .replace(/^\s*\d+\s*[.)\-_:/]?\s*/u, '')
+    .replace(/\s+/gu, ' ')
+    .trim();
+}
+
+function stripLeadingNumberLabel(value) {
   return text(value, '')
     .replace(/^\s*\d+\s*[.)\-_:/]?\s*/u, '')
     .replace(/\s+/gu, ' ')
@@ -592,6 +601,28 @@ function edgeCacheKey(action, payload = {}) {
   }
 }
 
+function hasEdgeDataRows(value) {
+  if (Array.isArray(value)) return value.length > 0;
+  if (!value || typeof value !== 'object') return false;
+  if (safeArray(value.rows).length) return true;
+  if (safeArray(value.sources).length || safeArray(value.source_rows).length || safeArray(value.sheet_readback).length) return true;
+  if (safeArray(value.source_audit?.sheet_readback).length || safeArray(value.sourceAudit?.sheet_readback).length) return true;
+  if (safeArray(value.leases).length || safeArray(value.supply).length || safeArray(value.transactions).length || safeArray(value.cap_rates).length) return true;
+  const views = value.views && typeof value.views === 'object' ? value.views : {};
+  return Object.values(views).some((view) => {
+    if (!view || typeof view !== 'object') return false;
+    if (safeArray(view.rows).length || safeArray(view.latest_rows).length || safeArray(view.history_rows).length || safeArray(view.statistics_rows).length) return true;
+    const charts = view.charts && typeof view.charts === 'object' ? view.charts : {};
+    return Object.values(charts).some((rows) => safeArray(rows).length);
+  });
+}
+
+function shouldCacheEdgeData(action, value) {
+  if (action === 'sector-market/read') return hasEdgeDataRows(value);
+  if (action === 'data-management/status') return hasEdgeDataRows(value) || safeArray(value?.sources).length || safeArray(value?.source_rows).length;
+  return true;
+}
+
 async function primeEdgeData(action, payload = {}) {
   const requestKey = edgeCacheKey(action, payload);
   const cached = EDGE_DATA_CACHE.get(requestKey);
@@ -604,7 +635,7 @@ async function primeEdgeData(action, payload = {}) {
     EDGE_DATA_INFLIGHT.set(requestKey, requestPromise);
   }
   const data = await requestPromise;
-  EDGE_DATA_CACHE.set(requestKey, { data, loadedAt: Date.now() });
+  if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt: Date.now() });
   return data;
 }
 
@@ -655,12 +686,17 @@ function useEdgeData(action, payload = {}, deps = []) {
       }
       const data = await requestPromise;
       const loadedAt = Date.now();
-      EDGE_DATA_CACHE.set(requestKey, { data, loadedAt });
+      if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt });
+      else EDGE_DATA_CACHE.delete(requestKey);
       if (mountedRef.current && requestRef.current === requestId) {
         setState({ loading: false, error: '', data, loadedAt, sourceKey: requestKey });
       }
       return data;
     } catch {
+      if (!options.__retry) {
+        await new Promise((resolve) => window.setTimeout(resolve, 450));
+        return reload(normalizedOverride, { ...options, force: true, silent: Boolean(stateRef.current.data), __retry: true });
+      }
       const fallbackCached = EDGE_DATA_CACHE.get(requestKey) || EDGE_DATA_CACHE.get(payloadKey);
       if (mountedRef.current && requestRef.current === requestId) {
         setState((current) => ({
@@ -2290,7 +2326,7 @@ function TinyTrend({ rows, labelKey = 'label', valueKey = 'value', color = CHART
   );
 }
 
-function BarList({ rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber, maxRows = 10, color = CHART_COLORS.primary }) {
+function BarList({ rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber, maxRows = 10, color = CHART_COLORS.primary, onRowClick = null }) {
   const [hover, setHover] = useState(null);
   const normalizedRows = safeArray(rows)
     .map((row) => ({ ...row, [labelKey]: text(row[labelKey], '미정'), [valueKey]: number(row[valueKey]) }))
@@ -2305,7 +2341,8 @@ function BarList({ rows, labelKey = 'label', valueKey = 'value', formatter = for
         return (
           <div
             key={row.id || row[labelKey]}
-            className={`${INNER} px-3 py-2`}
+            className={`${INNER} px-3 py-2 ${onRowClick ? 'cursor-pointer hover:bg-[#262626]' : ''}`}
+            onClick={() => onRowClick?.(row)}
             onMouseMove={(event) => setHover({ x: event.clientX, y: event.clientY, title: text(row[labelKey]), value: formatter(value), detail: row.count ? `${formatNumber(row.count)}건` : '' })}
             onMouseLeave={() => setHover(null)}
           >
@@ -2412,7 +2449,7 @@ function sectionedRows(rows, labelKey = 'label') {
   return sections.map(([scope, items]) => ({ scope, rows: items })).filter((section) => section.rows.length);
 }
 
-function ScopedBarList({ rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber, color = CHART_COLORS.primary }) {
+function ScopedBarList({ rows, labelKey = 'label', valueKey = 'value', formatter = formatNumber, color = CHART_COLORS.primary, onRowClick = null }) {
   const [hover, setHover] = useState(null);
   const normalizedRows = safeArray(rows)
     .map((row) => ({
@@ -2441,7 +2478,8 @@ function ScopedBarList({ rows, labelKey = 'label', valueKey = 'value', formatter
               return (
                 <div
                   key={row.id || `${section.scope}-${row[labelKey]}`}
-                  className={`${INNER} px-3 py-2`}
+                  className={`${INNER} px-3 py-2 ${onRowClick ? 'cursor-pointer hover:bg-[#262626]' : ''}`}
+                  onClick={() => onRowClick?.(row)}
                   onMouseMove={(event) => setHover({
                     x: event.clientX,
                     y: event.clientY,
@@ -2469,7 +2507,7 @@ function ScopedBarList({ rows, labelKey = 'label', valueKey = 'value', formatter
   );
 }
 
-function ScopedGroupedBarChart({ rows, formatter = formatNumber }) {
+function ScopedGroupedBarChart({ rows, formatter = formatNumber, onRowClick = null }) {
   const [hover, setHover] = useState(null);
   const sourceRows = safeArray(rows)
     .map((row) => ({ ...row, label: regionDisplay(row.region || row.label), series: text(row.series, ''), value: number(row.value) }))
@@ -2509,7 +2547,7 @@ function ScopedGroupedBarChart({ rows, formatter = formatNumber }) {
                         const row = rowsForLabel(label, item);
                         const value = number(row?.value);
                         return (
-                          <div key={`${label}-${item}`} className="flex items-center gap-2">
+                          <div key={`${label}-${item}`} className={`flex items-center gap-2 ${row && onRowClick ? 'cursor-pointer' : ''}`} onClick={() => row && onRowClick?.(row)}>
                             <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#2C2C2E]">
                               <div
                                 className="h-full rounded-full"
@@ -2659,6 +2697,8 @@ function StackedPeriodBarChart({
   onPeriodClick = null,
   axisStep = null,
   legendPosition = 'bottom',
+  legendAlign = 'start',
+  colorFor = chartSeriesColor,
   height = 310,
   showTotalLabels = false,
 }) {
@@ -2673,7 +2713,7 @@ function StackedPeriodBarChart({
   const maxValue = Number.isFinite(numericAxisStep) && numericAxisStep > 0
     ? Math.max(numericAxisStep, Math.ceil(rawMaxValue / numericAxisStep) * numericAxisStep)
     : rawMaxValue;
-  const width = legendPosition === 'right' ? 1040 : 900;
+  const width = 1040;
   const chartHeight = Math.max(300, Number(height) || 310);
   const left = legendPosition === 'right' ? 84 : 70;
   const right = 28;
@@ -2705,7 +2745,7 @@ function StackedPeriodBarChart({
             className={`inline-flex items-center gap-1.5 rounded-[7px] px-2 py-1 text-left transition ${active ? 'text-white' : 'text-[#86868B] opacity-70'} hover:bg-white/5`}
             title={`${item}만 강조`}
           >
-            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: active ? chartSeriesColor(item, index) : '#5A5A5E' }} />
+            <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: active ? colorFor(item, index) : '#5A5A5E' }} />
             <span className="truncate">{item}</span>
           </button>
         );
@@ -2748,7 +2788,7 @@ function StackedPeriodBarChart({
                           y={yCursor}
                           width={barWidth}
                           height={Math.max(1, segmentHeight)}
-                          fill={active ? chartSeriesColor(item, seriesIndex) : '#4A4A4D'}
+                          fill={active ? colorFor(item, seriesIndex) : '#4A4A4D'}
                           opacity={active ? 0.9 : 0.38}
                           onMouseMove={(event) => setHover({ x: event.clientX, y: event.clientY, title: `${period} · ${item}`, value: formatter(value), detail: row.metric_label })}
                           onMouseLeave={() => setHover(null)}
@@ -2761,7 +2801,7 @@ function StackedPeriodBarChart({
               })}
           </svg>
           {legendPosition === 'right' ? legend : null}
-          {legendPosition !== 'right' ? <div className="mt-2">{legend}</div> : null}
+          {legendPosition !== 'right' ? <div className={`mt-2 flex ${legendAlign === 'center' ? 'justify-center' : 'justify-start'}`}>{legend}</div> : null}
         </div>
       ) : <div className="grid h-[300px] place-items-center text-[13px] text-[#86868B]">표시할 차트 데이터가 없습니다.</div>}
       <ChartTooltip hover={hover} />
@@ -2860,7 +2900,6 @@ function SupplyAreaChart({
   });
   return (
     <div className="relative rounded-[12px] border border-[#333333] bg-[#171717] p-4" data-chart-role="supply-area" data-chart-empty={normalizedRows.length ? 'false' : 'true'} aria-label={title || '공급 면적 차트'}>
-      {title ? <div className="mb-3 text-[18px] font-semibold tracking-tight text-white">{title}</div> : null}
       {normalizedRows.length ? (
         <div className={`grid grid-cols-1 gap-3 ${unknownRows.length ? 'xl:grid-cols-[minmax(0,1fr)_460px]' : ''}`}>
           <div className="min-w-0">
@@ -4055,7 +4094,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const [txnTemp, setTxnTemp] = useState('전체');
   const [txnType, setTxnType] = useState('전체');
   const [txnSizeRegion, setTxnSizeRegion] = useState('전체');
-  const [txnSizePeriod, setTxnSizePeriod] = useState('전체');
+  const [txnSizePeriod, setTxnSizePeriod] = useState('2026');
   const [txnSizeBucket, setTxnSizeBucket] = useState('전체');
   const [leaseSegment, setLeaseSegment] = useState('전체');
   const [leaseMeasure, setLeaseMeasure] = useState('rent_manwon_per_py');
@@ -4298,6 +4337,32 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       detail: `${formatNumber(values.length)}개 권역`,
     };
   });
+  const openLeaseStatisticModal = (row) => {
+    const regionLabel = regionValue(row.region || row.label);
+    const seriesLabel = text(row.series || row.segment_label, '');
+    const rows = leaseStatisticRows
+      .filter((item) => text(item.period_label) === selectedLeaseStatisticPeriod)
+      .filter((item) => text(item.metric_key) === leaseMeasure)
+      .filter((item) => regionValue(item.region || item.label) === regionLabel)
+      .filter((item) => !seriesLabel || text(item.segment_label) === seriesLabel)
+      .sort((a, b) => text(a.segment_label).localeCompare(text(b.segment_label), 'ko'));
+    setModal({
+      title: `${selectedLeaseStatisticPeriod} ${regionDisplay(regionLabel)} ${leaseMeasureOptions.find((item) => item.value === leaseMeasure)?.label || '임대시장 통계'} 상세`,
+      rows,
+      columns: [
+        { key: 'period_label', label: '시점', width: 120 },
+        { key: 'region', label: '권역', width: 160, render: (item) => regionDisplay(item.region || item.label), sortValue: (item) => regionDisplay(item.region || item.label) },
+        { key: 'segment_label', label: '상/저온 구분', width: 180 },
+        { key: 'metric_label', label: '지표', width: 220 },
+        { key: 'value', label: '값', align: 'right', render: (item) => leaseMetricFormatter(item.value), sortValue: (item) => number(item.value) },
+      ],
+      width: 'max-w-[calc(100vw-32px)]',
+      minWidth: 940,
+      maxHeight: 'calc(100vh - 150px)',
+      fullscreen: true,
+      defaultSort: [{ key: 'segment_label', direction: 'asc' }, { key: 'value', direction: 'desc' }],
+    });
+  };
   const overviewLeaseTempOptions = ['전체', ...leaseSegmentOptions.filter((option) => option !== '전체')];
   const overviewLeaseRentBaseRows = leaseStatisticRows
     .filter((row) => text(row.period_label) === selectedLeaseStatisticPeriod && text(row.metric_key) === 'rent_manwon_per_py' && text(row.dimension_type) === 'region' && row.is_average !== true);
@@ -4317,6 +4382,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   ).map((row) => ({
     label: regionDisplay(row.region || row.label),
     region: row.region || row.label,
+    series: text(row.segment_label),
     value: row.value,
     count: 1,
   }));
@@ -4378,23 +4444,6 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const filteredSupplyRows = supplyKind === '전체' ? [...newSupplyRows, ...pipelineRows] : supply.filter((row) => row.supply_kind === supplyKind);
   const supplyTimelinePeriods = [...new Set(filteredSupplyRows.map(supplyPeriodLabel).filter((label) => label && label !== '미정'))]
     .sort((a, b) => periodSortValue(a) - periodSortValue(b));
-  const rawSupplyStartIndex = supplyTimelinePeriods.findIndex((period) => periodDate(period, true) >= supplyStart);
-  const supplyStartIndex = rawSupplyStartIndex === -1 ? Math.max(0, supplyTimelinePeriods.length - 1) : Math.max(0, rawSupplyStartIndex);
-  const rawSupplyEndIndex = supplyTimelinePeriods.findIndex((period) => periodDate(period) > supplyEnd);
-  const supplyEndIndex = rawSupplyEndIndex === -1 ? Math.max(0, supplyTimelinePeriods.length - 1) : Math.max(0, rawSupplyEndIndex - 1);
-  const setSupplyTimelineStart = (index) => {
-    const next = supplyTimelinePeriods[Math.max(0, Math.min(index, supplyTimelinePeriods.length - 1))];
-    if (next) setSupplyStart(periodDate(next));
-  };
-  const setSupplyTimelineEnd = (index) => {
-    const next = supplyTimelinePeriods[Math.max(0, Math.min(index, supplyTimelinePeriods.length - 1))];
-    if (next) setSupplyEnd(periodDate(next, true));
-  };
-  const applySupplyPreset = (startPeriod, endPeriod = startPeriod) => {
-    if (!startPeriod || !endPeriod) return;
-    setSupplyStart(periodDate(startPeriod));
-    setSupplyEnd(periodDate(endPeriod, true));
-  };
   const rangedPipelineRows = filteredSupplyRows.filter((row) => {
     const startDate = supplyDate(row);
     const endDate = supplyDate(row, true);
@@ -4403,7 +4452,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const supplyStatisticRowsInRange = supplyStatisticRows.filter((row) => {
     const period = text(row.period_label, '');
     if (!period) return false;
-    if (isUnknownPeriodLabel(period)) return supplyStartIndex === 0 && supplyEndIndex >= supplyTimelinePeriods.length - 1;
+    if (isUnknownPeriodLabel(period)) return true;
     const startDate = periodDate(period);
     const endDate = periodDate(period, true);
     return Boolean(startDate && endDate && endDate >= supplyStart && startDate <= supplyEnd);
@@ -4413,15 +4462,18 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     const endDate = periodDate(period, true);
     return startDate && endDate && endDate >= supplyStart && startDate <= supplyEnd;
   });
-  const supplyAreaRowsFromCases = (rows, periods, seriesType, cumulative = false) => {
+  const supplyAreaRowsFromCases = (rows, periods, seriesType, cumulative = false, includeUnknown = false) => {
     const grouped = new Map();
     periods.forEach((period) => {
       const targetSort = periodSortValue(period);
       rows.forEach((row) => {
         const rowPeriod = supplyPeriodLabel(row);
-        if (!rowPeriod || isUnknownPeriodLabel(rowPeriod)) return;
+        const rowUnknown = !rowPeriod || isUnknownPeriodLabel(rowPeriod);
+        if (rowUnknown) {
+          if (!includeUnknown || !isUnknownPeriodLabel(period)) return;
+        }
         const rowSort = periodSortValue(rowPeriod);
-        const inPeriod = cumulative ? rowSort <= targetSort : rowPeriod === period;
+        const inPeriod = rowUnknown ? true : (cumulative ? rowSort <= targetSort : rowPeriod === period);
         if (!inPeriod) return;
         const region = regionValue(row.region || row.region_group || '미분류');
         const key = `${seriesType}|${period}|${region}`;
@@ -4440,10 +4492,15 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     });
     return [...grouped.values()].filter((row) => row.value > 0);
   };
+  const selectedSupplyPeriodsWithUnknown = rangedPipelineRows.some((row) => isUnknownPeriodLabel(supplyPeriodLabel(row)))
+    ? [...selectedSupplyPeriods, '미정']
+    : selectedSupplyPeriods;
+  const fallbackPipelineSupplyChartRows = supplyAreaRowsFromCases(rangedPipelineRows, selectedSupplyPeriodsWithUnknown, 'pipeline_supply', false, true);
   const fallbackNewSupplyChartRows = supplyAreaRowsFromCases(rangedPipelineRows, selectedSupplyPeriods, 'new_supply', false);
   const fallbackCumulativeSupplyChartRows = supplyAreaRowsFromCases(filteredSupplyRows, selectedSupplyPeriods, 'cumulative_supply', true);
   const supplyChartRowsInRange = [
     ...supplyStatisticRowsInRange,
+    ...fallbackPipelineSupplyChartRows,
     ...(supplyStatisticRowsInRange.some((row) => row.series_type === 'new_supply') ? [] : fallbackNewSupplyChartRows),
     ...(supplyStatisticRowsInRange.some((row) => row.series_type === 'cumulative_supply') ? [] : fallbackCumulativeSupplyChartRows),
   ];
@@ -4471,11 +4528,25 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     { label: '평당 거래가격', value: aggregateBy(filteredTransactions, () => 'weighted', (row) => row.unit_price_krw_per_py, (row) => row.area_py)[0]?.value || 0, formatter: formatKrw, detail: '연면적 가중평균' },
     { label: '총거래가격', value: filteredTransactions.reduce((sum, row) => sum + number(row.transaction_amount_krw), 0), formatter: formatKrw, detail: '필터 적용 합계' },
   ];
-  const transactionPeriodOptions = ['전체', ...new Set(transactions.map((row) => text(row.transaction_year || String(row.transaction_period || '').slice(0, 4), '')).filter(Boolean).sort())];
-  const transactionSizeOptions = ['전체', ...new Set(transactions.map((row) => text(row.size_bucket, '')).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko')))];
+  const transactionPeriodOptions = [...new Set(['2026', ...transactions.map((row) => text(row.transaction_year || String(row.transaction_period || '').slice(0, 4), '')).filter(Boolean).sort()])];
+  const transactionSizeBuckets = [...new Set(transactions.map((row) => text(row.size_bucket, '')).filter(Boolean).sort((a, b) => stripLeadingNumberLabel(a).localeCompare(stripLeadingNumberLabel(b), 'ko')))];
+  const transactionSizeOptions = ['전체', ...transactionSizeBuckets];
+  const sizeBucketRows = transactionSizeBuckets.map((bucket) => {
+    const rows = transactions.filter((row) => text(row.size_bucket) === bucket);
+    const areas = rows.map((row) => number(row.area_py)).filter((value) => Number.isFinite(value) && value > 0);
+    return {
+      bucket,
+      label: stripLeadingNumberLabel(bucket),
+      min: areas.length ? Math.min(...areas) : null,
+      max: areas.length ? Math.max(...areas) : null,
+    };
+  });
+  const sizeBucketNote = sizeBucketRows.length
+    ? sizeBucketRows.map((row) => `${row.label} ${row.min == null ? '기준 확인 필요' : `${formatNumber(row.min, 0)}~${formatNumber(row.max, 0)}평`}`).join(' · ')
+    : '규모 구분 기준은 매매사례 연면적 범위로 확인합니다.';
   const sizeFilteredTransactions = transactions
     .filter((row) => regionMatches(txnSizeRegion, row.region))
-    .filter((row) => txnSizePeriod === '전체' || String(yearFrom(row)) === txnSizePeriod)
+    .filter((row) => String(yearFrom(row)) === txnSizePeriod)
     .filter((row) => txnSizeBucket === '전체' || text(row.size_bucket) === txnSizeBucket);
   const transactionTrendRows = transactions.filter((row) => {
     const year = yearFrom(row);
@@ -4531,22 +4602,69 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     (row) => (txnSizeBucket === '전체' ? text(row.size_bucket, '미정') : regionDisplay(row.region)),
     (row) => row.transaction_amount_krw,
   );
-  const capRateChartRows = capRates
-    .map((row) => ({
-      label: text(row.period_label || row.report_period || [row.report_year, row.report_quarter].filter(Boolean).join(' '), '미정'),
-      series: text(row.region || row.scope || row.region_group || '전국'),
-      value: normalizeRateRatio(firstText(row.cap_rate, row.value, row.capital_area_cap_rate, row.national_cap_rate)),
-      metric_label: text(row.metric_label || row.source_label, ''),
-    }))
-    .filter((row) => row.label !== '미정' && Number.isFinite(Number(row.value)) && Number(row.value) !== 0);
-  const capRateTableRows = capRateChartRows
-    .slice()
+  const sizeUnitPriceChartRows = sizeUnitPriceRows.map((row) => ({
+    ...row,
+    raw_label: row.label,
+    label: txnSizeBucket === '전체' ? stripLeadingNumberLabel(row.label) : row.label,
+  }));
+  const sizeMarketChartRows = sizeMarketRows.map((row) => ({
+    ...row,
+    raw_label: row.label,
+    label: txnSizeBucket === '전체' ? stripLeadingNumberLabel(row.label) : row.label,
+  }));
+  const openTransactionSizeModal = (row, metricTitle) => {
+    const rawLabel = text(row.raw_label || row.label, '');
+    const rows = sizeFilteredTransactions.filter((item) => (
+      txnSizeBucket === '전체'
+        ? text(item.size_bucket, '미정') === rawLabel
+        : regionDisplay(item.region) === rawLabel
+    ));
+    setModal({
+      title: `${metricTitle} 상세 · ${text(row.label)}`,
+      rows,
+      columns: transactionColumns,
+      width: 'max-w-[calc(100vw-32px)]',
+      minWidth: 1180,
+      maxHeight: 'calc(100vh - 150px)',
+      fullscreen: true,
+      defaultSort: { key: 'transaction_amount_krw', direction: 'desc' },
+    });
+  };
+  const capRateMethodLabel = (row) => {
+    const source = text(row.cap_rate_method || row.source_section || row.metric_label || row.source_label, '');
+    if (/베이지안|bayes/iu.test(source)) return '베이지안';
+    if (/가중|weighted/iu.test(source)) return '가중평균';
+    if (/일반|general|ordinary/iu.test(source)) return '일반';
+    return '베이지안';
+  };
+  const capRateDetailMap = new Map();
+  capRates.forEach((row) => {
+    const label = text(row.period_label || row.report_period || [row.report_year, row.report_quarter].filter(Boolean).join(' '), '미정');
+    const series = text(row.region || row.scope || row.region_group || '전국');
+    const method = capRateMethodLabel(row);
+    const value = normalizeRateRatio(firstText(row.cap_rate, row.value, row.capital_area_cap_rate, row.national_cap_rate));
+    if (label === '미정' || !Number.isFinite(Number(value)) || Number(value) === 0) return;
+    const key = `${label}|${series}`;
+    const current = capRateDetailMap.get(key) || { label, series, bayesian: null, general: null, weighted: null };
+    if (method === '일반') current.general = value;
+    else if (method === '가중평균') current.weighted = value;
+    else current.bayesian = value;
+    capRateDetailMap.set(key, current);
+  });
+  const capRateTableRows = [...capRateDetailMap.values()]
     .sort((a, b) => periodSortValue(a.label) - periodSortValue(b.label) || a.series.localeCompare(b.series, 'ko'));
+  const capRateChartRows = capRateTableRows
+    .map((row) => ({
+      ...row,
+      value: firstText(row.bayesian, row.general, row.weighted),
+      metric_label: '베이지안 기준, 팝업에서 일반/가중평균 함께 확인',
+    }))
+    .filter((row) => Number.isFinite(Number(row.value)));
   const supplyRowsForPeriod = (periodLabel, seriesType) => {
     const targetSort = periodSortValue(periodLabel);
     const baseRows = seriesType === 'cumulative_supply'
       ? cumulativeNewRows
-      : (seriesType === 'supply_period' ? supply : newSupplyRows);
+      : (seriesType === 'supply_period' ? supply : (seriesType === 'pipeline_supply' ? pipelineRows : newSupplyRows));
     const targetUnknown = isUnknownPeriodLabel(periodLabel);
     return baseRows
       .filter((row) => {
@@ -4563,7 +4681,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     const rows = supplyRowsForPeriod(periodLabel, seriesType);
     const modalSuffix = seriesType === 'cumulative_supply'
       ? '누적 공급 자산'
-      : (seriesType === 'supply_period' ? '공급 예정 자산' : '신규 공급 자산');
+      : (seriesType === 'supply_period' || seriesType === 'pipeline_supply' ? '공급 예정 자산' : '신규 공급 자산');
     setModal({
       title: `${periodLabel} ${modalSuffix}`,
       rows,
@@ -4641,7 +4759,6 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       <ModuleHeader
         eyebrow="MARKET DATA"
         title={MARKET_TAB_TITLES[currentTab] || 'Market Data'}
-        subtitle={MARKET_TAB_SUBTITLES[currentTab] || 'Market Data 탭별 주요 지표를 확인합니다.'}
       />
       {error ? <div className="mb-4 rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
       {loading ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>시장자료를 불러오는 중입니다.</div> : null}
@@ -4661,9 +4778,9 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
                 <FilterPills label="상/저온 구분" value={overviewLeaseTemp} onChange={setOverviewLeaseTemp} options={overviewLeaseTempOptions} />
               </div>
               {overviewLeaseTemp === '전체' ? (
-                <ScopedGroupedBarChart rows={overviewLeaseRentComparisonRows} formatter={(value) => `${formatNumber(value, 1)}만원`} />
+                <ScopedGroupedBarChart rows={overviewLeaseRentComparisonRows} formatter={(value) => `${formatNumber(value, 1)}만원`} onRowClick={openLeaseStatisticModal} />
               ) : (
-                <ScopedBarList rows={overviewLeaseRentSelectedRows} formatter={(value) => `${formatNumber(value, 1)}만원`} color={chartSeriesColor(overviewLeaseTemp)} />
+                <ScopedBarList rows={overviewLeaseRentSelectedRows} formatter={(value) => `${formatNumber(value, 1)}만원`} color={chartSeriesColor(overviewLeaseTemp)} onRowClick={openLeaseStatisticModal} />
               )}
             </div>
             <div className={`${CARD} p-5`}>
@@ -4734,7 +4851,9 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               rows={transactionMarketChartRows}
               formatter={formatKrw}
               axisStep={2000000000000}
-              legendPosition="right"
+              legendPosition="bottom"
+              legendAlign="center"
+              colorFor={regionSeriesColor}
               height={390}
               showTotalLabels
               onPeriodClick={(period) => setModal({
@@ -4759,17 +4878,18 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
             <ModuleHeader eyebrow="SIZE ANALYSIS" title="규모별 평당 거래가 및 거래시장 규모" subtitle="권역, 시점, 규모 구간을 바꾸면 아래 두 차트가 함께 바뀝니다." />
             <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-3">
               <RegionFilterGroups label="권역" value={txnSizeRegion} onChange={setTxnSizeRegion} options={regions} />
-              <FilterPills label="시점" value={txnSizePeriod} onChange={setTxnSizePeriod} options={transactionPeriodOptions.map((item) => ({ value: item, label: item === '전체' ? '전체' : `${item}년` }))} />
-              <FilterPills label="규모" value={txnSizeBucket} onChange={setTxnSizeBucket} options={transactionSizeOptions.map((item) => ({ value: item, label: item }))} />
+              <FilterPills label="시점" value={txnSizePeriod} onChange={setTxnSizePeriod} options={transactionPeriodOptions.map((item) => ({ value: item, label: `${item}년` }))} />
+              <FilterPills label="규모" value={txnSizeBucket} onChange={setTxnSizeBucket} options={transactionSizeOptions.map((item) => ({ value: item, label: item === '전체' ? '전체' : stripLeadingNumberLabel(item) }))} />
+              <div className="xl:col-span-3 text-[12px] leading-5 text-[#A1A1AA]">{sizeBucketNote}</div>
             </div>
             <div className="grid grid-cols-1 gap-5">
               <div className="min-w-0">
                 <div className="mb-2 text-[13px] font-semibold text-white">평당 거래가</div>
-                <BarList rows={sizeUnitPriceRows} formatter={formatKrw} color={CHART_COLORS.secondary} />
+                <BarList rows={sizeUnitPriceChartRows} formatter={formatKrw} color={CHART_COLORS.secondary} onRowClick={(row) => openTransactionSizeModal(row, '평당 거래가')} />
               </div>
               <div className="min-w-0">
                 <div className="mb-2 text-[13px] font-semibold text-white">거래시장 규모</div>
-                <BarList rows={sizeMarketRows} formatter={formatKrw} color={CHART_COLORS.primary} />
+                <BarList rows={sizeMarketChartRows} formatter={formatKrw} color={CHART_COLORS.primary} onRowClick={(row) => openTransactionSizeModal(row, '거래시장 규모')} />
               </div>
             </div>
           </section>
@@ -4787,7 +4907,9 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
                     columns: [
                       { key: 'label', label: '시점', width: 140 },
                       { key: 'series', label: '구분', width: 140 },
-                      { key: 'value', label: 'Cap Rate', align: 'right', render: (row) => formatRate(row.value), sortValue: (row) => number(row.value) },
+                      { key: 'bayesian', label: '베이지안', align: 'right', render: (row) => row.bayesian == null ? '-' : formatRate(row.bayesian), sortValue: (row) => number(row.bayesian) },
+                      { key: 'general', label: '일반', align: 'right', render: (row) => row.general == null ? '-' : formatRate(row.general), sortValue: (row) => number(row.general) },
+                      { key: 'weighted', label: '가중평균', align: 'right', render: (row) => row.weighted == null ? '-' : formatRate(row.weighted), sortValue: (row) => number(row.weighted) },
                     ],
                     width: 'max-w-[calc(100vw-32px)]',
                     minWidth: 720,
@@ -4811,6 +4933,22 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               splitPeriodAxis
               legendAlign="center"
               height={360}
+              onPointClick={(row) => setModal({
+                title: `${row.label} ${row.series} Cap Rate 상세`,
+                rows: capRateTableRows.filter((item) => item.label === row.label && item.series === row.series),
+                columns: [
+                  { key: 'label', label: '시점', width: 140 },
+                  { key: 'series', label: '구분', width: 140 },
+                  { key: 'bayesian', label: '베이지안', align: 'right', render: (item) => item.bayesian == null ? '-' : formatRate(item.bayesian), sortValue: (item) => number(item.bayesian) },
+                  { key: 'general', label: '일반', align: 'right', render: (item) => item.general == null ? '-' : formatRate(item.general), sortValue: (item) => number(item.general) },
+                  { key: 'weighted', label: '가중평균', align: 'right', render: (item) => item.weighted == null ? '-' : formatRate(item.weighted), sortValue: (item) => number(item.weighted) },
+                ],
+                width: 'max-w-[calc(100vw-32px)]',
+                minWidth: 820,
+                maxHeight: 'calc(100vh - 150px)',
+                fullscreen: true,
+                defaultSort: [{ key: 'label', direction: 'asc' }, { key: 'series', direction: 'asc' }],
+              })}
             />
           </section>
         </div>
@@ -4839,6 +4977,9 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               <div className="xl:col-span-2">
                 <FilterPills label="상/저온 구분" value={leaseSegment} onChange={setLeaseSegment} options={leaseSegmentOptions} />
               </div>
+              <div className="xl:col-span-2 rounded-[10px] border border-[#333333] bg-[#171717] px-3 py-2 text-[12px] leading-5 text-[#A1A1AA]">
+                복합 상온/저온은 복합센터 안의 온도별 관측치이고, 상온/저온(복합포함)은 단일 상온·저온과 복합센터 해당 온도 관측치를 함께 포함한 원천 집계입니다. 앱에서 임의 합산하지 않고 엑셀 원천 구분을 그대로 선택할 수 있게 두었습니다.
+              </div>
             </div>
             <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
               {leaseStatisticSummaryCards.map((metric) => (
@@ -4849,17 +4990,17 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
               <div>
                 <div className="mb-2 text-[13px] font-semibold text-white">수도권</div>
                 {leaseSegment === '전체' ? (
-                  <ScopedGroupedBarChart rows={leaseStatisticComparisonRows.filter((row) => isCapitalRegion(row.region || row.label))} formatter={leaseMetricFormatter} />
+                  <ScopedGroupedBarChart rows={leaseStatisticComparisonRows.filter((row) => isCapitalRegion(row.region || row.label))} formatter={leaseMetricFormatter} onRowClick={openLeaseStatisticModal} />
                 ) : (
-                  <ScopedBarList rows={leaseStatisticCapitalChartRows.length ? leaseStatisticCapitalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={chartSeriesColor(leaseSegment)} />
+                  <ScopedBarList rows={leaseStatisticCapitalChartRows.length ? leaseStatisticCapitalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={chartSeriesColor(leaseSegment)} onRowClick={openLeaseStatisticModal} />
                 )}
               </div>
               <div>
                 <div className="mb-2 text-[13px] font-semibold text-white">지방</div>
                 {leaseSegment === '전체' ? (
-                  <ScopedGroupedBarChart rows={leaseStatisticComparisonRows.filter((row) => isLocalRegion(row.region || row.label))} formatter={leaseMetricFormatter} />
+                  <ScopedGroupedBarChart rows={leaseStatisticComparisonRows.filter((row) => isLocalRegion(row.region || row.label))} formatter={leaseMetricFormatter} onRowClick={openLeaseStatisticModal} />
                 ) : (
-                  <ScopedBarList rows={leaseStatisticLocalChartRows.length ? leaseStatisticLocalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={chartSeriesColor(leaseSegment)} />
+                  <ScopedBarList rows={leaseStatisticLocalChartRows.length ? leaseStatisticLocalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={chartSeriesColor(leaseSegment)} onRowClick={openLeaseStatisticModal} />
                 )}
               </div>
             </div>
@@ -4905,59 +5046,13 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
                 <FilterPills label="유형" value={supplyKind} onChange={setSupplyKind} options={supplyKindOptions} />
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="text-[12px] font-semibold text-[#A1A1AA]">기간 slicer</div>
+                    <div className="text-[12px] font-semibold text-[#A1A1AA]">기간 선택</div>
                     <div className="text-[11px] text-[#86868B]">{supplyStart} ~ {supplyEnd} · {formatNumber(rangedPipelineRows.length)}건</div>
                   </div>
-                  {supplyTimelinePeriods.length ? (
-                    <div className={`${INNER} p-3`}>
-                      <div className="mb-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <label className="text-[11px] font-semibold text-[#86868B]">
-                          시작
-                          <input
-                            type="range"
-                            min="0"
-                            max={Math.max(0, supplyTimelinePeriods.length - 1)}
-                            value={Math.min(supplyStartIndex, supplyEndIndex)}
-                            onChange={(event) => setSupplyTimelineStart(Number(event.target.value))}
-                            className="mt-2 w-full accent-[#9AD7FF]"
-                          />
-                        </label>
-                        <label className="text-[11px] font-semibold text-[#86868B]">
-                          종료
-                          <input
-                            type="range"
-                            min="0"
-                            max={Math.max(0, supplyTimelinePeriods.length - 1)}
-                            value={Math.max(supplyStartIndex, supplyEndIndex)}
-                            onChange={(event) => setSupplyTimelineEnd(Number(event.target.value))}
-                            className="mt-2 w-full accent-[#B5E48C]"
-                          />
-                        </label>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5" data-supply-range-slicer="true">
-                        {supplyTimelinePeriods.map((period, index) => {
-                          const selected = index >= Math.min(supplyStartIndex, supplyEndIndex) && index <= Math.max(supplyStartIndex, supplyEndIndex);
-                          return (
-                            <button
-                              key={period}
-                              type="button"
-                              onClick={() => applySupplyPreset(period)}
-                              className={`h-8 rounded-[8px] border px-2.5 text-[11px] font-semibold ${selected ? 'border-[#9AD7FF] bg-[#21313A] text-white' : 'border-[#3A3A3C] text-[#A1A1AA] hover:text-white'}`}
-                              title={`${period}만 보기`}
-                            >
-                              {period}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <input type="date" value={supplyStart} onChange={(event) => setSupplyStart(event.target.value)} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" aria-label="공급 시작일" />
-                        <input type="date" value={supplyEnd} onChange={(event) => setSupplyEnd(event.target.value)} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" aria-label="공급 종료일" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className={`${INNER} px-4 py-3 text-[12px] text-[#A1A1AA]`}>기간 라벨이 있는 공급 데이터가 없습니다.</div>
-                  )}
+                  <div className={`${INNER} grid grid-cols-1 gap-2 p-3 md:grid-cols-2`}>
+                    <input type="date" value={supplyStart} onChange={(event) => setSupplyStart(event.target.value)} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" aria-label="공급 시작일" />
+                    <input type="date" value={supplyEnd} onChange={(event) => setSupplyEnd(event.target.value)} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" aria-label="공급 종료일" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -4974,10 +5069,12 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
             </div>
           </section>
           <section className="space-y-5">
-            <div className={`${CARD} p-4`}>
-              <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="new_supply" title="신규 공급 면적" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
+            <div className={`${CARD} p-5`}>
+              <ModuleHeader eyebrow="TIME SERIES" title="향후 공급 예정 물량" />
+              <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="pipeline_supply" title="향후 공급 예정 물량" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
             </div>
-            <div className={`${CARD} p-4`}>
+            <div className={`${CARD} p-5`}>
+              <ModuleHeader eyebrow="CUMULATIVE" title="누적 공급 면적" />
               <SupplyAreaChart rows={supplyChartRowsInRange} seriesType="cumulative_supply" title="누적 공급 면적" axisTickMode="five-lines" onPeriodClick={openSupplyPeriodModal} detailCountForPeriod={(period, type) => supplyRowsForPeriod(period, type).length} />
             </div>
           </section>
@@ -5807,15 +5904,15 @@ export function DataManagementDashboard() {
   const [selectedField, setSelectedField] = useState('');
   const [afterValue, setAfterValue] = useState('');
   const [reason, setReason] = useState('');
-  const [managementSourceId, setManagementSourceId] = useState('전체');
   const [managementAsset, setManagementAsset] = useState('전체');
   const [managementFund, setManagementFund] = useState('전체');
   const [managementSearch, setManagementSearch] = useState('');
   const [submitStatus, setSubmitStatus] = useState(null);
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 100, row_limit: 160 }, []);
+  const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 100, row_limit: 800 }, []);
   const sources = safeArray(data?.sources);
+  const managementSources = sources.filter((source) => DATA_MANAGEMENT_DOMAIN_KEYS.has(source.source_domain));
   const sheets = safeArray(data?.sheets);
   const columns = safeArray(data?.columns);
   const sourceRows = safeArray(data?.source_rows);
@@ -5825,7 +5922,6 @@ export function DataManagementDashboard() {
     { id: 'my', label: '내 작업' },
     { id: 'lease', label: '임대차' },
     { id: 'fund', label: '펀드/금융' },
-    { id: 'market', label: '시장자료' },
     { id: 'permission', label: '권한/사용자' },
     { id: 'spec', label: '자산 스펙' },
     { id: 'cost', label: '운영비용' },
@@ -5835,7 +5931,6 @@ export function DataManagementDashboard() {
   const domainForTab = {
     lease: 'lease_contracts',
     fund: 'fund_info',
-    market: 'sector_market',
     permission: 'permissions',
     spec: 'asset_specs',
     cost: 'operating_costs',
@@ -5843,14 +5938,13 @@ export function DataManagementDashboard() {
   const tabForDomain = (domain) => ({
     lease_contracts: 'lease',
     fund_info: 'fund',
-    sector_market: 'market',
     permissions: 'permission',
     asset_specs: 'spec',
     operating_costs: 'cost',
-  }[domain] || 'market');
+  }[domain] || 'lease');
   const domainRows = domainForTab
     ? sourceRows.filter((row) => sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain === domainForTab)
-    : sourceRows;
+    : sourceRows.filter((row) => DATA_MANAGEMENT_DOMAIN_KEYS.has(sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain));
   const rowOptionValue = (row, keys) => {
     const values = row?.row_values && typeof row.row_values === 'object' ? row.row_values : {};
     return text(firstText(...keys.map((key) => values[key])), '');
@@ -5896,9 +5990,6 @@ export function DataManagementDashboard() {
     sourceRowDisplayTitle(row),
     sourceRowDisplaySummary(row),
   ].join(' ').toLowerCase();
-  const managementSourceOptions = [{ value: '전체', label: '전체 원천' }, ...sources
-    .filter((source) => !domainForTab || source.source_domain === domainForTab)
-    .map((source) => ({ value: source.source_file_id, label: `${sourceDomainLabel(source.source_domain)} · ${text(source.file_name)}` }))];
   const managementAssetOptions = ['전체', ...scopeAssetOptions.map((option) => option.label).sort((a, b) => a.localeCompare(b, 'ko'))];
   const managementFundOptions = ['전체', ...scopeFundOptions.map((option) => option.label).sort((a, b) => a.localeCompare(b, 'ko'))];
   const selectedAssetRefs = managementAsset === '전체'
@@ -5908,7 +5999,6 @@ export function DataManagementDashboard() {
     ? []
     : (scopeFundOptions.find((option) => option.label === managementFund)?.refs || [normalizeManagementKey(managementFund)]);
   const filteredRows = scopedDomainRows
-    .filter((row) => managementSourceId === '전체' || row.source_file_id === managementSourceId)
     .filter((row) => rowMatchesRefs(row, selectedAssetRefs))
     .filter((row) => rowMatchesRefs(row, selectedFundRefs))
     .filter((row) => !managementSearch || rowSearchText(row).includes(managementSearch.toLowerCase()));
@@ -5941,7 +6031,6 @@ export function DataManagementDashboard() {
     setSelectedField('');
     setAfterValue('');
     setReason('');
-    setManagementSourceId('전체');
     setSubmitStatus(null);
     setPreview(null);
   }, [tab]);
@@ -5982,7 +6071,7 @@ export function DataManagementDashboard() {
       window.clearTimeout(timer);
     };
   }, [hasPendingChange, selectedRow?.source_row_id, selectedField, currentBeforeValue, afterValue, selectedSource.source_domain]);
-  const sourceCards = SOURCE_DOMAINS.map((domain) => {
+  const sourceCards = DATA_MANAGEMENT_DOMAINS.map((domain) => {
     const rows = domainSources(sources, domain.key);
     const active = rows.find((row) => row.active_version) || rows[0] || {};
     const stats = domainStats.find((row) => row.source_domain === domain.key) || {};
@@ -6068,13 +6157,7 @@ export function DataManagementDashboard() {
               </button>
             )}
           />
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
-            <label className="text-[12px] font-semibold text-[#A1A1AA]">
-              원천
-              <select value={managementSourceId} onChange={(event) => setManagementSourceId(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
-                {managementSourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-              </select>
-            </label>
+          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
             <label className="text-[12px] font-semibold text-[#A1A1AA]">
               자산
               <select value={managementAsset} onChange={(event) => setManagementAsset(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
@@ -6102,7 +6185,7 @@ export function DataManagementDashboard() {
       <section className={`${CARD} mb-5 p-5`}>
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           {[
-            ['1. 데이터 종류 선택', '임대차, 펀드/금융, 시장자료, 권한, 자산 스펙, 운영비용 중 고칠 업무를 먼저 고릅니다.'],
+            ['1. 데이터 종류 선택', '임대차, 펀드/금융, 권한, 자산 스펙, 운영비용 중 고칠 업무를 먼저 고릅니다.'],
             ['2. 원천 행 선택', '엑셀에서 들어온 원본 행을 선택해 어떤 값이 현재 저장돼 있는지 확인합니다.'],
             ['3. 변경값 입력', '현재값과 변경값을 나란히 보면서 단위, 필수값, 중복 여부를 확인합니다.'],
             ['4. 승인 요청', '바로 DB를 바꾸지 않고 승인 대기에 올린 뒤, 관리자가 반영합니다.'],
@@ -6122,14 +6205,14 @@ export function DataManagementDashboard() {
       {tab === 'my' ? (
         <div className="space-y-5">
           <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <MetricCard label="원천 파일" value={`${formatNumber(sources.length)}개`} detail="Excel active/draft 버전" />
+            <MetricCard label="원천 파일" value={`${formatNumber(managementSources.length)}개`} detail="Data Management 대상 active/draft 버전" />
             <MetricCard label="시트" value={`${formatNumber(sheets.length)}개`} detail="header, row count 추적" />
             <MetricCard label="컬럼" value={`${formatNumber(columns.length)}개`} detail="원본 컬럼 및 매핑 정보" />
             <MetricCard label="승인 대기" value={`${formatNumber(edits.filter((row) => row.status === 'submitted').length)}건`} detail="검토 후 반영" />
           </section>
           <section className="grid grid-cols-1 gap-3 xl:grid-cols-6">
             {sourceCards.map((item) => (
-              <button key={item.key} type="button" onClick={() => setTab(item.key === 'lease_contracts' ? 'lease' : item.key === 'fund_info' ? 'fund' : item.key === 'sector_market' ? 'market' : item.key === 'permissions' ? 'permission' : item.key === 'operating_costs' ? 'cost' : 'spec')} className={`${INNER} px-4 py-4 text-left hover:bg-[#262626]`}>
+              <button key={item.key} type="button" onClick={() => setTab(item.key === 'lease_contracts' ? 'lease' : item.key === 'fund_info' ? 'fund' : item.key === 'permissions' ? 'permission' : item.key === 'operating_costs' ? 'cost' : 'spec')} className={`${INNER} px-4 py-4 text-left hover:bg-[#262626]`}>
                 <div className="text-[13px] font-semibold text-white">{item.label}</div>
                 <div className="mt-2 min-h-[40px] text-[12px] leading-5 text-[#A1A1AA]">{text(item.active.file_name, '아직 업로드 없음')}</div>
                 <div className="mt-3 flex items-center justify-between text-[11px] text-[#86868B]">
@@ -6146,17 +6229,11 @@ export function DataManagementDashboard() {
         </div>
       ) : null}
 
-      {['lease', 'fund', 'market', 'permission', 'spec', 'cost'].includes(tab) ? (
+      {['lease', 'fund', 'permission', 'spec', 'cost'].includes(tab) ? (
         <div className="space-y-5">
           <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="TARGET SELECTOR" title="관리 대상 선택" subtitle="원천, 자산, 펀드, 검색어를 먼저 고르면 아래 수정 대상 행과 미리보기가 즉시 좁혀집니다." />
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
-              <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                원천
-                <select value={managementSourceId} onChange={(event) => setManagementSourceId(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
-                  {managementSourceOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                </select>
-              </label>
+            <ModuleHeader eyebrow="TARGET SELECTOR" title="관리 대상 선택" subtitle="자산, 펀드, 검색어를 먼저 고르면 아래 수정 대상 행과 미리보기가 즉시 좁혀집니다." />
+            <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
               <label className="text-[12px] font-semibold text-[#A1A1AA]">
                 자산
                 <select value={managementAsset} onChange={(event) => setManagementAsset(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
@@ -6349,7 +6426,7 @@ export function DataManagementDashboard() {
             <Table
               minWidth={980}
               headers={['구분', '파일', '버전', 'Active', '상태', '행수', '업데이트']}
-              rows={sources.map((row) => [
+              rows={managementSources.map((row) => [
                 sourceDomainLabel(row.source_domain),
                 text(row.file_name),
                 text(row.source_version),
