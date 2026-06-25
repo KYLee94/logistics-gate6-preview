@@ -172,6 +172,12 @@ async function collectSupplyState(page) {
         title: button.getAttribute('title') || '',
         disabled: button.disabled,
       }));
+    const dateInputs = Array.from(document.querySelectorAll('[data-supply-range-slicer="true"] input[type="date"]'))
+      .map((input, index) => ({
+        index,
+        value: input.value || '',
+        label: input.getAttribute('aria-label') || '',
+      }));
     const signature = [
       tableRows.join('|'),
       chartSignature,
@@ -180,6 +186,8 @@ async function collectSupplyState(page) {
     return {
       button_count: buttons.length,
       buttons,
+      date_input_count: dateInputs.length,
+      date_inputs: dateInputs,
       table_row_count: tableRows.length,
       table_hash: hashText(tableRows.join('|')),
       chart_count: document.querySelectorAll('[data-chart-role]').length,
@@ -229,18 +237,29 @@ async function main() {
     });
     await page.goto(joinUrl(baseUrl, report.route), { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => /Market\s*Data/iu.test(document.body?.innerText || ''), undefined, { timeout: 60000 });
-    await page.waitForFunction(() => document.querySelectorAll('[data-supply-range-slicer="true"] button').length >= 2, undefined, { timeout: 90000 });
+    await page.waitForFunction(() => (
+      document.querySelectorAll('[data-supply-range-slicer="true"] button').length >= 2
+      || document.querySelectorAll('[data-supply-range-slicer="true"] input[type="date"]').length >= 2
+    ), undefined, { timeout: 90000 });
     await page.waitForFunction(() => document.querySelectorAll('table tbody tr').length > 0, undefined, { timeout: 90000 });
     const before = await collectSupplyState(page);
     const beforeShot = path.join(OUT_DIR, `supply-period-slicer-before-${stamp}.png`);
     await page.screenshot({ path: beforeShot, fullPage: false });
     report.screenshots.push(beforeShot);
-    const targetIndex = Number.isFinite(targetIndexArg) && targetIndexArg >= 0
-      ? Math.min(Math.floor(targetIndexArg), before.button_count - 1)
-      : 0;
-    const targetButton = page.locator('[data-supply-range-slicer="true"] button').nth(targetIndex);
-    report.clicked_button = before.buttons[targetIndex] || { index: targetIndex };
-    await targetButton.click({ timeout: 20000 });
+    if (before.button_count >= 2) {
+      const targetIndex = Number.isFinite(targetIndexArg) && targetIndexArg >= 0
+        ? Math.min(Math.floor(targetIndexArg), before.button_count - 1)
+        : 0;
+      const targetButton = page.locator('[data-supply-range-slicer="true"] button').nth(targetIndex);
+      report.clicked_button = before.buttons[targetIndex] || { index: targetIndex };
+      await targetButton.click({ timeout: 20000 });
+    } else {
+      const startInput = page.locator('[data-supply-range-slicer="true"] input[type="date"]').nth(0);
+      const endInput = page.locator('[data-supply-range-slicer="true"] input[type="date"]').nth(1);
+      report.clicked_button = { index: 0, text: 'date range changed', start: '2026-01-01', end: '2027-12-31' };
+      await startInput.fill('2026-01-01', { timeout: 20000 });
+      await endInput.fill('2027-12-31', { timeout: 20000 });
+    }
     await page.waitForFunction((previousHash) => {
       const hashText = (value) => {
         let hash = 0;
@@ -298,7 +317,7 @@ async function main() {
     report.screenshots.push(afterShot);
     report.before = before;
     report.after = after;
-    report.checks.slicer_present = before.button_count >= 2;
+    report.checks.slicer_present = before.button_count >= 2 || before.date_input_count >= 2;
     report.checks.button_clicked = Boolean(report.clicked_button);
     report.checks.table_changed = before.table_hash !== after.table_hash || before.table_row_count !== after.table_row_count;
     report.checks.chart_changed = before.chart_hash !== after.chart_hash || before.chart_visual_count !== after.chart_visual_count;

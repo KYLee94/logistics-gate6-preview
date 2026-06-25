@@ -219,11 +219,13 @@ async function main() {
       Array.isArray(viewsData.views) && viewsData.views.some((view) => view.view_key === viewKey)
     ));
     report.checks.normalized_lease_space_not_default = report.view_rows_contract.view?.view_key !== 'lease_contracts';
-    report.checks.has_business_column_groups = Number(report.view_rows_contract.field_count || 0) === 0
-      ? body.includes('원본 임대차계약 파일 적재가 필요합니다.')
-      : ['기본정보', '계약일정', '면적', '경제조건'].every((label) => body.includes(label));
-    report.checks.grid_has_rows_or_clear_zero_state = Number(report.view_rows_contract.row_count || 0) > 0 || body.includes('현재 조건 0건') || body.includes('원본 임대차계약 파일 적재가 필요합니다.') || body.includes('View는 1차 구현 이후 확장됩니다');
-    report.checks.grid_has_sorting_headers = Number(report.view_rows_contract.field_count || 0) === 0 || Number(igisGridMetrics.headerButtons || 0) > 1;
+    report.checks.default_view_has_fields = Number(report.view_rows_contract.field_count || 0) > 0;
+    report.checks.default_view_has_rows = Number(report.view_rows_contract.row_count || 0) > 0;
+    report.checks.default_view_uses_normalized_readback = report.view_rows_contract.view?.source_status?.normalized_data_present === true;
+    report.checks.no_source_missing_empty_state = !body.includes('원본 임대차계약 파일 적재가 필요합니다.') && report.view_rows_contract.view?.source_status?.normalized_data_present === true;
+    report.checks.has_business_column_groups = ['기본정보', '계약기간', '면적', '경제조건'].every((label) => body.includes(label));
+    report.checks.grid_has_rows_or_clear_zero_state = Number(report.view_rows_contract.row_count || 0) > 0;
+    report.checks.grid_has_sorting_headers = Number(igisGridMetrics.headerButtons || 0) > 1;
     report.checks.grid_not_stuck_loading = !igisGridMetrics.hasLoadingText;
     report.checks.change_basket_visible = body.includes('검증 및 승인 요청') && body.includes('변경 전') && body.includes('변경 후');
     report.internal_token_match = internalTokenMatch(body);

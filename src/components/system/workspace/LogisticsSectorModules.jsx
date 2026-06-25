@@ -800,12 +800,12 @@ function useEdgeData(action, payload = {}, deps = []) {
   return { ...state, reload };
 }
 
-function ModuleHeader({ eyebrow, title, subtitle = '', right = null }) {
+function ModuleHeader({ eyebrow, title, subtitle = '', right = null, page = false }) {
   return (
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
         {eyebrow ? <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{eyebrow}</div> : null}
-        <h2 className={`${eyebrow ? 'mt-1' : ''} text-[24px] font-semibold tracking-tight text-white`}>{title}</h2>
+        <h2 className={`${eyebrow ? 'mt-1' : ''} ${page ? 'text-[30px]' : 'text-[24px]'} font-semibold tracking-tight text-white`}>{title}</h2>
         {subtitle ? <p className="mt-1 max-w-[860px] text-[12px] leading-5 text-[#A1A1AA]">{subtitle}</p> : null}
       </div>
       {right}
@@ -813,7 +813,18 @@ function ModuleHeader({ eyebrow, title, subtitle = '', right = null }) {
   );
 }
 
-function MetricCard({ label, value, detail }) {
+function MetricCard({ label, value, detail, compact = false }) {
+  if (compact) {
+    return (
+      <div className={`${INNER} flex min-h-[64px] items-center justify-between gap-4 px-4 py-2`}>
+        <div className="min-w-0">
+          <div className="text-[11px] font-semibold text-[#86868B]">{label}</div>
+          <div className="mt-1 truncate text-[18px] font-semibold text-white" title={String(value)}>{value}</div>
+        </div>
+        {detail ? <div className="max-w-[46%] shrink-0 text-right text-[10px] leading-4 text-[#86868B]">{detail}</div> : null}
+      </div>
+    );
+  }
   return (
     <div className={`${INNER} px-4 py-3`}>
       <div className="text-[12px] font-semibold text-[#86868B]">{label}</div>
@@ -1063,11 +1074,21 @@ function Modal({ title, onClose, children, width = 'max-w-[1180px]', fullscreen 
   );
 }
 
-function FilterPills({ label, options, value, onChange }) {
+function FilterPills({ label, options, value, onChange, help = '' }) {
   return (
     <div className="min-w-0">
-      <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{label}</div>
-      <div className="custom-scrollbar flex max-w-full gap-1 overflow-x-auto pb-1">
+      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+        <span>{label}</span>
+        {help ? (
+          <span className="group relative inline-grid h-4 w-4 place-items-center rounded-full border border-[#3A3A3C] text-[10px] normal-case tracking-normal text-[#A1A1AA]">
+            !
+            <span className="pointer-events-none absolute left-0 top-5 z-50 hidden w-[360px] rounded-[10px] border border-[#3A3A3C] bg-[#F5F5F7] px-3 py-2 text-left text-[12px] font-medium leading-5 tracking-normal text-[#1F1F1E] shadow-xl group-hover:block">
+              {help}
+            </span>
+          </span>
+        ) : null}
+      </div>
+      <div className="flex max-w-full flex-wrap gap-1.5">
         {options.map((option) => {
           const optionValue = typeof option === 'string' ? option : option.value;
           const optionLabel = typeof option === 'string' ? option : option.label;
@@ -3179,7 +3200,7 @@ function RegionFilterGroups({ label, value, onChange, options }) {
   const renderGroup = (title, rows) => rows.length ? (
     <div>
       <div className="mb-1 text-[10px] font-semibold text-[#86868B]">{title}</div>
-      <div className="custom-scrollbar flex max-w-full gap-1 overflow-x-auto pb-1">
+      <div className="flex max-w-full flex-wrap gap-1.5">
         {rows.map((option) => (
           <button
             key={option.value}
@@ -4367,12 +4388,27 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const regions = makeRegionOptions([...leases, ...supply, ...transactions]);
   const temps = ['전체', ...new Set([...leases, ...supply, ...transactions].map((row) => text(row.temperature_type, '')).filter(Boolean))].filter(Boolean).slice(0, 10);
   const transactionTypes = ['전체', ...new Set(transactions.map((row) => text(row.transaction_type || row.deal_type, '')).filter(Boolean))].slice(0, 8);
-  const maxTxnYear = Math.max(...transactions.map((row) => number(row.transaction_year || String(row.transaction_date || '').slice(0, 4))), new Date().getFullYear());
   const yearFrom = (row) => number(row.transaction_year || String(row.transaction_date || row.transaction_period || '').slice(0, 4));
-  const txnWindowYears = { '1y': 1, '3y': 3, '5y': 5 }[txnWindow] || 3;
-  const filteredTransactions = transactions.filter((row) => {
+  const transactionPeriodEnd = (row) => {
+    const direct = text(firstText(row.transaction_date, row.closing_date, row.contract_date, row.deal_date), '');
+    if (direct) {
+      const parsed = new Date(direct);
+      if (Number.isFinite(parsed.getTime())) return parsed.getTime();
+    }
     const year = yearFrom(row);
-    const inWindow = year ? year >= maxTxnYear - txnWindowYears + 1 : true;
+    if (!Number.isFinite(year) || year <= 0) return null;
+    const quarterText = text(firstText(row.transaction_quarter, row.report_quarter, row.quarter, row.transaction_period), '');
+    const quarterMatch = quarterText.match(/([1-4])\s*(?:Q|분기)/iu);
+    const quarter = quarterMatch ? Number(quarterMatch[1]) : 4;
+    const endMonth = Math.min(12, Math.max(3, quarter * 3));
+    return new Date(year, endMonth, 0, 23, 59, 59, 999).getTime();
+  };
+  const txnWindowMonths = { '1y': 12, '3y': 36, '5y': 60 }[txnWindow] || 36;
+  const txnWindowStart = new Date();
+  txnWindowStart.setMonth(txnWindowStart.getMonth() - txnWindowMonths);
+  const filteredTransactions = transactions.filter((row) => {
+    const periodEnd = transactionPeriodEnd(row);
+    const inWindow = periodEnd ? periodEnd >= txnWindowStart.getTime() : true;
     const regionOk = regionMatches(txnRegion, row.region);
     const tempOk = txnTemp === '전체' || text(row.temperature_type) === txnTemp;
     const typeText = text(row.transaction_type || row.deal_type, '');
@@ -5026,6 +5062,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       <ModuleHeader
         eyebrow=""
         title={MARKET_TAB_TITLES[currentTab] || 'Market Data'}
+        page
       />
       {error ? <div className="mb-4 rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
       {loading ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>시장자료를 불러오는 중입니다.</div> : null}
@@ -5033,10 +5070,10 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       {currentTab === 'overview' ? (
         <div className="space-y-5">
           <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="임대 관측치" value={`${formatNumber(summary.lease_observation_count || leases.length)}건`} detail={`최근 기준 ${text(summary.latest_lease_period, '-')}`} />
-            <MetricCard label="평당 임대료" value={summary.weighted_rent_manwon_per_py == null ? '-' : `${formatNumber(summary.weighted_rent_manwon_per_py, 1)}만원`} detail="임대면적 가중평균" />
-            <MetricCard label="공급 예정" value={`${formatNumber(summary.pipeline_supply_count || 0)}건`} detail={`당분기 신규공급 ${formatNumber(summary.new_supply_total_gross_area_py, 1)}평`} />
-            <MetricCard label="매매 사례" value={`${formatNumber(summary.transaction_case_count || transactions.length)}건`} detail={summary.latest_cap_rate ? `최근 Cap Rate ${formatRate(summary.latest_cap_rate.cap_rate)}` : '2010년 이후 거래'} />
+            <MetricCard compact label="임대 관측치" value={`${formatNumber(summary.lease_observation_count || leases.length)}건`} detail={`최근 기준 ${text(summary.latest_lease_period, '-')}`} />
+            <MetricCard compact label="평당 임대료" value={summary.weighted_rent_manwon_per_py == null ? '-' : `${formatNumber(summary.weighted_rent_manwon_per_py, 1)}만원`} detail="임대면적 가중평균" />
+            <MetricCard compact label="공급 예정" value={`${formatNumber(summary.pipeline_supply_count || 0)}건`} detail={`당분기 신규공급 ${formatNumber(summary.new_supply_total_gross_area_py, 1)}평`} />
+            <MetricCard compact label="매매 사례" value={`${formatNumber(summary.transaction_case_count || transactions.length)}건`} detail={summary.latest_cap_rate ? `최근 Cap Rate ${formatRate(summary.latest_cap_rate.cap_rate)}` : '2010년 이후 거래'} />
           </section>
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <div className={`${CARD} p-5`}>
@@ -5217,7 +5254,6 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
             <ModuleHeader
               eyebrow="LEASE MARKET"
               title="최신 임대시장 통계"
-              subtitle="임대시장 통계 시트의 선택 시점 기준입니다. 기본값은 복합 전체이며, 선택한 상/저온 구분을 수도권과 지방으로 나눠 비교합니다."
               right={(
                 <button
                   type="button"
@@ -5228,19 +5264,24 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
                 </button>
               )}
             />
-            <div className="mb-5 grid grid-cols-1 gap-4 xl:grid-cols-[0.7fr_1fr]">
+            <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(220px,0.7fr)_minmax(260px,0.9fr)_minmax(420px,1.4fr)]">
               <FilterPills label="시점" value={selectedLeaseStatisticPeriod} onChange={setLeaseStatisticPeriod} options={leaseStatisticPeriods.map((period) => ({ value: period, label: period }))} />
               <FilterPills label="지표" value={leaseMeasure} onChange={setLeaseMeasure} options={leaseMeasureOptions} />
-              <div className="xl:col-span-2">
-                <FilterPills label="상/저온 구분" value={leaseSegment} onChange={setLeaseSegment} options={leaseSegmentOptions} />
-              </div>
-              <div className="xl:col-span-2 rounded-[10px] border border-[#333333] bg-[#171717] px-3 py-2 text-[12px] leading-5 text-[#A1A1AA]">
-                복합 상온/저온은 복합센터 안의 온도별 관측치이고, 상온/저온(복합포함)은 단일 상온·저온과 복합센터 해당 온도 관측치를 함께 포함한 원천 집계입니다. 앱에서 임의 합산하지 않고 엑셀 원천 구분을 그대로 선택할 수 있게 두었습니다.
-              </div>
+              <FilterPills
+                label="상/저온 구분"
+                value={leaseSegment}
+                onChange={setLeaseSegment}
+                options={leaseSegmentOptions}
+                help="복합 상온/저온은 복합센터 안의 온도별 관측치이고, 상온/저온(복합포함)은 단일 상온·저온과 복합센터 해당 온도 관측치를 함께 포함한 원천 집계입니다."
+              />
             </div>
-            <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="mb-4 flex flex-wrap gap-2">
               {leaseStatisticSummaryCards.map((metric) => (
-                <MetricCard key={metric.label} label={metric.label} value={metric.value} detail={metric.detail} />
+                <div key={metric.label} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#333333] bg-[#171717] px-3 text-[12px]">
+                  <span className="text-[#86868B]">{metric.label}</span>
+                  <span className="font-semibold text-white">{metric.value}</span>
+                  <span className="text-[11px] text-[#86868B]">{metric.detail}</span>
+                </div>
               ))}
             </div>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
@@ -5272,14 +5313,9 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
           </section>
           <section className={`${CARD} p-5`}>
             <ModuleHeader eyebrow="CENTER DETAIL" title="권역별 물류센터 임대 현황" subtitle="임대시장 현황 시트의 센터별 관측치입니다. 행을 선택하면 같은 센터의 시점별 기록을 확인합니다." />
-            <div className="mb-4">
-              <FilterPills label="상/저온 구분" value={leaseCenterTemp} onChange={setLeaseCenterTemp} options={leaseCenterTempOptions} />
-            </div>
-            <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
+            <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
               <RegionFilterGroups label="권역" value={leaseRegion} onChange={setLeaseRegion} options={regions} />
-              <div className={`${INNER} flex min-h-[74px] items-center px-4 text-[12px] leading-5 text-[#A1A1AA]`}>
-                권역과 상/저온 조건은 지도와 표에 동시에 반영됩니다. 자산명 검색은 우측 표 바로 위에서 조정합니다.
-              </div>
+              <FilterPills label="상/저온 구분" value={leaseCenterTemp} onChange={setLeaseCenterTemp} options={leaseCenterTempOptions} />
             </div>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
               <MarketMapPanel title="권역별 센터" rows={filteredLeaseRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), rows: centerHistoryRows(row), columns: leaseHistoryColumns, width: 'max-w-[calc(100vw-32px)]', minWidth: 1320, maxHeight: 680 })} />
@@ -5309,13 +5345,14 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
             <div className="mb-4">
               <div className="mb-3 grid grid-cols-1 gap-4 xl:grid-cols-[320px_1fr] xl:items-start">
                 <FilterPills label="유형" value={supplyKind} onChange={setSupplyKind} options={supplyKindOptions} />
-                <div>
+                <div data-supply-range-slicer="true">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="text-[12px] font-semibold text-[#A1A1AA]">기간 선택</div>
                     <div className="flex items-center gap-2">
                       <div className="text-[11px] text-[#86868B]">{supplyStart} ~ {supplyEnd} · {formatNumber(rangedPipelineRows.length)}건{supplyPeriodTouched ? ' · 미정 제외' : ''}</div>
                       <button
                         type="button"
+                        data-supply-range-reset="true"
                         onClick={() => {
                           setSupplyStart(SUPPLY_PERIOD_DEFAULT_START);
                           setSupplyEnd(SUPPLY_PERIOD_DEFAULT_END);
@@ -7050,7 +7087,11 @@ export function DataManagementDashboard() {
     sort: sort.key ? [{ key: sort.key, direction: sort.direction }] : [],
   }), [spaceKey, effectiveViewKey, bundleKey, search, page, sort.key, sort.direction]);
   const { loading: rowsLoading, error: rowsError, data: rowsData, reload: reloadRows } = useEdgeData('data-management/view-rows', rowsPayload, [rowsPayload]);
-  const columns = safeArray(rowsData?.fields).filter((column) => column && !column.sensitive);
+  const columns = safeArray(rowsData?.fields).filter((column) => (
+    column
+    && !column.sensitive
+    && !isInternalFieldName(column.field_key || column.field || column.label)
+  ));
   const visibleColumns = useMemo(() => (
     showAllFields ? columns : columns.filter((column) => column.default_hidden !== true)
   ), [columns, showAllFields]);
@@ -7090,6 +7131,16 @@ export function DataManagementDashboard() {
     readback_only: '읽기 전용',
   }[text(capability)] || '읽기 전용');
   const writeModeLabel = capabilityLabel(rowsData?.view?.capability || selectedView.capability);
+  const sourceStatus = rowsData?.view?.source_status && typeof rowsData.view.source_status === 'object'
+    ? rowsData.view.source_status
+    : null;
+  const sourceStatusText = sourceStatus
+    ? (sourceStatus.normalized_data_present
+      ? (sourceStatus.raw_source_present
+        ? '운영 데이터와 원본 Excel 보관본을 함께 확인 중입니다.'
+        : '운영 Supabase 데이터 기준으로 표시 중입니다. 원본 Excel row 보관본은 별도 감사 항목입니다.')
+      : '운영 Supabase 데이터 readback 결과가 0건입니다.')
+    : '';
 
   useEffect(() => {
     const nextView = viewsForSpace[0]?.view_key || '';
@@ -7289,6 +7340,11 @@ export function DataManagementDashboard() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3" data-data-management-table-tabs="true">
             <div className="text-[12px] leading-5 text-[#A1A1AA]">
               {text(selectedView.description, '업무 View 기준으로 정리한 데이터입니다.')}
+              {sourceStatusText ? (
+                <div className={`mt-1 ${sourceStatus?.normalized_data_present ? 'text-[#B5E48C]' : 'text-[#FFD479]'}`}>
+                  {sourceStatusText}
+                </div>
+              ) : null}
             </div>
             <button type="button" onClick={() => setShowAllFields((current) => !current)} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]">
               {showAllFields ? '기본 컬럼만 보기' : '전체 컬럼 보기'}

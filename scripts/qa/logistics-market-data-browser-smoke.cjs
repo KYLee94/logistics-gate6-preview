@@ -469,7 +469,7 @@ async function main() {
         || (body.includes('유형')
           && body.includes('기간')
           && (await page.locator('input[type="date"]').count().catch(() => 0)) >= 2
-          && (await page.locator('[data-supply-range-slicer="true"] button').count().catch(() => 0)) === 0);
+          && (await page.locator('[data-supply-range-reset="true"]').count().catch(() => 0)) > 0);
       const transactionSlicerPresent = body.includes('기간') && body.includes('권역') && body.includes('상/저온') && body.includes('실물/선매입');
       const transactionSizeSlicerPresent = tab.key !== 'transactions' || (body.includes('규모별 평당 거래가') && body.includes('규모별 평당 거래가 및 거래시장 규모') && body.includes('규모'));
       const loadingStillPresent = body.includes('시장자료를 불러오는 중입니다.');
@@ -479,7 +479,7 @@ async function main() {
           && (await page.getByText('시점').count().catch(() => 0)) > 0);
       const supplySlicerPresentClean = tab.key !== 'supply-pipeline'
         || ((await page.locator('input[type="date"]').count().catch(() => 0)) >= 2
-          && (await page.locator('[data-supply-range-slicer="true"] button').count().catch(() => 0)) === 0);
+          && (await page.locator('[data-supply-range-reset="true"]').count().catch(() => 0)) > 0);
       const transactionSlicerPresentClean = tab.key !== 'transactions'
         || ((await page.getByText('기간').count().catch(() => 0)) > 0
           && (await page.getByText('권역').count().catch(() => 0)) > 0

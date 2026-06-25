@@ -5677,7 +5677,7 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
     key: 'permission',
     label: '권한/사용자',
     sourceDomains: ['permissions'],
-    tables: ['ll_user_permissions', 'll_login_history'],
+    tables: ['ll_user_permissions', 'll_staff_profiles', 'll_login_history'],
   },
   {
     key: 'source',
@@ -5729,7 +5729,7 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
     key: 'cache',
     label: '캐시/스냅샷',
     sourceDomains: [],
-    tables: ['ll_cache_entries', 'll_external_api_cache', 'll_dashboard_metric_snapshots', 'll_dashboard_read_snapshots'],
+    tables: ['ll_cache_entries', 'll_external_api_cache', 'll_dashboard_metric_snapshots', 'll_dashboard_read_snapshots', 'll_payload_snapshots'],
   },
 ];
 const DATA_MANAGEMENT_FALLBACK_TABLES = uniqueStrings(DATA_MANAGEMENT_COVERAGE_DOMAINS.flatMap((domain) => domain.tables), 200);
@@ -5780,6 +5780,7 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
   ll_news_runs: '뉴스 수집 실행',
   ll_news_items: '뉴스 항목',
   ll_user_permissions: '사용자 권한',
+  ll_staff_profiles: '직원 프로필',
   ll_login_history: '로그인 이력',
   ll_source_files: '원천 파일',
   ll_source_sheets: '원천 시트',
@@ -5816,6 +5817,7 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
   ll_external_api_cache: '외부 API 캐시',
   ll_dashboard_metric_snapshots: '대시보드 지표 스냅샷',
   ll_dashboard_read_snapshots: '대시보드 조회 스냅샷',
+  ll_payload_snapshots: '응답 페이로드 스냅샷',
 };
 const DATA_MANAGEMENT_WORKSPACES = [
   { key: 'igis', label: '이지스 Data', description: '자산·펀드 묶음을 기준으로 임대차, 금융, 스펙, 운영비용을 수정 요청합니다.' },
@@ -5828,10 +5830,10 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     workspace_key: 'igis',
     domain_key: 'lease',
     label: '현재 계약 원장',
-    grain: 'DB_일반 실제 계약 row 1건',
+    grain: '운영 임대차 계약 row 1건',
     row_unit: 'lease_general_excel_row',
-    row_unit_label: 'DB_일반',
-    description: '260414 임대차계약 DB의 DB_일반 실제 데이터 63행을 Excel 원장 순서로 확인합니다.',
+    row_unit_label: '운영 원장',
+    description: 'Supabase에 저장된 임대차 운영 데이터를 Excel 원장처럼 읽기 쉬운 업무 컬럼으로 확인합니다.',
     source_domain: 'lease_contracts',
     source_sheet_name: 'DB_일반',
   },
@@ -5879,7 +5881,7 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     grain: '임차 구역 1개',
     row_unit: 'lease_space',
     row_unit_label: '정규화',
-    description: 'Supabase 정규화 결과입니다. 원본 Excel 원장 검토 후 보조 확인용으로만 사용합니다.',
+    description: 'Supabase 정규화 임대공간 데이터를 기준으로 현재 계약 상태를 확인합니다.',
   },
   {
     view_key: 'market_lease_observations',
@@ -5925,8 +5927,8 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
 const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
   { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 180 },
-  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'tenant_master_name', width: 170 },
-  { field_key: 'space_label', label: '임대구역', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'space_label', width: 140 },
+  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, width: 170, read_only_reason: '임차인명은 임차인 마스터 lookup 값입니다. 임차인 마스터 View에서 별도 관리합니다.' },
+  { field_key: 'space_label', label: '임대구역', group: '기본정보', type: 'text', editable: false, width: 140, read_only_reason: '임대구역은 층과 세부구역을 조합한 표시값입니다. 층/세부구역 필드를 수정해 주세요.' },
   { field_key: 'contract_status', label: '계약상태', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
   { field_key: 'floor_label', label: '층', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'floor_label', width: 90, default_hidden: true },
   { field_key: 'detail_area_label', label: '세부구역', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'detail_area_label', width: 120, default_hidden: true },
@@ -5948,6 +5950,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'review_status', label: '검토 상태', group: '검토상태', type: 'text', editable: false, width: 120 },
   { field_key: 'review_note', label: '검토 메모', group: '검토상태', type: 'text', editable: false, width: 180, default_hidden: true },
 ];
+const DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS = new Set(['lease_general_excel', 'lease_contracts']);
 const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_assets: 'asset_id',
   ll_asset_managers: 'asset_manager_id',
@@ -6844,9 +6847,10 @@ function dataManagementPublicViewField(field: Record<string, unknown>) {
 function dataManagementViewDefinitions() {
   return DATA_MANAGEMENT_VIEW_DEFINITIONS.map((view) => {
     const { fallback_table_key: _fallbackTableKey, ...publicView } = view as Record<string, unknown>;
+    const viewKey = safeText(view.view_key);
     return stripUndefined({
       ...publicView,
-      fields: safeText(view.view_key) === 'lease_contracts'
+      fields: DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)
         ? DATA_MANAGEMENT_LEASE_VIEW_FIELDS.map((field) => dataManagementPublicViewField(field as Record<string, unknown>))
         : [],
     });
@@ -7222,8 +7226,8 @@ function dataManagementLookupStatus(row: Record<string, unknown>) {
   return { status: 'ok', label: '정상', missing: [] };
 }
 
-async function dataManagementLeaseContractRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
-  const viewKey = 'lease_contracts';
+async function dataManagementLeaseContractRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKeyOverride = 'lease_contracts') {
+  const viewKey = safeText(viewKeyOverride || 'lease_contracts');
   const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
   const pageSize = payload.resolve_all === true
     ? Math.min(Math.max(requestedPageSize || 5000, 1), 5000)
@@ -7345,6 +7349,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
 }
 
 async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const viewKey = safeText(payload.view_key || payload.viewKey || 'lease_contracts');
   const rowKey = safeText(payload.row_key || payload.rowKey);
   const fieldKey = safeText(payload.field_key || payload.fieldKey || payload.field_name || payload.fieldName);
   const field = dataManagementLeaseViewField(fieldKey);
@@ -7353,7 +7358,7 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
   if (field.editable !== true) throw new Error('이 필드는 읽기 전용입니다.');
   const targetTable = safeText(field.target_table);
   const targetField = safeText(field.target_field || field.field_key);
-  const result = await dataManagementLeaseContractRows(ctx, { page_size: 5000, resolve_all: true }, scope);
+  const result = await dataManagementLeaseContractRows(ctx, { page_size: 5000, resolve_all: true }, scope, viewKey);
   const row = result.rows.find((item) => safeText(item.row_key) === rowKey);
   if (!row) throw new Error('수정 대상 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
   const currentRawValue = (row.edit_values as Record<string, unknown> | undefined)?.[fieldKey];
@@ -7364,7 +7369,7 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
   if (rawRows.errorResponse) throw new Error('수정 대상 readback에 실패했습니다.');
   const matchingSpace = await Promise.all((rawRows.rows || []).map(async (space) => ({
     space,
-    row_key: await dataManagementOpaqueRowKey('lease_contracts', space.lease_space_id),
+    row_key: await dataManagementOpaqueRowKey(viewKey, space.lease_space_id),
   }))).then((items) => items.find((item) => item.row_key === rowKey)?.space || null);
   if (!matchingSpace) throw new Error('수정 대상 원장 행을 찾지 못했습니다.');
   const targetRowId = publicTargetTable === 'public.ll_leases' ? safeText(matchingSpace.lease_id) : safeText(matchingSpace.lease_space_id);
@@ -7384,7 +7389,7 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
       reason: payload.reason,
       target_type: 'data_management_view_field',
       reason_code: 'data_management_view_field_update',
-      view_key: 'lease_contracts',
+      view_key: viewKey,
       row_key: rowKey,
       field_key: fieldKey,
     },
@@ -7464,6 +7469,50 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
   const view = dataManagementViewByKey(dataManagementWorkViewKey(payload));
   if (!view) return fail(400, 'Unknown Data Management 업무 View입니다.', ctx.origin);
+  const viewKey = safeText(view.view_key);
+  if (DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
+    try {
+      const result = await dataManagementLeaseContractRows(ctx, payload, managementScope, viewKey);
+      const fields = DATA_MANAGEMENT_LEASE_VIEW_FIELDS.map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
+      const rawSourceFile = await dataManagementSourceFileForDomain(ctx, 'lease_contracts');
+      return jsonResponse({ ok: true, data: {
+        generated_at: new Date().toISOString(),
+        view: {
+          ...view,
+          fields,
+          source_status: {
+            normalized_data_present: result.total > 0,
+            raw_source_present: Boolean(rawSourceFile),
+            raw_source_file: rawSourceFile ? {
+              file_name: rawSourceFile.file_name,
+              source_version: rawSourceFile.source_version,
+              active_version: rawSourceFile.active_version,
+              parse_status: rawSourceFile.parse_status,
+            } : null,
+            note: rawSourceFile
+              ? '원본 Excel row 보관본과 운영 정규화 데이터를 함께 확인합니다.'
+              : '원본 Excel row 보관본은 없지만 운영 Supabase 정규화 데이터가 표시됩니다.',
+          },
+        },
+        fields,
+        rows: result.rows,
+        empty_state: result.total > 0 ? undefined : {
+          code: 'normalized_lease_data_empty',
+          title: '표시할 임대차 운영 데이터가 없습니다.',
+          description: 'Supabase 정규화 임대차 테이블의 readback 결과가 0건입니다. 자산 권한과 운영 테이블 적재 상태를 확인해야 합니다.',
+        },
+        pagination: {
+          page: result.page,
+          page_size: result.pageSize,
+          returned: result.rows.length,
+          total_estimate: result.total,
+          has_next: (result.page * result.pageSize) < result.total,
+        },
+      } }, 200, ctx.origin);
+    } catch (error) {
+      return fail(500, 'Data Management 임대차 운영 View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
   const workbookConfig = dataManagementLeaseWorkbookConfig(safeText(view.view_key));
   if (workbookConfig) {
     try {
@@ -7517,7 +7566,7 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
     } }, 200, ctx.origin);
   }
   try {
-    const result = await dataManagementLeaseContractRows(ctx, payload, managementScope);
+    const result = await dataManagementLeaseContractRows(ctx, payload, managementScope, 'lease_contracts');
     const fields = DATA_MANAGEMENT_LEASE_VIEW_FIELDS.map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
     return jsonResponse({ ok: true, data: {
       generated_at: new Date().toISOString(),
@@ -8334,8 +8383,9 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
     const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
-    const workbookConfig = dataManagementLeaseWorkbookConfig(payload.view_key || payload.viewKey);
-    if (workbookConfig) {
+    const viewKey = safeText(payload.view_key || payload.viewKey);
+    const workbookConfig = dataManagementLeaseWorkbookConfig(viewKey);
+    if (workbookConfig && !DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
       const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope, workbookConfig);
       return callDataManagementPreviewEdit(ctx, resolved.source_payload);
     }
@@ -8487,8 +8537,9 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
-    const workbookConfig = dataManagementLeaseWorkbookConfig(payload.view_key || payload.viewKey);
-    if (workbookConfig) {
+    const viewKey = safeText(payload.view_key || payload.viewKey);
+    const workbookConfig = dataManagementLeaseWorkbookConfig(viewKey);
+    if (workbookConfig && !DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
       const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope, workbookConfig);
       return callDataManagementSubmitEdit(ctx, resolved.source_payload);
     }
