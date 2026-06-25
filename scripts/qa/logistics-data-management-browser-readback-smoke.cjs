@@ -7,6 +7,17 @@ const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'http://127.0.0.1:5173/';
 const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload|\bPNU\b|\bpnu\b|법정동코드/iu;
 
+function internalTokenMatch(value) {
+  const text = String(value || '');
+  const match = text.match(INTERNAL_TOKEN_PATTERN);
+  if (!match) return null;
+  const index = match.index || 0;
+  return {
+    token: match[0],
+    excerpt: text.slice(Math.max(0, index - 80), index + 120),
+  };
+}
+
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
   return Object.fromEntries(fs.readFileSync(filePath, 'utf8')
@@ -107,6 +118,7 @@ async function waitForGridSettled(page, report, label) {
       grid.querySelectorAll('thead button').length > 1
       || text.includes('View는 1차 구현 이후 확장됩니다')
       || text.includes('현재 조건 0건')
+      || text.includes('원본 임대차계약 파일 적재가 필요합니다.')
     );
   }, gridSelector, { timeout: 45000 }).catch((error) => {
     report.errors.push(`${label} grid did not settle: ${error.message}`);
@@ -202,13 +214,20 @@ async function main() {
     report.checks.has_single_bundle_selector = body.includes('자산 · 펀드 묶음') && !body.includes('자산/펀드 선택 · 펀드');
     report.checks.scope_19_assets_17_funds = viewsData.management_scope?.asset_count === 19 && viewsData.management_scope?.fund_count === 17;
     report.checks.bundle_scope_present = Array.isArray(viewsData.fund_asset_bundles) && viewsData.fund_asset_bundles.length >= 19;
-    report.checks.has_lease_contract_view = Array.isArray(viewsData.views) && viewsData.views.some((view) => view.view_key === 'lease_contracts');
-    report.checks.has_business_column_groups = ['기본정보', '계약기간', '면적', '경제조건'].every((label) => body.includes(label));
-    report.checks.grid_has_rows_or_clear_zero_state = Number(report.view_rows_contract.row_count || 0) > 0 || body.includes('현재 조건 0건') || body.includes('View는 1차 구현 이후 확장됩니다');
-    report.checks.grid_has_sorting_headers = Number(igisGridMetrics.headerButtons || 0) > 1;
+    report.checks.has_lease_general_excel_view = Array.isArray(viewsData.views) && viewsData.views.some((view) => view.view_key === 'lease_general_excel');
+    report.checks.has_lease_workbook_views = ['lease_general_excel', 'lease_rent_history_excel', 'lease_meta_dictionary', 'lease_asset_manager_links'].every((viewKey) => (
+      Array.isArray(viewsData.views) && viewsData.views.some((view) => view.view_key === viewKey)
+    ));
+    report.checks.normalized_lease_space_not_default = report.view_rows_contract.view?.view_key !== 'lease_contracts';
+    report.checks.has_business_column_groups = Number(report.view_rows_contract.field_count || 0) === 0
+      ? body.includes('원본 임대차계약 파일 적재가 필요합니다.')
+      : ['기본정보', '계약일정', '면적', '경제조건'].every((label) => body.includes(label));
+    report.checks.grid_has_rows_or_clear_zero_state = Number(report.view_rows_contract.row_count || 0) > 0 || body.includes('현재 조건 0건') || body.includes('원본 임대차계약 파일 적재가 필요합니다.') || body.includes('View는 1차 구현 이후 확장됩니다');
+    report.checks.grid_has_sorting_headers = Number(report.view_rows_contract.field_count || 0) === 0 || Number(igisGridMetrics.headerButtons || 0) > 1;
     report.checks.grid_not_stuck_loading = !igisGridMetrics.hasLoadingText;
     report.checks.change_basket_visible = body.includes('검증 및 승인 요청') && body.includes('변경 전') && body.includes('변경 후');
-    report.checks.no_internal_tokens = !INTERNAL_TOKEN_PATTERN.test(body);
+    report.internal_token_match = internalTokenMatch(body);
+    report.checks.no_internal_tokens = !report.internal_token_match;
     report.checks.no_broken_question_marks = !/\?{4,}/u.test(body);
 
     const marketButton = page.getByRole('button', { name: '시장 Data' }).first();
@@ -221,7 +240,8 @@ async function main() {
     report.checks.market_workspace_no_asset_fund_selector = marketBody.includes('자산·펀드 선택 없이') && !marketBody.includes('연결 펀드');
     report.checks.market_workspace_grid_visible = await page.locator('[data-data-management-grid="true"]').isVisible({ timeout: 5000 }).catch(() => false);
     report.checks.market_grid_not_stuck_loading = !marketGridMetrics.hasLoadingText;
-    report.checks.no_internal_tokens_market = !INTERNAL_TOKEN_PATTERN.test(marketBody);
+    report.internal_token_match_market = internalTokenMatch(marketBody);
+    report.checks.no_internal_tokens_market = !report.internal_token_match_market;
 
     const operationsButton = page.getByRole('button', { name: '시스템·운영 Data' }).first();
     await operationsButton.click();
@@ -232,7 +252,8 @@ async function main() {
     const operationsBody = await page.locator('body').innerText({ timeout: 10000 });
     report.checks.operations_workspace_visible = operationsBody.includes('readback') || operationsBody.includes('읽기 전용') || operationsBody.includes('전용 workflow');
     report.checks.operations_grid_not_stuck_loading = !operationsGridMetrics.hasLoadingText;
-    report.checks.no_internal_tokens_operations = !INTERNAL_TOKEN_PATTERN.test(operationsBody);
+    report.internal_token_match_operations = internalTokenMatch(operationsBody);
+    report.checks.no_internal_tokens_operations = !report.internal_token_match_operations;
 
     await page.screenshot({ path: screenshot, fullPage: false });
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;

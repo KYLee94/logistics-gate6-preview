@@ -7019,7 +7019,7 @@ function DataManagementDashboardLegacy() {
 
 export function DataManagementDashboard() {
   const [spaceKey, setSpaceKey] = useState('igis');
-  const [viewKey, setViewKey] = useState('lease_contracts');
+  const [viewKey, setViewKey] = useState('lease_general_excel');
   const [bundleKey, setBundleKey] = useState(MANAGEMENT_ALL_OPTION);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
@@ -7039,7 +7039,7 @@ export function DataManagementDashboard() {
   const scope = viewCatalog?.management_scope || {};
   const viewsForSpace = useMemo(() => views.filter((view) => view.workspace_key === spaceKey), [views, spaceKey]);
   const selectedView = viewsForSpace.find((view) => view.view_key === viewKey) || viewsForSpace[0] || {};
-  const effectiveViewKey = text(selectedView.view_key || viewKey || 'lease_contracts');
+  const effectiveViewKey = text(selectedView.view_key || viewKey || 'lease_general_excel');
   const rowsPayload = useMemo(() => ({
     space_key: spaceKey,
     view_key: effectiveViewKey,
@@ -7201,7 +7201,7 @@ export function DataManagementDashboard() {
   const currentRowCount = Number(pagination.total_estimate || rows.length || 0);
 
   return (
-    <div className="space-y-5" data-data-management-redesign="true" data-data-management-view-contract="20260625-view-v1">
+    <div className="space-y-5 px-4 pb-6 lg:px-6" data-data-management-redesign="true" data-data-management-view-contract="20260625-view-v1">
       <ModuleHeader
         eyebrow="DATA MANAGEMENT"
         title="데이터 관리"
@@ -7212,9 +7212,9 @@ export function DataManagementDashboard() {
         )}
       />
 
-      <section className={`${CARD} p-5`}>
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px] xl:items-start">
-          <div className="space-y-4">
+      <section className={`${CARD} p-4`}>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2" data-data-management-space-tabs="true">
               {(spaces.length ? spaces : [
                 { key: 'igis', label: '이지스 Data' },
@@ -7231,33 +7231,42 @@ export function DataManagementDashboard() {
                 </button>
               ))}
             </div>
-            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,420px)_1fr]">
-              {spaceKey === 'igis' ? (
-                <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                  자산 · 펀드 묶음
-                  <select value={bundleKey} onChange={(event) => { setBundleKey(event.target.value); setPage(1); setSelectedRowKey(''); }} className="mt-2 h-11 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none">
-                    <option value={MANAGEMENT_ALL_OPTION}>전체 자산 · 펀드</option>
-                    {bundles.map((bundle) => (
-                      <option key={bundle.bundle_key} value={bundle.bundle_key}>{bundle.selection_label}</option>
-                    ))}
-                  </select>
-                </label>
-              ) : (
-                <div className={`${INNER} px-4 py-3 text-[12px] leading-5 text-[#A1A1AA]`}>
-                  {spaceKey === 'market' ? '시장 Data는 자산·펀드 선택 없이 원천 버전, 시트, 시점, 권역, 상·저온, 거래유형 중심으로 탐색합니다.' : '시스템·운영 Data는 일반 셀 편집 대신 readback, 이력, 전용 workflow 중심으로 확인합니다.'}
-                </div>
-              )}
-              <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                통합 검색
-                <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} className="mt-2 h-11 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]" placeholder="자산, 펀드, 임차인, 주소, 시트명 검색" />
-              </label>
+            <div className="shrink-0 text-[12px] text-[#A1A1AA]">
+              {viewsLoading || rowsLoading ? '조회 중' : `현재 ${formatNumber(currentRowCount)}건`}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <MetricCard label="관리 자산" value={viewsLoading ? '조회 중' : `${formatNumber(scope.readable_asset_count || scope.asset_count || 0)}개`} />
-            <MetricCard label="관리 펀드" value={viewsLoading ? '조회 중' : `${formatNumber(scope.readable_fund_count || scope.fund_count || 0)}개`} />
-            <MetricCard label="업무 View" value={viewsLoading ? '조회 중' : `${formatNumber(views.length)}개`} />
-            <MetricCard label="현재 rows" value={rowsLoading ? '조회 중' : `${formatNumber(rows.length)}건`} />
+          <div className="flex flex-wrap gap-2" data-data-management-domain-nav="true">
+            {viewsForSpace.map((view) => (
+              <button
+                key={view.view_key}
+                type="button"
+                onClick={() => { setViewKey(view.view_key); setPage(1); setSelectedRowKey(''); setShowAllFields(false); }}
+                className={`h-9 rounded-[8px] border px-3 text-[12px] font-semibold ${effectiveViewKey === view.view_key ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#C7C7CC] hover:border-[#8E8E93]'}`}
+              >
+                {view.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-end gap-3">
+            {spaceKey === 'igis' ? (
+              <label className="min-w-[240px] max-w-[340px] flex-1 text-[12px] font-semibold text-[#A1A1AA] lg:flex-none">
+                자산 · 펀드 묶음
+                <select value={bundleKey} onChange={(event) => { setBundleKey(event.target.value); setPage(1); setSelectedRowKey(''); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none">
+                  <option value={MANAGEMENT_ALL_OPTION}>전체 자산 · 펀드</option>
+                  {bundles.map((bundle) => (
+                    <option key={bundle.bundle_key} value={bundle.bundle_key}>{bundle.selection_label}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="min-w-[240px] max-w-[520px] flex-1 text-[12px] leading-5 text-[#A1A1AA]">
+                {spaceKey === 'market' ? '시장 Data는 자산·펀드 선택 없이 원천 버전, 시트, 시점, 권역, 상·저온, 거래유형 중심으로 탐색합니다.' : '시스템·운영 Data는 일반 셀 편집 대신 readback, 이력, 전용 workflow 중심으로 확인합니다.'}
+              </div>
+            )}
+            <label className="min-w-[240px] max-w-[320px] flex-1 text-[12px] font-semibold text-[#A1A1AA] lg:flex-none">
+              통합 검색
+              <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]" placeholder="자산, 펀드, 임차인 검색" />
+            </label>
           </div>
         </div>
       </section>
@@ -7265,30 +7274,7 @@ export function DataManagementDashboard() {
       {viewsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{viewsError}</div> : null}
       {rowsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{rowsError}</div> : null}
 
-      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[280px_minmax(0,1fr)_360px]">
-        <aside className={`${CARD} p-4`}>
-          <div className="mb-3 text-[13px] font-semibold text-white">업무 View</div>
-          <div className="space-y-2" data-data-management-domain-nav="true">
-            {viewsForSpace.map((view) => {
-              const active = view.view_key === effectiveViewKey;
-              return (
-                <button
-                  key={view.view_key}
-                  type="button"
-                  onClick={() => { setViewKey(view.view_key); setPage(1); setSelectedRowKey(''); setShowAllFields(false); }}
-                  className={`w-full rounded-[10px] border px-3 py-3 text-left ${active ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#333333] bg-[#1F1F1E] text-white hover:border-[#8E8E93]'}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[13px] font-bold">{view.label}</span>
-                    <span className={`text-[11px] ${active ? 'text-[#3A3A3C]' : 'text-[#A1A1AA]'}`}>{capabilityLabel(view.capability)}</span>
-                  </div>
-                  <div className={`mt-1 text-[11px] leading-4 ${active ? 'text-[#3A3A3C]' : 'text-[#86868B]'}`}>{text(view.description, '업무 단위로 정리한 데이터입니다.')}</div>
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className={`${CARD} min-w-0 p-5`}>
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -7301,17 +7287,8 @@ export function DataManagementDashboard() {
             </div>
           </div>
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3" data-data-management-table-tabs="true">
-            <div className="flex flex-wrap gap-2">
-            {viewsForSpace.map((view) => (
-              <button
-                key={view.view_key}
-                type="button"
-                onClick={() => { setViewKey(view.view_key); setPage(1); setSelectedRowKey(''); setShowAllFields(false); }}
-                className={`h-9 rounded-[8px] border px-3 text-[12px] font-semibold ${effectiveViewKey === view.view_key ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#C7C7CC] hover:border-[#8E8E93]'}`}
-              >
-                {view.label}
-              </button>
-            ))}
+            <div className="text-[12px] leading-5 text-[#A1A1AA]">
+              {text(selectedView.description, '업무 View 기준으로 정리한 데이터입니다.')}
             </div>
             <button type="button" onClick={() => setShowAllFields((current) => !current)} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]">
               {showAllFields ? '기본 컬럼만 보기' : '전체 컬럼 보기'}

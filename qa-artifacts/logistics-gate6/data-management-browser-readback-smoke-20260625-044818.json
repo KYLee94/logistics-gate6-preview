@@ -1,0 +1,109 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-25T04:48:18.891Z",
+  "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
+  "auth_source": "password_grant",
+  "checks": {
+    "views_api_ok": true,
+    "view_rows_api_ok": true,
+    "has_three_workspaces": true,
+    "has_single_bundle_selector": true,
+    "scope_19_assets_17_funds": true,
+    "bundle_scope_present": true,
+    "has_lease_general_excel_view": true,
+    "has_lease_workbook_views": true,
+    "normalized_lease_space_not_default": true,
+    "has_business_column_groups": true,
+    "grid_has_rows_or_clear_zero_state": true,
+    "grid_has_sorting_headers": true,
+    "grid_not_stuck_loading": true,
+    "change_basket_visible": true,
+    "no_internal_tokens": true,
+    "no_broken_question_marks": true,
+    "market_workspace_no_asset_fund_selector": true,
+    "market_workspace_grid_visible": true,
+    "market_grid_not_stuck_loading": true,
+    "no_internal_tokens_market": true,
+    "operations_workspace_visible": true,
+    "operations_grid_not_stuck_loading": true,
+    "no_internal_tokens_operations": true
+  },
+  "errors": [],
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260625-044818.png",
+  "grid_metrics": {
+    "igis": {
+      "headerButtons": 0,
+      "rowButtons": 0,
+      "hasLoadingText": false,
+      "hasZeroState": false
+    },
+    "market": {
+      "headerButtons": 0,
+      "rowButtons": 0,
+      "hasLoadingText": false,
+      "hasZeroState": false
+    },
+    "operations": {
+      "headerButtons": 0,
+      "rowButtons": 0,
+      "hasLoadingText": false,
+      "hasZeroState": false
+    }
+  },
+  "views_contract": {
+    "http_status": 200,
+    "ok": true,
+    "workspaces": [
+      "이지스 Data",
+      "시장 Data",
+      "시스템·운영 Data"
+    ],
+    "view_count": 9,
+    "bundle_count": 19,
+    "management_scope": {
+      "owner": "IGIS Asset Management",
+      "expected_asset_count": 19,
+      "expected_fund_count": 17,
+      "asset_count": 19,
+      "fund_count": 17,
+      "link_count": 19,
+      "readable_asset_count": 19,
+      "readable_fund_count": 17,
+      "readable_link_count": 19
+    }
+  },
+  "view_rows_contract": {
+    "http_status": 200,
+    "ok": true,
+    "view": {
+      "view_key": "lease_general_excel",
+      "workspace_key": "igis",
+      "domain_key": "lease",
+      "label": "현재 계약 원장",
+      "grain": "DB_일반 실제 계약 row 1건",
+      "row_unit": "lease_general_excel_row",
+      "row_unit_label": "DB_일반",
+      "description": "260414 임대차계약 DB의 DB_일반 실제 데이터 63행을 Excel 원장 순서로 확인합니다.",
+      "source_domain": "lease_contracts",
+      "source_sheet_name": "DB_일반",
+      "fields": [],
+      "source_status": {
+        "source_file": null,
+        "sheet_name": "DB_일반",
+        "actual_rows": 0
+      }
+    },
+    "field_count": 0,
+    "row_count": 0,
+    "pagination": {
+      "page": 1,
+      "page_size": 80,
+      "returned": 0,
+      "total_estimate": 0,
+      "has_next": false
+    }
+  },
+  "internal_token_match": null,
+  "internal_token_match_market": null,
+  "internal_token_match_operations": null
+}

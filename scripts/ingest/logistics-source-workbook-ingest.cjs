@@ -152,7 +152,7 @@ function headerRowFor(domain, sheetIndex, rows) {
     return fixed[sheetIndex] || detectHeaderRow(rows);
   }
   if (domain === 'lease_contracts') {
-    const fixed = { 0: 2, 1: 8, 2: 8, 3: 2, 4: 2 };
+    const fixed = { 0: 1, 1: 8, 2: 8, 3: 2, 4: 2 };
     return fixed[sheetIndex] || detectHeaderRow(rows);
   }
   return detectHeaderRow(rows);

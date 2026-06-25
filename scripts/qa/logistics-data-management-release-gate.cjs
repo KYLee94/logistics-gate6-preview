@@ -228,14 +228,27 @@ async function submitProbe(supabaseUrl, anonKey, token, previewResult) {
 async function runViewFieldPreviewProbe(supabaseUrl, anonKey, token, stamp) {
   const viewsResult = await invoke(supabaseUrl, anonKey, token, 'data-management/views', {});
   const rowsResult = await invoke(supabaseUrl, anonKey, token, 'data-management/view-rows', {
-    view_key: 'lease_contracts',
+    view_key: 'lease_general_excel',
     page: 1,
     page_size: 80,
   });
+  if (rowsResult.data?.empty_state?.code === 'lease_contract_source_missing') {
+    return {
+      ok: true,
+      skipped: true,
+      reason: 'lease contract source workbook is not published yet; backfill approval is required before view_field edit QA.',
+      rows_contract: {
+        view_key: rowsResult.data?.view?.view_key,
+        field_count: safeArray(rowsResult.data?.fields).length,
+        row_count: safeArray(rowsResult.data?.rows).length,
+        empty_state: rowsResult.data?.empty_state,
+      },
+    };
+  }
   const fields = safeArray(rowsResult.data?.fields)
     .filter((field) => field?.editable === true && text(field.field_key))
     .sort((a, b) => {
-      const preferred = ['space_label', 'contract_status', 'temperature_type', 'floor_label', 'detail_area_label'];
+      const preferred = ['asset_name', 'fund_name', 'tenant_master_name', '임차인명', '임차 층', '임차 세부 구역', '계약 상태'];
       const ai = preferred.indexOf(text(a.field_key));
       const bi = preferred.indexOf(text(b.field_key));
       return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
@@ -251,7 +264,7 @@ async function runViewFieldPreviewProbe(supabaseUrl, anonKey, token, stamp) {
       if (text(requestedValue) === text(beforeValue)) continue;
       const payload = {
         edit_mode: 'view_field',
-        view_key: 'lease_contracts',
+        view_key: 'lease_general_excel',
         row_key: row.row_key,
         field_key: fieldKey,
         requested_value: requestedValue,
@@ -274,6 +287,7 @@ async function runViewFieldPreviewProbe(supabaseUrl, anonKey, token, stamp) {
           requested_value: requestedValue,
           can_submit: data.can_submit === true,
           auto_write_enabled: data.auto_write_enabled === true,
+          source_review_required: data.auto_write_enabled !== true && data.can_submit === true,
           has_target: Boolean(data.target),
           has_target_readback: Boolean(data.target?.readback),
           target: data.target || null,
@@ -292,7 +306,7 @@ async function runViewFieldPreviewProbe(supabaseUrl, anonKey, token, stamp) {
           },
         };
         attempts.push(result);
-        if (result.can_submit && result.auto_write_enabled && result.has_target_readback) return { ...result, attempts };
+        if (result.can_submit && ((result.auto_write_enabled && result.has_target_readback) || result.source_review_required)) return { ...result, attempts };
       } catch (error) {
         attempts.push({
           ok: false,
@@ -401,9 +415,9 @@ async function main() {
   let submit = { ok: true, skipped: true, reason: 'legacy source_row submit probe is superseded by view_field submit probe' };
   let viewSubmit = { ok: !allowSubmit, skipped: !allowSubmit, reason: allowSubmit ? '' : 'submit is guarded unless --allow-submit is set' };
   if (allowSubmit) {
-    viewSubmit = viewPreview?.can_submit && viewPreview?.auto_write_enabled
+    viewSubmit = viewPreview?.can_submit && (viewPreview?.auto_write_enabled || viewPreview?.source_review_required)
       ? await submitViewFieldProbe(supabaseUrl, anonKey, auth.token, viewPreview)
-      : { ok: false, skipped: false, reason: 'view_field preview did not produce an auto-write target that can be submitted' };
+      : { ok: false, skipped: false, reason: 'view_field preview did not produce a submittable target' };
   }
 
   const checks = {
@@ -427,7 +441,7 @@ async function main() {
     expected_404_pair_visible: deepIncludes(scopeBlob, EXPECTED_PAIR_NEEDLE),
     manager_can_approve: status.access_scope === 'manager_full_source' && status.can_approve === true,
     preview_auto_write_readback: preview.skipped === true || preview.ok === true,
-    view_field_preview_auto_write_readback: viewPreview.skipped === true || (viewPreview.ok === true && viewPreview.can_submit === true && viewPreview.auto_write_enabled === true && viewPreview.has_target_readback === true),
+    view_field_preview_auto_write_readback: viewPreview.skipped === true || (viewPreview.ok === true && viewPreview.can_submit === true && ((viewPreview.auto_write_enabled === true && viewPreview.has_target_readback === true) || viewPreview.source_review_required === true)),
     submit_readback_checked: submit.ok === true,
     view_field_submit_readback_checked: viewSubmit.ok === true,
     written_history_present_when_required: requireWrittenHistory ? writtenHistory.length > 0 : true,

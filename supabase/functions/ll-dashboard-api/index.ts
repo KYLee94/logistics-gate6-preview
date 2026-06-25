@@ -5824,13 +5824,62 @@ const DATA_MANAGEMENT_WORKSPACES = [
 ];
 const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
   {
+    view_key: 'lease_general_excel',
+    workspace_key: 'igis',
+    domain_key: 'lease',
+    label: '현재 계약 원장',
+    grain: 'DB_일반 실제 계약 row 1건',
+    row_unit: 'lease_general_excel_row',
+    row_unit_label: 'DB_일반',
+    description: '260414 임대차계약 DB의 DB_일반 실제 데이터 63행을 Excel 원장 순서로 확인합니다.',
+    source_domain: 'lease_contracts',
+    source_sheet_name: 'DB_일반',
+  },
+  {
+    view_key: 'lease_rent_history_excel',
+    workspace_key: 'igis',
+    domain_key: 'lease',
+    label: '임대료·관리비 히스토리',
+    grain: 'DB_히스토리 누적 row 1건',
+    row_unit: 'lease_history_excel_row',
+    row_unit_label: 'DB_히스토리 누적',
+    description: '260414 임대차계약 DB의 임대료·관리비 시계열 164행을 확인합니다.',
+    source_domain: 'lease_contracts',
+    source_sheet_name: 'DB_히스토리 누적',
+  },
+  {
+    view_key: 'lease_meta_dictionary',
+    workspace_key: 'igis',
+    domain_key: 'lease',
+    label: '항목 설명',
+    grain: 'Meta 항목 1건',
+    row_unit: 'lease_meta_item',
+    row_unit_label: 'Meta',
+    description: '원본 Excel의 71개 데이터 항목 설명과 단위, 샘플, 고려사항을 확인합니다.',
+    source_domain: 'lease_contracts',
+    source_sheet_name: 'Meta_데이터 항목 설명',
+  },
+  {
+    view_key: 'lease_asset_manager_links',
+    workspace_key: 'igis',
+    domain_key: 'lease',
+    label: '담당자 연결',
+    grain: '자산·펀드·담당자 연결 1건',
+    row_unit: 'lease_asset_manager_link',
+    row_unit_label: '담당자 연결',
+    description: '원본 Excel의 자산·펀드·담당자 연결표를 확인하고 플랫폼 scope와 비교합니다.',
+    source_domain: 'lease_contracts',
+    source_sheet_name: '자산_담당자 연결',
+  },
+  {
     view_key: 'lease_contracts',
     workspace_key: 'igis',
     domain_key: 'lease',
-    label: '임대차 계약',
+    label: '정규화 임대공간',
     grain: '임차 구역 1개',
     row_unit: 'lease_space',
-    description: '자산·펀드·임차인·임대구역을 한 행으로 묶어 계약기간과 임대조건을 확인하고 수정 요청합니다.',
+    row_unit_label: '정규화',
+    description: 'Supabase 정규화 결과입니다. 원본 Excel 원장 검토 후 보조 확인용으로만 사용합니다.',
   },
   {
     view_key: 'market_lease_observations',
@@ -6003,6 +6052,10 @@ function dataManagementEditMatchesRefs(row: Record<string, unknown>, refs: strin
     JSON.stringify(payload),
   ].join(' '));
   return refs.some((ref) => ref && haystack.includes(ref));
+}
+
+function dataManagementManagerSourceDomainBypass(managerView: boolean, sourceDomain: unknown) {
+  return managerView && ['sector_market', 'lease_contracts'].includes(safeText(sourceDomain));
 }
 
 function dataManagementScopeRefs(assets: Record<string, unknown>[], funds: Record<string, unknown>[]) {
@@ -6770,7 +6823,7 @@ function dataManagementSourceDomainStats(sources: Record<string, unknown>[]) {
 }
 
 function dataManagementWorkViewKey(payload: Record<string, unknown>) {
-  return safeText(payload.view_key || payload.viewKey || 'lease_contracts');
+  return safeText(payload.view_key || payload.viewKey || 'lease_general_excel');
 }
 
 function dataManagementPublicViewField(field: Record<string, unknown>) {
@@ -6784,7 +6837,7 @@ function dataManagementPublicViewField(field: Record<string, unknown>) {
     sticky: field.sticky === true,
     width: Number(field.width || 140),
     default_hidden: field.default_hidden === true,
-    read_only_reason: field.editable === true ? undefined : '읽기 전용 또는 별도 승인 workflow 필요',
+    read_only_reason: field.editable === true ? undefined : safeText(field.read_only_reason || '읽기 전용 또는 별도 승인 workflow 필요'),
   });
 }
 
@@ -6801,8 +6854,303 @@ function dataManagementViewDefinitions() {
 }
 
 function dataManagementViewByKey(viewKey: unknown) {
-  const key = safeText(viewKey || 'lease_contracts');
+  const key = safeText(viewKey || 'lease_general_excel');
   return DATA_MANAGEMENT_VIEW_DEFINITIONS.find((view) => safeText(view.view_key) === key);
+}
+
+const DATA_MANAGEMENT_LEASE_WORKBOOK_VIEW_CONFIGS: Record<string, Record<string, unknown>> = {
+  lease_general_excel: {
+    view_key: 'lease_general_excel',
+    sheet_name: 'DB_일반',
+    min_row_number: 11,
+    expected_rows: 63,
+    expected_columns: 82,
+    default_visible_labels: [
+      '펀드코드', '펀드명', '자산명', '자산코드', '임차인명', '임차인 사업자번호',
+      '저온창고 여부', '임차 층', '임차 세부 구역', '임대면적', '전용면적', '전용률',
+      '현재 계약개시일', '현재 계약만기일', '임대보증금', 'RF', 'FO', 'TI', '계약 상태',
+    ],
+    row_label_labels: ['자산명', '펀드명', '임차인명', '임차 층', '임차 세부 구역'],
+    editable: true,
+  },
+  lease_rent_history_excel: {
+    view_key: 'lease_rent_history_excel',
+    sheet_name: 'DB_히스토리 누적',
+    min_row_number: 13,
+    expected_rows: 164,
+    expected_columns: 18,
+    default_visible_labels: [
+      '펀드코드', '펀드명', '자산명', '임차인명', '저온창고 여부', '임차 층', '임차 세부 구역',
+      '임대면적', '전용면적', '기준일자', '임대료 변동 원인', '월임대료 총액', '월관리비 총액',
+      '평당 월임대료', '평당 월관리비',
+    ],
+    row_label_labels: ['자산명', '펀드명', '임차인명', '기준일자'],
+    editable: true,
+  },
+  lease_meta_dictionary: {
+    view_key: 'lease_meta_dictionary',
+    sheet_name: 'Meta_데이터 항목 설명',
+    min_row_number: 2,
+    expected_rows: 71,
+    expected_columns: 7,
+    default_visible_labels: ['항목 번호', '항목', 'Data Type', '단위', '시계열 누적', '샘플 데이터', '항목별 설명 및 고려사항 (특이사항 빨간색으로 표기)'],
+    row_label_labels: ['항목', 'Data Type'],
+    editable: false,
+  },
+  lease_asset_manager_links: {
+    view_key: 'lease_asset_manager_links',
+    sheet_name: '자산_담당자 연결',
+    min_row_number: 3,
+    expected_rows: 17,
+    expected_columns: 7,
+    default_visible_labels: ['자산코드', '자산명', '펀드코드', '펀드명', '담당자', '소속', '이메일 주소'],
+    row_label_labels: ['자산명', '펀드명', '담당자'],
+    editable: false,
+  },
+};
+
+function dataManagementLeaseWorkbookConfig(viewKey: unknown) {
+  return DATA_MANAGEMENT_LEASE_WORKBOOK_VIEW_CONFIGS[safeText(viewKey)];
+}
+
+function dataManagementWorkbookSourceDomain(config: Record<string, unknown>) {
+  return safeText(config.source_domain || 'lease_contracts');
+}
+
+function dataManagementWorkbookHeaderLabel(column: Record<string, unknown>) {
+  return safeText(column.header_label || column.normalized_header || column.column_letter);
+}
+
+function dataManagementWorkbookFieldKey(column: Record<string, unknown>) {
+  return safeText(column.normalized_header || column.header_label || `col_${safeText(column.column_index || column.column_letter)}`);
+}
+
+function dataManagementWorkbookColumnGroup(label: string, columnLetter: string) {
+  const normalized = normalizeKey(label);
+  if (/펀드|자산|섹터|임차인|사업자|저온|선임차|3pl|취급|층|구역|단일/.test(normalized)) return '기본정보';
+  if (/면적|전용률/.test(normalized)) return '면적';
+  if (/계약일|개시일|만기일|운영개시일|계약기간|연장/.test(normalized)) return '계약일정';
+  if (/보증금|임대료|관리비|rf|fo|ti|인상|부담/.test(normalized)) return '경제조건';
+  if (/해지|갱신|보험|구상권|대위권|특수/.test(normalized)) return '옵션·보험·특약';
+  if (/하중|평활|마모|도크|층고|전력|램프|통로|조명|외벽/.test(normalized)) return '요구 스펙';
+  if (/비교|체크|상태|연체|미납/.test(normalized) || ['U', 'V', 'W', 'X', 'Y', 'Z'].includes(columnLetter)) return '검증';
+  if (/기준일자|변동|월임대료|월관리비|평당/.test(normalized)) return '히스토리';
+  if (/항목|data|단위|시계열|샘플|설명|고려/.test(normalized)) return '항목 설명';
+  if (/담당자|소속|이메일/.test(normalized)) return '담당자';
+  return '기본정보';
+}
+
+function dataManagementWorkbookValueType(label: string) {
+  const normalized = normalizeKey(label);
+  if (/일자|기준일자/.test(normalized)) return 'date';
+  if (/보증금|월임대료|월관리비|ti|보험|총액/.test(normalized)) return 'krw';
+  if (/면적|연면적/.test(normalized)) return 'area_sqm';
+  if (/전용률|인상률|연체|공실률/.test(normalized)) return 'percent';
+  if (/횟수|주기|개월|rf|fo|도크|층고|너비|전력/.test(normalized)) return 'number';
+  return 'text';
+}
+
+function dataManagementWorkbookReadOnly(label: string, columnLetter: string, viewKey: string) {
+  if (viewKey === 'lease_meta_dictionary' || viewKey === 'lease_asset_manager_links') return true;
+  const normalized = normalizeKey(label);
+  if (['U', 'V', 'W', 'X', 'Y', 'Z', 'AM', 'AN', 'AO', 'AP', 'AQ'].includes(columnLetter)) return true;
+  return /비교|체크/.test(normalized);
+}
+
+function dataManagementWorkbookColumnWidth(label: string) {
+  const normalized = normalizeKey(label);
+  if (/설명|고려|특수|비용|유형/.test(normalized)) return 260;
+  if (/펀드명|자산명|임차인명|주소/.test(normalized)) return 220;
+  if (/사업자|계약|기준일자|만기|개시/.test(normalized)) return 150;
+  if (/면적|보증금|임대료|관리비|보험/.test(normalized)) return 150;
+  return 130;
+}
+
+function dataManagementPublicWorkbookField(column: Record<string, unknown>, config: Record<string, unknown>) {
+  const label = dataManagementWorkbookHeaderLabel(column);
+  const columnLetter = safeText(column.column_letter);
+  const viewKey = safeText(config.view_key);
+  const defaultVisible = new Set((config.default_visible_labels as string[] | undefined) || []);
+  const readOnly = dataManagementWorkbookReadOnly(label, columnLetter, viewKey);
+  return dataManagementPublicViewField({
+    field_key: dataManagementWorkbookFieldKey(column),
+    label,
+    group: dataManagementWorkbookColumnGroup(label, columnLetter),
+    type: dataManagementWorkbookValueType(label),
+    unit: safeText(column.unit_label),
+    editable: config.editable === true && !readOnly,
+    sticky: ['펀드코드', '펀드명', '자산명', '자산코드', '임차인명', '임차인 사업자번호'].includes(label),
+    width: dataManagementWorkbookColumnWidth(label),
+    default_hidden: defaultVisible.size ? !defaultVisible.has(label) : false,
+    read_only_reason: readOnly ? '원본 수식·검산 또는 readback 전용 항목입니다.' : undefined,
+  });
+}
+
+function dataManagementFormatWorkbookValue(value: unknown, field: Record<string, unknown>) {
+  if (value === null || value === undefined || value === '') return '-';
+  const type = safeText(field.type);
+  const numeric = dataManagementNumberOrNull(value);
+  if (type === 'krw' && numeric !== null) return formatKoreanCompactWon(numeric);
+  if (type === 'area_sqm' && numeric !== null) return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(numeric)}㎡`;
+  if (type === 'percent' && numeric !== null) return formatKoreanPercent(Math.abs(numeric) > 1 ? numeric / 100 : numeric);
+  if (type === 'number' && numeric !== null) return new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(numeric);
+  if (type === 'date') return safeDateText(value) || safeText(value);
+  return safeText(value);
+}
+
+async function dataManagementSourceFileForDomain(ctx: Context, sourceDomain: string) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_source_files')
+    .select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,row_counts,created_at,updated_at')
+    .eq('source_domain', sourceDomain)
+    .order('active_version', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error && !isMissingRelationError(error)) throw new Error(error.message);
+  return ((data || []) as Record<string, unknown>[])[0] || null;
+}
+
+async function dataManagementLeaseWorkbookRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, config: Record<string, unknown>) {
+  const viewKey = safeText(config.view_key);
+  const sourceDomain = dataManagementWorkbookSourceDomain(config);
+  const sourceFile = await dataManagementSourceFileForDomain(ctx, sourceDomain);
+  const view = dataManagementViewByKey(viewKey) || {};
+  const pageSize = payload.resolve_all === true
+    ? 5000
+    : Math.min(Math.max(Number(payload.page_size || payload.pageSize || 80), 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  if (!sourceFile) {
+    return {
+      rows: [],
+      fields: [],
+      total: 0,
+      page,
+      pageSize,
+      sourceFile: null,
+      empty_state: {
+        code: 'lease_contract_source_missing',
+        title: '원본 임대차계약 파일 적재가 필요합니다.',
+        description: '260414 임대차계약 DB는 아직 운영 원천 데이터로 반영되지 않았습니다. 승인 후 원본 파일을 적재하면 이 View가 Excel 원장 형태로 표시됩니다.',
+      },
+      view,
+    };
+  }
+  const sheetName = safeText(config.sheet_name);
+  const sheetResult = await ctx.serviceClient
+    .from('ll_source_sheets')
+    .select('source_sheet_id,source_file_id,sheet_name,sheet_index,header_row_number,row_count,column_count')
+    .eq('source_file_id', safeText(sourceFile.source_file_id))
+    .eq('sheet_name', sheetName)
+    .maybeSingle();
+  if (sheetResult.error && !isMissingRelationError(sheetResult.error)) throw new Error(sheetResult.error.message);
+  const sheet = sheetResult.data as Record<string, unknown> | null;
+  if (!sheet) {
+    return {
+      rows: [],
+      fields: [],
+      total: 0,
+      page,
+      pageSize,
+      sourceFile,
+      empty_state: {
+        code: 'lease_contract_sheet_missing',
+        title: `${sheetName} 시트를 찾을 수 없습니다.`,
+        description: '원본 workbook source sheet 적재 상태를 확인해야 합니다.',
+      },
+      view,
+    };
+  }
+  const [columnsResult, rowsResult] = await Promise.all([
+    ctx.serviceClient
+      .from('ll_source_columns')
+      .select('source_column_id,source_sheet_id,column_index,column_letter,header_label,normalized_header,value_type,unit_label,is_user_editable')
+      .eq('source_sheet_id', safeText(sheet.source_sheet_id))
+      .order('column_index', { ascending: true })
+      .limit(220),
+    ctx.serviceClient
+      .from('ll_source_rows')
+      .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at')
+      .eq('source_file_id', safeText(sourceFile.source_file_id))
+      .eq('sheet_name', sheetName)
+      .gte('row_number', Number(config.min_row_number || 1))
+      .order('row_number', { ascending: true })
+      .limit(6000),
+  ]);
+  if (columnsResult.error && !isMissingRelationError(columnsResult.error)) throw new Error(columnsResult.error.message);
+  if (rowsResult.error && !isMissingRelationError(rowsResult.error)) throw new Error(rowsResult.error.message);
+  const columns = ((columnsResult.data || []) as Record<string, unknown>[])
+    .filter((column) => dataManagementWorkbookHeaderLabel(column));
+  const fields = columns.map((column) => dataManagementPublicWorkbookField(column, config));
+  const fieldByKey = new Map(fields.map((field) => [safeText(field.field_key), field]));
+  const sourceRows = (rowsResult.data || []) as Record<string, unknown>[];
+  const rowLabelLabels = ((config.row_label_labels as string[] | undefined) || []) as string[];
+  const labelToKey = new Map(columns.map((column) => [dataManagementWorkbookHeaderLabel(column), dataManagementWorkbookFieldKey(column)]));
+  const makeRowLabel = (rowValues: Record<string, unknown>) => {
+    const parts = rowLabelLabels
+      .map((label) => rowValues[safeText(labelToKey.get(label))])
+      .map((value) => safeText(value))
+      .filter(Boolean);
+    return parts.join(' · ') || sheetName;
+  };
+  const rows = await Promise.all(sourceRows.map(async (sourceRow) => {
+    const rowValues = sourceRow.row_values && typeof sourceRow.row_values === 'object' ? sourceRow.row_values as Record<string, unknown> : {};
+    const displayValues = Object.fromEntries(fields.map((field) => {
+      const key = safeText(field.field_key);
+      return [key, dataManagementFormatWorkbookValue(rowValues[key], field as Record<string, unknown>)];
+    }));
+    const editValues = Object.fromEntries(fields.map((field) => {
+      const key = safeText(field.field_key);
+      return [key, rowValues[key] ?? null];
+    }));
+    const rowLabel = makeRowLabel(rowValues);
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, sourceRow.source_row_id),
+      row_label: rowLabel,
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: { status: 'ok', label: '원본 row' },
+      editable: config.editable === true,
+      revision_hash: await dataManagementRevisionHash({ source_row_id: sourceRow.source_row_id, row_hash: sourceRow.row_hash, updated_at: sourceRow.updated_at, row_values: rowValues }),
+      meta: {
+        row_unit: safeText(config.sheet_name),
+        source_domain: sourceDomain,
+        source_version: sourceFile.source_version,
+        row_number: sourceRow.row_number,
+      },
+      _source_row_id: sourceRow.source_row_id,
+    });
+  }));
+  const searchKey = normalizeKey(payload.search);
+  let filtered = rows;
+  if (searchKey) {
+    filtered = rows.filter((row) => normalizeKey([
+      row.row_label,
+      JSON.stringify(row.display_values || {}),
+    ].join(' ')).includes(searchKey));
+  }
+  const sort = Array.isArray(payload.sort) ? payload.sort[0] as Record<string, unknown> : {};
+  const sortKey = safeText(sort?.field || sort?.field_key || sort?.key);
+  if (sortKey && fieldByKey.has(sortKey)) {
+    const direction = safeText(sort.direction || 'asc') === 'desc' ? -1 : 1;
+    filtered = [...filtered].sort((a, b) => safeText((a.display_values as Record<string, unknown> | undefined)?.[sortKey]).localeCompare(safeText((b.display_values as Record<string, unknown> | undefined)?.[sortKey]), 'ko') * direction);
+  } else {
+    filtered = [...filtered].sort((a, b) => Number((a.meta as Record<string, unknown> | undefined)?.row_number || 0) - Number((b.meta as Record<string, unknown> | undefined)?.row_number || 0));
+  }
+  const offset = (page - 1) * pageSize;
+  return {
+    rows: filtered.slice(offset, offset + pageSize).map(({ _source_row_id: _internal, ...publicRow }) => publicRow),
+    all_rows: filtered,
+    fields,
+    total: filtered.length,
+    page,
+    pageSize,
+    sourceFile,
+    sheet,
+    view,
+    expected_rows: Number(config.expected_rows || 0),
+    expected_columns: Number(config.expected_columns || 0),
+  };
 }
 
 function dataManagementLeaseViewField(fieldKey: unknown) {
@@ -7045,6 +7393,44 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
   };
 }
 
+async function dataManagementResolveWorkbookViewEdit(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, config: Record<string, unknown>) {
+  const viewKey = safeText(config.view_key);
+  const rowKey = safeText(payload.row_key || payload.rowKey);
+  const fieldKey = safeText(payload.field_key || payload.fieldKey || payload.field_name || payload.fieldName);
+  if (!rowKey || !fieldKey) throw new Error('수정할 행과 필드를 선택해 주세요.');
+  const result = await dataManagementLeaseWorkbookRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, config);
+  const field = (result.fields || []).find((item: Record<string, unknown>) => safeText(item.field_key) === fieldKey) as Record<string, unknown> | undefined;
+  if (!field) throw new Error('업무 View 필드를 찾을 수 없습니다.');
+  if (field.editable !== true) throw new Error('이 필드는 읽기 전용입니다.');
+  const internalRows = (result.all_rows || []) as Record<string, unknown>[];
+  const row = internalRows.find((item) => safeText(item.row_key) === rowKey);
+  if (!row) throw new Error('수정 대상 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
+  const sourceRowId = safeText(row._source_row_id);
+  if (!sourceRowId) throw new Error('원본 source row 연결을 확인할 수 없습니다.');
+  const editValues = row.edit_values && typeof row.edit_values === 'object' ? row.edit_values as Record<string, unknown> : {};
+  const beforeValue = editValues[fieldKey];
+  const requestedValue = firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  return {
+    source_payload: {
+      source_row_id: sourceRowId,
+      source_table: 'public.ll_source_rows',
+      field_name: fieldKey,
+      before_value: beforeValue,
+      requested_value: requestedValue,
+      source_domain: dataManagementWorkbookSourceDomain(config),
+      sheet_name: safeText(config.sheet_name),
+      row_number: (row.meta as Record<string, unknown> | undefined)?.row_number || null,
+      target_type: 'data_management_workbook_view_field',
+      target_name: row.row_label,
+      reason_code: 'data_management_workbook_source_review',
+      reason: payload.reason,
+      impact_summary: `${safeText(config.sheet_name)} 원본 row 수정 요청`,
+    },
+    row,
+    field,
+  };
+}
+
 async function callDataManagementViews(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
@@ -7078,6 +7464,44 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
   const view = dataManagementViewByKey(dataManagementWorkViewKey(payload));
   if (!view) return fail(400, 'Unknown Data Management 업무 View입니다.', ctx.origin);
+  const workbookConfig = dataManagementLeaseWorkbookConfig(safeText(view.view_key));
+  if (workbookConfig) {
+    try {
+      const result = await dataManagementLeaseWorkbookRows(ctx, payload, managementScope, workbookConfig);
+      const fields = result.fields || [];
+      return jsonResponse({ ok: true, data: {
+        generated_at: new Date().toISOString(),
+        view: {
+          ...view,
+          fields,
+          source_status: {
+            source_file: result.sourceFile ? {
+              file_name: result.sourceFile.file_name,
+              source_version: result.sourceFile.source_version,
+              active_version: result.sourceFile.active_version,
+              parse_status: result.sourceFile.parse_status,
+            } : null,
+            sheet_name: safeText(workbookConfig.sheet_name),
+            expected_rows: result.expected_rows,
+            expected_columns: result.expected_columns,
+            actual_rows: result.total,
+          },
+        },
+        fields,
+        rows: result.rows,
+        empty_state: result.empty_state,
+        pagination: {
+          page: result.page,
+          page_size: result.pageSize,
+          returned: result.rows.length,
+          total_estimate: result.total,
+          has_next: (result.page * result.pageSize) < result.total,
+        },
+      } }, 200, ctx.origin);
+    } catch (error) {
+      return fail(500, 'Data Management 원본 workbook View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
   if (safeText(view.view_key) !== 'lease_contracts') {
     return jsonResponse({ ok: true, data: {
       generated_at: new Date().toISOString(),
@@ -7910,6 +8334,11 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
     const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+    const workbookConfig = dataManagementLeaseWorkbookConfig(payload.view_key || payload.viewKey);
+    if (workbookConfig) {
+      const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope, workbookConfig);
+      return callDataManagementPreviewEdit(ctx, resolved.source_payload);
+    }
     const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scopeResult.scope);
     if ('error' in resolved) return resolved.error;
     return callDataManagementPreviewTableCell(ctx, resolved.table_payload);
@@ -7938,7 +8367,7 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
   }
   if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
   const requestedSourceDomain = safeText(payload.source_domain || payload.sourceDomain);
-  if (!managementScope || (!dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs) && !(managerView && requestedSourceDomain === 'sector_market'))) {
+  if (!managementScope || (!dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs) && !dataManagementManagerSourceDomainBypass(managerView, requestedSourceDomain))) {
     return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);
   }
   if (!managerView) {
@@ -8058,6 +8487,11 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+    const workbookConfig = dataManagementLeaseWorkbookConfig(payload.view_key || payload.viewKey);
+    if (workbookConfig) {
+      const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope, workbookConfig);
+      return callDataManagementSubmitEdit(ctx, resolved.source_payload);
+    }
     const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scopeResult.scope);
     if ('error' in resolved) return resolved.error;
     return callDataManagementSubmitTableCell(ctx, resolved.table_payload);
@@ -8099,7 +8533,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     }
     if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
     const requestedSourceDomain = safeText(payload.source_domain || payload.sourceDomain);
-    if (!dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs) && !(managerView && requestedSourceDomain === 'sector_market')) {
+    if (!dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs) && !dataManagementManagerSourceDomainBypass(managerView, requestedSourceDomain)) {
       return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);
     }
     if (!managerView) {
