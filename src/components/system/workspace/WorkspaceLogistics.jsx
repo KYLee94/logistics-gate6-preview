@@ -104,6 +104,7 @@ const DASHBOARD_READ_MODE = import.meta.env.VITE_LOGISTICS_DASHBOARD_READ_MODE |
 const DASHBOARD_READ_CACHE = new Map();
 const DASHBOARD_READ_INFLIGHT = new Map();
 const DASHBOARD_READ_CACHE_TTL_MS = 5 * 60 * 1000;
+const DASHBOARD_READ_REVALIDATE_MS = 90 * 1000;
 const ASSET_PROJECT_DETAIL_CACHE = new Map();
 const ASSET_FUND_OVERVIEW_CACHE = new Map();
 const ASSET_BUILDING_REGISTER_CACHE = new Map();
@@ -299,8 +300,17 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       const cacheAgeMs = cached?.checkedAt ? Date.now() - Date.parse(cached.checkedAt) : Number.POSITIVE_INFINITY;
       if (primaryMode && cached?.payload && cacheAgeMs >= 0 && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS) {
         setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
+        if (cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS) {
+          window.setTimeout(() => {
+            if (!cancelled) {
+              DASHBOARD_READ_INFLIGHT.delete(cacheKey);
+              setRefreshNonce((value) => value + 1);
+            }
+          }, 0);
+        }
         return;
       }
+      if (cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS) DASHBOARD_READ_INFLIGHT.delete(cacheKey);
       if (primaryMode) setState((current) => ({
         cacheKey,
         status: 'loading',
@@ -423,7 +433,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       if (current?.status === 'loading') return;
       const cached = DASHBOARD_READ_CACHE.get(cacheKey);
       const stale = cached?.checkedAt
-        ? Date.now() - Date.parse(cached.checkedAt) > DASHBOARD_READ_CACHE_TTL_MS
+        ? Date.now() - Date.parse(cached.checkedAt) > DASHBOARD_READ_REVALIDATE_MS
         : true;
       if (current?.status === 'blocked' || !current?.payload || stale) {
         DASHBOARD_READ_INFLIGHT.delete(cacheKey);
@@ -431,9 +441,15 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       }
     };
     window.addEventListener('focus', refreshIfNeeded);
+    window.addEventListener('online', refreshIfNeeded);
+    window.addEventListener('popstate', refreshIfNeeded);
+    window.addEventListener('logistics-data-refresh', refreshIfNeeded);
     document.addEventListener('visibilitychange', refreshIfNeeded);
     return () => {
       window.removeEventListener('focus', refreshIfNeeded);
+      window.removeEventListener('online', refreshIfNeeded);
+      window.removeEventListener('popstate', refreshIfNeeded);
+      window.removeEventListener('logistics-data-refresh', refreshIfNeeded);
       document.removeEventListener('visibilitychange', refreshIfNeeded);
     };
   }, [cacheKey, enabled, mode]);

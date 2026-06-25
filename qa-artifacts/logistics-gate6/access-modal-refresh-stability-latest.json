@@ -1,0 +1,38 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-25T02:09:41.245Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics/dashboard/home",
+  "auth_source": "password_grant",
+  "checks": {
+    "feature_open_loaded": true,
+    "feature_open_modal_visible": true,
+    "feature_focus_or_refresh_reloads": true,
+    "login_open_loaded": true,
+    "login_open_modal_visible": true,
+    "login_focus_or_refresh_reloads": true
+  },
+  "calls": {
+    "feature_open": {
+      "matched": true,
+      "status": 200,
+      "ok": true
+    },
+    "feature_auto_refresh": {
+      "matched": true,
+      "status": 200,
+      "ok": true
+    },
+    "login_open": {
+      "matched": true,
+      "status": 200,
+      "ok": true
+    },
+    "login_auto_refresh": {
+      "matched": true,
+      "status": 200,
+      "ok": true
+    }
+  },
+  "screenshot": "qa-artifacts/logistics-gate6/access-modal-refresh-stability-20260625-020940.png",
+  "errors": []
+}

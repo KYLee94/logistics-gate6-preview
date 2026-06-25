@@ -473,16 +473,21 @@ const buildEditRequestNotification = (row = {}) => {
     };
 };
 const sortNotifications = (rows) => [...rows].sort((left, right) => Date.parse(right.createdAt || '') - Date.parse(left.createdAt || ''));
-const invokeWithTimeout = async (action, payload = {}, timeoutMs = 12000) => {
+const invokeWithTimeout = async (action, payload = {}, timeoutMs = 12000, retryOnce = true, options = {}) => {
     let timeoutId;
     const timeout = new Promise((_, reject) => {
         timeoutId = window.setTimeout(() => reject(new Error('응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.')), timeoutMs);
     });
     try {
         return await Promise.race([
-            invokeDashboardApi(action, payload),
+            invokeDashboardApi(action, payload, { forceSessionRefresh: Boolean(options.forceSessionRefresh) }),
             timeout,
         ]);
+    } catch (error) {
+        const message = String(error?.message || '').toLowerCase();
+        if (!retryOnce || !/timeout|지연|failed to fetch|network|jwt|token|expired|unauthorized|forbidden/u.test(message)) throw error;
+        await new Promise((resolve) => window.setTimeout(resolve, 450));
+        return invokeWithTimeout(action, payload, Math.max(timeoutMs, 18000), false, { ...options, forceSessionRefresh: true });
     } finally {
         window.clearTimeout(timeoutId);
     }
@@ -593,6 +598,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             : `${base}/${path}`;
         window.history.pushState(null, '', nextUrl);
         window.dispatchEvent(new PopStateEvent('popstate'));
+        window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { path } }));
     };
     const { user, memberInfo, signOut } = useAuth();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -873,7 +879,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     useEffect(() => {
         if (!isLogisticsPath) return;
         let cancelled = false;
-        invokeWithTimeout('feature-access/get', {}, 10000).then(({ data, error }) => {
+        invokeWithTimeout('feature-access/get', {}, 22000).then(({ data, error }) => {
             if (cancelled || error || data?.ok === false) return;
             const next = normalizeFeatureAccessConfig(data?.data || {});
             setFeatureAccessData(next);
@@ -889,8 +895,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setFeatureAccessError('');
         try {
             const [configResult, usersResult] = await Promise.allSettled([
-                invokeWithTimeout('feature-access/get', {}, 12000),
-                invokeWithTimeout('auth/login-capability/list', {}, 14000),
+                invokeWithTimeout('feature-access/get', {}, 25000, true),
+                invokeWithTimeout('auth/login-capability/list', {}, 25000, true),
             ]);
             const configValue = configResult.status === 'fulfilled' ? configResult.value : null;
             const usersValue = usersResult.status === 'fulfilled' ? usersResult.value : null;
@@ -934,7 +940,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setFeatureAccessError('');
         try {
             const normalized = normalizeFeatureAccessConfig({ ...nextConfig, updatedAt: new Date().toISOString() });
-            const { data, error } = await invokeWithTimeout('feature-access/update', { config: normalized }, 14000);
+            const { data, error } = await invokeWithTimeout('feature-access/update', { config: normalized }, 25000, true, { forceSessionRefresh: true });
             if (error || data?.ok === false) throw new Error(data?.message || error?.message || '기능 권한 저장 실패');
             const saved = normalizeFeatureAccessConfig(data?.data || normalized);
             setFeatureAccessData(saved);
@@ -988,7 +994,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setLoginHistoryLoading(true);
         setLoginHistoryError('');
         try {
-            const { data, error } = await invokeWithTimeout('auth/login-history/list', { limit: 5 }, 15000);
+            const { data, error } = await invokeWithTimeout('auth/login-history/list', { limit: 5 }, 25000, true);
             if (error || data?.ok === false) {
                 throw new Error(data?.message || error?.message || '로그인 이력을 불러오지 못했습니다.');
             }
@@ -1017,6 +1023,34 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setShowLoginHistoryModal(true);
         await loadLoginHistory();
     };
+    useEffect(() => {
+        if (!isLogisticsPath || (!showFeatureAccessModal && !showLoginHistoryModal)) return undefined;
+        let lastRefreshAt = 0;
+        const refreshOpenModalData = () => {
+            if (document.visibilityState && document.visibilityState !== 'visible') return;
+            const now = Date.now();
+            if (now - lastRefreshAt < 1200) return;
+            lastRefreshAt = now;
+            if (showFeatureAccessModal && !featureAccessDirty && !featureAccessSaving && !featureAccessLoading) {
+                loadFeatureAccess();
+            }
+            if (showLoginHistoryModal && !loginHistoryLoading) {
+                loadLoginHistory();
+            }
+        };
+        window.addEventListener('focus', refreshOpenModalData);
+        window.addEventListener('online', refreshOpenModalData);
+        window.addEventListener('popstate', refreshOpenModalData);
+        window.addEventListener('logistics-data-refresh', refreshOpenModalData);
+        document.addEventListener('visibilitychange', refreshOpenModalData);
+        return () => {
+            window.removeEventListener('focus', refreshOpenModalData);
+            window.removeEventListener('online', refreshOpenModalData);
+            window.removeEventListener('popstate', refreshOpenModalData);
+            window.removeEventListener('logistics-data-refresh', refreshOpenModalData);
+            document.removeEventListener('visibilitychange', refreshOpenModalData);
+        };
+    }, [isLogisticsPath, showFeatureAccessModal, showLoginHistoryModal, featureAccessDirty, featureAccessSaving, featureAccessLoading, loginHistoryLoading]);
     const renderCollapsedTooltip = (label) => (
         isCollapsed ? (
             <span className="pointer-events-none absolute left-[58px] top-1/2 z-[9999] -translate-y-1/2 whitespace-nowrap rounded-[8px] border border-[#3A3A3C] bg-[#242424] px-2.5 py-1.5 text-[12px] font-semibold text-white opacity-0 shadow-xl transition-opacity duration-150 group-hover:opacity-100">
@@ -1291,17 +1325,17 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 </div>
                 {showLoginHistoryModal ? (
                     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
-                        <div className="flex h-[82vh] w-full max-w-[1120px] flex-col overflow-hidden rounded-[18px] border border-[#333333] bg-[#171717] shadow-2xl">
+                        <div data-testid="logistics-login-history-modal" className="flex h-[82vh] w-full max-w-[1120px] flex-col overflow-hidden rounded-[18px] border border-[#333333] bg-[#171717] shadow-2xl">
                             <div className="flex items-center justify-between border-b border-[#2C2C2E] px-6 py-4">
                                 <div>
                                     <div className="text-[18px] font-bold text-white">로그인 이력</div>
                                     <div className="mt-1 text-[12px] text-[#8E8E93]">기획추진센터 전용 조회 화면</div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <button type="button" onClick={loadLoginHistory} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                    <button type="button" data-testid="logistics-login-history-refresh" onClick={loadLoginHistory} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
                                         새로고침
                                     </button>
-                                    <button type="button" onClick={() => setShowLoginHistoryModal(false)} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                    <button type="button" data-testid="logistics-login-history-close" onClick={() => setShowLoginHistoryModal(false)} className="rounded-[10px] border border-[#3A3A3C] px-3 py-2 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
                                         닫기
                                     </button>
                                 </div>

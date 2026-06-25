@@ -325,6 +325,7 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
   'public.ll_lease_spaces': new Set([
     'tenantMasterName', 'tenant_master_name', 'assetName', 'asset_name', 'assetCode', 'asset_code',
     'leaseSpaceId', 'lease_space_id', 'leaseId', 'lease_id', 'tenantId', 'tenant_id', 'assetId', 'asset_id',
+    'spaceLabel', 'space_label',
     'floorLabel', 'floor_label', 'detailAreaLabel', 'detail_area_label', 'temperatureType', 'temperature_type',
     'leasedAreaSqm', 'leased_area_sqm', 'exclusiveAreaSqm', 'exclusive_area_sqm',
     'currentMonthlyRentTotal', 'current_monthly_rent_total',
@@ -392,6 +393,27 @@ const PRIMARY_KEY_FIELDS = new Set([
   'rent_history_id',
   'attribute_id',
   'fund_id',
+  'source_run_id',
+  'source_file_id',
+  'source_sheet_id',
+  'source_column_id',
+  'source_field_id',
+  'observation_id',
+  'supply_case_id',
+  'transaction_case_id',
+  'cap_rate_id',
+  'operating_cost_id',
+  'asset_spec_id',
+  'asset_spec_file_id',
+  'notification_id',
+  'delivery_id',
+  'news_run_id',
+  'news_item_id',
+  'document_id',
+  'chunk_id',
+  'fact_id',
+  'backup_id',
+  'metadata_id',
 ]);
 
 const rateBuckets = new Map<string, RateBucket>();
@@ -5599,12 +5621,353 @@ async function callOperatingCostsRead(ctx: Context, _payload: Record<string, unk
 
 const DATA_MANAGEMENT_EXPECTED_ASSET_COUNT = 19;
 const DATA_MANAGEMENT_EXPECTED_FUND_COUNT = 17;
+const DATA_MANAGEMENT_SOURCE_DOMAIN_KEYS = ['lease_contracts', 'fund_info', 'sector_market', 'permissions', 'asset_specs', 'operating_costs'];
+const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
+  {
+    key: 'lease',
+    label: '임대차',
+    sourceDomains: ['lease_contracts'],
+    tables: [
+      'll_assets',
+      'll_asset_managers',
+      'll_tenants',
+      'll_leases',
+      'll_lease_spaces',
+      'll_lease_space_area_breakdowns',
+      'll_lease_space_specs',
+      'll_lease_special_terms',
+      'll_rent_history',
+      'll_lease_attributes',
+    ],
+  },
+  {
+    key: 'fund',
+    label: '펀드/금융',
+    sourceDomains: ['fund_info'],
+    tables: ['ll_funds', 'll_fund_asset_links', 'll_fund_capital_tranches', 'll_fund_loan_tranches', 'll_fund_beneficiary_tranches'],
+  },
+  {
+    key: 'market',
+    label: '시장자료',
+    sourceDomains: ['sector_market'],
+    tables: [
+      'll_sector_market_lease_observations',
+      'll_sector_market_supply_cases',
+      'll_sector_market_transaction_cases',
+      'll_sector_market_cap_rate_series',
+      'll_market_documents',
+      'll_market_chunks',
+      'll_market_facts',
+      'll_market_deprecation_backups',
+    ],
+  },
+  {
+    key: 'asset_spec',
+    label: '자산 스펙',
+    sourceDomains: ['asset_specs'],
+    tables: ['ll_asset_specs', 'll_asset_spec_files'],
+  },
+  {
+    key: 'operating_cost',
+    label: '운영비용',
+    sourceDomains: ['operating_costs'],
+    tables: ['ll_asset_operating_costs'],
+  },
+  {
+    key: 'permission',
+    label: '권한/사용자',
+    sourceDomains: ['permissions'],
+    tables: ['ll_user_permissions', 'll_login_history'],
+  },
+  {
+    key: 'source',
+    label: '원천/업로드',
+    sourceDomains: DATA_MANAGEMENT_SOURCE_DOMAIN_KEYS,
+    tables: [
+      'll_source_files',
+      'll_source_sheets',
+      'll_source_columns',
+      'll_source_rows',
+      'll_source_cells',
+      'll_source_runs',
+      'll_import_runs',
+      'll_sheet_rows',
+      'll_source_field_registry',
+      'll_source_review_logs',
+    ],
+  },
+  {
+    key: 'approval_audit',
+    label: '승인/감사',
+    sourceDomains: [],
+    tables: ['ll_edit_requests', 'll_audit_events', 'll_data_change_audit_logs', 'll_api_audit_logs', 'll_data_quality_findings', 'll_schema_metadata', 'll_migration_row_backups'],
+  },
+  {
+    key: 'work_platform',
+    label: '업무 플랫폼',
+    sourceDomains: [],
+    tables: [
+      'll_work_items',
+      'll_issues',
+      'll_board_posts',
+      'll_weekly_assets',
+      'll_weekly_projects',
+      'll_weekly_records',
+      'll_weekly_reports',
+      'll_weekly_doc_ingest_runs',
+      'll_work_platform_tasks',
+      'll_work_platform_task_snapshots',
+      'll_work_platform_board_posts',
+      'll_worklogs',
+      'll_notifications',
+      'll_notification_deliveries',
+      'll_news_runs',
+      'll_news_items',
+    ],
+  },
+  {
+    key: 'cache',
+    label: '캐시/스냅샷',
+    sourceDomains: [],
+    tables: ['ll_cache_entries', 'll_external_api_cache', 'll_dashboard_metric_snapshots', 'll_dashboard_read_snapshots'],
+  },
+];
+const DATA_MANAGEMENT_FALLBACK_TABLES = uniqueStrings(DATA_MANAGEMENT_COVERAGE_DOMAINS.flatMap((domain) => domain.tables), 200);
+const DATA_MANAGEMENT_SPACES = [
+  { key: 'igis', label: '이지스 Data', description: '이지스자산운용 19개 자산과 17개 펀드의 임대차, 금융, 스펙, 운영비용을 관리합니다.' },
+  { key: 'market', label: '시장 Data', description: '임대시장, 공급, 거래, Cap Rate, 뉴스와 시장 원천 데이터를 검토합니다.' },
+  { key: 'operations', label: '시스템·운영 Data', description: '권한, 알림, 로그인, 감사, 캐시, 변경요청 이력을 readback 중심으로 확인합니다.' },
+];
+const DATA_MANAGEMENT_DOMAIN_SPACE: Record<string, string> = {
+  lease: 'igis',
+  fund: 'igis',
+  asset_spec: 'igis',
+  operating_cost: 'igis',
+  market: 'market',
+  source: 'market',
+  permission: 'operations',
+  approval_audit: 'operations',
+  work_platform: 'operations',
+  cache: 'operations',
+};
+const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
+  ll_assets: '자산 마스터',
+  ll_asset_managers: '자산 담당 이력',
+  ll_tenants: '임차인',
+  ll_leases: '임대차 계약',
+  ll_lease_spaces: '임대공간',
+  ll_lease_space_area_breakdowns: '임대공간 면적 상세',
+  ll_lease_space_specs: '임대공간 스펙',
+  ll_lease_special_terms: '임대차 특약',
+  ll_rent_history: '임대료 이력',
+  ll_lease_attributes: '임대차 속성',
+  ll_funds: '펀드 마스터',
+  ll_fund_asset_links: '펀드-자산 연결',
+  ll_fund_capital_tranches: '펀드 금융 트랜치',
+  ll_fund_loan_tranches: '펀드 대출 트랜치',
+  ll_fund_beneficiary_tranches: '펀드 수익자 트랜치',
+  ll_asset_specs: '자산 스펙',
+  ll_asset_spec_files: '자산 스펙 파일',
+  ll_asset_operating_costs: '자산 운영비',
+  ll_sector_market_lease_observations: '시장 임대 사례',
+  ll_sector_market_supply_cases: '시장 공급 사례',
+  ll_sector_market_transaction_cases: '시장 거래 사례',
+  ll_sector_market_cap_rate_series: '시장 Cap Rate',
+  ll_market_documents: '시장 문서',
+  ll_market_chunks: '시장 문서 청크',
+  ll_market_facts: '시장 팩트',
+  ll_market_deprecation_backups: '시장 이전 백업',
+  ll_news_runs: '뉴스 수집 실행',
+  ll_news_items: '뉴스 항목',
+  ll_user_permissions: '사용자 권한',
+  ll_login_history: '로그인 이력',
+  ll_source_files: '원천 파일',
+  ll_source_sheets: '원천 시트',
+  ll_source_columns: '원천 컬럼',
+  ll_source_rows: '원천 행',
+  ll_source_cells: '원천 셀',
+  ll_source_runs: '원천 처리 실행',
+  ll_import_runs: '원천 가져오기 실행',
+  ll_sheet_rows: '원천 시트 행',
+  ll_source_field_registry: '원천 필드 레지스트리',
+  ll_source_review_logs: '원천 검수 로그',
+  ll_weekly_assets: '주간 자산',
+  ll_weekly_projects: '주간 프로젝트',
+  ll_weekly_records: '주간 기록',
+  ll_weekly_reports: '주간 보고서',
+  ll_weekly_doc_ingest_runs: '주간 문서 수집',
+  ll_work_items: '업무 항목',
+  ll_issues: '이슈',
+  ll_board_posts: '게시글',
+  ll_work_platform_tasks: '업무 플랫폼 태스크',
+  ll_work_platform_task_snapshots: '업무 플랫폼 태스크 스냅샷',
+  ll_work_platform_board_posts: '업무 플랫폼 게시글',
+  ll_worklogs: '업무 로그',
+  ll_notifications: '알림',
+  ll_notification_deliveries: '알림 발송 이력',
+  ll_edit_requests: '변경 요청',
+  ll_audit_events: '감사 이벤트',
+  ll_data_change_audit_logs: '데이터 변경 감사',
+  ll_api_audit_logs: 'API 감사 로그',
+  ll_data_quality_findings: '데이터 품질 지적',
+  ll_schema_metadata: '스키마 메타데이터',
+  ll_migration_row_backups: '마이그레이션 백업',
+  ll_cache_entries: '캐시 엔트리',
+  ll_external_api_cache: '외부 API 캐시',
+  ll_dashboard_metric_snapshots: '대시보드 지표 스냅샷',
+  ll_dashboard_read_snapshots: '대시보드 조회 스냅샷',
+};
+const DATA_MANAGEMENT_WORKSPACES = [
+  { key: 'igis', label: '이지스 Data', description: '자산·펀드 묶음을 기준으로 임대차, 금융, 스펙, 운영비용을 수정 요청합니다.' },
+  { key: 'market', label: '시장 Data', description: '원천 Excel 시트 흐름에 맞춰 임대시장, 공급, 거래, Cap Rate, 뉴스를 검토합니다.' },
+  { key: 'operations', label: '시스템·운영 Data', description: '권한, 승인, 감사, 캐시, 로그인 이력을 readback 중심으로 확인합니다.' },
+];
+const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
+  {
+    view_key: 'lease_contracts',
+    workspace_key: 'igis',
+    domain_key: 'lease',
+    label: '임대차 계약',
+    grain: '임차 구역 1개',
+    row_unit: 'lease_space',
+    description: '자산·펀드·임차인·임대구역을 한 행으로 묶어 계약기간과 임대조건을 확인하고 수정 요청합니다.',
+  },
+  {
+    view_key: 'market_lease_observations',
+    workspace_key: 'market',
+    domain_key: 'market',
+    label: '시장 임대',
+    grain: '시장 임대 관측치 1건',
+    row_unit: 'market_observation',
+    description: '물류 시장 데이터 원천의 임대시장 관측치를 검토합니다.',
+    fallback_table_key: 'sector_market_lease_observations',
+  },
+  {
+    view_key: 'market_supply_cases',
+    workspace_key: 'market',
+    domain_key: 'market',
+    label: '공급',
+    grain: '공급 사례 1건',
+    row_unit: 'market_supply_case',
+    description: '신규공급과 공급예정 원천 사례를 검토합니다.',
+    fallback_table_key: 'sector_market_supply_cases',
+  },
+  {
+    view_key: 'market_transaction_cases',
+    workspace_key: 'market',
+    domain_key: 'market',
+    label: '거래',
+    grain: '거래 사례 1건',
+    row_unit: 'market_transaction_case',
+    description: '매매 사례와 거래시장 원천 데이터를 검토합니다.',
+    fallback_table_key: 'sector_market_transaction_cases',
+  },
+  {
+    view_key: 'operations_audit',
+    workspace_key: 'operations',
+    domain_key: 'approval_audit',
+    label: '승인·감사',
+    grain: '승인/감사 이력 1건',
+    row_unit: 'operation_event',
+    description: '변경 요청과 감사 이력을 readback 전용으로 확인합니다.',
+    fallback_table_key: 'edit_requests',
+  },
+];
+const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
+  { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
+  { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 180 },
+  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'tenant_master_name', width: 170 },
+  { field_key: 'space_label', label: '임대구역', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'space_label', width: 140 },
+  { field_key: 'contract_status', label: '계약상태', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
+  { field_key: 'floor_label', label: '층', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'floor_label', width: 90, default_hidden: true },
+  { field_key: 'detail_area_label', label: '세부구역', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'detail_area_label', width: 120, default_hidden: true },
+  { field_key: 'temperature_type', label: '상/저온', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
+  { field_key: 'current_start_date', label: '계약 시작일', group: '계약기간', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_start_date', width: 130 },
+  { field_key: 'current_end_date', label: '계약 종료일', group: '계약기간', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_end_date', width: 130 },
+  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
+  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130, default_hidden: true },
+  { field_key: 'current_monthly_rent_total', label: '월 임대료', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_rent_total', width: 140 },
+  { field_key: 'current_monthly_mf_total', label: '월 관리비', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_mf_total', width: 140 },
+  { field_key: 'current_monthly_cost_total', label: '월 임관비', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_cost_total', width: 140 },
+  { field_key: 'e_noc', label: 'E. NOC', group: '경제조건', type: 'krw_per_py', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'e_noc', width: 120 },
+  { field_key: 'deposit_amount', label: '보증금', group: '경제조건', type: 'krw', editable: false, width: 130, default_hidden: true },
+  { field_key: 'rf_months', label: 'RF', group: '옵션·특약', type: 'months', editable: false, width: 90 },
+  { field_key: 'fo_months', label: 'FO', group: '옵션·특약', type: 'months', editable: false, width: 90 },
+  { field_key: 'ti_amount', label: 'TI', group: '옵션·특약', type: 'krw', editable: false, width: 120, default_hidden: true },
+  { field_key: 'rent_escalation_rate', label: '임대료 인상률', group: '옵션·특약', type: 'percent', editable: false, width: 130 },
+  { field_key: 'management_fee_escalation_rate', label: '관리비 인상률', group: '옵션·특약', type: 'percent', editable: false, width: 130, default_hidden: true },
+  { field_key: 'review_status', label: '검토 상태', group: '검토상태', type: 'text', editable: false, width: 120 },
+  { field_key: 'review_note', label: '검토 메모', group: '검토상태', type: 'text', editable: false, width: 180, default_hidden: true },
+];
+const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
+  ll_assets: 'asset_id',
+  ll_asset_managers: 'asset_manager_id',
+  ll_tenants: 'tenant_id',
+  ll_leases: 'lease_id',
+  ll_lease_spaces: 'lease_space_id',
+  ll_lease_attributes: 'attribute_id',
+  ll_rent_history: 'rent_history_id',
+  ll_funds: 'fund_id',
+  ll_source_files: 'source_file_id',
+  ll_source_sheets: 'source_sheet_id',
+  ll_source_columns: 'source_column_id',
+  ll_source_rows: 'source_row_id',
+  ll_source_runs: 'source_run_id',
+  ll_import_runs: 'import_id',
+  ll_sheet_rows: 'sheet_row_id',
+  ll_source_field_registry: 'source_field_id',
+  ll_sector_market_lease_observations: 'observation_id',
+  ll_sector_market_supply_cases: 'supply_case_id',
+  ll_sector_market_transaction_cases: 'transaction_case_id',
+  ll_sector_market_cap_rate_series: 'cap_rate_id',
+  ll_asset_operating_costs: 'operating_cost_id',
+  ll_asset_specs: 'asset_spec_id',
+  ll_asset_spec_files: 'asset_spec_file_id',
+  ll_notifications: 'notification_id',
+  ll_notification_deliveries: 'delivery_id',
+  ll_news_runs: 'news_run_id',
+  ll_news_items: 'news_item_id',
+  ll_market_documents: 'document_id',
+  ll_market_chunks: 'chunk_id',
+  ll_market_facts: 'fact_id',
+  ll_market_deprecation_backups: 'backup_id',
+  ll_schema_metadata: 'metadata_id',
+  ll_login_history: 'id',
+  ll_data_quality_findings: 'finding_id',
+  ll_issues: 'issue_id',
+};
+const DATA_MANAGEMENT_ROW_LABEL_FIELDS: Record<string, string[]> = {
+  ll_assets: ['asset_name', 'asset_code'],
+  ll_asset_managers: ['asset_name', 'manager_name', 'manager_team'],
+  ll_funds: ['display_name', 'short_name', 'fund_name', 'fund_code'],
+  ll_fund_asset_links: ['fund_id', 'asset_name', 'asset_code'],
+  ll_tenants: ['tenant_master_name', 'company_name', 'business_registration_no'],
+  ll_leases: ['asset_name', 'tenant_master_name', 'space_label'],
+  ll_lease_spaces: ['asset_name', 'tenant_master_name', 'space_label', 'floor_label', 'detail_area_label', 'temperature_type'],
+  ll_rent_history: ['asset_name', 'tenant_master_name', 'space_label', 'basis_date'],
+  ll_lease_attributes: ['attribute_label', 'attribute_key', 'asset_id'],
+  ll_asset_specs: ['asset_name', 'asset_code', 'address'],
+  ll_asset_operating_costs: ['asset_name', 'asset_code', 'cost_type', 'basis_date'],
+  ll_sector_market_lease_observations: ['center_name', 'region', 'report_period'],
+  ll_sector_market_supply_cases: ['warehouse_name', 'region', 'expected_year', 'expected_quarter'],
+  ll_sector_market_transaction_cases: ['asset_name', 'buyer_name', 'seller_name', 'transaction_year'],
+  ll_sector_market_cap_rate_series: ['region', 'report_year', 'report_quarter'],
+  ll_news_items: ['title', 'published_at', 'source_name'],
+  ll_login_history: ['staff_name', 'email', 'logged_at', 'status'],
+  ll_data_quality_findings: ['finding_type', 'severity', 'source_header', 'status'],
+  ll_work_items: ['title', 'asset_name', 'status'],
+  ll_issues: ['title', 'asset_id', 'status', 'severity'],
+  ll_board_posts: ['title', 'created_at'],
+  ll_weekly_records: ['project_name', 'asset_name', 'fund_name', 'status'],
+};
 
 type DataManagementScope = {
   assets: Record<string, unknown>[];
   funds: Record<string, unknown>[];
+  links: Record<string, unknown>[];
   readableAssets: Record<string, unknown>[];
   readableFunds: Record<string, unknown>[];
+  readableLinks: Record<string, unknown>[];
   allRefs: string[];
   readableRefs: string[];
 };
@@ -5702,12 +6065,19 @@ async function readDataManagementScope(ctx: Context, managerView: boolean): Prom
     safeText(link.fund_id) === safeText(fund.fund_id)
     && (readableAssetIds.has(safeText(link.asset_id)) || readableAssetNames.has(safeText(link.asset_name)))
   )));
+  const readableFundIds = new Set(readableFunds.map((fund) => safeText(fund.fund_id)).filter(Boolean));
+  const readableLinks = managerView ? links : links.filter((link) => (
+    (readableAssetIds.has(safeText(link.asset_id)) || readableAssetNames.has(safeText(link.asset_name)))
+    && (!safeText(link.fund_id) || readableFundIds.has(safeText(link.fund_id)))
+  ));
   return {
     scope: {
       assets: scopeAssets,
       funds: scopeFunds,
+      links,
       readableAssets,
       readableFunds,
+      readableLinks,
       allRefs: dataManagementScopeRefs(scopeAssets, scopeFunds),
       readableRefs: dataManagementScopeRefs(readableAssets, readableFunds),
     },
@@ -5868,6 +6238,1435 @@ function resolveSyntheticDataManagementRow(sourceRowId: string, scope: {
   return syntheticDataManagementRows(scope).find((row) => safeText(row.source_row_id) === sourceRowId) || null;
 }
 
+function dataManagementCoverageDomainForTable(tableName: unknown) {
+  const normalized = safeText(tableName).replace(/^public\./u, '');
+  return DATA_MANAGEMENT_COVERAGE_DOMAINS.find((domain) => domain.tables.includes(normalized)) || null;
+}
+
+function dataManagementCoverageWriteMode(tableName: unknown) {
+  const normalized = safeText(tableName).replace(/^public\./u, '');
+  const publicName = `public.${normalized}`;
+  if (EDIT_TARGET_TABLE_ALLOWLIST.has(publicName)) return 'approval_auto_write';
+  if (normalized.startsWith('ll_source_')) return 'source_row_review';
+  if (/^ll_sector_market_|^ll_asset_spec|^ll_asset_operating_costs$/u.test(normalized)) return 'source_row_review';
+  if (normalized === 'll_user_permissions') return 'feature_access_workflow';
+  if (/^ll_(edit_requests|audit_events|schema_metadata|cache_entries|notifications|notification_deliveries|news_)/u.test(normalized)) return 'readback_or_system_workflow';
+  return 'readback_or_system_workflow';
+}
+
+function dataManagementSourceDomainLabel(value: unknown) {
+  const key = safeText(value);
+  const labels: Record<string, string> = {
+    lease_contracts: '임대차',
+    fund_info: '펀드/금융',
+    sector_market: '시장자료',
+    permissions: '권한/사용자',
+    asset_specs: '자산 스펙',
+    operating_costs: '운영비용',
+  };
+  return labels[key] || key || '기타';
+}
+
+function dataManagementEmptyScope(): DataManagementScope {
+  return {
+    assets: [],
+    funds: [],
+    links: [],
+    readableAssets: [],
+    readableFunds: [],
+    readableLinks: [],
+    allRefs: [],
+    readableRefs: [],
+  };
+}
+
+function dataManagementNormalizedTableName(value: unknown) {
+  return safeText(value).replace(/^public\./u, '');
+}
+
+function dataManagementTableKey(tableName: unknown) {
+  return dataManagementNormalizedTableName(tableName).replace(/^ll_/u, '');
+}
+
+function dataManagementDomainForTableName(tableName: unknown) {
+  return dataManagementCoverageDomainForTable(tableName) || {
+    key: 'approval_audit',
+    label: '운영/검토',
+    sourceDomains: [],
+    tables: [dataManagementNormalizedTableName(tableName)],
+  };
+}
+
+function dataManagementSpaceForDomain(domainKey: unknown) {
+  return DATA_MANAGEMENT_DOMAIN_SPACE[safeText(domainKey)] || 'operations';
+}
+
+function dataManagementCapabilityForTable(tableName: unknown) {
+  const writeMode = dataManagementCoverageWriteMode(tableName);
+  if (writeMode === 'approval_auto_write') return 'approval_required';
+  if (writeMode === 'feature_access_workflow') return 'feature_access_workflow';
+  if (writeMode === 'source_row_review') return 'source_review_required';
+  return 'readback_only';
+}
+
+function dataManagementPrimaryKeyForTable(tableName: unknown, metadata?: Record<string, unknown>) {
+  const normalized = dataManagementNormalizedTableName(tableName);
+  const metadataPk = metadata?.pk_columns;
+  if (Array.isArray(metadataPk)) {
+    const first = metadataPk.map((item) => safeText(item)).find(Boolean);
+    if (first) return first;
+  }
+  if (typeof metadataPk === 'string') {
+    const parsed = parseJsonValue(metadataPk, []);
+    if (Array.isArray(parsed)) {
+      const first = parsed.map((item) => safeText(item)).find(Boolean);
+      if (first) return first;
+    }
+  }
+  return DATA_MANAGEMENT_TABLE_PRIMARY_KEYS[normalized] || 'id';
+}
+
+function dataManagementRowLabelFieldsForTable(tableName: unknown) {
+  const normalized = dataManagementNormalizedTableName(tableName);
+  return DATA_MANAGEMENT_ROW_LABEL_FIELDS[normalized] || ['asset_name', 'fund_name', 'name', 'title', 'created_at'];
+}
+
+function dataManagementFieldLabel(fieldName: unknown) {
+  const field = safeText(fieldName);
+  const labels: Record<string, string> = {
+    asset_id: '자산 ID',
+    asset_code: '자산코드',
+    asset_name: '자산명',
+    fund_id: '펀드 ID',
+    fund_code: '펀드코드',
+    fund_name: '펀드명',
+    display_name: '표시명',
+    short_name: '약칭',
+    tenant_id: '임차인 ID',
+    tenant_master_name: '임차인',
+    company_name: '회사명',
+    business_registration_no: '사업자번호',
+    lease_id: '임대차 ID',
+    lease_status: '계약 상태',
+    lease_space_id: '임대공간 ID',
+    space_label: '공간',
+    floor_label: '층',
+    detail_area_label: '세부구역',
+    temperature_type: '상/저온',
+    leased_area_sqm: '임대면적',
+    exclusive_area_sqm: '전용면적',
+    first_contract_date: '최초 계약일',
+    first_start_date: '최초 시작일',
+    first_end_date: '최초 종료일',
+    first_operation_date: '운영 개시일',
+    recent_contract_date: '최근 계약일',
+    current_start_date: '계약 시작일',
+    current_end_date: '계약 종료일',
+    contract_years: '계약기간(년)',
+    extension_count: '연장 횟수',
+    deposit_amount: '보증금',
+    rf_months: 'RF(개월)',
+    fo_months: 'FO(개월)',
+    ti_amount: 'TI',
+    rent_escalation_rate: '임대료 인상률',
+    management_fee_escalation_rate: '관리비 인상률',
+    escalation_cycle_months: '인상 주기(개월)',
+    next_escalation_date: '다음 인상일',
+    tenant_cost_burden: '임차인 비용 부담',
+    early_termination_right: '중도해지권',
+    renewal_option: '갱신 옵션',
+    special_terms: '특약',
+    current_monthly_rent_total: '월 임대료',
+    current_monthly_mf_total: '월 관리비',
+    current_monthly_cost_total: '월 비용',
+    e_noc: 'E-NOC',
+    contract_status: '계약 상태',
+    review_status: '검토 상태',
+    review_note: '검토 메모',
+    basis_date: '기준일',
+    report_period: '보고 기간',
+    region: '권역',
+    legal_address: '주소',
+    created_at: '생성일',
+    updated_at: '수정일',
+  };
+  if (labels[field]) return labels[field];
+  return field
+    .replace(/^ll_/u, '')
+    .replace(/_/gu, ' ')
+    .replace(/\b\w/gu, (match) => match.toUpperCase());
+}
+
+function dataManagementLookupFieldsForTable(tableName: unknown) {
+  const normalized = dataManagementNormalizedTableName(tableName);
+  const lookupFields: Record<string, string[]> = {
+    ll_asset_managers: ['asset_id', 'asset_code', 'asset_name'],
+    ll_leases: ['lease_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label', 'current_start_date', 'current_end_date'],
+    ll_lease_spaces: ['lease_space_id', 'lease_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label', 'floor_label', 'detail_area_label', 'temperature_type'],
+    ll_lease_space_area_breakdowns: ['lease_space_id', 'lease_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label'],
+    ll_lease_space_specs: ['lease_space_id', 'lease_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label'],
+    ll_lease_special_terms: ['lease_id', 'lease_space_id', 'asset_id', 'asset_name', 'tenant_id', 'tenant_master_name', 'term_title', 'term_type'],
+    ll_rent_history: ['rent_history_id', 'lease_id', 'lease_space_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label', 'basis_date'],
+    ll_lease_attributes: ['attribute_id', 'lease_id', 'lease_space_id', 'asset_id', 'asset_name', 'tenant_id', 'tenant_master_name', 'attribute_label', 'attribute_key'],
+    ll_fund_asset_links: ['fund_id', 'fund_code', 'fund_name', 'asset_id', 'asset_code', 'asset_name'],
+    ll_fund_capital_tranches: ['fund_id', 'fund_code', 'fund_name', 'tranche_type', 'tranche', 'party_name'],
+    ll_fund_loan_tranches: ['fund_id', 'fund_code', 'fund_name', 'tranche', 'lender_name', 'party_name'],
+    ll_fund_beneficiary_tranches: ['fund_id', 'fund_code', 'fund_name', 'tranche', 'beneficiary_name', 'party_name'],
+    ll_asset_specs: ['asset_id', 'asset_code', 'asset_name', 'address'],
+    ll_asset_operating_costs: ['asset_id', 'asset_code', 'asset_name', 'cost_type', 'basis_date'],
+  };
+  return lookupFields[normalized] || [];
+}
+
+function dataManagementFieldType(fieldName: unknown, metadata?: Record<string, unknown>) {
+  const dataType = safeText(metadata?.data_type).toLowerCase();
+  if (dataType) {
+    if (/int|numeric|double|real|decimal|bigint|smallint/u.test(dataType)) return 'number';
+    if (/bool/u.test(dataType)) return 'boolean';
+    if (/date|time/u.test(dataType)) return 'date';
+    if (/json/u.test(dataType)) return 'json';
+  }
+  const field = safeText(fieldName).toLowerCase();
+  if (/(amount|area|rate|count|year|month|price|rent|fee|noc|sqm|py|krw|number|index)$/u.test(field)) return 'number';
+  if (/(date|at)$/u.test(field)) return 'date';
+  return 'text';
+}
+
+function dataManagementUserVisibleField(fieldName: unknown) {
+  const field = safeText(fieldName);
+  const lower = field.toLowerCase();
+  if (!field) return false;
+  if (IMMUTABLE_FIELDS.has(field)) return false;
+  if (PRIMARY_KEY_FIELDS.has(field)) return false;
+  if (SENSITIVE_KEY_PATTERN.test(field)) return false;
+  if (lower === 'payload' || lower.endsWith('_payload') || lower.includes('payload_')) return false;
+  if (lower === 'request_payload' || lower === 'source_payload' || lower === 'response_payload') return false;
+  if (lower === 'row_values' || lower === 'normalized_values' || lower === 'validation_flags') return false;
+  if (lower.endsWith('_json') || lower === 'row_json' || lower === 'report_json' || lower === 'value_json') return false;
+  if (lower.includes('pnu') || lower.includes('legal_dong') || lower.includes('법정동')) return false;
+  if (lower.startsWith('source_') && !['source_domain', 'source_version', 'source_locator'].includes(lower)) return false;
+  if (lower.endsWith('_id') && !['asset_id', 'fund_id'].includes(lower)) return false;
+  return true;
+}
+
+function dataManagementEditableField(tableName: unknown, fieldName: unknown) {
+  const publicName = normalizePublicLlTable(tableName);
+  const field = safeText(fieldName);
+  if (!dataManagementUserVisibleField(field)) return false;
+  if (!publicName || !field) return false;
+  if (EDIT_FIELD_ALLOWLIST[publicName]?.has(field)) return true;
+  return dataManagementCapabilityForTable(clientTableName(publicName)) === 'source_review_required';
+}
+
+function dataManagementFieldDefinitions(tableName: string, columnRows: Record<string, unknown>[]) {
+  const primaryKey = dataManagementPrimaryKeyForTable(tableName);
+  const editableFields = [...(EDIT_FIELD_ALLOWLIST[`public.${tableName}`] || new Set<string>())];
+  const availableColumnNames = new Set(columnRows.map((row) => safeText(row.column_name)).filter(Boolean));
+  const actualEditableFields = availableColumnNames.size
+    ? editableFields.filter((field) => availableColumnNames.has(field))
+    : editableFields;
+  const rowLabelFields = dataManagementRowLabelFieldsForTable(tableName);
+  const actualRowLabelFields = availableColumnNames.size
+    ? rowLabelFields.filter((field) => availableColumnNames.has(field))
+    : rowLabelFields;
+  const fieldNames = uniqueStrings([
+    ...actualRowLabelFields,
+    ...columnRows.map((row) => safeText(row.column_name)).filter(Boolean),
+    ...actualEditableFields,
+  ], 300).filter((field) => Boolean(field) && field !== primaryKey && dataManagementUserVisibleField(field));
+  const columnByName = new Map(columnRows.map((row) => [safeText(row.column_name), row]));
+  return fieldNames.map((field) => {
+    const metadata = columnByName.get(field) || {};
+    const editable = dataManagementEditableField(tableName, field);
+    return stripUndefined({
+      field_key: field,
+      field,
+      label: dataManagementFieldLabel(field),
+      type: dataManagementFieldType(field, metadata),
+      editable,
+      required: metadata.is_nullable === false ? true : undefined,
+      sensitive: SENSITIVE_KEY_PATTERN.test(field),
+      read_only_reason: editable ? undefined : 'approval policy does not allow automatic write for this field',
+    });
+  });
+}
+
+function dataManagementRowLabelForTable(tableName: unknown, row: Record<string, unknown>) {
+  const fields = dataManagementRowLabelFieldsForTable(tableName);
+  const values = fields.map((field) => safeText(row[field])).filter(Boolean).slice(0, 4);
+  if (values.length) return values.join(' · ');
+  const primaryKey = dataManagementPrimaryKeyForTable(tableName);
+  return safeText(row[primaryKey] || row.id || row.created_at || tableName, '-');
+}
+
+function dataManagementRowRevisionPayload(row: Record<string, unknown>) {
+  return redactSensitivePayload(row);
+}
+
+async function dataManagementRevisionHash(row: Record<string, unknown>) {
+  return `sha256:${await sha256Text(JSON.stringify(stableComparable(dataManagementRowRevisionPayload(row))))}`;
+}
+
+function dataManagementTableDefinition(tableName: string, metadata: Record<string, unknown>, columnRows: Record<string, unknown>[]) {
+  const domain = dataManagementDomainForTableName(tableName);
+  const domainKey = safeText(domain.key);
+  const publicName = `public.${tableName}`;
+  const capability = dataManagementCapabilityForTable(tableName);
+  const fields = dataManagementFieldDefinitions(tableName, columnRows);
+  const availableColumnNames = new Set(columnRows.map((row) => safeText(row.column_name)).filter(Boolean));
+  const rowLabelFields = dataManagementRowLabelFieldsForTable(tableName);
+  const actualRowLabelFields = availableColumnNames.size
+    ? rowLabelFields.filter((field) => availableColumnNames.has(field))
+    : rowLabelFields;
+  return stripUndefined({
+    table_key: dataManagementTableKey(tableName),
+    internal_table: publicName,
+    space_key: dataManagementSpaceForDomain(domainKey),
+    domain_key: domainKey,
+    label: DATA_MANAGEMENT_TABLE_LABELS[tableName] || safeText(metadata.description) || dataManagementFieldLabel(tableName),
+    description: metadata.description,
+    primary_key_field: dataManagementPrimaryKeyForTable(tableName, metadata),
+    row_label_fields: actualRowLabelFields,
+    capability,
+    write_mode: capability,
+    storage_write_mode: dataManagementCoverageWriteMode(tableName),
+    capabilities: {
+      read: true,
+      preview_edit: capability === 'approval_required',
+      submit_edit: capability === 'approval_required',
+      approve_write: capability === 'approval_required',
+      insert: false,
+      delete: false,
+    },
+    fields,
+    editable_field_count: fields.filter((field) => (field as Record<string, unknown>).editable === true).length,
+    metadata_domain_group: metadata.domain_group,
+    metadata_role_category: metadata.role_category,
+  });
+}
+
+function dataManagementBundleKey(fundId: unknown, assetId: unknown) {
+  const fund = safeText(fundId || 'fund_unknown');
+  const asset = safeText(assetId || 'asset_unknown');
+  return `${fund}::${asset}`;
+}
+
+function dataManagementPublicBundles(scope: DataManagementScope) {
+  const assetById = new Map(scope.readableAssets.map((asset) => [safeText(asset.asset_id), asset]));
+  const fundById = new Map(scope.readableFunds.map((fund) => [safeText(fund.fund_id), fund]));
+  const linkRows = scope.readableLinks.length ? scope.readableLinks : scope.links;
+  const fundAssetCounts = new Map<string, number>();
+  linkRows.forEach((link) => {
+    const fundId = safeText(link.fund_id);
+    if (!fundId) return;
+    fundAssetCounts.set(fundId, Number(fundAssetCounts.get(fundId) || 0) + 1);
+  });
+  return linkRows.map((link) => {
+    const asset = assetById.get(safeText(link.asset_id)) || {};
+    const fund = fundById.get(safeText(link.fund_id)) || {};
+    const assetId = safeText(firstDefined(link.asset_id, asset.asset_id, link.asset_code, asset.asset_code, link.asset_name, asset.asset_name));
+    const fundId = safeText(firstDefined(link.fund_id, fund.fund_id, fund.fund_code, fund.fund_name));
+    const fundLabel = safeText(firstDefined(fund.display_name, fund.short_name, fund.fund_name, fund.fund_code, fundId));
+    const assetLabel = safeText(firstDefined(link.asset_name, asset.asset_name, link.asset_code, asset.asset_code, assetId));
+    const fundCode = safeText(fund.fund_code);
+    const multiAsset = Number(fundAssetCounts.get(safeText(link.fund_id)) || 0) > 1;
+    return stripUndefined({
+      bundle_key: dataManagementBundleKey(fundId, assetId),
+      selection_label: [fundLabel, assetLabel].filter(Boolean).join(' · '),
+      relationship: safeText(link.link_type || 'primary'),
+      is_multi_asset_exception: multiAsset,
+      exception_group: multiAsset && (fundCode === '112527' || fundLabel.includes('404')) ? '404_multi_asset' : undefined,
+      fund: {
+        fund_id: fundId,
+        fund_code: fundCode,
+        fund_name: safeText(fund.fund_name),
+        short_name: safeText(fund.short_name),
+        label: fundLabel,
+      },
+      asset: {
+        asset_id: assetId,
+        asset_code: safeText(firstDefined(link.asset_code, asset.asset_code)),
+        asset_name: safeText(firstDefined(link.asset_name, asset.asset_name)),
+        label: assetLabel,
+      },
+    });
+  });
+}
+
+function dataManagementBundleByKey(scope: DataManagementScope, bundleKey: string) {
+  return dataManagementPublicBundles(scope).find((bundle) => safeText((bundle as Record<string, unknown>).bundle_key) === bundleKey) as Record<string, unknown> | undefined;
+}
+
+function dataManagementRowHaystackGeneric(row: Record<string, unknown>) {
+  return normalizeKey(JSON.stringify(row || {}));
+}
+
+function dataManagementRowMatchesGenericRefs(row: Record<string, unknown>, refs: string[]) {
+  if (!refs.length) return false;
+  const haystack = dataManagementRowHaystackGeneric(row);
+  return refs.some((ref) => ref && haystack.includes(ref));
+}
+
+function dataManagementRowMatchesBundle(row: Record<string, unknown>, bundle: Record<string, unknown> | undefined) {
+  if (!bundle) return true;
+  const fund = bundle.fund && typeof bundle.fund === 'object' ? bundle.fund as Record<string, unknown> : {};
+  const asset = bundle.asset && typeof bundle.asset === 'object' ? bundle.asset as Record<string, unknown> : {};
+  const refs = [
+    asset.asset_id,
+    asset.asset_code,
+    asset.asset_name,
+    asset.label,
+    fund.fund_id,
+    fund.fund_code,
+    fund.fund_name,
+    fund.short_name,
+    fund.label,
+  ].map((item) => normalizeKey(item)).filter(Boolean);
+  return dataManagementRowMatchesGenericRefs(row, refs);
+}
+
+function dataManagementRowReadable(ctx: Context, row: Record<string, unknown>, managerView: boolean, scope: DataManagementScope) {
+  if (managerView) return true;
+  return dataManagementRowMatchesGenericRefs(row, scope.readableRefs);
+}
+
+async function loadDataManagementCatalog(ctx: Context, scope: DataManagementScope) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_schema_metadata')
+    .select('object_type,table_schema,table_name,column_name,data_type,is_nullable,domain_group,role_category,description,pk_columns,is_active,updated_at')
+    .eq('table_schema', 'public')
+    .eq('is_active', true)
+    .limit(1600);
+  if (error && !isMissingRelationError(error)) throw new Error(`Failed to read schema metadata: ${error.message}`);
+  const metadataRows = ((data || []) as Record<string, unknown>[]).filter((row) => /^ll_/u.test(safeText(row.table_name)));
+  const tableRows = metadataRows.filter((row) => safeText(row.object_type) === 'table');
+  const columnRows = metadataRows.filter((row) => safeText(row.object_type) === 'column' && safeText(row.column_name));
+  const tableNames = uniqueStrings([
+    ...tableRows.map((row) => safeText(row.table_name)).filter(Boolean),
+    ...DATA_MANAGEMENT_FALLBACK_TABLES,
+  ], 320).sort((a, b) => a.localeCompare(b));
+  const metadataByTable = new Map(tableRows.map((row) => [safeText(row.table_name), row]));
+  const columnsByTable = new Map<string, Record<string, unknown>[]>();
+  columnRows.forEach((row) => {
+    const tableName = safeText(row.table_name);
+    if (!tableName) return;
+    const rows = columnsByTable.get(tableName) || [];
+    rows.push(row);
+    columnsByTable.set(tableName, rows);
+  });
+  const tables = tableNames.map((tableName) => dataManagementTableDefinition(tableName, metadataByTable.get(tableName) || {}, columnsByTable.get(tableName) || []));
+  const domains = DATA_MANAGEMENT_COVERAGE_DOMAINS.map((domain) => ({
+    domain_key: domain.key,
+    key: domain.key,
+    label: domain.label,
+    space_key: dataManagementSpaceForDomain(domain.key),
+    source_domains: domain.sourceDomains,
+    table_keys: domain.tables.map((tableName) => dataManagementTableKey(tableName)),
+  }));
+  const editableTables = tables.filter((table) => safeText((table as Record<string, unknown>).capability) === 'approval_required');
+  return {
+    spaces: DATA_MANAGEMENT_SPACES,
+    domains,
+    fund_asset_bundles: dataManagementPublicBundles(scope),
+    tables,
+    coverage: {
+      mode: 'catalog_v1_schema_metadata_plus_code_fallback',
+      public_ll_table_count: tableNames.length,
+      catalogued_table_count: tables.length,
+      editable_table_count: editableTables.length,
+      approval_required_table_count: editableTables.length,
+      read_only_table_count: tables.filter((table) => safeText((table as Record<string, unknown>).capability) === 'readback_only').length,
+      dedicated_workflow_table_count: tables.filter((table) => safeText((table as Record<string, unknown>).capability) === 'feature_access_workflow').length,
+      source_review_table_count: tables.filter((table) => safeText((table as Record<string, unknown>).capability) === 'source_review_required').length,
+    },
+  };
+}
+
+function resolveDataManagementCatalogTable(catalog: Record<string, unknown>, payload: Record<string, unknown>) {
+  const tables = Array.isArray(catalog.tables) ? catalog.tables as Record<string, unknown>[] : [];
+  const requestedKey = safeText(payload.table_key || payload.tableKey);
+  const requestedInternalTable = normalizePublicLlTable(payload.internal_table || payload.internalTable || payload.target_table || payload.targetTable || payload.source_table || payload.sourceTable);
+  if (requestedKey) {
+    const normalizedKey = requestedKey.replace(/^ll_/u, '');
+    const found = tables.find((table) => safeText(table.table_key) === normalizedKey || dataManagementNormalizedTableName(table.internal_table) === requestedKey);
+    if (found) return found;
+  }
+  if (requestedInternalTable) {
+    return tables.find((table) => safeText(table.internal_table) === requestedInternalTable) || null;
+  }
+  return null;
+}
+
+function missingColumnFromPostgrestError(error: unknown) {
+  const message = safeText((error as Record<string, unknown> | null)?.message || error);
+  return safeText(
+    message.match(/column\s+[^.]+\.(["`]?[A-Za-z0-9_]+["`]?)\s+does not exist/iu)?.[1]
+    || message.match(/column\s+["`]?([A-Za-z0-9_]+)["`]?\s+does not exist/iu)?.[1]
+    || message.match(/could not find the\s+["`]?([A-Za-z0-9_]+)["`]?\s+column/iu)?.[1],
+  ).replace(/^["`]|["`]$/gu, '');
+}
+
+function dataManagementCanReadTable(ctx: Context, table: Record<string, unknown>, managerView: boolean) {
+  if (managerView) return true;
+  const spaceKey = safeText(table.space_key);
+  const capability = safeText(table.capability);
+  if (spaceKey === 'operations') return false;
+  if (capability === 'readback_only' || capability === 'feature_access_workflow') return false;
+  return hasRole(ctx.role, 'Reader');
+}
+
+async function countPublicLlTableRows(ctx: Context, tableName: string) {
+  const normalized = safeText(tableName).replace(/^public\./u, '');
+  if (!/^ll_[a-zA-Z0-9_]+$/u.test(normalized)) {
+    return { table_name: normalized, exists: false, row_count: 0, error: 'invalid_table_name' };
+  }
+  const { count, error } = await ctx.serviceClient
+    .from(normalized)
+    .select('*', { count: 'exact', head: true });
+  if (error) {
+    return {
+      table_name: normalized,
+      exists: false,
+      row_count: 0,
+      error: isMissingRelationError(error) ? 'missing_relation' : safeText(error.message || error),
+    };
+  }
+  return { table_name: normalized, exists: true, row_count: Number(count || 0), error: '' };
+}
+
+function dataManagementSourceDomainStats(sources: Record<string, unknown>[]) {
+  const stats = new Map<string, Record<string, unknown>>();
+  DATA_MANAGEMENT_SOURCE_DOMAIN_KEYS.forEach((domain) => {
+    stats.set(domain, {
+      source_domain: domain,
+      label: dataManagementSourceDomainLabel(domain),
+      version_count: 0,
+      active_version_count: 0,
+      declared_row_count: 0,
+      latest_source_at: '',
+    });
+  });
+  sources.forEach((source) => {
+    const domain = safeText(source.source_domain);
+    if (!domain) return;
+    const current = stats.get(domain) || {
+      source_domain: domain,
+      label: dataManagementSourceDomainLabel(domain),
+      version_count: 0,
+      active_version_count: 0,
+      declared_row_count: 0,
+      latest_source_at: '',
+    };
+    current.version_count = Number(current.version_count || 0) + 1;
+    if (source.active_version) current.active_version_count = Number(current.active_version_count || 0) + 1;
+    const rowCounts = source.row_counts && typeof source.row_counts === 'object' ? source.row_counts as Record<string, unknown> : {};
+    current.declared_row_count = Number(current.declared_row_count || 0)
+      + Object.values(rowCounts).reduce((sum, value) => sum + Number(value || 0), 0);
+    const updatedAt = safeText(source.updated_at || source.created_at);
+    if (updatedAt && updatedAt > safeText(current.latest_source_at)) current.latest_source_at = updatedAt;
+    stats.set(domain, current);
+  });
+  return [...stats.values()];
+}
+
+function dataManagementWorkViewKey(payload: Record<string, unknown>) {
+  return safeText(payload.view_key || payload.viewKey || 'lease_contracts');
+}
+
+function dataManagementPublicViewField(field: Record<string, unknown>) {
+  return stripUndefined({
+    field_key: safeText(field.field_key),
+    label: safeText(field.label),
+    group: safeText(field.group || '기본정보'),
+    type: safeText(field.type || 'text'),
+    unit: safeText(field.unit),
+    editable: field.editable === true,
+    sticky: field.sticky === true,
+    width: Number(field.width || 140),
+    default_hidden: field.default_hidden === true,
+    read_only_reason: field.editable === true ? undefined : '읽기 전용 또는 별도 승인 workflow 필요',
+  });
+}
+
+function dataManagementViewDefinitions() {
+  return DATA_MANAGEMENT_VIEW_DEFINITIONS.map((view) => {
+    const { fallback_table_key: _fallbackTableKey, ...publicView } = view as Record<string, unknown>;
+    return stripUndefined({
+      ...publicView,
+      fields: safeText(view.view_key) === 'lease_contracts'
+        ? DATA_MANAGEMENT_LEASE_VIEW_FIELDS.map((field) => dataManagementPublicViewField(field as Record<string, unknown>))
+        : [],
+    });
+  });
+}
+
+function dataManagementViewByKey(viewKey: unknown) {
+  const key = safeText(viewKey || 'lease_contracts');
+  return DATA_MANAGEMENT_VIEW_DEFINITIONS.find((view) => safeText(view.view_key) === key);
+}
+
+function dataManagementLeaseViewField(fieldKey: unknown) {
+  const key = safeText(fieldKey);
+  return DATA_MANAGEMENT_LEASE_VIEW_FIELDS.find((field) => safeText((field as Record<string, unknown>).field_key) === key) as Record<string, unknown> | undefined;
+}
+
+function dataManagementNumberOrNull(value: unknown) {
+  if (value === null || value === undefined || value === '') return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function dataManagementAreaSqmToPy(value: unknown) {
+  const numeric = dataManagementNumberOrNull(value);
+  return numeric === null ? null : numeric / 3.305785;
+}
+
+function dataManagementFormatViewValue(value: unknown, field: Record<string, unknown>) {
+  if (value === null || value === undefined || value === '') return '';
+  const type = safeText(field.type);
+  const numeric = dataManagementNumberOrNull(value);
+  if (type === 'krw' && numeric !== null) return formatKoreanCompactWon(numeric);
+  if (type === 'krw_per_py' && numeric !== null) return formatKoreanWon(numeric);
+  if (type === 'area_sqm') {
+    const py = dataManagementAreaSqmToPy(value);
+    return py === null ? safeText(value) : formatKoreanPy(py);
+  }
+  if (type === 'percent' && numeric !== null) return formatKoreanPercent(Math.abs(numeric) > 1 ? numeric / 100 : numeric);
+  if (type === 'months' && numeric !== null) return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(numeric)}개월`;
+  if (type === 'date') return safeText(value).slice(0, 10);
+  return safeText(value);
+}
+
+function dataManagementParseViewRequestedValue(value: unknown, field: Record<string, unknown>) {
+  const type = safeText(field.type);
+  if (value === null || value === undefined || value === '') return null;
+  if (type === 'krw' || type === 'krw_per_py') return parseKrwAmount(value);
+  if (type === 'area_sqm') {
+    const textValue = safeText(value);
+    const numeric = Number(textValue.replace(/[^0-9.-]/gu, ''));
+    if (!Number.isFinite(numeric)) return value;
+    return /평/u.test(textValue) ? numeric * 3.305785 : numeric;
+  }
+  if (type === 'percent') {
+    const numeric = Number(safeText(value).replace(/[^0-9.-]/gu, ''));
+    if (!Number.isFinite(numeric)) return value;
+    return /%/u.test(safeText(value)) || Math.abs(numeric) > 1 ? numeric / 100 : numeric;
+  }
+  if (type === 'months') {
+    const numeric = Number(safeText(value).replace(/[^0-9.-]/gu, ''));
+    return Number.isFinite(numeric) ? numeric : value;
+  }
+  if (type === 'date') return safeDateText(value);
+  return value;
+}
+
+async function dataManagementOpaqueRowKey(viewKey: string, rawKey: unknown) {
+  return `dmv_${safeText(viewKey)}_${(await sha256Text(`${viewKey}:${safeText(rawKey)}`)).slice(0, 20)}`;
+}
+
+function dataManagementLookupStatus(row: Record<string, unknown>) {
+  const missing: string[] = [];
+  if (!safeText(row.asset_name)) missing.push('자산명');
+  if (!safeText(row.fund_name)) missing.push('펀드명');
+  if (!safeText(row.tenant_master_name)) missing.push('임차인명');
+  if (missing.length) return { status: 'missing', label: '미매핑', missing };
+  if (safeText(row.exception_group) === '404_multi_asset') return { status: 'exception_404', label: '404호 예외' };
+  return { status: 'ok', label: '정상', missing: [] };
+}
+
+async function dataManagementLeaseContractRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const viewKey = 'lease_contracts';
+  const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
+  const pageSize = payload.resolve_all === true
+    ? Math.min(Math.max(requestedPageSize || 5000, 1), 5000)
+    : Math.min(Math.max(requestedPageSize || 80, 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  const bundleKey = safeText(payload.bundle_key || payload.bundleKey);
+  const bundle = bundleKey ? dataManagementBundleByKey(scope, bundleKey) : undefined;
+  if (bundleKey && !bundle) throw new Error('선택한 자산·펀드 묶음을 찾을 수 없습니다.');
+  const readableAssetIds = (scope.readableAssets || []).map((asset) => safeText(asset.asset_id)).filter(Boolean);
+  const spacesResult = await listLeaseSpacesForAssets(ctx, readableAssetIds);
+  if (spacesResult.errorResponse) throw new Error('임대공간 데이터를 읽지 못했습니다.');
+  let spaces = (spacesResult.rows || []).filter((row) => dataManagementRowReadable(ctx, row, true, scope));
+  if (bundle) spaces = spaces.filter((row) => dataManagementRowMatchesBundle(row, bundle));
+  const leaseIds = uniqueStrings(spaces.map((row) => safeText(row.lease_id)).filter(Boolean), 5000);
+  const tenantIds = uniqueStrings(spaces.map((row) => safeText(row.tenant_id)).filter(Boolean), 5000);
+  const leasesResult = await listLeasesByIds(ctx, leaseIds);
+  if (leasesResult.errorResponse) throw new Error('임대차 계약 데이터를 읽지 못했습니다.');
+  const tenantsResult = await listTenantsByIds(ctx, tenantIds);
+  if (tenantsResult.errorResponse) throw new Error('임차인 데이터를 읽지 못했습니다.');
+  const leaseById = new Map((leasesResult.rows || []).map((row) => [safeText(row.lease_id), row]));
+  const tenantById = new Map((tenantsResult.rows || []).map((row) => [safeText(row.tenant_id), row]));
+  const publicBundles = dataManagementPublicBundles(scope);
+  const bundleByAsset = new Map<string, Record<string, unknown>>();
+  publicBundles.forEach((item) => {
+    const asset = item.asset && typeof item.asset === 'object' ? item.asset as Record<string, unknown> : {};
+    [
+      asset.asset_id,
+      asset.asset_code,
+      asset.asset_name,
+      asset.label,
+    ].map((candidate) => safeText(candidate)).filter(Boolean).forEach((key) => {
+      if (!bundleByAsset.has(key)) bundleByAsset.set(key, item as Record<string, unknown>);
+    });
+  });
+  const searchKey = normalizeKey(payload.search);
+  const rows = await Promise.all(spaces.map(async (space) => {
+    const lease = leaseById.get(safeText(space.lease_id)) || {};
+    const tenant = tenantById.get(safeText(space.tenant_id)) || {};
+    const matchedBundle = bundle || bundleByAsset.get(safeText(space.asset_id)) || bundleByAsset.get(safeText(space.asset_code)) || bundleByAsset.get(safeText(space.asset_name)) || {};
+    const asset = matchedBundle.asset && typeof matchedBundle.asset === 'object' ? matchedBundle.asset as Record<string, unknown> : {};
+    const fund = matchedBundle.fund && typeof matchedBundle.fund === 'object' ? matchedBundle.fund as Record<string, unknown> : {};
+    const source = stripUndefined({
+      asset_name: firstDefined(space.asset_name, lease.asset_name, asset.label, asset.asset_name, asset.asset_code),
+      fund_name: firstDefined(fund.label, fund.display_name, fund.short_name, fund.fund_name),
+      tenant_master_name: firstDefined(space.tenant_master_name, lease.tenant_master_name, tenant.tenant_master_name, tenant.company_name),
+      space_label: firstDefined(space.space_label, lease.space_label),
+      contract_status: firstDefined(space.contract_status, lease.lease_status, lease.contract_status),
+      floor_label: space.floor_label,
+      detail_area_label: space.detail_area_label,
+      temperature_type: space.temperature_type,
+      current_start_date: firstDefined(lease.current_start_date, space.current_start_date),
+      current_end_date: firstDefined(lease.current_end_date, space.current_end_date),
+      leased_area_sqm: firstDefined(space.leased_area_sqm, lease.leased_area_sqm),
+      exclusive_area_sqm: firstDefined(space.exclusive_area_sqm, lease.exclusive_area_sqm),
+      current_monthly_rent_total: space.current_monthly_rent_total,
+      current_monthly_mf_total: space.current_monthly_mf_total,
+      current_monthly_cost_total: space.current_monthly_cost_total,
+      e_noc: space.e_noc,
+      deposit_amount: lease.deposit_amount,
+      rf_months: lease.rf_months,
+      fo_months: lease.fo_months,
+      ti_amount: lease.ti_amount,
+      rent_escalation_rate: lease.rent_escalation_rate,
+      management_fee_escalation_rate: lease.management_fee_escalation_rate,
+      review_status: firstDefined(space.review_status, lease.review_status, '검토 전'),
+      review_note: firstDefined(space.review_note, lease.review_note),
+      exception_group: matchedBundle.exception_group,
+    });
+    const displayValues = Object.fromEntries(DATA_MANAGEMENT_LEASE_VIEW_FIELDS.map((field) => {
+      const publicField = field as Record<string, unknown>;
+      const key = safeText(publicField.field_key);
+      return [key, dataManagementFormatViewValue(source[key], publicField)];
+    }));
+    const editValues = Object.fromEntries(DATA_MANAGEMENT_LEASE_VIEW_FIELDS.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, source[key] ?? null];
+    }));
+    const labelParts = [source.asset_name, source.fund_name, source.tenant_master_name, source.space_label].map((item) => safeText(item)).filter(Boolean);
+    const rowLabel = labelParts.join(' · ') || '임대차 계약';
+    const lookup = dataManagementLookupStatus(source);
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, space.lease_space_id),
+      row_label: rowLabel,
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: lookup,
+      editable: lookup.status === 'ok' || lookup.status === 'exception_404',
+      revision_hash: await dataManagementRevisionHash({ space, lease }),
+      meta: {
+        row_unit: 'lease_space_id',
+        status: lookup.label,
+      },
+    });
+  }));
+  let filtered = rows;
+  if (searchKey) {
+    filtered = rows.filter((row) => normalizeKey([
+      row.row_label,
+      JSON.stringify(row.display_values || {}),
+      (row.lookup_status as Record<string, unknown> | undefined)?.label,
+    ].join(' ')).includes(searchKey));
+  }
+  const sort = Array.isArray(payload.sort) ? payload.sort[0] as Record<string, unknown> : {};
+  const sortKey = safeText(sort?.field || sort?.field_key || sort?.key);
+  if (sortKey) {
+    const direction = safeText(sort.direction || 'asc') === 'desc' ? -1 : 1;
+    filtered = [...filtered].sort((a, b) => safeText((a.display_values as Record<string, unknown> | undefined)?.[sortKey]).localeCompare(safeText((b.display_values as Record<string, unknown> | undefined)?.[sortKey]), 'ko') * direction);
+  } else {
+    filtered = [...filtered].sort((a, b) => safeText(a.row_label).localeCompare(safeText(b.row_label), 'ko'));
+  }
+  const offset = (page - 1) * pageSize;
+  return {
+    rows: filtered.slice(offset, offset + pageSize),
+    total: filtered.length,
+    page,
+    pageSize,
+  };
+}
+
+async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const rowKey = safeText(payload.row_key || payload.rowKey);
+  const fieldKey = safeText(payload.field_key || payload.fieldKey || payload.field_name || payload.fieldName);
+  const field = dataManagementLeaseViewField(fieldKey);
+  if (!rowKey || !fieldKey) throw new Error('수정할 행과 필드를 선택해 주세요.');
+  if (!field) throw new Error('업무 View 필드를 찾을 수 없습니다.');
+  if (field.editable !== true) throw new Error('이 필드는 읽기 전용입니다.');
+  const targetTable = safeText(field.target_table);
+  const targetField = safeText(field.target_field || field.field_key);
+  const result = await dataManagementLeaseContractRows(ctx, { page_size: 5000, resolve_all: true }, scope);
+  const row = result.rows.find((item) => safeText(item.row_key) === rowKey);
+  if (!row) throw new Error('수정 대상 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
+  const currentRawValue = (row.edit_values as Record<string, unknown> | undefined)?.[fieldKey];
+  const publicTargetTable = normalizePublicLlTable(targetTable);
+  const tableName = clientTableName(publicTargetTable);
+  const primaryKeyField = dataManagementPrimaryKeyForTable(tableName);
+  const rawRows = await listLeaseSpacesForAssets(ctx, (scope.readableAssets || []).map((asset) => safeText(asset.asset_id)).filter(Boolean));
+  if (rawRows.errorResponse) throw new Error('수정 대상 readback에 실패했습니다.');
+  const matchingSpace = await Promise.all((rawRows.rows || []).map(async (space) => ({
+    space,
+    row_key: await dataManagementOpaqueRowKey('lease_contracts', space.lease_space_id),
+  }))).then((items) => items.find((item) => item.row_key === rowKey)?.space || null);
+  if (!matchingSpace) throw new Error('수정 대상 원장 행을 찾지 못했습니다.');
+  const targetRowId = publicTargetTable === 'public.ll_leases' ? safeText(matchingSpace.lease_id) : safeText(matchingSpace.lease_space_id);
+  return {
+    table_payload: {
+      edit_mode: 'table_cell',
+      table_key: dataManagementTableKey(tableName),
+      internal_table: publicTargetTable,
+      primary_key_field: primaryKeyField,
+      target_record_id: targetRowId,
+      field_name: targetField,
+      before_value: currentRawValue,
+      requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+      view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+      target_name: row.row_label,
+      asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
+      reason: payload.reason,
+      target_type: 'data_management_view_field',
+      reason_code: 'data_management_view_field_update',
+      view_key: 'lease_contracts',
+      row_key: rowKey,
+      field_key: fieldKey,
+    },
+    row,
+    field,
+  };
+}
+
+async function callDataManagementViews(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const scopeResult = await readDataManagementScope(ctx, managerView);
+  if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+  const managementScope = scopeResult.scope || dataManagementEmptyScope();
+  return jsonResponse({ ok: true, data: {
+    generated_at: new Date().toISOString(),
+    workspaces: DATA_MANAGEMENT_WORKSPACES,
+    views: dataManagementViewDefinitions(),
+    fund_asset_bundles: dataManagementPublicBundles(managementScope),
+    management_scope: {
+      owner: 'IGIS Asset Management',
+      expected_asset_count: DATA_MANAGEMENT_EXPECTED_ASSET_COUNT,
+      expected_fund_count: DATA_MANAGEMENT_EXPECTED_FUND_COUNT,
+      asset_count: managementScope.assets.length,
+      fund_count: managementScope.funds.length,
+      link_count: managementScope.links.length,
+      readable_asset_count: managementScope.readableAssets.length,
+      readable_fund_count: managementScope.readableFunds.length,
+      readable_link_count: managementScope.readableLinks.length,
+    },
+  } }, 200, ctx.origin);
+}
+
+async function callDataManagementViewRows(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const scopeResult = await readDataManagementScope(ctx, managerView);
+  if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+  const managementScope = scopeResult.scope || dataManagementEmptyScope();
+  const view = dataManagementViewByKey(dataManagementWorkViewKey(payload));
+  if (!view) return fail(400, 'Unknown Data Management 업무 View입니다.', ctx.origin);
+  if (safeText(view.view_key) !== 'lease_contracts') {
+    return jsonResponse({ ok: true, data: {
+      generated_at: new Date().toISOString(),
+      view: { ...view, fields: [] },
+      fields: [],
+      rows: [],
+      empty_state: {
+        code: 'view_not_enabled_in_phase_1',
+        title: `${safeText(view.label)} View는 1차 구현 이후 확장됩니다.`,
+        description: '현재 1차 구현은 임대차 계약 View를 업무형 테이블로 완성하는 범위입니다.',
+      },
+      pagination: { page: 1, page_size: 0, returned: 0, total_estimate: 0, has_next: false },
+    } }, 200, ctx.origin);
+  }
+  try {
+    const result = await dataManagementLeaseContractRows(ctx, payload, managementScope);
+    const fields = DATA_MANAGEMENT_LEASE_VIEW_FIELDS.map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
+    return jsonResponse({ ok: true, data: {
+      generated_at: new Date().toISOString(),
+      view: {
+        ...view,
+        fields,
+      },
+      fields,
+      rows: result.rows,
+      pagination: {
+        page: result.page,
+        page_size: result.pageSize,
+        returned: result.rows.length,
+        total_estimate: result.total,
+        has_next: (result.page * result.pageSize) < result.total,
+      },
+    } }, 200, ctx.origin);
+  } catch (error) {
+    return fail(500, 'Data Management 업무 View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+async function callDataManagementCatalog(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const scopeResult = await readDataManagementScope(ctx, managerView);
+  if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+  const managementScope = scopeResult.scope || dataManagementEmptyScope();
+  let catalog: Record<string, unknown>;
+  try {
+    catalog = await loadDataManagementCatalog(ctx, managementScope);
+  } catch (error) {
+    return fail(500, 'Failed to build data management catalog', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+  }
+  const includeCounts = payload.include_counts === true || payload.includeCounts === true;
+  let rowCounts: Record<string, unknown>[] = [];
+  if (includeCounts && (managerView || canManageFeatureAccess(ctx))) {
+    const tables = Array.isArray(catalog.tables) ? catalog.tables as Record<string, unknown>[] : [];
+    rowCounts = await Promise.all(tables.map((table) => countPublicLlTableRows(ctx, safeText(table.internal_table))));
+  }
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/catalog', 200, {
+    table_count: Array.isArray(catalog.tables) ? catalog.tables.length : 0,
+    bundle_count: Array.isArray(catalog.fund_asset_bundles) ? catalog.fund_asset_bundles.length : 0,
+  });
+  return jsonResponse({ ok: true, data: {
+    generated_at: new Date().toISOString(),
+    management_scope: {
+      owner: 'IGIS Asset Management',
+      expected_asset_count: DATA_MANAGEMENT_EXPECTED_ASSET_COUNT,
+      expected_fund_count: DATA_MANAGEMENT_EXPECTED_FUND_COUNT,
+      asset_count: managementScope.assets.length,
+      fund_count: managementScope.funds.length,
+      link_count: managementScope.links.length,
+      readable_asset_count: managementScope.readableAssets.length,
+      readable_fund_count: managementScope.readableFunds.length,
+      readable_link_count: managementScope.readableLinks.length,
+    },
+    ...catalog,
+    row_counts: includeCounts ? rowCounts : undefined,
+  } }, 200, ctx.origin);
+}
+
+async function callDataManagementRows(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const scopeResult = await readDataManagementScope(ctx, managerView);
+  if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+  const managementScope = scopeResult.scope || dataManagementEmptyScope();
+  let catalog: Record<string, unknown>;
+  try {
+    catalog = await loadDataManagementCatalog(ctx, managementScope);
+  } catch (error) {
+    return fail(500, 'Failed to build data management catalog', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+  }
+  const table = resolveDataManagementCatalogTable(catalog, payload);
+  if (!table) return fail(404, 'Data Management table was not found in catalog', ctx.origin);
+  if (!dataManagementCanReadTable(ctx, table, managerView)) return fail(403, 'This Data Management table requires manager permission', ctx.origin);
+  const internalTable = normalizePublicLlTable(table.internal_table);
+  const tableName = clientTableName(internalTable);
+  if (!internalTable || !tableName) return fail(400, 'Invalid Data Management table', ctx.origin);
+  const primaryKey = safeText(table.primary_key_field || dataManagementPrimaryKeyForTable(tableName));
+  const declaredFieldsForSelect = Array.isArray(table.fields) ? table.fields as Record<string, unknown>[] : [];
+  const rowLabelFields = Array.isArray(table.row_label_fields) ? table.row_label_fields as unknown[] : dataManagementRowLabelFieldsForTable(tableName);
+  let selectFields = uniqueStrings([
+    primaryKey,
+    ...rowLabelFields,
+    ...declaredFieldsForSelect.map((field) => safeText(field.field_key || field.field)).filter(Boolean),
+  ], 120).filter((field) => isSafeIdentifier(field));
+
+  const pageSize = Math.min(Math.max(Number(payload.page_size || payload.pageSize || 100), 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  const offset = (page - 1) * pageSize;
+  const fetchLimit = payload.bundle_key || payload.search ? Math.min(pageSize * 4, 800) : pageSize;
+  const filters = Array.isArray(payload.filters) ? payload.filters as Record<string, unknown>[] : [];
+  const sorts = Array.isArray(payload.sort) ? payload.sort as Record<string, unknown>[] : [];
+  const sort = sorts[0] || {};
+  let sortField = safeText(sort.field || sort.field_key || sort.key);
+  let data: Record<string, unknown>[] | null = null;
+  let count: number | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const selectClause = selectFields.length ? selectFields.join(',') : '*';
+    let query = ctx.serviceClient.from(tableName).select(selectClause, { count: 'estimated' });
+    for (const filter of filters.slice(0, 12)) {
+      const field = safeText(filter.field || filter.field_key || filter.key);
+      const operator = safeText(filter.operator || 'eq');
+      const value = filter.value;
+      if (!isSafeIdentifier(field) || value === undefined || (selectFields.length && !selectFields.includes(field))) continue;
+      if (operator === 'eq') query = query.eq(field, value);
+      else if (operator === 'neq') query = query.neq(field, value);
+      else if (operator === 'gte') query = query.gte(field, value);
+      else if (operator === 'lte') query = query.lte(field, value);
+      else if (operator === 'ilike') query = query.ilike(field, `%${safeText(value).slice(0, 80)}%`);
+      else if (operator === 'in' && Array.isArray(value)) query = query.in(field, value.slice(0, 80));
+    }
+    if (isSafeIdentifier(sortField) && (!selectFields.length || selectFields.includes(sortField))) query = query.order(sortField, { ascending: safeText(sort.direction || 'asc') !== 'desc' });
+    const result = await query.range(offset, offset + fetchLimit - 1);
+    if (!result.error) {
+      data = (result.data || []) as Record<string, unknown>[];
+      count = result.count;
+      lastError = null;
+      break;
+    }
+    lastError = result.error;
+    const missingColumn = missingColumnFromPostgrestError(result.error);
+    if (missingColumn && selectFields.includes(missingColumn)) {
+      selectFields = selectFields.filter((field) => field !== missingColumn);
+      if (sortField === missingColumn) sortField = '';
+      continue;
+    }
+    if (missingColumn && sortField === missingColumn) {
+      sortField = '';
+      continue;
+    }
+    break;
+  }
+  if (lastError) {
+    return fail(isMissingRelationError(lastError) ? 404 : 500, 'Failed to read Data Management rows', ctx.origin, { error: (lastError as Record<string, unknown>).message || safeText(lastError) });
+  }
+
+  const bundleKey = safeText(payload.bundle_key || payload.bundleKey);
+  const bundle = bundleKey ? dataManagementBundleByKey(managementScope, bundleKey) : undefined;
+  if (bundleKey && !bundle) return fail(404, 'Fund-asset bundle was not found in Data Management scope', ctx.origin);
+  const searchKey = normalizeKey(payload.search);
+  let rows = ((data || []) as Record<string, unknown>[])
+    .filter((row) => dataManagementRowReadable(ctx, row, managerView, managementScope))
+    .filter((row) => dataManagementRowMatchesBundle(row, bundle));
+  if (searchKey) rows = rows.filter((row) => dataManagementRowHaystackGeneric(row).includes(searchKey));
+  rows = rows.slice(0, pageSize);
+
+  const actualFields = uniqueStrings(rows.flatMap((row) => Object.keys(row)), 360);
+  const selectedFieldSet = new Set(selectFields);
+  const declaredFields = (Array.isArray(table.fields) ? table.fields as Record<string, unknown>[] : [])
+    .filter((field) => selectedFieldSet.has(safeText(field.field_key || field.field)));
+  const declaredFieldKeys = new Set(declaredFields.map((field) => safeText(field.field_key || field.field)).filter(Boolean));
+  const columns = [
+    ...declaredFields,
+    ...actualFields.filter((field) => !declaredFieldKeys.has(field) && dataManagementUserVisibleField(field)).map((field) => ({
+      field_key: field,
+      field,
+      label: dataManagementFieldLabel(field),
+      type: dataManagementFieldType(field),
+      editable: dataManagementEditableField(internalTable, field),
+      sensitive: SENSITIVE_KEY_PATTERN.test(field),
+    })),
+  ].filter((field) => dataManagementUserVisibleField((field as Record<string, unknown>).field_key || (field as Record<string, unknown>).field));
+  const publicColumnKeys = columns
+    .map((field) => safeText((field as Record<string, unknown>).field_key || (field as Record<string, unknown>).field))
+    .filter(Boolean);
+  const publicRows = await Promise.all(rows.map(async (row) => {
+    const safeValues = Object.fromEntries(publicColumnKeys.map((field) => [field, redactSensitivePayload(row[field])]));
+    const primaryKeyValue = safeText(row[primaryKey] || row.id);
+    return stripUndefined({
+      row_key: `${internalTable}::${primaryKey}::${primaryKeyValue}`,
+      primary_key_value: primaryKeyValue,
+      row_label: dataManagementRowLabelForTable(tableName, row),
+      revision_hash: await dataManagementRevisionHash(row),
+      bundle_key: bundleKey || undefined,
+      values: safeValues,
+      meta: {
+        updated_at: row.updated_at,
+        created_at: row.created_at,
+        editable: safeText(table.capability) === 'approval_required',
+      },
+    });
+  }));
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/rows', 200, {
+    table_key: table.table_key,
+    returned: publicRows.length,
+    bundle_key: bundleKey || undefined,
+  });
+  return jsonResponse({ ok: true, data: {
+    generated_at: new Date().toISOString(),
+    table: {
+      table_key: table.table_key,
+      internal_table: table.internal_table,
+      label: table.label,
+      space_key: table.space_key,
+      domain_key: table.domain_key,
+      primary_key_field: primaryKey,
+      capability: table.capability,
+    },
+    scope: {
+      bundle_key: bundleKey || null,
+      selection_label: bundle ? safeText(bundle.selection_label) : null,
+    },
+    columns,
+    rows: publicRows,
+    pagination: {
+      page,
+      page_size: pageSize,
+      returned: publicRows.length,
+      total_estimate: count,
+      has_next: publicRows.length === pageSize,
+    },
+  } }, 200, ctx.origin);
+}
+
+function isDataManagementTableCellPayload(payload: Record<string, unknown>) {
+  return safeText(payload.edit_mode || payload.editMode) === 'table_cell'
+    || Boolean((payload.internal_table || payload.internalTable || payload.target_table || payload.targetTable) && (payload.target_record_id || payload.targetRecordId));
+}
+
+function isDataManagementViewFieldPayload(payload: Record<string, unknown>) {
+  return safeText(payload.edit_mode || payload.editMode) === 'view_field'
+    || Boolean((payload.view_key || payload.viewKey) && (payload.row_key || payload.rowKey) && (payload.field_key || payload.fieldKey));
+}
+
+function dataManagementTableCellInput(payload: Record<string, unknown>) {
+  const targetTable = normalizePublicLlTable(payload.internal_table || payload.internalTable || payload.target_table || payload.targetTable || payload.source_table || payload.sourceTable);
+  const tableName = clientTableName(targetTable);
+  const primaryKeyField = safeText(payload.primary_key_field || payload.primaryKeyField || dataManagementPrimaryKeyForTable(tableName));
+  const targetRowId = safeText(payload.target_record_id || payload.targetRecordId || payload.target_row_id || payload.targetRowId);
+  const fieldName = safeText(payload.field_name || payload.fieldName || payload.target_field || payload.targetField);
+  const beforeValue = firstDefined(payload.before_value, payload.beforeValue);
+  const requestedValue = firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  return { targetTable, tableName, primaryKeyField, targetRowId, fieldName, beforeValue, requestedValue };
+}
+
+async function readDataManagementTableCellRow(ctx: Context, input: ReturnType<typeof dataManagementTableCellInput>) {
+  if (!input.tableName || !isSafeIdentifier(input.tableName) || !isSafeIdentifier(input.primaryKeyField) || !isSafeIdentifier(input.fieldName)) {
+    throw new Error('Invalid Data Management table cell target');
+  }
+  const { data, error } = await ctx.serviceClient
+    .from(input.tableName)
+    .select('*')
+    .eq(input.primaryKeyField, input.targetRowId)
+    .maybeSingle();
+  if (error) throw new Error(error.message || 'Failed to read Data Management row');
+  if (!data) throw new Error('Target row not found');
+  return data as Record<string, unknown>;
+}
+
+async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<string, unknown>) {
+  const input = dataManagementTableCellInput(payload);
+  if (!input.targetTable || !input.targetRowId || !input.fieldName) return fail(400, 'target table, target row, and field_name are required', ctx.origin);
+  if (input.requestedValue === undefined || input.requestedValue === null) return fail(400, 'requested_value is required', ctx.origin);
+  if (!dataManagementEditableField(input.targetTable, input.fieldName)) return fail(403, 'This field is not editable through Data Management', ctx.origin);
+  const capability = dataManagementCapabilityForTable(input.tableName);
+  const autoWriteCapable = capability === 'approval_required';
+  const cell = {
+    targetTable: input.targetTable,
+    primaryKeyField: input.primaryKeyField,
+    targetRowId: input.targetRowId,
+    targetCellId: '',
+    sourceRowId: safeText(payload.source_row_id || payload.sourceRowId),
+    sourceCellId: '',
+    fieldName: input.fieldName,
+    operation: '수정',
+    beforeValue: input.beforeValue,
+    afterValue: input.requestedValue,
+    assetId: safeText(payload.asset_id || payload.assetId),
+    assetName: safeText(payload.asset_name || payload.assetName),
+    leaseSpaceId: '',
+    leaseId: '',
+    tenantId: '',
+    sourceOnly: false,
+    sourceSheet: '',
+    sourceColumnLetter: '',
+    sourceHeader: input.fieldName,
+  };
+  const validations: Record<string, unknown>[] = [];
+  const validationError = autoWriteCapable ? validateEditCell(ctx, cell) : '';
+  if (validationError) validations.push({ level: 'error', code: 'target_validation_failed', message: validationError });
+  let row: Record<string, unknown> | null = null;
+  let currentValue: unknown = null;
+  let currentRevisionHash = '';
+  if (!validationError) {
+    try {
+      row = autoWriteCapable ? await readTargetRow(ctx.serviceClient, cell) : await readDataManagementTableCellRow(ctx, input);
+      if (autoWriteCapable) {
+        if (!await assertTargetRowPermission(ctx, row, cell)) throw new Error('Insufficient asset write permission for target row');
+        assertRowTemporalWriteAllowed(cell, row);
+      }
+      currentValue = row[cell.fieldName];
+      currentRevisionHash = await dataManagementRevisionHash(row);
+      if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue)) {
+        validations.push({ level: 'error', code: 'stale_current_value', message: '현재 DB값이 사용자가 본 변경 전 값과 다릅니다. 데이터를 다시 읽은 후 수정해 주세요.' });
+      }
+      const requestedRevisionHash = safeText(payload.revision_hash || payload.revisionHash);
+      if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash) {
+        validations.push({ level: 'error', code: 'stale_revision_hash', message: '현재 행 버전이 화면에 표시된 버전과 다릅니다. 데이터를 다시 읽은 후 수정해 주세요.' });
+      }
+    } catch (error) {
+      validations.push({ level: 'error', code: 'target_readback_failed', message: error instanceof Error ? error.message : 'Target readback failed' });
+    }
+  }
+  if (valuesEqual(input.beforeValue, input.requestedValue) || valuesEqual(currentValue, input.requestedValue)) {
+    validations.push({ level: 'error', code: 'no_change', message: '변경 전후 값이 같습니다.' });
+  }
+  const canSubmit = !validations.some((item) => item.level === 'error');
+  const readback = {
+    current_value: currentValue,
+    matches_before_value: input.beforeValue === undefined || input.beforeValue === null ? null : valuesEqual(currentValue, input.beforeValue),
+    stale: input.beforeValue === undefined || input.beforeValue === null ? null : !valuesEqual(currentValue, input.beforeValue),
+    current_revision_hash: currentRevisionHash || null,
+  };
+  return jsonResponse({ ok: true, data: {
+    edit_mode: 'table_cell',
+    can_submit: canSubmit,
+    auto_write_enabled: canSubmit && autoWriteCapable,
+    write_policy: canSubmit ? capability : 'blocked',
+    diff: {
+      field_name: input.fieldName,
+      label: dataManagementFieldLabel(input.fieldName),
+      before_value: input.beforeValue,
+      requested_value: input.requestedValue,
+      changed: !valuesEqual(input.beforeValue, input.requestedValue),
+    },
+    target: {
+      target_table: input.targetTable,
+      primary_key_field: input.primaryKeyField,
+      target_row_id: input.targetRowId,
+      target_field: input.fieldName,
+      readback,
+    },
+    readback,
+    row_label: row ? dataManagementRowLabelForTable(input.tableName, row) : '',
+    validations,
+  } }, 200, ctx.origin);
+}
+
+async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<string, unknown>) {
+  const input = dataManagementTableCellInput(payload);
+  if (!input.targetTable || !input.targetRowId || !input.fieldName) return fail(400, 'target table, target row, and field_name are required', ctx.origin);
+  if (input.requestedValue === undefined || input.requestedValue === null) return fail(400, 'requested_value is required', ctx.origin);
+  if (!dataManagementEditableField(input.targetTable, input.fieldName)) return fail(403, 'This field is not editable through Data Management', ctx.origin);
+  const capability = dataManagementCapabilityForTable(input.tableName);
+  const autoWriteCapable = capability === 'approval_required';
+  const cell = {
+    targetTable: input.targetTable,
+    primaryKeyField: input.primaryKeyField,
+    targetRowId: input.targetRowId,
+    targetCellId: '',
+    sourceRowId: safeText(payload.source_row_id || payload.sourceRowId),
+    sourceCellId: '',
+    fieldName: input.fieldName,
+    operation: '수정',
+    beforeValue: input.beforeValue,
+    afterValue: input.requestedValue,
+    assetId: safeText(payload.asset_id || payload.assetId),
+    assetName: safeText(payload.asset_name || payload.assetName),
+    leaseSpaceId: '',
+    leaseId: '',
+    tenantId: '',
+    sourceOnly: false,
+    sourceSheet: '',
+    sourceColumnLetter: '',
+    sourceHeader: input.fieldName,
+  };
+  const validationError = autoWriteCapable ? validateEditCell(ctx, cell) : '';
+  if (validationError) return fail(400, validationError, ctx.origin);
+  const row = autoWriteCapable ? await readTargetRow(ctx.serviceClient, cell) : await readDataManagementTableCellRow(ctx, input);
+  if (autoWriteCapable) {
+    if (!await assertTargetRowPermission(ctx, row, cell)) return fail(403, 'Insufficient asset write permission for target row', ctx.origin);
+    assertRowTemporalWriteAllowed(cell, row);
+  }
+  const currentValue = row[cell.fieldName];
+  const currentRevisionHash = await dataManagementRevisionHash(row);
+  if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue)) {
+    return fail(409, 'Stale value blocked before submit', ctx.origin, { current_value: currentValue });
+  }
+  const requestedRevisionHash = safeText(payload.revision_hash || payload.revisionHash);
+  if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash) {
+    return fail(409, 'Stale row revision blocked before submit', ctx.origin, { current_revision_hash: currentRevisionHash });
+  }
+  if (valuesEqual(currentValue, input.requestedValue)) return fail(400, 'A changed requested value is required', ctx.origin);
+  const beforeValue = input.beforeValue === undefined || input.beforeValue === null ? currentValue : input.beforeValue;
+  const cellEdit = {
+    target_table: input.targetTable,
+    primary_key_field: input.primaryKeyField,
+    target_row_id: input.targetRowId,
+    field_name: input.fieldName,
+    before_value: beforeValue,
+    after_value: input.requestedValue,
+    asset_id: payload.asset_id || payload.assetId || row.asset_id || row.assetId || null,
+    asset_name: payload.asset_name || payload.assetName || row.asset_name || row.assetName || null,
+    source_row_id: payload.source_row_id || payload.sourceRowId || null,
+    source_header: input.fieldName,
+  };
+  const requestPayload = redactSensitivePayload({
+    kind: 'data_management_table_cell_edit',
+    edit_mode: 'table_cell',
+    table_key: payload.table_key || payload.tableKey || dataManagementTableKey(input.tableName),
+    internal_table: input.targetTable,
+    bundle_key: payload.bundle_key || payload.bundleKey || null,
+    reason: payload.reason || null,
+    revision_hash: requestedRevisionHash || null,
+    current_revision_hash: currentRevisionHash,
+    submit_readbacks: [{
+      target_table: input.targetTable,
+      target_row_id: input.targetRowId,
+      field_name: input.fieldName,
+      submit_readback_value: currentValue,
+      stale_at_submit: !valuesEqual(currentValue, beforeValue),
+    }],
+    cell_edits: autoWriteCapable ? [cellEdit] : [],
+  }) as Record<string, unknown>;
+  const targetName = payload.target_name || payload.targetName || dataManagementRowLabelForTable(input.tableName, row);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .insert({
+      source_table: input.targetTable,
+      target_type: payload.target_type || payload.targetType || 'data_management_table_cell',
+      target_name: targetName,
+      target_row_id: input.targetRowId,
+      field_name: input.fieldName,
+      reason_code: payload.reason_code || payload.reasonCode || 'data_management_table_cell_update',
+      before_value: normalizeText(beforeValue),
+      requested_value: normalizeText(input.requestedValue),
+      request_payload: requestPayload,
+      requested_by: ctx.user.id,
+      status: 'submitted',
+      write_status: autoWriteCapable ? 'approval_required' : 'source_review_required',
+    })
+    .select('id,status,write_status,created_at')
+    .single();
+  if (error) return fail(500, 'Failed to submit data management table edit request', ctx.origin, { error: error.message });
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/submit-edit/table-cell', 200, { id: data.id, target_table: input.targetTable });
+  return jsonResponse({ ok: true, data }, 200, ctx.origin);
+}
+
+async function callDataManagementCoverage(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Manager') && !canManageFeatureAccess(ctx)) {
+    return fail(403, 'Data Management coverage audit requires manager permission', ctx.origin);
+  }
+  const managerView = true;
+  const scopeResult = await readDataManagementScope(ctx, managerView);
+  if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+  const managementScope = scopeResult.scope || {
+    assets: [],
+    funds: [],
+    links: [],
+    readableAssets: [],
+    readableFunds: [],
+    readableLinks: [],
+    allRefs: [],
+    readableRefs: [],
+  };
+  const [metadataResult, sourcesResult] = await Promise.all([
+    ctx.serviceClient
+      .from('ll_schema_metadata')
+      .select('table_name,domain_group,role_category,description,is_active,updated_at')
+      .eq('object_type', 'table')
+      .eq('table_schema', 'public')
+      .eq('is_active', true)
+      .limit(240),
+    ctx.serviceClient
+      .from('ll_source_files')
+      .select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,row_counts,validation_summary,created_at,updated_at')
+      .limit(240),
+  ]);
+  if (metadataResult.error && !isMissingRelationError(metadataResult.error)) {
+    return fail(500, 'Failed to read schema metadata', ctx.origin, { error: metadataResult.error.message });
+  }
+  if (sourcesResult.error && !isMissingRelationError(sourcesResult.error)) {
+    return fail(500, 'Failed to read source registry', ctx.origin, { error: sourcesResult.error.message });
+  }
+  const metadataRows = ((metadataResult.data || []) as Record<string, unknown>[])
+    .filter((row) => /^ll_/u.test(safeText(row.table_name)));
+  const metadataTableNames = metadataRows.map((row) => safeText(row.table_name)).filter(Boolean);
+  const tableNames = uniqueStrings([...metadataTableNames, ...DATA_MANAGEMENT_FALLBACK_TABLES], 260).sort((a, b) => a.localeCompare(b));
+  const rowCounts = await Promise.all(tableNames.map((tableName) => countPublicLlTableRows(ctx, tableName)));
+  const rowCountByTable = new Map(rowCounts.map((row) => [row.table_name, row]));
+  const metadataByTable = new Map(metadataRows.map((row) => [safeText(row.table_name), row]));
+  const tableCoverage = tableNames.map((tableName) => {
+    const domain = dataManagementCoverageDomainForTable(tableName);
+    const count = rowCountByTable.get(tableName) || { exists: false, row_count: 0, error: 'not_counted' };
+    const metadata = metadataByTable.get(tableName) || {};
+    return stripUndefined({
+      table_name: tableName,
+      ui_domain_key: domain?.key || 'system_review',
+      ui_domain_label: domain?.label || '시스템/검토',
+      row_count: count.row_count,
+      exists: count.exists,
+      count_error: count.error || undefined,
+      write_mode: dataManagementCoverageWriteMode(tableName),
+      metadata_domain_group: metadata.domain_group,
+      metadata_role_category: metadata.role_category,
+      metadata_description: metadata.description,
+      connected_to_data_management: Boolean(domain) || dataManagementCoverageWriteMode(tableName) !== 'approval_review',
+    });
+  });
+  const domainCoverage = DATA_MANAGEMENT_COVERAGE_DOMAINS.map((domain) => {
+    const rows = domain.tables.map((tableName) => tableCoverage.find((row) => row.table_name === tableName)).filter(Boolean) as Record<string, unknown>[];
+    return {
+      key: domain.key,
+      label: domain.label,
+      source_domains: domain.sourceDomains,
+      table_count: domain.tables.length,
+      existing_table_count: rows.filter((row) => row.exists).length,
+      row_count: rows.reduce((sum, row) => sum + Number(row.row_count || 0), 0),
+      missing_tables: domain.tables.filter((tableName) => !rows.some((row) => row.table_name === tableName && row.exists)),
+      write_modes: uniqueStrings(rows.map((row) => row.write_mode), 20),
+    };
+  });
+  const sources = ((sourcesResult.data || []) as Record<string, unknown>[]);
+  const sourceDomainStats = dataManagementSourceDomainStats(sources);
+  const missingRelations = tableCoverage.filter((row) => row.exists === false && row.count_error === 'missing_relation');
+  const unconnectedTables = tableCoverage.filter((row) => row.connected_to_data_management === false);
+  const unknownSourceDomains = sourceDomainStats
+    .filter((row) => !DATA_MANAGEMENT_SOURCE_DOMAIN_KEYS.includes(safeText(row.source_domain)))
+    .map((row) => safeText(row.source_domain));
+  const checks = {
+    scope_asset_count_19: managementScope.assets.length === DATA_MANAGEMENT_EXPECTED_ASSET_COUNT,
+    scope_fund_count_17: managementScope.funds.length === DATA_MANAGEMENT_EXPECTED_FUND_COUNT,
+    no_missing_relations: missingRelations.length === 0,
+    no_unconnected_tables: unconnectedTables.length === 0,
+    source_domains_known: unknownSourceDomains.length === 0,
+    core_tables_counted: ['ll_assets', 'll_funds', 'll_source_rows'].every((tableName) => rowCountByTable.get(tableName)?.exists),
+    editable_or_reviewable_modes_present: tableCoverage.every((row) => Boolean(row.write_mode)),
+  };
+  const ok = Object.values(checks).every(Boolean);
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/coverage', ok ? 200 : 409, {
+    table_count: tableCoverage.length,
+    missing_relation_count: missingRelations.length,
+    unconnected_table_count: unconnectedTables.length,
+    asset_count: managementScope.assets.length,
+    fund_count: managementScope.funds.length,
+  });
+  return jsonResponse({ ok: true, data: {
+    ok,
+    mode: 'read_only_data_management_supabase_coverage',
+    generated_at: new Date().toISOString(),
+    management_scope: {
+      owner: 'IGIS Asset Management',
+      expected_asset_count: DATA_MANAGEMENT_EXPECTED_ASSET_COUNT,
+      expected_fund_count: DATA_MANAGEMENT_EXPECTED_FUND_COUNT,
+      asset_count: managementScope.assets.length,
+      fund_count: managementScope.funds.length,
+      readable_asset_count: managementScope.readableAssets.length,
+      readable_fund_count: managementScope.readableFunds.length,
+    },
+    checks,
+    totals: {
+      table_count: tableCoverage.length,
+      counted_table_count: tableCoverage.filter((row) => row.exists).length,
+      missing_relation_count: missingRelations.length,
+      unconnected_table_count: unconnectedTables.length,
+      total_row_count: tableCoverage.reduce((sum, row) => sum + Number(row.row_count || 0), 0),
+    },
+    domain_coverage: domainCoverage,
+    source_domain_stats: sourceDomainStats,
+    table_coverage: tableCoverage,
+    findings: {
+      missing_relations: missingRelations.map((row) => row.table_name),
+      unconnected_tables: unconnectedTables.map((row) => row.table_name),
+      unknown_source_domains: unknownSourceDomains,
+    },
+    payload_note: 'This audit uses internal table names for QA artifacts only. User-facing Data Management UI keeps business labels.',
+  } }, 200, ctx.origin);
+}
+
 async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
@@ -5877,12 +7676,14 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   const managementScope = scopeResult.scope || {
     assets: [],
     funds: [],
+    links: [],
     readableAssets: [],
     readableFunds: [],
+    readableLinks: [],
     allRefs: [],
     readableRefs: [],
   };
-  const dataManagementSourceDomainKeys = ['lease_contracts', 'fund_info', 'permissions', 'asset_specs', 'operating_costs'];
+  const dataManagementSourceDomainKeys = DATA_MANAGEMENT_SOURCE_DOMAIN_KEYS;
   const [sourcesResult, sheetsResult, columnsResult, editsResult] = await Promise.all([
     ctx.serviceClient.from('ll_source_files').select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at').order('created_at', { ascending: false }).limit(80),
     ctx.serviceClient.from('ll_source_sheets').select('source_sheet_id,source_file_id,sheet_name,sheet_index,header_row_number,row_count,column_count').limit(240),
@@ -5911,17 +7712,17 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   const rawSourceRows = (rowsResult.data || []) as Record<string, unknown>[];
   const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
   const sourceRows = rawSourceRows.filter((row) => {
-    if (!dataManagementRowMatchesRefs(row, managementScope.allRefs)) return false;
+    const source = sources.find((item) => safeText(item.source_file_id) === safeText(row.source_file_id));
+    const isMarketSource = safeText(source?.source_domain) === 'sector_market';
+    if (!dataManagementRowMatchesRefs(row, managementScope.allRefs) && !(managerView && isMarketSource)) return false;
     if (managerView) return true;
     if (dataManagementRowMatchesRefs(row, managementScope.readableRefs)) return true;
     if (!managedRefs.length) return false;
     return dataManagementRowMatchesRefs(row, managedRefs);
   });
   const syntheticRows = syntheticDataManagementRows(managementScope);
-  const effectiveSourceRows = sourceRows.length >= Math.min(10, syntheticRows.length)
-    ? sourceRows
-    : [...sourceRows, ...syntheticRows];
-  if (effectiveSourceRows.length > sourceRows.length) {
+  const effectiveSourceRows = [...syntheticRows, ...sourceRows];
+  if (syntheticRows.length) {
     sources.push(...syntheticDataManagementSources(managementScope));
   }
   const rawEdits = (editsResult.data || []) as Record<string, unknown>[];
@@ -6055,6 +7856,42 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
         short_name: row.short_name,
         display_name: firstDefined(row.display_name, row.short_name, row.fund_name, row.fund_code),
       })),
+      links: managementScope.readableLinks.map((link) => {
+        const asset = managementScope.readableAssets.find((row) => (
+          safeText(row.asset_id) === safeText(link.asset_id)
+          || (!!safeText(row.asset_code) && safeText(row.asset_code) === safeText(link.asset_code))
+          || (!!safeText(row.asset_name) && safeText(row.asset_name) === safeText(link.asset_name))
+        )) || {};
+        const fund = managementScope.readableFunds.find((row) => safeText(row.fund_id) === safeText(link.fund_id)) || {};
+        return stripUndefined({
+          asset_id: safeText(firstDefined(link.asset_id, asset.asset_id)),
+          asset_code: safeText(firstDefined(link.asset_code, asset.asset_code)),
+          asset_name: safeText(firstDefined(link.asset_name, asset.asset_name)),
+          fund_id: safeText(firstDefined(link.fund_id, fund.fund_id)),
+          fund_code: safeText(fund.fund_code),
+          fund_name: safeText(fund.fund_name),
+          short_name: safeText(fund.short_name),
+          display_name: safeText(firstDefined(fund.display_name, fund.short_name, fund.fund_name, fund.fund_code, link.fund_id)),
+        });
+      }),
+      readableLinks: managementScope.readableLinks.map((link) => {
+        const asset = managementScope.readableAssets.find((row) => (
+          safeText(row.asset_id) === safeText(link.asset_id)
+          || (!!safeText(row.asset_code) && safeText(row.asset_code) === safeText(link.asset_code))
+          || (!!safeText(row.asset_name) && safeText(row.asset_name) === safeText(link.asset_name))
+        )) || {};
+        const fund = managementScope.readableFunds.find((row) => safeText(row.fund_id) === safeText(link.fund_id)) || {};
+        return stripUndefined({
+          asset_id: safeText(firstDefined(link.asset_id, asset.asset_id)),
+          asset_code: safeText(firstDefined(link.asset_code, asset.asset_code)),
+          asset_name: safeText(firstDefined(link.asset_name, asset.asset_name)),
+          fund_id: safeText(firstDefined(link.fund_id, fund.fund_id)),
+          fund_code: safeText(fund.fund_code),
+          fund_name: safeText(fund.fund_name),
+          short_name: safeText(fund.short_name),
+          display_name: safeText(firstDefined(fund.display_name, fund.short_name, fund.fund_name, fund.fund_code, link.fund_id)),
+        });
+      }),
     },
     sources,
     sheets,
@@ -6069,6 +7906,15 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
 async function callDataManagementPreviewEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/preview-edit', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  if (isDataManagementViewFieldPayload(payload)) {
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const scopeResult = await readDataManagementScope(ctx, managerView);
+    if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+    const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scopeResult.scope);
+    if ('error' in resolved) return resolved.error;
+    return callDataManagementPreviewTableCell(ctx, resolved.table_payload);
+  }
+  if (isDataManagementTableCellPayload(payload)) return callDataManagementPreviewTableCell(ctx, payload);
   const sourceRowId = safeText(payload.source_row_id || payload.sourceRowId || payload.target_row_id || payload.targetRowId);
   const fieldName = safeText(payload.field_name || payload.fieldName);
   const requestedValue = firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
@@ -6091,7 +7937,8 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
     sourceRow = data as Record<string, unknown> | null;
   }
   if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
-  if (!managementScope || !dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs)) {
+  const requestedSourceDomain = safeText(payload.source_domain || payload.sourceDomain);
+  if (!managementScope || (!dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs) && !(managerView && requestedSourceDomain === 'sector_market'))) {
     return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);
   }
   if (!managerView) {
@@ -6207,6 +8054,15 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
 async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/submit-edit', 40)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  if (isDataManagementViewFieldPayload(payload)) {
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const scopeResult = await readDataManagementScope(ctx, managerView);
+    if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+    const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scopeResult.scope);
+    if ('error' in resolved) return resolved.error;
+    return callDataManagementSubmitTableCell(ctx, resolved.table_payload);
+  }
+  if (isDataManagementTableCellPayload(payload)) return callDataManagementSubmitTableCell(ctx, payload);
   const targetType = safeText(payload.target_type || payload.targetType || 'source_row');
   const fieldName = safeText(payload.field_name || payload.fieldName);
   const targetRowId = safeText(payload.target_row_id || payload.targetRowId);
@@ -6242,7 +8098,8 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
       sourceRow = data as Record<string, unknown> | null;
     }
     if (!sourceRow) return fail(404, 'Source row not found', ctx.origin);
-    if (!dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs)) {
+    const requestedSourceDomain = safeText(payload.source_domain || payload.sourceDomain);
+    if (!dataManagementRowMatchesRefs(sourceRow, managementScope.allRefs) && !(managerView && requestedSourceDomain === 'sector_market')) {
       return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);
     }
     if (!managerView) {
@@ -17615,7 +19472,12 @@ Deno.serve(async (request) => {
   if (action === 'asset-spec/read') return callAssetSpecRead(ctx, payload);
   if (action === 'asset-spec/save') return callAssetSpecSave(ctx, payload);
   if (action === 'operating-costs/read') return callOperatingCostsRead(ctx, payload);
+  if (action === 'data-management/catalog') return callDataManagementCatalog(ctx, payload);
+  if (action === 'data-management/rows') return callDataManagementRows(ctx, payload);
+  if (action === 'data-management/views') return callDataManagementViews(ctx, payload);
+  if (action === 'data-management/view-rows') return callDataManagementViewRows(ctx, payload);
   if (action === 'data-management/status') return callDataManagementStatus(ctx, payload);
+  if (action === 'data-management/coverage') return callDataManagementCoverage(ctx, payload);
   if (action === 'data-management/preview-edit') return callDataManagementPreviewEdit(ctx, payload);
   if (action === 'data-management/submit-edit') return callDataManagementSubmitEdit(ctx, payload);
   if (action === 'news/list') return callNewsList(ctx, payload);

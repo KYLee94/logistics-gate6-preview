@@ -58,8 +58,10 @@ const SOURCE_DOMAINS = [
   { key: 'asset_specs', label: '자산 스펙' },
   { key: 'operating_costs', label: '운영비용' },
 ];
-const DATA_MANAGEMENT_DOMAINS = SOURCE_DOMAINS.filter((domain) => domain.key !== 'sector_market');
+const DATA_MANAGEMENT_DOMAINS = SOURCE_DOMAINS;
 const DATA_MANAGEMENT_DOMAIN_KEYS = new Set(DATA_MANAGEMENT_DOMAINS.map((domain) => domain.key));
+const SUPPLY_PERIOD_DEFAULT_START = '2024-01-01';
+const SUPPLY_PERIOD_DEFAULT_END = '2028-12-31';
 
 const MARKET_TABS = [
   { id: 'overview', route: 'overview', label: 'Overview' },
@@ -201,7 +203,12 @@ function formatDisplayValue(value, field = '') {
   if (hasField && (isInternalFieldName(field) || !isUserVisibleField(field))) return '관리값 숨김';
   if (hasField && isRegionFieldName(field)) return formatRegionLabel(value);
   if (value && typeof value === 'object') return '-';
-  return publicDisplayText(value, '-');
+  const display = publicDisplayText(value, '-');
+  if (/\?{4,}/u.test(display)) {
+    const cleaned = display.replace(/\?{4,}/gu, '').replace(/\s{2,}/gu, ' ').trim();
+    return cleaned || '-';
+  }
+  return display;
 }
 
 function publicRowValueEntries(row, limit = 5) {
@@ -623,7 +630,8 @@ function userFacingLoadError() {
 }
 
 const USER_FACING_LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다. 탭을 다시 열거나 잠시 후 재시도해 주세요.';
-const EDGE_DATA_CACHE_TTL_MS = 60 * 60 * 1000;
+const EDGE_DATA_CACHE_TTL_MS = 10 * 60 * 1000;
+const EDGE_DATA_REVALIDATE_MS = 90 * 1000;
 const EDGE_DATA_CACHE = new Map();
 const EDGE_DATA_INFLIGHT = new Map();
 
@@ -692,9 +700,16 @@ function useEdgeData(action, payload = {}, deps = []) {
     const normalizedOverride = payloadOverride?.nativeEvent || payloadOverride?.target ? {} : (payloadOverride || {});
     const requestPayload = { ...payload, ...normalizedOverride };
     const requestKey = edgeCacheKey(action, requestPayload);
+    if (options.force) EDGE_DATA_INFLIGHT.delete(requestKey);
     const cached = EDGE_DATA_CACHE.get(requestKey);
-    if (!options.force && !Object.keys(normalizedOverride).length && cached && Date.now() - cached.loadedAt < EDGE_DATA_CACHE_TTL_MS) {
+    const cachedAge = cached ? Date.now() - cached.loadedAt : Number.POSITIVE_INFINITY;
+    if (!options.force && !Object.keys(normalizedOverride).length && cached && cachedAge < EDGE_DATA_CACHE_TTL_MS) {
       if (mountedRef.current) setState({ loading: false, error: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey });
+      if (cachedAge >= EDGE_DATA_REVALIDATE_MS && !options.__revalidate) {
+        window.setTimeout(() => {
+          if (mountedRef.current) reload({}, { silent: true, force: true, __revalidate: true });
+        }, 0);
+      }
       return cached.data;
     }
     const requestId = requestRef.current + 1;
@@ -749,7 +764,7 @@ function useEdgeData(action, payload = {}, deps = []) {
     const cached = EDGE_DATA_CACHE.get(payloadKey);
     if (cached) {
       setState({ loading: false, error: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: payloadKey });
-      if (Date.now() - cached.loadedAt >= EDGE_DATA_CACHE_TTL_MS) reload({}, { silent: true, force: true });
+      if (Date.now() - cached.loadedAt >= EDGE_DATA_REVALIDATE_MS) reload({}, { silent: true, force: true });
       return () => {
         mountedRef.current = false;
       };
@@ -766,13 +781,19 @@ function useEdgeData(action, payload = {}, deps = []) {
     const refreshIfStale = () => {
       if (document.visibilityState && document.visibilityState !== 'visible') return;
       const current = stateRef.current;
-      const stale = current.loadedAt && Date.now() - current.loadedAt > EDGE_DATA_CACHE_TTL_MS;
+      const stale = current.loadedAt && Date.now() - current.loadedAt > EDGE_DATA_REVALIDATE_MS;
       if (current.error || !current.data || stale) reload({}, { silent: Boolean(current.data), force: true });
     };
     window.addEventListener('focus', refreshIfStale);
+    window.addEventListener('online', refreshIfStale);
+    window.addEventListener('popstate', refreshIfStale);
+    window.addEventListener('logistics-data-refresh', refreshIfStale);
     document.addEventListener('visibilitychange', refreshIfStale);
     return () => {
       window.removeEventListener('focus', refreshIfStale);
+      window.removeEventListener('online', refreshIfStale);
+      window.removeEventListener('popstate', refreshIfStale);
+      window.removeEventListener('logistics-data-refresh', refreshIfStale);
       document.removeEventListener('visibilitychange', refreshIfStale);
     };
   }, [payloadKey, ...deps]);
@@ -4226,8 +4247,9 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const [leaseHistoryPeriod, setLeaseHistoryPeriod] = useState('전체');
   const [leaseHistoryRegion, setLeaseHistoryRegion] = useState('전체');
   const [leaseHistorySearch, setLeaseHistorySearch] = useState('');
-  const [supplyStart, setSupplyStart] = useState('2024-01-01');
-  const [supplyEnd, setSupplyEnd] = useState('2028-12-31');
+  const [supplyStart, setSupplyStart] = useState(SUPPLY_PERIOD_DEFAULT_START);
+  const [supplyEnd, setSupplyEnd] = useState(SUPPLY_PERIOD_DEFAULT_END);
+  const [supplyPeriodTouched, setSupplyPeriodTouched] = useState(false);
   const [supplyKind, setSupplyKind] = useState('전체');
   const summary = data?.summary || {};
   const marketViews = data?.views || {};
@@ -4576,12 +4598,13 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const rangedPipelineRows = filteredSupplyRows.filter((row) => {
     const startDate = supplyDate(row);
     const endDate = supplyDate(row, true);
-    return !startDate || (endDate >= supplyStart && startDate <= supplyEnd);
+    if (!startDate) return !supplyPeriodTouched;
+    return endDate >= supplyStart && startDate <= supplyEnd;
   });
   const supplyStatisticRowsInRange = supplyStatisticRows.filter((row) => {
     const period = text(row.period_label, '');
     if (!period) return false;
-    if (isUnknownPeriodLabel(period)) return true;
+    if (isUnknownPeriodLabel(period)) return !supplyPeriodTouched;
     const startDate = periodDate(period);
     const endDate = periodDate(period, true);
     return Boolean(startDate && endDate && endDate >= supplyStart && startDate <= supplyEnd);
@@ -4621,7 +4644,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     });
     return [...grouped.values()].filter((row) => row.value > 0);
   };
-  const selectedSupplyPeriodsWithUnknown = rangedPipelineRows.some((row) => isUnknownPeriodLabel(supplyPeriodLabel(row)))
+  const selectedSupplyPeriodsWithUnknown = !supplyPeriodTouched && rangedPipelineRows.some((row) => isUnknownPeriodLabel(supplyPeriodLabel(row)))
     ? [...selectedSupplyPeriods, '미정']
     : selectedSupplyPeriods;
   const fallbackPipelineSupplyChartRows = supplyAreaRowsFromCases(rangedPipelineRows, selectedSupplyPeriodsWithUnknown, 'pipeline_supply', false, true);
@@ -5252,16 +5275,21 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
             <div className="mb-4">
               <FilterPills label="상/저온 구분" value={leaseCenterTemp} onChange={setLeaseCenterTemp} options={leaseCenterTempOptions} />
             </div>
-            <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px]">
+            <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(260px,320px)]">
               <RegionFilterGroups label="권역" value={leaseRegion} onChange={setLeaseRegion} options={regions} />
-              <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                자산 검색
-                <input value={leaseSearch} onChange={(event) => setLeaseSearch(event.target.value)} className="mt-2 h-9 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="센터명 또는 주소" />
-              </label>
+              <div className={`${INNER} flex min-h-[74px] items-center px-4 text-[12px] leading-5 text-[#A1A1AA]`}>
+                권역과 상/저온 조건은 지도와 표에 동시에 반영됩니다. 자산명 검색은 우측 표 바로 위에서 조정합니다.
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
               <MarketMapPanel title="권역별 센터" rows={filteredLeaseRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), rows: centerHistoryRows(row), columns: leaseHistoryColumns, width: 'max-w-[calc(100vw-32px)]', minWidth: 1320, maxHeight: 680 })} />
-              <SortableTable minWidth={1040} maxHeight={580} stickyCount={2} defaultSort={{ key: 'gross_area_py', direction: 'desc' }} columns={leaseColumns} rows={filteredLeaseRows} onRowClick={(row) => setModal({ title: text(row.center_name), rows: centerHistoryRows(row), columns: leaseHistoryColumns, width: 'max-w-[calc(100vw-32px)]', minWidth: 1320, maxHeight: 680 })} />
+              <div className="min-w-0 space-y-3">
+                <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                  자산 검색
+                  <input value={leaseSearch} onChange={(event) => setLeaseSearch(event.target.value)} className="mt-2 h-9 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="센터명 또는 주소" />
+                </label>
+                <SortableTable minWidth={1040} maxHeight={540} stickyCount={2} defaultSort={{ key: 'gross_area_py', direction: 'desc' }} columns={leaseColumns} rows={filteredLeaseRows} onRowClick={(row) => setModal({ title: text(row.center_name), rows: centerHistoryRows(row), columns: leaseHistoryColumns, width: 'max-w-[calc(100vw-32px)]', minWidth: 1320, maxHeight: 680 })} />
+              </div>
             </div>
           </section>
         </div>
@@ -5284,11 +5312,42 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
                 <div>
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="text-[12px] font-semibold text-[#A1A1AA]">기간 선택</div>
-                    <div className="text-[11px] text-[#86868B]">{supplyStart} ~ {supplyEnd} · {formatNumber(rangedPipelineRows.length)}건</div>
+                    <div className="flex items-center gap-2">
+                      <div className="text-[11px] text-[#86868B]">{supplyStart} ~ {supplyEnd} · {formatNumber(rangedPipelineRows.length)}건{supplyPeriodTouched ? ' · 미정 제외' : ''}</div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSupplyStart(SUPPLY_PERIOD_DEFAULT_START);
+                          setSupplyEnd(SUPPLY_PERIOD_DEFAULT_END);
+                          setSupplyPeriodTouched(false);
+                        }}
+                        className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[11px] font-semibold text-[#D1D1D6] hover:border-[#5A5A5C] hover:bg-[#2A2A29]"
+                      >
+                        기간 초기화
+                      </button>
+                    </div>
                   </div>
                   <div className={`${INNER} grid grid-cols-1 gap-2 p-3 md:grid-cols-2`}>
-                    <input type="date" value={supplyStart} onChange={(event) => setSupplyStart(event.target.value)} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" aria-label="공급 시작일" />
-                    <input type="date" value={supplyEnd} onChange={(event) => setSupplyEnd(event.target.value)} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" aria-label="공급 종료일" />
+                    <input
+                      type="date"
+                      value={supplyStart}
+                      onChange={(event) => {
+                        setSupplyPeriodTouched(true);
+                        setSupplyStart(event.target.value);
+                      }}
+                      className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none"
+                      aria-label="공급 시작일"
+                    />
+                    <input
+                      type="date"
+                      value={supplyEnd}
+                      onChange={(event) => {
+                        setSupplyPeriodTouched(true);
+                        setSupplyEnd(event.target.value);
+                      }}
+                      className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none"
+                      aria-label="공급 종료일"
+                    />
                   </div>
                 </div>
               </div>
@@ -6166,14 +6225,17 @@ export function AssetSpecDashboard() {
   );
 }
 
-export function DataManagementDashboard() {
-  const [tab, setTab] = useState('my');
+const MANAGEMENT_ALL_OPTION = '전체';
+
+function DataManagementDashboardLegacy() {
+  const [tab, setTab] = useState('lease');
   const [selectedRowId, setSelectedRowId] = useState('');
   const [selectedField, setSelectedField] = useState('');
   const [afterValue, setAfterValue] = useState('');
   const [reason, setReason] = useState('');
-  const [managementAsset, setManagementAsset] = useState('전체');
-  const [managementFund, setManagementFund] = useState('전체');
+  const [selectedEditRequestId, setSelectedEditRequestId] = useState('');
+  const [managementAsset, setManagementAsset] = useState(MANAGEMENT_ALL_OPTION);
+  const [managementFund, setManagementFund] = useState(MANAGEMENT_ALL_OPTION);
   const [managementSearch, setManagementSearch] = useState('');
   const [gridDrafts, setGridDrafts] = useState({});
   const [gridReason, setGridReason] = useState('');
@@ -6182,25 +6244,25 @@ export function DataManagementDashboard() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 100, row_limit: 800 }, []);
   const sources = safeArray(data?.sources);
-  const managementSources = sources.filter((source) => DATA_MANAGEMENT_DOMAIN_KEYS.has(source.source_domain));
-  const sheets = safeArray(data?.sheets);
-  const columns = safeArray(data?.columns);
   const sourceRows = safeArray(data?.source_rows);
   const edits = safeArray(data?.edit_requests);
   const domainStats = safeArray(data?.domain_stats);
   const tabs = [
-    { id: 'my', label: '내 작업' },
+    { id: 'my', label: '이지스 전체' },
     { id: 'lease', label: '임대차' },
     { id: 'fund', label: '펀드/금융' },
     { id: 'permission', label: '권한/사용자' },
     { id: 'spec', label: '자산 스펙' },
     { id: 'cost', label: '운영비용' },
+    { id: 'market', label: '시장 Data' },
     { id: 'approval', label: '승인 대기' },
     { id: 'history', label: '반영 이력' },
   ];
   const domainForTab = {
+    my: '',
     lease: 'lease_contracts',
     fund: 'fund_info',
+    market: 'sector_market',
     permission: 'permissions',
     spec: 'asset_specs',
     cost: 'operating_costs',
@@ -6208,13 +6270,17 @@ export function DataManagementDashboard() {
   const tabForDomain = (domain) => ({
     lease_contracts: 'lease',
     fund_info: 'fund',
+    sector_market: 'market',
     permissions: 'permission',
     asset_specs: 'spec',
     operating_costs: 'cost',
   }[domain] || 'lease');
   const domainRows = domainForTab
     ? sourceRows.filter((row) => sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain === domainForTab)
-    : sourceRows.filter((row) => DATA_MANAGEMENT_DOMAIN_KEYS.has(sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain));
+    : sourceRows.filter((row) => {
+      const domain = sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain;
+      return DATA_MANAGEMENT_DOMAIN_KEYS.has(domain) && domain !== 'sector_market';
+    });
   const rowOptionValue = (row, keys) => {
     const values = row?.row_values && typeof row.row_values === 'object' ? row.row_values : {};
     return text(firstText(...keys.map((key) => values[key])), '');
@@ -6224,6 +6290,9 @@ export function DataManagementDashboard() {
   const managementScope = data?.management_scope || {};
   const scopeAssets = safeArray(managementScope.assets);
   const scopeFunds = safeArray(managementScope.funds);
+  const scopeLinks = safeArray(managementScope.readableLinks).length
+    ? safeArray(managementScope.readableLinks)
+    : safeArray(managementScope.links);
   const normalizeManagementKey = (value) => text(value, '').replace(/\s+/gu, '').toLowerCase();
   const optionRefs = (row, keys) => keys.map((key) => text(row?.[key], '')).filter(Boolean);
   const makeScopeOptions = (rows, keys, labelKeys) => {
@@ -6252,7 +6321,10 @@ export function DataManagementDashboard() {
     const haystack = rowManagementHaystack(row);
     return refs.some((ref) => ref && haystack.includes(ref));
   };
-  const scopedDomainRows = scopeRefs.length ? domainRows.filter((row) => rowMatchesRefs(row, scopeRefs)) : [];
+  const isMarketWorkbench = domainForTab === 'sector_market';
+  const scopedDomainRows = isMarketWorkbench
+    ? domainRows
+    : (scopeRefs.length ? domainRows.filter((row) => rowMatchesRefs(row, scopeRefs)) : domainRows);
   const rowSearchText = (row) => [
     text(row.sheet_name, ''),
     rowOptionValue(row, assetKeys),
@@ -6260,17 +6332,35 @@ export function DataManagementDashboard() {
     sourceRowDisplayTitle(row),
     sourceRowDisplaySummary(row),
   ].join(' ').toLowerCase();
-  const managementAssetOptions = ['전체', ...scopeAssetOptions.map((option) => option.label).sort((a, b) => a.localeCompare(b, 'ko'))];
-  const managementFundOptions = ['전체', ...scopeFundOptions.map((option) => option.label).sort((a, b) => a.localeCompare(b, 'ko'))];
-  const selectedAssetRefs = managementAsset === '전체'
+  const managementAssetOptions = [MANAGEMENT_ALL_OPTION, ...scopeAssetOptions.map((option) => option.label).sort((a, b) => a.localeCompare(b, 'ko'))];
+  const selectedAssetRefs = managementAsset === MANAGEMENT_ALL_OPTION
     ? []
     : (scopeAssetOptions.find((option) => option.label === managementAsset)?.refs || [normalizeManagementKey(managementAsset)]);
-  const selectedFundRefs = managementFund === '전체'
+  const linkMatchesSelectedAsset = (link) => {
+    if (!selectedAssetRefs.length) return true;
+    const linkRefs = optionRefs(link, ['asset_id', 'asset_code', 'asset_name']).map(normalizeManagementKey).filter(Boolean);
+    return linkRefs.some((ref) => selectedAssetRefs.includes(ref));
+  };
+  const linkedFundRefs = [...new Set(scopeLinks
+    .filter(linkMatchesSelectedAsset)
+    .flatMap((link) => optionRefs(link, ['fund_id', 'fund_code', 'fund_name', 'short_name', 'display_name'])))]
+    .map(normalizeManagementKey)
+    .filter(Boolean);
+  const linkedScopeFundOptions = selectedAssetRefs.length && linkedFundRefs.length
+    ? scopeFundOptions.filter((option) => option.refs.some((ref) => linkedFundRefs.includes(ref)))
+    : scopeFundOptions;
+  const managementFundOptions = [MANAGEMENT_ALL_OPTION, ...linkedScopeFundOptions.map((option) => option.label).sort((a, b) => a.localeCompare(b, 'ko'))];
+  const selectedFundRefs = managementFund === MANAGEMENT_ALL_OPTION
     ? []
     : (scopeFundOptions.find((option) => option.label === managementFund)?.refs || [normalizeManagementKey(managementFund)]);
+  const isFundLockedByAsset = Boolean(selectedAssetRefs.length && linkedScopeFundOptions.length <= 1);
+  const linkedFundDisplay = selectedAssetRefs.length
+    ? (linkedScopeFundOptions.map((option) => option.label).join(', ') || '연결 펀드 없음')
+    : '전체 펀드';
+  const appliesEntityFilter = !isMarketWorkbench;
   const filteredRows = scopedDomainRows
-    .filter((row) => rowMatchesRefs(row, selectedAssetRefs))
-    .filter((row) => rowMatchesRefs(row, selectedFundRefs))
+    .filter((row) => !appliesEntityFilter || rowMatchesRefs(row, selectedAssetRefs))
+    .filter((row) => !appliesEntityFilter || rowMatchesRefs(row, selectedFundRefs))
     .filter((row) => !managementSearch || rowSearchText(row).includes(managementSearch.toLowerCase()));
   const accessScope = text(data?.access_scope, 'unknown');
   const managedAssetCodes = safeArray(data?.managed_asset_codes);
@@ -6286,13 +6376,18 @@ export function DataManagementDashboard() {
       ? '아직 조회 가능한 수정 대상 데이터가 없습니다. Source Update의 active 상태 또는 관리 권한을 확인해 주세요.'
       : `현재 계정은 담당 자산 범위만 조회할 수 있습니다.${managedAssetCodes.length ? ` 담당 자산: ${managedAssetCodes.join(', ')}` : ' 담당 자산이 배정되지 않았습니다.'}`)
     : (!filteredRows.length ? '선택한 이지스자산운용 관리 범위에 해당하는 수정 대상 데이터가 없습니다. 다른 업무 탭이나 자산/펀드 필터를 확인해 주세요.' : '');
-  const selectedRow = filteredRows.find((row) => row.source_row_id === selectedRowId) || filteredRows[0] || null;
+  const fallbackGridRows = !filteredRows.length
+    ? (scopedDomainRows.length ? scopedDomainRows.slice(0, 12) : sourceRows.slice(0, 12))
+    : [];
+  const managementGridRows = filteredRows.length ? filteredRows.slice(0, 60) : fallbackGridRows;
+  const gridUsesFallback = !filteredRows.length;
+  const selectedRow = managementGridRows.find((row) => row.source_row_id === selectedRowId) || managementGridRows[0] || null;
   const rowValues = selectedRow?.row_values && typeof selectedRow.row_values === 'object' ? selectedRow.row_values : {};
   const editableFields = Object.keys(rowValues).filter(isUserVisibleField).slice(0, 80);
-  const managementGridRows = filteredRows.slice(0, 60);
+  const selectedEditRequest = edits.find((row) => (row.request_id || row.id) === selectedEditRequestId) || null;
   const managementGridFields = useMemo(() => {
     const fieldCounts = new Map();
-    filteredRows.slice(0, 200).forEach((row) => {
+    managementGridRows.slice(0, 200).forEach((row) => {
       const values = row?.row_values && typeof row.row_values === 'object' ? row.row_values : {};
       Object.keys(values).filter(isUserVisibleField).forEach((field) => {
         fieldCounts.set(field, (fieldCounts.get(field) || 0) + 1);
@@ -6306,8 +6401,8 @@ export function DataManagementDashboard() {
         return b[1] - a[1] || fieldDisplayLabel(a[0]).localeCompare(fieldDisplayLabel(b[0]), 'ko');
       })
       .map(([field]) => field)
-      .slice(0, 12);
-  }, [filteredRows]);
+      .slice(0, 10);
+  }, [managementGridRows]);
   const gridCellKey = (rowId, field) => `${rowId}::${field}`;
   const gridCellBeforeValue = (row, field) => text((row?.row_values && typeof row.row_values === 'object' ? row.row_values : {})[field], '');
   const managementDraftEntries = useMemo(() => Object.entries(gridDrafts).map(([key, requestedValue]) => {
@@ -6345,7 +6440,17 @@ export function DataManagementDashboard() {
     setGridReason('');
     setSubmitStatus(null);
     setPreview(null);
+    setSelectedEditRequestId('');
   }, [tab]);
+  useEffect(() => {
+    if (!managementFundOptions.includes(managementFund)) {
+      setManagementFund(managementFundOptions[1] || MANAGEMENT_ALL_OPTION);
+      return;
+    }
+    if (selectedAssetRefs.length && linkedScopeFundOptions.length === 1 && managementFund !== linkedScopeFundOptions[0].label) {
+      setManagementFund(linkedScopeFundOptions[0].label);
+    }
+  }, [managementAsset, managementFund, managementFundOptions.join('|'), linkedScopeFundOptions.map((option) => option.label).join('|'), selectedAssetRefs.join('|')]);
   useEffect(() => {
     if (selectedRowId && !filteredRows.some((row) => row.source_row_id === selectedRowId)) setSelectedRowId('');
   }, [filteredRows, selectedRowId]);
@@ -6383,12 +6488,6 @@ export function DataManagementDashboard() {
       window.clearTimeout(timer);
     };
   }, [hasPendingChange, selectedRow?.source_row_id, selectedField, currentBeforeValue, afterValue, selectedSource.source_domain]);
-  const sourceCards = DATA_MANAGEMENT_DOMAINS.map((domain) => {
-    const rows = domainSources(sources, domain.key);
-    const active = rows.find((row) => row.active_version) || rows[0] || {};
-    const stats = domainStats.find((row) => row.source_domain === domain.key) || {};
-    return { ...domain, count: rows.length, active, stats };
-  });
   const submitEdit = async () => {
     if (!selectedRow || !selectedField || !afterValue || afterValue === currentBeforeValue) {
       setSubmitStatus({ type: 'error', message: '변경할 행, 필드, 변경 후 값을 입력해 주세요.' });
@@ -6498,369 +6597,863 @@ export function DataManagementDashboard() {
       setSubmitStatus({ type: 'error', message: reviewError.message || '요청 처리에 실패했습니다.' });
     }
   };
-  const sourcePreviewRows = filteredRows.slice(0, 80).map((row) => [
-    sourceDomainLabel(sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain),
-    sourceRowDisplayTitle(row),
-    sourceRowDisplaySummary(row),
-    safeArray(row.validation_flags).length ? `${safeArray(row.validation_flags).length}건` : '통과',
-  ]);
+  const workbenchAreas = [
+    { id: 'my', label: '이지스 전체', domain: '', group: 'igis', detail: '이지스자산운용 19개 자산과 17개 펀드의 대시보드 관리 데이터를 한 번에 확인합니다.' },
+    { id: 'lease', label: '임대차', domain: 'lease_contracts', group: 'igis', detail: '임차인, 계약기간, 면적, 임대료, 관리비, 공실 값을 관리합니다.' },
+    { id: 'fund', label: '펀드/금융', domain: 'fund_info', group: 'igis', detail: '펀드, 수익자, 대주, 트랜치, 금리, 만기 값을 관리합니다.' },
+    { id: 'spec', label: '자산 스펙', domain: 'asset_specs', group: 'igis', detail: '주소, 규모, Dock, 층고, 상저온, 설비 값을 관리합니다.' },
+    { id: 'cost', label: '운영비용', domain: 'operating_costs', group: 'igis', detail: 'PM/FM, 보험료, Utility와 기간별 비용 값을 관리합니다.' },
+    { id: 'permission', label: '권한/사용자', domain: 'permissions', group: 'igis', detail: '사용자, 담당 자산, 기능 권한, 계정 상태를 관리합니다.' },
+    { id: 'market', label: '시장 Data', domain: 'sector_market', group: 'market', detail: '물류 시장 원천의 임대시장, 공급, 거래, Cap Rate 데이터를 자산/펀드 선택 없이 관리합니다.' },
+    { id: 'approval', label: '승인 대기', domain: '', group: 'ops', detail: '요청된 변경을 승인하거나 반려하고 readback 결과를 확인합니다.' },
+    { id: 'history', label: '반영 이력', domain: '', group: 'ops', detail: '승인/반영 결과와 readback 상태를 시간순으로 확인합니다.' },
+  ];
+  const igisWorkbenchAreas = workbenchAreas.filter((area) => area.group === 'igis');
+  const marketWorkbenchAreas = workbenchAreas.filter((area) => area.group === 'market');
+  const systemWorkbenchAreas = workbenchAreas.filter((area) => area.group === 'ops');
+  const activeWorkbenchArea = workbenchAreas.find((area) => area.id === tab) || workbenchAreas[0];
+  const activeSpaceLabel = activeWorkbenchArea.group === 'market'
+    ? '시장 Data'
+    : activeWorkbenchArea.group === 'ops'
+      ? '시스템·운영 Data'
+      : '이지스 Data';
+  const sourceDomainForRow = (row) => sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain || '';
+  const countRowsForArea = (area) => {
+    if (area.id === 'my') {
+      return sourceRows.filter((row) => {
+        const domain = sourceDomainForRow(row);
+        return DATA_MANAGEMENT_DOMAIN_KEYS.has(domain) && domain !== 'sector_market';
+      }).length;
+    }
+    if (area.group === 'ops') {
+      return edits.length;
+    }
+    return sourceRows.filter((row) => sourceDomainForRow(row) === area.domain).length;
+  };
+  const activeWorkbenchMode = activeWorkbenchArea.group === 'ops' ? 'system' : 'grid';
+  const pendingEditRows = edits.filter((row) => row.status === 'submitted' || row.write_status === 'approval_required');
+  const historyEditRows = edits.filter((row) => !(row.status === 'submitted' || row.write_status === 'approval_required'));
+  const workbenchApprovalColumns = [
+    { key: 'target_name', label: '대상', render: (value, row) => text(value || row.target_type, '-') },
+    { key: 'source_domain', label: '영역', render: (value) => sourceDomainLabel(value) },
+    { key: 'field_name', label: '필드', render: (value) => fieldDisplayLabel(value) },
+    { key: 'before_value', label: 'Before', render: (value, row) => formatDisplayValue(value, row.field_name) },
+    { key: 'requested_value', label: 'After', render: (value, row) => formatDisplayValue(value, row.field_name) },
+    { key: 'status', label: '상태', render: (value, row) => text(row.write_status || value, '-') },
+    { key: 'created_at', label: '요청일', render: formatDateTime },
+    {
+      key: 'review_action',
+      label: '처리',
+      align: 'right',
+      render: (_, row) => data?.can_approve ? (
+        <div className="flex justify-end gap-2">
+          <button type="button" disabled={row.requested_by === data?.user_id} onClick={(event) => { event.stopPropagation(); reviewEdit('approve', row); }} className="h-7 rounded-[7px] border border-white bg-white px-2 text-[11px] font-bold text-[#1F1F1E] disabled:opacity-35">승인</button>
+          <button type="button" onClick={(event) => { event.stopPropagation(); reviewEdit('reject', row); }} className="h-7 rounded-[7px] border border-[#3A3A3C] px-2 text-[11px] font-semibold text-[#A1A1AA]">반려</button>
+        </div>
+      ) : <span className="text-[11px] text-[#86868B]">권한 없음</span>,
+    },
+  ];
+  const workbenchHistoryColumns = [
+    { key: 'target_name', label: '대상', render: (value, row) => text(value || row.target_type, '-') },
+    { key: 'source_domain', label: '영역', render: (value) => sourceDomainLabel(value) },
+    { key: 'field_name', label: '필드', render: (value) => fieldDisplayLabel(value) },
+    { key: 'requested_value', label: '요청값', render: (value, row) => formatDisplayValue(value, row.field_name) },
+    { key: 'readback_value', label: 'Readback', render: (value, row) => formatDisplayValue(value, row.field_name) },
+    { key: 'status', label: '상태', render: (value, row) => text(row.write_status || value, '-') },
+    { key: 'updated_at', label: '최종 변경', render: formatDateTime },
+  ];
+  const setInspectorAfterValue = (value) => {
+    setAfterValue(value);
+    if (selectedRow && selectedField) setGridCellDraft(selectedRow, selectedField, value);
+  };
+  const workbenchRowMessage = !sourceRows.length
+    ? '관리 가능한 데이터가 아직 로드되지 않았습니다. 데이터 다시 읽기를 눌러 주세요.'
+    : (gridUsesFallback
+      ? '선택한 조건에 맞는 데이터가 없어 대표 행을 읽기 전용으로 보여드립니다. 자산-펀드 묶음 또는 검색 조건을 조정해 주세요.'
+      : '');
+  const workbenchScopeAssetCount = Number(managementScope.asset_count || scopeAssets.length || 0);
+  const workbenchScopeFundCount = Number(managementScope.fund_count || scopeFunds.length || 0);
   return (
-    <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
-      <ModuleHeader eyebrow="" title="데이터 관리" right={<button type="button" onClick={reload} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[13px] font-semibold text-white hover:bg-white/5">새로고침</button>} />
-      <div className="mb-5">
-        <Tabs tabs={tabs} value={tab} onChange={setTab} />
-      </div>
-      {tab === 'my' ? (
-        <section className={`${CARD} mb-5 p-5`}>
-          <ModuleHeader
-            eyebrow="STEP 0"
-            title="관리할 자산 먼저 선택"
-            right={(
-              <button
-                type="button"
-                disabled={!selectedRow}
-                onClick={() => selectedSource.source_domain && setTab(tabForDomain(selectedSource.source_domain))}
-                className="h-9 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35"
-              >
-                선택한 데이터 수정 시작
-              </button>
-            )}
-          />
-          <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-            <label className="text-[12px] font-semibold text-[#A1A1AA]">
-              자산
-              <select value={managementAsset} onChange={(event) => setManagementAsset(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
-                {managementAssetOptions.map((option) => <option key={option} value={option}>{option === '전체' ? '전체 자산' : option}</option>)}
-              </select>
-            </label>
-            <label className="text-[12px] font-semibold text-[#A1A1AA]">
-              펀드
-              <select value={managementFund} onChange={(event) => setManagementFund(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
-                {managementFundOptions.map((option) => <option key={option} value={option}>{option === '전체' ? '전체 펀드' : option}</option>)}
-              </select>
-            </label>
-            <label className="text-[12px] font-semibold text-[#A1A1AA]">
-              검색
-              <input value={managementSearch} onChange={(event) => setManagementSearch(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none" placeholder="자산명, 펀드명, 시트, 값 검색" />
-            </label>
-          </div>
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px] text-[#86868B]" data-data-management-initial-selector="true">
-            <span data-data-management-igis-scope="true">{scopeLabel}</span>
-            <span>표시 {formatNumber(filteredRows.length)}행 / IGIS 범위 {formatNumber(scopedDomainRows.length)}행</span>
-            <span>{selectedRow ? `${sourceRowDisplayTitle(selectedRow)} 선택 가능` : '선택 가능한 대상 없음'}</span>
-          </div>
-        </section>
-      ) : null}
-      <section className={`${CARD} mb-5 p-5`}>
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
-          {[
-            ['1. 자산/펀드 선택', '권한이 있는 IGIS 자산 19개와 펀드 17개 범위에서 관리 대상을 먼저 좁힙니다.'],
-            ['2. 업무 선택', '임대차, 펀드/금융, 권한, 자산 스펙, 운영비용 중 고칠 데이터를 고릅니다.'],
-            ['3. 변경 검증', '현재값과 변경값을 나란히 보고 필수값, 단위, 중복, 권한 검증을 확인합니다.'],
-            ['4. 승인/반영', '승인 요청 후 승인 대기와 반영 이력에서 readback 결과까지 확인합니다.'],
-          ].map(([title, body]) => (
-            <div key={title} className={`${INNER} px-4 py-4`}>
-              <div className="text-[13px] font-semibold text-white">{title}</div>
-              <div className="mt-2 text-[12px] leading-5 text-[#A1A1AA]">{body}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-      {error ? <div className="mb-4 rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
-      {loading ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>데이터 관리 현황을 불러오는 중입니다.</div> : null}
-      {tab === 'my' ? (
-        <div className="space-y-5">
-          <section className="grid grid-cols-1 gap-3 md:grid-cols-4">
-            <MetricCard label="관리 자산" value={`${formatNumber(scopeAssetCount)}개`} detail="이지스자산운용 수정 대상" />
-            <MetricCard label="관리 펀드" value={`${formatNumber(scopeFundCount)}개`} detail="연결 펀드 수정 대상" />
-            <MetricCard label="표시 대상" value={`${formatNumber(filteredRows.length)}건`} detail="현재 선택 조건 기준" />
-            <MetricCard label="승인 대기" value={`${formatNumber(edits.filter((row) => row.status === 'submitted').length)}건`} detail="검토 후 반영" />
-          </section>
-          <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            {[
-              { id: 'lease', label: '임대차 데이터 수정', detail: '임차인, 계약조건, 면적, 상/저온 등 운영 데이터' },
-              { id: 'fund', label: '펀드/금융 데이터 수정', detail: '펀드명, 대주, tranche, 금리, 만기 등 금융 데이터' },
-              { id: 'spec', label: '자산 스펙 수정', detail: '주소, 규모, Dock, 층고, 설비 등 자산 스펙 데이터' },
-              { id: 'cost', label: '운영비용 수정', detail: 'PM/FM, 보험료, Utility 등 비용 데이터' },
-              { id: 'permission', label: '권한/사용자 수정', detail: '담당자, 외부 PM, 승인 권한 관리' },
-              { id: 'approval', label: '승인 대기 확인', detail: '요청된 변경의 승인, 반려, readback 처리' },
-            ].map((item) => (
-              <button key={item.id} type="button" onClick={() => setTab(item.id)} className={`${INNER} px-4 py-4 text-left hover:bg-[#262626]`}>
-                <div className="text-[13px] font-semibold text-white">{item.label}</div>
-                <div className="mt-2 text-[12px] leading-5 text-[#A1A1AA]">{item.detail}</div>
-                <div className="mt-3 text-[11px] font-semibold text-[#9AD7FF]">선택한 자산/펀드 범위에서 열기</div>
-              </button>
-            ))}
-          </section>
-        </div>
-      ) : null}
+    <div className="w-full max-w-[1680px] mx-auto px-8 pt-8 pb-14">
+      <ModuleHeader
+        eyebrow="DATA MANAGEMENT"
+        title="데이터 관리"
+        right={<button type="button" onClick={() => reload({}, { force: true })} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[13px] font-semibold text-white hover:bg-white/5">데이터 다시 읽기</button>}
+      />
 
-      {['lease', 'fund', 'permission', 'spec', 'cost'].includes(tab) ? (
-        <div className="space-y-5">
-          <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="STEP 1" title="자산/펀드 선택" />
-            <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
-              <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                자산
-                <select value={managementAsset} onChange={(event) => setManagementAsset(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
-                  {managementAssetOptions.map((option) => <option key={option} value={option}>{option === '전체' ? '전체 자산' : option}</option>)}
-                </select>
-              </label>
-              <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                펀드
-                <select value={managementFund} onChange={(event) => setManagementFund(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
-                  {managementFundOptions.map((option) => <option key={option} value={option}>{option === '전체' ? '전체 펀드' : option}</option>)}
-                </select>
-              </label>
-              <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                검색
-                <input value={managementSearch} onChange={(event) => setManagementSearch(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none" placeholder="자산명, 펀드명, 시트, 값 검색" />
-              </label>
+      <section className={`${CARD} mb-5 p-4`} data-data-management-initial-selector="true">
+        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_460px]">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">현재 공간</div>
+                <div className="mt-1 text-[18px] font-bold text-white">{activeSpaceLabel}</div>
+                <div className="mt-1 text-[12px] text-[#A1A1AA]">{activeWorkbenchArea.detail}</div>
+              </div>
+              <div className="rounded-[10px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[12px] text-[#D1D1D6]">
+                {activeWorkbenchArea.group === 'ops'
+                  ? '시스템·운영 Data는 승인 대기와 반영 이력을 함께 보여줍니다.'
+                  : isMarketWorkbench
+                    ? '시장 Data는 자산/펀드 선택 없이 전용 필터로만 탐색합니다.'
+                    : '이지스 Data는 자산-펀드 묶음으로만 범위를 좁힙니다.'}
+              </div>
             </div>
-            <div className="mt-3 text-[12px] text-[#86868B]" data-data-management-selector-count="true">
-              {scopeLabel} · IGIS 범위 {formatNumber(scopedDomainRows.length)}행 중 {formatNumber(filteredRows.length)}행 표시
-            </div>
-          </section>
-          <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="STEP 2" title={`${tabs.find((item) => item.id === tab)?.label} 변경 요청`} />
-            {rowAccessMessage ? (
-              <div className={`${INNER} px-4 py-5 text-[13px] leading-6 text-[#A1A1AA]`}>
-                {rowAccessMessage}
+            {isMarketWorkbench ? (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                <div className="rounded-[10px] border border-[#3A3A3C] bg-[#171717] px-3 py-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">시장 Data 범위</div>
+                  <div className="mt-1 text-[12px] font-semibold text-white">자산/펀드 선택 없이 물류 시장 원천 데이터를 관리합니다.</div>
+                </div>
+                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                  통합 검색
+                  <input value={managementSearch} onChange={(event) => setManagementSearch(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="시트명, 원천값, 주소 검색" />
+                </label>
+              </div>
+            ) : activeWorkbenchArea.group === 'ops' ? (
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+                <div className="rounded-[10px] border border-[#3A3A3C] bg-[#171717] px-3 py-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">시스템·운영 범위</div>
+                  <div className="mt-1 text-[12px] font-semibold text-white">승인 대기와 반영 이력을 한 화면에서 검토합니다.</div>
+                </div>
+                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                  통합 검색
+                  <input value={managementSearch} onChange={(event) => setManagementSearch(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="대상, 필드, 요청자 검색" />
+                </label>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className={`${INNER} p-4`} data-data-management-edit-grid="true">
-                  <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="text-[13px] font-semibold text-white">엑셀형 빠른 편집</div>
-                      <div className="mt-1 text-[12px] text-[#86868B]">표 안의 셀을 바로 수정하면 변경분이 쌓이고, 아래 버튼으로 한 번에 승인 요청합니다.</div>
-                    </div>
-                    <div className="text-[12px] text-[#A1A1AA]">변경 대기 {formatNumber(managementDraftEntries.length)}건</div>
-                  </div>
-                  <div className="custom-scrollbar max-h-[420px] overflow-auto rounded-[12px] border border-[#333333]">
-                    <table className="min-w-[1480px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
-                      <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
-                        <tr>
-                          <th className="sticky left-0 z-40 w-[260px] border-b border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">관리 대상</th>
-                          {managementGridFields.map((field) => (
-                            <th key={field} className="w-[170px] border-b border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
-                              <span className="block truncate" title={fieldDisplayLabel(field)}>{fieldDisplayLabel(field)}</span>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[#303033]">
-                        {managementGridRows.length ? managementGridRows.map((row) => (
-                          <tr key={row.source_row_id} className="bg-[#171717] text-[#E5E5E5] hover:bg-[#1F1F1F]">
-                            <td className="sticky left-0 z-20 w-[260px] border-r border-[#303033] bg-inherit px-3 py-2 align-top">
-                              <button type="button" onClick={() => setSelectedRowId(row.source_row_id)} className="block max-w-[230px] truncate text-left font-semibold text-white" title={sourceRowDisplayTitle(row)}>
-                                {sourceRowDisplayTitle(row)}
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
+                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                  자산-펀드 묶음 · 자산
+                  <select value={managementAsset} onChange={(event) => setManagementAsset(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none">
+                    {managementAssetOptions.map((option) => <option key={option} value={option}>{option === MANAGEMENT_ALL_OPTION ? '전체 자산' : option}</option>)}
+                  </select>
+                </label>
+                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                  자산-펀드 묶음 · 연결 펀드
+                  <select value={managementFund} onChange={(event) => setManagementFund(event.target.value)} disabled={isFundLockedByAsset} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none disabled:cursor-not-allowed disabled:opacity-70">
+                    {managementFundOptions.map((option) => <option key={option} value={option}>{option === MANAGEMENT_ALL_OPTION ? '전체 펀드' : option}</option>)}
+                  </select>
+                  <span className="mt-1 block truncate text-[11px] normal-case tracking-normal text-[#86868B]">{managementAsset === MANAGEMENT_ALL_OPTION ? '자산을 선택하면 연결 펀드가 자동으로 좁혀집니다.' : linkedFundDisplay}</span>
+                </label>
+                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                  통합 검색
+                  <input value={managementSearch} onChange={(event) => setManagementSearch(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="자산, 펀드, 임차인, 시트명" />
+                </label>
+              </div>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-data-management-selector-count="true">
+            <MetricCard label="관리 자산" value={formatNumber(workbenchScopeAssetCount)} detail="이지스자산운용" />
+            <MetricCard label="관리 펀드" value={formatNumber(workbenchScopeFundCount)} detail="이지스자산운용" />
+            <MetricCard label="표시 행" value={formatNumber(filteredRows.length)} detail="현재 조건" />
+            <MetricCard label="승인 대기" value={formatNumber(pendingEditRows.length)} detail="검토 필요" />
+          </div>
+        </div>
+        <div className="mt-3 text-[12px] text-[#A1A1AA]" data-data-management-igis-scope="true">
+          이지스자산운용 관리 범위: 자산 {formatNumber(workbenchScopeAssetCount)}개 / 펀드 {formatNumber(workbenchScopeFundCount)}개
+        </div>
+      </section>
+
+      {error ? <div className="mb-5 rounded-[10px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[12px] text-[#FFD479]">{error}</div> : null}
+      {loading && !data ? <div className={`${CARD} mb-5 p-5 text-[13px] text-[#A1A1AA]`}>데이터 관리 워크벤치를 불러오는 중입니다.</div> : null}
+
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[270px_minmax(0,1fr)_360px]">
+        <aside className={`${CARD} p-4`}>
+          <div className="mb-3 text-[13px] font-bold text-white">ll_ 전체 업무 데이터</div>
+          <div className="space-y-2">
+            {[
+              ['이지스 Data', igisWorkbenchAreas],
+              ['시장 Data', marketWorkbenchAreas],
+              ['시스템·운영 Data', systemWorkbenchAreas],
+            ].map(([groupLabel, areas]) => (
+              <div key={groupLabel} className="space-y-2">
+                <div className="px-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{groupLabel}</div>
+                {areas.map((area) => {
+                  const stats = domainStats.find((row) => row.source_domain === area.domain) || {};
+                  const active = tab === area.id;
+                  return (
+                    <button
+                      key={area.id}
+                      type="button"
+                      onClick={() => setTab(area.id)}
+                      className={`${active ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#D1D1D6] hover:border-[#5A5A5C]'} w-full rounded-[10px] border px-3 py-3 text-left transition`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-[12px] font-bold">{area.label}</span>
+                        <span className="text-[11px] opacity-70">{formatNumber(countRowsForArea(area) || stats.total_rows || 0)}</span>
+                      </div>
+                      <div className="mt-1 line-clamp-2 text-[11px] leading-4 opacity-70">{area.detail}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setTab('approval')} className={`${tab === 'approval' ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#D1D1D6]'} h-9 rounded-[8px] border text-[12px] font-semibold`}>승인 대기</button>
+            <button type="button" onClick={() => setTab('history')} className={`${tab === 'history' ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#D1D1D6]'} h-9 rounded-[8px] border text-[12px] font-semibold`}>반영 이력</button>
+          </div>
+        </aside>
+
+        <section className={`${CARD} min-w-0 p-4`}>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[18px] font-bold text-white">{activeWorkbenchMode === 'system' ? '시스템·운영 Data' : activeWorkbenchArea.label}</div>
+              <div className="mt-1 text-[12px] text-[#A1A1AA]">{activeWorkbenchMode === 'grid' ? activeWorkbenchArea.detail : '승인 요청과 실제 반영 결과를 한 화면에서 확인합니다.'}</div>
+            </div>
+            <div className="flex gap-2 text-[11px] text-[#86868B]">
+              <span>{accessScope === 'manager_full_source' ? '전체 관리 권한' : '담당 자산 권한'}</span>
+              <span>·</span>
+              <span>{formatNumber(filteredRows.length)}행</span>
+            </div>
+          </div>
+
+          {activeWorkbenchMode === 'system' ? (
+            <div className="space-y-4">
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-[12px] font-semibold text-white">승인 대기</div>
+                  <div className="text-[11px] text-[#86868B]">{formatNumber(pendingEditRows.length)}건</div>
+                </div>
+                <SortableTable
+                  minWidth={1040}
+                  maxHeight={320}
+                  stickyCount={1}
+                  defaultSort={{ key: 'created_at', direction: 'desc' }}
+                  columns={workbenchApprovalColumns}
+                  rows={pendingEditRows}
+                  onRowClick={(row) => setSelectedEditRequestId(row.request_id || row.id || '')}
+                />
+              </div>
+              <div>
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <div className="text-[12px] font-semibold text-white">반영 이력</div>
+                  <div className="text-[11px] text-[#86868B]">{formatNumber(historyEditRows.length)}건</div>
+                </div>
+                <SortableTable
+                  minWidth={1040}
+                  maxHeight={260}
+                  stickyCount={1}
+                  defaultSort={{ key: 'updated_at', direction: 'desc' }}
+                  columns={workbenchHistoryColumns}
+                  rows={historyEditRows.length ? historyEditRows : edits}
+                  onRowClick={(row) => setSelectedEditRequestId(row.request_id || row.id || '')}
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              {workbenchRowMessage ? <div className="mb-3 rounded-[10px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 py-3 text-[12px] text-[#A1A1AA]">{workbenchRowMessage}</div> : null}
+              {managementGridRows.length ? (
+                <div className="custom-scrollbar max-h-[640px] overflow-auto rounded-[10px] border border-[#333333]" data-sortable-table="true" data-data-management-edit-grid="true">
+                  <table className="w-full min-w-[1120px] border-collapse text-left text-[12px]">
+                    <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[11px] uppercase tracking-[0.04em] text-[#A1A1AA]">
+                      <tr>
+                        <th className="sticky left-0 z-30 w-[220px] border-b border-[#333333] bg-[#1F1F1E] px-3 py-3">수정 대상</th>
+                        <th className="w-[130px] border-b border-[#333333] px-3 py-3">영역</th>
+                        {managementGridFields.map((field) => <th key={field} className="min-w-[150px] border-b border-[#333333] px-3 py-3">{fieldDisplayLabel(field)}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {managementGridRows.map((row) => {
+                        const domain = sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain;
+                        return (
+                          <tr key={row.source_row_id} className={`${selectedRow?.source_row_id === row.source_row_id ? 'bg-[#242B32]' : 'bg-[#171717]'} border-b border-[#2A2A29] hover:bg-[#222222]`}>
+                            <td className="sticky left-0 z-10 max-w-[220px] bg-inherit px-3 py-3 align-top">
+                              <button type="button" onClick={() => setSelectedRowId(row.source_row_id)} className="block w-full text-left">
+                                <div className="truncate font-bold text-white">{sourceRowDisplayTitle(row)}</div>
+                                <div className="mt-1 truncate text-[11px] text-[#86868B]">{sourceRowDisplaySummary(row)}</div>
                               </button>
-                              <div className="mt-1 max-w-[230px] truncate text-[11px] text-[#86868B]" title={sourceRowDisplaySummary(row)}>{sourceRowDisplaySummary(row)}</div>
                             </td>
+                            <td className="px-3 py-3 align-top text-[#D1D1D6]">{sourceDomainLabel(domain)}</td>
                             {managementGridFields.map((field) => {
-                              const key = gridCellKey(row.source_row_id, field);
                               const beforeValue = gridCellBeforeValue(row, field);
+                              const key = gridCellKey(row.source_row_id, field);
                               const draftValue = Object.prototype.hasOwnProperty.call(gridDrafts, key) ? gridDrafts[key] : beforeValue;
                               const changed = text(draftValue, '') !== beforeValue;
                               return (
-                                <td key={field} className={`w-[170px] border-r border-[#242426] p-1.5 align-top ${changed ? 'bg-[#1E2A1B]' : ''}`}>
+                                <td key={field} className="min-w-[150px] px-2 py-2 align-top">
                                   <textarea
-                                    value={draftValue}
-                                    onChange={(event) => setGridCellDraft(row, field, event.target.value)}
-                                    onFocus={() => { setSelectedRowId(row.source_row_id); setSelectedField(field); setAfterValue(draftValue); }}
-                                    className={`h-12 w-full resize-none rounded-[7px] border px-2 py-1.5 text-[12px] outline-none ${changed ? 'border-[#6EA86B] bg-[#142014] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111]'}`}
-                                    title={`${fieldDisplayLabel(field)}: ${formatDisplayValue(draftValue, field)}`}
+                                    value={text(draftValue, '')}
+                                    readOnly={gridUsesFallback}
+                                    onFocus={() => {
+                                      if (gridUsesFallback) return;
+                                      setSelectedRowId(row.source_row_id);
+                                      setSelectedField(field);
+                                      setAfterValue(text(draftValue, ''));
+                                    }}
+                                    onChange={(event) => {
+                                      if (gridUsesFallback) return;
+                                      setGridCellDraft(row, field, event.target.value);
+                                    }}
+                                    rows={2}
+                                    className={`${gridUsesFallback ? 'cursor-not-allowed border-[#2E2E2E] bg-[#141414] text-[#8A8A8A]' : changed ? 'border-[#9AD7FF] bg-[#182535]' : 'border-transparent bg-transparent'} h-[54px] w-full resize-none rounded-[7px] border px-2 py-1 text-[12px] text-white outline-none focus:border-[#9AD7FF] focus:bg-[#1F1F1E]`}
                                   />
                                 </td>
                               );
                             })}
                           </tr>
-                        )) : (
-                          <tr>
-                            <td colSpan={managementGridFields.length + 1} className="bg-[#171717] px-3 py-8 text-center text-[#86868B]">표시할 관리 대상이 없습니다.</td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[1fr_auto] xl:items-end">
-                    <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                      일괄 승인 요청 사유
-                      <input value={gridReason} onChange={(event) => setGridReason(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none focus:border-[#8E8E93]" placeholder="예: 분기 실사 자료 반영, PM 제출 자료 반영" />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={submitDraftEdits}
-                      disabled={!managementDraftEntries.length}
-                      className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                      변경분 승인 요청
-                    </button>
-                  </div>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
-                <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-                <div className={`${INNER} p-4`}>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                      수정 대상
-                      <select value={selectedRow?.source_row_id || ''} onChange={(event) => setSelectedRowId(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
-                        {filteredRows.slice(0, 200).map((row) => (
-                          <option key={row.source_row_id} value={row.source_row_id}>{sourceDomainLabel(sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain)} · {sourceRowDisplayTitle(row)}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                      수정 필드
-                      <select value={selectedField} onChange={(event) => { setSelectedField(event.target.value); setAfterValue(''); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none">
-                        {editableFields.length ? editableFields.map((field) => <option key={field} value={field}>{fieldDisplayLabel(field)}</option>) : <option value="">표시 가능한 필드 없음</option>}
-                      </select>
-                    </label>
-                  </div>
-                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                      변경 전
-                      <textarea value={currentBeforeDisplayValue} readOnly className="mt-2 h-24 w-full resize-none rounded-[8px] border border-[#333333] bg-[#151515] px-3 py-2 text-[13px] text-[#C7C7CC] outline-none" />
-                    </label>
-                    <label className="text-[12px] font-semibold text-[#A1A1AA]">
-                      변경 후
-                      <textarea value={afterValue} onChange={(event) => setAfterValue(event.target.value)} className="mt-2 h-24 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[13px] text-white outline-none focus:border-[#8E8E93]" />
-                    </label>
-                  </div>
-                  <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
-                    수정 사유
-                    <input value={reason} onChange={(event) => setReason(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none focus:border-[#8E8E93]" placeholder="예: PM 제출 자료 반영, 분기 Excel 업데이트" />
-                  </label>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={submitEdit}
-                      disabled={!hasPendingChange || previewLoading || previewErrors.length > 0}
-                      className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35"
-                    >
-                      {previewLoading ? '검증 중' : '승인 요청 저장'}
-                    </button>
-                    {submitStatus ? <span className={`text-[12px] ${submitStatus.type === 'error' ? 'text-[#FF9F9F]' : submitStatus.type === 'success' ? 'text-[#B5E48C]' : 'text-[#A1A1AA]'}`}>{submitStatus.message}</span> : null}
-                  </div>
-                </div>
-                <div className={`${INNER} p-4`}>
-                  <div className="text-[13px] font-semibold text-white">저장 전 영향 범위</div>
-                  <div className="mt-3 space-y-2 text-[12px] leading-5 text-[#A1A1AA]">
-                    <div>업무: {sourceDomainLabel(selectedSource.source_domain || domainForTab)}</div>
-                    <div>관리 대상: {selectedRow ? sourceRowDisplayTitle(selectedRow) : '-'}</div>
-                    <div>필드: {selectedField ? fieldDisplayLabel(selectedField) : '-'}</div>
-                    <div>상태: {hasPendingChange ? '변경 감지' : '변경 없음'}</div>
-                    <div>승인 대기: {formatNumber(selectedDomainStats.pending_edits || 0)}건</div>
-                    <div>반영 방식: {preview?.auto_write_enabled ? '승인 후 자동 readback/반영 가능' : '승인 요청 검토 필요'}</div>
-                  </div>
-                  {hasPendingChange ? (
-                    <div className="mt-4 rounded-[10px] border border-[#333333] bg-[#171717] p-3">
-                      <div className="text-[12px] font-semibold text-white">저장 전 검증</div>
-                      {previewLoading ? (
-                        <div className="mt-2 text-[12px] text-[#A1A1AA]">검증 중입니다.</div>
-                      ) : safeArray(preview?.validations).length ? (
-                        <div className="mt-2 space-y-1">
-                          {safeArray(preview?.validations).map((item, index) => (
-                            <div key={`${item.code || 'validation'}-${index}`} className={`text-[12px] leading-5 ${item.level === 'error' ? 'text-[#FF9F9F]' : item.level === 'warning' ? 'text-[#FFD479]' : 'text-[#A1A1AA]'}`}>
-                              {text(item.message)}
-                            </div>
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="mt-2 text-[12px] text-[#A1A1AA]">검증 오류가 없습니다.</div>
-                      )}
-                    </div>
-                  ) : null}
-                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">Before</div>
-                      <div className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-[#C7C7CC]">{currentBeforeDisplayValue || '-'}</div>
-                    </div>
-                    <div className={`rounded-[10px] border p-3 ${hasPendingChange ? 'border-[#4B5563] bg-[#182018]' : 'border-[#333333] bg-[#171717]'}`}>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">After</div>
-                      <div className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap break-words text-[12px] leading-5 text-white">{afterDisplayValue || '-'}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              </div>
-            )}
-          </section>
-          <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="STEP 3" title="수정 대상 목록" />
-            <Table
-              minWidth={1180}
-              maxHeight={460}
-              stickyCount={1}
-              columnWidths={[140, 300, 620, 120]}
-              headers={['업무', '관리 대상', '현재값 요약', '검증']}
-              rows={sourcePreviewRows}
-            />
-          </section>
-        </div>
-      ) : null}
-
-      {tab === 'approval' ? (
-        <section className={`${CARD} p-5`}>
-          <ModuleHeader eyebrow="APPROVAL" title="승인 대기" />
-          <SortableTable
-            minWidth={1180}
-            stickyCount={2}
-            defaultSort={{ key: 'created_at', direction: 'desc' }}
-            columns={[
-              { key: 'source_domain', label: '구분', width: 130, render: (row) => sourceDomainLabel(row.source_domain) },
-              { key: 'target_name', label: '대상', width: 220, render: (row) => publicDisplayText(row.target_name) },
-              { key: 'field_name', label: '필드', width: 150, render: (row) => fieldDisplayLabel(row.field_name) },
-              { key: 'before_value', label: '변경 전', width: 180, render: (row) => formatDisplayValue(row.before_value, row.field_name) },
-              { key: 'requested_value', label: '변경 후', width: 180, render: (row) => formatDisplayValue(row.requested_value, row.field_name) },
-              { key: 'write_status', label: '상태', width: 150, render: (row) => text(row.write_status || row.status) },
-              { key: 'requester_label', label: '요청자', width: 180, render: (row) => text(row.requester_label, '요청자') },
-              { key: 'created_at', label: '생성일', width: 120, render: (row) => formatDate(row.created_at), sortValue: (row) => text(row.created_at) },
-              {
-                key: 'actions',
-                label: '처리',
-                width: 240,
-                sortable: false,
-                render: (row) => {
-                  const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload : {};
-                  const autoWrite = payload.auto_write_enabled === true;
-                  return data?.can_approve ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      <button type="button" disabled={!autoWrite} onClick={(event) => { event.stopPropagation(); reviewEdit('readback', row); }} className="h-7 rounded-[7px] border border-[#3A3A3C] px-2 text-[11px] font-semibold text-white disabled:opacity-30">Readback</button>
-                      <button type="button" disabled={!autoWrite} onClick={(event) => { event.stopPropagation(); reviewEdit('approve', row); }} className="h-7 rounded-[7px] border border-[#3A3A3C] bg-white px-2 text-[11px] font-bold text-[#1F1F1E] disabled:opacity-30">승인</button>
-                      <button type="button" onClick={(event) => { event.stopPropagation(); reviewEdit('reject', row); }} className="h-7 rounded-[7px] border border-[#3A3A3C] px-2 text-[11px] font-semibold text-[#A1A1AA]">반려</button>
-                    </div>
-                  ) : <span className="text-[12px] text-[#86868B]">권한 없음</span>;
-                },
-              },
-            ]}
-            rows={edits.filter((row) => row.status === 'submitted')}
-          />
-          {submitStatus ? <div className={`mt-3 text-[12px] ${submitStatus.type === 'error' ? 'text-[#FF9F9F]' : submitStatus.type === 'success' ? 'text-[#B5E48C]' : 'text-[#A1A1AA]'}`}>{submitStatus.message}</div> : null}
+              ) : null}
+            </div>
+          )}
         </section>
-      ) : null}
 
-      {tab === 'history' ? (
-        <div className="space-y-5">
-          <section className={`${CARD} p-5`}>
-            <ModuleHeader eyebrow="EDIT HISTORY" title="승인/반영 요청 이력" />
-            <Table
-              minWidth={1220}
-              headers={['구분', '대상', '필드', '변경 후', 'Readback', '처리상태', '승인자', '업데이트']}
-              rows={edits.map((row) => [
-                sourceDomainLabel(row.source_domain),
-                publicDisplayText(row.target_name),
-                fieldDisplayLabel(row.field_name),
-                formatDisplayValue(row.requested_value, row.field_name),
-                row.readback_value ? formatDisplayValue(row.readback_value, row.field_name) : text(row.readback_value, row.write_status === 'written' ? '확인 필요' : '-'),
-                text(row.write_status || row.status),
-                text(row.approver_label),
-                formatDate(row.written_at || row.updated_at || row.created_at),
-              ])}
-            />
-          </section>
+        <aside className={`${CARD} p-4`}>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="text-[13px] font-bold text-white">{activeWorkbenchMode === 'system' ? '승인·이력 검토' : '검증 및 승인 요청'}</div>
+            <span className="rounded-full border border-[#3A3A3C] px-2 py-1 text-[10px] text-[#A1A1AA]">{activeWorkbenchMode === 'system' ? formatNumber(pendingEditRows.length + historyEditRows.length) + '개 요청' : formatNumber(managementDraftEntries.length) + '개 변경'}</span>
+          </div>
+          <div className="space-y-4">
+            {activeWorkbenchMode === 'system' ? (
+              <>
+                <div className={`${INNER} p-3`}>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">선택된 요청</div>
+                  <div className="mt-2 text-[13px] font-bold text-white">{selectedEditRequest ? text(selectedEditRequest.target_name || selectedEditRequest.target_type, '요청을 선택해 주세요') : '요청을 선택해 주세요'}</div>
+                  <div className="mt-1 text-[11px] text-[#A1A1AA]">
+                    {selectedEditRequest
+                      ? `${sourceDomainLabel(selectedEditRequest.source_domain)} · ${fieldDisplayLabel(selectedEditRequest.field_name)} · ${text(selectedEditRequest.write_status || selectedEditRequest.status, '-')}`
+                      : '행을 클릭하면 요청 상세와 처리 버튼이 표시됩니다.'}
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 gap-3">
+                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                    Before
+                    <textarea readOnly value={selectedEditRequest ? formatDisplayValue(selectedEditRequest.before_value, selectedEditRequest.field_name) : '-'} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-[#A1A1AA] outline-none" />
+                  </label>
+                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                    After
+                    <textarea readOnly value={selectedEditRequest ? formatDisplayValue(selectedEditRequest.requested_value, selectedEditRequest.field_name) : '-'} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-[#A1A1AA] outline-none" />
+                  </label>
+                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                    Readback
+                    <textarea readOnly value={selectedEditRequest ? formatDisplayValue(selectedEditRequest.readback_value, selectedEditRequest.field_name) : '-'} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-[#A1A1AA] outline-none" />
+                  </label>
+                </div>
+                <div className={`${INNER} p-3`}>
+                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">처리</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => selectedEditRequest && reviewEdit('readback', selectedEditRequest)} disabled={!selectedEditRequest} className="h-9 rounded-[8px] border border-[#3A3A3C] text-[12px] font-semibold text-[#D1D1D6] disabled:opacity-40">Readback 재확인</button>
+                    <button type="button" onClick={() => selectedEditRequest && reviewEdit('approve', selectedEditRequest)} disabled={!selectedEditRequest || !data?.can_approve} className="h-9 rounded-[8px] bg-white text-[12px] font-bold text-[#1F1F1E] disabled:opacity-40">승인</button>
+                    <button type="button" onClick={() => selectedEditRequest && reviewEdit('reject', selectedEditRequest)} disabled={!selectedEditRequest || !data?.can_approve} className="h-9 rounded-[8px] border border-[#5A2A2A] text-[12px] font-semibold text-[#FFB4B4] disabled:opacity-40">반려</button>
+                    <button type="button" onClick={() => setSelectedEditRequestId('')} className="h-9 rounded-[8px] border border-[#3A3A3C] text-[12px] font-semibold text-[#D1D1D6]">선택 해제</button>
+                  </div>
+                </div>
+                <div className={`${INNER} p-3`}>
+                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">상태 요약</div>
+                  <div className="text-[12px] text-[#A1A1AA]">
+                    {selectedEditRequest
+                      ? `요청자 ${text(selectedEditRequest.requested_by, '-')} · 생성 ${formatDateTime(selectedEditRequest.created_at)} · 최종 ${formatDateTime(selectedEditRequest.updated_at)}`
+                      : '승인 대기 또는 이력 항목을 클릭해 주세요.'}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={`${INNER} p-3`}>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">수정 대상</div>
+                  <div className="mt-2 text-[13px] font-bold text-white">{selectedRow ? sourceRowDisplayTitle(selectedRow) : '행을 선택해 주세요'}</div>
+                  <div className="mt-1 text-[11px] text-[#A1A1AA]">{selectedRow ? sourceDomainLabel(selectedSource.source_domain) + ' · ' + text(selectedRow.sheet_name, '-') : '-'}</div>
+                </div>
+                <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                  수정 필드
+                  <select value={selectedField} onChange={(event) => setSelectedField(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none">
+                    {editableFields.map((field) => <option key={field} value={field}>{fieldDisplayLabel(field)}</option>)}
+                  </select>
+                </label>
+                <div className="grid grid-cols-1 gap-3">
+                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                    Before
+                    <textarea readOnly value={currentBeforeDisplayValue} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-[#A1A1AA] outline-none" />
+                  </label>
+                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                    After
+                    <textarea data-data-management-after-value="true" value={afterValue} onChange={(event) => setInspectorAfterValue(event.target.value)} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[12px] text-white outline-none focus:border-[#9AD7FF]" />
+                  </label>
+                </div>
+                <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                  변경 사유
+                  <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={2} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[12px] text-white outline-none" placeholder="승인자가 이해할 수 있도록 수정 이유를 적어 주세요." />
+                </label>
+                <div className={`${INNER} p-3`}>
+                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">저장 전 검증</div>
+                  {previewLoading ? <div className="text-[12px] text-[#A1A1AA]">검증 중입니다.</div> : null}
+                  {!previewLoading && !preview ? <div className="text-[12px] text-[#86868B]">After 값을 바꾸면 권한, 필수값, 단위, 대상 매핑을 확인합니다.</div> : null}
+                  {safeArray(preview?.validations).map((item) => (
+                    <div key={(item.code || '') + (item.message || '')} className={`${item.level === 'error' ? 'text-[#FF9F9F]' : item.level === 'warning' ? 'text-[#FFD166]' : 'text-[#9AD7FF]'} mt-2 text-[12px] leading-5`}>
+                      {item.message || item.code}
+                    </div>
+                  ))}
+                  {preview?.target ? <div className="mt-2 text-[12px] text-[#A1A1AA]">반영 방식: 승인 후 연결된 업무 테이블에 readback 검증</div> : null}
+                </div>
+                <button type="button" onClick={submitEdit} disabled={!hasPendingChange || previewErrors.length > 0 || previewLoading} className="h-10 w-full rounded-[8px] bg-white text-[13px] font-bold text-[#1F1F1E] disabled:opacity-40">선택 셀 승인 요청</button>
+                <div className={`${INNER} p-3`}>
+                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">변경 바구니</div>
+                  <div className="max-h-[180px] space-y-2 overflow-y-auto">
+                    {managementDraftEntries.length ? managementDraftEntries.slice(0, 12).map((entry) => (
+                      <button key={entry.key} type="button" onClick={() => { setSelectedRowId(entry.row.source_row_id); setSelectedField(entry.field); setAfterValue(entry.requestedValue); }} className="block w-full rounded-[8px] border border-[#333333] px-3 py-2 text-left hover:border-[#5A5A5C]">
+                        <div className="truncate text-[12px] font-semibold text-white">{entry.title}</div>
+                        <div className="truncate text-[11px] text-[#A1A1AA]">{fieldDisplayLabel(entry.field)} · {formatDisplayValue(entry.beforeValue, entry.field)} → {formatDisplayValue(entry.requestedValue, entry.field)}</div>
+                      </button>
+                    )) : <div className="text-[12px] text-[#86868B]">수정한 셀이 여기에 쌓입니다.</div>}
+                  </div>
+                  <textarea value={gridReason} onChange={(event) => setGridReason(event.target.value)} rows={2} className="mt-3 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[12px] text-white outline-none" placeholder="일괄 요청 사유" />
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    <button type="button" onClick={() => setGridDrafts({})} className="h-9 rounded-[8px] border border-[#3A3A3C] text-[12px] font-semibold text-[#D1D1D6]">비우기</button>
+                    <button type="button" onClick={submitDraftEdits} disabled={!managementDraftEntries.length} className="h-9 rounded-[8px] bg-[#9AD7FF] text-[12px] font-bold text-[#111111] disabled:opacity-40">일괄 요청</button>
+                  </div>
+                </div>
+              </>
+            )}
+            {submitStatus ? <div className={`${submitStatus.type === 'error' ? 'border-[#5A2A2A] bg-[#2B1717] text-[#FFB4B4]' : submitStatus.type === 'success' ? 'border-[#2F5A3A] bg-[#172B1D] text-[#B5E48C]' : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#D1D1D6]'} rounded-[10px] border px-3 py-2 text-[12px]`}>{submitStatus.message}</div> : null}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+export function DataManagementDashboard() {
+  const [spaceKey, setSpaceKey] = useState('igis');
+  const [viewKey, setViewKey] = useState('lease_contracts');
+  const [bundleKey, setBundleKey] = useState(MANAGEMENT_ALL_OPTION);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState({ key: '', direction: 'asc' });
+  const [showAllFields, setShowAllFields] = useState(false);
+  const [selectedRowKey, setSelectedRowKey] = useState('');
+  const [selectedField, setSelectedField] = useState('');
+  const [draftValue, setDraftValue] = useState('');
+  const [reason, setReason] = useState('');
+  const [preview, setPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState(null);
+  const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews } = useEdgeData('data-management/views', {}, []);
+  const spaces = safeArray(viewCatalog?.workspaces);
+  const views = safeArray(viewCatalog?.views);
+  const bundles = safeArray(viewCatalog?.fund_asset_bundles);
+  const scope = viewCatalog?.management_scope || {};
+  const viewsForSpace = useMemo(() => views.filter((view) => view.workspace_key === spaceKey), [views, spaceKey]);
+  const selectedView = viewsForSpace.find((view) => view.view_key === viewKey) || viewsForSpace[0] || {};
+  const effectiveViewKey = text(selectedView.view_key || viewKey || 'lease_contracts');
+  const rowsPayload = useMemo(() => ({
+    space_key: spaceKey,
+    view_key: effectiveViewKey,
+    bundle_key: spaceKey === 'igis' && bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+    search,
+    page,
+    page_size: 80,
+    sort: sort.key ? [{ key: sort.key, direction: sort.direction }] : [],
+  }), [spaceKey, effectiveViewKey, bundleKey, search, page, sort.key, sort.direction]);
+  const { loading: rowsLoading, error: rowsError, data: rowsData, reload: reloadRows } = useEdgeData('data-management/view-rows', rowsPayload, [rowsPayload]);
+  const columns = safeArray(rowsData?.fields).filter((column) => column && !column.sensitive);
+  const visibleColumns = useMemo(() => (
+    showAllFields ? columns : columns.filter((column) => column.default_hidden !== true)
+  ), [columns, showAllFields]);
+  const columnGroups = useMemo(() => {
+    const groups = [];
+    visibleColumns.forEach((column) => {
+      const group = text(column.group, '기본정보');
+      const last = groups[groups.length - 1];
+      if (last && last.label === group) {
+        last.columns.push(column);
+      } else {
+        groups.push({ label: group, columns: [column] });
+      }
+    });
+    return groups;
+  }, [visibleColumns]);
+  const rows = safeArray(rowsData?.rows);
+  const pagination = rowsData?.pagination || {};
+  const selectedRow = rows.find((row) => row.row_key === selectedRowKey) || rows[0] || null;
+  const editableColumns = columns.filter((column) => column.editable === true);
+  const selectedColumn = columns.find((column) => column.field_key === selectedField || column.field === selectedField)
+    || editableColumns[0]
+    || columns[0]
+    || {};
+  const selectedFieldKey = text(selectedColumn.field_key || selectedColumn.field || selectedField);
+  const selectedDisplayValues = selectedRow?.display_values && typeof selectedRow.display_values === 'object' ? selectedRow.display_values : {};
+  const selectedEditValues = selectedRow?.edit_values && typeof selectedRow.edit_values === 'object' ? selectedRow.edit_values : {};
+  const beforeDisplayValue = selectedFieldKey ? text(selectedDisplayValues[selectedFieldKey], '') : '';
+  const beforeEditValue = selectedFieldKey ? (selectedEditValues[selectedFieldKey] ?? beforeDisplayValue ?? '') : '';
+  const beforeValue = text(beforeEditValue, '');
+  const hasChange = Boolean(selectedRow && selectedFieldKey && draftValue !== beforeValue);
+  const canEditSelected = Boolean(selectedRow?.row_key && selectedColumn.editable === true && selectedRow.editable !== false);
+  const capabilityLabel = (capability) => ({
+    approval_required: '승인 후 반영',
+    source_review_required: '원천 검토 요청',
+    feature_access_workflow: '권한 전용 workflow',
+    readback_only: '읽기 전용',
+  }[text(capability)] || '읽기 전용');
+  const writeModeLabel = capabilityLabel(rowsData?.view?.capability || selectedView.capability);
+
+  useEffect(() => {
+    const nextView = viewsForSpace[0]?.view_key || '';
+    if (nextView && !viewsForSpace.some((view) => view.view_key === viewKey)) {
+      setViewKey(nextView);
+      setPage(1);
+      setSelectedRowKey('');
+    }
+  }, [viewsForSpace.map((view) => view.view_key).join('|'), viewKey]);
+
+  useEffect(() => {
+    if (selectedRow && selectedRow.row_key !== selectedRowKey) setSelectedRowKey(selectedRow.row_key);
+  }, [selectedRow?.row_key, selectedRowKey]);
+
+  useEffect(() => {
+    const nextField = editableColumns[0]?.field_key || editableColumns[0]?.field || columns[0]?.field_key || columns[0]?.field || '';
+    if (nextField && !columns.some((column) => column.field_key === selectedField || column.field === selectedField)) {
+      setSelectedField(nextField);
+    }
+  }, [columns.map((column) => column.field_key || column.field).join('|'), selectedField]);
+
+  useEffect(() => {
+    setDraftValue(beforeValue);
+    setPreview(null);
+    setSubmitStatus(null);
+  }, [selectedRow?.row_key, selectedFieldKey, beforeValue]);
+
+  useEffect(() => {
+    let active = true;
+    if (!hasChange || !canEditSelected) {
+      setPreview(null);
+      setPreviewLoading(false);
+      return () => { active = false; };
+    }
+    setPreviewLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const result = await invoke('data-management/preview-edit', {
+          edit_mode: 'view_field',
+          view_key: effectiveViewKey,
+          row_key: selectedRow.row_key,
+          field_key: selectedFieldKey,
+          requested_value: draftValue,
+          revision_hash: selectedRow.revision_hash,
+          bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+          reason,
+        });
+        if (active) setPreview(result);
+      } catch (previewError) {
+        if (active) setPreview({ can_submit: false, validations: [{ level: 'error', message: previewError.message || '저장 전 검증에 실패했습니다.' }] });
+      } finally {
+        if (active) setPreviewLoading(false);
+      }
+    }, 350);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [hasChange, canEditSelected, effectiveViewKey, selectedRow?.row_key, selectedRow?.revision_hash, selectedFieldKey, draftValue, bundleKey, reason]);
+
+  const changeSort = (columnKey) => {
+    if (!columnKey) return;
+    setSort((current) => ({
+      key: columnKey,
+      direction: current.key === columnKey && current.direction === 'asc' ? 'desc' : 'asc',
+    }));
+    setPage(1);
+  };
+
+  const submitEdit = async () => {
+    if (!canEditSelected || !hasChange) {
+      setSubmitStatus({ type: 'error', message: '수정 가능한 행과 필드를 선택하고 변경 후 값을 입력해 주세요.' });
+      return;
+    }
+    const previewErrors = safeArray(preview?.validations).filter((item) => item.level === 'error');
+    if (previewLoading) {
+      setSubmitStatus({ type: 'pending', message: '저장 전 검증이 끝난 뒤 승인 요청할 수 있습니다.' });
+      return;
+    }
+    if (previewErrors.length) {
+      setSubmitStatus({ type: 'error', message: text(previewErrors[0].message, '검증 오류를 먼저 확인해 주세요.') });
+      return;
+    }
+    setSubmitStatus({ type: 'pending', message: '승인 요청을 저장하는 중입니다.' });
+    try {
+      await invoke('data-management/submit-edit', {
+        edit_mode: 'view_field',
+        view_key: effectiveViewKey,
+        row_key: selectedRow.row_key,
+        field_key: selectedFieldKey,
+        requested_value: draftValue,
+        revision_hash: selectedRow.revision_hash,
+        bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+        reason,
+      });
+      setSubmitStatus({ type: 'success', message: '승인 요청이 저장되었습니다. 우측 이력과 승인/감사 영역에서 readback 상태를 확인할 수 있습니다.' });
+      reloadRows({}, { force: true });
+      reloadViews({}, { force: true });
+    } catch (submitError) {
+      setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 저장에 실패했습니다.' });
+    }
+  };
+
+  const reloadAll = () => {
+    reloadViews({}, { force: true });
+    reloadRows({}, { force: true });
+  };
+
+  const currentRowCount = Number(pagination.total_estimate || rows.length || 0);
+
+  return (
+    <div className="space-y-5" data-data-management-redesign="true" data-data-management-view-contract="20260625-view-v1">
+      <ModuleHeader
+        eyebrow="DATA MANAGEMENT"
+        title="데이터 관리"
+        right={(
+          <button type="button" onClick={reloadAll} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93]">
+            데이터 다시 읽기
+          </button>
+        )}
+      />
+
+      <section className={`${CARD} p-5`}>
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_320px] xl:items-start">
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2" data-data-management-space-tabs="true">
+              {(spaces.length ? spaces : [
+                { key: 'igis', label: '이지스 Data' },
+                { key: 'market', label: '시장 Data' },
+                { key: 'operations', label: '시스템·운영 Data' },
+              ]).map((space) => (
+                <button
+                  key={space.key}
+                  type="button"
+                  onClick={() => { setSpaceKey(space.key); setViewKey(''); setPage(1); setSelectedRowKey(''); setBundleKey(MANAGEMENT_ALL_OPTION); setShowAllFields(false); }}
+                  className={`h-10 rounded-[8px] border px-4 text-[13px] font-semibold ${spaceKey === space.key ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#C7C7CC] hover:border-[#8E8E93]'}`}
+                >
+                  {space.label}
+                </button>
+              ))}
+            </div>
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(260px,420px)_1fr]">
+              {spaceKey === 'igis' ? (
+                <label className="text-[12px] font-semibold text-[#A1A1AA]">
+                  자산 · 펀드 묶음
+                  <select value={bundleKey} onChange={(event) => { setBundleKey(event.target.value); setPage(1); setSelectedRowKey(''); }} className="mt-2 h-11 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none">
+                    <option value={MANAGEMENT_ALL_OPTION}>전체 자산 · 펀드</option>
+                    {bundles.map((bundle) => (
+                      <option key={bundle.bundle_key} value={bundle.bundle_key}>{bundle.selection_label}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <div className={`${INNER} px-4 py-3 text-[12px] leading-5 text-[#A1A1AA]`}>
+                  {spaceKey === 'market' ? '시장 Data는 자산·펀드 선택 없이 원천 버전, 시트, 시점, 권역, 상·저온, 거래유형 중심으로 탐색합니다.' : '시스템·운영 Data는 일반 셀 편집 대신 readback, 이력, 전용 workflow 중심으로 확인합니다.'}
+                </div>
+              )}
+              <label className="text-[12px] font-semibold text-[#A1A1AA]">
+                통합 검색
+                <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} className="mt-2 h-11 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]" placeholder="자산, 펀드, 임차인, 주소, 시트명 검색" />
+              </label>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <MetricCard label="관리 자산" value={viewsLoading ? '조회 중' : `${formatNumber(scope.readable_asset_count || scope.asset_count || 0)}개`} />
+            <MetricCard label="관리 펀드" value={viewsLoading ? '조회 중' : `${formatNumber(scope.readable_fund_count || scope.fund_count || 0)}개`} />
+            <MetricCard label="업무 View" value={viewsLoading ? '조회 중' : `${formatNumber(views.length)}개`} />
+            <MetricCard label="현재 rows" value={rowsLoading ? '조회 중' : `${formatNumber(rows.length)}건`} />
+          </div>
         </div>
-      ) : null}
+      </section>
+
+      {viewsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{viewsError}</div> : null}
+      {rowsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{rowsError}</div> : null}
+
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[280px_minmax(0,1fr)_360px]">
+        <aside className={`${CARD} p-4`}>
+          <div className="mb-3 text-[13px] font-semibold text-white">업무 View</div>
+          <div className="space-y-2" data-data-management-domain-nav="true">
+            {viewsForSpace.map((view) => {
+              const active = view.view_key === effectiveViewKey;
+              return (
+                <button
+                  key={view.view_key}
+                  type="button"
+                  onClick={() => { setViewKey(view.view_key); setPage(1); setSelectedRowKey(''); setShowAllFields(false); }}
+                  className={`w-full rounded-[10px] border px-3 py-3 text-left ${active ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#333333] bg-[#1F1F1E] text-white hover:border-[#8E8E93]'}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[13px] font-bold">{view.label}</span>
+                    <span className={`text-[11px] ${active ? 'text-[#3A3A3C]' : 'text-[#A1A1AA]'}`}>{capabilityLabel(view.capability)}</span>
+                  </div>
+                  <div className={`mt-1 text-[11px] leading-4 ${active ? 'text-[#3A3A3C]' : 'text-[#86868B]'}`}>{text(view.description, '업무 단위로 정리한 데이터입니다.')}</div>
+                </button>
+              );
+            })}
+          </div>
+        </aside>
+
+        <section className={`${CARD} min-w-0 p-5`}>
+          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{text(selectedView.row_unit_label, '업무 View')}</div>
+              <h3 className="mt-1 text-[22px] font-bold text-white">{text(selectedView.label, '업무 데이터')}</h3>
+            </div>
+            <div className="text-right text-[12px] leading-5 text-[#A1A1AA]">
+              <div>{writeModeLabel}</div>
+              <div>{formatNumber(currentRowCount)}건 기준</div>
+            </div>
+          </div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3" data-data-management-table-tabs="true">
+            <div className="flex flex-wrap gap-2">
+            {viewsForSpace.map((view) => (
+              <button
+                key={view.view_key}
+                type="button"
+                onClick={() => { setViewKey(view.view_key); setPage(1); setSelectedRowKey(''); setShowAllFields(false); }}
+                className={`h-9 rounded-[8px] border px-3 text-[12px] font-semibold ${effectiveViewKey === view.view_key ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#C7C7CC] hover:border-[#8E8E93]'}`}
+              >
+                {view.label}
+              </button>
+            ))}
+            </div>
+            <button type="button" onClick={() => setShowAllFields((current) => !current)} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]">
+              {showAllFields ? '기본 컬럼만 보기' : '전체 컬럼 보기'}
+            </button>
+          </div>
+
+          <div className="overflow-hidden rounded-[12px] border border-[#333333]" data-data-management-grid="true">
+            <div className="max-h-[560px] overflow-auto">
+              <table className="w-full min-w-[1180px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
+                <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
+                  <tr>
+                    <th rowSpan={2} className="sticky left-0 z-40 w-[300px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">관리 대상</th>
+                    {columnGroups.map((group) => (
+                      <th key={group.label} colSpan={group.columns.length} className="border-b border-r border-[#333333] bg-[#202020] px-3 py-2 text-center text-[11px] font-bold text-[#D1D1D6]">
+                        {group.label}
+                      </th>
+                    ))}
+                  </tr>
+                  <tr>
+                    {visibleColumns.map((column) => {
+                      const key = text(column.field_key || column.field);
+                      const activeSort = sort.key === key;
+                      return (
+                        <th key={key} style={{ minWidth: column.width || 150 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                          <button type="button" onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
+                            <span className="truncate" title={text(column.label)}>{text(column.label)}</span>
+                            <span className="text-[10px] text-[#86868B]">{activeSort ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
+                          </button>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#303033]">
+                  {rows.length ? rows.map((row) => {
+                    const selected = row.row_key === selectedRow?.row_key;
+                    const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+                    const lookup = row.lookup_status && typeof row.lookup_status === 'object' ? row.lookup_status : {};
+                    return (
+                      <tr key={row.row_key} onClick={() => setSelectedRowKey(row.row_key)} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
+                        <td className="sticky left-0 z-20 w-[300px] border-r border-[#303033] bg-inherit px-3 py-2 align-top">
+                          <button type="button" className="block max-w-[270px] truncate text-left font-semibold text-white" title={text(row.row_label)}>{text(row.row_label, '행')}</button>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+                            <span className={lookup.status === 'missing' ? 'text-[#FFD479]' : lookup.status === 'exception_404' ? 'text-[#9AD7FF]' : 'text-[#B5E48C]'}>{text(lookup.label, '정상')}</span>
+                            <span className="text-[#86868B]">{row.editable ? '수정 요청 가능' : writeModeLabel}</span>
+                          </div>
+                        </td>
+                        {visibleColumns.map((column) => {
+                          const key = text(column.field_key || column.field);
+                          const cellChanged = selected && key === selectedFieldKey && hasChange;
+                          return (
+                            <td key={`${row.row_key}-${key}`} className={`max-w-[260px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''}`}>
+                              <button
+                                type="button"
+                                onClick={(event) => { event.stopPropagation(); setSelectedRowKey(row.row_key); setSelectedField(key); }}
+                                className="block w-full truncate text-left"
+                                title={formatDisplayValue(values[key], key)}
+                              >
+                                {formatDisplayValue(values[key], key)}
+                              </button>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={visibleColumns.length + 1} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
+                        {rowsLoading ? '데이터를 불러오는 중입니다.' : text(rowsData?.empty_state?.title, '현재 조건 0건입니다.')}
+                        {!rowsLoading ? <div className="mt-2 text-[12px] text-[#86868B]">{text(rowsData?.empty_state?.description, '다른 업무 View, 자산·펀드 묶음, 검색 조건을 선택해 주세요.')}</div> : null}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-[12px] text-[#A1A1AA]">
+            <div>페이지 {formatNumber(page)} · 표시 {formatNumber(rows.length)}건</div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1} className="h-8 rounded-[7px] border border-[#3A3A3C] px-3 font-semibold text-white disabled:opacity-35">이전</button>
+              <button type="button" onClick={() => setPage((current) => current + 1)} disabled={pagination.has_next === false || rows.length < 80} className="h-8 rounded-[7px] border border-[#3A3A3C] px-3 font-semibold text-white disabled:opacity-35">다음</button>
+            </div>
+          </div>
+        </section>
+
+        <aside className={`${CARD} p-5`} data-data-management-change-basket="true">
+          <ModuleHeader eyebrow="CHANGE BASKET" title="검증 및 승인 요청" />
+          <div className={`${INNER} mt-4 p-4`}>
+            <div className="text-[12px] font-semibold text-[#A1A1AA]">선택 행</div>
+            <div className="mt-2 text-[15px] font-bold text-white">{selectedRow ? text(selectedRow.row_label, '행') : '행을 선택해 주세요'}</div>
+            <div className="mt-1 text-[12px] text-[#86868B]">{text(selectedView.label)} · {writeModeLabel}</div>
+          </div>
+
+          <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
+            수정 필드
+            <select value={selectedFieldKey} onChange={(event) => setSelectedField(event.target.value)} disabled={!editableColumns.length} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none disabled:opacity-50">
+              {editableColumns.length ? editableColumns.map((column) => {
+                const key = text(column.field_key || column.field);
+                return <option key={key} value={key}>{text(column.group)} · {text(column.label)}</option>;
+              }) : <option value="">이 영역은 읽기 전용입니다</option>}
+            </select>
+          </label>
+          <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
+            변경 전
+            <textarea value={beforeDisplayValue} readOnly className="mt-2 h-24 w-full resize-none rounded-[8px] border border-[#333333] bg-[#151515] px-3 py-2 text-[13px] text-[#C7C7CC] outline-none" />
+          </label>
+          <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
+            변경 후
+            <textarea value={draftValue} onChange={(event) => setDraftValue(event.target.value)} disabled={!canEditSelected} className="mt-2 h-24 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[13px] text-white outline-none focus:border-[#8E8E93] disabled:opacity-45" placeholder={canEditSelected ? '수정할 값을 입력해 주세요.' : '수정 가능한 필드를 선택해 주세요.'} />
+          </label>
+          <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
+            변경 사유
+            <input value={reason} onChange={(event) => setReason(event.target.value)} disabled={!canEditSelected} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none focus:border-[#8E8E93] disabled:opacity-45" placeholder="승인자가 이해할 수 있는 수정 사유" />
+          </label>
+
+          <div className={`${INNER} mt-4 p-4`}>
+            <div className="text-[12px] font-semibold text-white">저장 전 검증</div>
+            {previewLoading ? (
+              <div className="mt-2 text-[12px] text-[#A1A1AA]">DB readback으로 현재 값을 다시 확인하는 중입니다.</div>
+            ) : safeArray(preview?.validations).length ? (
+              <div className="mt-2 space-y-1">
+                {safeArray(preview?.validations).map((item, index) => (
+                  <div key={`${item.code || 'validation'}-${index}`} className={`text-[12px] leading-5 ${item.level === 'error' ? 'text-[#FF9F9F]' : item.level === 'warning' ? 'text-[#FFD479]' : 'text-[#A1A1AA]'}`}>{text(item.message)}</div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2 text-[12px] text-[#A1A1AA]">{hasChange ? '검증 오류가 없습니다.' : '변경할 값을 입력하면 검증합니다.'}</div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={submitEdit}
+            disabled={!canEditSelected || !hasChange || previewLoading || safeArray(preview?.validations).some((item) => item.level === 'error')}
+            className="mt-4 h-11 w-full rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35"
+          >
+            승인 요청 저장
+          </button>
+          {submitStatus ? <div className={`mt-3 text-[12px] leading-5 ${submitStatus.type === 'error' ? 'text-[#FF9F9F]' : submitStatus.type === 'success' ? 'text-[#B5E48C]' : 'text-[#A1A1AA]'}`}>{submitStatus.message}</div> : null}
+        </aside>
+      </div>
     </div>
   );
 }

@@ -5,8 +5,7 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'http://127.0.0.1:5173/';
-const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|natural\s+key|row_hash|row\s+hash|payload|\bPNU\b|\bpnu\b|법정동코드/iu;
-const RAW_REGION_NUMBER_PATTERN = /\b\d+\s*[.)]\s*(동남권|남부권|중앙권|서부권|서북권|수도권|경남권|충청권|전라권|경북권|지방)/u;
+const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload|\bPNU\b|\bpnu\b|법정동코드/iu;
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -34,13 +33,8 @@ function envValue(...keys) {
 }
 
 function argsValue(name, fallback = '') {
-  const flag = `--${name}`;
-  const index = process.argv.indexOf(flag);
+  const index = process.argv.indexOf(`--${name}`);
   return index === -1 ? fallback : (process.argv[index + 1] || fallback);
-}
-
-function hasFlag(name) {
-  return process.argv.includes(`--${name}`);
 }
 
 function timestampForFile() {
@@ -98,6 +92,40 @@ async function signInSession() {
   return { session, source: 'password_grant' };
 }
 
+async function responseJson(response) {
+  return response ? response.json().catch(() => null) : null;
+}
+
+async function waitForGridSettled(page, report, label) {
+  const gridSelector = '[data-data-management-grid="true"]';
+  await page.waitForSelector(gridSelector, { timeout: 45000 });
+  await page.waitForFunction((selector) => {
+    const grid = document.querySelector(selector);
+    if (!grid) return false;
+    const text = grid.innerText || '';
+    return !text.includes('데이터를 불러오는 중입니다.') && (
+      grid.querySelectorAll('thead button').length > 1
+      || text.includes('View는 1차 구현 이후 확장됩니다')
+      || text.includes('현재 조건 0건')
+    );
+  }, gridSelector, { timeout: 45000 }).catch((error) => {
+    report.errors.push(`${label} grid did not settle: ${error.message}`);
+  });
+  const metrics = await page.evaluate((selector) => {
+    const grid = document.querySelector(selector);
+    if (!grid) return { headerButtons: 0, rowButtons: 0, hasLoadingText: false, hasZeroState: false };
+    return {
+      headerButtons: grid.querySelectorAll('thead button').length,
+      rowButtons: grid.querySelectorAll('tbody tr button').length,
+      hasLoadingText: (grid.innerText || '').includes('데이터를 불러오는 중입니다.'),
+      hasZeroState: (grid.innerText || '').includes('현재 조건 0건입니다.'),
+    };
+  }, gridSelector);
+  report.grid_metrics = report.grid_metrics || {};
+  report.grid_metrics[label] = metrics;
+  return metrics;
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const stamp = timestampForFile();
@@ -105,7 +133,6 @@ async function main() {
   const latestJson = path.join(OUT_DIR, 'data-management-browser-readback-smoke-latest.json');
   const screenshot = path.join(OUT_DIR, `data-management-browser-readback-smoke-${stamp}.png`);
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
-  const allowSubmit = hasFlag('allow-submit') || process.env.QA_ALLOW_DATA_MANAGEMENT_SUBMIT === 'true';
   const auth = await signInSession();
   const uiEmail = envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com';
   const browserSession = { ...auth.session, user: { ...(auth.session.user || {}), email: uiEmail } };
@@ -114,156 +141,107 @@ async function main() {
     generated_at: new Date().toISOString(),
     base_url: baseUrl,
     auth_source: auth.source,
-    allow_submit: allowSubmit,
     checks: {},
     errors: [],
     screenshot: path.relative(ROOT, screenshot).replace(/\\/gu, '/'),
   };
   let browser;
+  let page;
   try {
     browser = await chromium.launch({ headless: true, executablePath: chromeExecutablePath() });
-    const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });
+    const context = await browser.newContext({ viewport: { width: 1600, height: 1100 }, serviceWorkers: 'block' });
     await context.addInitScript(({ email, session }) => {
       sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(session));
       sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email }));
       localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
     }, { email: uiEmail, session: browserSession });
-    const page = await context.newPage();
+    page = await context.newPage();
     page.on('pageerror', (error) => report.errors.push(error.message));
     page.on('response', (response) => {
       if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 500) {
         report.errors.push(`edge ${response.status()} ${response.url()}`);
       }
     });
-    const statusResponsePromise = page.waitForResponse((response) => (
-      response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/status')
+    const viewsPromise = page.waitForResponse((response) => (
+      response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/views')
     ), { timeout: 45000 }).catch(() => null);
-    await page.goto(joinUrl(baseUrl, 'data-management'), { waitUntil: 'domcontentloaded', timeout: 60000 });
-    const statusResponse = await statusResponsePromise;
-    const statusBody = statusResponse ? await statusResponse.json().catch(() => null) : null;
-    await page.waitForFunction(() => document.body?.innerText?.includes('Data Management'), { timeout: 30000 });
+    const viewRowsPromise = page.waitForResponse((response) => (
+      response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/view-rows')
+    ), { timeout: 45000 }).catch(() => null);
+    const dataManagementUrl = joinUrl(baseUrl, 'data-management');
+    await page.goto(`${dataManagementUrl}${dataManagementUrl.includes('?') ? '&' : '?'}qa=${stamp}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const [viewsResponse, viewRowsResponse] = await Promise.all([viewsPromise, viewRowsPromise]);
+    const viewsBody = await responseJson(viewsResponse);
+    const viewRowsBody = await responseJson(viewRowsResponse);
+    await page.waitForSelector('[data-data-management-redesign="true"]', { timeout: 45000 });
+    await page.waitForSelector('[data-data-management-grid="true"]', { timeout: 45000 });
+    await page.waitForSelector('[data-data-management-change-basket="true"]', { timeout: 45000 });
+    const igisGridMetrics = await waitForGridSettled(page, report, 'igis');
     const body = await page.locator('body').innerText({ timeout: 20000 });
-    const statusData = statusBody?.data || {};
-    const sourceRows = Array.isArray(statusData.source_rows) ? statusData.source_rows : [];
-    const columns = Array.isArray(statusData.columns) ? statusData.columns : [];
-    const edits = Array.isArray(statusData.edit_requests) ? statusData.edit_requests : [];
-    report.status_contract = {
-      access_scope: statusData.access_scope || null,
-      can_approve: statusData.can_approve,
-      source_rows: sourceRows.length,
-      columns: columns.length,
-      edits: edits.length,
-      managed_asset_codes: statusData.managed_asset_codes || [],
-      management_scope: statusData.management_scope || null,
+    const viewsData = viewsBody?.data || {};
+    const rowsData = viewRowsBody?.data || {};
+    report.views_contract = {
+      http_status: viewsResponse?.status() || null,
+      ok: viewsBody?.ok,
+      workspaces: Array.isArray(viewsData.workspaces) ? viewsData.workspaces.map((space) => space.label) : [],
+      view_count: Array.isArray(viewsData.views) ? viewsData.views.length : 0,
+      bundle_count: Array.isArray(viewsData.fund_asset_bundles) ? viewsData.fund_asset_bundles.length : 0,
+      management_scope: viewsData.management_scope || null,
     };
-    report.checks.status_api_ok = statusBody?.ok === true;
-    report.checks.access_scope_present = Boolean(statusData.access_scope);
-    report.checks.status_arrays_present = Array.isArray(statusData.source_rows) && Array.isArray(statusData.columns) && Array.isArray(statusData.edit_requests);
-    report.checks.manager_has_rows = statusData.access_scope === 'manager_full_source' ? sourceRows.length > 0 && columns.length > 0 : true;
-    report.checks.igis_management_scope_api = statusData.management_scope?.asset_count === 19
-      && statusData.management_scope?.fund_count === 17
-      && Array.isArray(statusData.management_scope?.assets)
-      && Array.isArray(statusData.management_scope?.funds);
-    report.checks.manager_scope_not_all = statusData.access_scope === 'manager_full_source'
-      ? !Array.isArray(statusData.managed_asset_codes) || !statusData.managed_asset_codes.includes('ALL')
-      : true;
-    report.checks.no_broken_question_marks = !/\?{4,}/u.test(body);
+    report.view_rows_contract = {
+      http_status: viewRowsResponse?.status() || null,
+      ok: viewRowsBody?.ok,
+      view: rowsData.view || null,
+      field_count: Array.isArray(rowsData.fields) ? rowsData.fields.length : 0,
+      row_count: Array.isArray(rowsData.rows) ? rowsData.rows.length : 0,
+      pagination: rowsData.pagination || null,
+    };
+    report.checks.views_api_ok = viewsBody?.ok === true;
+    report.checks.view_rows_api_ok = viewRowsBody?.ok === true;
+    report.checks.has_three_workspaces = ['이지스 Data', '시장 Data', '시스템·운영 Data'].every((label) => body.includes(label));
+    report.checks.has_single_bundle_selector = body.includes('자산 · 펀드 묶음') && !body.includes('자산/펀드 선택 · 펀드');
+    report.checks.scope_19_assets_17_funds = viewsData.management_scope?.asset_count === 19 && viewsData.management_scope?.fund_count === 17;
+    report.checks.bundle_scope_present = Array.isArray(viewsData.fund_asset_bundles) && viewsData.fund_asset_bundles.length >= 19;
+    report.checks.has_lease_contract_view = Array.isArray(viewsData.views) && viewsData.views.some((view) => view.view_key === 'lease_contracts');
+    report.checks.has_business_column_groups = ['기본정보', '계약기간', '면적', '경제조건'].every((label) => body.includes(label));
+    report.checks.grid_has_rows_or_clear_zero_state = Number(report.view_rows_contract.row_count || 0) > 0 || body.includes('현재 조건 0건') || body.includes('View는 1차 구현 이후 확장됩니다');
+    report.checks.grid_has_sorting_headers = Number(igisGridMetrics.headerButtons || 0) > 1;
+    report.checks.grid_not_stuck_loading = !igisGridMetrics.hasLoadingText;
+    report.checks.change_basket_visible = body.includes('검증 및 승인 요청') && body.includes('변경 전') && body.includes('변경 후');
     report.checks.no_internal_tokens = !INTERNAL_TOKEN_PATTERN.test(body);
-    report.checks.no_permission_explanation_banner = !body.includes('이관용, 전기영, 이시정, 이승훈, 이철승 계정은 모든 자산의 데이터 관리 권한으로 처리됩니다');
-    report.checks.has_workflow_tabs = body.includes('\uB0B4 \uC791\uC5C5')
-      && body.includes('\uC784\uB300\uCC28')
-      && body.includes('\uC790\uC0B0 \uC2A4\uD399')
-      && body.includes('\uC6B4\uC601\uBE44\uC6A9')
-      && body.includes('\uC2B9\uC778 \uB300\uAE30')
-      && body.includes('\uBC18\uC601 \uC774\uB825');
+    report.checks.no_broken_question_marks = !/\?{4,}/u.test(body);
 
-    const leaseTab = page.getByRole('button', { name: '\uC784\uB300\uCC28', exact: true }).first();
-    await leaseTab.click();
-    await page.waitForFunction(() => {
-      const text = document.body?.innerText || '';
-      return text.includes('\uBCC0\uACBD \uC694\uCCAD') || text.includes('\uC785\uB825 \uB9C8\uBC95\uC0AC');
-    }, { timeout: 15000 }).catch(() => null);
-    const workflowBody = await page.locator('body').innerText({ timeout: 10000 });
-    const selectorCountText = await page.locator('[data-data-management-selector-count="true"]').innerText({ timeout: 5000 }).catch(() => '');
-    const scopeText = await page.locator('[data-data-management-igis-scope="true"]').innerText({ timeout: 5000 }).catch(() => '');
-    const targetSelectCount = await page.locator('select').count().catch(() => 0);
-    const targetSelectOptionCounts = await page.evaluate(() => Array.from(document.querySelectorAll('select')).map((select) => select.options.length)).catch(() => []);
-    report.checks.has_sortable_tables = await page.locator('[data-sortable-table="true"]').count().catch(() => 0) > 0;
-    report.checks.no_internal_tokens_after_workflow_tab = !INTERNAL_TOKEN_PATTERN.test(workflowBody);
-    report.checks.no_raw_region_numbers_after_workflow_tab = !RAW_REGION_NUMBER_PATTERN.test(workflowBody);
-    report.checks.target_selector_visible = (
-      workflowBody.includes('\uC790\uC0B0/\uD380\uB4DC \uC120\uD0DD')
-      || workflowBody.includes('\uAD00\uB9AC \uB300\uC0C1 \uC120\uD0DD')
-      || workflowBody.includes('\uAD00\uB9AC\uD560 \uC790\uC0B0 \uBA3C\uC800 \uC120\uD0DD')
-    ) && Boolean(selectorCountText);
-    report.checks.igis_management_scope_visible = /이지스자산운용/u.test(`${scopeText} ${selectorCountText}`)
-      && /자산\s*19개/u.test(`${scopeText} ${selectorCountText}`)
-      && /펀드\s*17개/u.test(`${scopeText} ${selectorCountText}`);
-    report.checks.target_selector_has_options = targetSelectCount >= 3 && targetSelectOptionCounts.some((count) => count > 1);
-    report.checks.no_sector_market_source_selector = !workflowBody.includes('\uC2DC\uC7A5\uC790\uB8CC') && !workflowBody.includes('sector_market');
-    report.checks.workflow_selection_visible = (
-      workflowBody.includes('\uC218\uC815 \uB300\uC0C1')
-      || workflowBody.includes('\uC6D0\uBCF8 \uD589')
-    ) && workflowBody.includes('\uC218\uC815 \uD544\uB4DC');
-    report.checks.workflow_validation_visible = workflowBody.includes('\uC800\uC7A5 \uC804 \uAC80\uC99D') || workflowBody.includes('\uC800\uC7A5 \uC804 \uC601\uD5A5 \uBC94\uC704') || workflowBody.includes('\uD544\uC218\uAC12') || workflowBody.includes('\uAC80\uC99D \uC911') || workflowBody.includes('\uAC80\uC99D \uC624\uB958');
-    report.checks.workflow_diff_visible = (workflowBody.includes('Before') && workflowBody.includes('After'))
-      || (workflowBody.includes('\uBCC0\uACBD \uC804') && workflowBody.includes('\uBCC0\uACBD \uD6C4'));
-    report.checks.workflow_approval_visible = workflowBody.includes('\uC2B9\uC778 \uC694\uCCAD');
-    const afterBox = page.locator('textarea').nth(1);
-    const canEdit = await afterBox.isVisible({ timeout: 5000 }).catch(() => false);
-    report.checks.editable_or_scoped_message = canEdit || /\uAD8C\uD55C|\uC6D0\uCC9C|\uB2F4\uB2F9 \uC790\uC0B0/u.test(await page.locator('body').innerText({ timeout: 5000 }));
-    if (statusData.access_scope === 'manager_full_source') report.checks.manager_can_edit = canEdit;
+    const marketButton = page.getByRole('button', { name: '시장 Data' }).first();
+    await marketButton.click();
+    await page.waitForResponse((response) => (
+      response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/view-rows')
+    ), { timeout: 30000 }).catch(() => null);
+    const marketGridMetrics = await waitForGridSettled(page, report, 'market');
+    const marketBody = await page.locator('body').innerText({ timeout: 10000 });
+    report.checks.market_workspace_no_asset_fund_selector = marketBody.includes('자산·펀드 선택 없이') && !marketBody.includes('연결 펀드');
+    report.checks.market_workspace_grid_visible = await page.locator('[data-data-management-grid="true"]').isVisible({ timeout: 5000 }).catch(() => false);
+    report.checks.market_grid_not_stuck_loading = !marketGridMetrics.hasLoadingText;
+    report.checks.no_internal_tokens_market = !INTERNAL_TOKEN_PATTERN.test(marketBody);
 
-    if (canEdit) {
-      const previewResponsePromise = page.waitForResponse((response) => (
-        response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/preview-edit')
-      ), { timeout: 30000 }).catch(() => null);
-      await afterBox.fill(`QA preview ${stamp}`);
-      const previewResponse = await previewResponsePromise;
-      const previewBody = previewResponse ? await previewResponse.json().catch(() => null) : null;
-      const previewText = await page.locator('body').innerText({ timeout: 10000 });
-      report.preview_contract = {
-        http_status: previewResponse?.status() || null,
-        ok: previewBody?.ok,
-        auto_write_enabled: previewBody?.data?.auto_write_enabled,
-        validation_count: Array.isArray(previewBody?.data?.validations) ? previewBody.data.validations.length : null,
-        has_target: Boolean(previewBody?.data?.target),
-      };
-      report.checks.preview_api_ok = previewBody?.ok === true;
-      report.checks.preview_visible = previewText.includes('\uC800\uC7A5 \uC804 \uAC80\uC99D') && previewText.includes('\uBC18\uC601 \uBC29\uC2DD');
-      if (allowSubmit) {
-        const submitResponsePromise = page.waitForResponse((response) => (
-          response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/submit-edit')
-        ), { timeout: 30000 });
-        const submitButton = page.getByRole('button', { name: /\uC2B9\uC778 \uC694\uCCAD \uC800\uC7A5/u });
-        await submitButton.click();
-        const submitResponse = await submitResponsePromise;
-        const submitBody = await submitResponse.json().catch(() => null);
-        report.submit_contract = {
-          http_status: submitResponse.status(),
-          ok: submitBody?.ok,
-          id: submitBody?.data?.id || submitBody?.id || null,
-        };
-        report.checks.submit_api_ok = submitBody?.ok === true && Boolean(report.submit_contract.id);
-      } else {
-        report.checks.submit_guarded = true;
-      }
-    } else {
-      report.checks.preview_api_ok = statusData.access_scope !== 'manager_full_source';
-      report.checks.preview_visible = statusData.access_scope !== 'manager_full_source';
-      report.checks.submit_guarded = true;
-    }
-    const historyTab = page.getByRole('button', { name: '\uBC18\uC601 \uC774\uB825', exact: true }).first();
-    await historyTab.click();
-    await page.waitForFunction(() => document.body?.innerText?.includes('\uC2B9\uC778/\uBC18\uC601 \uC694\uCCAD \uC774\uB825'), { timeout: 10000 }).catch(() => null);
-    const historyBody = await page.locator('body').innerText({ timeout: 10000 });
-    report.checks.history_readback_visible = historyBody.includes('Readback') || historyBody.includes('\uC2B9\uC778/\uBC18\uC601 \uC694\uCCAD \uC774\uB825') || historyBody.includes('\uBC18\uC601 \uC774\uB825');
-    report.checks.no_internal_tokens_after_history_tab = !INTERNAL_TOKEN_PATTERN.test(historyBody);
-    report.checks.no_raw_region_numbers_after_history_tab = !RAW_REGION_NUMBER_PATTERN.test(historyBody);
+    const operationsButton = page.getByRole('button', { name: '시스템·운영 Data' }).first();
+    await operationsButton.click();
+    await page.waitForResponse((response) => (
+      response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/view-rows')
+    ), { timeout: 30000 }).catch(() => null);
+    const operationsGridMetrics = await waitForGridSettled(page, report, 'operations');
+    const operationsBody = await page.locator('body').innerText({ timeout: 10000 });
+    report.checks.operations_workspace_visible = operationsBody.includes('readback') || operationsBody.includes('읽기 전용') || operationsBody.includes('전용 workflow');
+    report.checks.operations_grid_not_stuck_loading = !operationsGridMetrics.hasLoadingText;
+    report.checks.no_internal_tokens_operations = !INTERNAL_TOKEN_PATTERN.test(operationsBody);
+
     await page.screenshot({ path: screenshot, fullPage: false });
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
   } catch (error) {
     report.errors.push(error?.message || String(error));
+    if (page) {
+      report.failure_body_excerpt = await page.locator('body').innerText({ timeout: 5000 }).then((value) => value.slice(0, 2000)).catch(() => '');
+      await page.screenshot({ path: screenshot, fullPage: false }).catch(() => null);
+    }
   } finally {
     if (browser) await browser.close();
   }

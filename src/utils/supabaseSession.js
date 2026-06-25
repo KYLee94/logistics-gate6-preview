@@ -1,8 +1,10 @@
 import { supabase } from './supabaseClient';
 
 const SESSION_REFRESH_MARGIN_MS = 10 * 60 * 1000;
-const SESSION_IDLE_FORCE_REFRESH_MS = 5 * 60 * 1000;
+const SESSION_IDLE_FORCE_REFRESH_MS = 90 * 1000;
 const DASHBOARD_INVOKE_TIMEOUT_MS = 45 * 1000;
+const AUTH_SESSION_TIMEOUT_MS = 3500;
+const AUTH_REFRESH_TIMEOUT_MS = 5000;
 let refreshPromise = null;
 let lastSessionCheckAt = 0;
 
@@ -62,10 +64,29 @@ function timeoutError(action, timeoutMs) {
   return error;
 }
 
+function authTimeoutError(action, timeoutMs) {
+  const error = new Error(`${action} timed out after ${timeoutMs}ms`);
+  error.name = 'SupabaseAuthTimeoutError';
+  error.status = 408;
+  return error;
+}
+
 async function withDashboardInvokeTimeout(action, promise, timeoutMs) {
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = globalThis.setTimeout(() => reject(timeoutError(action, timeoutMs)), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
+async function withAuthTimeout(action, promise, timeoutMs) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => reject(authTimeoutError(action, timeoutMs)), timeoutMs);
   });
   try {
     return await Promise.race([promise, timeoutPromise]);
@@ -87,17 +108,29 @@ export function isSupabaseAuthFailure(error) {
 }
 
 export async function ensureFreshSupabaseSession({ force = false, throwOnFailure = false } = {}) {
-  const { data, error } = await supabase.auth.getSession();
+  let sessionResult;
+  try {
+    sessionResult = await withAuthTimeout('supabase.auth.getSession', supabase.auth.getSession(), AUTH_SESSION_TIMEOUT_MS);
+  } catch (sessionError) {
+    console.warn('Supabase session read timed out:', sessionError?.message || sessionError);
+    lastSessionCheckAt = Date.now();
+    if (throwOnFailure) throw sessionError;
+    return readSupabaseStorageSession();
+  }
+  const { data, error } = sessionResult || {};
   if (error) {
     if (throwOnFailure) throw error;
     return null;
   }
 
   const session = data?.session || null;
-  if (!session?.refresh_token) return session;
+  const now = Date.now();
+  if (!session?.refresh_token) {
+    lastSessionCheckAt = now;
+    return session;
+  }
 
   const expiresAtMs = Number(session.expires_at || 0) * 1000;
-  const now = Date.now();
   const expiredSoon = !expiresAtMs || expiresAtMs - now <= SESSION_REFRESH_MARGIN_MS;
   const idleTooLong = Boolean(lastSessionCheckAt) && now - lastSessionCheckAt >= SESSION_IDLE_FORCE_REFRESH_MS;
   const shouldRefresh = force
@@ -109,7 +142,7 @@ export async function ensureFreshSupabaseSession({ force = false, throwOnFailure
   }
 
   if (!refreshPromise) {
-    refreshPromise = supabase.auth.refreshSession()
+    refreshPromise = withAuthTimeout('supabase.auth.refreshSession', supabase.auth.refreshSession(), AUTH_REFRESH_TIMEOUT_MS)
       .then((result) => {
         if (result?.error) throw result.error;
         lastSessionCheckAt = Date.now();
@@ -139,8 +172,8 @@ function shouldRetryDashboardInvoke(error) {
     || message.includes('load failed');
 }
 
-export async function invokeDashboardApi(action, payload = {}, { retryAuth = true } = {}) {
-  await ensureFreshSupabaseSession();
+export async function invokeDashboardApi(action, payload = {}, { retryAuth = true, forceSessionRefresh = false } = {}) {
+  await ensureFreshSupabaseSession({ force: forceSessionRefresh });
   let result;
   try {
     result = await withDashboardInvokeTimeout(action, supabase.functions.invoke('ll-dashboard-api', {

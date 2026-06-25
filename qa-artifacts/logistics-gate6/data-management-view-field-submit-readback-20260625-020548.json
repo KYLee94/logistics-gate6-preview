@@ -1,0 +1,59 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-25T02:05:51.714Z",
+  "mode": "data_management_view_field_submit_readback_direct",
+  "row_label": "경산 쿠팡물류센터 · 경산로지스1호 · 쿠팡(주)",
+  "field": {
+    "field_key": "space_label",
+    "label": "임대구역",
+    "group": "기본정보",
+    "type": "text"
+  },
+  "checks": {
+    "preview_can_submit": true,
+    "preview_auto_write_enabled": true,
+    "preview_has_target": true,
+    "preview_has_readback": true,
+    "submit_has_id": true,
+    "readback_ok": true
+  },
+  "payload_contract": {
+    "edit_mode": "view_field",
+    "view_key": "lease_contracts",
+    "row_key_present": true,
+    "field_key": "space_label",
+    "internal_table_sent": false
+  },
+  "preview": {
+    "can_submit": true,
+    "auto_write_enabled": true,
+    "target": {
+      "target_table": "public.ll_lease_spaces",
+      "primary_key_field": "lease_space_id",
+      "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+      "target_field": "space_label"
+    },
+    "validations": []
+  },
+  "submit": {
+    "id": "36ca7700-14e9-4e4d-81f9-10c4e5ea275c",
+    "status": "submitted"
+  },
+  "readback": {
+    "id": "36ca7700-14e9-4e4d-81f9-10c4e5ea275c",
+    "status": "submitted",
+    "requested_by": "9ca68a02-f7cb-4c9f-bc63-982abc9251a4",
+    "readbacks": [
+      {
+        "target_table": "public.ll_lease_spaces",
+        "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+        "target_cell_id": "undefined",
+        "field_name": "space_label",
+        "requested_value": "QA QA-submit-20260625-020548",
+        "stale": false,
+        "source_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+        "source_cell_id": "undefined"
+      }
+    ]
+  }
+}

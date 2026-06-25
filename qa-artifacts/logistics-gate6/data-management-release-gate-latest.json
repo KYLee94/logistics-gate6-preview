@@ -1,0 +1,1684 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-25T02:25:56.118Z",
+  "mode": "data_management_release_gate",
+  "auth_source": "password_grant",
+  "options": {
+    "allow_submit": true,
+    "edge_only": true,
+    "require_written_history": false,
+    "expected_asset_count": 19,
+    "expected_fund_count": 17,
+    "expected_pair_needle": "404",
+    "min_ll_tables": 25
+  },
+  "checks": {
+    "db_catalog_available": true,
+    "edge_coverage_ok": true,
+    "catalog_minimum_size": true,
+    "catalog_no_duplicate_tables": true,
+    "catalog_complete_against_db": true,
+    "catalog_no_extra_existing_tables": true,
+    "row_count_parity_against_db": true,
+    "all_tables_have_primary_key": true,
+    "all_catalog_rows_classified": true,
+    "editable_tables_present": true,
+    "coverage_scope_asset_count_19": true,
+    "coverage_scope_fund_count_17": true,
+    "status_scope_asset_count_19": true,
+    "status_scope_fund_count_17": true,
+    "status_scope_lists_present": true,
+    "expected_404_pair_visible": true,
+    "manager_can_approve": true,
+    "preview_auto_write_readback": true,
+    "view_field_preview_auto_write_readback": true,
+    "submit_readback_checked": true,
+    "view_field_submit_readback_checked": true,
+    "written_history_present_when_required": true
+  },
+  "failures": [],
+  "db_catalog": {
+    "available": false,
+    "error": null,
+    "table_count": 0,
+    "tables": []
+  },
+  "edge_coverage": {
+    "totals": {
+      "table_count": 65,
+      "counted_table_count": 65,
+      "missing_relation_count": 0,
+      "unconnected_table_count": 0,
+      "total_row_count": 261396
+    },
+    "management_scope": {
+      "owner": "IGIS Asset Management",
+      "expected_asset_count": 19,
+      "expected_fund_count": 17,
+      "asset_count": 19,
+      "fund_count": 17,
+      "readable_asset_count": 19,
+      "readable_fund_count": 17
+    },
+    "missing_from_api": [],
+    "extra_existing_api_tables": [
+      "ll_api_audit_logs",
+      "ll_asset_managers",
+      "ll_asset_operating_costs",
+      "ll_asset_spec_files",
+      "ll_asset_specs",
+      "ll_assets",
+      "ll_audit_events",
+      "ll_board_posts",
+      "ll_cache_entries",
+      "ll_dashboard_metric_snapshots",
+      "ll_dashboard_read_snapshots",
+      "ll_data_change_audit_logs",
+      "ll_data_quality_findings",
+      "ll_edit_requests",
+      "ll_external_api_cache",
+      "ll_fund_asset_links",
+      "ll_fund_beneficiary_tranches",
+      "ll_fund_capital_tranches",
+      "ll_fund_loan_tranches",
+      "ll_funds",
+      "ll_import_runs",
+      "ll_issues",
+      "ll_lease_attributes",
+      "ll_lease_space_area_breakdowns",
+      "ll_lease_space_specs",
+      "ll_lease_spaces",
+      "ll_lease_special_terms",
+      "ll_leases",
+      "ll_login_history",
+      "ll_market_chunks",
+      "ll_market_deprecation_backups",
+      "ll_market_documents",
+      "ll_market_facts",
+      "ll_migration_row_backups",
+      "ll_news_items",
+      "ll_news_runs",
+      "ll_notification_deliveries",
+      "ll_notifications",
+      "ll_rent_history",
+      "ll_schema_metadata",
+      "ll_sector_market_cap_rate_series",
+      "ll_sector_market_lease_observations",
+      "ll_sector_market_supply_cases",
+      "ll_sector_market_transaction_cases",
+      "ll_sheet_rows",
+      "ll_source_cells",
+      "ll_source_columns",
+      "ll_source_field_registry",
+      "ll_source_files",
+      "ll_source_review_logs",
+      "ll_source_rows",
+      "ll_source_runs",
+      "ll_source_sheets",
+      "ll_tenants",
+      "ll_user_permissions",
+      "ll_weekly_assets",
+      "ll_weekly_doc_ingest_runs",
+      "ll_weekly_projects",
+      "ll_weekly_records",
+      "ll_weekly_reports",
+      "ll_work_items",
+      "ll_work_platform_board_posts",
+      "ll_work_platform_task_snapshots",
+      "ll_work_platform_tasks",
+      "ll_worklogs"
+    ],
+    "duplicate_api_tables": [],
+    "row_count_mismatches": [],
+    "missing_primary_keys": [],
+    "unclassified_tables": [],
+    "editable_tables": [
+      "ll_assets",
+      "ll_audit_events",
+      "ll_fund_capital_tranches",
+      "ll_funds",
+      "ll_lease_attributes",
+      "ll_lease_spaces",
+      "ll_leases",
+      "ll_rent_history",
+      "ll_tenants",
+      "ll_weekly_records"
+    ],
+    "table_coverage": [
+      {
+        "table_name": "ll_api_audit_logs",
+        "ui_domain_key": "approval_audit",
+        "ui_domain_label": "승인/감사",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Permission / Audit",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Permission / Audit table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_asset_managers",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_asset_operating_costs",
+        "ui_domain_key": "operating_cost",
+        "ui_domain_label": "운영비용",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "metadata_domain_group": "Asset Operations",
+        "metadata_role_category": "operating_cost",
+        "metadata_description": "Asset-level PM/FM/insurance/utility cost fact table.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_asset_spec_files",
+        "ui_domain_key": "asset_spec",
+        "ui_domain_label": "자산 스펙",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_asset_specs",
+        "ui_domain_key": "asset_spec",
+        "ui_domain_label": "자산 스펙",
+        "row_count": 3,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_assets",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 19,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Core Normalized",
+        "metadata_role_category": "keep",
+        "metadata_description": "Core Normalized table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_audit_events",
+        "ui_domain_key": "approval_audit",
+        "ui_domain_label": "승인/감사",
+        "row_count": 35843,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Permission / Audit",
+        "metadata_role_category": "active_primary",
+        "metadata_description": "Legacy physical API and data-change audit tables were replaced by compatibility views over ll_audit_events.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_board_posts",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 3,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_cache_entries",
+        "ui_domain_key": "cache",
+        "ui_domain_label": "캐시/스냅샷",
+        "row_count": 827,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Cache / Snapshot",
+        "metadata_role_category": "cache_contract",
+        "metadata_description": "Cache / Snapshot table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_dashboard_metric_snapshots",
+        "ui_domain_key": "cache",
+        "ui_domain_label": "캐시/스냅샷",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_dashboard_read_snapshots",
+        "ui_domain_key": "cache",
+        "ui_domain_label": "캐시/스냅샷",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_data_change_audit_logs",
+        "ui_domain_key": "approval_audit",
+        "ui_domain_label": "승인/감사",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Permission / Audit",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Permission / Audit table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_data_quality_findings",
+        "ui_domain_key": "approval_audit",
+        "ui_domain_label": "승인/감사",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Permission / Audit",
+        "metadata_role_category": "compatibility_view",
+        "metadata_description": "Compatibility view over ll_audit_events where event_type=data_quality_finding.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_edit_requests",
+        "ui_domain_key": "approval_audit",
+        "ui_domain_label": "승인/감사",
+        "row_count": 214,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Permission / Audit",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Permission / Audit table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_external_api_cache",
+        "ui_domain_key": "cache",
+        "ui_domain_label": "캐시/스냅샷",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_fund_asset_links",
+        "ui_domain_key": "fund",
+        "ui_domain_label": "펀드/금융",
+        "row_count": 19,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Fund",
+        "metadata_role_category": "keep",
+        "metadata_description": "Fund table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_fund_beneficiary_tranches",
+        "ui_domain_key": "fund",
+        "ui_domain_label": "펀드/금융",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Fund",
+        "metadata_role_category": "keep",
+        "metadata_description": "Fund table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_fund_capital_tranches",
+        "ui_domain_key": "fund",
+        "ui_domain_label": "펀드/금융",
+        "row_count": 119,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Fund",
+        "metadata_role_category": "active_primary",
+        "metadata_description": "Legacy physical beneficiary and loan tranche tables were replaced by compatibility views over ll_fund_capital_tranches.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_fund_loan_tranches",
+        "ui_domain_key": "fund",
+        "ui_domain_label": "펀드/금융",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Fund",
+        "metadata_role_category": "keep",
+        "metadata_description": "Fund table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_funds",
+        "ui_domain_key": "fund",
+        "ui_domain_label": "펀드/금융",
+        "row_count": 17,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Fund",
+        "metadata_role_category": "keep",
+        "metadata_description": "Fund table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_import_runs",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Raw Source",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Raw Source table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_issues",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform / Weekly",
+        "metadata_role_category": "keep",
+        "metadata_description": "Work Platform / Weekly table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_lease_attributes",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 2436,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Detail Normalized",
+        "metadata_role_category": "active_primary",
+        "metadata_description": "Legacy physical detail tables were replaced by compatibility views over ll_lease_attributes.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_lease_space_area_breakdowns",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Detail Normalized",
+        "metadata_role_category": "keep",
+        "metadata_description": "Detail Normalized table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_lease_space_specs",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Detail Normalized",
+        "metadata_role_category": "keep",
+        "metadata_description": "Detail Normalized table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_lease_spaces",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 81,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Core Normalized",
+        "metadata_role_category": "keep",
+        "metadata_description": "Core Normalized table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_lease_special_terms",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Detail Normalized",
+        "metadata_role_category": "keep",
+        "metadata_description": "Detail Normalized table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_leases",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 46,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Core Normalized",
+        "metadata_role_category": "keep",
+        "metadata_description": "Core Normalized table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_login_history",
+        "ui_domain_key": "permission",
+        "ui_domain_label": "권한/사용자",
+        "row_count": 122,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Permission / Audit",
+        "metadata_role_category": "compatibility_view",
+        "metadata_description": "Readable view over ll_audit_events where event_type=auth_login.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_market_chunks",
+        "ui_domain_key": "market",
+        "ui_domain_label": "시장자료",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Market Research",
+        "metadata_role_category": "retrieval_chunk",
+        "metadata_description": "Searchable market report text chunks with page/sheet source locators.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_market_deprecation_backups",
+        "ui_domain_key": "market",
+        "ui_domain_label": "시장자료",
+        "row_count": 4,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_market_documents",
+        "ui_domain_key": "market",
+        "ui_domain_label": "시장자료",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Market Research",
+        "metadata_role_category": "source_registry",
+        "metadata_description": "Market report and workbook file registry for Gate 6 chatbot retrieval.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_market_facts",
+        "ui_domain_key": "market",
+        "ui_domain_label": "시장자료",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Market Research",
+        "metadata_role_category": "structured_fact",
+        "metadata_description": "Structured market metrics, transactions, and supply pipeline facts extracted from market workbooks.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_migration_row_backups",
+        "ui_domain_key": "approval_audit",
+        "ui_domain_label": "승인/감사",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Migration Safety",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Migration Safety table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_news_items",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 76,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform",
+        "metadata_role_category": "news",
+        "metadata_description": "Daily logistics center news items collected by server automation.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_news_runs",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 11,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_notification_deliveries",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_notifications",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform",
+        "metadata_role_category": "notification",
+        "metadata_description": "Canonical notification events for maturity and data update alerts.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_rent_history",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 164,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Core Normalized",
+        "metadata_role_category": "keep",
+        "metadata_description": "Core Normalized table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_schema_metadata",
+        "ui_domain_key": "approval_audit",
+        "ui_domain_label": "승인/감사",
+        "row_count": 724,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Metadata",
+        "metadata_role_category": "keep",
+        "metadata_description": "Metadata table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_sector_market_cap_rate_series",
+        "ui_domain_key": "market",
+        "ui_domain_label": "시장자료",
+        "row_count": 84,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_sector_market_lease_observations",
+        "ui_domain_key": "market",
+        "ui_domain_label": "시장자료",
+        "row_count": 9610,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "metadata_domain_group": "Market Data",
+        "metadata_role_category": "normalized_market_fact",
+        "metadata_description": "Normalized lease market observations from the active sector market workbook.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_sector_market_supply_cases",
+        "ui_domain_key": "market",
+        "ui_domain_label": "시장자료",
+        "row_count": 276,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "metadata_domain_group": "Market Data",
+        "metadata_role_category": "normalized_market_fact",
+        "metadata_description": "Normalized new supply and pipeline cases from the active sector market workbook.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_sector_market_transaction_cases",
+        "ui_domain_key": "market",
+        "ui_domain_label": "시장자료",
+        "row_count": 541,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "metadata_domain_group": "Market Data",
+        "metadata_role_category": "normalized_market_fact",
+        "metadata_description": "Normalized logistics transaction cases from the active sector market workbook.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_sheet_rows",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Raw Source",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Raw Source table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_source_cells",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 196657,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "metadata_domain_group": "Raw Source",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Raw Source table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_source_columns",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 876,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_source_field_registry",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 134,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "metadata_domain_group": "Raw Source",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Raw Source table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_source_files",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 1,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "metadata_domain_group": "Source Management",
+        "metadata_role_category": "source_file",
+        "metadata_description": "Versioned workbook/file registry for logistics data management.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_source_review_logs",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "metadata_domain_group": "Raw Source",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Raw Source table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_source_rows",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 11738,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "metadata_domain_group": "Source Management",
+        "metadata_role_category": "raw_row_archive",
+        "metadata_description": "Row-level source preservation for every managed workbook.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_source_runs",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 351,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_source_sheets",
+        "ui_domain_key": "source",
+        "ui_domain_label": "원천/업로드",
+        "row_count": 9,
+        "exists": true,
+        "write_mode": "source_row_review",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_tenants",
+        "ui_domain_key": "lease",
+        "ui_domain_label": "임대차",
+        "row_count": 36,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Core Normalized",
+        "metadata_role_category": "keep",
+        "metadata_description": "Core Normalized table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_user_permissions",
+        "ui_domain_key": "permission",
+        "ui_domain_label": "권한/사용자",
+        "row_count": 264,
+        "exists": true,
+        "write_mode": "feature_access_workflow",
+        "metadata_domain_group": "Permission / Audit",
+        "metadata_role_category": "delete_prohibited",
+        "metadata_description": "Permission / Audit table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_weekly_assets",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform / Weekly",
+        "metadata_role_category": "keep",
+        "metadata_description": "Work Platform / Weekly table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_weekly_doc_ingest_runs",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform / Weekly",
+        "metadata_role_category": "keep",
+        "metadata_description": "Work Platform / Weekly table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_weekly_projects",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform / Weekly",
+        "metadata_role_category": "keep",
+        "metadata_description": "Work Platform / Weekly table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_weekly_records",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 28,
+        "exists": true,
+        "write_mode": "approval_auto_write",
+        "metadata_domain_group": "Work Platform / Weekly",
+        "metadata_role_category": "compatibility_view",
+        "metadata_description": "Weekly report/assets/projects/doc ingest legacy views now read ll_weekly_records.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_weekly_reports",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform / Weekly",
+        "metadata_role_category": "keep",
+        "metadata_description": "Work Platform / Weekly table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_work_items",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 63,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_work_platform_board_posts",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform / Weekly",
+        "metadata_role_category": "keep",
+        "metadata_description": "Work Platform / Weekly table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_work_platform_task_snapshots",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform / Weekly",
+        "metadata_role_category": "keep",
+        "metadata_description": "Work Platform / Weekly table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_work_platform_tasks",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "metadata_domain_group": "Work Platform / Weekly",
+        "metadata_role_category": "keep",
+        "metadata_description": "Work Platform / Weekly table for Gate 6 logistics work platform.",
+        "connected_to_data_management": true
+      },
+      {
+        "table_name": "ll_worklogs",
+        "ui_domain_key": "work_platform",
+        "ui_domain_label": "업무 플랫폼",
+        "row_count": 0,
+        "exists": true,
+        "write_mode": "readback_or_system_workflow",
+        "connected_to_data_management": true
+      }
+    ],
+    "findings": {
+      "missing_relations": [],
+      "unconnected_tables": [],
+      "unknown_source_domains": []
+    }
+  },
+  "status_scope": {
+    "access_scope": "manager_full_source",
+    "can_approve": true,
+    "management_scope": {
+      "owner": "IGIS Asset Management",
+      "expected_asset_count": 19,
+      "expected_fund_count": 17,
+      "asset_count": 19,
+      "fund_count": 17,
+      "readable_asset_count": 19,
+      "readable_fund_count": 17,
+      "assets": [
+        {
+          "asset_id": "asset_a120085001",
+          "asset_code": "A120085001",
+          "asset_name": "경산 쿠팡물류센터"
+        },
+        {
+          "asset_id": "asset_a112527001",
+          "asset_code": "A112527001",
+          "asset_name": "동산물류센터"
+        },
+        {
+          "asset_id": "asset_a112755001",
+          "asset_code": "A112755001",
+          "asset_name": "두동 LG전자 통합물류센터"
+        },
+        {
+          "asset_id": "asset_a112527002",
+          "asset_code": "A112527002",
+          "asset_name": "부국물류센터"
+        },
+        {
+          "asset_id": "asset_a112109001",
+          "asset_code": "A112109001",
+          "asset_name": "부산송정물류센터"
+        },
+        {
+          "asset_id": "asset_a190002001",
+          "asset_code": "A190002001",
+          "asset_name": "분당야탑물류센터"
+        },
+        {
+          "asset_id": "asset_a112299001",
+          "asset_code": "A112299001",
+          "asset_name": "스카이박스1, 스카이박스2"
+        },
+        {
+          "asset_id": "asset_a112505001",
+          "asset_code": "A112505001",
+          "asset_name": "아레나스안성"
+        },
+        {
+          "asset_id": "asset_a112127001",
+          "asset_code": "A112127001",
+          "asset_name": "아레나스양지물류센터"
+        },
+        {
+          "asset_id": "asset_ap00014001",
+          "asset_code": "AP00014001",
+          "asset_name": "안성 성은지구 물류센터"
+        },
+        {
+          "asset_id": "asset_a112500003",
+          "asset_code": "A112500003",
+          "asset_name": "안성 홈플러스 중부허브 물류센터"
+        },
+        {
+          "asset_id": "asset_s00002001",
+          "asset_code": "S00002001",
+          "asset_name": "양산 유산동 물류센터"
+        },
+        {
+          "asset_id": "asset_a112527003",
+          "asset_code": "A112527003",
+          "asset_name": "에이블로지스물류센터"
+        },
+        {
+          "asset_id": "asset_a112606001",
+          "asset_code": "A112606001",
+          "asset_name": "여주 본두리 물류센터"
+        },
+        {
+          "asset_id": "asset_a112573001",
+          "asset_code": "A112573001",
+          "asset_name": "이천 마장면 물류센터"
+        },
+        {
+          "asset_id": "asset_a112721001",
+          "asset_code": "A112721001",
+          "asset_name": "인천석남물류센터"
+        },
+        {
+          "asset_id": "asset_a112500002",
+          "asset_code": "A112500002",
+          "asset_name": "평택아디다스물류센터"
+        },
+        {
+          "asset_id": "asset_a190013001",
+          "asset_code": "A190013001",
+          "asset_name": "포천정교리물류센터"
+        },
+        {
+          "asset_id": "asset_a112642001",
+          "asset_code": "A112642001",
+          "asset_name": "화성 석포리 물류센터"
+        }
+      ],
+      "funds": [
+        {
+          "fund_id": "fund_112109",
+          "fund_code": "112109",
+          "fund_name": "이지스제114호전문투자형사모부동산투자유한회사",
+          "short_name": "114호",
+          "display_name": "114호"
+        },
+        {
+          "fund_id": "fund_112127",
+          "fund_code": "112127",
+          "fund_name": "이지스일반사모부동산모투자신탁116호",
+          "short_name": "116호",
+          "display_name": "116호"
+        },
+        {
+          "fund_id": "fund_112527",
+          "fund_code": "112527",
+          "fund_name": "이지스전문투자형사모부동산투자신탁제404호",
+          "short_name": "404호",
+          "display_name": "404호"
+        },
+        {
+          "fund_id": "fund_112573",
+          "fund_code": "112573",
+          "fund_name": "이지스일반사모부동산투자신탁제426호(운용)",
+          "short_name": "426호",
+          "display_name": "426호"
+        },
+        {
+          "fund_id": "fund_112606",
+          "fund_code": "112606",
+          "fund_name": "이지스제440호부동산일반사모투자회사",
+          "short_name": "440호",
+          "display_name": "440호"
+        },
+        {
+          "fund_id": "fund_112642",
+          "fund_code": "112642",
+          "fund_name": "이지스일반사모부동산투자신탁제451호(운용)",
+          "short_name": "451호(운용)",
+          "display_name": "451호(운용)"
+        },
+        {
+          "fund_id": "fund_112755",
+          "fund_code": "112755",
+          "fund_name": "이지스제505호부동산일반사모투자회사",
+          "short_name": "505호",
+          "display_name": "505호"
+        },
+        {
+          "fund_id": "fund_120085",
+          "fund_code": "120085",
+          "fund_name": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "short_name": "경산로지스1호",
+          "display_name": "경산로지스1호"
+        },
+        {
+          "fund_id": "fund_s00002",
+          "fund_code": "S00002",
+          "fund_name": "주식회사 석암물류(SPC)",
+          "short_name": "석암물류(SPC)",
+          "display_name": "석암물류(SPC)"
+        },
+        {
+          "fund_id": "fund_112505",
+          "fund_code": "112505",
+          "fund_name": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "short_name": "아레나스1-2호(모)",
+          "display_name": "아레나스1-2호(모)"
+        },
+        {
+          "fund_id": "fund_112299",
+          "fund_code": "112299",
+          "fund_name": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "short_name": "아레나스4호",
+          "display_name": "아레나스4호"
+        },
+        {
+          "fund_id": "fund_190002",
+          "fund_code": "190002",
+          "fund_name": "이지스부동산일반사모투자회사제543호",
+          "short_name": "",
+          "display_name": "이지스부동산일반사모투자회사제543호"
+        },
+        {
+          "fund_id": "fund_190013",
+          "fund_code": "190013",
+          "fund_name": "이지스제560호부동산일반사모투자회사",
+          "short_name": "",
+          "display_name": "이지스제560호부동산일반사모투자회사"
+        },
+        {
+          "fund_id": "fund_112604",
+          "fund_code": "112604",
+          "fund_name": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "short_name": "인컴앤그로스2-2호",
+          "display_name": "인컴앤그로스2-2호"
+        },
+        {
+          "fund_id": "fund_112703",
+          "fund_code": "112703",
+          "fund_name": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "short_name": "인컴앤그로스2-3호",
+          "display_name": "인컴앤그로스2-3호"
+        },
+        {
+          "fund_id": "fund_112751",
+          "fund_code": "112751",
+          "fund_name": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "short_name": "인컴앤그로스2-4호",
+          "display_name": "인컴앤그로스2-4호"
+        },
+        {
+          "fund_id": "fund_p00014",
+          "fund_code": "P00014",
+          "fund_name": "안성성은물류피에프브이 주식회사",
+          "short_name": "P안성성은물류",
+          "display_name": "P안성성은물류"
+        }
+      ],
+      "links": [
+        {
+          "asset_id": "asset_a112127001",
+          "asset_code": "A112127001",
+          "asset_name": "아레나스양지물류센터",
+          "fund_id": "fund_112127",
+          "fund_code": "112127",
+          "fund_name": "이지스일반사모부동산모투자신탁116호",
+          "short_name": "116호",
+          "display_name": "116호"
+        },
+        {
+          "asset_id": "asset_a112299001",
+          "asset_code": "A112299001",
+          "asset_name": "스카이박스1, 스카이박스2",
+          "fund_id": "fund_112299",
+          "fund_code": "112299",
+          "fund_name": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "short_name": "아레나스4호",
+          "display_name": "아레나스4호"
+        },
+        {
+          "asset_id": "asset_a120085001",
+          "asset_code": "A120085001",
+          "asset_name": "경산 쿠팡물류센터",
+          "fund_id": "fund_120085",
+          "fund_code": "120085",
+          "fund_name": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "short_name": "경산로지스1호",
+          "display_name": "경산로지스1호"
+        },
+        {
+          "asset_id": "asset_a112500002",
+          "asset_code": "A112500002",
+          "asset_name": "평택아디다스물류센터",
+          "fund_id": "fund_112604",
+          "fund_code": "112604",
+          "fund_name": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "short_name": "인컴앤그로스2-2호",
+          "display_name": "인컴앤그로스2-2호"
+        },
+        {
+          "asset_id": "asset_a112721001",
+          "asset_code": "A112721001",
+          "asset_name": "인천석남물류센터",
+          "fund_id": "fund_112751",
+          "fund_code": "112751",
+          "fund_name": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "short_name": "인컴앤그로스2-4호",
+          "display_name": "인컴앤그로스2-4호"
+        },
+        {
+          "asset_id": "asset_a112500003",
+          "asset_code": "A112500003",
+          "asset_name": "안성 홈플러스 중부허브 물류센터",
+          "fund_id": "fund_112703",
+          "fund_code": "112703",
+          "fund_name": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "short_name": "인컴앤그로스2-3호",
+          "display_name": "인컴앤그로스2-3호"
+        },
+        {
+          "asset_id": "asset_a112642001",
+          "asset_code": "A112642001",
+          "asset_name": "화성 석포리 물류센터",
+          "fund_id": "fund_112642",
+          "fund_code": "112642",
+          "fund_name": "이지스일반사모부동산투자신탁제451호(운용)",
+          "short_name": "451호(운용)",
+          "display_name": "451호(운용)"
+        },
+        {
+          "asset_id": "asset_a112109001",
+          "asset_code": "A112109001",
+          "asset_name": "부산송정물류센터",
+          "fund_id": "fund_112109",
+          "fund_code": "112109",
+          "fund_name": "이지스제114호전문투자형사모부동산투자유한회사",
+          "short_name": "114호",
+          "display_name": "114호"
+        },
+        {
+          "asset_id": "asset_a112606001",
+          "asset_code": "A112606001",
+          "asset_name": "여주 본두리 물류센터",
+          "fund_id": "fund_112606",
+          "fund_code": "112606",
+          "fund_name": "이지스제440호부동산일반사모투자회사",
+          "short_name": "440호",
+          "display_name": "440호"
+        },
+        {
+          "asset_id": "asset_a112755001",
+          "asset_code": "A112755001",
+          "asset_name": "두동 LG전자 통합물류센터",
+          "fund_id": "fund_112755",
+          "fund_code": "112755",
+          "fund_name": "이지스제505호부동산일반사모투자회사",
+          "short_name": "505호",
+          "display_name": "505호"
+        },
+        {
+          "asset_id": "asset_a112527001",
+          "asset_code": "A112527001",
+          "asset_name": "동산물류센터",
+          "fund_id": "fund_112527",
+          "fund_code": "112527",
+          "fund_name": "이지스전문투자형사모부동산투자신탁제404호",
+          "short_name": "404호",
+          "display_name": "404호"
+        },
+        {
+          "asset_id": "asset_a112527002",
+          "asset_code": "A112527002",
+          "asset_name": "부국물류센터",
+          "fund_id": "fund_112527",
+          "fund_code": "112527",
+          "fund_name": "이지스전문투자형사모부동산투자신탁제404호",
+          "short_name": "404호",
+          "display_name": "404호"
+        },
+        {
+          "asset_id": "asset_a112527003",
+          "asset_code": "A112527003",
+          "asset_name": "에이블로지스물류센터",
+          "fund_id": "fund_112527",
+          "fund_code": "112527",
+          "fund_name": "이지스전문투자형사모부동산투자신탁제404호",
+          "short_name": "404호",
+          "display_name": "404호"
+        },
+        {
+          "asset_id": "asset_ap00014001",
+          "asset_code": "AP00014001",
+          "asset_name": "안성 성은지구 물류센터",
+          "fund_id": "fund_p00014",
+          "fund_code": "P00014",
+          "fund_name": "안성성은물류피에프브이 주식회사",
+          "short_name": "P안성성은물류",
+          "display_name": "P안성성은물류"
+        },
+        {
+          "asset_id": "asset_a112573001",
+          "asset_code": "A112573001",
+          "asset_name": "이천 마장면 물류센터",
+          "fund_id": "fund_112573",
+          "fund_code": "112573",
+          "fund_name": "이지스일반사모부동산투자신탁제426호(운용)",
+          "short_name": "426호",
+          "display_name": "426호"
+        },
+        {
+          "asset_id": "asset_a112505001",
+          "asset_code": "A112505001",
+          "asset_name": "아레나스안성",
+          "fund_id": "fund_112505",
+          "fund_code": "112505",
+          "fund_name": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "short_name": "아레나스1-2호(모)",
+          "display_name": "아레나스1-2호(모)"
+        },
+        {
+          "asset_id": "asset_s00002001",
+          "asset_code": "S00002001",
+          "asset_name": "양산 유산동 물류센터",
+          "fund_id": "fund_s00002",
+          "fund_code": "S00002",
+          "fund_name": "주식회사 석암물류(SPC)",
+          "short_name": "석암물류(SPC)",
+          "display_name": "석암물류(SPC)"
+        },
+        {
+          "asset_id": "asset_a190002001",
+          "asset_code": "A190002001",
+          "asset_name": "분당야탑물류센터",
+          "fund_id": "fund_190002",
+          "fund_code": "190002",
+          "fund_name": "이지스부동산일반사모투자회사제543호",
+          "short_name": "",
+          "display_name": "이지스부동산일반사모투자회사제543호"
+        },
+        {
+          "asset_id": "asset_a190013001",
+          "asset_code": "A190013001",
+          "asset_name": "포천정교리물류센터",
+          "fund_id": "fund_190013",
+          "fund_code": "190013",
+          "fund_name": "이지스제560호부동산일반사모투자회사",
+          "short_name": "",
+          "display_name": "이지스제560호부동산일반사모투자회사"
+        }
+      ],
+      "readableLinks": [
+        {
+          "asset_id": "asset_a112127001",
+          "asset_code": "A112127001",
+          "asset_name": "아레나스양지물류센터",
+          "fund_id": "fund_112127",
+          "fund_code": "112127",
+          "fund_name": "이지스일반사모부동산모투자신탁116호",
+          "short_name": "116호",
+          "display_name": "116호"
+        },
+        {
+          "asset_id": "asset_a112299001",
+          "asset_code": "A112299001",
+          "asset_name": "스카이박스1, 스카이박스2",
+          "fund_id": "fund_112299",
+          "fund_code": "112299",
+          "fund_name": "이지스아레나스전문투자형사모부동산투자신탁4호",
+          "short_name": "아레나스4호",
+          "display_name": "아레나스4호"
+        },
+        {
+          "asset_id": "asset_a120085001",
+          "asset_code": "A120085001",
+          "asset_name": "경산 쿠팡물류센터",
+          "fund_id": "fund_120085",
+          "fund_code": "120085",
+          "fund_name": "이지스경산로지스제1호일반사모부동산투자회사(운용)",
+          "short_name": "경산로지스1호",
+          "display_name": "경산로지스1호"
+        },
+        {
+          "asset_id": "asset_a112500002",
+          "asset_code": "A112500002",
+          "asset_name": "평택아디다스물류센터",
+          "fund_id": "fund_112604",
+          "fund_code": "112604",
+          "fund_name": "이지스인컴앤그로스일반사모부동산자투자신탁제2-2호",
+          "short_name": "인컴앤그로스2-2호",
+          "display_name": "인컴앤그로스2-2호"
+        },
+        {
+          "asset_id": "asset_a112721001",
+          "asset_code": "A112721001",
+          "asset_name": "인천석남물류센터",
+          "fund_id": "fund_112751",
+          "fund_code": "112751",
+          "fund_name": "이지스인컴앤그로스제2의4호일반사모부동산모투자회사",
+          "short_name": "인컴앤그로스2-4호",
+          "display_name": "인컴앤그로스2-4호"
+        },
+        {
+          "asset_id": "asset_a112500003",
+          "asset_code": "A112500003",
+          "asset_name": "안성 홈플러스 중부허브 물류센터",
+          "fund_id": "fund_112703",
+          "fund_code": "112703",
+          "fund_name": "이지스인컴앤그로스제2의3호일반사모부동산모투자회사",
+          "short_name": "인컴앤그로스2-3호",
+          "display_name": "인컴앤그로스2-3호"
+        },
+        {
+          "asset_id": "asset_a112642001",
+          "asset_code": "A112642001",
+          "asset_name": "화성 석포리 물류센터",
+          "fund_id": "fund_112642",
+          "fund_code": "112642",
+          "fund_name": "이지스일반사모부동산투자신탁제451호(운용)",
+          "short_name": "451호(운용)",
+          "display_name": "451호(운용)"
+        },
+        {
+          "asset_id": "asset_a112109001",
+          "asset_code": "A112109001",
+          "asset_name": "부산송정물류센터",
+          "fund_id": "fund_112109",
+          "fund_code": "112109",
+          "fund_name": "이지스제114호전문투자형사모부동산투자유한회사",
+          "short_name": "114호",
+          "display_name": "114호"
+        },
+        {
+          "asset_id": "asset_a112606001",
+          "asset_code": "A112606001",
+          "asset_name": "여주 본두리 물류센터",
+          "fund_id": "fund_112606",
+          "fund_code": "112606",
+          "fund_name": "이지스제440호부동산일반사모투자회사",
+          "short_name": "440호",
+          "display_name": "440호"
+        },
+        {
+          "asset_id": "asset_a112755001",
+          "asset_code": "A112755001",
+          "asset_name": "두동 LG전자 통합물류센터",
+          "fund_id": "fund_112755",
+          "fund_code": "112755",
+          "fund_name": "이지스제505호부동산일반사모투자회사",
+          "short_name": "505호",
+          "display_name": "505호"
+        },
+        {
+          "asset_id": "asset_a112527001",
+          "asset_code": "A112527001",
+          "asset_name": "동산물류센터",
+          "fund_id": "fund_112527",
+          "fund_code": "112527",
+          "fund_name": "이지스전문투자형사모부동산투자신탁제404호",
+          "short_name": "404호",
+          "display_name": "404호"
+        },
+        {
+          "asset_id": "asset_a112527002",
+          "asset_code": "A112527002",
+          "asset_name": "부국물류센터",
+          "fund_id": "fund_112527",
+          "fund_code": "112527",
+          "fund_name": "이지스전문투자형사모부동산투자신탁제404호",
+          "short_name": "404호",
+          "display_name": "404호"
+        },
+        {
+          "asset_id": "asset_a112527003",
+          "asset_code": "A112527003",
+          "asset_name": "에이블로지스물류센터",
+          "fund_id": "fund_112527",
+          "fund_code": "112527",
+          "fund_name": "이지스전문투자형사모부동산투자신탁제404호",
+          "short_name": "404호",
+          "display_name": "404호"
+        },
+        {
+          "asset_id": "asset_ap00014001",
+          "asset_code": "AP00014001",
+          "asset_name": "안성 성은지구 물류센터",
+          "fund_id": "fund_p00014",
+          "fund_code": "P00014",
+          "fund_name": "안성성은물류피에프브이 주식회사",
+          "short_name": "P안성성은물류",
+          "display_name": "P안성성은물류"
+        },
+        {
+          "asset_id": "asset_a112573001",
+          "asset_code": "A112573001",
+          "asset_name": "이천 마장면 물류센터",
+          "fund_id": "fund_112573",
+          "fund_code": "112573",
+          "fund_name": "이지스일반사모부동산투자신탁제426호(운용)",
+          "short_name": "426호",
+          "display_name": "426호"
+        },
+        {
+          "asset_id": "asset_a112505001",
+          "asset_code": "A112505001",
+          "asset_name": "아레나스안성",
+          "fund_id": "fund_112505",
+          "fund_code": "112505",
+          "fund_name": "이지스아레나스케이엘아이피1의2사모부동산모투자회사",
+          "short_name": "아레나스1-2호(모)",
+          "display_name": "아레나스1-2호(모)"
+        },
+        {
+          "asset_id": "asset_s00002001",
+          "asset_code": "S00002001",
+          "asset_name": "양산 유산동 물류센터",
+          "fund_id": "fund_s00002",
+          "fund_code": "S00002",
+          "fund_name": "주식회사 석암물류(SPC)",
+          "short_name": "석암물류(SPC)",
+          "display_name": "석암물류(SPC)"
+        },
+        {
+          "asset_id": "asset_a190002001",
+          "asset_code": "A190002001",
+          "asset_name": "분당야탑물류센터",
+          "fund_id": "fund_190002",
+          "fund_code": "190002",
+          "fund_name": "이지스부동산일반사모투자회사제543호",
+          "short_name": "",
+          "display_name": "이지스부동산일반사모투자회사제543호"
+        },
+        {
+          "asset_id": "asset_a190013001",
+          "asset_code": "A190013001",
+          "asset_name": "포천정교리물류센터",
+          "fund_id": "fund_190013",
+          "fund_code": "190013",
+          "fund_name": "이지스제560호부동산일반사모투자회사",
+          "short_name": "",
+          "display_name": "이지스제560호부동산일반사모투자회사"
+        }
+      ]
+    },
+    "source_rows": 1055,
+    "columns": 800,
+    "edit_requests": 120,
+    "written_history_count": 113
+  },
+  "preview_probe": {
+    "ok": true,
+    "skipped": true,
+    "reason": "legacy source_row preview is skipped; view_field is the release gate contract"
+  },
+  "submit_probe": {
+    "ok": true,
+    "skipped": true,
+    "reason": "legacy source_row submit probe is superseded by view_field submit probe"
+  },
+  "view_field_preview_probe": {
+    "ok": true,
+    "payload": {
+      "edit_mode": "view_field",
+      "view_key": "lease_contracts",
+      "row_key": "dmv_lease_contracts_993d9284a494faf63327",
+      "field_key": "space_label",
+      "requested_value": "QA preview 20260625-022546",
+      "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
+      "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
+    },
+    "row_label": "경산 쿠팡물류센터 · 경산로지스1호 · 쿠팡(주)",
+    "field": {
+      "field_key": "space_label",
+      "label": "임대구역",
+      "group": "기본정보",
+      "type": "text"
+    },
+    "before_value": null,
+    "requested_value": "QA preview 20260625-022546",
+    "can_submit": true,
+    "auto_write_enabled": true,
+    "has_target": true,
+    "has_target_readback": true,
+    "target": {
+      "target_table": "public.ll_lease_spaces",
+      "primary_key_field": "lease_space_id",
+      "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+      "target_field": "space_label",
+      "readback": {
+        "matches_before_value": null,
+        "stale": null,
+        "current_revision_hash": "sha256:2b999fef527e3ebe332e8c6a0e73afaa215bae6d1233a3d8aae15e001fadc646"
+      }
+    },
+    "validation_errors": [],
+    "views_contract": {
+      "workspaces": [
+        "igis",
+        "market",
+        "operations"
+      ],
+      "view_count": 5,
+      "bundle_count": 19,
+      "management_scope": {
+        "owner": "IGIS Asset Management",
+        "expected_asset_count": 19,
+        "expected_fund_count": 17,
+        "asset_count": 19,
+        "fund_count": 17,
+        "link_count": 19,
+        "readable_asset_count": 19,
+        "readable_fund_count": 17,
+        "readable_link_count": 19
+      }
+    },
+    "rows_contract": {
+      "view_key": "lease_contracts",
+      "field_count": 14,
+      "row_count": 72,
+      "pagination": {
+        "page": 1,
+        "page_size": 80,
+        "returned": 72,
+        "total_estimate": 72,
+        "has_next": false
+      }
+    },
+    "attempts": [
+      {
+        "ok": true,
+        "payload": {
+          "edit_mode": "view_field",
+          "view_key": "lease_contracts",
+          "row_key": "dmv_lease_contracts_993d9284a494faf63327",
+          "field_key": "space_label",
+          "requested_value": "QA preview 20260625-022546",
+          "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
+          "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
+        },
+        "row_label": "경산 쿠팡물류센터 · 경산로지스1호 · 쿠팡(주)",
+        "field": {
+          "field_key": "space_label",
+          "label": "임대구역",
+          "group": "기본정보",
+          "type": "text"
+        },
+        "before_value": null,
+        "requested_value": "QA preview 20260625-022546",
+        "can_submit": true,
+        "auto_write_enabled": true,
+        "has_target": true,
+        "has_target_readback": true,
+        "target": {
+          "target_table": "public.ll_lease_spaces",
+          "primary_key_field": "lease_space_id",
+          "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+          "target_field": "space_label",
+          "readback": {
+            "matches_before_value": null,
+            "stale": null,
+            "current_revision_hash": "sha256:2b999fef527e3ebe332e8c6a0e73afaa215bae6d1233a3d8aae15e001fadc646"
+          }
+        },
+        "validation_errors": [],
+        "views_contract": {
+          "workspaces": [
+            "igis",
+            "market",
+            "operations"
+          ],
+          "view_count": 5,
+          "bundle_count": 19,
+          "management_scope": {
+            "owner": "IGIS Asset Management",
+            "expected_asset_count": 19,
+            "expected_fund_count": 17,
+            "asset_count": 19,
+            "fund_count": 17,
+            "link_count": 19,
+            "readable_asset_count": 19,
+            "readable_fund_count": 17,
+            "readable_link_count": 19
+          }
+        },
+        "rows_contract": {
+          "view_key": "lease_contracts",
+          "field_count": 14,
+          "row_count": 72,
+          "pagination": {
+            "page": 1,
+            "page_size": 80,
+            "returned": 72,
+            "total_estimate": 72,
+            "has_next": false
+          }
+        }
+      }
+    ]
+  },
+  "view_field_submit_probe": {
+    "ok": true,
+    "id": "4cbfacc5-869b-4b9e-934d-50278c2483c0",
+    "submit": {
+      "id": "4cbfacc5-869b-4b9e-934d-50278c2483c0",
+      "status": "submitted",
+      "write_status": "approval_required",
+      "created_at": "2026-06-25T02:25:55.542894+00:00"
+    },
+    "readback": {
+      "id": "4cbfacc5-869b-4b9e-934d-50278c2483c0",
+      "status": "submitted",
+      "requested_by": "9ca68a02-f7cb-4c9f-bc63-982abc9251a4",
+      "readbacks": [
+        {
+          "target_table": "public.ll_lease_spaces",
+          "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+          "target_cell_id": "undefined",
+          "field_name": "space_label",
+          "requested_value": "QA preview 20260625-022546",
+          "stale": false,
+          "source_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
+          "source_cell_id": "undefined"
+        }
+      ]
+    }
+  },
+  "release_note": "Approval is not automated because edits/approve has no rollback_after_write guard. The submit probe creates an approval request only, then reads back that pending request."
+}

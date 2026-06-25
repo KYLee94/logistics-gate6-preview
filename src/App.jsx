@@ -71,6 +71,7 @@ export default function App() {
       const normalizedPage = normalizeGate6Page(page);
       window.history.pushState(null, '', toUrl(normalizedPage));
       setCurrentPage(normalizedPage);
+      window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { path: normalizedPage } }));
   };
 
   useAnimations(currentPage);
