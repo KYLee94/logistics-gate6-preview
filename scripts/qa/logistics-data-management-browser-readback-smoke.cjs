@@ -233,6 +233,35 @@ async function main() {
     report.checks.no_broken_question_marks = !/\?{4,}/u.test(body);
 
     const marketButton = page.getByRole('button', { name: '시장 Data' }).first();
+    const rentHistoryRowsPromise = page.waitForResponse((response) => (
+      response.url().includes('/functions/v1/ll-dashboard-api')
+      && response.request().postData()?.includes('data-management/view-rows')
+      && response.request().postData()?.includes('lease_rent_history_excel')
+    ), { timeout: 30000 }).catch(() => null);
+    const rentHistoryViewButton = page.locator('[data-data-management-view-key="lease_rent_history_excel"]').first();
+    if (await rentHistoryViewButton.count()) {
+      await rentHistoryViewButton.click();
+    } else {
+      await page.getByRole('button', { name: /임대료.*히스토리|임대료·관리비 히스토리/u }).first().click();
+    }
+    const rentHistoryRowsResponse = await rentHistoryRowsPromise;
+    const rentHistoryRowsBody = await responseJson(rentHistoryRowsResponse);
+    const rentHistoryRowsData = rentHistoryRowsBody?.data || {};
+    const rentHistoryGridMetrics = await waitForGridSettled(page, report, 'rent_history');
+    report.rent_history_rows_contract = {
+      http_status: rentHistoryRowsResponse?.status() || null,
+      ok: rentHistoryRowsBody?.ok,
+      view: rentHistoryRowsData.view || null,
+      field_count: Array.isArray(rentHistoryRowsData.fields) ? rentHistoryRowsData.fields.length : 0,
+      row_count: Array.isArray(rentHistoryRowsData.rows) ? rentHistoryRowsData.rows.length : 0,
+      pagination: rentHistoryRowsData.pagination || null,
+    };
+    report.checks.rent_history_api_ok = rentHistoryRowsBody?.ok === true;
+    report.checks.rent_history_has_fields = Number(report.rent_history_rows_contract.field_count || 0) > 0;
+    report.checks.rent_history_has_rows = Number(report.rent_history_rows_contract.row_count || 0) > 0;
+    report.checks.rent_history_uses_normalized_readback = report.rent_history_rows_contract.view?.source_status?.normalized_data_present === true;
+    report.checks.rent_history_grid_not_stuck_loading = !rentHistoryGridMetrics.hasLoadingText;
+
     await marketButton.click();
     await page.waitForResponse((response) => (
       response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/view-rows')

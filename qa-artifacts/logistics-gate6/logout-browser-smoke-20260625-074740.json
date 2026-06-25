@@ -1,0 +1,25 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-25T07:47:40.494Z",
+  "url": "https://kylee94.github.io/logistics-gate6-preview/work-platform",
+  "auth_source": "password_grant",
+  "checks": {
+    "profile_visible": true,
+    "logout_button_visible": true,
+    "stale_session_simulated": true,
+    "logout_navigated": true,
+    "logout_completed_without_refresh": true,
+    "storage_cleared": true,
+    "protected_route_blocked_after_logout": true
+  },
+  "errors": [],
+  "screenshot": "qa-artifacts/logistics-gate6/logout-browser-smoke-20260625-074740.png",
+  "logout_elapsed_ms": 511,
+  "final_url": "https://kylee94.github.io/logistics-gate6-preview/auth-setup/",
+  "storage_after_logout": {
+    "session_token_present": false,
+    "preview_auth_present": false,
+    "supabase_auth_key_count": 0
+  },
+  "reentry_url": "https://kylee94.github.io/logistics-gate6-preview/auth-setup"
+}

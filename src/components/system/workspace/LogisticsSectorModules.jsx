@@ -598,6 +598,19 @@ function formatNewsDateLabel(value) {
   }).format(date);
 }
 
+function formatNewsArticleDate(value, fallbackDate) {
+  const date = value ? new Date(value) : new Date(`${fallbackDate}T00:00:00+09:00`);
+  if (!Number.isNaN(date.getTime())) {
+    return new Intl.DateTimeFormat('ko-KR', {
+      timeZone: 'Asia/Seoul',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+  }
+  const match = String(fallbackDate || '').match(/^\d{4}-(\d{2})-(\d{2})$/u);
+  return match ? `${match[1]}. ${match[2]}.` : '-';
+}
+
 function cleanNewsTitleForDisplay(title, publisher = '') {
   let out = text(title, '');
   const variants = [publisher, text(publisher, '').replace(/\s+/g, ''), text(publisher, '').replace(/뉴스$/u, '')].filter(Boolean);
@@ -3978,7 +3991,7 @@ function DailyLogisticsNewsCardLegacy() {
                     </div>
                     <div className="shrink-0 text-right text-[11px] leading-5 text-[#86868B]">
                       <div>{text(item.publisher, '언론사 미확인')}</div>
-                      <div>{formatDateTime(item.published_at)}</div>
+                      <div>{formatNewsArticleDate(item.published_at, selectedDate)}</div>
                     </div>
                   </div>
                 </a>
@@ -4050,7 +4063,7 @@ export function DailyLogisticsNewsCard() {
                       <div className="min-w-0 truncate text-[13px] font-semibold text-white">{text(title, '-')}</div>
                       <div className="shrink-0 text-right text-[11px] text-[#86868B]">
                         <span>{text(item.publisher, '언론사 미확인')}</span>
-                        <span className="ml-2">{formatDateTime(item.published_at)}</span>
+                        <span className="ml-2">{formatNewsArticleDate(item.published_at, selectedDate)}</span>
                       </div>
                     </div>
                   </a>
@@ -5358,11 +5371,11 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
               <div>
                 <div className="mb-2 text-[13px] font-semibold text-white">수도권</div>
-                <ScopedBarList rows={leaseStatisticCapitalChartRows.length ? leaseStatisticCapitalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={CHART_COLORS.primary} onRowClick={openLeaseStatisticModal} />
+                <ScopedBarList rows={leaseStatisticCapitalChartRows} formatter={leaseMetricFormatter} color={CHART_COLORS.primary} onRowClick={openLeaseStatisticModal} />
               </div>
               <div>
                 <div className="mb-2 text-[13px] font-semibold text-white">지방</div>
-                <ScopedBarList rows={leaseStatisticLocalChartRows.length ? leaseStatisticLocalChartRows : leaseStatisticChartRows} formatter={leaseMetricFormatter} color={CHART_COLORS.secondary} onRowClick={openLeaseStatisticModal} />
+                <ScopedBarList rows={leaseStatisticLocalChartRows} formatter={leaseMetricFormatter} color={CHART_COLORS.secondary} onRowClick={openLeaseStatisticModal} />
               </div>
             </div>
             <div className="mt-5">
@@ -5384,9 +5397,13 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
           </section>
           <section className={`${CARD} p-5`}>
             <ModuleHeader eyebrow="CENTER DETAIL" title="권역별 물류센터 임대 현황" subtitle="임대시장 현황 시트의 센터별 관측치입니다. 행을 선택하면 같은 센터의 시점별 기록을 확인합니다." />
-            <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
-              <RegionFilterGroups label="권역" value={leaseRegion} onChange={setLeaseRegion} options={regions} />
-              <FilterPills label="상/저온 구분" value={leaseCenterTemp} onChange={setLeaseCenterTemp} options={leaseCenterTempOptions} />
+            <div className="mb-4 grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(280px,0.72fr)_minmax(520px,1.28fr)]">
+              <div className="h-full rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                <FilterSelect label="권역" value={leaseRegion} onChange={setLeaseRegion} options={regions} />
+              </div>
+              <div className="h-full rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                <FilterPills label="상/저온 구분" value={leaseCenterTemp} onChange={setLeaseCenterTemp} options={leaseCenterTempOptions} />
+              </div>
             </div>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
               <MarketMapPanel title="권역별 센터" rows={filteredLeaseRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), rows: centerHistoryRows(row), columns: leaseHistoryColumns, width: 'max-w-[calc(100vw-32px)]', minWidth: 1320, maxHeight: 680 })} />
@@ -5546,15 +5563,36 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
         ) : null}
         {modal?.type === 'transaction-size-explorer' ? (
           <div data-testid="transaction-size-explorer" className="mb-4 space-y-4">
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-5">
-              <FilterPills label="연도" value={modal.filters?.year || '전체'} onChange={(value) => updateModalFilter('year', value)} options={['전체', ...transactionPeriodOptions].map((item) => ({ value: item, label: item === '전체' ? '전체' : `${item}년` }))} />
-              <RegionFilterGroups label="권역" value={modal.filters?.region || '전체'} onChange={(value) => updateModalFilter('region', value)} options={regions} />
-              <FilterPills label="규모" value={modal.filters?.bucket || '전체'} onChange={(value) => updateModalFilter('bucket', value)} options={transactionSizeOptions.map((item) => ({ value: item, label: item === '전체' ? '전체' : stripLeadingNumberLabel(item) }))} />
-              <FilterPills label="상/저온" value={modal.filters?.temp || '전체'} onChange={(value) => updateModalFilter('temp', value)} options={transactionSizeTempOptions} />
-              <FilterPills label="거래유형" value={modal.filters?.dealType || '전체'} onChange={(value) => updateModalFilter('dealType', value)} options={transactionTypes.map((item) => ({ value: item, label: item }))} />
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[12px] text-[#A1A1AA]">
+                선택 조건에 맞는 자산별 거래 내역 {formatNumber(transactionExplorerRows.length)}건
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalFiltersCollapsed((current) => !current)}
+                className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]"
+                data-modal-filter-toggle="true"
+              >
+                {modalFiltersCollapsed ? '조건 펼치기' : '조건 접기'}
+              </button>
             </div>
+            {!modalFiltersCollapsed ? (
+              <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(280px,0.8fr)_minmax(520px,1.35fr)_minmax(300px,0.85fr)]">
+                <div className="grid h-full content-start gap-3 rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                  <FilterSelect label="연도" value={modal.filters?.year || '전체'} onChange={(value) => updateModalFilter('year', value)} options={['전체', ...transactionPeriodOptions].map((item) => ({ value: item, label: item === '전체' ? '전체' : `${item}년` }))} />
+                  <FilterSelect label="권역" value={modal.filters?.region || '전체'} onChange={(value) => updateModalFilter('region', value)} options={regions} />
+                </div>
+                <div className="grid h-full gap-3 rounded-[10px] border border-[#333333] bg-[#171717] p-3 md:grid-cols-2">
+                  <FilterPills label="규모" value={modal.filters?.bucket || '전체'} onChange={(value) => updateModalFilter('bucket', value)} options={transactionSizeOptions.map((item) => ({ value: item, label: item === '전체' ? '전체' : stripLeadingNumberLabel(item) }))} />
+                  <FilterPills label="상/저온" value={modal.filters?.temp || '전체'} onChange={(value) => updateModalFilter('temp', value)} options={transactionSizeTempOptions} />
+                </div>
+                <div className="h-full rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                  <FilterPills label="거래유형" value={modal.filters?.dealType || '전체'} onChange={(value) => updateModalFilter('dealType', value)} options={transactionTypes.map((item) => ({ value: item, label: item }))} />
+                </div>
+              </div>
+            ) : null}
             <div className={`${INNER} px-3 py-2 text-[12px] text-[#A1A1AA]`}>
-              선택 조건에 맞는 자산별 거래 내역 {formatNumber(transactionExplorerRows.length)}건을 표시합니다. 규모는 원본 분류가 아니라 연면적 기준으로 다시 계산합니다.
+              규모는 원본 분류가 아니라 연면적 기준으로 다시 계산합니다.
             </div>
           </div>
         ) : null}
@@ -7378,6 +7416,7 @@ export function DataManagementDashboard() {
               <button
                 key={view.view_key}
                 type="button"
+                data-data-management-view-key={view.view_key}
                 onClick={() => { setViewKey(view.view_key); setPage(1); setSelectedRowKey(''); setShowAllFields(false); }}
                 className={`h-9 rounded-[8px] border px-3 text-[12px] font-semibold ${effectiveViewKey === view.view_key ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#C7C7CC] hover:border-[#8E8E93]'}`}
               >

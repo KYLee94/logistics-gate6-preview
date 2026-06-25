@@ -5950,7 +5950,26 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'review_status', label: '검토 상태', group: '검토상태', type: 'text', editable: false, width: 120 },
   { field_key: 'review_note', label: '검토 메모', group: '검토상태', type: 'text', editable: false, width: 180, default_hidden: true },
 ];
-const DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS = new Set(['lease_general_excel', 'lease_contracts']);
+const DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS = [
+  { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
+  { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 180 },
+  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, width: 170 },
+  { field_key: 'space_label', label: '임대구역', group: '기본정보', type: 'text', editable: false, width: 140 },
+  { field_key: 'effective_date', label: '기준일자', group: '시점', type: 'date', editable: true, target_table: 'public.ll_rent_history', target_field: 'effective_date', width: 120 },
+  { field_key: 'change_reason', label: '임대료 변동 원인', group: '시점', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'change_reason', width: 180 },
+  { field_key: 'floor_label', label: '층', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'floor_label', width: 90, default_hidden: true },
+  { field_key: 'detail_area_label', label: '세부구역', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'detail_area_label', width: 120, default_hidden: true },
+  { field_key: 'temperature_type', label: '상/저온', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'temperature_type', width: 110 },
+  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_rent_history', target_field: 'leased_area_sqm', width: 130 },
+  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_rent_history', target_field: 'exclusive_area_sqm', width: 130, default_hidden: true },
+  { field_key: 'monthly_rent_total', label: '월 임대료 총액', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_rent_history', target_field: 'monthly_rent_total', width: 150 },
+  { field_key: 'monthly_mf_total', label: '월 관리비 총액', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_rent_history', target_field: 'monthly_mf_total', width: 150 },
+  { field_key: 'rent_per_py', label: '평당 월임대료', group: '경제조건', type: 'krw_per_py', editable: true, target_table: 'public.ll_rent_history', target_field: 'rent_per_py', width: 140 },
+  { field_key: 'mf_per_py', label: '평당 월관리비', group: '경제조건', type: 'krw_per_py', editable: true, target_table: 'public.ll_rent_history', target_field: 'mf_per_py', width: 140 },
+  { field_key: 'is_latest', label: '최신 여부', group: '검토상태', type: 'text', editable: false, width: 100 },
+  { field_key: 'review_status', label: '검토 상태', group: '검토상태', type: 'text', editable: false, width: 120 },
+];
+const DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS = new Set(['lease_general_excel', 'lease_contracts', 'lease_rent_history_excel']);
 const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_assets: 'asset_id',
   ll_asset_managers: 'asset_manager_id',
@@ -6844,6 +6863,12 @@ function dataManagementPublicViewField(field: Record<string, unknown>) {
   });
 }
 
+function dataManagementFieldsForViewKey(viewKey: unknown) {
+  return safeText(viewKey) === 'lease_rent_history_excel'
+    ? DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS
+    : DATA_MANAGEMENT_LEASE_VIEW_FIELDS;
+}
+
 function dataManagementViewDefinitions() {
   return DATA_MANAGEMENT_VIEW_DEFINITIONS.map((view) => {
     const { fallback_table_key: _fallbackTableKey, ...publicView } = view as Record<string, unknown>;
@@ -6851,7 +6876,7 @@ function dataManagementViewDefinitions() {
     return stripUndefined({
       ...publicView,
       fields: DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)
-        ? DATA_MANAGEMENT_LEASE_VIEW_FIELDS.map((field) => dataManagementPublicViewField(field as Record<string, unknown>))
+        ? dataManagementFieldsForViewKey(viewKey).map((field) => dataManagementPublicViewField(field as Record<string, unknown>))
         : [],
     });
   });
@@ -7162,6 +7187,12 @@ function dataManagementLeaseViewField(fieldKey: unknown) {
   return DATA_MANAGEMENT_LEASE_VIEW_FIELDS.find((field) => safeText((field as Record<string, unknown>).field_key) === key) as Record<string, unknown> | undefined;
 }
 
+function dataManagementViewFieldFor(viewKey: unknown, fieldKey: unknown) {
+  const key = safeText(fieldKey);
+  return dataManagementFieldsForViewKey(viewKey)
+    .find((field) => safeText((field as Record<string, unknown>).field_key) === key) as Record<string, unknown> | undefined;
+}
+
 function dataManagementNumberOrNull(value: unknown) {
   if (value === null || value === undefined || value === '') return null;
   const numeric = Number(value);
@@ -7348,16 +7379,182 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
   };
 }
 
+async function dataManagementLeaseRentHistoryRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKeyOverride = 'lease_rent_history_excel') {
+  const viewKey = safeText(viewKeyOverride || 'lease_rent_history_excel');
+  const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
+  const pageSize = payload.resolve_all === true
+    ? Math.min(Math.max(requestedPageSize || 5000, 1), 5000)
+    : Math.min(Math.max(requestedPageSize || 80, 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  const bundleKey = safeText(payload.bundle_key || payload.bundleKey);
+  const bundle = bundleKey ? dataManagementBundleByKey(scope, bundleKey) : undefined;
+  if (bundleKey && !bundle) throw new Error('Selected asset/fund bundle was not found.');
+  const readableAssetIds = (scope.readableAssets || []).map((asset) => safeText(asset.asset_id)).filter(Boolean);
+  const historyResult = await listRentHistoryForAssets(ctx, readableAssetIds);
+  if (historyResult.errorResponse) throw new Error('Failed to read rent history data.');
+  const spacesResult = await listLeaseSpacesForAssets(ctx, readableAssetIds);
+  if (spacesResult.errorResponse) throw new Error('Failed to read lease space data for rent history.');
+  let historyRows = (historyResult.rows || []).filter((row) => dataManagementRowReadable(ctx, row, true, scope));
+  if (bundle) historyRows = historyRows.filter((row) => dataManagementRowMatchesBundle(row, bundle));
+  const spaceById = new Map((spacesResult.rows || []).map((row) => [safeText(row.lease_space_id), row]));
+  const tenantIds = uniqueStrings([
+    ...historyRows.map((row) => safeText(row.tenant_id)),
+    ...(spacesResult.rows || []).map((row) => safeText(row.tenant_id)),
+  ].filter(Boolean), 5000);
+  const tenantsResult = await listTenantsByIds(ctx, tenantIds);
+  if (tenantsResult.errorResponse) throw new Error('Failed to read tenant data for rent history.');
+  const tenantById = new Map((tenantsResult.rows || []).map((row) => [safeText(row.tenant_id), row]));
+  const publicBundles = dataManagementPublicBundles(scope);
+  const bundleByAsset = new Map<string, Record<string, unknown>>();
+  publicBundles.forEach((item) => {
+    const asset = item.asset && typeof item.asset === 'object' ? item.asset as Record<string, unknown> : {};
+    [
+      asset.asset_id,
+      asset.asset_code,
+      asset.asset_name,
+      asset.label,
+    ].map((candidate) => safeText(candidate)).filter(Boolean).forEach((key) => {
+      if (!bundleByAsset.has(key)) bundleByAsset.set(key, item as Record<string, unknown>);
+    });
+  });
+  const fields = DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS;
+  const searchKey = normalizeKey(payload.search);
+  const rows = await Promise.all(historyRows.map(async (history) => {
+    const space = spaceById.get(safeText(history.lease_space_id)) || {};
+    const tenant = tenantById.get(safeText(firstDefined(history.tenant_id, space.tenant_id))) || {};
+    const matchedBundle = bundle
+      || bundleByAsset.get(safeText(history.asset_id))
+      || bundleByAsset.get(safeText(history.asset_code))
+      || bundleByAsset.get(safeText(history.asset_name))
+      || bundleByAsset.get(safeText(space.asset_id))
+      || bundleByAsset.get(safeText(space.asset_code))
+      || bundleByAsset.get(safeText(space.asset_name))
+      || {};
+    const asset = matchedBundle.asset && typeof matchedBundle.asset === 'object' ? matchedBundle.asset as Record<string, unknown> : {};
+    const fund = matchedBundle.fund && typeof matchedBundle.fund === 'object' ? matchedBundle.fund as Record<string, unknown> : {};
+    const source = stripUndefined({
+      asset_name: firstDefined(history.asset_name, space.asset_name, asset.label, asset.asset_name, asset.asset_code),
+      fund_name: firstDefined(fund.label, fund.display_name, fund.short_name, fund.fund_name),
+      tenant_master_name: firstDefined(history.tenant_master_name, space.tenant_master_name, tenant.tenant_master_name, tenant.company_name),
+      space_label: firstDefined(history.space_label, space.space_label, [space.floor_label, space.detail_area_label].map((item) => safeText(item)).filter(Boolean).join(' / ')),
+      effective_date: firstDefined(history.effective_date, history.basis_date),
+      change_reason: firstDefined(history.change_reason, history.rent_change_reason),
+      floor_label: firstDefined(history.floor_label, space.floor_label),
+      detail_area_label: firstDefined(history.detail_area_label, space.detail_area_label),
+      temperature_type: firstDefined(history.temperature_type, space.temperature_type),
+      leased_area_sqm: firstDefined(history.leased_area_sqm, space.leased_area_sqm),
+      exclusive_area_sqm: firstDefined(history.exclusive_area_sqm, space.exclusive_area_sqm),
+      monthly_rent_total: firstDefined(history.monthly_rent_total, history.current_monthly_rent_total),
+      monthly_mf_total: firstDefined(history.monthly_mf_total, history.current_monthly_mf_total),
+      rent_per_py: history.rent_per_py,
+      mf_per_py: history.mf_per_py,
+      is_latest: history.is_latest === true ? 'Y' : (history.is_latest === false ? 'N' : firstDefined(history.is_latest, '')),
+      review_status: firstDefined(history.review_status, 'reviewed'),
+      exception_group: matchedBundle.exception_group,
+    });
+    const displayValues = Object.fromEntries(fields.map((field) => {
+      const publicField = field as Record<string, unknown>;
+      const key = safeText(publicField.field_key);
+      return [key, dataManagementFormatViewValue(source[key], publicField)];
+    }));
+    const editValues = Object.fromEntries(fields.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, source[key] ?? null];
+    }));
+    const labelParts = [source.asset_name, source.fund_name, source.tenant_master_name, source.effective_date].map((item) => safeText(item)).filter(Boolean);
+    const rowLabel = labelParts.join(' · ') || 'rent history';
+    const lookup = dataManagementLookupStatus(source);
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, history.rent_history_id),
+      row_label: rowLabel,
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: lookup,
+      editable: lookup.status === 'ok' || lookup.status === 'exception_404',
+      revision_hash: await dataManagementRevisionHash({ history, space }),
+      meta: {
+        row_unit: 'rent_history_id',
+        status: lookup.label,
+      },
+      _rent_history_id: history.rent_history_id,
+    });
+  }));
+  let filtered = rows;
+  if (searchKey) {
+    filtered = rows.filter((row) => normalizeKey([
+      row.row_label,
+      JSON.stringify(row.display_values || {}),
+      (row.lookup_status as Record<string, unknown> | undefined)?.label,
+    ].join(' ')).includes(searchKey));
+  }
+  const sort = Array.isArray(payload.sort) ? payload.sort[0] as Record<string, unknown> : {};
+  const sortKey = safeText(sort?.field || sort?.field_key || sort?.key);
+  if (sortKey) {
+    const direction = safeText(sort.direction || 'asc') === 'desc' ? -1 : 1;
+    filtered = [...filtered].sort((a, b) => safeText((a.display_values as Record<string, unknown> | undefined)?.[sortKey]).localeCompare(safeText((b.display_values as Record<string, unknown> | undefined)?.[sortKey]), 'ko') * direction);
+  } else {
+    filtered = [...filtered].sort((a, b) => {
+      const aDate = safeText((a.edit_values as Record<string, unknown> | undefined)?.effective_date);
+      const bDate = safeText((b.edit_values as Record<string, unknown> | undefined)?.effective_date);
+      if (aDate !== bDate) return aDate.localeCompare(bDate);
+      return safeText(a.row_label).localeCompare(safeText(b.row_label), 'ko');
+    });
+  }
+  const offset = (page - 1) * pageSize;
+  return {
+    rows: filtered.slice(offset, offset + pageSize).map(({ _rent_history_id: _internal, ...publicRow }) => publicRow),
+    all_rows: filtered,
+    total: filtered.length,
+    page,
+    pageSize,
+  };
+}
+
 async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
   const viewKey = safeText(payload.view_key || payload.viewKey || 'lease_contracts');
   const rowKey = safeText(payload.row_key || payload.rowKey);
   const fieldKey = safeText(payload.field_key || payload.fieldKey || payload.field_name || payload.fieldName);
-  const field = dataManagementLeaseViewField(fieldKey);
+  const field = dataManagementViewFieldFor(viewKey, fieldKey);
   if (!rowKey || !fieldKey) throw new Error('수정할 행과 필드를 선택해 주세요.');
   if (!field) throw new Error('업무 View 필드를 찾을 수 없습니다.');
   if (field.editable !== true) throw new Error('이 필드는 읽기 전용입니다.');
   const targetTable = safeText(field.target_table);
   const targetField = safeText(field.target_field || field.field_key);
+  if (viewKey === 'lease_rent_history_excel') {
+    const result = await dataManagementLeaseRentHistoryRows(ctx, { page_size: 5000, resolve_all: true }, scope, viewKey);
+    const row = ((result.all_rows || result.rows) as Record<string, unknown>[]).find((item) => safeText(item.row_key) === rowKey);
+    if (!row) throw new Error('Selected rent history row was not found. Please reload Data Management.');
+    const targetRowId = safeText(row._rent_history_id);
+    if (!targetRowId) throw new Error('Rent history target row was not found.');
+    const publicTargetTable = normalizePublicLlTable(targetTable || 'public.ll_rent_history');
+    const tableName = clientTableName(publicTargetTable);
+    const primaryKeyField = dataManagementPrimaryKeyForTable(tableName);
+    const currentRawValue = (row.edit_values as Record<string, unknown> | undefined)?.[fieldKey];
+    return {
+      table_payload: {
+        edit_mode: 'table_cell',
+        table_key: dataManagementTableKey(tableName),
+        internal_table: publicTargetTable,
+        primary_key_field: primaryKeyField,
+        target_record_id: targetRowId,
+        field_name: targetField,
+        before_value: currentRawValue,
+        requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+        view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+        target_name: row.row_label,
+        asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
+        reason: payload.reason,
+        target_type: 'data_management_view_field',
+        reason_code: 'data_management_rent_history_update',
+        view_key: viewKey,
+        row_key: rowKey,
+        field_key: fieldKey,
+      },
+      row,
+      field,
+    };
+  }
   const result = await dataManagementLeaseContractRows(ctx, { page_size: 5000, resolve_all: true }, scope, viewKey);
   const row = result.rows.find((item) => safeText(item.row_key) === rowKey);
   if (!row) throw new Error('수정 대상 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
@@ -7472,8 +7669,10 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
   const viewKey = safeText(view.view_key);
   if (DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
     try {
-      const result = await dataManagementLeaseContractRows(ctx, payload, managementScope, viewKey);
-      const fields = DATA_MANAGEMENT_LEASE_VIEW_FIELDS.map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
+      const result = viewKey === 'lease_rent_history_excel'
+        ? await dataManagementLeaseRentHistoryRows(ctx, payload, managementScope, viewKey)
+        : await dataManagementLeaseContractRows(ctx, payload, managementScope, viewKey);
+      const fields = dataManagementFieldsForViewKey(viewKey).map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
       const rawSourceFile = await dataManagementSourceFileForDomain(ctx, 'lease_contracts');
       return jsonResponse({ ok: true, data: {
         generated_at: new Date().toISOString(),
