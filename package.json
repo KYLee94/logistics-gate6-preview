@@ -48,6 +48,7 @@
     "qa:map-provider-matrix": "node scripts/qa/logistics-map-provider-matrix.cjs",
     "qa:data-management:browser-readback": "node scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
     "qa:data-management:coverage": "node scripts/qa/logistics-data-management-coverage-audit.cjs",
+    "qa:data-management:required-fields-preview": "node scripts/qa/logistics-data-management-required-fields-preview.cjs",
     "qa:data-management:release-gate": "node scripts/qa/logistics-data-management-release-gate.cjs",
     "qa:data-management:submit-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --allow-submit",
     "qa:data-management:approved-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --require-written-history",

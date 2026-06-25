@@ -5,18 +5,30 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'http://127.0.0.1:5173/';
-const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload|\bPNU\b|\bpnu\b|법정동코드/iu;
+const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload|\bPNU\b|\bpnu\b|원장|정규화|마스터|readback|Supabase|Excel row/u;
 
-function internalTokenMatch(value) {
-  const text = String(value || '');
-  const match = text.match(INTERNAL_TOKEN_PATTERN);
-  if (!match) return null;
-  const index = match.index || 0;
-  return {
-    token: match[0],
-    excerpt: text.slice(Math.max(0, index - 80), index + 120),
-  };
-}
+const REQUIRED_WORKFLOW_KEYS = [
+  'contract_basic',
+  'area_space',
+  'rent_fee',
+  'schedule',
+  'economics',
+  'insurance_rights',
+  'required_specs',
+  'special_status',
+  'manager_links',
+  'validation',
+];
+
+const REQUIRED_LEASE_FIELDS = [
+  'exclusive_ratio',
+  'current_contract_period',
+];
+
+const REQUIRED_RENT_FIELDS = [
+  'rent_per_py',
+  'mf_per_py',
+];
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -63,6 +75,37 @@ function chromeExecutablePath() {
 function joinUrl(baseUrl, route) {
   const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return new URL(route.replace(/^\/+/u, ''), normalizedBase).toString();
+}
+
+function safeArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function internalTokenMatch(value) {
+  const text = String(value || '');
+  const match = text.match(INTERNAL_TOKEN_PATTERN);
+  if (!match) return null;
+  const index = match.index || 0;
+  return {
+    token: match[0],
+    excerpt: text.slice(Math.max(0, index - 80), index + 120),
+  };
+}
+
+function fieldKeys(fields) {
+  return safeArray(fields).map((field) => String(field?.field_key || field?.field || '')).filter(Boolean);
+}
+
+function editableFieldKeys(fields) {
+  return safeArray(fields)
+    .filter((field) => field?.editable === true)
+    .map((field) => String(field?.field_key || field?.field || ''))
+    .filter(Boolean);
+}
+
+function dataManagementFieldsByView(viewsData, rowsData, viewKey) {
+  if (rowsData?.view?.view_key === viewKey && safeArray(rowsData.fields).length) return rowsData.fields;
+  return safeArray(viewsData?.views).find((view) => view?.view_key === viewKey)?.fields || [];
 }
 
 async function signInSession() {
@@ -114,28 +157,48 @@ async function waitForGridSettled(page, report, label) {
     const grid = document.querySelector(selector);
     if (!grid) return false;
     const text = grid.innerText || '';
-    return !text.includes('데이터를 불러오는 중입니다.') && (
-      grid.querySelectorAll('thead button').length > 1
-      || text.includes('View는 1차 구현 이후 확장됩니다')
-      || text.includes('현재 조건 0건')
-      || text.includes('원본 임대차계약 파일 적재가 필요합니다.')
-    );
+    return grid.querySelectorAll('thead button').length > 1
+      || grid.querySelectorAll('tbody tr button').length > 0
+      || text.includes('0건');
   }, gridSelector, { timeout: 45000 }).catch((error) => {
     report.errors.push(`${label} grid did not settle: ${error.message}`);
   });
   const metrics = await page.evaluate((selector) => {
     const grid = document.querySelector(selector);
     if (!grid) return { headerButtons: 0, rowButtons: 0, hasLoadingText: false, hasZeroState: false };
+    const text = grid.innerText || '';
     return {
       headerButtons: grid.querySelectorAll('thead button').length,
       rowButtons: grid.querySelectorAll('tbody tr button').length,
-      hasLoadingText: (grid.innerText || '').includes('데이터를 불러오는 중입니다.'),
-      hasZeroState: (grid.innerText || '').includes('현재 조건 0건입니다.'),
+      hasLoadingText: text.includes('불러오는 중'),
+      hasZeroState: text.includes('0건'),
     };
   }, gridSelector);
   report.grid_metrics = report.grid_metrics || {};
   report.grid_metrics[label] = metrics;
   return metrics;
+}
+
+async function clickWorkflow(page, key, report) {
+  const locator = page.locator(`[data-data-management-workflow-key="${key}"]`).first();
+  const visible = await locator.isVisible({ timeout: 5000 }).catch(() => false);
+  if (!visible) {
+    report.errors.push(`workflow card is not visible: ${key}`);
+    return false;
+  }
+  await locator.click();
+  return true;
+}
+
+async function clickWorkspace(page, key, report) {
+  const locator = page.locator(`[data-data-management-space-key="${key}"]`).first();
+  const visible = await locator.isVisible({ timeout: 5000 }).catch(() => false);
+  if (!visible) {
+    report.errors.push(`workspace tab is not visible: ${key}`);
+    return false;
+  }
+  await locator.click();
+  return true;
 }
 
 async function main() {
@@ -174,6 +237,7 @@ async function main() {
         report.errors.push(`edge ${response.status()} ${response.url()}`);
       }
     });
+
     const viewsPromise = page.waitForResponse((response) => (
       response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/views')
     ), { timeout: 45000 }).catch(() => null);
@@ -188,100 +252,95 @@ async function main() {
     await page.waitForSelector('[data-data-management-redesign="true"]', { timeout: 45000 });
     await page.waitForSelector('[data-data-management-grid="true"]', { timeout: 45000 });
     await page.waitForSelector('[data-data-management-change-basket="true"]', { timeout: 45000 });
-    const igisGridMetrics = await waitForGridSettled(page, report, 'igis');
-    const body = await page.locator('body').innerText({ timeout: 20000 });
+
     const viewsData = viewsBody?.data || {};
     const rowsData = viewRowsBody?.data || {};
+    const initialGridMetrics = await waitForGridSettled(page, report, 'igis_initial');
+    const body = await page.locator('body').innerText({ timeout: 20000 });
+    const leaseFields = dataManagementFieldsByView(viewsData, rowsData, 'lease_general_excel');
+    const rentFields = dataManagementFieldsByView(viewsData, rowsData, 'lease_rent_history_excel');
+    const leaseKeys = fieldKeys(leaseFields);
+    const rentKeys = fieldKeys(rentFields);
+    const editableLeaseKeys = editableFieldKeys(leaseFields);
+    const editableRentKeys = editableFieldKeys(rentFields);
+
     report.views_contract = {
       http_status: viewsResponse?.status() || null,
       ok: viewsBody?.ok,
-      workspaces: Array.isArray(viewsData.workspaces) ? viewsData.workspaces.map((space) => space.label) : [],
-      view_count: Array.isArray(viewsData.views) ? viewsData.views.length : 0,
-      bundle_count: Array.isArray(viewsData.fund_asset_bundles) ? viewsData.fund_asset_bundles.length : 0,
+      workspaces: safeArray(viewsData.workspaces).map((space) => space.label),
+      view_count: safeArray(viewsData.views).length,
+      bundle_count: safeArray(viewsData.fund_asset_bundles).length,
       management_scope: viewsData.management_scope || null,
     };
     report.view_rows_contract = {
       http_status: viewRowsResponse?.status() || null,
       ok: viewRowsBody?.ok,
       view: rowsData.view || null,
-      field_count: Array.isArray(rowsData.fields) ? rowsData.fields.length : 0,
-      row_count: Array.isArray(rowsData.rows) ? rowsData.rows.length : 0,
+      field_count: safeArray(rowsData.fields).length,
+      row_count: safeArray(rowsData.rows).length,
       pagination: rowsData.pagination || null,
     };
+    report.required_fields = {
+      lease: REQUIRED_LEASE_FIELDS.map((key) => ({ key, present: leaseKeys.includes(key), editable: editableLeaseKeys.includes(key) })),
+      rent: REQUIRED_RENT_FIELDS.map((key) => ({ key, present: rentKeys.includes(key), editable: editableRentKeys.includes(key) })),
+    };
+
     report.checks.views_api_ok = viewsBody?.ok === true;
     report.checks.view_rows_api_ok = viewRowsBody?.ok === true;
-    report.checks.has_three_workspaces = ['이지스 Data', '시장 Data', '시스템·운영 Data'].every((label) => body.includes(label));
-    report.checks.has_single_bundle_selector = body.includes('자산 · 펀드 묶음') && !body.includes('자산/펀드 선택 · 펀드');
+    report.checks.has_three_workspaces = safeArray(viewsData.workspaces).length >= 3;
     report.checks.scope_19_assets_17_funds = viewsData.management_scope?.asset_count === 19 && viewsData.management_scope?.fund_count === 17;
-    report.checks.bundle_scope_present = Array.isArray(viewsData.fund_asset_bundles) && viewsData.fund_asset_bundles.length >= 19;
-    report.checks.has_lease_general_excel_view = Array.isArray(viewsData.views) && viewsData.views.some((view) => view.view_key === 'lease_general_excel');
-    report.checks.has_lease_workbook_views = ['lease_general_excel', 'lease_rent_history_excel', 'lease_meta_dictionary', 'lease_asset_manager_links'].every((viewKey) => (
-      Array.isArray(viewsData.views) && viewsData.views.some((view) => view.view_key === viewKey)
-    ));
-    report.checks.normalized_lease_space_not_default = report.view_rows_contract.view?.view_key !== 'lease_contracts';
+    report.checks.bundle_scope_present = safeArray(viewsData.fund_asset_bundles).length >= 19;
     report.checks.default_view_has_fields = Number(report.view_rows_contract.field_count || 0) > 0;
     report.checks.default_view_has_rows = Number(report.view_rows_contract.row_count || 0) > 0;
     report.checks.default_view_uses_normalized_readback = report.view_rows_contract.view?.source_status?.normalized_data_present === true;
-    report.checks.no_source_missing_empty_state = !body.includes('원본 임대차계약 파일 적재가 필요합니다.') && report.view_rows_contract.view?.source_status?.normalized_data_present === true;
-    report.checks.has_business_column_groups = ['기본정보', '계약기간', '면적', '경제조건'].every((label) => body.includes(label));
-    report.checks.grid_has_rows_or_clear_zero_state = Number(report.view_rows_contract.row_count || 0) > 0;
-    report.checks.grid_has_sorting_headers = Number(igisGridMetrics.headerButtons || 0) > 1;
-    report.checks.grid_not_stuck_loading = !igisGridMetrics.hasLoadingText;
-    report.checks.change_basket_visible = body.includes('검증 및 승인 요청') && body.includes('변경 전') && body.includes('변경 후');
+    report.checks.workflow_card_elements_visible = (await Promise.all(REQUIRED_WORKFLOW_KEYS.map(async (key) => (
+      page.locator(`[data-data-management-workflow-key="${key}"]`).count()
+    )))).every((count) => count > 0);
+    report.checks.direct_management_fields_present = REQUIRED_LEASE_FIELDS.every((key) => leaseKeys.includes(key))
+      && REQUIRED_RENT_FIELDS.every((key) => rentKeys.includes(key));
+    report.checks.direct_management_fields_editable = REQUIRED_LEASE_FIELDS.every((key) => editableLeaseKeys.includes(key))
+      && REQUIRED_RENT_FIELDS.every((key) => editableRentKeys.includes(key));
+    report.checks.grid_has_sorting_headers = Number(initialGridMetrics.headerButtons || 0) > 1;
+    report.checks.grid_has_rows = Number(initialGridMetrics.rowButtons || 0) > 0;
+    report.checks.grid_not_stuck_loading = !initialGridMetrics.hasLoadingText;
+    report.checks.change_basket_visible = await page.locator('[data-data-management-change-basket="true"]').isVisible({ timeout: 5000 }).catch(() => false);
     report.internal_token_match = internalTokenMatch(body);
     report.checks.no_internal_tokens = !report.internal_token_match;
     report.checks.no_broken_question_marks = !/\?{4,}/u.test(body);
 
-    const marketButton = page.getByRole('button', { name: '시장 Data' }).first();
-    const rentHistoryRowsPromise = page.waitForResponse((response) => (
-      response.url().includes('/functions/v1/ll-dashboard-api')
-      && response.request().postData()?.includes('data-management/view-rows')
-      && response.request().postData()?.includes('lease_rent_history_excel')
-    ), { timeout: 30000 }).catch(() => null);
-    const rentHistoryViewButton = page.locator('[data-data-management-view-key="lease_rent_history_excel"]').first();
-    if (await rentHistoryViewButton.count()) {
-      await rentHistoryViewButton.click();
-    } else {
-      await page.getByRole('button', { name: /임대료.*히스토리|임대료·관리비 히스토리/u }).first().click();
+    const workflowChecks = {};
+    for (const key of ['area_space', 'schedule', 'rent_fee', 'economics', 'validation']) {
+      const clicked = await clickWorkflow(page, key, report);
+      await page.waitForTimeout(350);
+      const metrics = await waitForGridSettled(page, report, `workflow_${key}`);
+      workflowChecks[key] = {
+        clicked,
+        rows: metrics.rowButtons,
+        sorting_headers: metrics.headerButtons,
+        not_loading: !metrics.hasLoadingText,
+      };
     }
-    const rentHistoryRowsResponse = await rentHistoryRowsPromise;
-    const rentHistoryRowsBody = await responseJson(rentHistoryRowsResponse);
-    const rentHistoryRowsData = rentHistoryRowsBody?.data || {};
-    const rentHistoryGridMetrics = await waitForGridSettled(page, report, 'rent_history');
-    report.rent_history_rows_contract = {
-      http_status: rentHistoryRowsResponse?.status() || null,
-      ok: rentHistoryRowsBody?.ok,
-      view: rentHistoryRowsData.view || null,
-      field_count: Array.isArray(rentHistoryRowsData.fields) ? rentHistoryRowsData.fields.length : 0,
-      row_count: Array.isArray(rentHistoryRowsData.rows) ? rentHistoryRowsData.rows.length : 0,
-      pagination: rentHistoryRowsData.pagination || null,
-    };
-    report.checks.rent_history_api_ok = rentHistoryRowsBody?.ok === true;
-    report.checks.rent_history_has_fields = Number(report.rent_history_rows_contract.field_count || 0) > 0;
-    report.checks.rent_history_has_rows = Number(report.rent_history_rows_contract.row_count || 0) > 0;
-    report.checks.rent_history_uses_normalized_readback = report.rent_history_rows_contract.view?.source_status?.normalized_data_present === true;
-    report.checks.rent_history_grid_not_stuck_loading = !rentHistoryGridMetrics.hasLoadingText;
+    report.workflow_checks = workflowChecks;
+    report.checks.workflow_switches_render_rows = Object.values(workflowChecks).every((item) => item.clicked && item.rows > 0 && item.not_loading);
 
-    await marketButton.click();
+    await clickWorkspace(page, 'market', report);
     await page.waitForResponse((response) => (
       response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/view-rows')
     ), { timeout: 30000 }).catch(() => null);
     const marketGridMetrics = await waitForGridSettled(page, report, 'market');
     const marketBody = await page.locator('body').innerText({ timeout: 10000 });
-    report.checks.market_workspace_no_asset_fund_selector = marketBody.includes('자산·펀드 선택 없이') && !marketBody.includes('연결 펀드');
     report.checks.market_workspace_grid_visible = await page.locator('[data-data-management-grid="true"]').isVisible({ timeout: 5000 }).catch(() => false);
     report.checks.market_grid_not_stuck_loading = !marketGridMetrics.hasLoadingText;
     report.internal_token_match_market = internalTokenMatch(marketBody);
     report.checks.no_internal_tokens_market = !report.internal_token_match_market;
 
-    const operationsButton = page.getByRole('button', { name: '시스템·운영 Data' }).first();
-    await operationsButton.click();
+    await clickWorkspace(page, 'operations', report);
     await page.waitForResponse((response) => (
       response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/view-rows')
     ), { timeout: 30000 }).catch(() => null);
     const operationsGridMetrics = await waitForGridSettled(page, report, 'operations');
     const operationsBody = await page.locator('body').innerText({ timeout: 10000 });
-    report.checks.operations_workspace_visible = operationsBody.includes('readback') || operationsBody.includes('읽기 전용') || operationsBody.includes('전용 workflow');
+    report.checks.operations_workspace_grid_visible = await page.locator('[data-data-management-grid="true"]').isVisible({ timeout: 5000 }).catch(() => false);
     report.checks.operations_grid_not_stuck_loading = !operationsGridMetrics.hasLoadingText;
     report.internal_token_match_operations = internalTokenMatch(operationsBody);
     report.checks.no_internal_tokens_operations = !report.internal_token_match_operations;

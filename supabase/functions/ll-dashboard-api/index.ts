@@ -301,6 +301,8 @@ const EDIT_TARGET_TABLE_ALLOWLIST = new Set([
   'public.ll_weekly_records',
   'public.ll_funds',
   'public.ll_fund_capital_tranches',
+  'public.ll_asset_specs',
+  'public.ll_asset_operating_costs',
 ]);
 
 const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
@@ -314,6 +316,14 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'tenantMasterName', 'tenant_master_name', 'assetName', 'asset_name', 'spaceLabel', 'space_label',
     'leasedAreaSqm', 'leased_area_sqm', 'exclusiveAreaSqm', 'exclusive_area_sqm',
     'currentStartDate', 'current_start_date', 'currentEndDate', 'current_end_date',
+    'firstContractDate', 'first_contract_date', 'firstStartDate', 'first_start_date', 'firstEndDate', 'first_end_date',
+    'firstOperationDate', 'first_operation_date', 'recentContractDate', 'recent_contract_date',
+    'contractYears', 'contract_years', 'extensionCount', 'extension_count',
+    'depositAmount', 'deposit_amount', 'rfMonths', 'rf_months', 'foMonths', 'fo_months', 'tiAmount', 'ti_amount',
+    'rentEscalationRate', 'rent_escalation_rate', 'managementFeeEscalationRate', 'management_fee_escalation_rate',
+    'escalationCycleMonths', 'escalation_cycle_months', 'nextEscalationDate', 'next_escalation_date',
+    'tenantCostBurden', 'tenant_cost_burden', 'earlyTerminationRight', 'early_termination_right',
+    'renewalOption', 'renewal_option', 'specialTerms', 'special_terms', 'leaseStatus', 'lease_status',
   ]),
   'public.ll_lease_attributes': new Set([
     'attribute_type', 'attribute_key', 'attribute_label', 'attribute_value', 'value_text',
@@ -327,7 +337,9 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'leaseSpaceId', 'lease_space_id', 'leaseId', 'lease_id', 'tenantId', 'tenant_id', 'assetId', 'asset_id',
     'spaceLabel', 'space_label',
     'floorLabel', 'floor_label', 'detailAreaLabel', 'detail_area_label', 'temperatureType', 'temperature_type',
+    'isPreleased', 'is_preleased', 'is3pl', 'is_3pl', 'goodsType', 'goods_type', 'isSingleTenant', 'is_single_tenant',
     'leasedAreaSqm', 'leased_area_sqm', 'exclusiveAreaSqm', 'exclusive_area_sqm',
+    'exclusiveRatio', 'exclusive_ratio',
     'currentMonthlyRentTotal', 'current_monthly_rent_total',
     'currentMonthlyMfTotal', 'current_monthly_mf_total',
     'currentMonthlyCostTotal', 'current_monthly_cost_total',
@@ -341,9 +353,11 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'coldStorageType', 'cold_storage_type',
     'leasedAreaSqm', 'leased_area_sqm', 'exclusiveAreaSqm', 'exclusive_area_sqm',
     'basisDate', 'basis_date', 'currentStartDate', 'current_start_date', 'currentEndDate', 'current_end_date',
+    'effectiveDate', 'effective_date', 'changeReason', 'change_reason',
     'monthlyRentTotal', 'monthly_rent_total', 'monthlyMfTotal', 'monthly_mf_total',
     'monthlyCombinedTotal', 'monthly_combined_total', 'currentRentPerPy', 'current_rent_per_py',
-    'currentMfPerPy', 'current_mf_per_py', 'rentChangeReason', 'rent_change_reason',
+    'currentMfPerPy', 'current_mf_per_py', 'rentPerPy', 'rent_per_py', 'mfPerPy', 'mf_per_py',
+    'rentChangeReason', 'rent_change_reason', 'temperatureType', 'temperature_type',
     'reviewStatus', 'review_status',
   ]),
   'public.ll_tenants': new Set([
@@ -364,6 +378,16 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'committed_amount_krw', 'drawdown_date', 'maturity_date',
     'loan_period', 'loan_type', 'interest_type', 'base_rate', 'spread_rate', 'loan_rate',
     'interest_rate', 'fee', 'fee_rate', 'all_in', 'all_in_rate', 'display_order', 'is_active',
+  ]),
+  'public.ll_asset_specs': new Set([
+    'spec_scope', 'floor_label', 'area_label', 'temperature_type',
+    'clear_height_m', 'corridor_width_m', 'ramp_width_m',
+    'floor_load_warehouse_kg_sqm', 'floor_load_corridor_kg_sqm',
+    'dock_count', 'power_capacity_kw', 'lighting_spec', 'wall_material',
+  ]),
+  'public.ll_asset_operating_costs': new Set([
+    'period_start', 'period_end', 'pm_cost_krw', 'fm_cost_krw', 'pm_headcount', 'fm_headcount',
+    'insurance_cost_krw', 'utility_cost_krw', 'other_cost_krw',
   ]),
 };
 
@@ -2803,6 +2827,22 @@ async function assertTargetRowPermission(ctx: Context, row: Record<string, unkno
 function assertRowTemporalWriteAllowed(cell: ReturnType<typeof normalizeEditCells>[number], row: Record<string, unknown>) {
   if (!isCurrentOrFutureRentHistoryCell(cell, row)) {
     throw new Error('Past rent history rows are archived evidence and cannot be edited directly');
+  }
+  if (cell.targetTable === 'public.ll_leases' || cell.targetTable === 'public.ll_lease_spaces') {
+    const reason = dataManagementEndedLeaseReason(row);
+    if (reason) throw new Error(reason);
+  }
+  if (cell.targetTable === 'public.ll_asset_operating_costs') {
+    const periodEnd = safeDateText(row.period_end || row.effective_end_date || row.end_date);
+    if (periodEnd && periodEnd < dataManagementTodayIso()) {
+      throw new Error('Ended operating-cost periods are archived evidence and cannot be edited through Data Management');
+    }
+  }
+  if (cell.targetTable === 'public.ll_asset_specs') {
+    const active = safeText(row.is_active).toLowerCase();
+    if (active && ['false', '0', 'n', 'no'].includes(active)) {
+      throw new Error('Inactive asset spec rows cannot be edited through Data Management');
+    }
   }
 }
 
@@ -5736,7 +5776,7 @@ const DATA_MANAGEMENT_FALLBACK_TABLES = uniqueStrings(DATA_MANAGEMENT_COVERAGE_D
 const DATA_MANAGEMENT_SPACES = [
   { key: 'igis', label: '이지스 Data', description: '이지스자산운용 19개 자산과 17개 펀드의 임대차, 금융, 스펙, 운영비용을 관리합니다.' },
   { key: 'market', label: '시장 Data', description: '임대시장, 공급, 거래, Cap Rate, 뉴스와 시장 원천 데이터를 검토합니다.' },
-  { key: 'operations', label: '시스템·운영 Data', description: '권한, 알림, 로그인, 감사, 캐시, 변경요청 이력을 readback 중심으로 확인합니다.' },
+  { key: 'operations', label: '시스템·운영 Data', description: '권한, 알림, 로그인, 감사, 캐시, 변경요청 이력을 이력 확인 중심으로 확인합니다.' },
 ];
 const DATA_MANAGEMENT_DOMAIN_SPACE: Record<string, string> = {
   lease: 'igis',
@@ -5822,18 +5862,18 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
 const DATA_MANAGEMENT_WORKSPACES = [
   { key: 'igis', label: '이지스 Data', description: '자산·펀드 묶음을 기준으로 임대차, 금융, 스펙, 운영비용을 수정 요청합니다.' },
   { key: 'market', label: '시장 Data', description: '원천 Excel 시트 흐름에 맞춰 임대시장, 공급, 거래, Cap Rate, 뉴스를 검토합니다.' },
-  { key: 'operations', label: '시스템·운영 Data', description: '권한, 승인, 감사, 캐시, 로그인 이력을 readback 중심으로 확인합니다.' },
+  { key: 'operations', label: '시스템·운영 Data', description: '권한, 승인, 감사, 캐시, 로그인 이력을 이력 확인 중심으로 확인합니다.' },
 ];
 const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
   {
     view_key: 'lease_general_excel',
     workspace_key: 'igis',
     domain_key: 'lease',
-    label: '현재 계약 원장',
+    label: '계약 기본정보',
     grain: '운영 임대차 계약 row 1건',
     row_unit: 'lease_general_excel_row',
-    row_unit_label: '운영 원장',
-    description: 'Supabase에 저장된 임대차 운영 데이터를 Excel 원장처럼 읽기 쉬운 업무 컬럼으로 확인합니다.',
+    row_unit_label: '계약',
+    description: '자산, 펀드, 임차인, 계약상태와 현재 조건을 읽기 쉬운 업무 컬럼으로 확인합니다.',
     source_domain: 'lease_contracts',
     source_sheet_name: 'DB_일반',
   },
@@ -5844,8 +5884,8 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     label: '임대료·관리비 히스토리',
     grain: 'DB_히스토리 누적 row 1건',
     row_unit: 'lease_history_excel_row',
-    row_unit_label: 'DB_히스토리 누적',
-    description: '260414 임대차계약 DB의 임대료·관리비 시계열 164행을 확인합니다.',
+    row_unit_label: '임대료·관리비',
+    description: '시점별 임대료와 관리비 변경 내역을 확인합니다.',
     source_domain: 'lease_contracts',
     source_sheet_name: 'DB_히스토리 누적',
   },
@@ -5877,11 +5917,77 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     view_key: 'lease_contracts',
     workspace_key: 'igis',
     domain_key: 'lease',
-    label: '정규화 임대공간',
+    label: '임대공간',
     grain: '임차 구역 1개',
     row_unit: 'lease_space',
-    row_unit_label: '정규화',
-    description: 'Supabase 정규화 임대공간 데이터를 기준으로 현재 계약 상태를 확인합니다.',
+    row_unit_label: '임대공간',
+    description: '임차 구역 단위의 현재 계약 상태를 확인합니다.',
+  },
+  {
+    view_key: 'asset_master',
+    workspace_key: 'igis',
+    domain_key: 'asset_spec',
+    label: '자산 정보',
+    grain: '자산 1건',
+    row_unit: 'asset_row',
+    row_unit_label: '자산',
+    description: '이지스자산운용 관리 자산의 기본 정보와 면적, 주소, 운영 지표를 확인하고 수정 요청합니다.',
+    fallback_table_key: 'assets',
+  },
+  {
+    view_key: 'fund_master',
+    workspace_key: 'igis',
+    domain_key: 'fund',
+    label: '펀드 정보',
+    grain: '펀드 1건',
+    row_unit: 'fund_row',
+    row_unit_label: '펀드',
+    description: '이지스자산운용 관리 펀드의 명칭, 만기, 전략, 비고 값을 확인하고 수정 요청합니다.',
+    fallback_table_key: 'funds',
+  },
+  {
+    view_key: 'tenant_master',
+    workspace_key: 'igis',
+    domain_key: 'lease',
+    label: '임차인 정보',
+    grain: '임차인 1건',
+    row_unit: 'tenant_row',
+    row_unit_label: '임차인',
+    description: '임차인명, 사업자번호, 법인명 등 계약 표시 기준이 되는 값을 관리합니다.',
+    fallback_table_key: 'tenants',
+  },
+  {
+    view_key: 'lease_attributes',
+    workspace_key: 'igis',
+    domain_key: 'lease',
+    label: '특약·세부조건',
+    grain: '속성 1건',
+    row_unit: 'lease_attribute_row',
+    row_unit_label: '속성',
+    description: '특약, 보험, 옵션, 검토 메모 값을 관리합니다.',
+    fallback_table_key: 'lease_attributes',
+  },
+  {
+    view_key: 'asset_specs',
+    workspace_key: 'igis',
+    domain_key: 'asset_spec',
+    label: '자산 스펙',
+    grain: '자산 스펙 항목 1건',
+    row_unit: 'asset_spec_row',
+    row_unit_label: '자산 스펙',
+    description: '저장된 자산별 스펙 값을 업무자가 읽을 수 있는 컬럼으로 확인하고 수정 요청합니다.',
+    fallback_table_key: 'asset_specs',
+  },
+  {
+    view_key: 'operating_costs',
+    workspace_key: 'igis',
+    domain_key: 'operating_cost',
+    label: '운영비용',
+    grain: '자산·기간별 운영비용 1건',
+    row_unit: 'operating_cost_row',
+    row_unit_label: '운영비용',
+    description: 'PM/FM/보험료/Utility 등 자산별 운영비용 값을 확인하고 수정 요청합니다.',
+    fallback_table_key: 'asset_operating_costs',
   },
   {
     view_key: 'market_lease_observations',
@@ -5920,7 +6026,7 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     label: '승인·감사',
     grain: '승인/감사 이력 1건',
     row_unit: 'operation_event',
-    description: '변경 요청과 감사 이력을 readback 전용으로 확인합니다.',
+    description: '변경 요청과 감사 이력을 이력 확인용으로 확인합니다.',
     fallback_table_key: 'edit_requests',
   },
 ];
@@ -5928,27 +6034,46 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
   { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 180 },
   { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, width: 170, read_only_reason: '임차인명은 임차인 마스터 lookup 값입니다. 임차인 마스터 View에서 별도 관리합니다.' },
-  { field_key: 'space_label', label: '임대구역', group: '기본정보', type: 'text', editable: false, width: 140, read_only_reason: '임대구역은 층과 세부구역을 조합한 표시값입니다. 층/세부구역 필드를 수정해 주세요.' },
-  { field_key: 'contract_status', label: '계약상태', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
-  { field_key: 'floor_label', label: '층', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'floor_label', width: 90, default_hidden: true },
-  { field_key: 'detail_area_label', label: '세부구역', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'detail_area_label', width: 120, default_hidden: true },
+  { field_key: 'business_registration_no', label: '임차인 사업자번호', group: '기본정보', type: 'text', editable: false, width: 150, default_hidden: true },
+  { field_key: 'space_label', label: '임대구역', group: '면적·임차구역', type: 'text', editable: false, width: 150, read_only_reason: '임대구역은 층과 세부구역을 조합한 표시값입니다. 층/세부구역 필드를 수정해 주세요.' },
+  { field_key: 'floor_label', label: '층', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'floor_label', width: 90 },
+  { field_key: 'detail_area_label', label: '세부구역', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'detail_area_label', width: 130 },
   { field_key: 'temperature_type', label: '상/저온', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
-  { field_key: 'current_start_date', label: '계약 시작일', group: '계약기간', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_start_date', width: 130 },
-  { field_key: 'current_end_date', label: '계약 종료일', group: '계약기간', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_end_date', width: 130 },
-  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
-  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130, default_hidden: true },
-  { field_key: 'current_monthly_rent_total', label: '월 임대료', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_rent_total', width: 140 },
-  { field_key: 'current_monthly_mf_total', label: '월 관리비', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_mf_total', width: 140 },
-  { field_key: 'current_monthly_cost_total', label: '월 임관비', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_cost_total', width: 140 },
-  { field_key: 'e_noc', label: 'E. NOC', group: '경제조건', type: 'krw_per_py', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'e_noc', width: 120 },
-  { field_key: 'deposit_amount', label: '보증금', group: '경제조건', type: 'krw', editable: false, width: 130, default_hidden: true },
-  { field_key: 'rf_months', label: 'RF', group: '옵션·특약', type: 'months', editable: false, width: 90 },
-  { field_key: 'fo_months', label: 'FO', group: '옵션·특약', type: 'months', editable: false, width: 90 },
-  { field_key: 'ti_amount', label: 'TI', group: '옵션·특약', type: 'krw', editable: false, width: 120, default_hidden: true },
-  { field_key: 'rent_escalation_rate', label: '임대료 인상률', group: '옵션·특약', type: 'percent', editable: false, width: 130 },
-  { field_key: 'management_fee_escalation_rate', label: '관리비 인상률', group: '옵션·특약', type: 'percent', editable: false, width: 130, default_hidden: true },
-  { field_key: 'review_status', label: '검토 상태', group: '검토상태', type: 'text', editable: false, width: 120 },
-  { field_key: 'review_note', label: '검토 메모', group: '검토상태', type: 'text', editable: false, width: 180, default_hidden: true },
+  { field_key: 'is_preleased', label: '선임차 여부', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_preleased', width: 120, default_hidden: true },
+  { field_key: 'is_3pl', label: '3PL 여부', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_3pl', width: 110, default_hidden: true },
+  { field_key: 'goods_type', label: '취급 상품 유형', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'goods_type', width: 150, default_hidden: true },
+  { field_key: 'is_single_tenant', label: '단일 임차인 여부', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_single_tenant', width: 130, default_hidden: true },
+  { field_key: 'contract_status', label: '계약상태', group: '특약·상태', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
+  { field_key: 'leased_area_sqm', label: '임대면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
+  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130 },
+  { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_ratio', width: 110 },
+  { field_key: 'first_contract_date', label: '최초 계약일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_contract_date', width: 130, default_hidden: true },
+  { field_key: 'first_start_date', label: '최초 계약개시일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_start_date', width: 140, default_hidden: true },
+  { field_key: 'first_end_date', label: '최초 계약만기일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_end_date', width: 140, default_hidden: true },
+  { field_key: 'first_operation_date', label: '최초 운영개시일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_operation_date', width: 140, default_hidden: true },
+  { field_key: 'recent_contract_date', label: '최근 계약일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'recent_contract_date', width: 130, default_hidden: true },
+  { field_key: 'current_start_date', label: '현재 계약개시일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_start_date', width: 140 },
+  { field_key: 'current_end_date', label: '현재 계약만기일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_end_date', width: 140 },
+  { field_key: 'current_contract_period', label: '현재 계약기간', group: '계약 일정', type: 'number', editable: true, target_table: 'public.ll_leases', target_field: 'contract_years', width: 130 },
+  { field_key: 'extension_count', label: '연장횟수', group: '계약 일정', type: 'number', editable: true, target_table: 'public.ll_leases', target_field: 'extension_count', width: 100, default_hidden: true },
+  { field_key: 'current_monthly_rent_total', label: '월 임대료', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_rent_total', width: 140 },
+  { field_key: 'current_monthly_mf_total', label: '월 관리비', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_mf_total', width: 140 },
+  { field_key: 'current_monthly_cost_total', label: '월 임관비', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_cost_total', width: 140, default_hidden: true },
+  { field_key: 'e_noc', label: 'E. NOC', group: '임대료·관리비', type: 'krw_per_py', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'e_noc', width: 120, default_hidden: true },
+  { field_key: 'deposit_amount', label: '보증금', group: '보증금·렌트프리·인상', type: 'krw', editable: true, target_table: 'public.ll_leases', target_field: 'deposit_amount', width: 130 },
+  { field_key: 'rf_months', label: 'RF', group: '보증금·렌트프리·인상', type: 'months', editable: true, target_table: 'public.ll_leases', target_field: 'rf_months', width: 90 },
+  { field_key: 'fo_months', label: 'FO', group: '보증금·렌트프리·인상', type: 'months', editable: true, target_table: 'public.ll_leases', target_field: 'fo_months', width: 90 },
+  { field_key: 'ti_amount', label: 'TI', group: '보증금·렌트프리·인상', type: 'krw', editable: true, target_table: 'public.ll_leases', target_field: 'ti_amount', width: 120 },
+  { field_key: 'rent_escalation_rate', label: '임대료 인상률', group: '보증금·렌트프리·인상', type: 'percent', editable: true, target_table: 'public.ll_leases', target_field: 'rent_escalation_rate', width: 130 },
+  { field_key: 'management_fee_escalation_rate', label: '관리비 인상률', group: '보증금·렌트프리·인상', type: 'percent', editable: true, target_table: 'public.ll_leases', target_field: 'management_fee_escalation_rate', width: 130 },
+  { field_key: 'escalation_cycle_months', label: '인상주기', group: '보증금·렌트프리·인상', type: 'months', editable: true, target_table: 'public.ll_leases', target_field: 'escalation_cycle_months', width: 110, default_hidden: true },
+  { field_key: 'next_escalation_date', label: '차기 인상일', group: '보증금·렌트프리·인상', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'next_escalation_date', width: 130, default_hidden: true },
+  { field_key: 'tenant_cost_burden', label: '임차인 부담 비용', group: '보험·권리', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'tenant_cost_burden', width: 180, default_hidden: true },
+  { field_key: 'early_termination_right', label: '중도해지권', group: '보험·권리', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'early_termination_right', width: 140, default_hidden: true },
+  { field_key: 'renewal_option', label: '갱신 옵션', group: '보험·권리', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'renewal_option', width: 140, default_hidden: true },
+  { field_key: 'special_terms', label: '특수 계약 조건', group: '특약·상태', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'special_terms', width: 240, default_hidden: true },
+  { field_key: 'review_status', label: '검토 상태', group: '특약·상태', type: 'text', editable: false, width: 120 },
+  { field_key: 'review_note', label: '검토 메모', group: '특약·상태', type: 'text', editable: false, width: 180, default_hidden: true },
 ];
 const DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
@@ -7011,7 +7136,7 @@ function dataManagementPublicWorkbookField(column: Record<string, unknown>, conf
     sticky: ['펀드코드', '펀드명', '자산명', '자산코드', '임차인명', '임차인 사업자번호'].includes(label),
     width: dataManagementWorkbookColumnWidth(label),
     default_hidden: defaultVisible.size ? !defaultVisible.has(label) : false,
-    read_only_reason: readOnly ? '원본 수식·검산 또는 readback 전용 항목입니다.' : undefined,
+    read_only_reason: readOnly ? '원본 수식·검산 또는 이력 확인 전용 항목입니다.' : undefined,
   });
 }
 
@@ -7204,6 +7329,53 @@ function dataManagementAreaSqmToPy(value: unknown) {
   return numeric === null ? null : numeric / 3.305785;
 }
 
+function dataManagementYearsBetween(startValue: unknown, endValue: unknown) {
+  const start = safeDateText(startValue);
+  const end = safeDateText(endValue);
+  if (!start || !end) return null;
+  const startTime = Date.parse(start);
+  const endTime = Date.parse(end);
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) return null;
+  return Math.round(((endTime - startTime) / (1000 * 60 * 60 * 24 * 365.25)) * 10) / 10;
+}
+
+function dataManagementNumericDiffTooLarge(a: number | null, b: number | null, tolerance: number) {
+  return a !== null && b !== null && Math.abs(a - b) > tolerance;
+}
+
+function dataManagementConsistencyWarningsForTableCell(input: ReturnType<typeof dataManagementTableCellInput>, row: Record<string, unknown>, requestedValue: unknown) {
+  const warnings: Record<string, unknown>[] = [];
+  const field = safeText(input.fieldName);
+  const requestedNumeric = dataManagementNumberOrNull(requestedValue);
+  if (field === 'exclusive_ratio') {
+    const leased = dataManagementNumberOrNull(row.leased_area_sqm);
+    const exclusive = dataManagementNumberOrNull(row.exclusive_area_sqm);
+    const expected = leased && exclusive !== null ? exclusive / leased : null;
+    if (dataManagementNumericDiffTooLarge(requestedNumeric, expected, 0.005)) {
+      warnings.push({ level: 'warning', code: 'exclusive_ratio_consistency', message: `검증 필요: 전용률 입력값이 전용면적 ÷ 임대면적 기준(${formatKoreanPercent(Number(expected))})과 다릅니다.` });
+    }
+  }
+  if (field === 'contract_years') {
+    const expected = dataManagementYearsBetween(row.current_start_date, row.current_end_date);
+    if (dataManagementNumericDiffTooLarge(requestedNumeric, expected, 0.1)) {
+      warnings.push({ level: 'warning', code: 'current_contract_period_consistency', message: `검증 필요: 현재 계약기간 입력값이 현재 계약개시일~현재 계약만기일 기준(${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(Number(expected || 0))}년)과 다릅니다.` });
+    }
+  }
+  if (field === 'rent_per_py' || field === 'mf_per_py') {
+    const leasedPy = dataManagementAreaSqmToPy(row.leased_area_sqm);
+    const total = dataManagementNumberOrNull(field === 'rent_per_py' ? row.monthly_rent_total : row.monthly_mf_total);
+    const expected = leasedPy && total !== null ? total / leasedPy : null;
+    if (dataManagementNumericDiffTooLarge(requestedNumeric, expected, 1)) {
+      warnings.push({
+        level: 'warning',
+        code: field === 'rent_per_py' ? 'rent_per_py_consistency' : 'mf_per_py_consistency',
+        message: `검증 필요: ${field === 'rent_per_py' ? '평당 월임대료' : '평당 월관리비'} 입력값이 ${field === 'rent_per_py' ? '월임대료 총액' : '월관리비 총액'} ÷ 임대면적 기준(${formatKoreanWon(Number(expected))})과 다릅니다.`,
+      });
+    }
+  }
+  return warnings;
+}
+
 function dataManagementFormatViewValue(value: unknown, field: Record<string, unknown>) {
   if (value === null || value === undefined || value === '') return '';
   const type = safeText(field.type);
@@ -7218,6 +7390,203 @@ function dataManagementFormatViewValue(value: unknown, field: Record<string, unk
   if (type === 'months' && numeric !== null) return `${new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 1 }).format(numeric)}개월`;
   if (type === 'date') return safeText(value).slice(0, 10);
   return safeText(value);
+}
+
+function dataManagementFallbackTableNameForView(view: Record<string, unknown>) {
+  const key = safeText(view.fallback_table_key);
+  if (!key) return '';
+  const tableName = key.startsWith('ll_') ? key : `ll_${key}`;
+  return isSafeIdentifier(tableName) ? tableName : '';
+}
+
+function dataManagementFallbackFieldType(fieldName: unknown) {
+  const field = safeText(fieldName).toLowerCase();
+  if (/(date|_at|period_start|period_end)$/u.test(field)) return 'date';
+  if (/(krw|amount|price|cost|fee|rent|noc)$/u.test(field)) return 'krw';
+  if (/(sqm|area)$/u.test(field)) return 'area_sqm';
+  if (/(rate|ratio|percent|vacancy)$/u.test(field)) return 'percent';
+  if (/(count|headcount|height|width|load|capacity|year|quarter|month|order)$/u.test(field)) return 'number';
+  return dataManagementFieldType(fieldName);
+}
+
+function dataManagementFallbackColumnGroup(fieldName: unknown) {
+  const field = safeText(fieldName).toLowerCase();
+  if (/^(asset|fund|tenant|space|floor|detail|temperature|address|region|center|warehouse|name)/u.test(field)) return '기본정보';
+  if (/(start|end|date|period|year|quarter|month|basis|report)/u.test(field)) return '시점';
+  if (/(area|sqm|py|floor_load|height|width|dock|power|lighting|wall)/u.test(field)) return '스펙/면적';
+  if (/(krw|amount|price|cost|fee|rent|noc|rate|cap)/u.test(field)) return '금액/지표';
+  if (/(status|review|active|reason|note)/u.test(field)) return '검토상태';
+  return '기타';
+}
+
+function dataManagementFallbackReadOnlyReason(tableName: string, row: Record<string, unknown>) {
+  if (tableName === 'll_rent_history') return dataManagementHistoricRentReason(row);
+  const leaseReason = dataManagementEndedLeaseReason(row);
+  if (leaseReason) return leaseReason;
+  const periodEnd = safeDateText(row.period_end || row.effective_end_date || row.end_date);
+  if (periodEnd && periodEnd < dataManagementTodayIso()) {
+    return '종료된 기간의 과거 항목입니다. Data Management에서는 현재 값만 수정 가능하며, 과거 값은 관리자 직접 수정 대상으로 분리합니다.';
+  }
+  const latest = safeText(row.is_latest).toLowerCase();
+  if (latest && !['y', 'yes', 'true', '1'].includes(latest)) {
+    return '최신 항목이 아닙니다. Data Management에서는 현재 값만 수정 가능하며, 과거 값은 관리자 직접 수정 대상으로 분리합니다.';
+  }
+  return '';
+}
+
+function dataManagementFallbackFields(tableName: string, rows: Record<string, unknown>[]) {
+  const primaryKey = dataManagementPrimaryKeyForTable(tableName);
+  const rowLabelFields = dataManagementRowLabelFieldsForTable(tableName);
+  const editableFields = [...(EDIT_FIELD_ALLOWLIST[`public.${tableName}`] || new Set<string>())];
+  const rowFieldNames = rows.flatMap((row) => Object.keys(row || {}));
+  const fieldNames = uniqueStrings([
+    ...rowLabelFields,
+    ...editableFields,
+    ...rowFieldNames,
+  ], 240).filter((field) => (
+    field
+    && field !== primaryKey
+    && dataManagementUserVisibleField(field)
+    && !['asset_id', 'fund_id'].includes(field)
+  ));
+  return fieldNames.map((field) => {
+    const type = dataManagementFallbackFieldType(field);
+    const editable = dataManagementEditableField(`public.${tableName}`, field);
+    return stripUndefined({
+      field_key: field,
+      field,
+      label: dataManagementFieldLabel(field),
+      group: dataManagementFallbackColumnGroup(field),
+      type,
+      editable,
+      width: rowLabelFields.includes(field) ? 180 : 140,
+      sticky: rowLabelFields.includes(field),
+      default_hidden: !rowLabelFields.includes(field) && !editable && !['contract_status', 'review_status', 'period_start', 'period_end'].includes(field),
+      read_only_reason: editable ? undefined : '읽기 전용 또는 별도 승인 workflow 대상입니다.',
+    });
+  });
+}
+
+function dataManagementFallbackFormatValue(value: unknown, field: Record<string, unknown>) {
+  if (value === null || value === undefined || value === '') return '';
+  const type = safeText(field.type);
+  if (type === 'json') return '[객체]';
+  return dataManagementFormatViewValue(value, field);
+}
+
+async function dataManagementFallbackTableViewRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, view: Record<string, unknown>) {
+  const viewKey = safeText(view.view_key);
+  const tableName = dataManagementFallbackTableNameForView(view);
+  if (!tableName) throw new Error('Data Management fallback table is not configured.');
+  const primaryKey = dataManagementPrimaryKeyForTable(tableName);
+  const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
+  const pageSize = payload.resolve_all === true
+    ? Math.min(Math.max(requestedPageSize || 5000, 1), 5000)
+    : Math.min(Math.max(requestedPageSize || 80, 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  const bundleKey = safeText(payload.bundle_key || payload.bundleKey);
+  const bundle = bundleKey ? dataManagementBundleByKey(scope, bundleKey) : undefined;
+  if (bundleKey && !bundle) throw new Error('선택한 자산/펀드 묶음을 찾을 수 없습니다.');
+  const needsClientFilter = Boolean(bundleKey || safeText(payload.search));
+  const queryLimit = payload.resolve_all === true ? 5000 : (needsClientFilter ? 1200 : pageSize);
+  const offset = needsClientFilter || payload.resolve_all === true ? 0 : (page - 1) * pageSize;
+  let query = ctx.serviceClient
+    .from(tableName)
+    .select('*', { count: 'estimated' })
+    .range(offset, offset + queryLimit - 1);
+  const sort = Array.isArray(payload.sort) ? payload.sort[0] as Record<string, unknown> : {};
+  const sortKey = safeText(sort?.field || sort?.field_key || sort?.key);
+  if (sortKey && isSafeIdentifier(sortKey) && dataManagementUserVisibleField(sortKey)) {
+    query = query.order(sortKey, { ascending: safeText(sort.direction || 'asc') !== 'desc' });
+  } else if (['basis_date', 'period_start', 'created_at'].some((field) => DATA_MANAGEMENT_ROW_LABEL_FIELDS[tableName]?.includes(field))) {
+    // Keep the natural table order when no reliable default sort exists.
+  }
+  const { data, error, count } = await query;
+  if (error && !isMissingRelationError(error)) throw new Error(error.message);
+  let rawRows = ((data || []) as Record<string, unknown>[])
+    .filter((row) => dataManagementRowReadable(ctx, row, hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx), scope))
+    .filter((row) => dataManagementRowMatchesBundle(row, bundle));
+  const searchKey = normalizeKey(payload.search);
+  if (searchKey) rawRows = rawRows.filter((row) => dataManagementRowHaystackGeneric(row).includes(searchKey));
+  if (needsClientFilter) rawRows = rawRows.slice((page - 1) * pageSize, page * pageSize);
+  const fields = dataManagementFallbackFields(tableName, rawRows);
+  const publicFieldKeys = fields.map((field) => safeText((field as Record<string, unknown>).field_key)).filter(Boolean);
+  const rows = await Promise.all(rawRows.map(async (row) => {
+    const primaryKeyValue = safeText(row[primaryKey] || row.id);
+    const readOnlyReason = dataManagementFallbackReadOnlyReason(tableName, row);
+    const displayValues = Object.fromEntries(fields.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, dataManagementFallbackFormatValue(row[key], field as Record<string, unknown>)];
+    }));
+    const editValues = Object.fromEntries(publicFieldKeys.map((key) => [key, row[key] ?? null]));
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, `${primaryKey}:${primaryKeyValue}`),
+      row_label: dataManagementRowLabelForTable(tableName, row),
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: { status: 'ok', label: '정상' },
+      editable: !readOnlyReason && dataManagementCapabilityForTable(tableName) === 'approval_required',
+      read_only_reason: readOnlyReason || undefined,
+      revision_hash: await dataManagementRevisionHash(row),
+      meta: {
+        row_unit: primaryKey,
+        table_name: tableName,
+        target_table: `public.${tableName}`,
+        primary_key_field: primaryKey,
+        target_row_id: primaryKeyValue,
+        capability: dataManagementCapabilityForTable(tableName),
+        read_only_reason: readOnlyReason || undefined,
+      },
+    });
+  }));
+  return {
+    fields,
+    rows,
+    total: needsClientFilter ? Math.max(rawRows.length, rows.length) : Number(count || rows.length),
+    page,
+    pageSize,
+    tableName,
+    primaryKey,
+  };
+}
+
+async function dataManagementResolveFallbackViewEdit(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, view: Record<string, unknown>) {
+  const viewKey = safeText(view.view_key);
+  const rowKey = safeText(payload.row_key || payload.rowKey);
+  const fieldKey = safeText(payload.field_key || payload.fieldKey || payload.field_name || payload.fieldName);
+  const tableName = dataManagementFallbackTableNameForView(view);
+  if (!rowKey || !fieldKey || !tableName) throw new Error('수정할 행과 필드를 선택해 주세요.');
+  const result = await dataManagementFallbackTableViewRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, view);
+  const field = (result.fields as Record<string, unknown>[]).find((item) => safeText(item.field_key || item.field) === fieldKey);
+  if (!field) throw new Error('업무 View 필드를 찾을 수 없습니다.');
+  if (field.editable !== true) throw new Error('이 필드는 Data Management에서 직접 수정 요청할 수 없습니다.');
+  const row = (result.rows as Record<string, unknown>[]).find((item) => safeText(item.row_key) === rowKey);
+  if (!row) throw new Error('선택한 행을 찾을 수 없습니다. 데이터를 다시 읽어 주세요.');
+  if (row.editable === false) throw new Error(safeText(row.read_only_reason || (row.meta as Record<string, unknown> | undefined)?.read_only_reason || '이 행은 읽기 전용입니다.'));
+  const meta = row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {};
+  const requestedValue = dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue), field);
+  return {
+    table_payload: {
+      edit_mode: 'table_cell',
+      table_key: dataManagementTableKey(tableName),
+      internal_table: `public.${tableName}`,
+      target_table: `public.${tableName}`,
+      primary_key_field: safeText(meta.primary_key_field || result.primaryKey),
+      target_record_id: safeText(meta.target_row_id),
+      target_row_id: safeText(meta.target_row_id),
+      field_name: fieldKey,
+      target_field: fieldKey,
+      before_value: (row.edit_values as Record<string, unknown> | undefined)?.[fieldKey],
+      requested_value: requestedValue,
+      revision_hash: payload.revision_hash || payload.revisionHash || row.revision_hash,
+      reason: payload.reason,
+      target_name: row.row_label,
+      bundle_key: payload.bundle_key || payload.bundleKey || row.bundle_key || null,
+    },
+    row,
+    field,
+  };
 }
 
 function dataManagementParseViewRequestedValue(value: unknown, field: Record<string, unknown>) {
@@ -7239,6 +7608,10 @@ function dataManagementParseViewRequestedValue(value: unknown, field: Record<str
     const numeric = Number(safeText(value).replace(/[^0-9.-]/gu, ''));
     return Number.isFinite(numeric) ? numeric : value;
   }
+  if (type === 'number') {
+    const numeric = Number(safeText(value).replace(/[^0-9.-]/gu, ''));
+    return Number.isFinite(numeric) ? numeric : value;
+  }
   if (type === 'date') return safeDateText(value);
   return value;
 }
@@ -7255,6 +7628,24 @@ function dataManagementLookupStatus(row: Record<string, unknown>) {
   if (missing.length) return { status: 'missing', label: '미매핑', missing };
   if (safeText(row.exception_group) === '404_multi_asset') return { status: 'exception_404', label: '404호 예외' };
   return { status: 'ok', label: '정상', missing: [] };
+}
+
+function dataManagementTodayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function dataManagementEndedLeaseReason(source: Record<string, unknown>) {
+  const endDate = safeDateText(source.current_end_date);
+  if (endDate && endDate < dataManagementTodayIso()) return '계약기간이 종료된 항목입니다. Data Management에서는 현재 값만 수정 가능하며, 종료 계약은 관리자 직접 수정 대상입니다.';
+  const status = normalizeKey(source.contract_status);
+  if (status.includes('종료') || status.includes('expired') || status.includes('ended')) return '종료 계약 항목입니다. Data Management에서는 현재 값만 수정 가능하며, 종료 계약은 관리자 직접 수정 대상입니다.';
+  return '';
+}
+
+function dataManagementHistoricRentReason(source: Record<string, unknown>) {
+  const latest = safeText(source.is_latest).toLowerCase();
+  if (latest && !['y', 'yes', 'true', '1'].includes(latest)) return '과거 임대료·관리비 이력 항목입니다. Data Management에서는 현재 값만 수정 가능하며, 과거 이력은 관리자 직접 수정 대상입니다.';
+  return '';
 }
 
 async function dataManagementLeaseContractRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKeyOverride = 'lease_contracts') {
@@ -7304,15 +7695,28 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       asset_name: firstDefined(space.asset_name, lease.asset_name, asset.label, asset.asset_name, asset.asset_code),
       fund_name: firstDefined(fund.label, fund.display_name, fund.short_name, fund.fund_name),
       tenant_master_name: firstDefined(space.tenant_master_name, lease.tenant_master_name, tenant.tenant_master_name, tenant.company_name),
+      business_registration_no: firstDefined(space.business_registration_no, lease.business_registration_no, tenant.business_registration_no),
       space_label: firstDefined(space.space_label, lease.space_label),
       contract_status: firstDefined(space.contract_status, lease.lease_status, lease.contract_status),
       floor_label: space.floor_label,
       detail_area_label: space.detail_area_label,
       temperature_type: space.temperature_type,
+      is_preleased: firstDefined(space.is_preleased, space.prelease_yn, lease.is_preleased),
+      is_3pl: firstDefined(space.is_3pl, space.third_party_logistics_yn, lease.is_3pl),
+      goods_type: firstDefined(space.goods_type, space.product_type, lease.goods_type),
+      is_single_tenant: firstDefined(space.is_single_tenant, space.single_tenant_yn, lease.is_single_tenant),
+      first_contract_date: lease.first_contract_date,
+      first_start_date: lease.first_start_date,
+      first_end_date: lease.first_end_date,
+      first_operation_date: lease.first_operation_date,
+      recent_contract_date: lease.recent_contract_date,
       current_start_date: firstDefined(lease.current_start_date, space.current_start_date),
       current_end_date: firstDefined(lease.current_end_date, space.current_end_date),
+      current_contract_period: firstDefined(lease.contract_years, lease.current_contract_period),
+      extension_count: lease.extension_count,
       leased_area_sqm: firstDefined(space.leased_area_sqm, lease.leased_area_sqm),
       exclusive_area_sqm: firstDefined(space.exclusive_area_sqm, lease.exclusive_area_sqm),
+      exclusive_ratio: firstDefined(space.exclusive_ratio, lease.exclusive_ratio),
       current_monthly_rent_total: space.current_monthly_rent_total,
       current_monthly_mf_total: space.current_monthly_mf_total,
       current_monthly_cost_total: space.current_monthly_cost_total,
@@ -7323,6 +7727,12 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       ti_amount: lease.ti_amount,
       rent_escalation_rate: lease.rent_escalation_rate,
       management_fee_escalation_rate: lease.management_fee_escalation_rate,
+      escalation_cycle_months: lease.escalation_cycle_months,
+      next_escalation_date: lease.next_escalation_date,
+      tenant_cost_burden: lease.tenant_cost_burden,
+      early_termination_right: lease.early_termination_right,
+      renewal_option: lease.renewal_option,
+      special_terms: lease.special_terms,
       review_status: firstDefined(space.review_status, lease.review_status, '검토 전'),
       review_note: firstDefined(space.review_note, lease.review_note),
       exception_group: matchedBundle.exception_group,
@@ -7339,6 +7749,8 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     const labelParts = [source.asset_name, source.fund_name, source.tenant_master_name, source.space_label].map((item) => safeText(item)).filter(Boolean);
     const rowLabel = labelParts.join(' · ') || '임대차 계약';
     const lookup = dataManagementLookupStatus(source);
+    const readOnlyReason = dataManagementEndedLeaseReason(source);
+    const editable = !readOnlyReason && (lookup.status === 'ok' || lookup.status === 'exception_404');
     return stripUndefined({
       row_key: await dataManagementOpaqueRowKey(viewKey, space.lease_space_id),
       row_label: rowLabel,
@@ -7346,11 +7758,13 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       values: displayValues,
       edit_values: editValues,
       lookup_status: lookup,
-      editable: lookup.status === 'ok' || lookup.status === 'exception_404',
+      editable,
+      read_only_reason: readOnlyReason || undefined,
       revision_hash: await dataManagementRevisionHash({ space, lease }),
       meta: {
         row_unit: 'lease_space_id',
         status: lookup.label,
+        read_only_reason: readOnlyReason || undefined,
       },
     });
   }));
@@ -7446,8 +7860,8 @@ async function dataManagementLeaseRentHistoryRows(ctx: Context, payload: Record<
       exclusive_area_sqm: firstDefined(history.exclusive_area_sqm, space.exclusive_area_sqm),
       monthly_rent_total: firstDefined(history.monthly_rent_total, history.current_monthly_rent_total),
       monthly_mf_total: firstDefined(history.monthly_mf_total, history.current_monthly_mf_total),
-      rent_per_py: history.rent_per_py,
-      mf_per_py: history.mf_per_py,
+      rent_per_py: firstDefined(history.rent_per_py, history.current_rent_per_py),
+      mf_per_py: firstDefined(history.mf_per_py, history.current_mf_per_py),
       is_latest: history.is_latest === true ? 'Y' : (history.is_latest === false ? 'N' : firstDefined(history.is_latest, '')),
       review_status: firstDefined(history.review_status, 'reviewed'),
       exception_group: matchedBundle.exception_group,
@@ -7464,6 +7878,8 @@ async function dataManagementLeaseRentHistoryRows(ctx: Context, payload: Record<
     const labelParts = [source.asset_name, source.fund_name, source.tenant_master_name, source.effective_date].map((item) => safeText(item)).filter(Boolean);
     const rowLabel = labelParts.join(' · ') || 'rent history';
     const lookup = dataManagementLookupStatus(source);
+    const historyReadOnlyReason = dataManagementHistoricRentReason(source);
+    const historyEditable = !historyReadOnlyReason && (lookup.status === 'ok' || lookup.status === 'exception_404');
     return stripUndefined({
       row_key: await dataManagementOpaqueRowKey(viewKey, history.rent_history_id),
       row_label: rowLabel,
@@ -7471,11 +7887,13 @@ async function dataManagementLeaseRentHistoryRows(ctx: Context, payload: Record<
       values: displayValues,
       edit_values: editValues,
       lookup_status: lookup,
-      editable: lookup.status === 'ok' || lookup.status === 'exception_404',
+      editable: historyEditable,
+      read_only_reason: historyReadOnlyReason || undefined,
       revision_hash: await dataManagementRevisionHash({ history, space }),
       meta: {
         row_unit: 'rent_history_id',
         status: lookup.label,
+        read_only_reason: historyReadOnlyReason || undefined,
       },
       _rent_history_id: history.rent_history_id,
     });
@@ -7525,6 +7943,7 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
     const result = await dataManagementLeaseRentHistoryRows(ctx, { page_size: 5000, resolve_all: true }, scope, viewKey);
     const row = ((result.all_rows || result.rows) as Record<string, unknown>[]).find((item) => safeText(item.row_key) === rowKey);
     if (!row) throw new Error('Selected rent history row was not found. Please reload Data Management.');
+    if (row.editable === false) throw new Error(safeText(row.read_only_reason || (row.meta as Record<string, unknown> | undefined)?.read_only_reason || 'This row is read-only in Data Management.'));
     const targetRowId = safeText(row._rent_history_id);
     if (!targetRowId) throw new Error('Rent history target row was not found.');
     const publicTargetTable = normalizePublicLlTable(targetTable || 'public.ll_rent_history');
@@ -7541,6 +7960,7 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
         field_name: targetField,
         before_value: currentRawValue,
         requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+        revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
         view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
         target_name: row.row_label,
         asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
@@ -7558,12 +7978,13 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
   const result = await dataManagementLeaseContractRows(ctx, { page_size: 5000, resolve_all: true }, scope, viewKey);
   const row = result.rows.find((item) => safeText(item.row_key) === rowKey);
   if (!row) throw new Error('수정 대상 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
+  if (row.editable === false) throw new Error(safeText(row.read_only_reason || (row.meta as Record<string, unknown> | undefined)?.read_only_reason || 'This row is read-only in Data Management.'));
   const currentRawValue = (row.edit_values as Record<string, unknown> | undefined)?.[fieldKey];
   const publicTargetTable = normalizePublicLlTable(targetTable);
   const tableName = clientTableName(publicTargetTable);
   const primaryKeyField = dataManagementPrimaryKeyForTable(tableName);
   const rawRows = await listLeaseSpacesForAssets(ctx, (scope.readableAssets || []).map((asset) => safeText(asset.asset_id)).filter(Boolean));
-  if (rawRows.errorResponse) throw new Error('수정 대상 readback에 실패했습니다.');
+  if (rawRows.errorResponse) throw new Error('수정 대상 확인에 실패했습니다.');
   const matchingSpace = await Promise.all((rawRows.rows || []).map(async (space) => ({
     space,
     row_key: await dataManagementOpaqueRowKey(viewKey, space.lease_space_id),
@@ -7580,6 +8001,7 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
       field_name: targetField,
       before_value: currentRawValue,
       requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+      revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
       view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
       target_name: row.row_label,
       asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
@@ -7689,8 +8111,8 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
               parse_status: rawSourceFile.parse_status,
             } : null,
             note: rawSourceFile
-              ? '원본 Excel row 보관본과 운영 정규화 데이터를 함께 확인합니다.'
-              : '원본 Excel row 보관본은 없지만 운영 Supabase 정규화 데이터가 표시됩니다.',
+              ? '보관 원본과 운영 데이터를 함께 확인합니다.'
+              : '보관 원본은 없지만 운영 데이터가 표시됩니다.',
           },
         },
         fields,
@@ -7698,7 +8120,7 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
         empty_state: result.total > 0 ? undefined : {
           code: 'normalized_lease_data_empty',
           title: '표시할 임대차 운영 데이터가 없습니다.',
-          description: 'Supabase 정규화 임대차 테이블의 readback 결과가 0건입니다. 자산 권한과 운영 테이블 적재 상태를 확인해야 합니다.',
+          description: '현재 조건에서 표시할 임대차 운영 데이터가 없습니다. 자산 권한과 운영 데이터 상태를 확인해야 합니다.',
         },
         pagination: {
           page: result.page,
@@ -7710,6 +8132,42 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
       } }, 200, ctx.origin);
     } catch (error) {
       return fail(500, 'Data Management 임대차 운영 View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  if (safeText((view as Record<string, unknown>).fallback_table_key)) {
+    try {
+      const result = await dataManagementFallbackTableViewRows(ctx, payload, managementScope, view as Record<string, unknown>);
+      const fields = (result.fields || []).map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
+      const { fallback_table_key: _fallbackTableKey, ...publicView } = view as Record<string, unknown>;
+      return jsonResponse({ ok: true, data: {
+        generated_at: new Date().toISOString(),
+        view: {
+          ...publicView,
+          fields,
+          source_status: {
+            normalized_data_present: result.total > 0,
+            table_name: result.tableName,
+            raw_source_present: false,
+            note: '운영 데이터 기준으로 표시합니다.',
+          },
+        },
+        fields,
+        rows: result.rows,
+        empty_state: result.total > 0 ? undefined : {
+          code: 'normalized_view_empty',
+          title: `${safeText(view.label)} 데이터가 없습니다.`,
+          description: '현재 선택 조건에 맞는 운영 데이터가 없습니다. 검색어, 자산/펀드 묶음, 업무 보기를 조정해 주세요.',
+        },
+        pagination: {
+          page: result.page,
+          page_size: result.pageSize,
+          returned: result.rows.length,
+          total_estimate: result.total,
+          has_next: (result.page * result.pageSize) < result.total,
+        },
+      } }, 200, ctx.origin);
+    } catch (error) {
+      return fail(500, 'Data Management 운영 View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
     }
   }
   const workbookConfig = dataManagementLeaseWorkbookConfig(safeText(view.view_key));
@@ -8066,9 +8524,11 @@ async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<
         validations.push({ level: 'error', code: 'stale_current_value', message: '현재 DB값이 사용자가 본 변경 전 값과 다릅니다. 데이터를 다시 읽은 후 수정해 주세요.' });
       }
       const requestedRevisionHash = safeText(payload.revision_hash || payload.revisionHash);
-      if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash) {
+      const requestedViewRevisionHash = safeText(payload.view_revision_hash || payload.viewRevisionHash);
+      if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
         validations.push({ level: 'error', code: 'stale_revision_hash', message: '현재 행 버전이 화면에 표시된 버전과 다릅니다. 데이터를 다시 읽은 후 수정해 주세요.' });
       }
+      validations.push(...dataManagementConsistencyWarningsForTableCell(input, row, input.requestedValue));
     } catch (error) {
       validations.push({ level: 'error', code: 'target_readback_failed', message: error instanceof Error ? error.message : 'Target readback failed' });
     }
@@ -8149,7 +8609,8 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
     return fail(409, 'Stale value blocked before submit', ctx.origin, { current_value: currentValue });
   }
   const requestedRevisionHash = safeText(payload.revision_hash || payload.revisionHash);
-  if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash) {
+  const requestedViewRevisionHash = safeText(payload.view_revision_hash || payload.viewRevisionHash);
+  if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
     return fail(409, 'Stale row revision blocked before submit', ctx.origin, { current_revision_hash: currentRevisionHash });
   }
   if (valuesEqual(currentValue, input.requestedValue)) return fail(400, 'A changed requested value is required', ctx.origin);
@@ -8583,6 +9044,15 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     const viewKey = safeText(payload.view_key || payload.viewKey);
+    const view = dataManagementViewByKey(viewKey);
+    if (view && safeText((view as Record<string, unknown>).fallback_table_key)) {
+      try {
+        const resolved = await dataManagementResolveFallbackViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope(), view as Record<string, unknown>);
+        return callDataManagementPreviewTableCell(ctx, resolved.table_payload);
+      } catch (error) {
+        return fail(400, error instanceof Error ? error.message : 'Data Management View edit target could not be resolved', ctx.origin);
+      }
+    }
     const workbookConfig = dataManagementLeaseWorkbookConfig(viewKey);
     if (workbookConfig && !DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
       const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope, workbookConfig);
@@ -8737,6 +9207,15 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     const viewKey = safeText(payload.view_key || payload.viewKey);
+    const view = dataManagementViewByKey(viewKey);
+    if (view && safeText((view as Record<string, unknown>).fallback_table_key)) {
+      try {
+        const resolved = await dataManagementResolveFallbackViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope(), view as Record<string, unknown>);
+        return callDataManagementSubmitTableCell(ctx, resolved.table_payload);
+      } catch (error) {
+        return fail(400, error instanceof Error ? error.message : 'Data Management View edit target could not be resolved', ctx.origin);
+      }
+    }
     const workbookConfig = dataManagementLeaseWorkbookConfig(viewKey);
     if (workbookConfig && !DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
       const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope, workbookConfig);
