@@ -805,7 +805,7 @@ function ModuleHeader({ eyebrow, title, subtitle = '', right = null, page = fals
     <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
       <div>
         {eyebrow ? <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{eyebrow}</div> : null}
-        <h2 className={`${eyebrow ? 'mt-1' : ''} ${page ? 'text-[30px]' : 'text-[24px]'} font-semibold tracking-tight text-white`}>{title}</h2>
+        <h2 className={`${eyebrow ? 'mt-1' : ''} ${page ? 'text-[26px]' : 'text-[24px]'} font-semibold tracking-tight text-white`}>{title}</h2>
         {subtitle ? <p className="mt-1 max-w-[860px] text-[12px] leading-5 text-[#A1A1AA]">{subtitle}</p> : null}
       </div>
       {right}
@@ -816,12 +816,14 @@ function ModuleHeader({ eyebrow, title, subtitle = '', right = null, page = fals
 function MetricCard({ label, value, detail, compact = false }) {
   if (compact) {
     return (
-      <div className={`${INNER} flex min-h-[64px] items-center justify-between gap-4 px-4 py-2`}>
+      <div className={`${INNER} flex min-h-[64px] flex-col justify-center px-4 py-2`}>
         <div className="min-w-0">
           <div className="text-[11px] font-semibold text-[#86868B]">{label}</div>
-          <div className="mt-1 truncate text-[18px] font-semibold text-white" title={String(value)}>{value}</div>
+          <div className="mt-1 flex min-w-0 items-end gap-3">
+            <div className="truncate text-[18px] font-semibold leading-none text-white" title={String(value)}>{value}</div>
+            {detail ? <div className="mb-[1px] min-w-0 truncate text-[10px] leading-none text-[#86868B]" title={String(detail)}>{detail}</div> : null}
+          </div>
         </div>
-        {detail ? <div className="max-w-[46%] shrink-0 text-right text-[10px] leading-4 text-[#86868B]">{detail}</div> : null}
       </div>
     );
   }
@@ -1105,6 +1107,35 @@ function FilterPills({ label, options, value, onChange, help = '' }) {
         })}
       </div>
     </div>
+  );
+}
+
+function FilterSelect({ label, options, value, onChange, help = '' }) {
+  return (
+    <label className="block min-w-0">
+      <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+        <span>{label}</span>
+        {help ? (
+          <span className="group relative inline-grid h-4 w-4 place-items-center rounded-full border border-[#3A3A3C] text-[10px] normal-case tracking-normal text-[#A1A1AA]">
+            !
+            <span className="pointer-events-none absolute left-0 top-5 z-50 hidden w-[360px] rounded-[10px] border border-[#3A3A3C] bg-[#F5F5F7] px-3 py-2 text-left text-[12px] font-medium leading-5 tracking-normal text-[#1F1F1E] shadow-xl group-hover:block">
+              {help}
+            </span>
+          </span>
+        ) : null}
+      </div>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-8 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 text-[12px] font-semibold text-white outline-none hover:border-[#8E8E93] focus:border-white"
+      >
+        {options.map((option) => {
+          const optionValue = typeof option === 'string' ? option : option.value;
+          const optionLabel = typeof option === 'string' ? option : option.label;
+          return <option key={optionValue} value={optionValue}>{optionLabel}</option>;
+        })}
+      </select>
+    </label>
   );
 }
 
@@ -4260,6 +4291,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const [leaseSegment, setLeaseSegment] = useState('복합 전체');
   const [leaseMeasure, setLeaseMeasure] = useState('rent_manwon_per_py');
   const [leaseRegion, setLeaseRegion] = useState('전체');
+  const [leaseStatisticRegion, setLeaseStatisticRegion] = useState('전체');
   const [leaseSearch, setLeaseSearch] = useState('');
   const [leaseCenterTemp, setLeaseCenterTemp] = useState('전체');
   const [leaseStatisticPeriod, setLeaseStatisticPeriod] = useState('');
@@ -4272,6 +4304,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const [supplyEnd, setSupplyEnd] = useState(SUPPLY_PERIOD_DEFAULT_END);
   const [supplyPeriodTouched, setSupplyPeriodTouched] = useState(false);
   const [supplyKind, setSupplyKind] = useState('전체');
+  const [modalFiltersCollapsed, setModalFiltersCollapsed] = useState(false);
   const summary = data?.summary || {};
   const marketViews = data?.views || {};
   const overviewView = marketViews.overview || {};
@@ -4449,21 +4482,43 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
     }
     return row[leaseMeasure];
   };
-  const leaseMetricFormatterFor = (metric) => (metric === 'vacancy_rate' ? formatRate : (value) => formatNumber(value, 1));
+  const leaseMetricUnitFor = (metric) => {
+    if (metric === 'vacancy_rate') return '';
+    if (metric === 'rent_free_months_per_year' || metric === 'rent_free_vacancy_10') return '개월/년';
+    return '만원/평';
+  };
+  const leaseMetricFormatterFor = (metric) => {
+    if (metric === 'vacancy_rate') return formatRate;
+    const unit = leaseMetricUnitFor(metric);
+    return (value) => `${formatNumber(value, 1)}${unit}`;
+  };
   const leaseMetricFormatter = leaseMetricFormatterFor(leaseMeasure);
+  const selectedLeaseMeasureLabel = text(leaseMeasureOptions.find((option) => option.value === leaseMeasure)?.label, '선택 지표');
   const leaseStatisticAvailableSegments = new Set(leaseStatisticRows.map((row) => text(row.segment_label, '')).filter(Boolean));
   const leaseSegmentOptions = ['복합 전체', '복합 상온', '복합 저온', '상온', '저온', '상온(복합포함)', '저온(복합포함)']
     .filter((option) => leaseStatisticAvailableSegments.size === 0 || leaseStatisticAvailableSegments.has(option));
+  const leaseStatisticRegionOptions = [
+    { value: '전체', label: '전체 권역' },
+    ...regions.filter((option) => option.value !== '전체'),
+  ];
   useEffect(() => {
     if (leaseSegmentOptions.length && !leaseSegmentOptions.includes(leaseSegment)) setLeaseSegment(leaseSegmentOptions[0]);
   }, [leaseSegment, leaseSegmentOptions.join('|')]);
+  useEffect(() => {
+    if (leaseStatisticRegion !== '전체' && !regions.some((option) => regionValue(option.value || option) === regionValue(leaseStatisticRegion))) {
+      setLeaseStatisticRegion('전체');
+    }
+  }, [leaseStatisticRegion, regions.map((option) => option.value || option).join('|')]);
   const leaseStatisticBaseRows = leaseStatisticRows.filter((row) => (
     text(row.period_label) === selectedLeaseStatisticPeriod
     && text(row.metric_key) === leaseMeasure
     && text(row.dimension_type) === 'region'
     && row.is_average !== true
   ));
-  const leaseStatisticDisplayRows = leaseStatisticBaseRows.filter((row) => text(row.segment_label) === leaseSegment);
+  const leaseStatisticDisplayRows = leaseStatisticBaseRows.filter((row) => (
+    text(row.segment_label) === leaseSegment
+    && (leaseStatisticRegion === '전체' || regionValue(row.region || row.label) === regionValue(leaseStatisticRegion))
+  ));
   const leaseComparisonSegmentGroups = [
     ['상온(복합포함)', '저온(복합포함)'],
     ['복합 상온', '복합 저온'],
@@ -4506,13 +4561,19 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       countOnly: true,
     },
   ].map((item) => {
-    if (item.countOnly) return { label: item.label, value: `${formatNumber(item.rows.length)}개`, detail: selectedLeaseStatisticPeriod || '-' };
+    if (item.countOnly) {
+      return {
+        label: item.label,
+        value: `${formatNumber(item.rows.length)}개`,
+        detail: `${selectedLeaseStatisticPeriod || '-'} · ${selectedLeaseMeasureLabel}`,
+      };
+    }
     const values = item.rows.map((row) => number(row.value)).filter((value) => Number.isFinite(value));
     const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
     return {
       label: item.label,
       value: average == null ? '-' : leaseMetricFormatter(average),
-      detail: `${formatNumber(values.length)}개 권역`,
+      detail: `${selectedLeaseMeasureLabel} · ${formatNumber(values.length)}개 권역`,
     };
   });
   const openLeaseStatisticModal = (row) => {
@@ -5009,6 +5070,9 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
       },
     } : current));
   };
+  useEffect(() => {
+    setModalFiltersCollapsed(false);
+  }, [modal?.type]);
   const transactionExplorerRows = modal?.type === 'transaction-size-explorer'
     ? safeArray(modal.baseRows)
       .map((row) => ({
@@ -5264,23 +5328,30 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
                 </button>
               )}
             />
-            <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(220px,0.7fr)_minmax(260px,0.9fr)_minmax(420px,1.4fr)]">
-              <FilterPills label="시점" value={selectedLeaseStatisticPeriod} onChange={setLeaseStatisticPeriod} options={leaseStatisticPeriods.map((period) => ({ value: period, label: period }))} />
-              <FilterPills label="지표" value={leaseMeasure} onChange={setLeaseMeasure} options={leaseMeasureOptions} />
-              <FilterPills
-                label="상/저온 구분"
-                value={leaseSegment}
-                onChange={setLeaseSegment}
-                options={leaseSegmentOptions}
-                help="복합 상온/저온은 복합센터 안의 온도별 관측치이고, 상온/저온(복합포함)은 단일 상온·저온과 복합센터 해당 온도 관측치를 함께 포함한 원천 집계입니다."
-              />
+            <div className="mb-4 grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(240px,0.62fr)_minmax(520px,1.45fr)_minmax(280px,0.72fr)]">
+              <div className="h-full rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                <FilterSelect label="시점" value={selectedLeaseStatisticPeriod} onChange={setLeaseStatisticPeriod} options={leaseStatisticPeriods.map((period) => ({ value: period, label: period }))} />
+              </div>
+              <div className="grid h-full gap-3 rounded-[10px] border border-[#333333] bg-[#171717] p-3 md:grid-cols-2">
+                <FilterPills label="지표" value={leaseMeasure} onChange={setLeaseMeasure} options={leaseMeasureOptions} />
+                <FilterPills
+                  label="상/저온 구분"
+                  value={leaseSegment}
+                  onChange={setLeaseSegment}
+                  options={leaseSegmentOptions}
+                  help="복합 상온/저온은 복합센터 안의 온도별 관측치이고, 상온/저온(복합포함)은 단일 상온·저온과 복합센터 해당 온도 관측치를 함께 포함한 원천 집계입니다."
+                />
+              </div>
+              <div className="h-full rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                <FilterSelect label="권역" value={leaseStatisticRegion} onChange={setLeaseStatisticRegion} options={leaseStatisticRegionOptions} />
+              </div>
             </div>
             <div className="mb-4 flex flex-wrap gap-2">
               {leaseStatisticSummaryCards.map((metric) => (
-                <div key={metric.label} className="inline-flex min-h-9 items-center gap-2 rounded-[8px] border border-[#333333] bg-[#171717] px-3 text-[12px]">
-                  <span className="text-[#86868B]">{metric.label}</span>
-                  <span className="font-semibold text-white">{metric.value}</span>
-                  <span className="text-[11px] text-[#86868B]">{metric.detail}</span>
+                <div key={metric.label} className="inline-flex min-h-9 items-end gap-2 rounded-[8px] border border-[#333333] bg-[#171717] px-3 py-2 text-[12px]">
+                  <span className="self-center text-[#86868B]">{metric.label}</span>
+                  <span className="text-[14px] font-semibold leading-none text-white">{metric.value}</span>
+                  <span className="pb-[1px] text-[11px] leading-none text-[#86868B]">{metric.detail}</span>
                 </div>
               ))}
             </div>
@@ -5489,18 +5560,34 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
         ) : null}
         {modal?.type === 'lease-statistic-explorer' ? (
           <div data-testid="lease-statistic-explorer" className="mb-4 space-y-4">
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_1fr_1.3fr]">
-              <FilterPills label="시점" value={modal.filters?.period || selectedLeaseStatisticPeriod} onChange={(value) => updateModalFilter('period', value)} options={leaseStatisticModalPeriodOptions.map((period) => ({ value: period, label: period }))} />
-              <FilterPills label="지표" value={modal.filters?.metric || leaseMeasure} onChange={(value) => updateModalFilter('metric', value)} options={leaseMeasureOptions} />
-              <FilterPills label="상/저온 구분" value={modal.filters?.segment || leaseSegment} onChange={(value) => updateModalFilter('segment', value)} options={leaseStatisticModalSegmentOptions.map((segment) => ({ value: segment, label: segment }))} />
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-[12px] text-[#A1A1AA]">
+                선택 조건에 맞는 권역별 통계 {formatNumber(leaseStatisticExplorerRows.length)}건
+              </div>
+              <button
+                type="button"
+                onClick={() => setModalFiltersCollapsed((current) => !current)}
+                className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]"
+                data-modal-filter-toggle="true"
+              >
+                {modalFiltersCollapsed ? '조건 펼치기' : '조건 접기'}
+              </button>
             </div>
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[320px_1fr]">
-              <FilterPills label="수도권/지방" value={modal.filters?.scope || '전체'} onChange={(value) => updateModalFilter('scope', value)} options={['전체', '수도권', '지방']} />
-              <RegionFilterGroups label="세부 권역" value={modal.filters?.region || '전체'} onChange={(value) => updateModalFilter('region', value)} options={regions} />
-            </div>
-            <div className={`${INNER} px-3 py-2 text-[12px] text-[#A1A1AA]`}>
-              선택 조건에 맞는 권역별 통계 {formatNumber(leaseStatisticExplorerRows.length)}건을 표시합니다.
-            </div>
+            {!modalFiltersCollapsed ? (
+              <div className="grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[minmax(240px,0.62fr)_minmax(520px,1.45fr)_minmax(280px,0.72fr)]">
+                <div className="grid h-full content-start gap-3 rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                  <FilterSelect label="시점" value={modal.filters?.period || selectedLeaseStatisticPeriod} onChange={(value) => updateModalFilter('period', value)} options={leaseStatisticModalPeriodOptions.map((period) => ({ value: period, label: period }))} />
+                  <FilterPills label="수도권/지방" value={modal.filters?.scope || '전체'} onChange={(value) => updateModalFilter('scope', value)} options={['전체', '수도권', '지방']} />
+                </div>
+                <div className="grid h-full gap-3 rounded-[10px] border border-[#333333] bg-[#171717] p-3 md:grid-cols-2">
+                  <FilterPills label="지표" value={modal.filters?.metric || leaseMeasure} onChange={(value) => updateModalFilter('metric', value)} options={leaseMeasureOptions} />
+                  <FilterPills label="상/저온 구분" value={modal.filters?.segment || leaseSegment} onChange={(value) => updateModalFilter('segment', value)} options={leaseStatisticModalSegmentOptions.map((segment) => ({ value: segment, label: segment }))} />
+                </div>
+                <div className="h-full rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                  <FilterSelect label="세부 권역" value={modal.filters?.region || '전체'} onChange={(value) => updateModalFilter('region', value)} options={leaseStatisticRegionOptions} />
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : null}
         {modal?.type === 'supply-area-value-explorer' ? (

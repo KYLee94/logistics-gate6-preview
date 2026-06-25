@@ -1,11 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
-import { invokeDashboardApi, signOutSupabaseLocal } from '../utils/supabaseSession';
+import { ensureFreshSupabaseSession, invokeDashboardApi, signOutSupabaseLocal } from '../utils/supabaseSession';
 
 const AuthContext = createContext();
 
-const TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const TIMEOUT_MS = 12 * 60 * 60 * 1000; // 12 hours
 const AUTH_INITIALIZATION_WARNING_MS = 15 * 1000;
 const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
 const LOGISTICS_LOCAL_AUTH_KEY = 'logistics_preview_auth';
@@ -155,7 +155,7 @@ export function AuthProvider({ children }) {
                     console.warn('Auth initialization is taking longer than expected.');
                 }, AUTH_INITIALIZATION_WARNING_MS);
 
-                const { data: { session } } = await supabase.auth.getSession();
+                const session = await ensureFreshSupabaseSession();
                 clearTimeout(timeoutId);
 
                 if (!mounted) return;
@@ -167,8 +167,7 @@ export function AuthProvider({ children }) {
                     } else {
                         const ok = await fetchMemberInfo(session.user.email);
                         if (!ok) {
-                            await handleSignOut();
-                            return;
+                            setMemberInfo((current) => current || normalizeMemberInfo({ email: session.user.email }, session.user.email));
                         }
                     }
                 } else {
@@ -201,8 +200,7 @@ export function AuthProvider({ children }) {
                         setUser(session.user);
                         const ok = await fetchMemberInfo(session.user.email);
                         if (!ok) {
-                            await handleSignOut();
-                            return;
+                            setMemberInfo((current) => current || normalizeMemberInfo({ email: session.user.email }, session.user.email));
                         }
                     } else {
                         setUser(null);
