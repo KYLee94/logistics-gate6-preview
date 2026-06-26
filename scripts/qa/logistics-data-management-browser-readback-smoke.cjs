@@ -16,7 +16,6 @@ const REQUIRED_WORKFLOW_KEYS = [
   'insurance_rights',
   'required_specs',
   'special_status',
-  'manager_links',
   'validation',
 ];
 
@@ -180,6 +179,14 @@ async function waitForGridSettled(page, report, label) {
 }
 
 async function clickWorkflow(page, key, report) {
+  const select = page.locator('[data-data-management-workflow-select="true"]').first();
+  const selectVisible = await select.isVisible({ timeout: 5000 }).catch(() => false);
+  if (selectVisible) {
+    await select.selectOption(key).catch((error) => {
+      report.errors.push(`workflow select failed: ${key} ${error.message}`);
+    });
+    return true;
+  }
   const locator = page.locator(`[data-data-management-workflow-key="${key}"]`).first();
   const visible = await locator.isVisible({ timeout: 5000 }).catch(() => false);
   if (!visible) {
@@ -244,7 +251,7 @@ async function main() {
     const viewRowsPromise = page.waitForResponse((response) => (
       response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/view-rows')
     ), { timeout: 45000 }).catch(() => null);
-    const dataManagementUrl = joinUrl(baseUrl, 'data-management');
+    const dataManagementUrl = joinUrl(baseUrl, 'data-management/lease-contracts');
     await page.goto(`${dataManagementUrl}${dataManagementUrl.includes('?') ? '&' : '?'}qa=${stamp}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     const [viewsResponse, viewRowsResponse] = await Promise.all([viewsPromise, viewRowsPromise]);
     const viewsBody = await responseJson(viewsResponse);
@@ -287,15 +294,15 @@ async function main() {
 
     report.checks.views_api_ok = viewsBody?.ok === true;
     report.checks.view_rows_api_ok = viewRowsBody?.ok === true;
-    report.checks.has_three_workspaces = safeArray(viewsData.workspaces).length >= 3;
+    report.checks.has_management_views = safeArray(viewsData.views).length > 0;
     report.checks.scope_19_assets_17_funds = viewsData.management_scope?.asset_count === 19 && viewsData.management_scope?.fund_count === 17;
     report.checks.bundle_scope_present = safeArray(viewsData.fund_asset_bundles).length >= 19;
     report.checks.default_view_has_fields = Number(report.view_rows_contract.field_count || 0) > 0;
     report.checks.default_view_has_rows = Number(report.view_rows_contract.row_count || 0) > 0;
     report.checks.default_view_uses_normalized_readback = report.view_rows_contract.view?.source_status?.normalized_data_present === true;
-    report.checks.workflow_card_elements_visible = (await Promise.all(REQUIRED_WORKFLOW_KEYS.map(async (key) => (
-      page.locator(`[data-data-management-workflow-key="${key}"]`).count()
-    )))).every((count) => count > 0);
+    const workflowOptionValues = await page.locator('[data-data-management-workflow-select="true"] option').evaluateAll((options) => options.map((option) => option.value));
+    report.workflow_option_values = workflowOptionValues;
+    report.checks.workflow_card_elements_visible = REQUIRED_WORKFLOW_KEYS.every((key) => workflowOptionValues.includes(key));
     report.checks.direct_management_fields_present = REQUIRED_LEASE_FIELDS.every((key) => leaseKeys.includes(key))
       && REQUIRED_RENT_FIELDS.every((key) => rentKeys.includes(key));
     report.checks.direct_management_fields_editable = REQUIRED_LEASE_FIELDS.every((key) => editableLeaseKeys.includes(key))
@@ -323,27 +330,34 @@ async function main() {
     report.workflow_checks = workflowChecks;
     report.checks.workflow_switches_render_rows = Object.values(workflowChecks).every((item) => item.clicked && item.rows > 0 && item.not_loading);
 
-    await clickWorkspace(page, 'market', report);
-    await page.waitForResponse((response) => (
-      response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/view-rows')
-    ), { timeout: 30000 }).catch(() => null);
-    const marketGridMetrics = await waitForGridSettled(page, report, 'market');
-    const marketBody = await page.locator('body').innerText({ timeout: 10000 });
-    report.checks.market_workspace_grid_visible = await page.locator('[data-data-management-grid="true"]').isVisible({ timeout: 5000 }).catch(() => false);
-    report.checks.market_grid_not_stuck_loading = !marketGridMetrics.hasLoadingText;
-    report.internal_token_match_market = internalTokenMatch(marketBody);
-    report.checks.no_internal_tokens_market = !report.internal_token_match_market;
-
-    await clickWorkspace(page, 'operations', report);
-    await page.waitForResponse((response) => (
-      response.url().includes('/functions/v1/ll-dashboard-api') && response.request().postData()?.includes('data-management/view-rows')
-    ), { timeout: 30000 }).catch(() => null);
-    const operationsGridMetrics = await waitForGridSettled(page, report, 'operations');
-    const operationsBody = await page.locator('body').innerText({ timeout: 10000 });
-    report.checks.operations_workspace_grid_visible = await page.locator('[data-data-management-grid="true"]').isVisible({ timeout: 5000 }).catch(() => false);
-    report.checks.operations_grid_not_stuck_loading = !operationsGridMetrics.hasLoadingText;
-    report.internal_token_match_operations = internalTokenMatch(operationsBody);
-    report.checks.no_internal_tokens_operations = !report.internal_token_match_operations;
+    const subTabs = [
+      ['asset', 'data-management/asset-data'],
+      ['investment', 'data-management/investment-data'],
+      ['lease', 'data-management/lease-contracts'],
+      ['managers', 'data-management/managers'],
+      ['market', 'data-management/market-data'],
+    ];
+    report.subtab_checks = {};
+    for (const [key, route] of subTabs) {
+      const tabUrl = joinUrl(baseUrl, route);
+      await page.goto(`${tabUrl}${tabUrl.includes('?') ? '&' : '?'}qa=${stamp}-${key}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForSelector(`[data-data-management-tab="${key}"]`, { timeout: 45000 }).catch((error) => {
+        report.errors.push(`subtab not visible: ${key} ${error.message}`);
+      });
+      const metrics = await waitForGridSettled(page, report, `subtab_${key}`);
+      const tabBody = await page.locator('body').innerText({ timeout: 10000 });
+      report.subtab_checks[key] = {
+        route,
+        grid_visible: await page.locator('[data-data-management-grid="true"]').isVisible({ timeout: 5000 }).catch(() => false),
+        rows: metrics.rowButtons,
+        sorting_headers: metrics.headerButtons,
+        not_loading: !metrics.hasLoadingText,
+        no_internal_tokens: !internalTokenMatch(tabBody),
+      };
+    }
+    report.checks.subtabs_visible = Object.keys(report.subtab_checks).length === subTabs.length;
+    report.checks.subtabs_render_rows = Object.values(report.subtab_checks).every((item) => item.grid_visible && item.rows > 0 && item.not_loading);
+    report.checks.subtabs_no_internal_tokens = Object.values(report.subtab_checks).every((item) => item.no_internal_tokens);
 
     await page.screenshot({ path: screenshot, fullPage: false });
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;

@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-23T16:19:23.354Z",
+  "generated_at": "2026-06-26T02:49:24.609Z",
   "auth_source": "password_grant",
   "baseline": {
     "legacy_full": {
@@ -8,8 +8,8 @@
       "payload": {
         "limit": 12000
       },
-      "elapsed_ms": 7790,
-      "bytes": 30269388,
+      "elapsed_ms": 9239,
+      "bytes": 30311386,
       "data_keys": [
         "summary",
         "leases",
@@ -27,10 +27,12 @@
   "views": [
     {
       "view": "overview",
-      "elapsed_ms": 2806,
-      "bytes": 5342703,
+      "elapsed_ms": 4132,
+      "bytes": 5359449,
       "byte_ratio_to_legacy_all": 17.7,
-      "readback_status": "skipped",
+      "readback_status": "checked",
+      "readback_required": true,
+      "readback_ok": true,
       "view_keys": [
         "overview"
       ],
@@ -39,10 +41,12 @@
     },
     {
       "view": "lease",
-      "elapsed_ms": 2471,
-      "bytes": 10157138,
-      "byte_ratio_to_legacy_all": 33.6,
-      "readback_status": "skipped",
+      "elapsed_ms": 4622,
+      "bytes": 10159774,
+      "byte_ratio_to_legacy_all": 33.5,
+      "readback_status": "checked",
+      "readback_required": true,
+      "readback_ok": true,
       "view_keys": [
         "lease"
       ],
@@ -51,10 +55,12 @@
     },
     {
       "view": "supply",
-      "elapsed_ms": 694,
-      "bytes": 1328153,
+      "elapsed_ms": 1033,
+      "bytes": 1330789,
       "byte_ratio_to_legacy_all": 4.4,
-      "readback_status": "skipped",
+      "readback_status": "checked",
+      "readback_required": true,
+      "readback_ok": true,
       "view_keys": [
         "supply"
       ],
@@ -63,10 +69,12 @@
     },
     {
       "view": "transactions",
-      "elapsed_ms": 692,
-      "bytes": 1314429,
-      "byte_ratio_to_legacy_all": 4.3,
-      "readback_status": "skipped",
+      "elapsed_ms": 1058,
+      "bytes": 1331092,
+      "byte_ratio_to_legacy_all": 4.4,
+      "readback_status": "checked",
+      "readback_required": true,
+      "readback_ok": true,
       "view_keys": [
         "transactions"
       ],
@@ -75,10 +83,12 @@
     },
     {
       "view": "source",
-      "elapsed_ms": 829,
+      "elapsed_ms": 748,
       "bytes": 13723,
       "byte_ratio_to_legacy_all": 0,
       "readback_status": "checked",
+      "readback_required": false,
+      "readback_ok": true,
       "view_keys": [
         "source"
       ],
@@ -87,8 +97,9 @@
     }
   ],
   "checks": {
-    "source_only_readback_checked": true,
-    "non_source_readback_skipped": true,
+    "source_readback_checked": true,
+    "interactive_readback_checked_or_explicit_na": true,
+    "interactive_readback_skipped_is_failure": true,
     "legacy_full_resource_exhausted": false,
     "interactive_payloads_at_most_35pct_of_legacy_all": true,
     "interactive_views_survive_when_legacy_full_fails": false,

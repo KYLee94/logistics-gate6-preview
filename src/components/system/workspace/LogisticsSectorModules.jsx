@@ -82,6 +82,20 @@ const DATA_MANAGEMENT_VIEW_META = {
     label: '특약·상태',
     description: '계약 특약과 상태값을 확인합니다.',
   },
+  lease_asset_manager_links: {
+    workflow: 'manager_links',
+    workflowLabel: '담당자 연결',
+    workflowDescription: '자산·펀드별 이지스 담당자와 소속을 확인',
+    label: '담당자 연결',
+    description: '자산과 펀드별 담당자, 소속, 이메일을 확인합니다.',
+  },
+  lease_contracts: {
+    workflow: 'contract_basic',
+    workflowLabel: '계약 기본정보',
+    workflowDescription: '운영 임대차 계약 데이터를 확인',
+    label: '계약 기본정보',
+    description: '운영 임대차 계약 데이터를 확인합니다.',
+  },
   asset_master: {
     workflow: 'asset',
     workflowLabel: '자산 정보',
@@ -253,6 +267,38 @@ const DATA_MANAGEMENT_BUSINESS_GROUPS = [
     labels: ['자산코드', '자산명', '펀드코드', '펀드명', '담당자', '소속', '이메일 주소'],
   },
   {
+    workflow: 'asset',
+    label: '자산 물리 정보·스펙',
+    description: '자산 개요, 주소, 면적, 건축물대장 값, 스펙, 운영비를 확인·수정',
+    primaryViewKey: 'asset_master',
+    viewKeys: ['asset_master', 'asset_specs', 'operating_costs'],
+    labels: ['자산명', '자산코드', '주소', '연면적', '대지면적', '임대면적', '전용면적', '전용률', '층고', '도크', '램프', '하중', '전력', '조명', 'PM', 'FM', '보험료', 'Utility'],
+  },
+  {
+    workflow: 'fund',
+    label: '펀드·투자 정보',
+    description: '펀드 기본값, 만기, 투자 구조와 자산 연결 정보를 확인·수정',
+    primaryViewKey: 'fund_master',
+    viewKeys: ['fund_master'],
+    labels: ['펀드명', '펀드코드', '설정일', '만기', '전략', '법적 형태', '자산명', '투자자', '대주', '금리', '만기일'],
+  },
+  {
+    workflow: 'tenant',
+    label: '임차인 정보',
+    description: '임차인명, 사업자번호, 표시명과 임대차 연결 기준을 확인·수정',
+    primaryViewKey: 'tenant_master',
+    viewKeys: ['tenant_master'],
+    labels: ['임차인명', '사업자번호', '표시명', '법인명', '비고'],
+  },
+  {
+    workflow: 'cost',
+    label: '운영비',
+    description: 'PM/FM, 보험료, Utility 등 기간별 비용을 확인·수정',
+    primaryViewKey: 'operating_costs',
+    viewKeys: ['operating_costs'],
+    labels: ['자산명', '펀드명', '기준기간', 'PM', 'FM', '보험료', 'Utility', '기타비용', '비고'],
+  },
+  {
     workflow: 'validation',
     label: '검산·오류',
     description: '계산 기준과 입력값 불일치, 확인 필요 항목',
@@ -261,6 +307,63 @@ const DATA_MANAGEMENT_BUSINESS_GROUPS = [
   },
 ];
 const DATA_MANAGEMENT_BUSINESS_GROUP_BY_KEY = new Map(DATA_MANAGEMENT_BUSINESS_GROUPS.map((group) => [group.workflow, group]));
+const DATA_MANAGEMENT_TAB_CONFIGS = {
+  asset: {
+    key: 'asset',
+    title: '자산 Data',
+    description: '자산 물리적 개요, 면적, 스펙, 운영비를 관리합니다.',
+    spaceKey: 'igis',
+    defaultWorkflow: 'asset',
+    defaultViewKey: 'asset_master',
+    showBundle: true,
+    allowedWorkflows: ['asset', 'cost'],
+    searchPlaceholder: '자산명, 주소, 스펙, 운영비 검색',
+  },
+  investment: {
+    key: 'investment',
+    title: '투자 Data',
+    description: '펀드, 자산-펀드 연결, 투자 구조와 금융 조건을 관리합니다.',
+    spaceKey: 'igis',
+    defaultWorkflow: 'fund',
+    defaultViewKey: 'fund_master',
+    showBundle: true,
+    allowedWorkflows: ['fund'],
+    searchPlaceholder: '펀드명, 자산명, 투자 조건 검색',
+  },
+  lease: {
+    key: 'lease',
+    title: '임대차계약 Data',
+    description: '계약, 면적, 전용률, E.NOC, 임대료, 관리비, 보증금, 특약, 요구 스펙을 관리합니다.',
+    spaceKey: 'igis',
+    defaultWorkflow: 'contract_basic',
+    defaultViewKey: 'lease_general_excel',
+    showBundle: true,
+    allowedWorkflows: ['contract_basic', 'area_space', 'rent_fee', 'schedule', 'economics', 'insurance_rights', 'required_specs', 'special_status', 'tenant', 'validation'],
+    searchPlaceholder: '자산명, 펀드명, 임차인명, 임대구역 검색',
+  },
+  managers: {
+    key: 'managers',
+    title: '담당자 Data',
+    description: '이지스 담당자와 자산·펀드별 담당 범위를 관리합니다.',
+    spaceKey: 'igis',
+    defaultWorkflow: 'manager_links',
+    defaultViewKey: 'lease_asset_manager_links',
+    showBundle: true,
+    allowedWorkflows: ['manager_links'],
+    searchPlaceholder: '자산명, 펀드명, 담당자 검색',
+  },
+  market: {
+    key: 'market',
+    title: '시장 Data',
+    description: '적재된 임대시장, 공급, 거래, Cap Rate, 뉴스 데이터를 검토합니다.',
+    spaceKey: 'market',
+    defaultWorkflow: 'market-lease',
+    defaultViewKey: 'market_lease_observations',
+    showBundle: false,
+    allowedWorkflows: ['market-lease', 'market-supply', 'market-transaction', 'market-cap-rate', 'market-news'],
+    searchPlaceholder: '권역, 자산명, 시점, 기사 제목 검색',
+  },
+};
 function dataManagementViewMeta(viewKey) {
   return DATA_MANAGEMENT_VIEW_META[text(viewKey, '')] || {};
 }
@@ -415,7 +518,7 @@ function isInternalFieldName(field) {
 }
 
 function hasInternalToken(value) {
-  return /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|natural\s+key|row_hash|row\s+hash|payload|\bPNU\b|\bpnu\b|법정동코드/iu.test(String(value || ''));
+  return /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|natural\s+key|row_hash|row\s+hash|payload|excel[_\s-]?db|excel\s*row|source\s*row|raw[_\s-]?source|normalized[_\s-]?source|\bPNU\b|\bpnu\b|법정동코드/iu.test(String(value || ''));
 }
 
 function publicDisplayText(value, fallback = '관리 대상') {
@@ -567,17 +670,17 @@ const REGION_SCOPE = new Map([
   ...LOCAL_REGION_NAMES.map((region) => [region, '지방']),
 ]);
 const REGION_MAP_POSITIONS = {
-  동남권: [58, 57],
-  남부권: [47, 64],
-  중앙권: [50, 50],
-  서부권: [38, 56],
-  서북권: [32, 42],
-  '수도권 기타권': [54, 43],
-  경남권: [70, 77],
+  동남권: [62, 57],
+  남부권: [45, 66],
+  중앙권: [52, 51],
+  서부권: [33, 58],
+  서북권: [29, 42],
+  '수도권 기타권': [61, 42],
+  경남권: [69, 78],
   충청권: [48, 70],
   전라권: [35, 82],
-  경북권: [65, 67],
-  '지방 기타권': [52, 82],
+  경북권: [69, 66],
+  '지방 기타권': [56, 82],
 };
 const REGION_CENTER_COORDS = {
   동남권: [37.205, 127.36],
@@ -593,17 +696,17 @@ const REGION_CENTER_COORDS = {
   '지방 기타권': [36.15, 128.10],
 };
 const REGION_CLUSTER_COORDS = {
-  동남권: [37.02, 127.72],
-  남부권: [36.74, 127.04],
-  중앙권: [37.44, 127.20],
-  서부권: [37.32, 126.46],
-  서북권: [37.68, 126.55],
-  '수도권 기타권': [37.72, 127.54],
-  경남권: [35.00, 128.92],
+  동남권: [36.98, 127.78],
+  남부권: [36.76, 126.90],
+  중앙권: [37.42, 127.08],
+  서부권: [37.16, 126.34],
+  서북권: [37.78, 126.42],
+  '수도권 기타권': [37.82, 127.78],
+  경남권: [35.02, 128.58],
   충청권: [36.18, 127.24],
   전라권: [34.82, 126.72],
   경북권: [36.06, 129.12],
-  '지방 기타권': [35.42, 127.68],
+  '지방 기타권': [35.42, 127.78],
 };
 const REGION_OVERVIEW_CENTER = [36.55, 127.75];
 const REGION_OVERVIEW_ZOOM = 6;
@@ -1098,6 +1201,22 @@ function MetricCard({ label, value, detail, compact = false }) {
       <div className="text-[12px] font-semibold text-[#86868B]">{label}</div>
       <div className="mt-2 truncate text-[22px] font-semibold text-white" title={String(value)}>{value}</div>
       {detail ? <div className="mt-1 text-[11px] leading-5 text-[#86868B]">{detail}</div> : null}
+    </div>
+  );
+}
+
+function MarketDataLoadingBadge({ loading, progress = 0, hasCachedData = false }) {
+  if (!loading) return null;
+  const safeProgress = Math.max(8, Math.min(96, Math.round(progress)));
+  return (
+    <div className="min-w-[150px] rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 py-2" data-market-data-loading-progress="true">
+      <div className="flex items-center justify-between gap-3 text-[11px] font-semibold text-[#C7C7CC]">
+        <span>{hasCachedData ? '데이터 갱신' : '데이터 로딩'}</span>
+        <span>{safeProgress}%</span>
+      </div>
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#333333]">
+        <div className="h-full rounded-full bg-[#9AD7FF] transition-all duration-300" style={{ width: `${safeProgress}%` }} />
+      </div>
     </div>
   );
 }
@@ -1701,8 +1820,10 @@ function MarketMapPanel({
   const [largeMapOpen, setLargeMapOpen] = useState(false);
   const isRegionMode = !selectedMapRegion;
   const detailPointLimit = 120;
-  const clusterScale = Math.max(0.95, Math.min(1.28, 0.95 + (Number(mapZoom || 8) - 7) * 0.055));
-  const clusterSize = 56;
+  const clusterScale = isRegionMode
+    ? Math.max(0.95, Math.min(1.1, 0.95 + (Number(mapZoom || REGION_OVERVIEW_ZOOM) - REGION_OVERVIEW_ZOOM) * 0.08))
+    : 1;
+  const clusterSize = 48;
   const clusterAnchor = Math.round(clusterSize / 2);
   const applyMapZoom = (nextZoom, options = {}) => {
     const regionModeForZoom = typeof options.regionMode === 'boolean' ? options.regionMode : isRegionMode;
@@ -2532,9 +2653,9 @@ function MarketMapPanel({
         style={{
           '--market-cluster-size': `${clusterSize}px`,
           '--market-cluster-visual-scale': `${clusterScale}`,
-          '--market-cluster-scope-size': `${Math.max(8, Math.round(9.4 * clusterScale))}px`,
-          '--market-cluster-region-size': `${Math.max(12, Math.round(14.2 * clusterScale))}px`,
-          '--market-cluster-count-size': `${Math.max(7, Math.round(8.2 * clusterScale))}px`,
+          '--market-cluster-scope-size': `${Math.max(7, Math.round(8.2 * clusterScale))}px`,
+          '--market-cluster-region-size': `${Math.max(11, Math.round(12.4 * clusterScale))}px`,
+          '--market-cluster-count-size': `${Math.max(7, Math.round(7.4 * clusterScale))}px`,
         }}
       >
         <div
@@ -2568,7 +2689,7 @@ function MarketMapPanel({
             cursor: pointer;
             pointer-events: auto !important;
             text-align: center;
-            padding: 6px 5px 5px;
+            padding: 5px 4px 4px;
           }
           .market-map-region-cluster-marker em,
           .market-map-region-cluster-marker b,
@@ -2587,17 +2708,17 @@ function MarketMapPanel({
           .market-map-region-cluster-marker em {
             color: rgba(236, 242, 247, 0.82);
             font-size: var(--market-cluster-scope-size, 7px);
-            line-height: 1.02;
+            line-height: 0.98;
             font-weight: 700;
             margin-bottom: 0;
           }
           .market-map-region-cluster-marker b {
             font-size: var(--market-cluster-region-size, 10px);
-            line-height: 1.02;
+            line-height: 1;
             font-weight: 800;
           }
           .market-map-region-cluster-marker strong {
-            margin-top: 2px;
+            margin-top: 1px;
             color: rgba(196, 207, 216, 0.72);
             font-size: var(--market-cluster-count-size, 7px);
             line-height: 1;
@@ -4416,7 +4537,6 @@ function MarketDataDashboardLegacy({ activeTab = 'overview', onNavigate }) {
         </div>
       </div>
       {error ? <div className="mb-4 rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
-      {loading ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>시장자료를 불러오는 중입니다.</div> : null}
       {!loading && summary.status !== 'ready' ? <div className={`${INNER} mb-4 px-4 py-5 text-center text-[13px] text-[#A1A1AA]`}>Supabase에 active 시장자료가 아직 없습니다.</div> : null}
 
       {currentTab === 'overview' ? (
@@ -4581,6 +4701,7 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const currentTab = MARKET_TABS.find((tab) => tab.id === activeTab || tab.route === activeTab)?.id || 'overview';
   const marketReadPayload = useMemo(() => marketReadPayloadFor(currentTab), [currentTab]);
   const { loading, error, data } = useEdgeData('sector-market/read', marketReadPayload, [currentTab]);
+  const [loadingProgress, setLoadingProgress] = useState(loading ? 14 : 100);
   const [modal, setModal] = useState(null);
   const [txnWindow, setTxnWindow] = useState('3y');
   const [txnRegion, setTxnRegion] = useState('전체');
@@ -4679,6 +4800,19 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
   const sourceAudit = summary.source_audit || {};
   const expectedCounts = summary.expected_counts || {};
   const readback = summary.readback || {};
+  const hasMarketData = Boolean(data && Object.keys(data || {}).length);
+  const isInitialMarketLoading = loading && !hasMarketData;
+  useEffect(() => {
+    if (!loading) {
+      setLoadingProgress(100);
+      return undefined;
+    }
+    setLoadingProgress(hasMarketData ? 72 : 18);
+    const timer = window.setInterval(() => {
+      setLoadingProgress((current) => Math.min(hasMarketData ? 94 : 86, current + (hasMarketData ? 4 : 7)));
+    }, 320);
+    return () => window.clearInterval(timer);
+  }, [loading, currentTab, hasMarketData]);
   useEffect(() => {
     if (!data || loading) return undefined;
     let cancelled = false;
@@ -5429,17 +5563,17 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
         eyebrow=""
         title={MARKET_TAB_TITLES[currentTab] || 'Market Data'}
         page
+        right={<MarketDataLoadingBadge loading={loading} progress={loadingProgress} hasCachedData={hasMarketData} />}
       />
       {error ? <div className="mb-4 rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
-      {loading ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>시장자료를 불러오는 중입니다.</div> : null}
 
       {currentTab === 'overview' ? (
         <div className="space-y-5">
           <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard compact label="임대 관측치" value={`${formatNumber(summary.lease_observation_count || leases.length)}건`} detail={`최근 기준 ${text(summary.latest_lease_period, '-')}`} />
-            <MetricCard compact label="평당 임대료" value={summary.weighted_rent_manwon_per_py == null ? '-' : `${formatNumber(summary.weighted_rent_manwon_per_py, 1)}만원`} detail="임대면적 가중평균" />
-            <MetricCard compact label="공급 예정" value={`${formatNumber(summary.pipeline_supply_count || 0)}건`} detail={`당분기 신규공급 ${formatNumber(summary.new_supply_total_gross_area_py, 1)}평`} />
-            <MetricCard compact label="매매 사례" value={`${formatNumber(summary.transaction_case_count || transactions.length)}건`} detail={summary.latest_cap_rate ? `최근 Cap Rate ${formatRate(summary.latest_cap_rate.cap_rate)}` : '2010년 이후 거래'} />
+            <MetricCard compact label="임대 관측치" value={isInitialMarketLoading ? '-' : `${formatNumber(summary.lease_observation_count || leases.length)}건`} detail={isInitialMarketLoading ? '데이터 확인 중' : `최근 기준 ${text(summary.latest_lease_period, '-')}`} />
+            <MetricCard compact label="평당 임대료" value={isInitialMarketLoading || summary.weighted_rent_manwon_per_py == null ? '-' : `${formatNumber(summary.weighted_rent_manwon_per_py, 1)}만원`} detail="임대면적 가중평균" />
+            <MetricCard compact label="공급 예정" value={isInitialMarketLoading ? '-' : `${formatNumber(summary.pipeline_supply_count || 0)}건`} detail={isInitialMarketLoading ? '데이터 확인 중' : `당분기 신규공급 ${formatNumber(summary.new_supply_total_gross_area_py, 1)}평`} />
+            <MetricCard compact label="매매 사례" value={isInitialMarketLoading ? '-' : `${formatNumber(summary.transaction_case_count || transactions.length)}건`} detail={isInitialMarketLoading ? '데이터 확인 중' : (summary.latest_cap_rate ? `최근 Cap Rate ${formatRate(summary.latest_cap_rate.cap_rate)}` : '2010년 이후 거래')} />
           </section>
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <div className={`${CARD} p-5`}>
@@ -7584,15 +7718,16 @@ function DataManagementDashboardLegacy() {
   );
 }
 
-export function DataManagementDashboard() {
-  const [spaceKey, setSpaceKey] = useState('igis');
-  const [viewKey, setViewKey] = useState('lease_general_excel');
-  const [businessGroupKey, setBusinessGroupKey] = useState('contract_basic');
+export function DataManagementDashboard({ activeTab = 'lease' }) {
+  const activeTabConfig = DATA_MANAGEMENT_TAB_CONFIGS[activeTab] || DATA_MANAGEMENT_TAB_CONFIGS.lease;
+  const [spaceKey, setSpaceKey] = useState(activeTabConfig.spaceKey);
+  const [viewKey, setViewKey] = useState(activeTabConfig.defaultViewKey);
+  const [businessGroupKey, setBusinessGroupKey] = useState(activeTabConfig.defaultWorkflow);
   const [bundleKey, setBundleKey] = useState(MANAGEMENT_ALL_OPTION);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState({ key: '', direction: 'asc' });
-  const [showAllFields, setShowAllFields] = useState(false);
+  const [showAllFields, setShowAllFields] = useState(true);
   const [selectedRowKey, setSelectedRowKey] = useState('');
   const [selectedField, setSelectedField] = useState('');
   const [draftValue, setDraftValue] = useState('');
@@ -7602,27 +7737,37 @@ export function DataManagementDashboard() {
   const [submitStatus, setSubmitStatus] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews } = useEdgeData('data-management/views', {}, []);
-  const spaces = safeArray(viewCatalog?.workspaces);
   const views = safeArray(viewCatalog?.views);
   const bundles = safeArray(viewCatalog?.fund_asset_bundles);
   const scope = viewCatalog?.management_scope || {};
   const viewsForSpace = useMemo(() => views.filter((view) => view.workspace_key === spaceKey), [views, spaceKey]);
-  const selectedView = viewsForSpace.find((view) => view.view_key === viewKey) || viewsForSpace[0] || {};
+  const tabViewsForSpace = useMemo(() => viewsForSpace.filter((view) => {
+    const key = text(view.view_key, '');
+    const workflow = dataManagementViewMeta(key).workflow || key;
+    return !activeTabConfig.allowedWorkflows?.length || activeTabConfig.allowedWorkflows.includes(workflow);
+  }), [viewsForSpace, activeTabConfig.key]);
+  const selectedView = tabViewsForSpace.find((view) => view.view_key === viewKey) || tabViewsForSpace[0] || {};
   const effectiveViewKey = text(selectedView.view_key || viewKey || 'lease_general_excel');
   const selectedViewMeta = dataManagementViewMeta(effectiveViewKey);
   const workflowCards = useMemo(() => {
     if (spaceKey === 'igis') {
       const viewByKey = new Map(viewsForSpace.map((view) => [view.view_key, view]));
-      return DATA_MANAGEMENT_BUSINESS_GROUPS.map((group) => {
-        const primaryView = viewByKey.get(group.primaryViewKey) || { view_key: group.primaryViewKey, label: group.label };
+      return DATA_MANAGEMENT_BUSINESS_GROUPS
+        .filter((group) => !activeTabConfig.allowedWorkflows?.length || activeTabConfig.allowedWorkflows.includes(group.workflow))
+        .map((group) => {
+        const viewKeys = group.viewKeys || [group.primaryViewKey];
+        const groupViews = viewKeys.map((key) => {
+          const meta = dataManagementViewMeta(key);
+          return viewByKey.get(key) || { view_key: key, label: meta.label || group.label };
+        });
         return {
           ...group,
-          views: [primaryView],
+          views: groupViews,
         };
       });
     }
     const grouped = new Map();
-    viewsForSpace.forEach((view) => {
+    tabViewsForSpace.forEach((view) => {
       const key = text(view.view_key, '');
       if (!key || DATA_MANAGEMENT_SUPPORT_VIEW_KEYS.has(key)) return;
       const meta = dataManagementViewMeta(key);
@@ -7638,12 +7783,14 @@ export function DataManagementDashboard() {
       if (!current.primaryViewKey || current.primaryViewKey === workflow) current.primaryViewKey = key;
       grouped.set(workflow, current);
     });
-    return [...grouped.values()].sort((a, b) => {
+    return [...grouped.values()]
+      .filter((group) => !activeTabConfig.allowedWorkflows?.length || activeTabConfig.allowedWorkflows.includes(group.workflow))
+      .sort((a, b) => {
       const aOrder = DATA_MANAGEMENT_WORKFLOW_ORDER.indexOf(a.workflow);
       const bOrder = DATA_MANAGEMENT_WORKFLOW_ORDER.indexOf(b.workflow);
       return (aOrder < 0 ? 999 : aOrder) - (bOrder < 0 ? 999 : bOrder);
     });
-  }, [viewsForSpace, spaceKey]);
+  }, [viewsForSpace, tabViewsForSpace, spaceKey, activeTabConfig.key]);
   const activeWorkflow = spaceKey === 'igis'
     ? (businessGroupKey || 'contract_basic')
     : (selectedViewMeta.workflow || workflowCards.find((card) => card.views.some((view) => view.view_key === effectiveViewKey))?.workflow || '');
@@ -7652,12 +7799,12 @@ export function DataManagementDashboard() {
   const rowsPayload = useMemo(() => ({
     space_key: spaceKey,
     view_key: effectiveViewKey,
-    bundle_key: spaceKey === 'igis' && bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+    bundle_key: activeTabConfig.showBundle && spaceKey === 'igis' && bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
     search,
     page,
     page_size: 80,
     sort: sort.key ? [{ key: sort.key, direction: sort.direction }] : [],
-  }), [spaceKey, effectiveViewKey, bundleKey, search, page, sort.key, sort.direction]);
+  }), [spaceKey, effectiveViewKey, bundleKey, search, page, sort.key, sort.direction, activeTabConfig.showBundle]);
   const { loading: rowsLoading, error: rowsError, data: rowsData, reload: reloadRows } = useEdgeData('data-management/view-rows', rowsPayload, [rowsPayload]);
   const columns = safeArray(rowsData?.fields).filter((column) => (
     column
@@ -7690,15 +7837,9 @@ export function DataManagementDashboard() {
     if (aRank !== bRank) return aRank - bRank;
     return columns.indexOf(a) - columns.indexOf(b);
   }), [columns, priorityColumnOrder]);
-  const scopedColumns = useMemo(() => {
-    if (spaceKey !== 'igis') return orderedColumns;
-    const group = DATA_MANAGEMENT_BUSINESS_GROUP_BY_KEY.get(activeWorkflow);
-    if (!group) return orderedColumns;
-    const filtered = orderedColumns.filter((column) => dataManagementColumnMatchesBusinessGroup(column, group));
-    return filtered.length ? filtered : orderedColumns;
-  }, [orderedColumns, spaceKey, activeWorkflow]);
+  const scopedColumns = useMemo(() => orderedColumns, [orderedColumns]);
   const visibleColumns = useMemo(() => (
-    showAllFields ? scopedColumns : scopedColumns.filter((column) => column.default_hidden !== true)
+    scopedColumns
   ), [scopedColumns, showAllFields]);
   const columnGroups = useMemo(() => {
     const groups = [];
@@ -7752,22 +7893,38 @@ export function DataManagementDashboard() {
     : '';
 
   useEffect(() => {
-    const nextView = viewsForSpace[0]?.view_key || '';
-    if (nextView && !viewsForSpace.some((view) => view.view_key === viewKey)) {
+    setSpaceKey(activeTabConfig.spaceKey);
+    setBusinessGroupKey(activeTabConfig.defaultWorkflow);
+    setViewKey(activeTabConfig.defaultViewKey);
+    setBundleKey(MANAGEMENT_ALL_OPTION);
+    setSearch('');
+    setPage(1);
+    setSelectedRowKey('');
+    setSelectedField('');
+    setShowAllFields(true);
+    setEditModalOpen(false);
+  }, [activeTabConfig.key]);
+
+  useEffect(() => {
+    const nextView = tabViewsForSpace.find((view) => view.view_key === activeTabConfig.defaultViewKey)?.view_key
+      || tabViewsForSpace[0]?.view_key
+      || '';
+    if (nextView && !tabViewsForSpace.some((view) => view.view_key === viewKey)) {
       setViewKey(nextView);
       setPage(1);
       setSelectedRowKey('');
     }
-  }, [viewsForSpace.map((view) => view.view_key).join('|'), viewKey]);
+  }, [tabViewsForSpace.map((view) => view.view_key).join('|'), viewKey, activeTabConfig.defaultViewKey]);
 
   useEffect(() => {
     if (spaceKey !== 'igis') return;
     const group = DATA_MANAGEMENT_BUSINESS_GROUP_BY_KEY.get(businessGroupKey) || DATA_MANAGEMENT_BUSINESS_GROUPS[0];
-    if (group && effectiveViewKey !== group.primaryViewKey) {
+    const allowedViewKeys = group ? (group.viewKeys || [group.primaryViewKey]) : [];
+    if (group && !allowedViewKeys.includes(effectiveViewKey)) {
       setViewKey(group.primaryViewKey);
       setPage(1);
       setSelectedRowKey('');
-      setShowAllFields(false);
+      setShowAllFields(true);
     }
   }, [spaceKey, businessGroupKey, effectiveViewKey]);
 
@@ -7872,125 +8029,89 @@ export function DataManagementDashboard() {
   const currentRowCount = Number(pagination.total_estimate || rows.length || 0);
 
   return (
-    <div className="w-full max-w-[1680px] mx-auto space-y-5 px-8 pt-8 pb-14" data-data-management-redesign="true" data-data-management-view-contract="20260625-view-v1">
+    <div className="w-full max-w-none mx-auto space-y-4 px-8 pt-8 pb-14" data-data-management-redesign="true" data-data-management-tab={activeTabConfig.key} data-data-management-view-contract="20260626-subtabs-v1">
       <ModuleHeader
         eyebrow="DATA MANAGEMENT"
-        title="데이터 관리"
+        title={activeTabConfig.title}
         right={(
-          <button type="button" onClick={reloadAll} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93]">
-            데이터 다시 읽기
-          </button>
+          <div className="rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 py-2 text-right text-[12px] leading-5 text-[#A1A1AA]">
+            <div>{viewsLoading || rowsLoading ? '데이터 확인 중' : `현재 ${formatNumber(currentRowCount)}건`}</div>
+            <div>{writeModeLabel}</div>
+          </div>
         )}
       />
 
       <section className={`${CARD} p-4`}>
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2" data-data-management-space-tabs="true">
-              {(spaces.length ? spaces : [
-                { key: 'igis', label: '이지스 Data' },
-                { key: 'market', label: '시장 Data' },
-                { key: 'operations', label: '시스템·운영 Data' },
-              ]).map((space) => (
-                <button
-                  key={space.key}
-                  type="button"
-                  data-data-management-space-key={space.key}
-                  onClick={() => {
-                    const nextSpaceKey = space.key;
-                    setSpaceKey(nextSpaceKey);
-                    setBusinessGroupKey(nextSpaceKey === 'igis' ? 'contract_basic' : '');
-                    setViewKey(nextSpaceKey === 'igis' ? 'lease_general_excel' : '');
-                    setPage(1);
-                    setSelectedRowKey('');
-                    setBundleKey(MANAGEMENT_ALL_OPTION);
-                    setShowAllFields(false);
-                  }}
-                  className={`h-10 rounded-[8px] border px-4 text-[13px] font-semibold ${spaceKey === space.key ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#C7C7CC] hover:border-[#8E8E93]'}`}
-                >
-                  {space.label}
-                </button>
+        <div className="grid grid-cols-1 items-end gap-3 xl:grid-cols-[260px_260px_minmax(260px,360px)_minmax(280px,1fr)_auto]" data-data-management-domain-nav="true">
+          <label className="text-[12px] font-semibold text-[#A1A1AA]">
+            관리 영역
+            <select
+              value={activeWorkflow}
+              onChange={(event) => {
+                const card = workflowCards.find((item) => item.workflow === event.target.value) || workflowCards[0];
+                if (!card) return;
+                setBusinessGroupKey(card.workflow);
+                setViewKey(card.primaryViewKey);
+                setPage(1);
+                setSelectedRowKey('');
+                setSelectedField('');
+                setShowAllFields(true);
+              }}
+              data-data-management-workflow-select="true"
+              className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]"
+            >
+              {workflowCards.map((card) => (
+                <option key={card.workflow} value={card.workflow} data-data-management-workflow-key={card.workflow}>{card.label}</option>
               ))}
-            </div>
-            <div className="shrink-0 text-[12px] text-[#A1A1AA]">
-              {viewsLoading || rowsLoading ? '조회 중' : `현재 ${formatNumber(currentRowCount)}건`}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6" data-data-management-domain-nav="true">
-            {workflowCards.map((card) => {
-              const selected = card.workflow === activeWorkflow;
-              return (
-                <button
-                  key={card.workflow}
-                  type="button"
-                  data-data-management-workflow-key={card.workflow}
-                  onClick={() => {
-                    setBusinessGroupKey(card.workflow);
-                    setViewKey(card.primaryViewKey);
-                    setPage(1);
-                    setSelectedRowKey('');
-                    setSelectedField('');
-                    setShowAllFields(false);
-                  }}
-                  className={`min-h-[74px] rounded-[10px] border px-3 py-3 text-left transition ${selected ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#171717] text-[#E5E5E5] hover:border-[#8E8E93]'}`}
-                >
-                  <span className="block text-[13px] font-bold">{card.label}</span>
-                  <span className={`mt-1 block text-[11px] leading-4 ${selected ? 'text-[#4B4B4D]' : 'text-[#A1A1AA]'}`}>{card.description}</span>
-                </button>
-              );
-            })}
-          </div>
-          {detailViewsForWorkflow.length > 1 ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-[10px] border border-[#333333] bg-[#171717] px-3 py-2" data-data-management-detail-tabs="true">
-              <span className="mr-1 text-[11px] font-semibold text-[#86868B]">세부 보기</span>
-              {detailViewsForWorkflow.map((view) => {
+            </select>
+          </label>
+          <label className="text-[12px] font-semibold text-[#A1A1AA]">
+            데이터 종류
+            <select
+              value={effectiveViewKey}
+              onChange={(event) => { setViewKey(event.target.value); setPage(1); setSelectedRowKey(''); setShowAllFields(true); }}
+              data-data-management-view-select="true"
+              className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]"
+            >
+              {(detailViewsForWorkflow.length ? detailViewsForWorkflow : [selectedView]).filter(Boolean).map((view) => {
                 const meta = dataManagementViewMeta(view.view_key);
-                return (
-                  <button
-                    key={view.view_key}
-                    type="button"
-                    data-data-management-view-key={view.view_key}
-                    onClick={() => { setViewKey(view.view_key); setPage(1); setSelectedRowKey(''); setShowAllFields(false); }}
-                    className={`h-8 rounded-[8px] border px-3 text-[12px] font-semibold ${effectiveViewKey === view.view_key ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#C7C7CC] hover:border-[#8E8E93]'}`}
-                  >
-                    {meta.label || view.label}
-                  </button>
-                );
+                return <option key={view.view_key} value={view.view_key} data-data-management-view-key={view.view_key}>{meta.label || view.label || activeWorkflowCard?.label}</option>;
               })}
-            </div>
-          ) : null}
-          <div className="flex flex-wrap items-end gap-3">
-            {spaceKey === 'igis' ? (
-              <label className="min-w-[240px] max-w-[340px] flex-1 text-[12px] font-semibold text-[#A1A1AA] lg:flex-none">
-                자산 · 펀드 묶음
-                <select value={bundleKey} onChange={(event) => { setBundleKey(event.target.value); setPage(1); setSelectedRowKey(''); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none">
-                  <option value={MANAGEMENT_ALL_OPTION}>전체 자산 · 펀드</option>
-                  {bundles.map((bundle) => (
-                    <option key={bundle.bundle_key} value={bundle.bundle_key}>{bundle.selection_label}</option>
-                  ))}
-                </select>
-              </label>
-            ) : (
-              <div className="min-w-[240px] max-w-[520px] flex-1 text-[12px] leading-5 text-[#A1A1AA]">
-                {spaceKey === 'market' ? '시장 Data는 자산·펀드 선택 없이 원천 버전, 시트, 시점, 권역, 상·저온, 거래유형 중심으로 탐색합니다.' : '시스템·운영 Data는 일반 셀 편집 대신 승인, 이력, 전용 업무 흐름 중심으로 확인합니다.'}
-              </div>
-            )}
-            <label className="min-w-[240px] max-w-[320px] flex-1 text-[12px] font-semibold text-[#A1A1AA] lg:flex-none">
-              통합 검색
-              <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]" placeholder="자산, 펀드, 임차인 검색" />
+            </select>
+          </label>
+          {activeTabConfig.showBundle ? (
+            <label className="text-[12px] font-semibold text-[#A1A1AA]">
+              자산 · 펀드 묶음
+              <select value={bundleKey} onChange={(event) => { setBundleKey(event.target.value); setPage(1); setSelectedRowKey(''); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]">
+                <option value={MANAGEMENT_ALL_OPTION}>전체 자산 · 펀드</option>
+                {bundles.map((bundle) => (
+                  <option key={bundle.bundle_key} value={bundle.bundle_key}>{bundle.selection_label}</option>
+                ))}
+              </select>
             </label>
-          </div>
+          ) : (
+            <div className="rounded-[8px] border border-[#333333] bg-[#171717] px-3 py-2 text-[12px] leading-5 text-[#A1A1AA]">
+              시장 Data는 자산·펀드 선택 없이 시장자료 기준으로 조회합니다.
+            </div>
+          )}
+          <label className="text-[12px] font-semibold text-[#A1A1AA]">
+            검색
+            <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]" placeholder={activeTabConfig.searchPlaceholder} />
+          </label>
+          <button type="button" onClick={() => setEditModalOpen(true)} disabled={!selectedRow} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93] disabled:opacity-35">
+            전체화면으로 편집
+          </button>
         </div>
       </section>
 
       {viewsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{viewsError}</div> : null}
       {rowsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{rowsError}</div> : null}
 
-      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_340px]">
         <section className={`${CARD} min-w-0 p-5`}>
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">업무 데이터</div>
+              <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">DATA TABLE</div>
               <h3 className="mt-1 text-[22px] font-bold text-white">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label, '업무 데이터')}</h3>
             </div>
             <div className="text-right text-[12px] leading-5 text-[#A1A1AA]">
@@ -7998,25 +8119,13 @@ export function DataManagementDashboard() {
               <div>{formatNumber(currentRowCount)}건 기준</div>
             </div>
           </div>
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3" data-data-management-table-tabs="true">
-            <div className="text-[12px] leading-5 text-[#A1A1AA]">
-              {spaceKey === 'igis'
-                ? text(activeWorkflowCard?.description, '업무자가 수정할 수 있는 값만 읽기 쉬운 형식으로 정리했습니다.')
-                : text(selectedViewMeta.description || selectedView.description, '업무자가 수정할 수 있는 값만 읽기 쉬운 형식으로 정리했습니다.')}
-              {sourceStatusText ? (
-                <div className={`mt-1 ${sourceStatus?.normalized_data_present ? 'text-[#B5E48C]' : 'text-[#FFD479]'}`}>
-                  {sourceStatusText}
-                </div>
-              ) : null}
-            </div>
-            <button type="button" onClick={() => setShowAllFields((current) => !current)} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]">
-              {showAllFields ? '기본 컬럼만 보기' : '전체 컬럼 보기'}
-            </button>
+          <div className="mb-4 text-[12px] leading-5 text-[#A1A1AA]" data-data-management-table-tabs="true">
+            {text(activeWorkflowCard?.description || selectedViewMeta.description || selectedView.description, activeTabConfig.description)}
           </div>
 
           <div className="overflow-hidden rounded-[12px] border border-[#333333]" data-data-management-grid="true">
-            <div className="custom-scrollbar max-h-[calc(100vh-360px)] min-h-[460px] overflow-auto overscroll-contain">
-              <table className="w-full min-w-[1320px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
+            <div className="custom-scrollbar max-h-[calc(100vh-330px)] min-h-[520px] overflow-auto overscroll-contain">
+              <table className="w-full min-w-[1800px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
                 <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
                   <tr>
                     <th rowSpan={2} className="sticky left-0 z-40 w-[300px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">관리 대상</th>
@@ -8100,9 +8209,9 @@ export function DataManagementDashboard() {
             onClick={() => setEditModalOpen(true)}
             className="mb-4 h-10 w-full rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]"
           >
-            선택 행 크게 수정
+            전체화면으로 편집
           </button>
-          <ModuleHeader eyebrow="CHANGE BASKET" title="검증 및 승인 요청" />
+          <ModuleHeader eyebrow="" title="검증 및 승인 요청" />
           <div className={`${INNER} mt-4 p-4`}>
             <div className="text-[12px] font-semibold text-[#A1A1AA]">선택 행</div>
             <div className="mt-2 text-[15px] font-bold text-white">{selectedRow ? text(selectedRow.row_label, '행') : '행을 선택해 주세요'}</div>

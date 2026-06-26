@@ -6102,7 +6102,17 @@ const DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS = [
   { field_key: 'is_latest', label: '최신 여부', group: '검토상태', type: 'text', editable: false, width: 100 },
   { field_key: 'review_status', label: '검토 상태', group: '검토상태', type: 'text', editable: false, width: 120 },
 ];
-const DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS = new Set(['lease_general_excel', 'lease_contracts', 'lease_rent_history_excel']);
+const DATA_MANAGEMENT_MANAGER_LINK_VIEW_FIELDS = [
+  { field_key: 'asset_name', label: '자산명', group: '관리 대상', type: 'text', editable: false, sticky: true, width: 220 },
+  { field_key: 'fund_name', label: '펀드명', group: '관리 대상', type: 'text', editable: false, sticky: true, width: 190 },
+  { field_key: 'asset_code', label: '자산코드', group: '관리 대상', type: 'text', editable: false, width: 130 },
+  { field_key: 'fund_code', label: '펀드코드', group: '관리 대상', type: 'text', editable: false, width: 130 },
+  { field_key: 'manager_name', label: '이지스 담당자', group: '담당자', type: 'text', editable: false, width: 160 },
+  { field_key: 'manager_email', label: '담당자 이메일', group: '담당자', type: 'text', editable: false, width: 220 },
+  { field_key: 'relationship', label: '연결 구분', group: '담당 범위', type: 'text', editable: false, width: 120 },
+  { field_key: 'exception_group', label: '예외 구분', group: '담당 범위', type: 'text', editable: false, width: 140 },
+];
+const DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS = new Set(['lease_general_excel', 'lease_contracts', 'lease_rent_history_excel', 'lease_asset_manager_links']);
 const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_assets: 'asset_id',
   ll_asset_managers: 'asset_manager_id',
@@ -6224,7 +6234,7 @@ async function readDataManagementScope(ctx: Context, managerView: boolean): Prom
   const [fundsResult, linksResult, assetsResult] = await Promise.all([
     ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,display_name').limit(500),
     ctx.serviceClient.from('ll_fund_asset_links').select('asset_id,asset_code,asset_name,fund_id,source_payload').limit(1000),
-    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name').limit(1000),
+    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,current_manager_name,current_manager_email').limit(1000),
   ]);
   const hardError = [fundsResult, linksResult, assetsResult].find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return { error: hardError.error.message };
@@ -6997,9 +7007,10 @@ function dataManagementPublicViewField(field: Record<string, unknown>) {
 }
 
 function dataManagementFieldsForViewKey(viewKey: unknown) {
-  return safeText(viewKey) === 'lease_rent_history_excel'
-    ? DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS
-    : DATA_MANAGEMENT_LEASE_VIEW_FIELDS;
+  const key = safeText(viewKey);
+  if (key === 'lease_rent_history_excel') return DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS;
+  if (key === 'lease_asset_manager_links') return DATA_MANAGEMENT_MANAGER_LINK_VIEW_FIELDS;
+  return DATA_MANAGEMENT_LEASE_VIEW_FIELDS;
 }
 
 function dataManagementViewDefinitions() {
@@ -7937,6 +7948,92 @@ async function dataManagementLeaseRentHistoryRows(ctx: Context, payload: Record<
   };
 }
 
+async function dataManagementManagerLinkRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKeyOverride = 'lease_asset_manager_links') {
+  const viewKey = safeText(viewKeyOverride || 'lease_asset_manager_links');
+  const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
+  const pageSize = payload.resolve_all === true
+    ? Math.min(Math.max(requestedPageSize || 5000, 1), 5000)
+    : Math.min(Math.max(requestedPageSize || 80, 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  const bundleKey = safeText(payload.bundle_key || payload.bundleKey);
+  const bundle = bundleKey ? dataManagementBundleByKey(scope, bundleKey) : undefined;
+  if (bundleKey && !bundle) throw new Error('Selected asset/fund bundle was not found.');
+  const fields = DATA_MANAGEMENT_MANAGER_LINK_VIEW_FIELDS;
+  const searchKey = normalizeKey(payload.search);
+  let publicBundles = dataManagementPublicBundles(scope);
+  if (bundle) publicBundles = publicBundles.filter((item) => safeText((item as Record<string, unknown>).bundle_key) === bundleKey);
+  const rows = await Promise.all(publicBundles.map(async (item, index) => {
+    const fund = item.fund && typeof item.fund === 'object' ? item.fund as Record<string, unknown> : {};
+    const asset = item.asset && typeof item.asset === 'object' ? item.asset as Record<string, unknown> : {};
+    const assetId = safeText(asset.asset_id || asset.asset_code || asset.asset_name || `asset_${index + 1}`);
+    const assetRecord = (scope.readableAssets || []).find((candidate) => (
+      safeText(candidate.asset_id) === safeText(asset.asset_id)
+      || safeText(candidate.asset_code) === safeText(asset.asset_code)
+      || safeText(candidate.asset_name) === safeText(asset.asset_name)
+    )) || {};
+    const source = stripUndefined({
+      asset_name: firstDefined(asset.label, asset.asset_name, asset.asset_code),
+      fund_name: firstDefined(fund.label, fund.display_name, fund.short_name, fund.fund_name, fund.fund_code),
+      asset_code: firstDefined(asset.asset_code, assetId),
+      fund_code: firstDefined(fund.fund_code, fund.fund_id),
+      manager_name: firstDefined(assetRecord.current_manager_name, '미지정'),
+      manager_email: firstDefined(assetRecord.current_manager_email, ''),
+      relationship: firstDefined(item.relationship, '담당'),
+      exception_group: firstDefined(item.exception_group, ''),
+    });
+    const displayValues = Object.fromEntries(fields.map((field) => {
+      const publicField = field as Record<string, unknown>;
+      const key = safeText(publicField.field_key);
+      return [key, dataManagementFormatViewValue(source[key], publicField)];
+    }));
+    const editValues = Object.fromEntries(fields.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, source[key] ?? null];
+    }));
+    const rowLabel = [source.asset_name, source.fund_name, source.manager_name].map((value) => safeText(value)).filter(Boolean).join(' · ') || '담당자 연결';
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, safeText(item.bundle_key || `${assetId}:${safeText(fund.fund_id)}`)),
+      row_label: rowLabel,
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: { status: 'ok', label: '정상' },
+      editable: false,
+      read_only_reason: '담당자 연결은 담당자 Data 승인 흐름에서 별도로 관리합니다.',
+      revision_hash: await dataManagementRevisionHash({ item, assetRecord }),
+      meta: {
+        row_unit: 'manager_link',
+        status: '정상',
+        capability: 'readback_only',
+      },
+    });
+  }));
+  let filtered = rows;
+  if (searchKey) {
+    filtered = rows.filter((row) => normalizeKey([
+      row.row_label,
+      JSON.stringify(row.display_values || {}),
+      (row.lookup_status as Record<string, unknown> | undefined)?.label,
+    ].join(' ')).includes(searchKey));
+  }
+  const sort = Array.isArray(payload.sort) ? payload.sort[0] as Record<string, unknown> : {};
+  const sortKey = safeText(sort?.field || sort?.field_key || sort?.key);
+  if (sortKey) {
+    const direction = safeText(sort.direction || 'asc') === 'desc' ? -1 : 1;
+    filtered = [...filtered].sort((a, b) => safeText((a.display_values as Record<string, unknown> | undefined)?.[sortKey]).localeCompare(safeText((b.display_values as Record<string, unknown> | undefined)?.[sortKey]), 'ko') * direction);
+  } else {
+    filtered = [...filtered].sort((a, b) => safeText(a.row_label).localeCompare(safeText(b.row_label), 'ko'));
+  }
+  const offset = (page - 1) * pageSize;
+  return {
+    rows: filtered.slice(offset, offset + pageSize),
+    all_rows: filtered,
+    total: filtered.length,
+    page,
+    pageSize,
+  };
+}
+
 async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
   const viewKey = safeText(payload.view_key || payload.viewKey || 'lease_contracts');
   const rowKey = safeText(payload.row_key || payload.rowKey);
@@ -8097,6 +8194,40 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
   const view = dataManagementViewByKey(dataManagementWorkViewKey(payload));
   if (!view) return fail(400, 'Unknown Data Management 업무 View입니다.', ctx.origin);
   const viewKey = safeText(view.view_key);
+  if (viewKey === 'lease_asset_manager_links') {
+    try {
+      const result = await dataManagementManagerLinkRows(ctx, payload, managementScope, viewKey);
+      const fields = dataManagementFieldsForViewKey(viewKey).map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
+      return jsonResponse({ ok: true, data: {
+        generated_at: new Date().toISOString(),
+        view: {
+          ...view,
+          fields,
+          source_status: {
+            normalized_data_present: result.total > 0,
+            raw_source_present: false,
+            note: '현재 운영 자산·펀드 연결 데이터로 표시합니다.',
+          },
+        },
+        fields,
+        rows: result.rows,
+        empty_state: result.total > 0 ? undefined : {
+          code: 'manager_links_empty',
+          title: '표시할 담당자 연결 데이터가 없습니다.',
+          description: '현재 권한 범위의 자산·펀드 연결을 확인해 주세요.',
+        },
+        pagination: {
+          page: result.page,
+          page_size: result.pageSize,
+          returned: result.rows.length,
+          total_estimate: result.total,
+          has_next: (result.page * result.pageSize) < result.total,
+        },
+      } }, 200, ctx.origin);
+    } catch (error) {
+      return fail(500, 'Data Management 담당자 View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
   if (DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
     try {
       const result = viewKey === 'lease_rent_history_excel'

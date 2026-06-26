@@ -24,7 +24,11 @@ const ROUTES = [
   { key: 'market-supply', route: 'market-data/supply-pipeline', selector: '[data-testid="market-data-dashboard"]', minText: 600 },
   { key: 'market-transactions', route: 'market-data/transactions', selector: '[data-testid="market-data-dashboard"]', minText: 600 },
   { key: 'market-source', route: 'market-data/source-update', selector: '[data-testid="market-data-dashboard"]', minText: 500 },
-  { key: 'data-management', route: 'data-management', selector: '[data-data-management-redesign="true"]', minText: 500 },
+  { key: 'data-management-asset', route: 'data-management/asset-data', selector: '[data-data-management-redesign="true"]', minText: 500 },
+  { key: 'data-management-investment', route: 'data-management/investment-data', selector: '[data-data-management-redesign="true"]', minText: 500 },
+  { key: 'data-management-lease', route: 'data-management/lease-contracts', selector: '[data-data-management-redesign="true"]', minText: 500 },
+  { key: 'data-management-managers', route: 'data-management/managers', selector: '[data-data-management-redesign="true"]', minText: 500 },
+  { key: 'data-management-market', route: 'data-management/market-data', selector: '[data-data-management-redesign="true"]', minText: 500 },
   { key: 'contract-data', route: 'contract-data', minText: 300 },
   { key: 'pdf-report', route: 'pdf-report', minText: 300 },
 ];

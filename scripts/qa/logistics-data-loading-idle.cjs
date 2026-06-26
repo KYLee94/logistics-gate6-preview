@@ -12,7 +12,8 @@ const ROUTES = [
   { key: 'home', route: 'home', minText: 600 },
   { key: 'market-overview', route: 'market-data/overview', selector: '[data-testid="market-data-dashboard"]', minText: 600 },
   { key: 'market-lease', route: 'market-data/lease-market', selector: '[data-testid="market-data-dashboard"]', minText: 600 },
-  { key: 'data-management', route: 'data-management', selector: '[data-data-management-redesign="true"]', minText: 500 },
+  { key: 'data-management-lease', route: 'data-management/lease-contracts', selector: '[data-data-management-redesign="true"]', minText: 500 },
+  { key: 'data-management-market', route: 'data-management/market-data', selector: '[data-data-management-redesign="true"]', minText: 500 },
 ];
 
 function readEnvFile(filePath) {

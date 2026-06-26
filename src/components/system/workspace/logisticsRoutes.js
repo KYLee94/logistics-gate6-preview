@@ -19,7 +19,12 @@ export const LOGISTICS_ROUTE_BY_KEY = {
   'market-data/supply-pipeline': `${LOGISTICS_INTERNAL_BASE}/market-data/supply-pipeline`,
   'market-data/transactions': `${LOGISTICS_INTERNAL_BASE}/market-data/transactions`,
   'market-data/source-update': `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`,
-  'data-management': `${LOGISTICS_INTERNAL_BASE}/data-management`,
+  'data-management': `${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`,
+  'data-management/asset-data': `${LOGISTICS_INTERNAL_BASE}/data-management/asset-data`,
+  'data-management/investment-data': `${LOGISTICS_INTERNAL_BASE}/data-management/investment-data`,
+  'data-management/lease-contracts': `${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`,
+  'data-management/managers': `${LOGISTICS_INTERNAL_BASE}/data-management/managers`,
+  'data-management/market-data': `${LOGISTICS_INTERNAL_BASE}/data-management/market-data`,
   'contract-data': `${LOGISTICS_INTERNAL_BASE}/contract-data`,
   'pdf-report': `${LOGISTICS_INTERNAL_BASE}/pdf-report`,
 };
@@ -43,6 +48,7 @@ export function normalizeLogisticsPath(path = '') {
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/pivot-table`)) return LOGISTICS_ROUTE_BY_KEY['pivot-table'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/contract-data`)) return LOGISTICS_ROUTE_BY_KEY['contract-data'];
   if (clean === `${LOGISTICS_INTERNAL_BASE}/market-data`) return LOGISTICS_ROUTE_BY_KEY['market-data'];
+  if (clean === `${LOGISTICS_INTERNAL_BASE}/data-management`) return LOGISTICS_ROUTE_BY_KEY['data-management'];
   if (clean.startsWith(LOGISTICS_INTERNAL_BASE)) return clean;
   return clean;
 }
@@ -67,6 +73,10 @@ export function publicLogisticsPath(path = '') {
   if (normalized.startsWith(`${LOGISTICS_INTERNAL_BASE}/market-data/`)) {
     const moduleName = normalized.split('/').at(-1);
     return `market-data/${moduleName || 'overview'}`;
+  }
+  if (normalized.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-management/`)) {
+    const moduleName = normalized.split('/').at(-1);
+    return `data-management/${moduleName || 'lease-contracts'}`;
   }
   if (normalized === LOGISTICS_INTERNAL_BASE) return 'work-platform';
   if (normalized === `${LOGISTICS_INTERNAL_BASE}/archive`) return 'work-platform/archive';

@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "generated_at": "2026-06-19T06:51:20.308Z",
+  "generated_at": "2026-06-23T06:52:58.150Z",
   "auth_source": "password_grant",
   "payload": {
     "dry_run": true,
     "kind": "all",
-    "limit": 1000,
+    "limit": 1200,
     "geocode": false,
     "geocode_limit": 0,
     "run_all": true,
@@ -16,7 +16,7 @@
       "payload": {
         "dry_run": true,
         "kind": "all",
-        "limit": 1000,
+        "limit": 1200,
         "geocode": false,
         "geocode_limit": 0,
         "offset": 0
@@ -26,538 +26,136 @@
         "source_file_name": "물류 시장 데이터_20261Q.xlsx",
         "dry_run": true,
         "offset": 0,
-        "limit": 1000,
+        "limit": 1200,
         "results": [
           {
             "kind": "lease",
             "table": "ll_sector_market_lease_observations",
             "idColumn": "observation_id",
             "offset": 0,
-            "limit": 1000,
+            "limit": 1200,
             "scanned": 1000,
-            "changed": 0,
+            "changed": 1000,
             "missing": 0,
             "dry_run": true,
-            "samples": []
+            "samples": [
+              {
+                "row_id": "0002b20d-c706-4622-b8ef-ca89425fed81",
+                "before": "경기도 안성시 원곡면 성은리",
+                "after": "경기도 안성시 원곡면 성은리 449-1",
+                "rule": "lease_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "00216a1a-5373-4202-a4f6-d268f0551fdb",
+                "before": "경기도 용인시 처인구 백암면 백봉리",
+                "after": "경기도 용인시 처인구 백암면 백봉리 755",
+                "rule": "lease_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "002a25dc-c9c8-4b6e-a282-488797725a1b",
+                "before": "경기도 시흥시 정왕동",
+                "after": "경기도 시흥시 정왕동 2123-3",
+                "rule": "lease_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "004e72c1-3445-4c78-b1c6-ae46eb14522c",
+                "before": "경기도 용인시 처인구 백암면 가창리",
+                "after": "경기도 용인시 처인구 백암면 가창리 300-2",
+                "rule": "lease_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "00581948-37bf-43ce-9602-54578641f33b",
+                "before": "경기도 시흥시 정왕동",
+                "after": "경기도 시흥시 정왕동 2123-3",
+                "rule": "lease_sheet_address_with_lot_or_pnu"
+              }
+            ]
           },
           {
             "kind": "supply",
             "table": "ll_sector_market_supply_cases",
             "idColumn": "supply_case_id",
             "offset": 0,
-            "limit": 1000,
+            "limit": 1200,
             "scanned": 276,
-            "changed": 0,
+            "changed": 274,
             "missing": 0,
             "dry_run": true,
-            "samples": []
+            "samples": [
+              {
+                "row_id": "001b9f9f-70cf-4292-a225-f7101f9c1cba",
+                "before": "경기도 포천시 가산면 정교리 272-1",
+                "after": "경기도 포천시 가산면 정교리 272-1",
+                "rule": "supply_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "0140dd61-39bf-4273-a91d-fdfb81c24a3f",
+                "before": "경기도 안성시 미양면 개정리 331",
+                "after": "경기도 안성시 미양면 개정리 331",
+                "rule": "supply_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "02eb98d0-9477-449b-ac4e-c5fb053f8531",
+                "before": "울산광역시 북구 달천동 1043-2",
+                "after": "울산광역시 북구 달천동 1043-2",
+                "rule": "supply_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "03e1b990-9dce-463d-b1c1-873df5926894",
+                "before": "경기도 여주시 대신면 옥촌리 979-4",
+                "after": "경기도 여주시 대신면 옥촌리 979-4",
+                "rule": "supply_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "040b6485-d69f-4687-9877-19e1a95ae9fe",
+                "before": "인천광역시 미추홀구 도화동 686",
+                "after": "인천광역시 미추홀구 도화동 686",
+                "rule": "supply_sheet_address_with_lot_or_pnu"
+              }
+            ]
           },
           {
             "kind": "transaction",
             "table": "ll_sector_market_transaction_cases",
             "idColumn": "transaction_case_id",
             "offset": 0,
-            "limit": 1000,
+            "limit": 1200,
             "scanned": 541,
-            "changed": 0,
+            "changed": 541,
             "missing": 0,
             "dry_run": true,
-            "samples": []
-          }
-        ]
-      }
-    },
-    {
-      "payload": {
-        "dry_run": true,
-        "kind": "all",
-        "limit": 1000,
-        "geocode": false,
-        "geocode_limit": 0,
-        "offset": 1000
-      },
-      "data": {
-        "source_file_id": "17eb0401-4c55-4a5d-ab29-a1b18f0d914e",
-        "source_file_name": "물류 시장 데이터_20261Q.xlsx",
-        "dry_run": true,
-        "offset": 1000,
-        "limit": 1000,
-        "results": [
-          {
-            "kind": "lease",
-            "table": "ll_sector_market_lease_observations",
-            "idColumn": "observation_id",
-            "offset": 1000,
-            "limit": 1000,
-            "scanned": 1000,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "supply",
-            "table": "ll_sector_market_supply_cases",
-            "idColumn": "supply_case_id",
-            "offset": 1000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "transaction",
-            "table": "ll_sector_market_transaction_cases",
-            "idColumn": "transaction_case_id",
-            "offset": 1000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          }
-        ]
-      }
-    },
-    {
-      "payload": {
-        "dry_run": true,
-        "kind": "all",
-        "limit": 1000,
-        "geocode": false,
-        "geocode_limit": 0,
-        "offset": 2000
-      },
-      "data": {
-        "source_file_id": "17eb0401-4c55-4a5d-ab29-a1b18f0d914e",
-        "source_file_name": "물류 시장 데이터_20261Q.xlsx",
-        "dry_run": true,
-        "offset": 2000,
-        "limit": 1000,
-        "results": [
-          {
-            "kind": "lease",
-            "table": "ll_sector_market_lease_observations",
-            "idColumn": "observation_id",
-            "offset": 2000,
-            "limit": 1000,
-            "scanned": 1000,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "supply",
-            "table": "ll_sector_market_supply_cases",
-            "idColumn": "supply_case_id",
-            "offset": 2000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "transaction",
-            "table": "ll_sector_market_transaction_cases",
-            "idColumn": "transaction_case_id",
-            "offset": 2000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          }
-        ]
-      }
-    },
-    {
-      "payload": {
-        "dry_run": true,
-        "kind": "all",
-        "limit": 1000,
-        "geocode": false,
-        "geocode_limit": 0,
-        "offset": 3000
-      },
-      "data": {
-        "source_file_id": "17eb0401-4c55-4a5d-ab29-a1b18f0d914e",
-        "source_file_name": "물류 시장 데이터_20261Q.xlsx",
-        "dry_run": true,
-        "offset": 3000,
-        "limit": 1000,
-        "results": [
-          {
-            "kind": "lease",
-            "table": "ll_sector_market_lease_observations",
-            "idColumn": "observation_id",
-            "offset": 3000,
-            "limit": 1000,
-            "scanned": 1000,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "supply",
-            "table": "ll_sector_market_supply_cases",
-            "idColumn": "supply_case_id",
-            "offset": 3000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "transaction",
-            "table": "ll_sector_market_transaction_cases",
-            "idColumn": "transaction_case_id",
-            "offset": 3000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          }
-        ]
-      }
-    },
-    {
-      "payload": {
-        "dry_run": true,
-        "kind": "all",
-        "limit": 1000,
-        "geocode": false,
-        "geocode_limit": 0,
-        "offset": 4000
-      },
-      "data": {
-        "source_file_id": "17eb0401-4c55-4a5d-ab29-a1b18f0d914e",
-        "source_file_name": "물류 시장 데이터_20261Q.xlsx",
-        "dry_run": true,
-        "offset": 4000,
-        "limit": 1000,
-        "results": [
-          {
-            "kind": "lease",
-            "table": "ll_sector_market_lease_observations",
-            "idColumn": "observation_id",
-            "offset": 4000,
-            "limit": 1000,
-            "scanned": 1000,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "supply",
-            "table": "ll_sector_market_supply_cases",
-            "idColumn": "supply_case_id",
-            "offset": 4000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "transaction",
-            "table": "ll_sector_market_transaction_cases",
-            "idColumn": "transaction_case_id",
-            "offset": 4000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          }
-        ]
-      }
-    },
-    {
-      "payload": {
-        "dry_run": true,
-        "kind": "all",
-        "limit": 1000,
-        "geocode": false,
-        "geocode_limit": 0,
-        "offset": 5000
-      },
-      "data": {
-        "source_file_id": "17eb0401-4c55-4a5d-ab29-a1b18f0d914e",
-        "source_file_name": "물류 시장 데이터_20261Q.xlsx",
-        "dry_run": true,
-        "offset": 5000,
-        "limit": 1000,
-        "results": [
-          {
-            "kind": "lease",
-            "table": "ll_sector_market_lease_observations",
-            "idColumn": "observation_id",
-            "offset": 5000,
-            "limit": 1000,
-            "scanned": 1000,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "supply",
-            "table": "ll_sector_market_supply_cases",
-            "idColumn": "supply_case_id",
-            "offset": 5000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "transaction",
-            "table": "ll_sector_market_transaction_cases",
-            "idColumn": "transaction_case_id",
-            "offset": 5000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          }
-        ]
-      }
-    },
-    {
-      "payload": {
-        "dry_run": true,
-        "kind": "all",
-        "limit": 1000,
-        "geocode": false,
-        "geocode_limit": 0,
-        "offset": 6000
-      },
-      "data": {
-        "source_file_id": "17eb0401-4c55-4a5d-ab29-a1b18f0d914e",
-        "source_file_name": "물류 시장 데이터_20261Q.xlsx",
-        "dry_run": true,
-        "offset": 6000,
-        "limit": 1000,
-        "results": [
-          {
-            "kind": "lease",
-            "table": "ll_sector_market_lease_observations",
-            "idColumn": "observation_id",
-            "offset": 6000,
-            "limit": 1000,
-            "scanned": 1000,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "supply",
-            "table": "ll_sector_market_supply_cases",
-            "idColumn": "supply_case_id",
-            "offset": 6000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "transaction",
-            "table": "ll_sector_market_transaction_cases",
-            "idColumn": "transaction_case_id",
-            "offset": 6000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          }
-        ]
-      }
-    },
-    {
-      "payload": {
-        "dry_run": true,
-        "kind": "all",
-        "limit": 1000,
-        "geocode": false,
-        "geocode_limit": 0,
-        "offset": 7000
-      },
-      "data": {
-        "source_file_id": "17eb0401-4c55-4a5d-ab29-a1b18f0d914e",
-        "source_file_name": "물류 시장 데이터_20261Q.xlsx",
-        "dry_run": true,
-        "offset": 7000,
-        "limit": 1000,
-        "results": [
-          {
-            "kind": "lease",
-            "table": "ll_sector_market_lease_observations",
-            "idColumn": "observation_id",
-            "offset": 7000,
-            "limit": 1000,
-            "scanned": 1000,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "supply",
-            "table": "ll_sector_market_supply_cases",
-            "idColumn": "supply_case_id",
-            "offset": 7000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "transaction",
-            "table": "ll_sector_market_transaction_cases",
-            "idColumn": "transaction_case_id",
-            "offset": 7000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          }
-        ]
-      }
-    },
-    {
-      "payload": {
-        "dry_run": true,
-        "kind": "all",
-        "limit": 1000,
-        "geocode": false,
-        "geocode_limit": 0,
-        "offset": 8000
-      },
-      "data": {
-        "source_file_id": "17eb0401-4c55-4a5d-ab29-a1b18f0d914e",
-        "source_file_name": "물류 시장 데이터_20261Q.xlsx",
-        "dry_run": true,
-        "offset": 8000,
-        "limit": 1000,
-        "results": [
-          {
-            "kind": "lease",
-            "table": "ll_sector_market_lease_observations",
-            "idColumn": "observation_id",
-            "offset": 8000,
-            "limit": 1000,
-            "scanned": 1000,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "supply",
-            "table": "ll_sector_market_supply_cases",
-            "idColumn": "supply_case_id",
-            "offset": 8000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "transaction",
-            "table": "ll_sector_market_transaction_cases",
-            "idColumn": "transaction_case_id",
-            "offset": 8000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          }
-        ]
-      }
-    },
-    {
-      "payload": {
-        "dry_run": true,
-        "kind": "all",
-        "limit": 1000,
-        "geocode": false,
-        "geocode_limit": 0,
-        "offset": 9000
-      },
-      "data": {
-        "source_file_id": "17eb0401-4c55-4a5d-ab29-a1b18f0d914e",
-        "source_file_name": "물류 시장 데이터_20261Q.xlsx",
-        "dry_run": true,
-        "offset": 9000,
-        "limit": 1000,
-        "results": [
-          {
-            "kind": "lease",
-            "table": "ll_sector_market_lease_observations",
-            "idColumn": "observation_id",
-            "offset": 9000,
-            "limit": 1000,
-            "scanned": 610,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "supply",
-            "table": "ll_sector_market_supply_cases",
-            "idColumn": "supply_case_id",
-            "offset": 9000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
-          },
-          {
-            "kind": "transaction",
-            "table": "ll_sector_market_transaction_cases",
-            "idColumn": "transaction_case_id",
-            "offset": 9000,
-            "limit": 1000,
-            "scanned": 0,
-            "changed": 0,
-            "missing": 0,
-            "dry_run": true,
-            "samples": []
+            "samples": [
+              {
+                "row_id": "004b30d3-c176-4f16-81be-2b99e38353ab",
+                "before": "경기도 남양주시 진접읍 내각리 99-5",
+                "after": "경기도 남양주시 진접읍 내각리 99-5",
+                "rule": "transaction_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "006b1540-27ba-4716-9818-ad566fd4d910",
+                "before": "경기도 이천시 호법면 매곡리 977-5",
+                "after": "경기도 이천시 호법면 매곡리 977-5",
+                "rule": "transaction_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "00fb3230-467d-48d4-a61b-5be2f83faf69",
+                "before": "충청남도 천안시 서북구 성환읍 율금리 775-7",
+                "after": "충청남도 천안시 서북구 성환읍 율금리 775-7",
+                "rule": "transaction_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "012fb964-ea8a-4d6b-9a2d-6ce53f8079e4",
+                "before": "충청북도 진천군 덕산읍 용몽리 282-3",
+                "after": "충청북도 진천군 덕산읍 용몽리 282-3",
+                "rule": "transaction_sheet_address_with_lot_or_pnu"
+              },
+              {
+                "row_id": "01dc747e-cdbc-475c-8a2e-a6fc4f3ce0c0",
+                "before": "경기도 용인시 처인구 백암면 옥산리 17",
+                "after": "경기도 용인시 처인구 백암면 옥산리 17",
+                "rule": "transaction_sheet_address_with_lot_or_pnu"
+              }
+            ]
           }
         ]
       }
@@ -565,18 +163,18 @@
   ],
   "totals": {
     "lease": {
-      "scanned": 9610,
-      "changed": 0,
+      "scanned": 1000,
+      "changed": 1000,
       "missing": 0
     },
     "supply": {
       "scanned": 276,
-      "changed": 0,
+      "changed": 274,
       "missing": 0
     },
     "transaction": {
       "scanned": 541,
-      "changed": 0,
+      "changed": 541,
       "missing": 0
     }
   }

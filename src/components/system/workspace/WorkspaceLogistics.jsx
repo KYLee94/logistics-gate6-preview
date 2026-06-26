@@ -5256,7 +5256,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
 
   const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
   const isContractData = normalizedCurrentPath === pathFor('contract-data');
-  const isDataManagement = normalizedCurrentPath === pathFor('data-management');
+  const isDataManagement = normalizedCurrentPath === pathFor('data-management') || normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-management/`);
   const isMarketData = normalizedCurrentPath === pathFor('market-data') || normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/market-data/`);
   const isDashboard = currentPath.startsWith(pathFor('dashboard'));
   const isPdfReport = currentPath.startsWith(pathFor('pdf-report'));
@@ -5271,6 +5271,14 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     transactions: 'transactions',
     'source-update': 'source',
   })[marketRoute] || 'overview';
+  const dataManagementRoute = normalizedCurrentPath.split('/').pop() || 'lease-contracts';
+  const activeDataManagementTab = ({
+    'asset-data': 'asset',
+    'investment-data': 'investment',
+    'lease-contracts': 'lease',
+    managers: 'managers',
+    'market-data': 'market',
+  })[dataManagementRoute] || 'lease';
   const navigateMarketData = (route) => {
     const nextPath = `${LOGISTICS_INTERNAL_BASE}/market-data/${route || 'overview'}`;
     window.history.pushState(null, '', pathForLogisticsUrl(import.meta.env.BASE_URL, nextPath));
@@ -5867,7 +5875,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   }
 
   if (isDataManagement) {
-    return <DataManagementDashboard />;
+    return <DataManagementDashboard activeTab={activeDataManagementTab} />;
   }
 
   if (isContractData) {

@@ -575,12 +575,34 @@ const logisticsMarketDataItems = [
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10v5h4l-9 11-9-11h4V4z" /></svg>,
     },
 ];
-const logisticsStandaloneItems = [
+const logisticsDataManagementItems = [
     {
-        label: 'Data Management',
-        path: `${LOGISTICS_INTERNAL_BASE}/data-management`,
+        label: '자산 Data',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-management/asset-data`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V8l8-5 8 5v11M8 19v-6h8v6M7 10h10" /></svg>,
+    },
+    {
+        label: '투자 Data',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-management/investment-data`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 18h16M6 18V8m4 10V5m4 13v-7m4 7v-4" /></svg>,
+    },
+    {
+        label: '임대차계약 Data',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2zM9 8h6M9 12h6M9 16h4" /></svg>,
     },
+    {
+        label: '담당자 Data',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-management/managers`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 11a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6 3 3 0 000 6zM3.5 20a4.5 4.5 0 019 0M11.5 20a4.5 4.5 0 019 0" /></svg>,
+    },
+    {
+        label: '시장 Data',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-management/market-data`,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4M7 9h2m2-3h2m2 6h2" /></svg>,
+    },
+];
+const logisticsStandaloneItems = [
     {
         label: 'PDF Report',
         path: `${LOGISTICS_INTERNAL_BASE}/pdf-report`,
@@ -675,6 +697,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const saved = sessionStorage.getItem('isLogisticsMarketDataOpen');
         return saved !== null ? saved === 'true' : true;
     });
+    const [isLogisticsDataManagementOpen, setIsLogisticsDataManagementOpen] = useState(() => {
+        const saved = sessionStorage.getItem('isLogisticsDataManagementOpen');
+        return saved !== null ? saved === 'true' : true;
+    });
 
     useEffect(() => { sessionStorage.setItem('iotaLeftNavCollapsed', isCollapsed); }, [isCollapsed]);
     useEffect(() => { sessionStorage.setItem('isWorkspaceOpen', isWorkspaceOpen); }, [isWorkspaceOpen]);
@@ -683,6 +709,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     useEffect(() => { sessionStorage.setItem('isVehicleOpen', isVehicleOpen); }, [isVehicleOpen]);
     useEffect(() => { sessionStorage.setItem('isLogisticsDashboardOpen', isLogisticsDashboardOpen); }, [isLogisticsDashboardOpen]);
     useEffect(() => { sessionStorage.setItem('isLogisticsMarketDataOpen', isLogisticsMarketDataOpen); }, [isLogisticsMarketDataOpen]);
+    useEffect(() => { sessionStorage.setItem('isLogisticsDataManagementOpen', isLogisticsDataManagementOpen); }, [isLogisticsDataManagementOpen]);
 
     useEffect(() => {
         if (
@@ -1071,10 +1098,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
             item.path !== `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`
             || canViewSourceUpdateAndDataQuality
         ));
+        const visibleDataManagementItems = logisticsDataManagementItems;
         const visibleStandaloneItems = logisticsStandaloneItems;
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
         const isDashboardActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard`);
         const isMarketDataActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/market-data`);
+        const isDataManagementActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-management`);
         return (
             <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full overflow-hidden bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] print:hidden`}>
                 <div className={`w-full flex items-center ${isCollapsed ? 'justify-center px-[10px]' : 'justify-between px-[15px]'} pt-[14px] pb-4`}>
@@ -1171,6 +1200,48 @@ export default function IotaLeftNav({ currentPath = '' }) {
                             <div className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${!isCollapsed && isLogisticsMarketDataOpen ? 'max-h-[260px] translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0'}`}>
                                 <div className="mt-1 flex flex-col gap-0 pl-4">
                                     {visibleMarketDataItems.map((item) => {
+                                        const isActive = normalizedCurrentPath === item.path || normalizedCurrentPath.startsWith(`${item.path}/`);
+                                        return (
+                                            <div key={item.path} title={isCollapsed ? item.label : undefined} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
+                                                <div className="flex min-w-0 items-center">
+                                                    <span className="text-white">{item.icon}</span>
+                                                    <span className="overflow-hidden whitespace-nowrap text-[13px] font-light text-white">{item.label}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-1">
+                            <button
+                                type="button"
+                                title={isCollapsed ? 'Data Management' : undefined}
+                                onClick={() => {
+                                    if (isCollapsed) {
+                                        handleNavigation(`${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`);
+                                    } else {
+                                        setIsLogisticsDataManagementOpen((value) => !value);
+                                    }
+                                }}
+                                className={`group relative flex w-full items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isDataManagementActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}
+                            >
+                                <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : ''}`}>
+                                    <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>
+                                        <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2zM9 8h6M9 12h6M9 16h4" /></svg>
+                                    </span>
+                                    <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>Data Management</span>
+                                </div>
+                                {!isCollapsed ? (
+                                    <svg className={`h-4 w-4 text-[#86868B] transition-transform ${isLogisticsDataManagementOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                    </svg>
+                                ) : null}
+                                {renderCollapsedTooltip('Data Management')}
+                            </button>
+                            <div className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${!isCollapsed && isLogisticsDataManagementOpen ? 'max-h-[260px] translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0'}`}>
+                                <div className="mt-1 flex flex-col gap-0 pl-4">
+                                    {visibleDataManagementItems.map((item) => {
                                         const isActive = normalizedCurrentPath === item.path || normalizedCurrentPath.startsWith(`${item.path}/`);
                                         return (
                                             <div key={item.path} title={isCollapsed ? item.label : undefined} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
