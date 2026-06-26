@@ -125,17 +125,22 @@ async function main() {
     const readbackStatus = result.data?.summary?.readback_status || result.data?.readback?.status || '';
     const viewKeys = Object.keys(result.data?.views || {});
     const baselineBytes = legacyAll.ok ? legacyAll.bytes : (fallbackAll?.ok ? fallbackAll.bytes : 0);
+    const readbackRequired = view !== 'source';
+    const readbackOk = readbackStatus === 'checked'
+      || readbackStatus === 'not_applicable';
     viewResults.push({
       view,
       elapsed_ms: result.elapsed_ms,
       bytes: result.bytes,
       byte_ratio_to_legacy_all: baselineBytes ? Math.round((result.bytes / Math.max(1, baselineBytes)) * 1000) / 10 : null,
       readback_status: readbackStatus,
+      readback_required: readbackRequired,
+      readback_ok: view === 'source' ? readbackStatus === 'checked' : readbackOk,
       view_keys: viewKeys,
       internal_key_hits: hasInternalKeys(result.data),
       ok: viewKeys.length === 1
         && viewKeys[0] === view
-        && (view === 'source' ? readbackStatus === 'checked' : readbackStatus === 'skipped'),
+        && (view === 'source' ? readbackStatus === 'checked' : readbackOk),
     });
   }
   const interactiveViews = viewResults.filter((row) => row.view !== 'source');
@@ -157,8 +162,9 @@ async function main() {
     },
     views: viewResults,
     checks: {
-      source_only_readback_checked: viewResults.find((row) => row.view === 'source')?.readback_status === 'checked',
-      non_source_readback_skipped: interactiveViews.every((row) => row.readback_status === 'skipped'),
+      source_readback_checked: viewResults.find((row) => row.view === 'source')?.readback_status === 'checked',
+      interactive_readback_checked_or_explicit_na: interactiveViews.every((row) => row.readback_ok),
+      interactive_readback_skipped_is_failure: interactiveViews.every((row) => row.readback_status !== 'skipped'),
       legacy_full_resource_exhausted: legacyFullResourceExhausted,
       interactive_payloads_at_most_35pct_of_legacy_all: legacyAll.ok
         ? interactiveViews.every((row) => Number(row.byte_ratio_to_legacy_all) <= 35)

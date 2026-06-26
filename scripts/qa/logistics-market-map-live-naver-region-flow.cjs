@@ -290,6 +290,11 @@ async function main() {
       entry.screenshots.push(regionShot);
       report.screenshots.push(regionShot);
       entry.region_label_positions_before_zoom = await regionLabelPositions(page);
+      entry.region_labels_inside_panel_before_zoom = entry.region_label_positions_before_zoom.length > 0
+        && entry.region_label_positions_before_zoom.every((item) => item.inside_panel);
+      if (!entry.region_labels_inside_panel_before_zoom) {
+        entry.errors.push('Region labels are outside the map panel before zoom.');
+      }
       const regionZoomBefore = Number(await page.locator('[data-testid="market-map-panel"]').first().getAttribute('data-map-zoom') || 0);
       const regionPanelBox = await page.locator('[data-testid="market-map-panel"]').first().boundingBox();
       if (regionPanelBox) {
@@ -307,6 +312,11 @@ async function main() {
         entry.errors.push('Mouse wheel zoom did not update the Naver region map zoom.');
       });
       entry.region_label_positions_after_zoom = await regionLabelPositions(page);
+      entry.region_labels_inside_panel_after_zoom = entry.region_label_positions_after_zoom.length > 0
+        && entry.region_label_positions_after_zoom.every((item) => item.inside_panel);
+      if (!entry.region_labels_inside_panel_after_zoom) {
+        entry.errors.push('Region labels are outside the map panel after zoom.');
+      }
       entry.region_labels_moved_on_zoom = entry.region_label_positions_before_zoom.some((before) => {
         const after = entry.region_label_positions_after_zoom.find((item) => item.region === before.region);
         if (!after) return false;
@@ -410,6 +420,8 @@ async function main() {
         && entry.region_first_stats.point_count === 0
         && entry.region_first_stats.naver_tile_count > 0
         && entry.region_first_stats.osm_tile_count === 0
+        && entry.region_labels_inside_panel_before_zoom
+        && entry.region_labels_inside_panel_after_zoom
         && entry.region_labels_moved_on_zoom
         && entry.click_to_points_within_threshold
         && entry.point_stats.provider === 'naver'

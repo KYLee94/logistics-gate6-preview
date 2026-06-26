@@ -1,0 +1,2738 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-26T04:37:10.105Z",
+  "repo": {
+    "root": "C:\\tmp\\IGIS-Fund-Production-DP",
+    "live_url": "https://kylee94.github.io/logistics-gate6-preview/"
+  },
+  "verdict": "complete",
+  "known_blockers": [],
+  "surface_manifest": [
+    {
+      "id": "global-auth-loading",
+      "axis": "global-stability",
+      "screen": "Global shell",
+      "route": "all protected routes",
+      "components": [
+        "AuthContext",
+        "IotaLeftNav",
+        "useEdgeData",
+        "invokeDashboardApi"
+      ],
+      "interactions": [
+        "login",
+        "logout",
+        "session refresh",
+        "tab switch",
+        "browser back/forward",
+        "idle return"
+      ],
+      "dataContract": "Auth session, permission scope, primary/cache/fallback state must be separated.",
+      "acceptance": [
+        "no forced redirect after valid login",
+        "no blank data after idle",
+        "401/403 cannot be treated as success"
+      ],
+      "requiredEvidence": [
+        "live 50-cycle tab switch",
+        "idle return with real session",
+        "auth/permission matrix"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "data-loading-idle-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:33:40.391Z"
+        },
+        {
+          "artifact": "auth-permission-matrix-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-18T10:12:13.851Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "system-modals",
+      "axis": "global-stability",
+      "screen": "System modals",
+      "route": "left navigation footer",
+      "components": [
+        "feature access modal",
+        "login history modal",
+        "notification panel"
+      ],
+      "interactions": [
+        "open",
+        "refresh",
+        "save/delete",
+        "close",
+        "reopen after idle"
+      ],
+      "dataContract": "Modal UI must read back the server state after every mutation.",
+      "acceptance": [
+        "feature access persists",
+        "login history reloads",
+        "notification dismiss readback matches server"
+      ],
+      "requiredEvidence": [
+        "live modal refresh stability",
+        "notification dismiss readback",
+        "idle modal reopen"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "access-modal-refresh-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T01:37:09.316Z"
+        },
+        {
+          "artifact": "login-history-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T01:37:09.792Z"
+        },
+        {
+          "artifact": "logout-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T02:51:37.597Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "work-platform",
+      "axis": "screen-coverage",
+      "screen": "Work Platform",
+      "route": "/work-platform",
+      "components": [
+        "profile card",
+        "asset/fund assignment summary",
+        "search",
+        "shortcut buttons"
+      ],
+      "interactions": [
+        "search",
+        "dashboard navigation",
+        "assignment readback"
+      ],
+      "dataContract": "19 assets and 17 funds must be visible to all-management users.",
+      "acceptance": [
+        "manager sees all assets/funds",
+        "external PM only sees assigned assets",
+        "navigation does not reset auth"
+      ],
+      "requiredEvidence": [
+        "live work platform smoke",
+        "permission-specific screenshots"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "work-platform-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-18T10:08:28.027Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "dashboard-home-asset-company",
+      "axis": "screen-coverage",
+      "screen": "Dashboard core tabs",
+      "route": "/home, /asset, /company",
+      "components": [
+        "KPI cards",
+        "maps",
+        "asset/company selectors",
+        "tenant tables",
+        "DART refresh"
+      ],
+      "interactions": [
+        "selector change",
+        "table sorting",
+        "row click",
+        "map hover/click",
+        "external refresh"
+      ],
+      "dataContract": "Primary data, static fallback, provider fallback, and empty state must not be conflated.",
+      "acceptance": [
+        "all visible tables sort",
+        "maps show real tiles/markers",
+        "refresh buttons report provider/store/fallback separately"
+      ],
+      "requiredEvidence": [
+        "browser visible parity",
+        "map callout smoke",
+        "external refresh smoke"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "sector-tabs-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:44:22.020Z"
+        },
+        {
+          "artifact": "out-of-scope-regression-inventory-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-23T16:11:36.843Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "dashboard-special-tabs",
+      "axis": "screen-coverage",
+      "screen": "Dashboard special tabs",
+      "route": "/investment-index, /asset-spec, /analysis-tools, /pivot-table, /data-quality, /pdf-report",
+      "components": [
+        "investment charts",
+        "asset spec comparison",
+        "analysis matrix",
+        "pivot controls",
+        "data quality edit modal",
+        "PDF report builder"
+      ],
+      "interactions": [
+        "slicer",
+        "chart hover/click",
+        "table sort",
+        "edit modal",
+        "link/open",
+        "PDF save/print"
+      ],
+      "dataContract": "UI values must match Supabase/API readback and must not expose internal identifiers.",
+      "acceptance": [
+        "no raw/internal IDs",
+        "chart popups expose full detail",
+        "every button changes UI or server state as expected"
+      ],
+      "requiredEvidence": [
+        "tab-specific live smoke",
+        "internal-text denylist",
+        "readback parity"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "sector-tabs-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:44:22.020Z"
+        },
+        {
+          "artifact": "investment-index-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-22T02:03:49.140Z"
+        },
+        {
+          "artifact": "asset-spec-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-22T02:03:49.148Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "market-data",
+      "axis": "screen-coverage",
+      "screen": "Market Data tabs",
+      "route": "/market-data/overview, /lease-market, /supply-pipeline, /transactions, /source-update",
+      "components": [
+        "slicers",
+        "tables",
+        "charts",
+        "MarketMapPanel",
+        "explorer modals"
+      ],
+      "interactions": [
+        "tab switch",
+        "slicer change",
+        "table sort/scroll",
+        "chart hover/click",
+        "map zoom/label/pin",
+        "modal explorer"
+      ],
+      "dataContract": "Excel -> Supabase -> Edge API -> UI values must match; view readback cannot be skipped.",
+      "acceptance": [
+        "no blank chart/table",
+        "map labels stay inside panel",
+        "all chart clicks open detailed rows",
+        "UI row count matches API"
+      ],
+      "requiredEvidence": [
+        "market browser smoke",
+        "view readback for every tab",
+        "live Naver/OSM map flow",
+        "pin/address precision"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "market-data-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T08:43:11.953Z"
+        },
+        {
+          "artifact": "market-data-view-payload-audit-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T02:49:24.609Z"
+        },
+        {
+          "artifact": "live-market-map-naver-region-flow-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:36:12.739Z"
+        },
+        {
+          "artifact": "market-data-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:47:45.532Z"
+        },
+        {
+          "artifact": "market-data-parity-audit-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:47:52.766Z"
+        },
+        {
+          "artifact": "market-map-address-precision-audit-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-24T01:42:40.943Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "data-management",
+      "axis": "screen-coverage",
+      "screen": "Data Management",
+      "route": "/data-management",
+      "components": [
+        "workspace tabs",
+        "business view table",
+        "fullscreen edit modal",
+        "change basket",
+        "approval/readback panel"
+      ],
+      "interactions": [
+        "view switch",
+        "asset/fund bundle select",
+        "search",
+        "table sort/scroll",
+        "field edit",
+        "preview",
+        "submit",
+        "approve/reject",
+        "readback"
+      ],
+      "dataContract": "Every public ll_* table must be cataloged; editable values use approval flow, readback-only tables are locked.",
+      "acceptance": [
+        "no ll_/payload/source_row_id/internal ID visible",
+        "submit/write/readback is proven",
+        "ended contracts and past history are locked"
+      ],
+      "requiredEvidence": [
+        "coverage audit",
+        "release gate with submit/write/readback",
+        "live browser flow",
+        "permission matrix"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "data-management-browser-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T03:24:36.735Z"
+        },
+        {
+          "artifact": "data-management-live-browser-flow-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T03:27:11.451Z"
+        },
+        {
+          "artifact": "data-management-release-gate-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T03:13:14.030Z"
+        },
+        {
+          "artifact": "data-management-coverage-audit-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T09:27:13.586Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "data-parity",
+      "axis": "data-consistency",
+      "screen": "All data-backed UI",
+      "route": "all",
+      "components": [
+        "Supabase tables",
+        "Edge API actions",
+        "UI renderers"
+      ],
+      "interactions": [
+        "read",
+        "filter",
+        "sort",
+        "mutate",
+        "readback"
+      ],
+      "dataContract": "Supabase/API/UI row counts and displayed values must agree or show a clear blocked reason.",
+      "acceptance": [
+        "no skipped readback accepted",
+        "fallback/cache states logged separately",
+        "screen count equals API count where applicable"
+      ],
+      "requiredEvidence": [
+        "parity audit",
+        "source readback",
+        "visible parity",
+        "mutation readback"
+      ],
+      "evidence": [
+        {
+          "artifact": "market-data-view-payload-audit-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T02:49:24.609Z"
+        },
+        {
+          "artifact": "market-data-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:47:45.532Z"
+        },
+        {
+          "artifact": "market-data-parity-audit-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:47:52.766Z"
+        },
+        {
+          "artifact": "data-management-release-gate-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T03:13:14.030Z"
+        },
+        {
+          "artifact": "data-management-browser-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T03:24:36.735Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "dashboard-home",
+      "axis": "detailed-screen-coverage",
+      "screen": "Dashboard Home",
+      "route": "/home",
+      "components": [
+        "KPI cards",
+        "operation cost sections",
+        "asset comparison",
+        "map"
+      ],
+      "interactions": [
+        "selector change",
+        "table sort",
+        "map hover/click",
+        "refresh"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "sector-tabs-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:44:22.020Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "dashboard-asset",
+      "axis": "detailed-screen-coverage",
+      "screen": "Dashboard Asset",
+      "route": "/asset",
+      "components": [
+        "asset selector",
+        "tenant status table",
+        "area composition",
+        "floor plan",
+        "3D model link",
+        "maturity chart"
+      ],
+      "interactions": [
+        "selector change",
+        "table sort",
+        "row click",
+        "modal open",
+        "external link"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "sector-tabs-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:44:22.020Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "dashboard-company",
+      "axis": "detailed-screen-coverage",
+      "screen": "Dashboard Company",
+      "route": "/company",
+      "components": [
+        "company selector",
+        "leased asset table",
+        "DART refresh",
+        "map"
+      ],
+      "interactions": [
+        "selector change",
+        "table sort",
+        "row click",
+        "map expand",
+        "refresh"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "sector-tabs-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:44:22.020Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "investment-index",
+      "axis": "detailed-screen-coverage",
+      "screen": "Investment Index",
+      "route": "/investment-index",
+      "components": [
+        "fund equity/loan chart",
+        "maturity chart",
+        "loan rate chart",
+        "detail modals"
+      ],
+      "interactions": [
+        "slicer",
+        "chart hover/click",
+        "modal table sort",
+        "readback"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "investment-index-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-22T02:03:49.140Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "asset-spec",
+      "axis": "detailed-screen-coverage",
+      "screen": "Asset Spec",
+      "route": "/asset-spec",
+      "components": [
+        "data input button",
+        "asset comparison",
+        "tenant occupied spec comparison",
+        "fullscreen table"
+      ],
+      "interactions": [
+        "modal open",
+        "asset select",
+        "table view",
+        "readback"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "asset-spec-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-22T02:03:49.148Z"
+        },
+        {
+          "artifact": "asset-spec-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-19T05:26:21.875Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "analysis-tools",
+      "axis": "detailed-screen-coverage",
+      "screen": "Analysis Tools",
+      "route": "/analysis-tools",
+      "components": [
+        "asset/company selectors",
+        "metric controls",
+        "matrix detail"
+      ],
+      "interactions": [
+        "selector change",
+        "metric change",
+        "raw table open",
+        "popup close"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "sector-tabs-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:44:22.020Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "pivot-table",
+      "axis": "detailed-screen-coverage",
+      "screen": "Pivot Table",
+      "route": "/pivot-table",
+      "components": [
+        "field selector",
+        "metric selector",
+        "filters",
+        "saved views",
+        "drilldown"
+      ],
+      "interactions": [
+        "filter change",
+        "top N change",
+        "sort",
+        "save view",
+        "drilldown modal"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "sector-tabs-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:44:22.020Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "data-quality",
+      "axis": "detailed-screen-coverage",
+      "screen": "Data Quality",
+      "route": "/data-quality",
+      "components": [
+        "quality summary",
+        "issue table",
+        "edit popup",
+        "approval flow"
+      ],
+      "interactions": [
+        "filter",
+        "row click",
+        "edit preview",
+        "submit",
+        "denylist scan"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "sector-tabs-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:44:22.020Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "pdf-report",
+      "axis": "detailed-screen-coverage",
+      "screen": "PDF Report",
+      "route": "/pdf-report",
+      "components": [
+        "component checkboxes",
+        "asset selection",
+        "ordering",
+        "preview/save/print"
+      ],
+      "interactions": [
+        "select",
+        "reorder",
+        "open preview",
+        "save",
+        "print"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "contract-data",
+      "axis": "detailed-screen-coverage",
+      "screen": "Contract Data",
+      "route": "/contract-data",
+      "components": [
+        "contract data route"
+      ],
+      "interactions": [
+        "route access",
+        "data render",
+        "permission check"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "ai-chatbot",
+      "axis": "detailed-screen-coverage",
+      "screen": "AI Chatbot",
+      "route": "global dock/work platform",
+      "components": [
+        "chat dock",
+        "search/API response",
+        "source citations"
+      ],
+      "interactions": [
+        "open",
+        "ask",
+        "response contract",
+        "fallback classification"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "ai-chatbot-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-05-28T06:54:11.268Z"
+        },
+        {
+          "artifact": "ai-chatbot-qa-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-09T09:07:52.563Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "market-overview",
+      "axis": "detailed-screen-coverage",
+      "screen": "Market Data Overview",
+      "route": "/market-data/overview",
+      "components": [
+        "KPI cards",
+        "regional charts",
+        "supply timing chart"
+      ],
+      "interactions": [
+        "slicer",
+        "legend click",
+        "chart click modal",
+        "row count parity"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "market-data-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T08:43:11.953Z"
+        },
+        {
+          "artifact": "market-data-view-payload-audit-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T02:49:24.609Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "market-lease",
+      "axis": "detailed-screen-coverage",
+      "screen": "Lease Market",
+      "route": "/market-data/lease-market",
+      "components": [
+        "latest lease statistics",
+        "regional center map/table",
+        "detail modals"
+      ],
+      "interactions": [
+        "period/metric/temp/region slicers",
+        "table sort",
+        "map label/pin",
+        "chart popup"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "market-data-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T08:43:11.953Z"
+        },
+        {
+          "artifact": "live-market-map-naver-region-flow-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:36:12.739Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "market-supply",
+      "axis": "detailed-screen-coverage",
+      "screen": "Supply Pipeline",
+      "route": "/market-data/supply-pipeline",
+      "components": [
+        "new supply",
+        "pipeline",
+        "cumulative supply",
+        "area charts"
+      ],
+      "interactions": [
+        "date range",
+        "reset",
+        "map label/pin",
+        "chart popup",
+        "table sort"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "market-data-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T08:43:11.953Z"
+        },
+        {
+          "artifact": "live-market-map-naver-region-flow-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:36:12.739Z"
+        },
+        {
+          "artifact": "supply-period-slicer-flow-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T05:56:28.623Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "market-transactions",
+      "axis": "detailed-screen-coverage",
+      "screen": "Transactions",
+      "route": "/market-data/transactions",
+      "components": [
+        "deal comparison",
+        "market size",
+        "size buckets",
+        "cap rate"
+      ],
+      "interactions": [
+        "period/region/temp/type slicers",
+        "chart popup",
+        "legend focus",
+        "table sort"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "market-data-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T08:43:11.953Z"
+        },
+        {
+          "artifact": "live-market-map-naver-region-flow-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:36:12.739Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "market-source-update",
+      "axis": "detailed-screen-coverage",
+      "screen": "Source Update",
+      "route": "/market-data/source-update",
+      "components": [
+        "source coverage",
+        "raw/normalized counts",
+        "dry-run flow"
+      ],
+      "interactions": [
+        "source readback",
+        "count parity",
+        "validation result"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "market-data-browser-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T08:43:11.953Z"
+        },
+        {
+          "artifact": "market-data-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-25T07:47:45.532Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "data-management-igis",
+      "axis": "detailed-screen-coverage",
+      "screen": "Data Management - IGIS Data",
+      "route": "/data-management",
+      "components": [
+        "asset/fund bundle",
+        "business views",
+        "edit basket"
+      ],
+      "interactions": [
+        "view switch",
+        "field edit",
+        "preview",
+        "submit",
+        "readback"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "data-management-browser-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T03:24:36.735Z"
+        },
+        {
+          "artifact": "data-management-live-browser-flow-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T03:27:11.451Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "data-management-market",
+      "axis": "detailed-screen-coverage",
+      "screen": "Data Management - Market Data",
+      "route": "/data-management",
+      "components": [
+        "market source views",
+        "readback-only/source review"
+      ],
+      "interactions": [
+        "view switch",
+        "filter",
+        "table sort",
+        "source review request"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "data-management-browser-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T03:24:36.735Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "data-management-system",
+      "axis": "detailed-screen-coverage",
+      "screen": "Data Management - System Data",
+      "route": "/data-management",
+      "components": [
+        "permission/login/audit/cache/edit requests"
+      ],
+      "interactions": [
+        "readback",
+        "approve/reject",
+        "permission block"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T04:30:45.624Z"
+        },
+        {
+          "artifact": "data-management-browser-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-06-26T03:24:36.735Z"
+        }
+      ],
+      "status": "complete"
+    }
+  ],
+  "latest_artifacts": [
+    {
+      "name": "access-ui-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/access-ui-browser-smoke-latest.json",
+      "status": "incomplete-or-failed",
+      "severity": "major",
+      "findings": [
+        "warnings=3"
+      ]
+    },
+    {
+      "name": "ai-chatbot-model-sample-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/ai-chatbot-model-sample-latest.json",
+      "status": "incomplete-or-failed",
+      "severity": "major",
+      "findings": [
+        "status=model_unavailable"
+      ]
+    },
+    {
+      "name": "out-of-scope-regression-inventory-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/out-of-scope-regression-inventory-latest.json",
+      "status": "incomplete-or-failed",
+      "severity": "major",
+      "findings": [
+        "warnings=2"
+      ]
+    },
+    {
+      "name": "supply-period-slicer-flow-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/supply-period-slicer-flow-latest.json",
+      "status": "incomplete-or-failed",
+      "severity": "major",
+      "findings": [
+        "warnings=1"
+      ]
+    },
+    {
+      "name": "access-modal-refresh-stability-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/access-modal-refresh-stability-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "ai-chatbot-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/ai-chatbot-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "ai-chatbot-qa-100-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/ai-chatbot-qa-100-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "ai-chatbot-qa-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/ai-chatbot-qa-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "ai-chatbot-risk-qa-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/ai-chatbot-risk-qa-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "asset-spec-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/asset-spec-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "asset-spec-readback-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/asset-spec-readback-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "asset-spec-sample-backfill-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/asset-spec-sample-backfill-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "auth-password-flow-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/auth-password-flow-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "auth-permission-matrix-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/auth-permission-matrix-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "dart-chart-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/dart-chart-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-loading-idle-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-loading-idle-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-loading-stability-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-loading-stability-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-management-browser-readback-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-management-coverage-audit-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-management-coverage-audit-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-management-live-browser-flow-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-management-live-browser-flow-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-management-release-gate-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-management-release-gate-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-management-required-fields-preview-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-management-required-fields-preview-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-management-view-field-submit-readback-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-management-view-field-submit-readback-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-update-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-update-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "enoc-weighted-audit-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/enoc-weighted-audit-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "external-api-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/external-api-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "external-refresh-buttons-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/external-refresh-buttons-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "full-app-loading-stability-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/full-app-loading-stability-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "investment-index-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/investment-index-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "investment-index-empty-loan-cleanup-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/investment-index-empty-loan-cleanup-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "investment-index-loan-integrity-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/investment-index-loan-integrity-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "legacy-intro-block-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/legacy-intro-block-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "live-market-map-naver-region-flow-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/live-market-map-naver-region-flow-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "login-history-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/login-history-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "login-history-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/login-history-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "logout-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/logout-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "map-provider-matrix-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/map-provider-matrix-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-address-backfill-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-address-backfill-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-chatbot-qa-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-chatbot-qa-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-data-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-data-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-data-parity-audit-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-data-parity-audit-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-data-readback-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-data-readback-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-data-temperature-semantics-audit-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-data-temperature-semantics-audit-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-data-view-payload-audit-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-data-view-payload-audit-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-docs-ingest-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-docs-ingest-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-map-address-precision-audit-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-map-address-precision-audit-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-map-pinpoint-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-map-pinpoint-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "market-stat-source-rows-repair-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-stat-source-rows-repair-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "news-api-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/news-api-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "news-edge-restore-20260617-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/news-edge-restore-20260617-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "news-restore-readback-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/news-restore-readback-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "notification-logout-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/notification-logout-browser-smoke-latest.json",
+      "status": "superseded-by-live-artifacts",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "opendart-monthly-ingest-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/opendart-monthly-ingest-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "sector-tabs-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/sector-tabs-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "work-platform-browser-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    }
+  ],
+  "qa_script_risks": [
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-access-modal-refresh-stability.cjs",
+      "line": 115,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(1500);"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-access-modal-refresh-stability.cjs",
+      "line": 118,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(1500);"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-access-modal-refresh-stability.cjs",
+      "line": 146,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-access-ui-browser-smoke.cjs",
+      "line": 219,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(1000);"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-access-ui-browser-smoke.cjs",
+      "line": 154,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await page.route(/\\/functions\\/v1\\/ll-dashboard-api/u, async (route) => {"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-access-ui-browser-smoke.cjs",
+      "line": 158,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-access-ui-browser-smoke.cjs",
+      "line": 145,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-ai-chatbot-browser-smoke.cjs",
+      "line": 151,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "serviceWorkers: 'block',"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-asset-spec-browser-smoke.cjs",
+      "line": 117,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-auth-password-flow-smoke.cjs",
+      "line": 175,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(2500);"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-auth-password-flow-smoke.cjs",
+      "line": 243,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const contextOptions = { viewport: { width: 1365, height: 900 }, serviceWorkers: 'block' };"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-browser-visible-parity.cjs",
+      "line": 216,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(1200);"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-browser-visible-parity.cjs",
+      "line": 225,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(1200);"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-browser-visible-parity.cjs",
+      "line": 280,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await context.route('**/logistics-gate6-preview/assets/**', async (route) => {"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-browser-visible-parity.cjs",
+      "line": 288,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-browser-visible-parity.cjs",
+      "line": 278,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "serviceWorkers: 'block',"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-dart-chart-browser-smoke.cjs",
+      "line": 131,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-idle.cjs",
+      "line": 308,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(idleMs);"
+    },
+    {
+      "id": "fake-session",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 120,
+      "problem": "fake session cannot prove live auth behavior",
+      "excerpt": "function buildSession(email = 'kylee@igisam.com') {"
+    },
+    {
+      "id": "fake-session",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 443,
+      "problem": "fake session cannot prove live auth behavior",
+      "excerpt": "const auth = options.real ? await signInSession() : { session: buildSession(email), email, source: 'qa_fake_session' };"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 485,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await context.route('**/openapi/v3/maps.js**', async (route) => {"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 491,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'application/javascript; charset=utf-8', body: fakeNaverMapsSdk() });"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 496,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await context.route('**/tile.openstreetmap.org/**', async (route) => {"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 501,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'image/png', body: png1x1() });"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 503,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await context.route('**/functions/v1/ll-dashboard-api', async (route) => {"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 511,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(authMeBody(email)) });"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 516,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { ncp_key_id: 'qa-naver-client' } }) });"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 520,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, message: 'QA simulated naver maps-config failure.' }) });"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 523,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: {} }) });"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 528,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 548,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ ok: false, message: 'QA simulated sector-market/read failure.' }) });"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 555,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: marketFixture() }) }).catch(() => {});"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 558,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: marketFixture() }) });"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 561,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: {} }) });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 578,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "unconditional-ok",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 523,
+      "problem": "empty ok response can mask unsupported actions",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: {} }) });"
+    },
+    {
+      "id": "unconditional-ok",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-loading-map-qa-common.cjs",
+      "line": 561,
+      "problem": "empty ok response can mask unsupported actions",
+      "excerpt": "await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: {} }) });"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
+      "line": 314,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(350);"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
+      "line": 227,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1600, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-data-management-live-browser-flow.cjs",
+      "line": 102,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-data-update-browser-smoke.cjs",
+      "line": 216,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "serviceWorkers: 'block',"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-external-refresh-buttons-browser-smoke.cjs",
+      "line": 103,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-investment-index-browser-smoke.cjs",
+      "line": 117,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-legacy-intro-block-smoke.cjs",
+      "line": 236,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(1800);"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-legacy-intro-block-smoke.cjs",
+      "line": 143,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await context.route('**/logistics-gate6-preview/assets/**', async (route) => {"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-legacy-intro-block-smoke.cjs",
+      "line": 151,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-legacy-intro-block-smoke.cjs",
+      "line": 157,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await context.route('**/functions/v1/ll-dashboard-api', async (route) => {"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-legacy-intro-block-smoke.cjs",
+      "line": 160,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-legacy-intro-block-smoke.cjs",
+      "line": 142,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-login-history-browser-smoke.cjs",
+      "line": 127,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-logout-browser-smoke.cjs",
+      "line": 128,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1366, height: 900 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-map-callout-browser-smoke.cjs",
+      "line": 218,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(3000);"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-map-callout-browser-smoke.cjs",
+      "line": 237,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(500);"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-map-callout-browser-smoke.cjs",
+      "line": 119,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await context.route('**/logistics-gate6-preview/assets/**', async (route) => {"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-map-callout-browser-smoke.cjs",
+      "line": 127,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-map-callout-browser-smoke.cjs",
+      "line": 133,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await context.route('**/functions/v1/ll-dashboard-api', async (route) => {"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-map-callout-browser-smoke.cjs",
+      "line": 136,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-map-callout-browser-smoke.cjs",
+      "line": 155,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({"
+    },
+    {
+      "id": "network-intercept",
+      "severity": "major",
+      "file": "scripts/qa/logistics-map-callout-browser-smoke.cjs",
+      "line": 162,
+      "problem": "network intercept cannot prove live backend behavior",
+      "excerpt": "await route.fulfill({"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-map-callout-browser-smoke.cjs",
+      "line": 117,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "serviceWorkers: 'block',"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-market-data-browser-smoke.cjs",
+      "line": 556,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(150);"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-market-data-browser-smoke.cjs",
+      "line": 616,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(150);"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-market-data-browser-smoke.cjs",
+      "line": 654,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(150);"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-market-data-browser-smoke.cjs",
+      "line": 348,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-market-data-supply-slicer-flow.cjs",
+      "line": 227,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-market-map-live-naver-region-flow.cjs",
+      "line": 249,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-out-of-scope-regression-inventory.cjs",
+      "line": 193,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-sector-tabs-browser-smoke.cjs",
+      "line": 123,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(1000);"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-sector-tabs-browser-smoke.cjs",
+      "line": 160,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
+    },
+    {
+      "id": "service-worker-blocked",
+      "severity": "minor",
+      "file": "scripts/qa/logistics-work-platform-browser-smoke.cjs",
+      "line": 154,
+      "problem": "blocking service workers may miss production cache behavior",
+      "excerpt": "const context = await browser.newContext({ viewport: { width: 1180, height: 820 }, serviceWorkers: 'block' });"
+    }
+  ],
+  "ui_inventory": {
+    "totals": {
+      "files_with_interactions": 44,
+      "buttons": 538,
+      "onClicks": 671,
+      "modals": 7,
+      "tables": 93,
+      "chart_mentions": 12,
+      "data_testids": 41
+    },
+    "by_file": [
+      {
+        "file": "src/components/system/workspace/WorkspaceLogistics.jsx",
+        "buttons": 141,
+        "onClicks": 166,
+        "dataTestIds": [
+          "logistics-main-search-input",
+          "logistics-ai-toast",
+          "logistics-ai-dock-open",
+          "logistics-ai-dock",
+          "logistics-ai-diagnostics",
+          "logistics-ai-answer-scope",
+          "logistics-ai-mention-suggestions",
+          "logistics-ai-input-highlight",
+          "logistics-ai-input",
+          "logistics-ai-submit",
+          "chart-tooltip",
+          "portfolio-map-layer-control",
+          "chart-tooltip",
+          "chart-tooltip",
+          "dart-financial-tooltip",
+          "asset-3d-model-link",
+          "building-register-refresh",
+          "opendart-refresh"
+        ],
+        "modals": 0,
+        "tables": 65,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/LogisticsSectorModules.jsx",
+        "buttons": 76,
+        "onClicks": 81,
+        "dataTestIds": [
+          "market-map-expand-button",
+          "market-map-panel",
+          "market-map-layer-control",
+          "market-map-region-reset",
+          "market-map-zoom-in",
+          "market-map-zoom-out",
+          "market-data-dashboard",
+          "market-data-dashboard",
+          "transaction-size-explorer",
+          "lease-statistic-explorer",
+          "supply-area-value-explorer"
+        ],
+        "modals": 7,
+        "tables": 28,
+        "charts": 9
+      },
+      {
+        "file": "src/components/system/IotaLeftNav.jsx",
+        "buttons": 27,
+        "onClicks": 43,
+        "dataTestIds": [
+          "logistics-feature-access-button",
+          "logistics-login-history-button",
+          "logistics-notification-panel",
+          "logistics-profile-button",
+          "logistics-notification-button",
+          "logistics-login-history-modal",
+          "logistics-login-history-refresh",
+          "logistics-login-history-close",
+          "logistics-feature-access-modal",
+          "logistics-feature-access-refresh",
+          "logistics-feature-access-save",
+          "logistics-feature-access-close",
+          "logistics-feature-access-user"
+        ],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspaceDevelopment.jsx",
+        "buttons": 27,
+        "onClicks": 30,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspaceFinancing.jsx",
+        "buttons": 21,
+        "onClicks": 28,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 1
+      },
+      {
+        "file": "src/components/system/LogWriteBox.jsx",
+        "buttons": 19,
+        "onClicks": 29,
+        "dataTestIds": [
+          "log-write-dropdown-menu",
+          "log-write-dropdown-toggle"
+        ],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspaceFund.jsx",
+        "buttons": 21,
+        "onClicks": 25,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/MarketingPipeline.jsx",
+        "buttons": 21,
+        "onClicks": 20,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/DecisionLog.jsx",
+        "buttons": 17,
+        "onClicks": 22,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspaceIpr.jsx",
+        "buttons": 18,
+        "onClicks": 19,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspaceMarketing.jsx",
+        "buttons": 18,
+        "onClicks": 19,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspacePm.jsx",
+        "buttons": 18,
+        "onClicks": 19,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/Header.jsx",
+        "buttons": 12,
+        "onClicks": 23,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspaceDigital.jsx",
+        "buttons": 15,
+        "onClicks": 18,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/VehicleIntegrated.jsx",
+        "buttons": 9,
+        "onClicks": 17,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/AuthSetup.jsx",
+        "buttons": 13,
+        "onClicks": 10,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspaceActivityLog.jsx",
+        "buttons": 11,
+        "onClicks": 12,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/stakeholder/StakeInternal.jsx",
+        "buttons": 4,
+        "onClicks": 17,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/SystemLeftNav.jsx",
+        "buttons": 7,
+        "onClicks": 12,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/SystemFund421.jsx",
+        "buttons": 5,
+        "onClicks": 7,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/SystemLogin.jsx",
+        "buttons": 5,
+        "onClicks": 7,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/stakeholder/StakeLp.jsx",
+        "buttons": 3,
+        "onClicks": 7,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/Section13.jsx",
+        "buttons": 3,
+        "onClicks": 5,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspaceArchive.jsx",
+        "buttons": 4,
+        "onClicks": 4,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/SystemFullChat.jsx",
+        "buttons": 4,
+        "onClicks": 3,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/HoverImage.jsx",
+        "buttons": 1,
+        "onClicks": 5,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/SystemRightRAG.jsx",
+        "buttons": 4,
+        "onClicks": 2,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/MainLayout.jsx",
+        "buttons": 2,
+        "onClicks": 3,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/shared/IotaOne427DetailCard.jsx",
+        "buttons": 1,
+        "onClicks": 3,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/SystemBridge.jsx",
+        "buttons": 2,
+        "onClicks": 2,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/dashboard/CenterBoard.jsx",
+        "buttons": 1,
+        "onClicks": 1,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/Notes.jsx",
+        "buttons": 1,
+        "onClicks": 1,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/Section16.jsx",
+        "buttons": 0,
+        "onClicks": 2,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/Section18.jsx",
+        "buttons": 1,
+        "onClicks": 1,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/Section4.jsx",
+        "buttons": 0,
+        "onClicks": 2,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/Section6.jsx",
+        "buttons": 0,
+        "onClicks": 2,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/Section9.jsx",
+        "buttons": 0,
+        "onClicks": 0,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 2
+      },
+      {
+        "file": "src/components/system/SystemCollapsedNav.jsx",
+        "buttons": 2,
+        "onClicks": 0,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/LogisticsMapRuntime.jsx",
+        "buttons": 1,
+        "onClicks": 1,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/workspace/WorkspaceIprWg.jsx",
+        "buttons": 1,
+        "onClicks": 1,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/dashboard/RightAIWidget.jsx",
+        "buttons": 1,
+        "onClicks": 0,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/shared/Fund421DetailCard.jsx",
+        "buttons": 0,
+        "onClicks": 1,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/shared/VehicleDetailCard.jsx",
+        "buttons": 0,
+        "onClicks": 1,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      },
+      {
+        "file": "src/components/system/SystemCenter.jsx",
+        "buttons": 1,
+        "onClicks": 0,
+        "dataTestIds": [],
+        "modals": 0,
+        "tables": 0,
+        "charts": 0
+      }
+    ],
+    "data_testids": [
+      "asset-3d-model-link",
+      "building-register-refresh",
+      "chart-tooltip",
+      "dart-financial-tooltip",
+      "lease-statistic-explorer",
+      "log-write-dropdown-menu",
+      "log-write-dropdown-toggle",
+      "logistics-ai-answer-scope",
+      "logistics-ai-diagnostics",
+      "logistics-ai-dock",
+      "logistics-ai-dock-open",
+      "logistics-ai-input",
+      "logistics-ai-input-highlight",
+      "logistics-ai-mention-suggestions",
+      "logistics-ai-submit",
+      "logistics-ai-toast",
+      "logistics-feature-access-button",
+      "logistics-feature-access-close",
+      "logistics-feature-access-modal",
+      "logistics-feature-access-refresh",
+      "logistics-feature-access-save",
+      "logistics-feature-access-user",
+      "logistics-login-history-button",
+      "logistics-login-history-close",
+      "logistics-login-history-modal",
+      "logistics-login-history-refresh",
+      "logistics-main-search-input",
+      "logistics-notification-button",
+      "logistics-notification-panel",
+      "logistics-profile-button",
+      "market-data-dashboard",
+      "market-map-expand-button",
+      "market-map-layer-control",
+      "market-map-panel",
+      "market-map-region-reset",
+      "market-map-zoom-in",
+      "market-map-zoom-out",
+      "opendart-refresh",
+      "portfolio-map-layer-control",
+      "supply-area-value-explorer",
+      "transaction-size-explorer"
+    ]
+  },
+  "coverage_gaps": [],
+  "checks": {
+    "has_blocking_known_issues": false,
+    "latest_artifacts_all_usable": false,
+    "no_qa_script_risk_patterns": false,
+    "required_live_evidence_complete": true,
+    "all_surfaces_have_live_evidence": true
+  }
+}

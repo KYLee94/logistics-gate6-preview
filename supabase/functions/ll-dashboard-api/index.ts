@@ -56,7 +56,15 @@ const SECTOR_MARKET_INTERNAL_RESPONSE_KEYS = new Set([
   'legal_dong_code',
 ]);
 type SectorMarketReadView = typeof SECTOR_MARKET_READ_VIEWS[number];
-const SECTOR_MARKET_READBACK_VIEWS = new Set<SectorMarketReadView | null>([null, 'all', 'source']);
+const SECTOR_MARKET_READBACK_VIEWS = new Set<SectorMarketReadView | null>([
+  null,
+  'all',
+  'overview',
+  'lease',
+  'supply',
+  'transactions',
+  'source',
+]);
 const SECTOR_MARKET_LEASE_TEMPERATURE_SEGMENT_LABELS = [
   '\uBCF5\uD569 \uC0C1\uC628',
   '\uBCF5\uD569 \uC800\uC628',

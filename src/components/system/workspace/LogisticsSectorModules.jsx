@@ -325,7 +325,7 @@ const MARKET_VIEW_LIMITS = {
   source: 1200,
 };
 
-function marketReadPayloadFor(tabId) {
+export function marketReadPayloadFor(tabId) {
   return { view: tabId, limit: MARKET_VIEW_LIMITS[tabId] || 1200 };
 }
 
@@ -606,7 +606,7 @@ const REGION_CLUSTER_COORDS = {
   '지방 기타권': [35.42, 127.68],
 };
 const REGION_OVERVIEW_CENTER = [36.55, 127.75];
-const REGION_OVERVIEW_ZOOM = 7;
+const REGION_OVERVIEW_ZOOM = 6;
 const INTERNAL_FIELD_PATTERN = /^ll_|^source_|(^|_)(id|uuid)$|source_row_id|source_file_id|source_sheet_id|row_hash|natural_key|payload|pnu|법정동|법정동코드|adm_code|legal_dong_code|geom|geometry|created_at|updated_at/iu;
 const FIELD_LABELS = {
   asset_name: '자산명',
@@ -868,6 +868,39 @@ async function invoke(action, payload = {}) {
   return data?.data || data || {};
 }
 
+function edgeDataTimeoutError(action) {
+  const error = new Error(`${action} timed out after ${EDGE_DATA_REQUEST_TIMEOUT_MS}ms`);
+  error.name = 'EdgeDataTimeoutError';
+  error.status = 408;
+  return error;
+}
+
+async function invokeEdgeDataWithTimeout(action, payload = {}) {
+  let timeoutId;
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => reject(edgeDataTimeoutError(action)), EDGE_DATA_REQUEST_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([invoke(action, payload), timeoutPromise]);
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+}
+
+function edgeInflightPromise(action, payload, requestKey) {
+  const current = EDGE_DATA_INFLIGHT.get(requestKey);
+  if (current && Date.now() - current.startedAt < EDGE_DATA_INFLIGHT_STALE_MS) return current.promise;
+  if (current) EDGE_DATA_INFLIGHT.delete(requestKey);
+  const entry = {
+    startedAt: Date.now(),
+    promise: invokeEdgeDataWithTimeout(action, payload).finally(() => {
+      if (EDGE_DATA_INFLIGHT.get(requestKey) === entry) EDGE_DATA_INFLIGHT.delete(requestKey);
+    }),
+  };
+  EDGE_DATA_INFLIGHT.set(requestKey, entry);
+  return entry.promise;
+}
+
 function userFacingLoadError() {
   return '데이터를 불러오지 못했습니다. 권한 또는 반영 상태를 확인해 주세요.';
 }
@@ -875,6 +908,8 @@ function userFacingLoadError() {
 const USER_FACING_LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다. 탭을 다시 열거나 잠시 후 재시도해 주세요.';
 const EDGE_DATA_CACHE_TTL_MS = 10 * 60 * 1000;
 const EDGE_DATA_REVALIDATE_MS = 90 * 1000;
+const EDGE_DATA_REQUEST_TIMEOUT_MS = 12 * 1000;
+const EDGE_DATA_INFLIGHT_STALE_MS = 12 * 1000;
 const EDGE_DATA_CACHE = new Map();
 const EDGE_DATA_INFLIGHT = new Map();
 
@@ -908,17 +943,11 @@ function shouldCacheEdgeData(action, value) {
   return true;
 }
 
-async function primeEdgeData(action, payload = {}) {
+export async function primeEdgeData(action, payload = {}) {
   const requestKey = edgeCacheKey(action, payload);
   const cached = EDGE_DATA_CACHE.get(requestKey);
-  if (cached && Date.now() - cached.loadedAt < EDGE_DATA_CACHE_TTL_MS) return cached.data;
-  let requestPromise = EDGE_DATA_INFLIGHT.get(requestKey);
-  if (!requestPromise) {
-    requestPromise = invoke(action, payload).finally(() => {
-      EDGE_DATA_INFLIGHT.delete(requestKey);
-    });
-    EDGE_DATA_INFLIGHT.set(requestKey, requestPromise);
-  }
+  if (cached && Date.now() - cached.loadedAt < EDGE_DATA_REVALIDATE_MS) return cached.data;
+  const requestPromise = edgeInflightPromise(action, payload, requestKey);
   const data = await requestPromise;
   if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt: Date.now() });
   return data;
@@ -969,13 +998,7 @@ function useEdgeData(action, payload = {}, deps = []) {
       }));
     }
     try {
-      let requestPromise = EDGE_DATA_INFLIGHT.get(requestKey);
-      if (!requestPromise) {
-        requestPromise = invoke(action, requestPayload).finally(() => {
-          EDGE_DATA_INFLIGHT.delete(requestKey);
-        });
-        EDGE_DATA_INFLIGHT.set(requestKey, requestPromise);
-      }
+      const requestPromise = edgeInflightPromise(action, requestPayload, requestKey);
       const data = await requestPromise;
       const loadedAt = Date.now();
       if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt });
@@ -1655,7 +1678,7 @@ function MarketMapPanel({
   showLargeButton = true,
   mapHeightClass = 'h-[520px]',
   initialSelectedRegion = '',
-  initialZoom = 8,
+  initialZoom = 6,
 }) {
   const sourceRows = useMemo(() => safeArray(rows), [rows]);
   const mapCanvasRef = useRef(null);
@@ -1684,7 +1707,7 @@ function MarketMapPanel({
   const applyMapZoom = (nextZoom, options = {}) => {
     const regionModeForZoom = typeof options.regionMode === 'boolean' ? options.regionMode : isRegionMode;
     const minZoom = regionModeForZoom ? 6 : 9;
-    const maxZoom = regionModeForZoom ? 12 : 18;
+    const maxZoom = regionModeForZoom ? 7 : 18;
     const normalizedZoom = Math.max(minZoom, Math.min(maxZoom, Number(nextZoom) || mapZoom || 8));
     setMapZoom(normalizedZoom);
     const map = mapInstanceRef.current;

@@ -1,0 +1,91 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-26T03:27:11.451Z",
+  "mode": "data_management_live_browser_flow",
+  "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
+  "auth_source": "password_grant",
+  "checks": {
+    "data_management_loaded": true,
+    "views_api_called": true,
+    "view_rows_api_called": true,
+    "view_rows_nonempty": true,
+    "coverage_catalog_observed": true,
+    "igis_market_split_visible": true,
+    "asset_fund_scope_visible": true,
+    "expected_404_pair_available": true,
+    "no_internal_table_names_visible": true,
+    "row_lookup_visible": true,
+    "change_request_affordance_visible": true,
+    "no_internal_source_tokens_visible": true,
+    "expected_pair_searchable": true,
+    "in_page_tab_switch_no_stuck_loading": true,
+    "route_tab_return_reloaded_view_rows": true,
+    "route_tab_return_not_blank": true,
+    "readonly_selection_blocks_inline_preview": true,
+    "preview_network_readback_observed": true,
+    "submit_network_observed": true
+  },
+  "errors": [],
+  "network": {
+    "views_responses": [
+      {
+        "status": 200,
+        "ok": true,
+        "view_count": 15,
+        "bundle_count": 19,
+        "asset_count": 19,
+        "fund_count": 17,
+        "contains_404_pair": true
+      },
+      {
+        "status": 200,
+        "ok": true,
+        "view_count": 15,
+        "bundle_count": 19,
+        "asset_count": 19,
+        "fund_count": 17,
+        "contains_404_pair": true
+      }
+    ],
+    "view_rows_responses": [
+      {
+        "status": 200,
+        "ok": true,
+        "view_key": "lease_general_excel",
+        "field_count": 43,
+        "row_count": 72,
+        "pagination_total": null
+      },
+      {
+        "status": 200,
+        "ok": true,
+        "view_key": "lease_general_excel",
+        "field_count": 43,
+        "row_count": 8,
+        "pagination_total": null
+      },
+      {
+        "status": 200,
+        "ok": true,
+        "view_key": "lease_general_excel",
+        "field_count": 43,
+        "row_count": 72,
+        "pagination_total": null
+      }
+    ],
+    "status_responses": [],
+    "coverage_responses": [],
+    "preview_responses": [],
+    "submit_responses": [],
+    "edge_failures": []
+  },
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-live-browser-flow-20260626-032710.png",
+  "preview_note": "Selected field is read-only in the live UI; release-gate QA covers editable preview/readback.",
+  "submit_note": "Submit is guarded unless --allow-submit is set.",
+  "visible_internal_tables": [],
+  "tabs_clicked": [
+    "/Market|\\uC2DC\\uC7A5/u",
+    "/IGIS|\\uC774\\uC9C0\\uC2A4/u",
+    "/history|readback|\\uC774\\uB825/u"
+  ]
+}

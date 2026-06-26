@@ -20,6 +20,8 @@ import {
   HomeOperatingCostSummary,
   InvestmentIndexDashboard,
   MarketDataDashboard,
+  marketReadPayloadFor,
+  primeEdgeData,
 } from './LogisticsSectorModules';
 import {
   getNaverMapsClientId as getSharedNaverMapsClientId,
@@ -2477,7 +2479,7 @@ function TenantContractFullView({ rows }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-[12px] leading-5 text-[#A1A1AA]">
-          조회 전용입니다. 추가, 수정, 삭제는 Data Quality에서 source row/source cell 기준으로 요청합니다.
+          조회 전용입니다. 추가, 수정, 삭제는 Data Quality에서 원천 행과 원천 셀 기준으로 요청합니다.
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <select value={assetFilter} onChange={(event) => setAssetFilter(event.target.value)} className="h-9 min-w-[220px] rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] text-white">
@@ -4841,7 +4843,7 @@ function DashboardSearchPreview({ result }) {
             ['권역', deriveLogisticsRegionFromAddress(overview.standardizedAddress || result.raw.address, '-')],
             ['저온/상온', cleanDisplay(overview.coldStorageMix || result.raw.coldStorageMix, '-')],
             ['Weekly 주요 이슈', cleanDisplay(weeklyRow.mainIssue || overview.mainIssue, '-')],
-            ['데이터 기준', cleanDisplay(asset.meta?.sourceName || result.raw.sourceName, 'Supabase ll_* / Excel source snapshot')],
+            ['데이터 기준', cleanDisplay(asset.meta?.sourceName || result.raw.sourceName, '서버 저장값 / Excel 스냅샷')],
           ]}
           compact
         />
@@ -5244,9 +5246,9 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   ]);
   const aiChatScrollRef = useRef(null);
   const taskSnapshotSyncRef = useRef('');
+  const workPlatformDataPrewarmRef = useRef(0);
   const [selectedSearchResult, setSelectedSearchResult] = useState(null);
   const [taskRecords, setTaskRecords] = useState([]);
-  const [stakeholderMasterRows, setStakeholderMasterRows] = useState([]);
   const [taskEditTarget, setTaskEditTarget] = useState(null);
   const [taskDraft, setTaskDraft] = useState(null);
   const [pendingTaskAction, setPendingTaskAction] = useState(null);
@@ -5394,24 +5396,51 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   }, [isLoadingTasks, permission.email, shouldLoadWorkPlatformData, taskRecords, weeklyTasks]);
 
   useEffect(() => {
-    if (!shouldLoadWorkPlatformData) return undefined;
+    if (!shouldLoadWorkPlatformData || !permission.email) return undefined;
     let cancelled = false;
-    const fetchStakeholderMasterRows = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('iota_stakeholder_master')
-          .select('company_name, contact_name, role_category')
-          .limit(5000);
-        if (!cancelled && !error && Array.isArray(data)) setStakeholderMasterRows(data);
-      } catch {
-        if (!cancelled) setStakeholderMasterRows([]);
+    const prewarm = async (force = false) => {
+      const now = Date.now();
+      if (!force && now - workPlatformDataPrewarmRef.current < 60_000) return;
+      workPlatformDataPrewarmRef.current = now;
+      const marketTabs = ['overview', 'lease', 'supply', 'transactions', 'source'];
+      const queue = [
+        () => primeEdgeData('operating-costs/read', {}),
+        ...marketTabs.map((tabId) => () => primeEdgeData('sector-market/read', marketReadPayloadFor(tabId))),
+      ];
+      for (const run of queue) {
+        if (cancelled || document.visibilityState === 'hidden') break;
+        try {
+          await run();
+        } catch {
+          // Background prewarming must not replace visible data with an error.
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 120));
       }
     };
-    fetchStakeholderMasterRows();
+    const runWhenIdle = () => {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(() => prewarm(false), { timeout: 1800 });
+      } else {
+        window.setTimeout(() => prewarm(false), 450);
+      }
+    };
+    prewarm(true);
+    const intervalId = window.setInterval(runWhenIdle, 75_000);
+    const refresh = () => {
+      if (document.visibilityState && document.visibilityState !== 'visible') return;
+      prewarm(true);
+    };
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    document.addEventListener('visibilitychange', refresh);
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+      document.removeEventListener('visibilitychange', refresh);
     };
-  }, [shouldLoadWorkPlatformData]);
+  }, [permission.email, shouldLoadWorkPlatformData]);
 
   useEffect(() => {
     aiChatScrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -5428,7 +5457,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const visibleTasks = showAllTasks ? sortedWeeklyTasks : sortedWeeklyTasks.slice(0, 5);
   const topAssets = useMemo(() => [...(permission.managedAssets || [])].sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR')), [permission.managedAssets]);
   const searchResults = useMemo(() => buildLogisticsSearchResults(mainSearchQuery, permission), [mainSearchQuery, permission]);
-  const taskStakeholderOptions = useMemo(() => buildTaskStakeholderOptions(taskRecords, stakeholderMasterRows), [stakeholderMasterRows, taskRecords]);
+  const taskStakeholderOptions = useMemo(() => buildTaskStakeholderOptions(taskRecords, []), [taskRecords]);
 
   const canModifyTask = (task) => task?.createdByEmail === permission.email || task?.createdByName === permission.name || permission.role === 'Admin' || permission.role === 'Manager';
   const requestTaskAction = (type, task) => {
@@ -7841,7 +7870,7 @@ function HomeDashboard() {
           compact
         />
         <div className="rounded-[10px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[12px] leading-5 text-[#A1A1AA]">
-          이 화면은 조회 전용입니다. Excel 원본의 추가, 수정, 삭제 요청은 Data Quality 탭에서 source row/source cell 기준으로 처리합니다.
+          이 화면은 조회 전용입니다. Excel 원본의 추가, 수정, 삭제 요청은 Data Quality 탭에서 원천 행과 원천 셀 기준으로 처리합니다.
         </div>
       </div>
     ),
@@ -8091,7 +8120,7 @@ function HomeDashboard() {
         />
         {trendToKpiGap ? (
           <div className="mt-3 rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 py-3 text-[12px] leading-5 text-[#A1A1AA]">
-            최신 월 표시는 현재 포트폴리오 Excel snapshot 기준 월 임관리비 {formatCurrency(canonicalMonthlyCost)}에 맞춰 정렬했습니다. 원본 rent history 기준 차이 {formatCurrency(trendToKpiGap)}는 Data Quality의 월 임관리비 reconciliation 항목에서 source cell 기준으로 별도 검증합니다.
+            최신 월 표시는 현재 포트폴리오 Excel 스냅샷 기준 월 임관리비 {formatCurrency(canonicalMonthlyCost)}에 맞춰 정렬했습니다. 임대료 이력 기준 차이 {formatCurrency(trendToKpiGap)}는 Data Quality의 월 임관리비 검증 항목에서 원천 셀 기준으로 별도 검증합니다.
           </div>
         ) : null}
       </section>
@@ -10926,11 +10955,30 @@ function isSmokeLeaseEvent(row = {}) {
 
 function formatLeaseEventStatus(status) {
   const value = String(status || '').toLowerCase();
-  if (value === 'written') return '정규 DB 반영 완료';
-  if (value === 'auto_write_running') return '정규 DB 반영 중';
+  if (value === 'written') return '운영 데이터 반영 완료';
+  if (value === 'auto_write_running') return '운영 데이터 반영 중';
   if (value === 'submitted') return '접수';
   if (value.includes('failed') || value.includes('error')) return '반영 실패';
   return status || '-';
+}
+
+function cleanContractEventDisplay(value, fallback = '-') {
+  const rawText = cleanDisplay(value, '').trim();
+  if (!rawText) return fallback;
+  const sanitized = sanitizeInternalDisplayText(rawText)
+    .replace(/\?{2,}/gu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim();
+  const questionCount = (rawText.match(/\?/gu) || []).length;
+  if (!sanitized || questionCount >= Math.max(4, Math.floor(rawText.length * 0.25))) return fallback;
+  return sanitized;
+}
+
+function contractEventSummary(row, typeLabel, assetName, tenantName) {
+  const summary = cleanContractEventDisplay(row.summary, '');
+  if (summary) return summary;
+  const labels = [assetName !== '-' ? assetName : '', tenantName !== '-' ? tenantName : '', typeLabel !== '-' ? typeLabel : '계약 데이터 수정'].filter(Boolean);
+  return labels.length ? `${labels.join(' · ')} 요청` : '계약 데이터 수정 요청';
 }
 
 function ContractDataManagementDashboard() {
@@ -11037,14 +11085,19 @@ function ContractDataManagementDashboard() {
   ]);
 
   const visibleSubmittedEvents = submittedEvents.filter((row) => !isSmokeLeaseEvent(row));
-  const eventRows = visibleSubmittedEvents.map((row) => [
-    CONTRACT_EVENT_TYPES.find(([value]) => value === row.event_type)?.[1] || row.event_type || '-',
-    row.asset_name || '-',
-    row.tenant_name || '-',
-    row.summary || '-',
-    formatLeaseEventStatus(row.status),
-    row.created_at ? formatDate(row.created_at) : '-',
-  ]);
+  const eventRows = visibleSubmittedEvents.map((row) => {
+    const typeLabel = cleanContractEventDisplay(CONTRACT_EVENT_TYPES.find(([value]) => value === row.event_type)?.[1] || row.event_type, '계약 데이터 수정');
+    const assetName = cleanContractEventDisplay(row.asset_name, '-');
+    const tenantName = cleanContractEventDisplay(row.tenant_name, '임차인 확인 필요');
+    return [
+      typeLabel,
+      assetName,
+      tenantName,
+      contractEventSummary(row, typeLabel, assetName, tenantName),
+      cleanContractEventDisplay(formatLeaseEventStatus(row.status), '-'),
+      row.created_at ? formatDate(row.created_at) : '-',
+    ];
+  });
 
   const leaseEventResultMessage = (writeResult = {}) => {
     const inserted = Number(writeResult.inserted_count || 0);
@@ -11052,7 +11105,7 @@ function ContractDataManagementDashboard() {
     const sourceOnly = Number(writeResult.source_only_count || 0);
     const rentHistory = Number(writeResult.rent_history_appended_count || 0);
     const archived = Number(writeResult.archived_count || 0);
-    return `정규 DB 반영 완료: 생성 ${formatNumber(inserted)}건, 수정 ${formatNumber(updated)}건, 아카이빙 ${formatNumber(archived)}건, 임대료 이력 추가 ${formatNumber(rentHistory)}건, 원본 보존 ${formatNumber(sourceOnly)}건`;
+    return `운영 데이터 반영 완료: 생성 ${formatNumber(inserted)}건, 수정 ${formatNumber(updated)}건, 아카이빙 ${formatNumber(archived)}건, 임대료 이력 추가 ${formatNumber(rentHistory)}건, 원본 보존 ${formatNumber(sourceOnly)}건`;
   };
 
   const assertLeaseEventPreviewReady = (previewResponse) => {
@@ -11060,7 +11113,7 @@ function ContractDataManagementDashboard() {
     if (preview.status === 'blocked') {
       const missing = Array.isArray(preview.required_missing) && preview.required_missing.length ? `누락: ${preview.required_missing.join(', ')}` : '';
       const duplicates = Array.isArray(preview.duplicate_findings) && preview.duplicate_findings.length ? `중복/보정 필요: ${preview.duplicate_findings.map((item) => item.type || 'blocked').join(', ')}` : '';
-      throw new Error([missing, duplicates].filter(Boolean).join(' / ') || '정규 DB 반영 전 검토에서 차단됐습니다.');
+      throw new Error([missing, duplicates].filter(Boolean).join(' / ') || '운영 데이터 반영 전 검토에서 차단됐습니다.');
     }
     return preview;
   };
@@ -11134,11 +11187,11 @@ function ContractDataManagementDashboard() {
       }],
     };
     setIsSubmitting(true);
-    setEventStatus({ type: 'pending', message: '계약 구역 추가 내용을 검토 후 정규 DB에 반영하는 중입니다.' });
+    setEventStatus({ type: 'pending', message: '계약 구역 추가 내용을 검토 후 운영 데이터에 반영하는 중입니다.' });
     try {
       const previewResult = await invokeDashboardApi('lease-events/preview', leasePayload);
       if (previewResult.error) throw previewResult.error;
-      if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '정규 DB 반영 전 검토 실패');
+      if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '운영 데이터 반영 전 검토 실패');
       assertLeaseEventPreviewReady(previewResult.data);
       const { data, error } = await invokeDashboardApi('lease-events/submit', leasePayload);
       if (error) throw error;
@@ -11269,11 +11322,11 @@ function ContractDataManagementDashboard() {
       };
       const previewResult = await invokeDashboardApi('lease-events/preview', leasePayload);
       if (previewResult.error) throw previewResult.error;
-      if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '정규 DB 반영 전 검토 실패');
+      if (previewResult.data?.ok === false) throw new Error(previewResult.data.message || '운영 데이터 반영 전 검토 실패');
       assertLeaseEventPreviewReady(previewResult.data);
       const { data, error } = await invokeDashboardApi('lease-events/submit', leasePayload);
       if (error) throw error;
-      if (data?.ok === false) throw new Error(data.message || '계약 데이터 정규 DB 반영 실패');
+      if (data?.ok === false) throw new Error(data.message || '계약 데이터 반영 실패');
       setFieldEditStatus({ type: 'success', message: `${leaseEventResultMessage(data?.data?.write_result || {})} / 대상 필드 ${formatNumber(directCount)}개, 원본 보존 ${formatNumber(sourceOnlyCount)}개 / 요청 ID: ${data?.data?.id || '-'}` });
     } catch (error) {
       setFieldEditStatus({ type: 'error', message: error?.message || '계약 원본 필드 수정값 반영 중 오류가 발생했습니다.' });
@@ -11284,10 +11337,10 @@ function ContractDataManagementDashboard() {
 
   return (
     <div className="space-y-6">
-      <SectionHeader title="Data Update" />
+      <SectionHeader title="데이터 수정" />
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader
-          eyebrow="LEASE CONTRACT LEDGER"
+          eyebrow="임대차 계약"
           title="임대차계약 데이터 관리"
           right={<button type="button" onClick={() => setContractLedgerOpen(true)} className={`h-9 rounded-[8px] border px-3 text-[12px] font-semibold ${DARK_BUTTON_CLASS}`}>현재 계약 원장</button>}
         />
@@ -11372,7 +11425,7 @@ function ContractDataManagementDashboard() {
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader
-          eyebrow="LEASE DATA EDIT"
+          eyebrow="임대차 데이터"
           title="임대차계약 데이터 수정"
           right={dataUpdateMode === 'archive' ? null : (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -11504,9 +11557,9 @@ function ContractDataManagementDashboard() {
                 {isAddMode ? '입력된 항목' : '변경된 항목'} <span className="font-semibold text-white">{formatNumber(changedFieldCount)}개</span>
               </div>
               {isAddMode ? (
-                <button type="button" disabled={isSubmitting || !canCreate || changedFieldCount <= 0} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>검토 후 정규 DB 반영</button>
+                <button type="button" disabled={isSubmitting || !canCreate || changedFieldCount <= 0} onClick={submitLeaseEvent} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>검토 후 승인 요청</button>
               ) : (
-                <button type="button" disabled={isSubmittingFields || !canUpdate || changedFieldCount <= 0} onClick={submitContractFieldEdits} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>검토 후 정규 DB 반영</button>
+                <button type="button" disabled={isSubmittingFields || !canUpdate || changedFieldCount <= 0} onClick={submitContractFieldEdits} className={`h-10 rounded-[8px] px-4 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS} disabled:opacity-50`}>검토 후 승인 요청</button>
               )}
             </div>
           </>
@@ -11515,7 +11568,7 @@ function ContractDataManagementDashboard() {
       </section>
 
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-        <SectionHeader eyebrow="CHANGE LOG" title="계약 변경 반영 이력" />
+        <SectionHeader eyebrow="변경 이력" title="계약 변경 반영 이력" />
         {eventsLoading ? (
           <div className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] px-4 py-3 text-[13px] text-[#A1A1AA]">계약 변경 반영 이력을 불러오는 중입니다.</div>
         ) : eventsError ? (
@@ -11683,16 +11736,16 @@ const QUALITY_SEVERITY_LABELS = {
 };
 const QUALITY_REASON_LABELS = {
   source_error: '원본 파일 또는 저장된 값이 비어 있어 확인이 필요합니다.',
-  relation_unmatched: '원본 행과 정규 DB 데이터가 서로 연결되지 않았습니다.',
+  relation_unmatched: '원본 행과 운영 데이터가 서로 연결되지 않았습니다.',
   mapping_missing: '원본과 연결되는 값이 없어 확인이 필요합니다.',
   corrected_exclusive_area: '전용면적 정규화 결과가 원본 값과 달라 확인이 필요합니다.',
   normalized_area_gap: '면적 단위 변환 또는 반올림 결과가 원본 값과 달라 확인이 필요합니다.',
   rent_history_duplicate: '같은 기준일자의 임대료 변경 이력이 중복될 수 있습니다.',
   latest_history_conflict: '최신 임대료 변경 이력이 둘 이상으로 표시될 수 있습니다.',
   lease_space_id_collision: '계약 구역을 구분하는 값이 다른 행과 겹칠 수 있습니다.',
-  home_snapshot_value_diff: '홈 화면 집계값과 정규 DB 계산값이 달라 확인이 필요합니다.',
+  home_snapshot_value_diff: '홈 화면 집계값과 운영 데이터 계산값이 달라 확인이 필요합니다.',
   null_readback: 'Supabase 저장 후 다시 읽은 값이 비어 있어 확인이 필요합니다.',
-  source_sheet_coverage: '원본 Excel 항목이 정규 DB 또는 보존 로그에 빠짐없이 반영되는지 확인이 필요합니다.',
+  source_sheet_coverage: '원본 Excel 항목이 운영 데이터 또는 보존 로그에 빠짐없이 반영되는지 확인이 필요합니다.',
   remaining_null_after_excel_backfill: '원본 Excel 보강 후에도 값이 비어 있어 추가 확인이 필요합니다.',
   storage_area_missing: '면적 구성값이 부족해 공실률이나 비율 계산이 불완전할 수 있습니다.',
   history_unmatched: '현재 계약과 임대료 변경 이력이 서로 맞지 않습니다.',
@@ -11778,6 +11831,45 @@ const QUALITY_TARGET_TYPE_LABELS = {
   ll_leases: '임대차계약',
 };
 
+const QUALITY_SOURCE_LABELS = {
+  ll_audit_events: '무결성 점검 기록',
+  ll_assets: '자산 정보',
+  ll_tenants: '임차인 정보',
+  ll_companies: '임차인 정보',
+  ll_rent_history: '임대료 변경 이력',
+  ll_lease_spaces: '계약 구역',
+  ll_leases: '임대차계약',
+  ll_leasing_contracts: '임대차계약',
+  ll_weekly_records: '주간 자산 기록',
+  ll_payload_snapshots: '대시보드 스냅샷',
+  ll_source_rows: '원천 보관 행',
+};
+
+function qualitySourceLabel(value, fallback = '-') {
+  const text = cleanDisplay(value, fallback);
+  if (!text || text === fallback) return fallback;
+  const lower = text.toLowerCase();
+  if (/supabase\s+ll_.*readback/iu.test(text)) return '서버 저장값 재확인';
+  if (/payload_snapshots|snapshot/iu.test(text)) return '대시보드 스냅샷';
+  const tableMatch = lower.match(/(?:public\.)?(ll_[a-z_]+)/iu);
+  if (tableMatch?.[1]) return QUALITY_SOURCE_LABELS[tableMatch[1]] || '운영 데이터';
+  if (/source[_\s-]*row|source[_\s-]*cell/iu.test(text)) return text.replace(/source[_\s-]*row/giu, '원천 행').replace(/source[_\s-]*cell/giu, '원천 셀');
+  if (/payload/iu.test(text)) return '저장 스냅샷';
+  return text;
+}
+
+function sanitizeInternalDisplayText(value) {
+  return String(value ?? '')
+    .replace(/\bpublic\.ll_[a-z_]+\b/giu, '운영 데이터')
+    .replace(/\bll_[a-z_]+\b/giu, '운영 데이터')
+    .replace(/source_row_id|source_file_id|source_sheet_id/giu, '원천 연결값')
+    .replace(/natural_key|row_hash/giu, '행 식별값')
+    .replace(/\bpayload\b/giu, '저장 내용')
+    .replace(/\bPNU\b|\bpnu\b/gu, '필지 식별값')
+    .replace(/asset_[a-z0-9_]+/giu, '자산 연결값')
+    .replace(/tenant_brn_\d+/giu, '임차인 연결값');
+}
+
 function readDismissedQualityFindingIds() {
   if (typeof window === 'undefined') return [];
   try {
@@ -11833,7 +11925,7 @@ function qualityTargetLabel(item) {
 }
 
 function qualityFieldLabel(field) {
-  const text = cleanDisplay(field, '-');
+  const text = sanitizeInternalDisplayText(cleanDisplay(field, '-'));
   const normalized = normalizedQualityCode(text);
   return QUALITY_FIELD_LABELS[text] || QUALITY_FIELD_LABELS[normalized] || text
     .replace(/_/gu, ' ')
@@ -11856,7 +11948,7 @@ function qualityReasonLabel(reason) {
 
 function qualityActionLabel(item) {
   const text = cleanDisplay(item?.action, '');
-  if (!text) return '담당자가 원본 값과 정규 DB 값을 대조해야 합니다.';
+  if (!text) return '담당자가 원본 값과 운영 데이터를 대조해야 합니다.';
   return text
     .replace(/DB_히스토리누적/gu, '임대료 변경 이력')
     .replace(/DB_일반/gu, '현재 계약 원장')
@@ -11923,6 +12015,8 @@ function QualityFindingDetail({ item, canEdit, onRequestEdit, onDismiss }) {
 
 function qualitySheetLabel(value) {
   const text = cleanDisplay(value, '-');
+  const sourceLabel = qualitySourceLabel(text, '');
+  if (sourceLabel && sourceLabel !== text) return sourceLabel;
   if (/히스토리|rent_history|history/iu.test(text)) return '임대료 변경 이력';
   if (/DB_일반|lease|contract/iu.test(text)) return '현재 계약 원장';
   if (/기업|tenant|company/iu.test(text)) return '회사/임차인 정보';
@@ -11932,7 +12026,7 @@ function qualitySheetLabel(value) {
 }
 
 function QualityCell({ value, lines = 2, tone = 'text-[#E5E5E5]' }) {
-  const text = cleanDisplay(value, '-');
+  const text = sanitizeInternalDisplayText(cleanDisplay(value, '-'));
   return (
     <span
       className={`block overflow-hidden ${tone}`}
@@ -12024,7 +12118,7 @@ function qualityReadableValue(value, fallback = '-') {
   if (typeof value === 'number' && Number.isFinite(value)) return formatNumber(value);
   if (typeof value === 'object') {
     try {
-      return JSON.stringify(value).replace(/supabase/giu, '데이터베이스');
+      return sanitizeInternalDisplayText(JSON.stringify(value).replace(/supabase/giu, '데이터베이스'));
     } catch {
       return fallback;
     }
@@ -12032,7 +12126,7 @@ function qualityReadableValue(value, fallback = '-') {
   const text = String(value).trim();
   if (!text) return fallback;
   if (/^-?\d+(?:\.\d+)?$/u.test(text)) return formatNumber(Number(text));
-  return text
+  return sanitizeInternalDisplayText(text)
     .replace(/supabase/giu, '데이터베이스')
     .replace(/ll_[a-z_]+/giu, '정규 데이터')
     .replace(/_/gu, ' ');
@@ -12043,7 +12137,7 @@ function qualityReadablePayload(item) {
 }
 
 function qualityReadableFieldLabel(field) {
-  const text = cleanDisplay(field, '-');
+  const text = sanitizeInternalDisplayText(cleanDisplay(field, '-'));
   const normalized = normalizedQualityCode(text);
   return QUALITY_READABLE_FIELD_LABELS[text] || QUALITY_READABLE_FIELD_LABELS[normalized] || qualityReadableValue(text)
     .replace(/\bmonthly\b/giu, '월')
@@ -12785,7 +12879,7 @@ function normalizeQualityWorkbookRows(rows, permission) {
     const beforeValue = excelCellText(row.before_value || row.현재값);
     const afterValue = excelCellText(row.수정값);
     const validationError = !QUALITY_ALLOWED_ACTIONS.has(action)
-      ? '현재 Excel 왕복 수정 파일은 수정 행위만 지원합니다. 추가/삭제는 Data Update에서 정규 DB 반영 흐름으로 처리합니다.'
+      ? '현재 Excel 왕복 수정 파일은 수정 행위만 지원합니다. 추가/삭제는 데이터 수정 화면의 승인 요청 흐름으로 처리합니다.'
       : !targetTable.startsWith('public.ll_')
         ? '대상 데이터 형식이 올바르지 않습니다.'
       : !targetRowId
@@ -13006,7 +13100,7 @@ async function fetchRemoteQualityFindings(signal) {
   return {
     status: 'loaded',
     rows: rows.map(normalizeRemoteQualityFinding),
-    message: `Edge readback public.ll_audit_events ${rows.length}건`,
+    message: `서버 저장값 재확인 ${rows.length}건`,
   };
 }
 
@@ -13245,22 +13339,18 @@ function DataQualityDashboard() {
                 <button type="button" disabled={!canEdit} onClick={addEditGridRow} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#252524] px-3 text-[12px] font-semibold text-white hover:bg-[#30302F] disabled:cursor-not-allowed disabled:opacity-40">행 추가</button>
               </div>
               <div className="custom-scrollbar overflow-auto">
-                <table className="min-w-[1480px] w-full table-fixed border-collapse text-left text-[12px]">
+                <table className="min-w-[980px] w-full table-fixed border-collapse text-left text-[12px]">
                   <colgroup>
                     <col className="w-[90px]" />
-                    <col className="w-[130px]" />
-                    <col className="w-[180px]" />
-                    <col className="w-[150px]" />
-                    <col className="w-[120px]" />
-                    <col className="w-[150px]" />
-                    <col className="w-[150px]" />
                     <col className="w-[180px]" />
                     <col className="w-[180px]" />
-                    <col className="w-[220px]" />
+                    <col className="w-[190px]" />
+                    <col className="w-[190px]" />
+                    <col className="w-[250px]" />
                   </colgroup>
                   <thead className="bg-[#252524] text-[#A1A1AA]">
                     <tr>
-                      {['행위', '시트', '대상 테이블', 'row id', 'pk field', 'source cell', '필드', 'before', 'after', '수정 사유'].map((header) => (
+                      {['행위', '데이터 영역', '항목', '현재값', '수정값', '수정 사유'].map((header) => (
                         <th key={header} className="border-b border-[#333333] px-3 py-2 font-semibold">{header}</th>
                       ))}
                     </tr>
@@ -13268,13 +13358,13 @@ function DataQualityDashboard() {
                   <tbody>
                     {editGridRows.map((row) => (
                       <tr key={row.id} className="border-b border-[#333333] last:border-b-0">
-                        {['action', 'sheetName', 'targetTable', 'targetRowId', 'primaryKeyField', 'sourceCellId', 'fieldName', 'beforeValue', 'afterValue', 'reason'].map((key) => (
+                        {['action', 'sheetName', 'fieldName', 'beforeValue', 'afterValue', 'reason'].map((key) => (
                           <td key={`${row.id}-${key}`} className="align-top px-2 py-2">
                             <input
-                              disabled={!canEdit || key === 'beforeValue'}
-                              value={row[key] || ''}
+                              disabled={!canEdit || !['afterValue', 'reason'].includes(key)}
+                              value={key === 'sheetName' ? qualitySheetLabel(row[key]) : key === 'fieldName' ? qualityFieldLabel(row[key]) : row[key] || ''}
                               onChange={(event) => updateEditGridRow(row.id, key, event.target.value)}
-                              className={`h-9 w-full rounded-[7px] border border-[#3A3A3C] px-2 text-[12px] outline-none ${key === 'beforeValue' ? 'bg-[#151515] text-[#A1A1AA]' : 'bg-[#101010] text-white focus:border-[#9AD7FF]'} disabled:opacity-70`}
+                              className={`h-9 w-full rounded-[7px] border border-[#3A3A3C] px-2 text-[12px] outline-none ${!['afterValue', 'reason'].includes(key) ? 'bg-[#151515] text-[#A1A1AA]' : 'bg-[#101010] text-white focus:border-[#9AD7FF]'} disabled:opacity-70`}
                             />
                           </td>
                         ))}

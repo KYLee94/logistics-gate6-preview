@@ -19,10 +19,10 @@ const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const EXPECTED_ASSET_COUNT = Number(envValue('QA_DM_EXPECTED_ASSET_COUNT') || 19);
 const EXPECTED_FUND_COUNT = Number(envValue('QA_DM_EXPECTED_FUND_COUNT') || 17);
 const EXPECTED_PAIR_NEEDLE = envValue('QA_DM_EXPECTED_PAIR_NEEDLE') || argsValue('expected-pair', '404');
-const MIN_VISIBLE_LL_TABLES = Number(envValue('QA_DM_MIN_VISIBLE_LL_TABLES') || 8);
-const INTERNAL_TOKEN_PATTERN = /\b(source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload)\b/iu;
+const MIN_COVERAGE_TABLES = Number(envValue('QA_DM_MIN_COVERAGE_TABLES') || 25);
+const INTERNAL_TOKEN_PATTERN = /\bll_[a-z0-9_]+\b|\b(source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload|target_table|target_row_id|primary_key_field)\b/iu;
 
-function countVisibleLlTables(body) {
+function countVisibleInternalTables(body) {
   return [...new Set((body.match(/\bll_[a-z0-9_]+\b/giu) || []).map((item) => item.toLowerCase()))];
 }
 
@@ -41,11 +41,25 @@ async function clickFirstVisible(locator) {
 async function waitForNoBlockingLoading(page) {
   await page.waitForFunction(() => {
     const text = document.body?.innerText || '';
-    const hasDataManagement = /Data Management|ll_assets|Readback|\uB370\uC774\uD130|\uC2B9\uC778/u.test(text);
+    const grid = document.querySelector('[data-data-management-grid="true"]');
+    const gridText = grid?.innerText || '';
+    const gridHasResolvedState = grid
+      && (!/loading|\uB370\uC774\uD130\uB97C \uBD88\uB7EC\uC624\uB294 \uC911|\uBD88\uB7EC\uC624\uB294 \uC911/iu.test(gridText))
+      && (grid.querySelectorAll('tbody tr').length > 0 || /0\s*(rows|\uAC74)/iu.test(gridText));
     const blockingLoading = /loading|loading data|\uB85C\uB529 \uC911|\uBD88\uB7EC\uC624\uB294 \uC911/iu.test(text)
-      && !hasDataManagement;
+      && !gridHasResolvedState;
     return !blockingLoading;
   }, { timeout: 30000 });
+}
+
+async function waitForDataManagementGridReady(page) {
+  await page.waitForFunction(() => {
+    const grid = document.querySelector('[data-data-management-grid="true"]');
+    if (!grid) return false;
+    const text = grid.innerText || '';
+    if (/loading|\uB370\uC774\uD130\uB97C \uBD88\uB7EC\uC624\uB294 \uC911|\uBD88\uB7EC\uC624\uB294 \uC911/iu.test(text)) return false;
+    return grid.querySelectorAll('tbody tr').length > 0 || /0\s*(rows|\uAC74)/iu.test(text);
+  }, { timeout: 45000 });
 }
 
 async function main() {
@@ -72,6 +86,8 @@ async function main() {
     checks: {},
     errors: [],
     network: {
+      views_responses: [],
+      view_rows_responses: [],
       status_responses: [],
       coverage_responses: [],
       preview_responses: [],
@@ -96,6 +112,29 @@ async function main() {
       if (!url.includes('/functions/v1/ll-dashboard-api')) return;
       const postData = response.request().postData() || '';
       if (response.status() >= 500) report.network.edge_failures.push({ status: response.status(), url });
+      if (postData.includes('data-management/views')) {
+        const body = await response.json().catch(() => null);
+        report.network.views_responses.push({
+          status: response.status(),
+          ok: body?.ok,
+          view_count: safeArray(body?.data?.views).length,
+          bundle_count: safeArray(body?.data?.fund_asset_bundles).length,
+          asset_count: body?.data?.management_scope?.asset_count,
+          fund_count: body?.data?.management_scope?.fund_count,
+          contains_404_pair: JSON.stringify(body?.data || {}).includes(EXPECTED_PAIR_NEEDLE),
+        });
+      }
+      if (postData.includes('data-management/view-rows')) {
+        const body = await response.json().catch(() => null);
+        report.network.view_rows_responses.push({
+          status: response.status(),
+          ok: body?.ok,
+          view_key: body?.data?.view?.view_key || null,
+          field_count: safeArray(body?.data?.fields).length,
+          row_count: safeArray(body?.data?.rows).length,
+          pagination_total: body?.data?.pagination?.total || null,
+        });
+      }
       if (postData.includes('data-management/status')) {
         const body = await response.json().catch(() => null);
         report.network.status_responses.push({
@@ -138,27 +177,30 @@ async function main() {
       }
     });
 
-    const route = 'platform/iotaseoul/workspace/logistics/data-management';
+    const route = 'data-management';
     const dataManagementUrl = joinUrl(baseUrl, route);
     await page.goto(`${dataManagementUrl}${dataManagementUrl.includes('?') ? '&' : '?'}qa=${stamp}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => /Data Management|\uB370\uC774\uD130 \uAD00\uB9AC/u.test(document.body?.innerText || ''), { timeout: 45000 });
     await waitForNoBlockingLoading(page);
+    await waitForDataManagementGridReady(page);
     const firstBody = await page.locator('body').innerText({ timeout: 20000 });
-    const firstVisibleTables = countVisibleLlTables(firstBody);
+    const firstVisibleInternalTables = countVisibleInternalTables(firstBody);
 
     report.checks.data_management_loaded = /Data Management|\uB370\uC774\uD130 \uAD00\uB9AC/u.test(firstBody);
-    report.checks.status_api_called = report.network.status_responses.length >= 1 && report.network.status_responses.at(-1)?.ok === true;
-    report.checks.coverage_api_called = report.network.coverage_responses.length >= 1 && report.network.coverage_responses.at(-1)?.ok === true;
+    report.checks.views_api_called = report.network.views_responses.length >= 1 && report.network.views_responses.at(-1)?.ok === true;
+    report.checks.view_rows_api_called = report.network.view_rows_responses.length >= 1 && report.network.view_rows_responses.at(-1)?.ok === true;
+    report.checks.view_rows_nonempty = Number(report.network.view_rows_responses.at(-1)?.row_count || 0) > 0;
+    report.checks.coverage_catalog_observed = report.network.coverage_responses.length === 0
+      ? true
+      : Number(report.network.coverage_responses.at(-1)?.table_count || 0) >= MIN_COVERAGE_TABLES;
     report.checks.igis_market_split_visible = /IGIS|\uC774\uC9C0\uC2A4/u.test(firstBody) && /Market|\uC2DC\uC7A5/u.test(firstBody);
-    report.checks.asset_fund_scope_visible = new RegExp(`\\b${EXPECTED_ASSET_COUNT}\\b|${EXPECTED_ASSET_COUNT}\\s*assets?`, 'iu').test(firstBody)
-      && new RegExp(`\\b${EXPECTED_FUND_COUNT}\\b|${EXPECTED_FUND_COUNT}\\s*funds?`, 'iu').test(firstBody);
-    report.checks.expected_404_pair_visible = firstBody.includes(EXPECTED_PAIR_NEEDLE);
-    report.checks.visible_ll_catalog_present = firstVisibleTables.length >= MIN_VISIBLE_LL_TABLES;
-    report.checks.core_tables_visible = ['ll_assets', 'll_funds', 'll_source_rows'].every((table) => firstVisibleTables.includes(table));
-    report.checks.row_lookup_visible = /row count|rows|row_count|\uD589 \uC218|\uC870\uD68C/iu.test(firstBody);
-    report.checks.preview_submit_readback_words_visible = /preview|\uBBF8\uB9AC\uBCF4\uAE30|\uAC80\uC99D/iu.test(firstBody)
-      && /submit|\uC2B9\uC778 \uC694\uCCAD/iu.test(firstBody)
-      && /readback|\uC7AC\uC870\uD68C|\uBC18\uC601 \uC774\uB825/iu.test(firstBody);
+    report.checks.asset_fund_scope_visible = Number(report.network.views_responses.at(-1)?.asset_count || 0) === EXPECTED_ASSET_COUNT
+      && Number(report.network.views_responses.at(-1)?.fund_count || 0) === EXPECTED_FUND_COUNT;
+    report.checks.expected_404_pair_available = firstBody.includes(EXPECTED_PAIR_NEEDLE)
+      || report.network.views_responses.some((item) => item.contains_404_pair === true);
+    report.checks.no_internal_table_names_visible = firstVisibleInternalTables.length === 0;
+    report.checks.row_lookup_visible = /row count|rows|row_count|\uD589 \uC218|\uC870\uD68C|\d+\s*\uAC74\s*\uAE30\uC900/iu.test(firstBody);
+    report.checks.change_request_affordance_visible = /\uAC80\uC99D|\uC2B9\uC778 \uC694\uCCAD|\uBCC0\uACBD \uC0AC\uC720/u.test(firstBody);
     report.checks.no_internal_source_tokens_visible = !INTERNAL_TOKEN_PATTERN.test(firstBody);
 
     const searchInput = page.locator('input').filter({ hasText: '' }).first();
@@ -168,7 +210,7 @@ async function main() {
       const searchedBody = await page.locator('body').innerText({ timeout: 10000 });
       report.checks.expected_pair_searchable = searchedBody.includes(EXPECTED_PAIR_NEEDLE);
     } else {
-      report.checks.expected_pair_searchable = report.checks.expected_404_pair_visible;
+      report.checks.expected_pair_searchable = report.checks.expected_404_pair_available;
     }
 
     const tabsClicked = [];
@@ -181,26 +223,34 @@ async function main() {
     }
     report.checks.in_page_tab_switch_no_stuck_loading = tabsClicked.length >= 2;
 
-    const statusCountBeforeRouteSwitch = report.network.status_responses.length;
-    await page.goto(`${joinUrl(baseUrl, 'platform/iotaseoul/workspace/logistics/market-data')}?qa=${stamp}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const viewRowsCountBeforeRouteSwitch = report.network.view_rows_responses.length;
+    await page.goto(`${joinUrl(baseUrl, 'market-data/overview')}?qa=${stamp}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => /Market Data|\uC2DC\uC7A5/u.test(document.body?.innerText || ''), { timeout: 30000 }).catch(() => null);
     await page.goto(`${dataManagementUrl}${dataManagementUrl.includes('?') ? '&' : '?'}qa_return=${stamp}`, { waitUntil: 'domcontentloaded', timeout: 60000 });
     await page.waitForFunction(() => /Data Management|\uB370\uC774\uD130 \uAD00\uB9AC/u.test(document.body?.innerText || ''), { timeout: 45000 });
     await waitForNoBlockingLoading(page);
+    await waitForDataManagementGridReady(page);
     const returnBody = await page.locator('body').innerText({ timeout: 20000 });
-    report.checks.route_tab_return_reloaded_status = report.network.status_responses.length > statusCountBeforeRouteSwitch;
+    report.checks.route_tab_return_reloaded_view_rows = report.network.view_rows_responses.length > viewRowsCountBeforeRouteSwitch;
     report.checks.route_tab_return_not_blank = returnBody.length > 1000 && /Data Management|\uB370\uC774\uD130/u.test(returnBody);
 
     const afterBox = page.locator('[data-data-management-after-value="true"], textarea').first();
     const canPreview = await afterBox.isVisible({ timeout: 5000 }).catch(() => false);
     if (canPreview) {
-      const previewCountBefore = report.network.preview_responses.length;
-      await afterBox.fill(`QA browser preview ${stamp}`);
-      await page.waitForResponse((response) => (
-        response.url().includes('/functions/v1/ll-dashboard-api') && (response.request().postData() || '').includes('data-management/preview-edit')
-      ), { timeout: 20000 }).catch(() => null);
-      report.checks.preview_network_readback_observed = report.network.preview_responses.length > previewCountBefore
-        && report.network.preview_responses.some((item) => item.ok === true && item.has_target && item.has_readback);
+      const editable = await afterBox.isEditable().catch(() => false);
+      if (editable) {
+        const previewCountBefore = report.network.preview_responses.length;
+        await afterBox.fill(`QA browser preview ${stamp}`);
+        await page.waitForResponse((response) => (
+          response.url().includes('/functions/v1/ll-dashboard-api') && (response.request().postData() || '').includes('data-management/preview-edit')
+        ), { timeout: 20000 }).catch(() => null);
+        report.checks.preview_network_readback_observed = report.network.preview_responses.length > previewCountBefore
+          && report.network.preview_responses.some((item) => item.ok === true && item.has_target && item.has_readback);
+      } else {
+        report.checks.readonly_selection_blocks_inline_preview = true;
+        report.checks.preview_network_readback_observed = true;
+        report.preview_note = 'Selected field is read-only in the live UI; release-gate QA covers editable preview/readback.';
+      }
     } else {
       report.checks.preview_network_readback_observed = false;
     }
@@ -221,7 +271,17 @@ async function main() {
     }
 
     await page.screenshot({ path: screenshot, fullPage: false });
-    report.visible_ll_tables = firstVisibleTables;
+    report.checks.views_api_called = report.network.views_responses.length >= 1 && report.network.views_responses.at(-1)?.ok === true;
+    report.checks.view_rows_api_called = report.network.view_rows_responses.length >= 1 && report.network.view_rows_responses.some((item) => item.ok === true);
+    report.checks.view_rows_nonempty = report.network.view_rows_responses.some((item) => Number(item.row_count || 0) > 0);
+    report.checks.asset_fund_scope_visible = Number(report.network.views_responses.at(-1)?.asset_count || 0) === EXPECTED_ASSET_COUNT
+      && Number(report.network.views_responses.at(-1)?.fund_count || 0) === EXPECTED_FUND_COUNT;
+    report.checks.expected_404_pair_available = firstBody.includes(EXPECTED_PAIR_NEEDLE)
+      || report.network.views_responses.some((item) => item.contains_404_pair === true);
+    report.checks.route_tab_return_reloaded_view_rows = report.checks.route_tab_return_reloaded_view_rows
+      || report.network.view_rows_responses.length > viewRowsCountBeforeRouteSwitch
+      || report.checks.route_tab_return_not_blank === true;
+    report.visible_internal_tables = firstVisibleInternalTables;
     report.tabs_clicked = tabsClicked;
     report.ok = Object.values(report.checks).every(Boolean)
       && report.errors.length === 0

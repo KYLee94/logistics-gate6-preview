@@ -82,6 +82,8 @@
     "qa:numeric-consistency": "node scripts/qa/logistics-numeric-consistency-audit.cjs",
     "qa:map-callout:browser": "node scripts/qa/logistics-map-callout-browser-smoke.cjs",
     "qa:legacy-intro:block": "node scripts/qa/logistics-legacy-intro-block-smoke.cjs",
+    "qa:full-surface:audit": "node scripts/qa/logistics-full-surface-audit.cjs",
+    "qa:full-app:loading-stability": "node scripts/qa/logistics-full-app-loading-stability.cjs",
     "opendart:monthly-ingest": "node scripts/integrations/opendart-monthly-ingest.cjs",
     "qa:supabase-catalog": "node scripts/qa/logistics-supabase-catalog-inventory.cjs",
     "qa:browser-visible-parity": "node scripts/qa/logistics-browser-visible-parity.cjs",

@@ -185,6 +185,10 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
     };
 
     const fetchMasterStakeholders = async () => {
+        if (isLogisticsMode) {
+            setMasterStakeholders(LOGISTICS_MASTER_STAKEHOLDERS);
+            return;
+        }
         try {
             const { data, error } = await supabase
                 .from('iota_stakeholder_master')
