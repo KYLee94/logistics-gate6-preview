@@ -28,7 +28,7 @@ const ROUTES = [
   { key: 'data-management-investment', route: 'data-management/investment-data', selector: '[data-data-management-redesign="true"]', minText: 500 },
   { key: 'data-management-lease', route: 'data-management/lease-contracts', selector: '[data-data-management-redesign="true"]', minText: 500 },
   { key: 'data-management-managers', route: 'data-management/managers', selector: '[data-data-management-redesign="true"]', minText: 500 },
-  { key: 'data-management-market', route: 'data-management/market-data', selector: '[data-data-management-redesign="true"]', minText: 500 },
+  { key: 'data-management-quality', route: 'data-management/data-quality', selector: '[data-data-management-redesign="true"]', minText: 500 },
   { key: 'contract-data', route: 'contract-data', minText: 300 },
   { key: 'pdf-report', route: 'pdf-report', minText: 300 },
 ];

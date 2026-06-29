@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-26T03:27:11.451Z",
+  "generated_at": "2026-06-29T04:17:20.087Z",
   "mode": "data_management_live_browser_flow",
   "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
   "auth_source": "password_grant",
@@ -31,7 +31,7 @@
       {
         "status": 200,
         "ok": true,
-        "view_count": 15,
+        "view_count": 5,
         "bundle_count": 19,
         "asset_count": 19,
         "fund_count": 17,
@@ -40,7 +40,7 @@
       {
         "status": 200,
         "ok": true,
-        "view_count": 15,
+        "view_count": 5,
         "bundle_count": 19,
         "asset_count": 19,
         "fund_count": 17,
@@ -52,7 +52,7 @@
         "status": 200,
         "ok": true,
         "view_key": "lease_general_excel",
-        "field_count": 43,
+        "field_count": 48,
         "row_count": 72,
         "pagination_total": null
       },
@@ -60,7 +60,7 @@
         "status": 200,
         "ok": true,
         "view_key": "lease_general_excel",
-        "field_count": 43,
+        "field_count": 48,
         "row_count": 8,
         "pagination_total": null
       },
@@ -68,7 +68,7 @@
         "status": 200,
         "ok": true,
         "view_key": "lease_general_excel",
-        "field_count": 43,
+        "field_count": 48,
         "row_count": 72,
         "pagination_total": null
       }
@@ -79,13 +79,12 @@
     "submit_responses": [],
     "edge_failures": []
   },
-  "screenshot": "qa-artifacts/logistics-gate6/data-management-live-browser-flow-20260626-032710.png",
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-live-browser-flow-20260629-041719.png",
   "preview_note": "Selected field is read-only in the live UI; release-gate QA covers editable preview/readback.",
   "submit_note": "Submit is guarded unless --allow-submit is set.",
   "visible_internal_tables": [],
   "tabs_clicked": [
     "/Market|\\uC2DC\\uC7A5/u",
-    "/IGIS|\\uC774\\uC9C0\\uC2A4/u",
     "/history|readback|\\uC774\\uB825/u"
   ]
 }

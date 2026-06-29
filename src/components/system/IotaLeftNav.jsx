@@ -494,83 +494,77 @@ const invokeWithTimeout = async (action, payload = {}, timeoutMs = 12000, retryO
 };
 const logisticsNavIconClass = 'w-4.5 h-4.5 mr-[10px]';
 const logisticsRootItem = {
-    label: 'Work Platform',
+    label: '업무 플랫폼',
     path: LOGISTICS_INTERNAL_BASE,
     icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7h18M5 7v10a2 2 0 002 2h10a2 2 0 002-2V7M8 11h8M8 15h5M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>,
 };
 const logisticsDashboardItems = [
     {
-        label: 'Home',
+        label: '홈',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/home`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 12l9-9 9 9M5 10v10h14V10M9 20v-6h6v6" /></svg>,
     },
     {
-        label: 'Asset',
+        label: '자산',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/asset`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 21V7l8-4 8 4v14M8 21v-5h8v5M8 10h.01M12 10h.01M16 10h.01" /></svg>,
     },
     {
-        label: 'Company',
+        label: '기업',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/company`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 21h18M5 21V5a2 2 0 012-2h5v18M12 8h5a2 2 0 012 2v11M8 7h.01M8 11h.01M8 15h.01M16 12h.01M16 16h.01" /></svg>,
     },
     {
-        label: 'Investment Index',
+        label: '투자 지수',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/investment-index`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 15l3-3 3 2 4-6M8 19v-4m4 4v-7m4 7v-5m4 5V8" /></svg>,
     },
     {
-        label: 'Asset Spec',
+        label: '자산 스펙',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/asset-spec`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7h16M6 7v12h12V7M9 11h6M9 15h3M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>,
     },
     {
-        label: 'Analysis Tools',
+        label: '분석 도구',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/tools`,
         adminOnly: true,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4" /></svg>,
     },
     {
-        label: 'Pivot Table',
+        label: '피벗 테이블',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/playground`,
         adminOnly: true,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7c0 1.657 3.582 3 8 3s8-1.343 8-3M4 7c0-1.657 3.582-3 8-3s8 1.343 8 3M4 7v10c0 1.657 3.582 3 8 3s8-1.343 8-3V7M4 12c0 1.657 3.582 3 8 3s8-1.343 8-3" /></svg>,
-    },
-    {
-        label: 'Data Quality',
-        path: `${LOGISTICS_INTERNAL_BASE}/dashboard/quality`,
-        adminOnly: true,
-        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-2.8 8.2-7 9-4.2-.8-7-4.5-7-9V7l7-4z" /></svg>,
     },
 ];
 const LOGISTICS_DASHBOARD_FEATURE_BY_PATH = {
     [`${LOGISTICS_INTERNAL_BASE}/dashboard/tools`]: 'analysis_tools',
     [`${LOGISTICS_INTERNAL_BASE}/dashboard/playground`]: 'data_playground',
-    [`${LOGISTICS_INTERNAL_BASE}/dashboard/quality`]: 'data_quality',
+    [`${LOGISTICS_INTERNAL_BASE}/data-management/data-quality`]: 'data_quality',
 };
 const logisticsMarketDataItems = [
     {
-        label: 'Overview',
+        label: '시장 개요',
         path: `${LOGISTICS_INTERNAL_BASE}/market-data/overview`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4" /></svg>,
     },
     {
-        label: 'Lease Market',
+        label: '임대 시장',
         path: `${LOGISTICS_INTERNAL_BASE}/market-data/lease-market`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M5 7h14M7 7v12m10-12v12M5 19h14M9 11h6M9 15h6" /></svg>,
     },
     {
-        label: 'Supply Pipeline',
+        label: '공급 예정',
         path: `${LOGISTICS_INTERNAL_BASE}/market-data/supply-pipeline`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19h16M6 19V9l6-4 6 4v10M9 19v-6h6v6" /></svg>,
     },
     {
-        label: 'Transactions',
+        label: '거래 사례',
         path: `${LOGISTICS_INTERNAL_BASE}/market-data/transactions`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 7h10M7 12h10M7 17h6M4 4h16v16H4z" /></svg>,
     },
     {
-        label: 'Source Update',
+        label: '원천 업데이트',
         path: `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10v5h4l-9 11-9-11h4V4z" /></svg>,
     },
@@ -597,14 +591,15 @@ const logisticsDataManagementItems = [
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 11a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6 3 3 0 000 6zM3.5 20a4.5 4.5 0 019 0M11.5 20a4.5 4.5 0 019 0" /></svg>,
     },
     {
-        label: '시장 Data',
-        path: `${LOGISTICS_INTERNAL_BASE}/data-management/market-data`,
-        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4M7 9h2m2-3h2m2 6h2" /></svg>,
+        label: '데이터 품질',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-management/data-quality`,
+        adminOnly: true,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-2.8 8.2-7 9-4.2-.8-7-4.5-7-9V7l7-4z" /></svg>,
     },
 ];
 const logisticsStandaloneItems = [
     {
-        label: 'PDF Report',
+        label: 'PDF 보고서',
         path: `${LOGISTICS_INTERNAL_BASE}/pdf-report`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 3h7l5 5v13H7a2 2 0 01-2-2V5a2 2 0 012-2z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M14 3v6h5M9 14h6M9 17h6M9 11h2" /></svg>,
     },
@@ -1089,7 +1084,6 @@ export default function IotaLeftNav({ currentPath = '' }) {
     if (isLogisticsPath) {
         const visibleDashboardItems = logisticsDashboardItems.filter((item) => {
             if (!item.adminOnly) return true;
-            if (item.path === `${LOGISTICS_INTERNAL_BASE}/dashboard/quality`) return canViewSourceUpdateAndDataQuality;
             if (isLogisticsAdmin) return true;
             const featureKey = LOGISTICS_DASHBOARD_FEATURE_BY_PATH[item.path];
             return featureKey ? memberHasFeatureAccess(featureAccessData, featureKey, memberInfo) : false;
@@ -1132,7 +1126,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                         <div className="mt-1">
                             <button
                                 type="button"
-                                title={isCollapsed ? 'Dashboard' : undefined}
+                                title={isCollapsed ? '대시보드' : undefined}
                                 onClick={() => {
                                     if (isCollapsed) {
                                         handleNavigation(`${LOGISTICS_INTERNAL_BASE}/dashboard/home`);
@@ -1146,14 +1140,14 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>
                                         <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4" /></svg>
                                     </span>
-                                    <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>Dashboard</span>
+                                    <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>대시보드</span>
                                 </div>
                                 {!isCollapsed ? (
                                     <svg className={`h-4 w-4 text-[#86868B] transition-transform ${isLogisticsDashboardOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                                     </svg>
                                 ) : null}
-                                {renderCollapsedTooltip('Dashboard')}
+                                {renderCollapsedTooltip('대시보드')}
                             </button>
                             <div className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${!isCollapsed && isLogisticsDashboardOpen ? 'max-h-[320px] translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0'}`}>
                                 <div className="mt-1 flex flex-col gap-0 pl-4">
@@ -1174,7 +1168,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                         <div className="mt-1">
                             <button
                                 type="button"
-                                title={isCollapsed ? 'Market Data' : undefined}
+                                title={isCollapsed ? '시장 데이터' : undefined}
                                 onClick={() => {
                                     if (isCollapsed) {
                                         handleNavigation(`${LOGISTICS_INTERNAL_BASE}/market-data/overview`);
@@ -1188,14 +1182,14 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>
                                         <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4M7 9h2m2-3h2m2 6h2" /></svg>
                                     </span>
-                                    <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>Market Data</span>
+                                    <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>시장 데이터</span>
                                 </div>
                                 {!isCollapsed ? (
                                     <svg className={`h-4 w-4 text-[#86868B] transition-transform ${isLogisticsMarketDataOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                                     </svg>
                                 ) : null}
-                                {renderCollapsedTooltip('Market Data')}
+                                {renderCollapsedTooltip('시장 데이터')}
                             </button>
                             <div className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${!isCollapsed && isLogisticsMarketDataOpen ? 'max-h-[260px] translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0'}`}>
                                 <div className="mt-1 flex flex-col gap-0 pl-4">
@@ -1216,7 +1210,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                         <div className="mt-1">
                             <button
                                 type="button"
-                                title={isCollapsed ? 'Data Management' : undefined}
+                                title={isCollapsed ? '데이터 관리' : undefined}
                                 onClick={() => {
                                     if (isCollapsed) {
                                         handleNavigation(`${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`);
@@ -1230,14 +1224,14 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>
                                         <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2zM9 8h6M9 12h6M9 16h4" /></svg>
                                     </span>
-                                    <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>Data Management</span>
+                                    <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>데이터 관리</span>
                                 </div>
                                 {!isCollapsed ? (
                                     <svg className={`h-4 w-4 text-[#86868B] transition-transform ${isLogisticsDataManagementOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                                     </svg>
                                 ) : null}
-                                {renderCollapsedTooltip('Data Management')}
+                                {renderCollapsedTooltip('데이터 관리')}
                             </button>
                             <div className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${!isCollapsed && isLogisticsDataManagementOpen ? 'max-h-[260px] translate-y-0 opacity-100' : 'max-h-0 -translate-y-1 opacity-0'}`}>
                                 <div className="mt-1 flex flex-col gap-0 pl-4">

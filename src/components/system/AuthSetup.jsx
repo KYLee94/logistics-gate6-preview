@@ -105,16 +105,25 @@ const clearPasswordRecoveryUrl = () => {
         // URL cleanup should not block a successful password update.
     }
 };
+const navigateToPostLoginPath = ({ replace = false } = {}) => {
+    const base = import.meta.env.BASE_URL || '/';
+    const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+    const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || 'work-platform';
+    window.sessionStorage.removeItem('logisticsPostLoginPath');
+    const nextUrl = new URL(`${normalizedBase}${String(nextPath).replace(/^\/+/, '')}`, window.location.origin).toString();
+    if (replace) window.history.replaceState(window.history.state || null, '', nextUrl);
+    else window.history.pushState(window.history.state || null, '', nextUrl);
+    const popStateEvent = typeof PopStateEvent === 'function'
+        ? new PopStateEvent('popstate', { state: window.history.state || null })
+        : new Event('popstate');
+    window.dispatchEvent(popStateEvent);
+};
 const navigateAfterSuccessfulAuth = (onLogin) => {
-    const beforeUrl = window.location.href;
     if (onLogin) onLogin();
-    setTimeout(() => {
-        if (window.location.href !== beforeUrl && !window.location.href.includes('auth-setup')) return;
-        const base = import.meta.env.BASE_URL || '/';
-        const normalizedBase = base.endsWith('/') ? base : `${base}/`;
-        const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || 'work-platform';
-        window.location.assign(new URL(`${normalizedBase}${String(nextPath).replace(/^\/+/, '')}`, window.location.origin).toString());
-    }, 900);
+    window.setTimeout(() => {
+        if (!window.location.href.includes('auth-setup')) return;
+        navigateToPostLoginPath({ replace: true });
+    }, 0);
 };
 const activateLocalLogisticsSession = (email, userId, memberInfo = {}) => {
     const normalizedEmail = String(email || '').trim().toLowerCase();
@@ -476,13 +485,9 @@ export default function AuthSetup({ onLogin }) {
             setRecoveryMode(false);
             setDissolved(true);
 
-            setTimeout(() => {
-                const base = import.meta.env.BASE_URL || '/';
-                const normalizedBase = base.endsWith('/') ? base : `${base}/`;
-                const nextPath = window.sessionStorage.getItem('logisticsPostLoginPath') || 'work-platform';
-                window.sessionStorage.removeItem('logisticsPostLoginPath');
-                window.location.assign(new URL(`${normalizedBase}${String(nextPath).replace(/^\/+/, '')}`, window.location.origin).toString());
-            }, 500);
+            window.setTimeout(() => {
+                navigateToPostLoginPath({ replace: true });
+            }, 0);
 
         } catch {
             triggerError('패스워드 변경 중 오류가 발생했습니다.');

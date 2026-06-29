@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-18T10:12:13.851Z",
+  "generated_at": "2026-06-29T04:18:20.970Z",
   "source_json": "src\\components\\system\\workspace\\logisticsPermissionData.json",
   "expected_admin_scope": {
     "managed_asset_count": 19,
@@ -16,7 +16,7 @@
     "missing_source_count": 0,
     "missing_source_emails": [],
     "permission_user_count": 40,
-    "recent_login_rows": 110,
+    "recent_login_rows": 144,
     "source_user_count": 38
   },
   "admin_static_scope": [

@@ -105,7 +105,7 @@ const DETAILED_SURFACES = [
   ['asset-spec', 'Asset Spec', '/asset-spec', ['data input button', 'asset comparison', 'tenant occupied spec comparison', 'fullscreen table'], ['modal open', 'asset select', 'table view', 'readback']],
   ['analysis-tools', 'Analysis Tools', '/analysis-tools', ['asset/company selectors', 'metric controls', 'matrix detail'], ['selector change', 'metric change', 'raw table open', 'popup close']],
   ['pivot-table', 'Pivot Table', '/pivot-table', ['field selector', 'metric selector', 'filters', 'saved views', 'drilldown'], ['filter change', 'top N change', 'sort', 'save view', 'drilldown modal']],
-  ['data-quality', 'Data Quality', '/data-quality', ['quality summary', 'issue table', 'edit popup', 'approval flow'], ['filter', 'row click', 'edit preview', 'submit', 'denylist scan']],
+  ['data-quality', 'Data Quality', '/data-management/data-quality', ['quality summary', 'issue table', 'edit popup', 'approval flow'], ['filter', 'row click', 'edit preview', 'submit', 'denylist scan']],
   ['pdf-report', 'PDF Report', '/pdf-report', ['component checkboxes', 'asset selection', 'ordering', 'preview/save/print'], ['select', 'reorder', 'open preview', 'save', 'print']],
   ['contract-data', 'Contract Data', '/contract-data', ['contract data route'], ['route access', 'data render', 'permission check']],
   ['ai-chatbot', 'AI Chatbot', 'global dock/work platform', ['chat dock', 'search/API response', 'source citations'], ['open', 'ask', 'response contract', 'fallback classification']],
@@ -114,9 +114,11 @@ const DETAILED_SURFACES = [
   ['market-supply', 'Supply Pipeline', '/market-data/supply-pipeline', ['new supply', 'pipeline', 'cumulative supply', 'area charts'], ['date range', 'reset', 'map label/pin', 'chart popup', 'table sort']],
   ['market-transactions', 'Transactions', '/market-data/transactions', ['deal comparison', 'market size', 'size buckets', 'cap rate'], ['period/region/temp/type slicers', 'chart popup', 'legend focus', 'table sort']],
   ['market-source-update', 'Source Update', '/market-data/source-update', ['source coverage', 'raw/normalized counts', 'dry-run flow'], ['source readback', 'count parity', 'validation result']],
-  ['data-management-igis', 'Data Management - IGIS Data', '/data-management', ['asset/fund bundle', 'business views', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
-  ['data-management-market', 'Data Management - Market Data', '/data-management', ['market source views', 'readback-only/source review'], ['view switch', 'filter', 'table sort', 'source review request']],
-  ['data-management-system', 'Data Management - System Data', '/data-management', ['permission/login/audit/cache/edit requests'], ['readback', 'approve/reject', 'permission block']],
+  ['data-management-asset', 'Data Management - Asset Data', '/data-management/asset-data', ['asset overview', 'specs', 'operating costs', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
+  ['data-management-investment', 'Data Management - Investment Data', '/data-management/investment-data', ['funds', 'fund-asset links', 'equity/loan tranches', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
+  ['data-management-lease', 'Data Management - Lease Contract Data', '/data-management/lease-contracts', ['leases', 'lease spaces', 'rent history', 'required specs', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
+  ['data-management-managers', 'Data Management - Manager Data', '/data-management/managers', ['asset managers', 'fund managers', 'user-readable columns'], ['view switch', 'filter', 'table sort', 'readback']],
+  ['data-management-quality', 'Data Management - Data Quality', '/data-management/data-quality', ['quality findings', 'validation status', 'approval flow'], ['filter', 'row click', 'edit preview', 'submit', 'readback']],
 ];
 
 function detailedSurface([id, screen, route, components, interactions]) {
@@ -628,7 +630,7 @@ const SURFACE_EVIDENCE = {
     ['sector-tabs-browser-smoke-latest.json', () => latestArtifactOk('sector-tabs-browser-smoke-latest.json')],
   ],
   'data-quality': [
-    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-quality'])],
+    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management/data-quality'])],
     ['sector-tabs-browser-smoke-latest.json', () => latestArtifactOk('sector-tabs-browser-smoke-latest.json')],
   ],
   'pdf-report': [
@@ -667,18 +669,26 @@ const SURFACE_EVIDENCE = {
     ['market-data-browser-smoke-latest.json', () => latestArtifactOk('market-data-browser-smoke-latest.json')],
     ['market-data-readback-smoke-latest.json', () => latestArtifactOk('market-data-readback-smoke-latest.json')],
   ],
-  'data-management-igis': [
-    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management'])],
+  'data-management-asset': [
+    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management/asset-data'])],
     ['data-management-browser-readback-smoke-latest.json', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json', (json) => json.checks?.default_view_has_rows === true)],
     ['data-management-live-browser-flow-latest.json', () => latestArtifactOk('data-management-live-browser-flow-latest.json')],
   ],
-  'data-management-market': [
-    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management'])],
-    ['data-management-browser-readback-smoke-latest.json', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json', (json) => json.checks?.market_workspace_grid_visible === true)],
+  'data-management-investment': [
+    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management/investment-data'])],
+    ['data-management-browser-readback-smoke-latest.json', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json', (json) => json.subtab_checks?.investment?.rows > 0)],
   ],
-  'data-management-system': [
-    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management'])],
-    ['data-management-browser-readback-smoke-latest.json', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json', (json) => json.checks?.operations_workspace_grid_visible === true)],
+  'data-management-lease': [
+    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management/lease-contracts'])],
+    ['data-management-browser-readback-smoke-latest.json', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json', (json) => json.subtab_checks?.lease?.rows > 0)],
+  ],
+  'data-management-managers': [
+    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management/managers'])],
+    ['data-management-browser-readback-smoke-latest.json', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json', (json) => json.subtab_checks?.managers?.rows > 0)],
+  ],
+  'data-management-quality': [
+    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management/data-quality'])],
+    ['data-management-browser-readback-smoke-latest.json', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json', (json) => json.subtab_checks?.quality?.rows > 0)],
   ],
 };
 

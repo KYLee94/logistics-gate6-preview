@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-26T07:41:26.297Z",
+  "checks": {
+    "dashboard_visible_items_korean": true,
+    "market_visible_items_korean": true,
+    "data_management_visible_items_korean": true,
+    "nav_items_no_english_primary_labels": true,
+    "data_quality_under_data_management": true,
+    "workspace_module_labels_korean": true,
+    "route_quality_redirects_to_dm": true,
+    "old_dashboard_quality_redirects": true
+  },
+  "failed": []
+}

@@ -1,0 +1,14 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-29T03:48:26.224Z",
+  "checks": {
+    "health_verified_ref": true,
+    "no_custom_50km_scale_overlay": true,
+    "region_overview_zoom_configured": true,
+    "marker_effect_has_stable_cleanup": true,
+    "marker_effect_cleanup_keeps_markers": true,
+    "marker_effect_cleanup_keeps_zoom_listener": true,
+    "naver_health_not_repeated_after_verified": true
+  },
+  "failed": []
+}

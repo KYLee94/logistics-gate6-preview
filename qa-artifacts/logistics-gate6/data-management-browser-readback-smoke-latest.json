@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-26T05:51:49.040Z",
+  "generated_at": "2026-06-29T04:35:44.556Z",
   "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
   "auth_source": "password_grant",
   "checks": {
@@ -22,89 +22,66 @@
     "no_internal_tokens": true,
     "no_broken_question_marks": true,
     "workflow_switches_render_rows": true,
+    "required_views_api_ok": true,
+    "required_views_render_rows": true,
+    "required_views_have_business_headers": true,
+    "required_views_no_internal_tokens": true,
+    "fullscreen_edit_button_visible": true,
+    "fullscreen_editor_opens": true,
+    "fullscreen_editor_has_table": true,
+    "fullscreen_editor_has_change_basket": true,
+    "fullscreen_editor_no_internal_tokens": true,
     "subtabs_visible": true,
     "subtabs_render_rows": true,
     "subtabs_no_internal_tokens": true
   },
   "errors": [],
-  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260626-055148.png",
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260629-043544.png",
   "grid_metrics": {
     "igis_initial": {
-      "headerButtons": 43,
-      "rowButtons": 3168,
-      "hasLoadingText": false,
-      "hasZeroState": false
-    },
-    "workflow_area_space": {
-      "headerButtons": 43,
-      "rowButtons": 3168,
-      "hasLoadingText": false,
-      "hasZeroState": false
-    },
-    "workflow_schedule": {
-      "headerButtons": 43,
-      "rowButtons": 3168,
-      "hasLoadingText": false,
-      "hasZeroState": false
-    },
-    "workflow_rent_fee": {
-      "headerButtons": 17,
-      "rowButtons": 1440,
-      "hasLoadingText": false,
-      "hasZeroState": false
-    },
-    "workflow_economics": {
-      "headerButtons": 43,
-      "rowButtons": 3168,
-      "hasLoadingText": false,
-      "hasZeroState": false
-    },
-    "workflow_validation": {
-      "headerButtons": 43,
-      "rowButtons": 3168,
+      "headerButtons": 48,
+      "rowButtons": 3528,
       "hasLoadingText": false,
       "hasZeroState": false
     },
     "subtab_asset": {
-      "headerButtons": 39,
-      "rowButtons": 760,
+      "headerButtons": 15,
+      "rowButtons": 304,
       "hasLoadingText": false,
-      "hasZeroState": true
+      "hasZeroState": false
     },
     "subtab_investment": {
-      "headerButtons": 16,
-      "rowButtons": 289,
+      "headerButtons": 13,
+      "rowButtons": 266,
       "hasLoadingText": false,
       "hasZeroState": false
     },
     "subtab_lease": {
-      "headerButtons": 43,
-      "rowButtons": 3168,
+      "headerButtons": 48,
+      "rowButtons": 3528,
       "hasLoadingText": false,
       "hasZeroState": false
     },
     "subtab_managers": {
-      "headerButtons": 8,
-      "rowButtons": 171,
+      "headerButtons": 6,
+      "rowButtons": 133,
       "hasLoadingText": false,
       "hasZeroState": false
     },
-    "subtab_market": {
-      "headerButtons": 23,
-      "rowButtons": 1920,
+    "subtab_quality": {
+      "headerButtons": 8,
+      "rowButtons": 54,
       "hasLoadingText": false,
-      "hasZeroState": false
+      "hasZeroState": true
     }
   },
   "views_contract": {
     "http_status": 200,
     "ok": true,
     "workspaces": [
-      "이지스 Data",
-      "시장 Data",
-      "시스템·운영 Data"
+      "이지스 Data"
     ],
-    "view_count": 15,
+    "view_count": 5,
     "bundle_count": 19,
     "management_scope": {
       "owner": "IGIS Asset Management",
@@ -437,7 +414,7 @@
         },
         {
           "field_key": "current_monthly_cost_total",
-          "label": "월 임관비",
+          "label": "월 임관리비",
           "group": "임대료·관리비",
           "type": "krw",
           "unit": "",
@@ -456,6 +433,30 @@
           "sticky": false,
           "width": 120,
           "default_hidden": true
+        },
+        {
+          "field_key": "current_rent_per_py",
+          "label": "평당 월임대료",
+          "group": "임대료·관리비",
+          "type": "krw_per_py",
+          "unit": "",
+          "editable": false,
+          "sticky": false,
+          "width": 140,
+          "default_hidden": false,
+          "read_only_reason": "최신 임대료 이력 기준 표시값입니다. 수정은 임대료 이력 행에서 승인 요청합니다."
+        },
+        {
+          "field_key": "current_mf_per_py",
+          "label": "평당 월관리비",
+          "group": "임대료·관리비",
+          "type": "krw_per_py",
+          "unit": "",
+          "editable": false,
+          "sticky": false,
+          "width": 140,
+          "default_hidden": false,
+          "read_only_reason": "최신 임대료 이력 기준 표시값입니다. 수정은 임대료 이력 행에서 승인 요청합니다."
         },
         {
           "field_key": "deposit_amount",
@@ -590,6 +591,42 @@
           "default_hidden": true
         },
         {
+          "field_key": "required_specs_summary",
+          "label": "요구 스펙",
+          "group": "요구 스펙",
+          "type": "text",
+          "unit": "",
+          "editable": false,
+          "sticky": false,
+          "width": 260,
+          "default_hidden": false,
+          "read_only_reason": "요구 스펙 상세 속성은 속성별 승인 요청으로 관리합니다."
+        },
+        {
+          "field_key": "lease_special_summary",
+          "label": "특약 상세",
+          "group": "특약·상태",
+          "type": "text",
+          "unit": "",
+          "editable": false,
+          "sticky": false,
+          "width": 260,
+          "default_hidden": false,
+          "read_only_reason": "특약 상세 속성은 속성별 승인 요청으로 관리합니다."
+        },
+        {
+          "field_key": "tenant_info_summary",
+          "label": "임차인 정보",
+          "group": "임차인 정보",
+          "type": "text",
+          "unit": "",
+          "editable": false,
+          "sticky": false,
+          "width": 240,
+          "default_hidden": false,
+          "read_only_reason": "임차인 정보는 임차인 기준 lookup 값입니다."
+        },
+        {
           "field_key": "review_status",
           "label": "검토 상태",
           "group": "특약·상태",
@@ -621,7 +658,7 @@
         "note": "보관 원본은 없지만 운영 데이터가 표시됩니다."
       }
     },
-    "field_count": 43,
+    "field_count": 48,
     "row_count": 72,
     "pagination": {
       "page": 1,
@@ -646,100 +683,142 @@
     ],
     "rent": [
       {
-        "key": "rent_per_py",
+        "key": "current_rent_per_py",
+        "present": true,
+        "editable": false
+      },
+      {
+        "key": "current_mf_per_py",
+        "present": true,
+        "editable": false
+      },
+      {
+        "key": "e_noc",
         "present": true,
         "editable": true
       },
       {
-        "key": "mf_per_py",
+        "key": "required_specs_summary",
         "present": true,
-        "editable": true
+        "editable": false
+      },
+      {
+        "key": "lease_special_summary",
+        "present": true,
+        "editable": false
+      },
+      {
+        "key": "tenant_info_summary",
+        "present": true,
+        "editable": false
       }
     ]
   },
   "workflow_option_values": [
-    "contract_basic",
-    "area_space",
-    "rent_fee",
-    "schedule",
-    "economics",
-    "insurance_rights",
-    "required_specs",
-    "special_status",
-    "tenant",
-    "validation"
+    "lease_all"
+  ],
+  "visible_view_keys": [
+    "lease_general_excel",
+    "lease_asset_manager_links",
+    "asset_integrated",
+    "investment_integrated",
+    "data_quality_findings"
   ],
   "internal_token_match": null,
   "workflow_checks": {
-    "area_space": {
-      "clicked": true,
-      "rows": 3168,
-      "sorting_headers": 43,
+    "asset": {
+      "consolidated": true,
+      "available": true,
+      "rows": 3528,
+      "sorting_headers": 48,
       "not_loading": true
     },
-    "schedule": {
-      "clicked": true,
-      "rows": 3168,
-      "sorting_headers": 43,
+    "investment": {
+      "consolidated": true,
+      "available": true,
+      "rows": 3528,
+      "sorting_headers": 48,
       "not_loading": true
     },
-    "rent_fee": {
-      "clicked": true,
-      "rows": 1440,
-      "sorting_headers": 17,
+    "lease": {
+      "consolidated": true,
+      "available": true,
+      "rows": 3528,
+      "sorting_headers": 48,
       "not_loading": true
     },
-    "economics": {
-      "clicked": true,
-      "rows": 3168,
-      "sorting_headers": 43,
+    "managers": {
+      "consolidated": true,
+      "available": true,
+      "rows": 3528,
+      "sorting_headers": 48,
       "not_loading": true
     },
-    "validation": {
-      "clicked": true,
-      "rows": 3168,
-      "sorting_headers": 43,
+    "quality": {
+      "consolidated": true,
+      "available": true,
+      "rows": 3528,
+      "sorting_headers": 48,
       "not_loading": true
     }
+  },
+  "required_view_checks": {
+    "lease_general_excel": {
+      "available": true,
+      "api_ok": true,
+      "rows": 72,
+      "fields": 48,
+      "ui_rows": 3528,
+      "not_loading": true,
+      "no_internal_tokens": true,
+      "expected_terms_visible": true
+    }
+  },
+  "fullscreen_editor": {
+    "visible": true,
+    "has_table": true,
+    "has_change_basket": true,
+    "no_internal_tokens": true,
+    "internal_token_match": null
   },
   "subtab_checks": {
     "asset": {
       "route": "data-management/asset-data",
       "grid_visible": true,
-      "rows": 760,
-      "sorting_headers": 39,
+      "rows": 304,
+      "sorting_headers": 15,
       "not_loading": true,
       "no_internal_tokens": true
     },
     "investment": {
       "route": "data-management/investment-data",
       "grid_visible": true,
-      "rows": 289,
-      "sorting_headers": 16,
+      "rows": 266,
+      "sorting_headers": 13,
       "not_loading": true,
       "no_internal_tokens": true
     },
     "lease": {
       "route": "data-management/lease-contracts",
       "grid_visible": true,
-      "rows": 3168,
-      "sorting_headers": 43,
+      "rows": 3528,
+      "sorting_headers": 48,
       "not_loading": true,
       "no_internal_tokens": true
     },
     "managers": {
       "route": "data-management/managers",
       "grid_visible": true,
-      "rows": 171,
-      "sorting_headers": 8,
+      "rows": 133,
+      "sorting_headers": 6,
       "not_loading": true,
       "no_internal_tokens": true
     },
-    "market": {
-      "route": "data-management/market-data",
+    "quality": {
+      "route": "data-management/data-quality",
       "grid_visible": true,
-      "rows": 1920,
-      "sorting_headers": 23,
+      "rows": 54,
+      "sorting_headers": 8,
       "not_loading": true,
       "no_internal_tokens": true
     }

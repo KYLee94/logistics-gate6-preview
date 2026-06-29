@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-26T01:37:09.316Z",
+  "generated_at": "2026-06-29T04:18:24.055Z",
   "url": "https://kylee94.github.io/logistics-gate6-preview/?p=platform/iotaseoul/workspace/logistics/dashboard/home",
   "auth_source": "password_grant",
   "checks": {
@@ -33,6 +33,6 @@
       "ok": true
     }
   },
-  "screenshot": "qa-artifacts/logistics-gate6/access-modal-refresh-stability-20260626-013709.png",
+  "screenshot": "qa-artifacts/logistics-gate6/access-modal-refresh-stability-20260629-041823.png",
   "errors": []
 }

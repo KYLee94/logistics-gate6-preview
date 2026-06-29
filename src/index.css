@@ -564,3 +564,73 @@ html[lang="kr"] .font-light {
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.4) transparent;
 }
+
+.data-management-font-scope {
+    font-size: 13px;
+}
+
+.data-management-font-scope table,
+.data-management-font-scope input,
+.data-management-font-scope select,
+.data-management-font-scope textarea,
+.data-management-font-scope button {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+}
+
+.data-management-font-scope .text-\[10px\],
+.data-management-font-scope .text-\[11px\],
+.data-management-font-scope .text-\[12px\] {
+    font-size: 12px !important;
+    line-height: 1.45 !important;
+}
+
+.data-management-font-scope .text-\[13px\],
+.data-management-font-scope .text-\[14px\],
+.data-management-font-scope .text-\[15px\] {
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+}
+
+.data-management-font-scope .text-\[18px\],
+.data-management-font-scope .text-\[20px\],
+.data-management-font-scope .text-\[22px\],
+.data-management-font-scope .text-\[24px\],
+.data-management-font-scope .text-\[26px\] {
+    font-size: 22px !important;
+    line-height: 1.25 !important;
+}
+
+.data-management-font-scope [data-data-management-grid="true"] th,
+.data-management-font-scope [data-data-management-fullscreen-editor="true"] th {
+    white-space: nowrap;
+    word-break: keep-all;
+}
+
+.data-management-font-scope [data-data-management-grid="true"] th button,
+.data-management-font-scope [data-data-management-fullscreen-editor="true"] th button {
+    min-width: 0;
+}
+
+[data-market-filter-block="true"] {
+    border: 1px solid #333333;
+    background: #171717;
+    border-radius: 12px;
+    padding: 12px;
+}
+
+[data-market-filter-block="true"] [data-market-filter-card="true"] {
+    min-height: 0 !important;
+    height: auto !important;
+    border: 0 !important;
+    background: transparent !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+}
+
+[data-market-filter-block="true"] [data-market-filter-control="dropdown"],
+[data-market-filter-block="true"] [data-market-filter-control="select"],
+[data-market-filter-block="true"] [data-market-filter-control="multi-select"],
+[data-market-filter-block="true"] [data-market-filter-control="search"] {
+    min-width: 0;
+}

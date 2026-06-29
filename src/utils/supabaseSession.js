@@ -1,7 +1,7 @@
 import { supabase } from './supabaseClient';
 
 const SESSION_REFRESH_MARGIN_MS = 10 * 60 * 1000;
-const SESSION_IDLE_FORCE_REFRESH_MS = 90 * 1000;
+const SESSION_RECENT_CHECK_REUSE_MS = 15 * 1000;
 const DASHBOARD_INVOKE_TIMEOUT_MS = 45 * 1000;
 const AUTH_SESSION_TIMEOUT_MS = 3500;
 const AUTH_REFRESH_TIMEOUT_MS = 5000;
@@ -108,6 +108,10 @@ export function isSupabaseAuthFailure(error) {
 }
 
 export async function ensureFreshSupabaseSession({ force = false, throwOnFailure = false } = {}) {
+  const now = Date.now();
+  if (!force && lastSessionCheckAt && now - lastSessionCheckAt < SESSION_RECENT_CHECK_REUSE_MS) {
+    return readSupabaseStorageSession();
+  }
   let sessionResult;
   try {
     sessionResult = await withAuthTimeout('supabase.auth.getSession', supabase.auth.getSession(), AUTH_SESSION_TIMEOUT_MS);
@@ -124,7 +128,6 @@ export async function ensureFreshSupabaseSession({ force = false, throwOnFailure
   }
 
   const session = data?.session || null;
-  const now = Date.now();
   if (!session?.refresh_token) {
     lastSessionCheckAt = now;
     return session;
@@ -132,10 +135,8 @@ export async function ensureFreshSupabaseSession({ force = false, throwOnFailure
 
   const expiresAtMs = Number(session.expires_at || 0) * 1000;
   const expiredSoon = !expiresAtMs || expiresAtMs - now <= SESSION_REFRESH_MARGIN_MS;
-  const idleTooLong = Boolean(lastSessionCheckAt) && now - lastSessionCheckAt >= SESSION_IDLE_FORCE_REFRESH_MS;
   const shouldRefresh = force
-    || expiredSoon
-    || idleTooLong;
+    || expiredSoon;
   if (!shouldRefresh) {
     lastSessionCheckAt = now;
     return session;

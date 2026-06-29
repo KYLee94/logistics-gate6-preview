@@ -27,7 +27,7 @@ const routeFallbacks = [
   'data-management/investment-data',
   'data-management/lease-contracts',
   'data-management/managers',
-  'data-management/market-data',
+  'data-management/data-quality',
   'contract-data',
   'pdf-report',
 ];

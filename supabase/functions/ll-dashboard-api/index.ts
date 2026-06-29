@@ -521,6 +521,35 @@ function bootstrapPermissionForEmail(email: unknown) {
   };
 }
 
+function mergeBootstrapPermission(row: Record<string, unknown> | null, email: unknown) {
+  const bootstrap = bootstrapPermissionForEmail(email) as Record<string, unknown> | null;
+  if (!bootstrap) return row;
+  if (!row) return bootstrap;
+  const rowRole = safeText(row.logistics_role);
+  const bootstrapRole = safeText(bootstrap.logistics_role);
+  const mergedFeaturePermissions = {
+    ...((row.feature_permissions && typeof row.feature_permissions === 'object') ? row.feature_permissions as Record<string, unknown> : {}),
+    ...((bootstrap.feature_permissions && typeof bootstrap.feature_permissions === 'object') ? bootstrap.feature_permissions as Record<string, unknown> : {}),
+  };
+  return {
+    ...row,
+    email: normalizeAuthEmail(firstDefined(row.email, bootstrap.email, email)),
+    staff_name: firstDefined(row.staff_name, bootstrap.staff_name),
+    organization: firstDefined(row.organization, bootstrap.organization),
+    logistics_role: roleRank(rowRole) >= roleRank(bootstrapRole) ? rowRole : bootstrapRole,
+    managed_asset_codes: [],
+    managed_asset_permissions: bootstrap.managed_asset_permissions,
+    other_asset_permissions: bootstrap.other_asset_permissions,
+    can_ingest_weekly: true,
+    account_status: 'active',
+    feature_permissions: mergedFeaturePermissions,
+    profile_payload: {
+      ...((row.profile_payload && typeof row.profile_payload === 'object') ? row.profile_payload as Record<string, unknown> : {}),
+      bootstrap_merge: true,
+    },
+  };
+}
+
 function allowedOrigins() {
   return [
     ...DEFAULT_ALLOWED_ORIGINS,
@@ -812,7 +841,7 @@ async function getContext(request: Request, origin: string): Promise<Context> {
     }
   }
 
-  const permissionFallback = permission || bootstrapPermissionForEmail(userData.user.email);
+  const permissionFallback = mergeBootstrapPermission(permission || null, userData.user.email);
   const role = permissionFallback?.logistics_role || 'Reader';
   return { serviceClient, user: { id: userData.user.id, email: userData.user.email || null }, permission: permissionFallback || null, role, origin };
 }
@@ -5869,8 +5898,6 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
 };
 const DATA_MANAGEMENT_WORKSPACES = [
   { key: 'igis', label: '이지스 Data', description: '자산·펀드 묶음을 기준으로 임대차, 금융, 스펙, 운영비용을 수정 요청합니다.' },
-  { key: 'market', label: '시장 Data', description: '원천 Excel 시트 흐름에 맞춰 임대시장, 공급, 거래, Cap Rate, 뉴스를 검토합니다.' },
-  { key: 'operations', label: '시스템·운영 Data', description: '권한, 승인, 감사, 캐시, 로그인 이력을 이력 확인 중심으로 확인합니다.' },
 ];
 const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
   {
@@ -5932,6 +5959,16 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     description: '임차 구역 단위의 현재 계약 상태를 확인합니다.',
   },
   {
+    view_key: 'asset_integrated',
+    workspace_key: 'igis',
+    domain_key: 'asset_spec',
+    label: '자산 데이터 전체',
+    grain: '자산 1건',
+    row_unit: 'asset_integrated_row',
+    row_unit_label: '자산',
+    description: '자산 기본정보, 펀드 연결, 스펙, 최신 운영비용을 한 화면에서 확인합니다.',
+  },
+  {
     view_key: 'asset_master',
     workspace_key: 'igis',
     domain_key: 'asset_spec',
@@ -5943,6 +5980,16 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     fallback_table_key: 'assets',
   },
   {
+    view_key: 'investment_integrated',
+    workspace_key: 'igis',
+    domain_key: 'fund',
+    label: '투자 데이터 전체',
+    grain: '자산-펀드 연결 1건',
+    row_unit: 'investment_integrated_row',
+    row_unit_label: '자산-펀드',
+    description: '펀드, 자산 연결, Equity/Loan, tranche, 투자자/대주, 금리, 만기를 한 화면에서 확인합니다.',
+  },
+  {
     view_key: 'fund_master',
     workspace_key: 'igis',
     domain_key: 'fund',
@@ -5952,6 +5999,28 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     row_unit_label: '펀드',
     description: '이지스자산운용 관리 펀드의 명칭, 만기, 전략, 비고 값을 확인하고 수정 요청합니다.',
     fallback_table_key: 'funds',
+  },
+  {
+    view_key: 'fund_asset_links',
+    workspace_key: 'igis',
+    domain_key: 'fund',
+    label: '자산-펀드 연결',
+    grain: '자산-펀드 연결 1건',
+    row_unit: 'fund_asset_link_row',
+    row_unit_label: '자산-펀드 연결',
+    description: '자산과 펀드의 연결 관계를 확인합니다.',
+    fallback_table_key: 'fund_asset_links',
+  },
+  {
+    view_key: 'fund_capital_tranches',
+    workspace_key: 'igis',
+    domain_key: 'fund',
+    label: 'Equity/Loan 구조',
+    grain: 'tranche 1건',
+    row_unit: 'fund_capital_tranche_row',
+    row_unit_label: 'tranche',
+    description: 'Equity/Loan, tranche, 투자자·대주, 금리, 만기 정보를 확인합니다.',
+    fallback_table_key: 'fund_capital_tranches',
   },
   {
     view_key: 'tenant_master',
@@ -5976,6 +6045,17 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     fallback_table_key: 'lease_attributes',
   },
   {
+    view_key: 'lease_space_specs',
+    workspace_key: 'igis',
+    domain_key: 'lease',
+    label: '임대공간 요구 스펙',
+    grain: '임대공간 요구 조건 1건',
+    row_unit: 'lease_space_spec_row',
+    row_unit_label: '요구 스펙',
+    description: '하중, 도크, 층고, 전력, 램프, 조명 등 임대공간별 요구 조건을 확인합니다.',
+    fallback_table_key: 'lease_attributes',
+  },
+  {
     view_key: 'asset_specs',
     workspace_key: 'igis',
     domain_key: 'asset_spec',
@@ -5996,6 +6076,17 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     row_unit_label: '운영비용',
     description: 'PM/FM/보험료/Utility 등 자산별 운영비용 값을 확인하고 수정 요청합니다.',
     fallback_table_key: 'asset_operating_costs',
+  },
+  {
+    view_key: 'data_quality_findings',
+    workspace_key: 'igis',
+    domain_key: 'data_quality',
+    label: '데이터 품질',
+    grain: '품질 지적 1건',
+    row_unit: 'data_quality_finding_row',
+    row_unit_label: '품질 지적',
+    description: '누락, 불일치, 검증 필요 항목을 확인합니다.',
+    fallback_table_key: 'data_quality_findings',
   },
   {
     view_key: 'market_lease_observations',
@@ -6038,6 +6129,13 @@ const DATA_MANAGEMENT_VIEW_DEFINITIONS = [
     fallback_table_key: 'edit_requests',
   },
 ];
+const DATA_MANAGEMENT_VISIBLE_VIEW_KEYS = new Set([
+  'asset_integrated',
+  'investment_integrated',
+  'lease_general_excel',
+  'lease_asset_manager_links',
+  'data_quality_findings',
+]);
 const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
   { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 180 },
@@ -6066,8 +6164,10 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'extension_count', label: '연장횟수', group: '계약 일정', type: 'number', editable: true, target_table: 'public.ll_leases', target_field: 'extension_count', width: 100, default_hidden: true },
   { field_key: 'current_monthly_rent_total', label: '월 임대료', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_rent_total', width: 140 },
   { field_key: 'current_monthly_mf_total', label: '월 관리비', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_mf_total', width: 140 },
-  { field_key: 'current_monthly_cost_total', label: '월 임관비', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_cost_total', width: 140, default_hidden: true },
+  { field_key: 'current_monthly_cost_total', label: '월 임관리비', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_cost_total', width: 140, default_hidden: true },
   { field_key: 'e_noc', label: 'E. NOC', group: '임대료·관리비', type: 'krw_per_py', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'e_noc', width: 120, default_hidden: true },
+  { field_key: 'current_rent_per_py', label: '평당 월임대료', group: '임대료·관리비', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료 이력 행에서 승인 요청합니다.' },
+  { field_key: 'current_mf_per_py', label: '평당 월관리비', group: '임대료·관리비', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료 이력 행에서 승인 요청합니다.' },
   { field_key: 'deposit_amount', label: '보증금', group: '보증금·렌트프리·인상', type: 'krw', editable: true, target_table: 'public.ll_leases', target_field: 'deposit_amount', width: 130 },
   { field_key: 'rf_months', label: 'RF', group: '보증금·렌트프리·인상', type: 'months', editable: true, target_table: 'public.ll_leases', target_field: 'rf_months', width: 90 },
   { field_key: 'fo_months', label: 'FO', group: '보증금·렌트프리·인상', type: 'months', editable: true, target_table: 'public.ll_leases', target_field: 'fo_months', width: 90 },
@@ -6080,6 +6180,9 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'early_termination_right', label: '중도해지권', group: '보험·권리', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'early_termination_right', width: 140, default_hidden: true },
   { field_key: 'renewal_option', label: '갱신 옵션', group: '보험·권리', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'renewal_option', width: 140, default_hidden: true },
   { field_key: 'special_terms', label: '특수 계약 조건', group: '특약·상태', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'special_terms', width: 240, default_hidden: true },
+  { field_key: 'required_specs_summary', label: '요구 스펙', group: '요구 스펙', type: 'text', editable: false, width: 260, read_only_reason: '요구 스펙 상세 속성은 속성별 승인 요청으로 관리합니다.' },
+  { field_key: 'lease_special_summary', label: '특약 상세', group: '특약·상태', type: 'text', editable: false, width: 260, read_only_reason: '특약 상세 속성은 속성별 승인 요청으로 관리합니다.' },
+  { field_key: 'tenant_info_summary', label: '임차인 정보', group: '임차인 정보', type: 'text', editable: false, width: 240, read_only_reason: '임차인 정보는 임차인 기준 lookup 값입니다.' },
   { field_key: 'review_status', label: '검토 상태', group: '특약·상태', type: 'text', editable: false, width: 120 },
   { field_key: 'review_note', label: '검토 메모', group: '특약·상태', type: 'text', editable: false, width: 180, default_hidden: true },
 ];
@@ -6102,6 +6205,42 @@ const DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS = [
   { field_key: 'is_latest', label: '최신 여부', group: '검토상태', type: 'text', editable: false, width: 100 },
   { field_key: 'review_status', label: '검토 상태', group: '검토상태', type: 'text', editable: false, width: 120 },
 ];
+const DATA_MANAGEMENT_LEASE_SPACE_SPEC_BASE_FIELDS = [
+  { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
+  { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 180 },
+  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 170 },
+  { field_key: 'space_label', label: '임대구역', group: '임대공간', type: 'text', editable: false, width: 160 },
+  { field_key: 'floor_label', label: '층/세부구역', group: '임대공간', type: 'text', editable: false, width: 130 },
+  { field_key: 'temperature_type', label: '상/저온', group: '임대공간', type: 'text', editable: false, width: 100 },
+  { field_key: 'leased_area_sqm', label: '임대면적', group: '임대공간', type: 'area_sqm', editable: false, width: 130 },
+  { field_key: 'exclusive_ratio', label: '전용률', group: '임대공간', type: 'percent', editable: false, width: 100 },
+];
+const DATA_MANAGEMENT_LEASE_SPECIAL_STATUS_VIEW_FIELDS = [
+  { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
+  { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 180 },
+  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 170 },
+  { field_key: 'space_label', label: '임대구역', group: '임대공간', type: 'text', editable: false, width: 160 },
+  { field_key: 'contract_status', label: '계약상태', group: '계약상태', type: 'text', editable: false, width: 120 },
+  { field_key: 'current_start_date', label: '현재 계약개시일', group: '계약기간', type: 'date', editable: false, width: 140 },
+  { field_key: 'current_end_date', label: '현재 계약만기일', group: '계약기간', type: 'date', editable: false, width: 140 },
+  { field_key: 'tenant_cost_burden', label: '임차인 부담 비용', group: '보험·권리', type: 'text', editable: false, width: 180 },
+  { field_key: 'early_termination_right', label: '중도해지권', group: '보험·권리', type: 'text', editable: false, width: 140 },
+  { field_key: 'renewal_option', label: '갱신 옵션', group: '보험·권리', type: 'text', editable: false, width: 140 },
+  { field_key: 'special_terms', label: '특수 계약 조건', group: '특약', type: 'text', editable: false, width: 240 },
+  { field_key: 'review_status', label: '검토상태', group: '검토', type: 'text', editable: false, width: 120 },
+  { field_key: 'review_note', label: '검토 메모', group: '검토', type: 'text', editable: false, width: 220 },
+];
+const DATA_MANAGEMENT_TENANT_MASTER_VIEW_FIELDS = [
+  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 200 },
+  { field_key: 'business_registration_no', label: '사업자번호', group: '기본정보', type: 'text', editable: false, width: 150 },
+  { field_key: 'company_name', label: '회사명', group: '기본정보', type: 'text', editable: false, width: 180 },
+  { field_key: 'display_name', label: '표시명', group: '기본정보', type: 'text', editable: false, width: 160 },
+  { field_key: 'related_assets', label: '관련 자산', group: '연결 현황', type: 'text', editable: false, width: 320 },
+  { field_key: 'contract_count', label: '계약 수', group: '연결 현황', type: 'number', editable: false, width: 100 },
+  { field_key: 'active_contract_count', label: '현재 계약 수', group: '연결 현황', type: 'number', editable: false, width: 120 },
+  { field_key: 'latest_contract_end_date', label: '최근 계약만기일', group: '계약기간', type: 'date', editable: false, width: 140 },
+  { field_key: 'review_status', label: '검토상태', group: '검토', type: 'text', editable: false, width: 120 },
+];
 const DATA_MANAGEMENT_MANAGER_LINK_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '관리 대상', type: 'text', editable: false, sticky: true, width: 220 },
   { field_key: 'fund_name', label: '펀드명', group: '관리 대상', type: 'text', editable: false, sticky: true, width: 190 },
@@ -6109,20 +6248,64 @@ const DATA_MANAGEMENT_MANAGER_LINK_VIEW_FIELDS = [
   { field_key: 'fund_code', label: '펀드코드', group: '관리 대상', type: 'text', editable: false, width: 130 },
   { field_key: 'manager_name', label: '이지스 담당자', group: '담당자', type: 'text', editable: false, width: 160 },
   { field_key: 'manager_email', label: '담당자 이메일', group: '담당자', type: 'text', editable: false, width: 220 },
-  { field_key: 'relationship', label: '연결 구분', group: '담당 범위', type: 'text', editable: false, width: 120 },
-  { field_key: 'exception_group', label: '예외 구분', group: '담당 범위', type: 'text', editable: false, width: 140 },
 ];
-const DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS = new Set(['lease_general_excel', 'lease_contracts', 'lease_rent_history_excel', 'lease_asset_manager_links']);
+const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS = [
+  { field_key: 'asset_name', label: '자산명', group: '자산 기본정보', type: 'text', editable: false, sticky: true, width: 220 },
+  { field_key: 'fund_names', label: '연결 펀드', group: '자산 기본정보', type: 'text', editable: false, sticky: true, width: 240 },
+  { field_key: 'address', label: '주소', group: '자산 기본정보', type: 'text', editable: false, width: 260 },
+  { field_key: 'current_manager_name', label: '담당자', group: '담당자', type: 'text', editable: false, width: 140 },
+  { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', editable: false, width: 130 },
+  { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', editable: false, width: 130 },
+  { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: false, width: 130 },
+  { field_key: 'exclusive_ratio', label: '전용률', group: '면적', type: 'percent', editable: false, width: 110 },
+  { field_key: 'spec_summary', label: '주요 스펙', group: '자산 스펙', type: 'text', editable: false, width: 320 },
+  { field_key: 'operating_cost_period', label: '운영비용 기준', group: '운영비용', type: 'text', editable: false, width: 140 },
+  { field_key: 'pm_cost_krw', label: 'PM 비용', group: '운영비용', type: 'krw', editable: false, width: 130 },
+  { field_key: 'fm_cost_krw', label: 'FM 비용', group: '운영비용', type: 'krw', editable: false, width: 130 },
+  { field_key: 'insurance_cost_krw', label: '보험료', group: '운영비용', type: 'krw', editable: false, width: 130 },
+  { field_key: 'utility_cost_krw', label: 'Utility', group: '운영비용', type: 'krw', editable: false, width: 130 },
+  { field_key: 'operating_cost_total_krw', label: '운영비용 합계', group: '운영비용', type: 'krw', editable: false, width: 140 },
+];
+const DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS = [
+  { field_key: 'asset_name', label: '자산명', group: '자산·펀드', type: 'text', editable: false, sticky: true, width: 220 },
+  { field_key: 'fund_name', label: '펀드명', group: '자산·펀드', type: 'text', editable: false, sticky: true, width: 240 },
+  { field_key: 'fund_code', label: '펀드코드', group: '자산·펀드', type: 'text', editable: false, width: 130 },
+  { field_key: 'asset_manager_name', label: '담당자', group: '담당자', type: 'text', editable: false, width: 140 },
+  { field_key: 'equity_amount_krw', label: 'Equity', group: '투자 구조', type: 'krw', editable: false, width: 140 },
+  { field_key: 'loan_amount_krw', label: 'Loan', group: '투자 구조', type: 'krw', editable: false, width: 140 },
+  { field_key: 'total_capital_krw', label: '합계', group: '투자 구조', type: 'krw', editable: false, width: 140 },
+  { field_key: 'equity_parties', label: '수익자', group: '투자자·대주', type: 'text', editable: false, width: 260 },
+  { field_key: 'loan_lenders', label: '대주', group: '투자자·대주', type: 'text', editable: false, width: 260 },
+  { field_key: 'tranche_summary', label: 'Tranche', group: 'Tranche', type: 'text', editable: false, width: 320 },
+  { field_key: 'weighted_loan_rate', label: '가중평균 금리', group: '금리·만기', type: 'percent', editable: false, width: 140 },
+  { field_key: 'nearest_maturity_date', label: '최근 만기', group: '금리·만기', type: 'date', editable: false, width: 130 },
+  { field_key: 'maturity_summary', label: '만기 요약', group: '금리·만기', type: 'text', editable: false, width: 260 },
+];
+const DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS = new Set(['lease_general_excel', 'lease_contracts', 'lease_rent_history_excel', 'lease_asset_manager_links', 'tenant_master', 'lease_attributes', 'lease_space_specs']);
+const DATA_MANAGEMENT_QUALITY_VIEW_FIELDS = [
+  { field_key: 'domain_label', label: '업무 영역', group: '기본정보', type: 'text', sticky: true, width: 160, editable: false },
+  { field_key: 'check_item', label: '점검 항목', group: '기본정보', type: 'text', sticky: true, width: 220, editable: false },
+  { field_key: 'status_label', label: '상태', group: '검증 결과', type: 'text', width: 110, editable: false },
+  { field_key: 'issue_count', label: '확인 필요', group: '검증 결과', type: 'number', width: 110, editable: false },
+  { field_key: 'source_count', label: '현재 건수', group: '검증 기준', type: 'number', width: 120, editable: false },
+  { field_key: 'expected_count', label: '기준 건수', group: '검증 기준', type: 'number', width: 120, editable: false },
+  { field_key: 'readback_at', label: '확인 시각', group: '검증 기준', type: 'date', width: 140, editable: false },
+  { field_key: 'owner_label', label: '담당', group: '운영', type: 'text', width: 140, editable: false },
+  { field_key: 'note', label: '확인 내용', group: '운영', type: 'text', width: 320, editable: false },
+];
 const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_assets: 'asset_id',
   ll_asset_managers: 'asset_manager_id',
   ll_tenants: 'tenant_id',
   ll_leases: 'lease_id',
   ll_lease_spaces: 'lease_space_id',
-  ll_lease_attributes: 'attribute_id',
+  ll_lease_attributes: 'id',
   ll_rent_history: 'rent_history_id',
   ll_funds: 'fund_id',
+  ll_fund_asset_links: 'id',
+  ll_fund_capital_tranches: 'id',
   ll_source_files: 'source_file_id',
+  ll_source_cells: 'source_cell_id',
   ll_source_sheets: 'source_sheet_id',
   ll_source_columns: 'source_column_id',
   ll_source_rows: 'source_row_id',
@@ -6145,6 +6328,9 @@ const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_market_chunks: 'chunk_id',
   ll_market_facts: 'fact_id',
   ll_market_deprecation_backups: 'backup_id',
+  ll_payload_snapshots: 'snapshot_key',
+  ll_staff_profiles: 'staff_id',
+  ll_user_permissions: 'user_id',
   ll_schema_metadata: 'metadata_id',
   ll_login_history: 'id',
   ll_data_quality_findings: 'finding_id',
@@ -6558,6 +6744,27 @@ function dataManagementFieldLabel(fieldName: unknown) {
     fund_id: '펀드 ID',
     fund_code: '펀드코드',
     fund_name: '펀드명',
+    link_type: '연결 유형',
+    tranche_type: 'Equity/Loan',
+    tranche: 'Tranche',
+    party_name: '투자자/대주',
+    beneficiary_name: '수익자',
+    lender_name: '대주',
+    committed_amount_krw: '약정금액',
+    drawdown_date: '실행일',
+    maturity_date: '만기일',
+    loan_period: '대출기간',
+    loan_type: '대출유형',
+    interest_type: '금리유형',
+    base_rate: '기준금리',
+    spread_rate: '가산금리',
+    loan_rate: '대출금리',
+    interest_rate: '금리',
+    all_in_rate: 'All-in 금리',
+    fee: '수수료',
+    fee_rate: '수수료율',
+    display_order: '표시 순서',
+    is_active: '활성 여부',
     display_name: '표시명',
     short_name: '약칭',
     tenant_id: '임차인 ID',
@@ -6924,6 +7131,22 @@ function missingColumnFromPostgrestError(error: unknown) {
   ).replace(/^["`]|["`]$/gu, '');
 }
 
+function dataManagementErrorMessage(error: unknown) {
+  const message = safeText((error as Record<string, unknown> | null)?.message);
+  if (message) return message;
+  const details = safeText((error as Record<string, unknown> | null)?.details);
+  const hint = safeText((error as Record<string, unknown> | null)?.hint);
+  const code = safeText((error as Record<string, unknown> | null)?.code);
+  const joined = [code, details, hint].filter(Boolean).join(' · ');
+  if (joined) return joined;
+  try {
+    const serialized = JSON.stringify(error);
+    return serialized && serialized !== '{}' ? serialized : String(error);
+  } catch (_) {
+    return String(error);
+  }
+}
+
 function dataManagementCanReadTable(ctx: Context, table: Record<string, unknown>, managerView: boolean) {
   if (managerView) return true;
   const spaceKey = safeText(table.space_key);
@@ -6938,15 +7161,23 @@ async function countPublicLlTableRows(ctx: Context, tableName: string) {
   if (!/^ll_[a-zA-Z0-9_]+$/u.test(normalized)) {
     return { table_name: normalized, exists: false, row_count: 0, error: 'invalid_table_name' };
   }
-  const { count, error } = await ctx.serviceClient
+  const primaryKey = dataManagementPrimaryKeyForTable(normalized);
+  let { count, error } = await ctx.serviceClient
     .from(normalized)
-    .select('*', { count: 'exact', head: true });
+    .select(primaryKey, { count: 'exact', head: true });
+  if (error && missingColumnFromPostgrestError(error)) {
+    const fallback = await ctx.serviceClient
+      .from(normalized)
+      .select('*', { count: 'exact', head: true });
+    count = fallback.count;
+    error = fallback.error;
+  }
   if (error) {
     return {
       table_name: normalized,
       exists: false,
       row_count: 0,
-      error: isMissingRelationError(error) ? 'missing_relation' : safeText(error.message || error),
+      error: isMissingRelationError(error) ? 'missing_relation' : dataManagementErrorMessage(error),
     };
   }
   return { table_name: normalized, exists: true, row_count: Number(count || 0), error: '' };
@@ -7008,19 +7239,27 @@ function dataManagementPublicViewField(field: Record<string, unknown>) {
 
 function dataManagementFieldsForViewKey(viewKey: unknown) {
   const key = safeText(viewKey);
+  if (key === 'asset_integrated') return DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS;
+  if (key === 'investment_integrated') return DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS;
   if (key === 'lease_rent_history_excel') return DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS;
   if (key === 'lease_asset_manager_links') return DATA_MANAGEMENT_MANAGER_LINK_VIEW_FIELDS;
+  if (key === 'tenant_master') return DATA_MANAGEMENT_TENANT_MASTER_VIEW_FIELDS;
+  if (key === 'lease_space_specs') return DATA_MANAGEMENT_LEASE_SPACE_SPEC_BASE_FIELDS;
+  if (key === 'lease_attributes') return DATA_MANAGEMENT_LEASE_SPECIAL_STATUS_VIEW_FIELDS;
+  if (key === 'data_quality_findings') return DATA_MANAGEMENT_QUALITY_VIEW_FIELDS;
   return DATA_MANAGEMENT_LEASE_VIEW_FIELDS;
 }
 
 function dataManagementViewDefinitions() {
-  return DATA_MANAGEMENT_VIEW_DEFINITIONS.map((view) => {
+  return DATA_MANAGEMENT_VIEW_DEFINITIONS.filter((view) => DATA_MANAGEMENT_VISIBLE_VIEW_KEYS.has(safeText(view.view_key))).map((view) => {
     const { fallback_table_key: _fallbackTableKey, ...publicView } = view as Record<string, unknown>;
     const viewKey = safeText(view.view_key);
     return stripUndefined({
       ...publicView,
-      fields: DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)
+      fields: (viewKey === 'asset_integrated' || viewKey === 'investment_integrated' || DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey))
         ? dataManagementFieldsForViewKey(viewKey).map((field) => dataManagementPublicViewField(field as Record<string, unknown>))
+        : viewKey === 'data_quality_findings'
+          ? dataManagementFieldsForViewKey(viewKey).map((field) => dataManagementPublicViewField(field as Record<string, unknown>))
         : [],
     });
   });
@@ -7028,6 +7267,7 @@ function dataManagementViewDefinitions() {
 
 function dataManagementViewByKey(viewKey: unknown) {
   const key = safeText(viewKey || 'lease_general_excel');
+  if (!DATA_MANAGEMENT_VISIBLE_VIEW_KEYS.has(key)) return undefined;
   return DATA_MANAGEMENT_VIEW_DEFINITIONS.find((view) => safeText(view.view_key) === key);
 }
 
@@ -7493,8 +7733,44 @@ function dataManagementFallbackFormatValue(value: unknown, field: Record<string,
   return dataManagementFormatViewValue(value, field);
 }
 
-async function dataManagementFallbackTableViewRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, view: Record<string, unknown>) {
+async function dataManagementFallbackTableViewRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, view: Record<string, unknown>, options: { includeInternalMeta?: boolean } = {}) {
   const viewKey = safeText(view.view_key);
+  const includeInternalMeta = options.includeInternalMeta === true;
+  if (false && viewKey === 'data_quality_findings') {
+    try {
+      const result = await dataManagementQualityFindingRows(ctx, payload, scope, viewKey);
+      const fields = (result.fields || []).map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
+      const { fallback_table_key: _fallbackTableKey, ...publicView } = view as Record<string, unknown>;
+      return jsonResponse({ ok: true, data: {
+        generated_at: new Date().toISOString(),
+        view: {
+          ...publicView,
+          fields,
+          source_status: {
+            normalized_data_present: result.total > 0,
+            raw_source_present: false,
+            note: '운영 데이터 기준 품질 점검 결과입니다.',
+          },
+        },
+        fields,
+        rows: result.rows,
+        empty_state: result.total > 0 ? undefined : {
+          code: 'data_quality_readback_empty',
+          title: '표시할 데이터 품질 점검 결과가 없습니다.',
+          description: '운영 데이터 범위와 권한을 다시 확인해 주세요.',
+        },
+        pagination: {
+          page: result.page,
+          page_size: result.pageSize,
+          returned: result.rows.length,
+          total_estimate: result.total,
+          has_next: (result.page * result.pageSize) < result.total,
+        },
+      } }, 200, ctx.origin);
+    } catch (error) {
+      return fail(500, 'Data Management 데이터 품질 View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
   const tableName = dataManagementFallbackTableNameForView(view);
   if (!tableName) throw new Error('Data Management fallback table is not configured.');
   const primaryKey = dataManagementPrimaryKeyForTable(tableName);
@@ -7550,13 +7826,15 @@ async function dataManagementFallbackTableViewRows(ctx: Context, payload: Record
       revision_hash: await dataManagementRevisionHash(row),
       meta: {
         row_unit: primaryKey,
+        capability: dataManagementCapabilityForTable(tableName),
+        read_only_reason: readOnlyReason || undefined,
+      },
+      internal_meta: includeInternalMeta ? {
         table_name: tableName,
         target_table: `public.${tableName}`,
         primary_key_field: primaryKey,
         target_row_id: primaryKeyValue,
-        capability: dataManagementCapabilityForTable(tableName),
-        read_only_reason: readOnlyReason || undefined,
-      },
+      } : undefined,
     });
   }));
   return {
@@ -7576,14 +7854,18 @@ async function dataManagementResolveFallbackViewEdit(ctx: Context, payload: Reco
   const fieldKey = safeText(payload.field_key || payload.fieldKey || payload.field_name || payload.fieldName);
   const tableName = dataManagementFallbackTableNameForView(view);
   if (!rowKey || !fieldKey || !tableName) throw new Error('수정할 행과 필드를 선택해 주세요.');
-  const result = await dataManagementFallbackTableViewRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, view);
+  const result = await dataManagementFallbackTableViewRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, view, { includeInternalMeta: true });
   const field = (result.fields as Record<string, unknown>[]).find((item) => safeText(item.field_key || item.field) === fieldKey);
   if (!field) throw new Error('업무 View 필드를 찾을 수 없습니다.');
   if (field.editable !== true) throw new Error('이 필드는 Data Management에서 직접 수정 요청할 수 없습니다.');
   const row = (result.rows as Record<string, unknown>[]).find((item) => safeText(item.row_key) === rowKey);
   if (!row) throw new Error('선택한 행을 찾을 수 없습니다. 데이터를 다시 읽어 주세요.');
   if (row.editable === false) throw new Error(safeText(row.read_only_reason || (row.meta as Record<string, unknown> | undefined)?.read_only_reason || '이 행은 읽기 전용입니다.'));
-  const meta = row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {};
+  const meta = row.internal_meta && typeof row.internal_meta === 'object'
+    ? row.internal_meta as Record<string, unknown>
+    : row.meta && typeof row.meta === 'object'
+      ? row.meta as Record<string, unknown>
+      : {};
   const requestedValue = dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue), field);
   return {
     table_payload: {
@@ -7605,6 +7887,137 @@ async function dataManagementResolveFallbackViewEdit(ctx: Context, payload: Reco
     },
     row,
     field,
+  };
+}
+
+async function dataManagementQualityFindingRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKey = 'data_quality_findings') {
+  const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
+  const pageSize = Math.min(Math.max(requestedPageSize || 80, 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  const readbackAt = new Date().toISOString();
+  const fields = DATA_MANAGEMENT_QUALITY_VIEW_FIELDS;
+  const counts = await Promise.all([
+    countPublicLlTableRows(ctx, 'll_assets'),
+    countPublicLlTableRows(ctx, 'll_funds'),
+    countPublicLlTableRows(ctx, 'll_fund_asset_links'),
+    countPublicLlTableRows(ctx, 'll_leases'),
+    countPublicLlTableRows(ctx, 'll_lease_spaces'),
+    countPublicLlTableRows(ctx, 'll_rent_history'),
+    countPublicLlTableRows(ctx, 'll_lease_attributes'),
+    countPublicLlTableRows(ctx, 'll_tenants'),
+    countPublicLlTableRows(ctx, 'll_asset_specs'),
+    countPublicLlTableRows(ctx, 'll_asset_operating_costs'),
+    countPublicLlTableRows(ctx, 'll_fund_capital_tranches'),
+  ]);
+  const countByTable = new Map(counts.map((item) => [safeText(item.table_name), item]));
+  const rowCount = (tableName: string) => Number((countByTable.get(tableName) || {}).row_count || 0);
+  const tableExists = (tableName: string) => (countByTable.get(tableName) || {}).exists === true;
+  const rowsSource: Record<string, unknown>[] = [
+    {
+      domain_label: '자산 데이터',
+      check_item: '19개 자산 범위',
+      status_label: rowCount('ll_assets') === DATA_MANAGEMENT_EXPECTED_ASSET_COUNT ? '정상' : '확인 필요',
+      issue_count: Math.abs(DATA_MANAGEMENT_EXPECTED_ASSET_COUNT - rowCount('ll_assets')),
+      source_count: rowCount('ll_assets'),
+      expected_count: DATA_MANAGEMENT_EXPECTED_ASSET_COUNT,
+      readback_at: readbackAt,
+      owner_label: 'Data/API',
+      note: '자산 데이터 기본 범위가 운영 데이터 기준과 맞는지 확인합니다.',
+    },
+    {
+      domain_label: '투자 데이터',
+      check_item: '17개 펀드 및 자산-펀드 연결',
+      status_label: rowCount('ll_funds') === DATA_MANAGEMENT_EXPECTED_FUND_COUNT && rowCount('ll_fund_asset_links') >= DATA_MANAGEMENT_EXPECTED_ASSET_COUNT ? '정상' : '확인 필요',
+      issue_count: Math.abs(DATA_MANAGEMENT_EXPECTED_FUND_COUNT - rowCount('ll_funds')) + Math.max(0, DATA_MANAGEMENT_EXPECTED_ASSET_COUNT - rowCount('ll_fund_asset_links')),
+      source_count: rowCount('ll_funds'),
+      expected_count: DATA_MANAGEMENT_EXPECTED_FUND_COUNT,
+      readback_at: readbackAt,
+      owner_label: 'Data/API',
+      note: `자산-펀드 연결 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_fund_asset_links'))}건, tranche ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_fund_capital_tranches'))}건을 함께 확인합니다.`,
+    },
+    {
+      domain_label: '임대차계약 데이터',
+      check_item: '계약·임대공간·히스토리 연결',
+      status_label: rowCount('ll_leases') > 0 && rowCount('ll_lease_spaces') > 0 && rowCount('ll_rent_history') > 0 ? '정상' : '확인 필요',
+      issue_count: ['ll_leases', 'll_lease_spaces', 'll_rent_history'].filter((tableName) => rowCount(tableName) <= 0).length,
+      source_count: rowCount('ll_lease_spaces'),
+      expected_count: null,
+      readback_at: readbackAt,
+      owner_label: 'Data/API',
+      note: `계약 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_leases'))}건, 임대공간 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_lease_spaces'))}건, 히스토리 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_rent_history'))}건 기준입니다.`,
+    },
+    {
+      domain_label: '임대차계약 데이터',
+      check_item: '요구 스펙·특약·검증 속성',
+      status_label: rowCount('ll_lease_attributes') > 0 ? '정상' : '확인 필요',
+      issue_count: rowCount('ll_lease_attributes') > 0 ? 0 : 1,
+      source_count: rowCount('ll_lease_attributes'),
+      expected_count: null,
+      readback_at: readbackAt,
+      owner_label: 'Data/API',
+      note: '요구 스펙, 특약, 보험·권리 등 임대차 부속 속성의 적재 여부를 확인합니다.',
+    },
+    {
+      domain_label: '자산 데이터',
+      check_item: '자산 스펙·운영비용 연결',
+      status_label: tableExists('ll_asset_specs') || tableExists('ll_asset_operating_costs') ? '정상' : '확인 필요',
+      issue_count: (tableExists('ll_asset_specs') || tableExists('ll_asset_operating_costs')) ? 0 : 1,
+      source_count: rowCount('ll_asset_specs') + rowCount('ll_asset_operating_costs'),
+      expected_count: null,
+      readback_at: readbackAt,
+      owner_label: 'Data/API',
+      note: `자산 스펙 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_asset_specs'))}건, 운영비용 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_asset_operating_costs'))}건입니다.`,
+    },
+    {
+      domain_label: '담당자 데이터',
+      check_item: '권한 범위와 화면 노출 필드',
+      status_label: scope.readableAssets.length > 0 ? '정상' : '확인 필요',
+      issue_count: scope.readableAssets.length > 0 ? 0 : 1,
+      source_count: scope.readableAssets.length,
+      expected_count: DATA_MANAGEMENT_EXPECTED_ASSET_COUNT,
+      readback_at: readbackAt,
+      owner_label: 'Front/UI',
+      note: '화면에는 자산명, 펀드명, 담당자, 소속, 이메일처럼 업무자가 이해하는 값만 표시합니다.',
+    },
+  ];
+  const searchKey = normalizeKey(payload.search);
+  const filtered = searchKey
+    ? rowsSource.filter((row) => dataManagementRowHaystackGeneric(row).includes(searchKey))
+    : rowsSource;
+  const pagedRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const rows = await Promise.all(pagedRows.map(async (row, index) => {
+    const rawKey = `${safeText(row.domain_label)}:${safeText(row.check_item)}:${index}`;
+    const displayValues = Object.fromEntries(fields.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, dataManagementFormatViewValue(row[key], field as Record<string, unknown>)];
+    }));
+    return {
+      row_key: await dataManagementOpaqueRowKey(viewKey, rawKey),
+      row_label: [row.domain_label, row.check_item].map((item) => safeText(item)).filter(Boolean).join(' · '),
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: Object.fromEntries(fields.map((field) => {
+        const key = safeText((field as Record<string, unknown>).field_key);
+        return [key, row[key] ?? null];
+      })),
+      lookup_status: { status: row.issue_count ? 'warning' : 'ok', label: safeText(row.status_label) },
+      editable: false,
+      read_only_reason: '데이터 품질 점검 결과는 조회 전용입니다.',
+      revision_hash: await dataManagementRevisionHash(row),
+      meta: {
+        row_unit: 'quality_check',
+        capability: 'readback_only',
+      },
+    };
+  }));
+  return {
+    fields,
+    rows,
+    total: filtered.length,
+    page,
+    pageSize,
+    tableName: 'data_management_quality_readback',
+    primaryKey: 'quality_check',
   };
 }
 
@@ -7667,6 +8080,377 @@ function dataManagementHistoricRentReason(source: Record<string, unknown>) {
   return '';
 }
 
+function dataManagementPageSpec(payload: Record<string, unknown>) {
+  const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
+  const pageSize = payload.resolve_all === true
+    ? Math.min(Math.max(requestedPageSize || 5000, 1), 5000)
+    : Math.min(Math.max(requestedPageSize || 80, 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  return { page, pageSize };
+}
+
+function dataManagementAttributeColumnKey(prefix: string, row: Record<string, unknown>, index: number) {
+  const raw = safeText(firstDefined(
+    row.spec_key,
+    row.term_key,
+    row.attribute_key,
+    row.spec_label,
+    row.term_label,
+    row.attribute_label,
+    `column_${index + 1}`,
+  ));
+  const normalized = raw
+    .replace(/[^0-9A-Za-z가-힣]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 64);
+  return `${prefix}_${normalized || `column_${index + 1}`}`;
+}
+
+function dataManagementAttributeReadableValue(row: Record<string, unknown>, valuePrefix: 'spec' | 'term') {
+  const text = safeText(firstDefined(
+    valuePrefix === 'spec' ? row.spec_value : row.term_value,
+    row.value_text,
+    row.attribute_value,
+  ));
+  if (text) return text;
+  const numeric = dataManagementNumberOrNull(firstDefined(
+    valuePrefix === 'spec' ? row.spec_numeric : row.term_numeric,
+    row.value_numeric,
+  ));
+  if (numeric === null) return '';
+  const unit = safeText(firstDefined(row.unit_label, row.unit));
+  const formatted = new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 2 }).format(numeric);
+  return unit ? `${formatted}${unit}` : formatted;
+}
+
+function dataManagementPublicBundlesByAsset(scope: DataManagementScope) {
+  const bundleByAsset = new Map<string, Record<string, unknown>>();
+  dataManagementPublicBundles(scope).forEach((item) => {
+    const asset = item.asset && typeof item.asset === 'object' ? item.asset as Record<string, unknown> : {};
+    [
+      asset.asset_id,
+      asset.asset_code,
+      asset.asset_name,
+      asset.label,
+    ].map((candidate) => safeText(candidate)).filter(Boolean).forEach((key) => {
+      if (!bundleByAsset.has(key)) bundleByAsset.set(key, item as Record<string, unknown>);
+    });
+  });
+  return bundleByAsset;
+}
+
+async function dataManagementLeaseBusinessContext(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const bundleKey = safeText(payload.bundle_key || payload.bundleKey);
+  const bundle = bundleKey ? dataManagementBundleByKey(scope, bundleKey) : undefined;
+  if (bundleKey && !bundle) throw new Error('선택한 자산·펀드 묶음을 찾을 수 없습니다.');
+  const readableAssetIds = (scope.readableAssets || []).map((asset) => safeText(asset.asset_id)).filter(Boolean);
+  const spacesResult = await listLeaseSpacesForAssets(ctx, readableAssetIds);
+  if (spacesResult.errorResponse) throw new Error('임대공간 데이터를 읽지 못했습니다.');
+  let spaces = (spacesResult.rows || []).filter((row) => dataManagementRowReadable(ctx, row, true, scope));
+  if (bundle) spaces = spaces.filter((row) => dataManagementRowMatchesBundle(row, bundle));
+  const leaseIds = uniqueStrings(spaces.map((row) => safeText(row.lease_id)).filter(Boolean), 5000);
+  const tenantIds = uniqueStrings(spaces.map((row) => safeText(row.tenant_id)).filter(Boolean), 5000);
+  const leasesResult = await listLeasesByIds(ctx, leaseIds);
+  if (leasesResult.errorResponse) throw new Error('임대차 계약 데이터를 읽지 못했습니다.');
+  const tenantsResult = await listTenantsByIds(ctx, tenantIds);
+  if (tenantsResult.errorResponse) throw new Error('임차인 데이터를 읽지 못했습니다.');
+  return {
+    bundle,
+    spaces,
+    leaseById: new Map((leasesResult.rows || []).map((row) => [safeText(row.lease_id), row])),
+    tenantById: new Map((tenantsResult.rows || []).map((row) => [safeText(row.tenant_id), row])),
+    bundleByAsset: dataManagementPublicBundlesByAsset(scope),
+  };
+}
+
+function dataManagementLeaseBusinessSource(space: Record<string, unknown>, business: Record<string, unknown>) {
+  const leaseById = business.leaseById instanceof Map ? business.leaseById as Map<string, Record<string, unknown>> : new Map();
+  const tenantById = business.tenantById instanceof Map ? business.tenantById as Map<string, Record<string, unknown>> : new Map();
+  const bundleByAsset = business.bundleByAsset instanceof Map ? business.bundleByAsset as Map<string, Record<string, unknown>> : new Map();
+  const bundle = business.bundle && typeof business.bundle === 'object' ? business.bundle as Record<string, unknown> : undefined;
+  const lease = leaseById.get(safeText(space.lease_id)) || {};
+  const tenant = tenantById.get(safeText(space.tenant_id)) || {};
+  const matchedBundle = bundle
+    || bundleByAsset.get(safeText(space.asset_id))
+    || bundleByAsset.get(safeText(space.asset_code))
+    || bundleByAsset.get(safeText(space.asset_name))
+    || {};
+  const asset = matchedBundle.asset && typeof matchedBundle.asset === 'object' ? matchedBundle.asset as Record<string, unknown> : {};
+  const fund = matchedBundle.fund && typeof matchedBundle.fund === 'object' ? matchedBundle.fund as Record<string, unknown> : {};
+  return stripUndefined({
+    asset_name: firstDefined(space.asset_name, lease.asset_name, asset.label, asset.asset_name, asset.asset_code),
+    fund_name: firstDefined(fund.label, fund.display_name, fund.short_name, fund.fund_name),
+    tenant_master_name: firstDefined(space.tenant_master_name, lease.tenant_master_name, tenant.tenant_master_name, tenant.company_name),
+    business_registration_no: firstDefined(space.business_registration_no, lease.business_registration_no, tenant.business_registration_no),
+    company_name: firstDefined(tenant.company_name, tenant.corp_name),
+    display_name: firstDefined(tenant.display_name, tenant.tenant_master_name, tenant.company_name),
+    space_label: firstDefined(space.space_label, lease.space_label, [space.floor_label, space.detail_area_label].map((item) => safeText(item)).filter(Boolean).join(' / ')),
+    floor_label: space.floor_label,
+    detail_area_label: space.detail_area_label,
+    temperature_type: space.temperature_type,
+    leased_area_sqm: firstDefined(space.leased_area_sqm, lease.leased_area_sqm),
+    exclusive_area_sqm: firstDefined(space.exclusive_area_sqm, lease.exclusive_area_sqm),
+    exclusive_ratio: firstDefined(space.exclusive_ratio, lease.exclusive_ratio),
+    contract_status: firstDefined(space.contract_status, lease.lease_status, lease.contract_status),
+    current_start_date: firstDefined(lease.current_start_date, space.current_start_date),
+    current_end_date: firstDefined(lease.current_end_date, space.current_end_date),
+    tenant_cost_burden: lease.tenant_cost_burden,
+    early_termination_right: lease.early_termination_right,
+    renewal_option: lease.renewal_option,
+    special_terms: lease.special_terms,
+    review_status: firstDefined(space.review_status, lease.review_status, '검토 완료'),
+    review_note: firstDefined(space.review_note, lease.review_note),
+    _lease: lease,
+    _tenant: tenant,
+    _bundle: matchedBundle,
+  });
+}
+
+function dataManagementFinalizeBusinessRows(rows: Record<string, unknown>[], payload: Record<string, unknown>, page: number, pageSize: number) {
+  const searchKey = normalizeKey(payload.search);
+  let filtered = rows;
+  if (searchKey) {
+    filtered = rows.filter((row) => normalizeKey([
+      row.row_label,
+      JSON.stringify(row.display_values || {}),
+      (row.lookup_status as Record<string, unknown> | undefined)?.label,
+    ].join(' ')).includes(searchKey));
+  }
+  const sort = Array.isArray(payload.sort) ? payload.sort[0] as Record<string, unknown> : {};
+  const sortKey = safeText(sort?.field || sort?.field_key || sort?.key);
+  if (sortKey) {
+    const direction = safeText(sort.direction || 'asc') === 'desc' ? -1 : 1;
+    filtered = [...filtered].sort((a, b) => safeText((a.display_values as Record<string, unknown> | undefined)?.[sortKey]).localeCompare(safeText((b.display_values as Record<string, unknown> | undefined)?.[sortKey]), 'ko') * direction);
+  } else {
+    filtered = [...filtered].sort((a, b) => safeText(a.row_label).localeCompare(safeText(b.row_label), 'ko'));
+  }
+  const offset = (page - 1) * pageSize;
+  return {
+    rows: filtered.slice(offset, offset + pageSize),
+    all_rows: filtered,
+    total: filtered.length,
+    page,
+    pageSize,
+  };
+}
+
+function dataManagementLooksInternalDisplayToken(value: unknown) {
+  const raw = safeText(value);
+  if (!raw) return true;
+  const normalized = raw.trim();
+  if (!normalized) return true;
+  if (/^(?:attribute|spec|field|source|payload|row|natural|target)[_\s-]*(?:key|type|label|id|hash|payload)?$/iu.test(normalized)) return true;
+  if (/^(?:attribute|spec|field|source|payload|row|natural|target)_/iu.test(normalized)) return true;
+  if (/^(?:asset|tenant|lease|fund|source)_[a-z0-9_]+$/iu.test(normalized)) return true;
+  if (/^[a-z]{1,4}_[a-z0-9_]+$/iu.test(normalized) && !/[가-힣]/u.test(normalized)) return true;
+  if (/\b(?:ll_|source_row_id|payload|pnu|법정동코드)\b/iu.test(normalized)) return true;
+  return false;
+}
+
+function dataManagementFriendlyLabel(...candidates: unknown[]) {
+  for (const candidate of candidates) {
+    const raw = safeText(candidate);
+    if (!raw) continue;
+    const cleaned = raw.replace(/^[a-z]{1,4}[_\-.]\s*/iu, '').trim();
+    if (!cleaned || dataManagementLooksInternalDisplayToken(cleaned)) continue;
+    return cleaned;
+  }
+  return '';
+}
+
+function dataManagementFriendlySummaryValue(value: unknown) {
+  const raw = safeText(value);
+  if (!raw || raw === '-') return raw;
+  if (dataManagementLooksInternalDisplayToken(raw)) return '';
+  return raw;
+}
+
+async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKey = 'asset_integrated') {
+  const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
+  const pageSize = payload.resolve_all === true
+    ? Math.min(Math.max(requestedPageSize || 5000, 1), 5000)
+    : Math.min(Math.max(requestedPageSize || 80, 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  const bundleKey = safeText(payload.bundle_key || payload.bundleKey);
+  const bundle = bundleKey ? dataManagementBundleByKey(scope, bundleKey) : undefined;
+  if (bundleKey && !bundle) throw new Error('선택한 자산·펀드 묶음을 찾을 수 없습니다.');
+  const readableAssets = (scope.readableAssets || []).filter((asset) => !bundle || dataManagementRowMatchesBundle(asset, bundle));
+  const assetIds = uniqueStrings(readableAssets.map((asset) => safeText(asset.asset_id)).filter(Boolean), 1000);
+  const assetIdSet = new Set(assetIds);
+  const [specsResult, costsResult] = assetIds.length ? await Promise.all([
+    ctx.serviceClient.from('ll_asset_specs').select('*').in('asset_id', assetIds).limit(5000),
+    ctx.serviceClient.from('ll_asset_operating_costs').select('*').in('asset_id', assetIds).limit(5000),
+  ]) : [{ data: [], error: null }, { data: [], error: null }];
+  if (specsResult.error && !isMissingRelationError(specsResult.error)) throw new Error(specsResult.error.message);
+  if (costsResult.error && !isMissingRelationError(costsResult.error)) throw new Error(costsResult.error.message);
+  const linksByAsset = new Map<string, Record<string, unknown>[]>();
+  (scope.readableLinks || []).forEach((link) => {
+    const key = safeText(link.asset_id);
+    if (!key || (assetIdSet.size && !assetIdSet.has(key))) return;
+    linksByAsset.set(key, [...(linksByAsset.get(key) || []), link]);
+  });
+  const specsByAsset = new Map<string, Record<string, unknown>[]>();
+  ((specsResult.data || []) as Record<string, unknown>[]).forEach((spec) => {
+    const key = safeText(spec.asset_id);
+    if (!key) return;
+    specsByAsset.set(key, [...(specsByAsset.get(key) || []), spec]);
+  });
+  const latestCostByAsset = new Map<string, Record<string, unknown>>();
+  ((costsResult.data || []) as Record<string, unknown>[]).forEach((cost) => {
+    const key = safeText(cost.asset_id);
+    if (!key) return;
+    const current = latestCostByAsset.get(key);
+    const date = safeText(firstDefined(cost.basis_date, cost.period_end, cost.updated_at, cost.created_at));
+    const currentDate = safeText(firstDefined(current?.basis_date, current?.period_end, current?.updated_at, current?.created_at));
+    if (!current || date >= currentDate) latestCostByAsset.set(key, cost);
+  });
+  const summarizeSpecs = (items: Record<string, unknown>[]) => items
+    .map((item) => {
+      const label = dataManagementFriendlyLabel(item.spec_label, item.field_label, item.item_label, item.spec_key, item.field_key);
+      const value = dataManagementFriendlySummaryValue(firstDefined(item.spec_value, item.value_text, item.value_numeric, item.display_value));
+      if (!label && !value) return '';
+      return value && value !== '-' ? `${label}: ${value}` : label;
+    })
+    .filter(Boolean)
+    .join(' · ');
+  const rows = await Promise.all(readableAssets.map(async (asset) => {
+    const assetId = safeText(asset.asset_id);
+    const links = linksByAsset.get(assetId) || [];
+    const fundNames = uniqueStrings(links.map((link) => safeText(firstDefined(link.fund_name, link.fund_display_name, link.fund_code))).filter(Boolean), 10);
+    const latestCost = latestCostByAsset.get(assetId) || {};
+    const source = stripUndefined({
+      asset_name: firstDefined(asset.asset_name, asset.asset_code),
+      fund_names: fundNames.join(', '),
+      address: firstDefined(asset.address, asset.road_address, asset.jibun_address),
+      current_manager_name: asset.current_manager_name,
+      gross_floor_area_sqm: firstDefined(asset.gross_floor_area_sqm, asset.gfa_sqm),
+      land_area_sqm: firstDefined(asset.land_area_sqm, asset.site_area_sqm),
+      exclusive_area_sqm: asset.exclusive_area_sqm,
+      exclusive_ratio: asset.exclusive_ratio,
+      spec_summary: summarizeSpecs(specsByAsset.get(assetId) || []),
+      operating_cost_period: firstDefined(latestCost.basis_date, latestCost.period_label, latestCost.period_end),
+      pm_cost_krw: latestCost.pm_cost_krw,
+      fm_cost_krw: latestCost.fm_cost_krw,
+      insurance_cost_krw: latestCost.insurance_cost_krw,
+      utility_cost_krw: latestCost.utility_cost_krw,
+      operating_cost_total_krw: ['pm_cost_krw', 'fm_cost_krw', 'insurance_cost_krw', 'utility_cost_krw', 'other_cost_krw']
+        .reduce((sum, key) => sum + Number(latestCost[key] || 0), 0),
+    });
+    const displayValues = Object.fromEntries(DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS.map((field) => {
+      const publicField = field as Record<string, unknown>;
+      const key = safeText(publicField.field_key);
+      return [key, dataManagementFormatViewValue(source[key], publicField)];
+    }));
+    const editValues = Object.fromEntries(DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, source[key] ?? null];
+    }));
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, assetId || safeText(asset.asset_name)),
+      row_label: safeText(source.asset_name) || '자산',
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: { status: 'ok', label: '정상' },
+      editable: false,
+      read_only_reason: '통합 표시값입니다. 세부 수정은 연결된 원천 필드 승인 요청으로 처리합니다.',
+      revision_hash: await dataManagementRevisionHash({ asset, latestCost, specs: specsByAsset.get(assetId) || [] }),
+      meta: { row_unit: 'asset_id' },
+    });
+  }));
+  return dataManagementFinalizeBusinessRows(rows, payload, page, pageSize);
+}
+
+async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKey = 'investment_integrated') {
+  const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
+  const pageSize = payload.resolve_all === true
+    ? Math.min(Math.max(requestedPageSize || 5000, 1), 5000)
+    : Math.min(Math.max(requestedPageSize || 80, 1), 200);
+  const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
+  const bundleKey = safeText(payload.bundle_key || payload.bundleKey);
+  const bundle = bundleKey ? dataManagementBundleByKey(scope, bundleKey) : undefined;
+  if (bundleKey && !bundle) throw new Error('선택한 자산·펀드 묶음을 찾을 수 없습니다.');
+  const readableLinks = (scope.readableLinks || []).filter((link) => !bundle || dataManagementRowMatchesBundle(link, bundle));
+  const fundIds = uniqueStrings(readableLinks.map((link) => safeText(link.fund_id)).filter(Boolean), 1000);
+  const tranchesResult = fundIds.length
+    ? await ctx.serviceClient.from('ll_fund_capital_tranches').select('*').in('fund_id', fundIds).eq('is_active', true).limit(5000)
+    : { data: [], error: null };
+  if (tranchesResult.error && !isMissingRelationError(tranchesResult.error)) throw new Error(tranchesResult.error.message);
+  const tranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => hasMeaningfulInvestmentLoanData(row));
+  const trancheKind = (row: Record<string, unknown>) => safeText(row.tranche_type) === 'loan' ? 'loan' : 'equity';
+  const fundLinkCount = new Map<string, number>();
+  readableLinks.forEach((link) => {
+    const key = safeText(link.fund_id);
+    if (!key) return;
+    fundLinkCount.set(key, (fundLinkCount.get(key) || 0) + 1);
+  });
+  const tranchesForLink = (link: Record<string, unknown>) => tranches.filter((row) => {
+    const fundId = safeText(row.fund_id);
+    if (fundId !== safeText(link.fund_id)) return false;
+    const trancheAssetId = safeText(row.asset_id);
+    if (!trancheAssetId && (fundLinkCount.get(fundId) || 0) > 1) return false;
+    return !trancheAssetId || trancheAssetId === safeText(link.asset_id);
+  });
+  const partyName = (row: Record<string, unknown>) => safeText(firstDefined(row.party_name, row.counterparty_name, row.lender_name, row.beneficiary_name));
+  const amount = (row: Record<string, unknown>) => Number(firstDefined(row.committed_amount_krw, row.drawn_amount_krw, row.amount_krw) || 0);
+  const rate = (row: Record<string, unknown>) => dataManagementNumberOrNull(firstDefined(row.interest_rate, row.loan_rate, row.all_in_rate, row.spread_rate));
+  const trancheLabel = (row: Record<string, unknown>) => dataManagementFriendlyLabel(row.tranche, row.tranche_name, row.tranche_label) || (trancheKind(row) === 'loan' ? 'Loan' : 'Equity');
+  const trancheSummary = (row: Record<string, unknown>) => [
+    trancheLabel(row),
+    partyName(row),
+    formatKoreanCompactWon(amount(row)),
+    rate(row) !== null ? dataManagementFormatViewValue(rate(row), { type: 'percent' }) : '',
+    safeDateText(row.maturity_date),
+  ].filter(Boolean).join(' / ');
+  const rows = await Promise.all(readableLinks.map(async (link) => {
+    const linkTranches = tranchesForLink(link);
+    const equityRows = linkTranches.filter((row) => trancheKind(row) === 'equity');
+    const loanRows = linkTranches.filter((row) => trancheKind(row) === 'loan');
+    const equity = equityRows.reduce((sum, row) => sum + amount(row), 0);
+    const loan = loanRows.reduce((sum, row) => sum + amount(row), 0);
+    const weightedRateNumerator = loanRows.reduce((sum, row) => sum + (amount(row) * Number(rate(row) || 0)), 0);
+    const weightedRate = loan ? weightedRateNumerator / loan : null;
+    const maturityDates = loanRows.map((row) => safeDateText(row.maturity_date)).filter(Boolean).sort();
+    const source = stripUndefined({
+      asset_name: firstDefined(link.asset_name, link.asset_code),
+      fund_name: firstDefined(link.fund_name, link.fund_display_name, link.fund_code),
+      fund_code: link.fund_code,
+      asset_manager_name: firstDefined(link.current_manager_name, link.manager_name),
+      equity_amount_krw: equity,
+      loan_amount_krw: loan,
+      total_capital_krw: equity + loan,
+      equity_parties: uniqueStrings(equityRows.map(partyName).filter(Boolean), 20).join(', '),
+      loan_lenders: uniqueStrings(loanRows.map(partyName).filter(Boolean), 20).join(', '),
+      tranche_summary: linkTranches.map(trancheSummary).filter(Boolean).join(' · '),
+      weighted_loan_rate: weightedRate,
+      nearest_maturity_date: maturityDates[0] || '',
+      maturity_summary: maturityDates.join(', '),
+    });
+    const displayValues = Object.fromEntries(DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS.map((field) => {
+      const publicField = field as Record<string, unknown>;
+      const key = safeText(publicField.field_key);
+      return [key, dataManagementFormatViewValue(source[key], publicField)];
+    }));
+    const editValues = Object.fromEntries(DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, source[key] ?? null];
+    }));
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, [link.asset_id, link.fund_id, link.asset_name, link.fund_name].map((item) => safeText(item)).join('|')),
+      row_label: [source.asset_name, source.fund_name].map((item) => safeText(item)).filter(Boolean).join(' · ') || '투자 데이터',
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: { status: 'ok', label: '정상' },
+      editable: false,
+      read_only_reason: '투자 구조 통합 표시값입니다. 세부 수정은 tranche 원천 필드 승인 요청으로 처리합니다.',
+      revision_hash: await dataManagementRevisionHash({ link, tranches: linkTranches }),
+      meta: { row_unit: 'fund_asset_link' },
+    });
+  }));
+  return dataManagementFinalizeBusinessRows(rows, payload, page, pageSize);
+}
+
 async function dataManagementLeaseContractRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKeyOverride = 'lease_contracts') {
   const viewKey = safeText(viewKeyOverride || 'lease_contracts');
   const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
@@ -7688,8 +8472,45 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
   if (leasesResult.errorResponse) throw new Error('임대차 계약 데이터를 읽지 못했습니다.');
   const tenantsResult = await listTenantsByIds(ctx, tenantIds);
   if (tenantsResult.errorResponse) throw new Error('임차인 데이터를 읽지 못했습니다.');
+  const leaseSpaceIds = uniqueStrings(spaces.map((row) => safeText(row.lease_space_id)).filter(Boolean), 5000);
+  const historyResult = await listRentHistoryForAssets(ctx, readableAssetIds);
+  if (historyResult.errorResponse) throw new Error('임대료 이력 데이터를 읽지 못했습니다.');
+  const specsResult = await listLeaseSpaceSpecsForLeaseSpaces(ctx, leaseSpaceIds);
+  if (specsResult.errorResponse) throw new Error('요구 스펙 데이터를 읽지 못했습니다.');
+  const specialTermsResult = await listSpecialTermsForLeaseSpaces(ctx, leaseSpaceIds);
+  if (specialTermsResult.errorResponse) throw new Error('특약 데이터를 읽지 못했습니다.');
   const leaseById = new Map((leasesResult.rows || []).map((row) => [safeText(row.lease_id), row]));
   const tenantById = new Map((tenantsResult.rows || []).map((row) => [safeText(row.tenant_id), row]));
+  const latestHistoryBySpace = new Map<string, Record<string, unknown>>();
+  (historyResult.rows || []).forEach((row) => {
+    const key = safeText(row.lease_space_id);
+    if (!key) return;
+    const current = latestHistoryBySpace.get(key);
+    const rowDate = safeText(firstDefined(row.effective_date, row.basis_date));
+    const currentDate = safeText(firstDefined(current?.effective_date, current?.basis_date));
+    if (!current || rowDate >= currentDate) latestHistoryBySpace.set(key, row);
+  });
+  const summarizeAttributes = (items: Record<string, unknown>[]) => items
+    .map((item) => {
+      const label = dataManagementFriendlyLabel(item.attribute_label, item.spec_label, item.term_label, item.attribute_key, item.spec_key, item.field_key);
+      const value = dataManagementFriendlySummaryValue(firstDefined(item.value_text, item.spec_value, item.term_value, item.value_numeric, item.spec_numeric, item.term_numeric));
+      if (!label && !value) return '';
+      return value && value !== '-' ? `${label}: ${value}` : label;
+    })
+    .filter(Boolean)
+    .join(' · ');
+  const specsBySpace = new Map<string, Record<string, unknown>[]>();
+  (specsResult.rows || []).forEach((row) => {
+    const key = safeText(row.lease_space_id);
+    if (!key) return;
+    specsBySpace.set(key, [...(specsBySpace.get(key) || []), row]);
+  });
+  const specialTermsBySpace = new Map<string, Record<string, unknown>[]>();
+  (specialTermsResult.rows || []).forEach((row) => {
+    const key = safeText(row.lease_space_id);
+    if (!key) return;
+    specialTermsBySpace.set(key, [...(specialTermsBySpace.get(key) || []), row]);
+  });
   const publicBundles = dataManagementPublicBundles(scope);
   const bundleByAsset = new Map<string, Record<string, unknown>>();
   publicBundles.forEach((item) => {
@@ -7707,6 +8528,9 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
   const rows = await Promise.all(spaces.map(async (space) => {
     const lease = leaseById.get(safeText(space.lease_id)) || {};
     const tenant = tenantById.get(safeText(space.tenant_id)) || {};
+    const latestHistory = latestHistoryBySpace.get(safeText(space.lease_space_id)) || {};
+    const specsSummary = summarizeAttributes(specsBySpace.get(safeText(space.lease_space_id)) || []);
+    const specialSummary = summarizeAttributes(specialTermsBySpace.get(safeText(space.lease_space_id)) || []);
     const matchedBundle = bundle || bundleByAsset.get(safeText(space.asset_id)) || bundleByAsset.get(safeText(space.asset_code)) || bundleByAsset.get(safeText(space.asset_name)) || {};
     const asset = matchedBundle.asset && typeof matchedBundle.asset === 'object' ? matchedBundle.asset as Record<string, unknown> : {};
     const fund = matchedBundle.fund && typeof matchedBundle.fund === 'object' ? matchedBundle.fund as Record<string, unknown> : {};
@@ -7740,6 +8564,8 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       current_monthly_mf_total: space.current_monthly_mf_total,
       current_monthly_cost_total: space.current_monthly_cost_total,
       e_noc: space.e_noc,
+      current_rent_per_py: firstDefined(latestHistory.rent_per_py, latestHistory.rent_manwon_per_py),
+      current_mf_per_py: firstDefined(latestHistory.mf_per_py, latestHistory.management_fee_per_py),
       deposit_amount: lease.deposit_amount,
       rf_months: lease.rf_months,
       fo_months: lease.fo_months,
@@ -7752,6 +8578,9 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       early_termination_right: lease.early_termination_right,
       renewal_option: lease.renewal_option,
       special_terms: lease.special_terms,
+      required_specs_summary: specsSummary,
+      lease_special_summary: firstDefined(specialSummary, lease.special_terms),
+      tenant_info_summary: [firstDefined(tenant.display_name, tenant.tenant_master_name, tenant.company_name), tenant.business_registration_no].map((item) => safeText(item)).filter(Boolean).join(' · '),
       review_status: firstDefined(space.review_status, lease.review_status, '검토 전'),
       review_note: firstDefined(space.review_note, lease.review_note),
       exception_group: matchedBundle.exception_group,
@@ -7948,6 +8777,199 @@ async function dataManagementLeaseRentHistoryRows(ctx: Context, payload: Record<
   };
 }
 
+async function dataManagementLeaseSpaceSpecRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKeyOverride = 'lease_space_specs') {
+  const viewKey = safeText(viewKeyOverride || 'lease_space_specs');
+  const { page, pageSize } = dataManagementPageSpec(payload);
+  const business = await dataManagementLeaseBusinessContext(ctx, payload, scope);
+  const spaces = (business.spaces || []) as Record<string, unknown>[];
+  const leaseSpaceIds = uniqueStrings(spaces.map((row) => safeText(row.lease_space_id)).filter(Boolean), 5000);
+  const specsResult = await listLeaseSpaceSpecsForLeaseSpaces(ctx, leaseSpaceIds);
+  if (specsResult.errorResponse) throw new Error('임대공간 요구 스펙 데이터를 읽지 못했습니다.');
+  const specRows = (specsResult.rows || []).filter((row) => leaseSpaceIds.includes(safeText(row.lease_space_id)));
+  const dynamicFieldMap = new Map<string, Record<string, unknown>>();
+  specRows.forEach((row, index) => {
+    const fieldKey = dataManagementAttributeColumnKey('spec', row, index);
+    if (dynamicFieldMap.has(fieldKey)) return;
+    dynamicFieldMap.set(fieldKey, {
+      field_key: fieldKey,
+      label: safeText(firstDefined(row.spec_label, row.attribute_label, row.spec_key, row.attribute_key, `스펙 ${index + 1}`)),
+      group: '요구 스펙',
+      type: 'text',
+      editable: false,
+      width: 150,
+      read_only_reason: '요구 스펙은 원천 항목 검토 후 별도 승인 흐름에서 수정합니다.',
+    });
+  });
+  const fields = [
+    ...DATA_MANAGEMENT_LEASE_SPACE_SPEC_BASE_FIELDS,
+    ...Array.from(dynamicFieldMap.values()).sort((a, b) => safeText(a.label).localeCompare(safeText(b.label), 'ko')),
+  ];
+  const specsBySpace = new Map<string, Record<string, unknown>[]>();
+  specRows.forEach((row) => {
+    const key = safeText(row.lease_space_id);
+    if (!specsBySpace.has(key)) specsBySpace.set(key, []);
+    specsBySpace.get(key)?.push(row);
+  });
+  const rows = await Promise.all(spaces.map(async (space) => {
+    const source = dataManagementLeaseBusinessSource(space, business as Record<string, unknown>);
+    (specsBySpace.get(safeText(space.lease_space_id)) || []).forEach((spec, index) => {
+      const key = dataManagementAttributeColumnKey('spec', spec, index);
+      source[key] = dataManagementAttributeReadableValue(spec, 'spec');
+    });
+    const displayValues = Object.fromEntries(fields.map((field) => {
+      const publicField = field as Record<string, unknown>;
+      const key = safeText(publicField.field_key);
+      return [key, dataManagementFormatViewValue(source[key], publicField)];
+    }));
+    const editValues = Object.fromEntries(fields.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, source[key] ?? null];
+    }));
+    const labelParts = [source.asset_name, source.fund_name, source.tenant_master_name, source.space_label].map((item) => safeText(item)).filter(Boolean);
+    const lookup = dataManagementLookupStatus(source);
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, safeText(space.lease_space_id)),
+      row_label: labelParts.join(' - ') || '임대공간 요구 스펙',
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: lookup,
+      editable: false,
+      read_only_reason: '요구 스펙은 세부 항목 매핑 확인 후 승인 요청으로 수정합니다.',
+      revision_hash: await dataManagementRevisionHash({ space, specs: specsBySpace.get(safeText(space.lease_space_id)) || [] }),
+      meta: { row_unit: 'lease_space_id', status: lookup.label, capability: 'readback_only' },
+    });
+  }));
+  return { ...dataManagementFinalizeBusinessRows(rows, payload, page, pageSize), fields };
+}
+
+async function dataManagementLeaseSpecialStatusRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKeyOverride = 'lease_attributes') {
+  const viewKey = safeText(viewKeyOverride || 'lease_attributes');
+  const { page, pageSize } = dataManagementPageSpec(payload);
+  const business = await dataManagementLeaseBusinessContext(ctx, payload, scope);
+  const spaces = (business.spaces || []) as Record<string, unknown>[];
+  const leaseSpaceIds = uniqueStrings(spaces.map((row) => safeText(row.lease_space_id)).filter(Boolean), 5000);
+  const termsResult = await listSpecialTermsForLeaseSpaces(ctx, leaseSpaceIds);
+  if (termsResult.errorResponse) throw new Error('임대차 특약 데이터를 읽지 못했습니다.');
+  const termRows = (termsResult.rows || []).filter((row) => leaseSpaceIds.includes(safeText(row.lease_space_id)));
+  const dynamicFieldMap = new Map<string, Record<string, unknown>>();
+  termRows.forEach((row, index) => {
+    const fieldKey = dataManagementAttributeColumnKey('term', row, index);
+    if (dynamicFieldMap.has(fieldKey)) return;
+    dynamicFieldMap.set(fieldKey, {
+      field_key: fieldKey,
+      label: safeText(firstDefined(row.term_label, row.attribute_label, row.term_key, row.attribute_key, `특약 ${index + 1}`)),
+      group: '특약 세부',
+      type: 'text',
+      editable: false,
+      width: 170,
+      read_only_reason: '특약 세부 항목은 원천 항목 검토 후 별도 승인 흐름에서 수정합니다.',
+    });
+  });
+  const fields = [
+    ...DATA_MANAGEMENT_LEASE_SPECIAL_STATUS_VIEW_FIELDS,
+    ...Array.from(dynamicFieldMap.values()).sort((a, b) => safeText(a.label).localeCompare(safeText(b.label), 'ko')),
+  ];
+  const termsBySpace = new Map<string, Record<string, unknown>[]>();
+  termRows.forEach((row) => {
+    const key = safeText(row.lease_space_id);
+    if (!termsBySpace.has(key)) termsBySpace.set(key, []);
+    termsBySpace.get(key)?.push(row);
+  });
+  const rows = await Promise.all(spaces.map(async (space) => {
+    const source = dataManagementLeaseBusinessSource(space, business as Record<string, unknown>);
+    (termsBySpace.get(safeText(space.lease_space_id)) || []).forEach((term, index) => {
+      const key = dataManagementAttributeColumnKey('term', term, index);
+      source[key] = dataManagementAttributeReadableValue(term, 'term');
+    });
+    const displayValues = Object.fromEntries(fields.map((field) => {
+      const publicField = field as Record<string, unknown>;
+      const key = safeText(publicField.field_key);
+      return [key, dataManagementFormatViewValue(source[key], publicField)];
+    }));
+    const editValues = Object.fromEntries(fields.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, source[key] ?? null];
+    }));
+    const labelParts = [source.asset_name, source.fund_name, source.tenant_master_name, source.space_label].map((item) => safeText(item)).filter(Boolean);
+    const lookup = dataManagementLookupStatus(source);
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, safeText(space.lease_space_id)),
+      row_label: labelParts.join(' - ') || '임대차 특약·상태',
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: lookup,
+      editable: false,
+      read_only_reason: '특약·상태는 계약 항목 검토 후 승인 요청으로 수정합니다.',
+      revision_hash: await dataManagementRevisionHash({ space, terms: termsBySpace.get(safeText(space.lease_space_id)) || [] }),
+      meta: { row_unit: 'lease_space_id', status: lookup.label, capability: 'readback_only' },
+    });
+  }));
+  return { ...dataManagementFinalizeBusinessRows(rows, payload, page, pageSize), fields };
+}
+
+async function dataManagementTenantMasterRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKeyOverride = 'tenant_master') {
+  const viewKey = safeText(viewKeyOverride || 'tenant_master');
+  const { page, pageSize } = dataManagementPageSpec(payload);
+  const business = await dataManagementLeaseBusinessContext(ctx, payload, scope);
+  const spaces = (business.spaces || []) as Record<string, unknown>[];
+  const groups = new Map<string, Record<string, unknown>>();
+  spaces.forEach((space) => {
+    const source = dataManagementLeaseBusinessSource(space, business as Record<string, unknown>);
+    const tenantKey = safeText(firstDefined(space.tenant_id, source.business_registration_no, source.tenant_master_name, source.company_name));
+    if (!tenantKey) return;
+    const existing = groups.get(tenantKey) || {
+      tenant_master_name: source.tenant_master_name,
+      business_registration_no: source.business_registration_no,
+      company_name: source.company_name,
+      display_name: source.display_name,
+      related_asset_set: new Set<string>(),
+      contract_count: 0,
+      active_contract_count: 0,
+      latest_contract_end_date: '',
+      review_status: '검토 완료',
+    };
+    (existing.related_asset_set as Set<string>).add(safeText(source.asset_name));
+    existing.contract_count = Number(existing.contract_count || 0) + 1;
+    const endDate = safeDateText(source.current_end_date);
+    if (!endDate || endDate >= dataManagementTodayIso()) existing.active_contract_count = Number(existing.active_contract_count || 0) + 1;
+    if (endDate && endDate > safeText(existing.latest_contract_end_date)) existing.latest_contract_end_date = endDate;
+    groups.set(tenantKey, existing);
+  });
+  const fields = DATA_MANAGEMENT_TENANT_MASTER_VIEW_FIELDS;
+  const rows = await Promise.all(Array.from(groups.entries()).map(async ([tenantKey, source]) => {
+    const relatedAssets = Array.from((source.related_asset_set as Set<string>) || new Set()).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko')).join(', ');
+    const rowSource = {
+      ...source,
+      related_assets: relatedAssets,
+    };
+    const displayValues = Object.fromEntries(fields.map((field) => {
+      const publicField = field as Record<string, unknown>;
+      const key = safeText(publicField.field_key);
+      return [key, dataManagementFormatViewValue(rowSource[key], publicField)];
+    }));
+    const editValues = Object.fromEntries(fields.map((field) => {
+      const key = safeText((field as Record<string, unknown>).field_key);
+      return [key, rowSource[key] ?? null];
+    }));
+    const lookup = dataManagementLookupStatus(rowSource);
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(viewKey, tenantKey),
+      row_label: safeText(rowSource.tenant_master_name || rowSource.company_name || '임차인'),
+      display_values: displayValues,
+      values: displayValues,
+      edit_values: editValues,
+      lookup_status: lookup,
+      editable: false,
+      read_only_reason: '임차인 정보는 연결된 계약 기준으로 집계 표시합니다. 수정은 임차인 기준값 매핑 확인 후 승인 요청으로 처리합니다.',
+      revision_hash: await dataManagementRevisionHash(rowSource),
+      meta: { row_unit: 'tenant', status: lookup.label, capability: 'readback_only' },
+    });
+  }));
+  return { ...dataManagementFinalizeBusinessRows(rows, payload, page, pageSize), fields };
+}
+
 async function dataManagementManagerLinkRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKeyOverride = 'lease_asset_manager_links') {
   const viewKey = safeText(viewKeyOverride || 'lease_asset_manager_links');
   const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
@@ -7999,7 +9021,7 @@ async function dataManagementManagerLinkRows(ctx: Context, payload: Record<strin
       edit_values: editValues,
       lookup_status: { status: 'ok', label: '정상' },
       editable: false,
-      read_only_reason: '담당자 연결은 담당자 Data 승인 흐름에서 별도로 관리합니다.',
+      read_only_reason: '담당자 연결은 담당자 데이터 승인 흐름에서 별도로 관리합니다.',
       revision_hash: await dataManagementRevisionHash({ item, assetRecord }),
       meta: {
         row_unit: 'manager_link',
@@ -8194,6 +9216,77 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
   const view = dataManagementViewByKey(dataManagementWorkViewKey(payload));
   if (!view) return fail(400, 'Unknown Data Management 업무 View입니다.', ctx.origin);
   const viewKey = safeText(view.view_key);
+  if (viewKey === 'asset_integrated' || viewKey === 'investment_integrated') {
+    try {
+      const result = viewKey === 'asset_integrated'
+        ? await dataManagementAssetIntegratedRows(ctx, payload, managementScope, viewKey)
+        : await dataManagementInvestmentIntegratedRows(ctx, payload, managementScope, viewKey);
+      const fields = dataManagementFieldsForViewKey(viewKey).map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
+      return jsonResponse({ ok: true, data: {
+        generated_at: new Date().toISOString(),
+        view: {
+          ...view,
+          fields,
+          source_status: {
+            normalized_data_present: result.total > 0,
+            raw_source_present: false,
+            note: 'Supabase 운영 데이터 조인 기준 통합 표시값입니다.',
+          },
+        },
+        fields,
+        rows: result.rows,
+        empty_state: result.total > 0 ? undefined : {
+          code: 'integrated_view_empty',
+          title: `${safeText(view.label)} 데이터가 없습니다.`,
+          description: '현재 권한과 검색 조건에서 표시할 운영 데이터가 없습니다.',
+        },
+        pagination: {
+          page: result.page,
+          page_size: result.pageSize,
+          returned: result.rows.length,
+          total_estimate: result.total,
+          has_next: (result.page * result.pageSize) < result.total,
+        },
+      } }, 200, ctx.origin);
+    } catch (error) {
+      return fail(500, 'Data Management 통합 View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  if (viewKey === 'data_quality_findings') {
+    try {
+      const result = await dataManagementQualityFindingRows(ctx, payload, managementScope, viewKey);
+      const fields = (result.fields || []).map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
+      const { fallback_table_key: _fallbackTableKey, ...publicView } = view as Record<string, unknown>;
+      return jsonResponse({ ok: true, data: {
+        generated_at: new Date().toISOString(),
+        view: {
+          ...publicView,
+          fields,
+          source_status: {
+            normalized_data_present: result.total > 0,
+            raw_source_present: false,
+            note: '운영 Supabase 데이터 기준 readback 품질 점검 결과입니다.',
+          },
+        },
+        fields,
+        rows: result.rows,
+        empty_state: result.total > 0 ? undefined : {
+          code: 'data_quality_readback_empty',
+          title: '표시할 데이터 품질 점검 결과가 없습니다.',
+          description: '운영 데이터 범위와 권한을 다시 확인해 주세요.',
+        },
+        pagination: {
+          page: result.page,
+          page_size: result.pageSize,
+          returned: result.rows.length,
+          total_estimate: result.total,
+          has_next: (result.page * result.pageSize) < result.total,
+        },
+      } }, 200, ctx.origin);
+    } catch (error) {
+      return fail(500, 'Data Management 데이터 품질 View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
   if (viewKey === 'lease_asset_manager_links') {
     try {
       const result = await dataManagementManagerLinkRows(ctx, payload, managementScope, viewKey);
@@ -8232,8 +9325,16 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
     try {
       const result = viewKey === 'lease_rent_history_excel'
         ? await dataManagementLeaseRentHistoryRows(ctx, payload, managementScope, viewKey)
-        : await dataManagementLeaseContractRows(ctx, payload, managementScope, viewKey);
-      const fields = dataManagementFieldsForViewKey(viewKey).map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
+        : viewKey === 'lease_space_specs'
+          ? await dataManagementLeaseSpaceSpecRows(ctx, payload, managementScope, viewKey)
+          : viewKey === 'lease_attributes'
+            ? await dataManagementLeaseSpecialStatusRows(ctx, payload, managementScope, viewKey)
+            : viewKey === 'tenant_master'
+              ? await dataManagementTenantMasterRows(ctx, payload, managementScope, viewKey)
+              : await dataManagementLeaseContractRows(ctx, payload, managementScope, viewKey);
+      const resultFields = Array.isArray(result.fields) ? result.fields : [];
+      const fields = (resultFields.length ? resultFields : dataManagementFieldsForViewKey(viewKey))
+        .map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
       const rawSourceFile = await dataManagementSourceFileForDomain(ctx, 'lease_contracts');
       return jsonResponse({ ok: true, data: {
         generated_at: new Date().toISOString(),
@@ -8285,7 +9386,6 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
           fields,
           source_status: {
             normalized_data_present: result.total > 0,
-            table_name: result.tableName,
             raw_source_present: false,
             note: '운영 데이터 기준으로 표시합니다.',
           },

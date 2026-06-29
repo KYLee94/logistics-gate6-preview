@@ -1,13 +1,13 @@
 {
   "ok": true,
-  "generated_at": "2026-06-26T05:50:05.328Z",
+  "generated_at": "2026-06-29T04:42:55.282Z",
   "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
   "auth_source": "password_grant",
   "tabs": [
     {
       "key": "overview",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/overview",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-overview-20260626-054957-996Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-overview-20260629-044246-596Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -66,7 +66,7 @@
         "dialog_visible": true,
         "fullscreen_width_ok": true,
         "detail_row_count": 9,
-        "screenshot": "qa-artifacts/logistics-gate6/market-data-supply-period-modal-20260626-054957-996Z.png"
+        "screenshot": "qa-artifacts/logistics-gate6/market-data-supply-period-modal-20260629-044246-596Z.png"
       },
       "supply_legend_focus": {
         "required": true,
@@ -120,12 +120,25 @@
         "cumulative_modal_visible": true,
         "cumulative_modal_table_rows": 0
       },
+      "region_multi_select_popover": {
+        "control_count": 2,
+        "before_label": "전체 권역\n▼",
+        "after_label": "(수도권) 동남권\n▲",
+        "reset_label": "전체 권역\n▲",
+        "portal_visible": true,
+        "option_count": 11,
+        "option_click_ok": true,
+        "page_still_visible": true,
+        "backdrop_count": 0,
+        "black_fullscreen_overlay_count": 0,
+        "ok": true
+      },
       "ok": true
     },
     {
       "key": "lease-market",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/lease-market",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-lease-market-20260626-054957-996Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-lease-market-20260629-044246-596Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -153,9 +166,9 @@
             "index": 0,
             "button_count": 11,
             "near_pair_count": 0,
-            "overlap_pair_count": 11,
-            "min_center_distance_px": 34.7,
-            "max_overlap_area_px": 443,
+            "overlap_pair_count": 0,
+            "min_center_distance_px": 68.7,
+            "max_overlap_area_px": 0,
             "ok": true
           }
         ],
@@ -195,9 +208,9 @@
           "index": 0,
           "button_count": 11,
           "near_pair_count": 0,
-          "overlap_pair_count": 11,
-          "min_center_distance_px": 34.7,
-          "max_overlap_area_px": 443,
+          "overlap_pair_count": 0,
+          "min_center_distance_px": 68.7,
+          "max_overlap_area_px": 0,
           "ok": true
         }
       ],
@@ -288,12 +301,25 @@
         "cumulative_modal_visible": true,
         "cumulative_modal_table_rows": 0
       },
+      "region_multi_select_popover": {
+        "control_count": 2,
+        "before_label": "전체 권역\n▼",
+        "after_label": "(수도권) 동남권\n▲",
+        "reset_label": "전체 권역\n▲",
+        "portal_visible": true,
+        "option_count": 12,
+        "option_click_ok": true,
+        "page_still_visible": true,
+        "backdrop_count": 0,
+        "black_fullscreen_overlay_count": 0,
+        "ok": true
+      },
       "ok": true
     },
     {
       "key": "supply-pipeline",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/supply-pipeline",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-supply-pipeline-20260626-054957-996Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-supply-pipeline-20260629-044246-596Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -321,27 +347,27 @@
             "index": 0,
             "button_count": 6,
             "near_pair_count": 0,
-            "overlap_pair_count": 2,
-            "min_center_distance_px": 36.1,
-            "max_overlap_area_px": 409,
+            "overlap_pair_count": 0,
+            "min_center_distance_px": 71.4,
+            "max_overlap_area_px": 0,
             "ok": true
           },
           {
             "index": 1,
             "button_count": 10,
             "near_pair_count": 0,
-            "overlap_pair_count": 9,
-            "min_center_distance_px": 34,
-            "max_overlap_area_px": 465.6,
+            "overlap_pair_count": 0,
+            "min_center_distance_px": 68.7,
+            "max_overlap_area_px": 0,
             "ok": true
           },
           {
             "index": 2,
             "button_count": 6,
             "near_pair_count": 0,
-            "overlap_pair_count": 2,
-            "min_center_distance_px": 36.1,
-            "max_overlap_area_px": 409,
+            "overlap_pair_count": 0,
+            "min_center_distance_px": 71.4,
+            "max_overlap_area_px": 0,
             "ok": true
           }
         ],
@@ -415,27 +441,27 @@
           "index": 0,
           "button_count": 6,
           "near_pair_count": 0,
-          "overlap_pair_count": 2,
-          "min_center_distance_px": 36.1,
-          "max_overlap_area_px": 409,
+          "overlap_pair_count": 0,
+          "min_center_distance_px": 71.4,
+          "max_overlap_area_px": 0,
           "ok": true
         },
         {
           "index": 1,
           "button_count": 10,
           "near_pair_count": 0,
-          "overlap_pair_count": 9,
-          "min_center_distance_px": 34,
-          "max_overlap_area_px": 465.6,
+          "overlap_pair_count": 0,
+          "min_center_distance_px": 68.7,
+          "max_overlap_area_px": 0,
           "ok": true
         },
         {
           "index": 2,
           "button_count": 6,
           "near_pair_count": 0,
-          "overlap_pair_count": 2,
-          "min_center_distance_px": 36.1,
-          "max_overlap_area_px": 409,
+          "overlap_pair_count": 0,
+          "min_center_distance_px": 71.4,
+          "max_overlap_area_px": 0,
           "ok": true
         }
       ],
@@ -526,12 +552,25 @@
         "cumulative_modal_visible": true,
         "cumulative_modal_table_rows": 11
       },
+      "region_multi_select_popover": {
+        "control_count": 1,
+        "before_label": "전체 권역\n▼",
+        "after_label": "(수도권) 동남권\n▲",
+        "reset_label": "전체 권역\n▲",
+        "portal_visible": true,
+        "option_count": 11,
+        "option_click_ok": true,
+        "page_still_visible": true,
+        "backdrop_count": 0,
+        "black_fullscreen_overlay_count": 0,
+        "ok": true
+      },
       "ok": true
     },
     {
       "key": "transactions",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/transactions",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-transactions-20260626-054957-996Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-transactions-20260629-044246-596Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -559,9 +598,9 @@
             "index": 0,
             "button_count": 10,
             "near_pair_count": 0,
-            "overlap_pair_count": 9,
-            "min_center_distance_px": 34,
-            "max_overlap_area_px": 465.6,
+            "overlap_pair_count": 0,
+            "min_center_distance_px": 68.7,
+            "max_overlap_area_px": 0,
             "ok": true
           }
         ],
@@ -601,9 +640,9 @@
           "index": 0,
           "button_count": 10,
           "near_pair_count": 0,
-          "overlap_pair_count": 9,
-          "min_center_distance_px": 34,
-          "max_overlap_area_px": 465.6,
+          "overlap_pair_count": 0,
+          "min_center_distance_px": 68.7,
+          "max_overlap_area_px": 0,
           "ok": true
         }
       ],
@@ -661,7 +700,7 @@
         "dialog_visible": true,
         "modal_no_map_attribution": true,
         "detail_row_count": 62,
-        "screenshot": "qa-artifacts/logistics-gate6/market-data-transactions-market-modal-20260626-054957-996Z.png"
+        "screenshot": "qa-artifacts/logistics-gate6/market-data-transactions-market-modal-20260629-044246-596Z.png"
       },
       "transaction_size_explorer": {
         "required": true,
@@ -694,12 +733,25 @@
         "cumulative_modal_visible": true,
         "cumulative_modal_table_rows": 0
       },
+      "region_multi_select_popover": {
+        "control_count": 2,
+        "before_label": "전체 권역\n▼",
+        "after_label": "(수도권) 동남권\n▲",
+        "reset_label": "전체 권역\n▲",
+        "portal_visible": true,
+        "option_count": 11,
+        "option_click_ok": true,
+        "page_still_visible": true,
+        "backdrop_count": 0,
+        "black_fullscreen_overlay_count": 0,
+        "ok": true
+      },
       "ok": true
     },
     {
       "key": "source-update",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/source-update",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-source-update-20260626-054957-996Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-source-update-20260629-044246-596Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -811,6 +863,19 @@
         "quarter_axis_ok": false,
         "cumulative_modal_visible": true,
         "cumulative_modal_table_rows": 0
+      },
+      "region_multi_select_popover": {
+        "control_count": 0,
+        "before_label": "",
+        "after_label": "",
+        "reset_label": "",
+        "portal_visible": false,
+        "option_count": 0,
+        "option_click_ok": false,
+        "page_still_visible": false,
+        "backdrop_count": 0,
+        "black_fullscreen_overlay_count": 0,
+        "ok": true
       },
       "ok": true
     }

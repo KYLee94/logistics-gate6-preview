@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-25T09:27:13.586Z",
+  "generated_at": "2026-06-29T04:16:22.232Z",
   "auth_source": "password_grant",
   "checks": {
     "edge_coverage_ok": true,
@@ -42,7 +42,7 @@
       "counted_table_count": 67,
       "missing_relation_count": 0,
       "unconnected_table_count": 0,
-      "total_row_count": 263591
+      "total_row_count": 267260
     },
     "catalog_coverage": {
       "mode": "catalog_v1_schema_metadata_plus_code_fallback",
@@ -151,7 +151,7 @@
       ],
       "table_count": 3,
       "existing_table_count": 3,
-      "row_count": 441,
+      "row_count": 446,
       "missing_tables": [],
       "write_modes": [
         "feature_access_workflow",
@@ -184,7 +184,7 @@
       "source_domains": [],
       "table_count": 7,
       "existing_table_count": 7,
-      "row_count": 38861,
+      "row_count": 42477,
       "missing_tables": [],
       "write_modes": [
         "readback_or_system_workflow",
@@ -197,7 +197,7 @@
       "source_domains": [],
       "table_count": 16,
       "existing_table_count": 16,
-      "row_count": 181,
+      "row_count": 203,
       "missing_tables": [],
       "write_modes": [
         "readback_or_system_workflow",
@@ -210,7 +210,7 @@
       "source_domains": [],
       "table_count": 5,
       "existing_table_count": 5,
-      "row_count": 887,
+      "row_count": 913,
       "missing_tables": [],
       "write_modes": [
         "readback_or_system_workflow"
@@ -335,7 +335,7 @@
       "table_name": "ll_audit_events",
       "ui_domain_key": "approval_audit",
       "ui_domain_label": "승인/감사",
-      "row_count": 37922,
+      "row_count": 41537,
       "exists": true,
       "write_mode": "approval_auto_write",
       "metadata_domain_group": "Permission / Audit",
@@ -356,7 +356,7 @@
       "table_name": "ll_cache_entries",
       "ui_domain_key": "cache",
       "ui_domain_label": "캐시/스냅샷",
-      "row_count": 829,
+      "row_count": 855,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "metadata_domain_group": "Cache / Snapshot",
@@ -410,7 +410,7 @@
       "table_name": "ll_edit_requests",
       "ui_domain_key": "approval_audit",
       "ui_domain_label": "승인/감사",
-      "row_count": 215,
+      "row_count": 216,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "metadata_domain_group": "Permission / Audit",
@@ -587,7 +587,7 @@
       "table_name": "ll_login_history",
       "ui_domain_key": "permission",
       "ui_domain_label": "권한/사용자",
-      "row_count": 139,
+      "row_count": 144,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "metadata_domain_group": "Permission / Audit",
@@ -656,7 +656,7 @@
       "table_name": "ll_news_items",
       "ui_domain_key": "work_platform",
       "ui_domain_label": "업무 플랫폼",
-      "row_count": 76,
+      "row_count": 95,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "metadata_domain_group": "Work Platform",
@@ -668,7 +668,7 @@
       "table_name": "ll_news_runs",
       "ui_domain_key": "work_platform",
       "ui_domain_label": "업무 플랫폼",
-      "row_count": 11,
+      "row_count": 13,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "connected_to_data_management": true
@@ -968,7 +968,7 @@
       "table_name": "ll_work_items",
       "ui_domain_key": "work_platform",
       "ui_domain_label": "업무 플랫폼",
-      "row_count": 63,
+      "row_count": 64,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "connected_to_data_management": true
@@ -1034,7 +1034,7 @@
       {
         "key": "operations",
         "label": "시스템·운영 Data",
-        "description": "권한, 알림, 로그인, 감사, 캐시, 변경요청 이력을 readback 중심으로 확인합니다."
+        "description": "권한, 알림, 로그인, 감사, 캐시, 변경요청 이력을 이력 확인 중심으로 확인합니다."
       }
     ],
     "domains": [
@@ -1257,7 +1257,7 @@
       {
         "table_name": "ll_audit_events",
         "exists": true,
-        "row_count": 37923,
+        "row_count": 41538,
         "error": ""
       },
       {
@@ -1269,7 +1269,7 @@
       {
         "table_name": "ll_cache_entries",
         "exists": true,
-        "row_count": 829,
+        "row_count": 855,
         "error": ""
       },
       {
@@ -1299,7 +1299,7 @@
       {
         "table_name": "ll_edit_requests",
         "exists": true,
-        "row_count": 215,
+        "row_count": 216,
         "error": ""
       },
       {
@@ -1389,7 +1389,7 @@
       {
         "table_name": "ll_login_history",
         "exists": true,
-        "row_count": 139,
+        "row_count": 144,
         "error": ""
       },
       {
@@ -1425,13 +1425,13 @@
       {
         "table_name": "ll_news_items",
         "exists": true,
-        "row_count": 76,
+        "row_count": 95,
         "error": ""
       },
       {
         "table_name": "ll_news_runs",
         "exists": true,
-        "row_count": 11,
+        "row_count": 13,
         "error": ""
       },
       {
@@ -1593,7 +1593,7 @@
       {
         "table_name": "ll_work_items",
         "exists": true,
-        "row_count": 63,
+        "row_count": 64,
         "error": ""
       },
       {

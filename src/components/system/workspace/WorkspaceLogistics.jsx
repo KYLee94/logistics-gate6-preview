@@ -67,14 +67,14 @@ const COMPANY_PAYLOADS = Object.fromEntries(Object.entries(companyPayloadModules
   .filter(Boolean));
 
 const MODULES = [
-  { id: 'home', label: 'Home', source: 'Home' },
-  { id: 'asset', label: 'Asset', source: 'Asset' },
-  { id: 'company', label: 'Company', source: 'Company' },
-  { id: 'investment-index', label: 'Investment Index', source: 'Investment Index' },
-  { id: 'asset-spec', label: 'Asset Spec', source: 'Asset Spec' },
-  { id: 'tools', label: 'Analysis Tools', source: 'Analysis Tools' },
-  { id: 'playground', label: 'Pivot Table', source: 'Pivot Table' },
-  { id: 'quality', label: 'Data Quality', source: 'Data Quality' },
+  { id: 'home', label: '홈', source: '홈' },
+  { id: 'asset', label: '자산', source: '자산' },
+  { id: 'company', label: '기업', source: '기업' },
+  { id: 'investment-index', label: '투자 지수', source: '투자 지수' },
+  { id: 'asset-spec', label: '자산 스펙', source: '자산 스펙' },
+  { id: 'tools', label: '분석 도구', source: '분석 도구' },
+  { id: 'playground', label: '피벗 테이블', source: '피벗 테이블' },
+  { id: 'quality', label: '데이터 품질', source: '데이터 품질' },
 ];
 const ADMIN_ONLY_MODULE_IDS = new Set(['tools', 'playground', 'quality']);
 
@@ -5258,10 +5258,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const isContractData = normalizedCurrentPath === pathFor('contract-data');
   const isDataManagement = normalizedCurrentPath === pathFor('data-management') || normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/data-management/`);
   const isMarketData = normalizedCurrentPath === pathFor('market-data') || normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/market-data/`);
-  const isDashboard = currentPath.startsWith(pathFor('dashboard'));
-  const isPdfReport = currentPath.startsWith(pathFor('pdf-report'));
+  const isDashboard = normalizedCurrentPath.startsWith(pathFor('dashboard'));
+  const isPdfReport = normalizedCurrentPath.startsWith(pathFor('pdf-report'));
   const shouldLoadWorkPlatformData = !isDashboard && !isContractData && !isDataManagement && !isMarketData && !isPdfReport;
-  const requestedModule = currentPath.split('/').pop() || 'home';
+  const requestedModule = normalizedCurrentPath.split('/').pop() || 'home';
   const activeModule = requestedModule === 'sector' || requestedModule === 'weekly' ? 'home' : requestedModule;
   const marketRoute = normalizedCurrentPath.split('/').pop() || 'overview';
   const activeMarketTab = ({
@@ -5277,7 +5277,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     'investment-data': 'investment',
     'lease-contracts': 'lease',
     managers: 'managers',
-    'market-data': 'market',
+    'data-quality': 'quality',
   })[dataManagementRoute] || 'lease';
   const navigateMarketData = (route) => {
     const nextPath = `${LOGISTICS_INTERNAL_BASE}/market-data/${route || 'overview'}`;
@@ -14867,9 +14867,10 @@ function LegacyWorkspaceLogistics({ currentPath = '' }) {
   const [scopeFilter, setScopeFilter] = useState('전체');
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
 
-  const isContractData = normalizeLogisticsPath(currentPath) === pathFor('contract-data');
-  const isDashboard = currentPath.startsWith(pathFor('dashboard'));
-  const legacyRequestedModule = currentPath.split('/').pop() || 'home';
+  const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
+  const isContractData = normalizedCurrentPath === pathFor('contract-data');
+  const isDashboard = normalizedCurrentPath.startsWith(pathFor('dashboard'));
+  const legacyRequestedModule = normalizedCurrentPath.split('/').pop() || 'home';
   const activeModule = legacyRequestedModule === 'weekly' ? 'home' : legacyRequestedModule;
   const dataCounts = useMemo(() => {
     const readableAssets = filterAssetsByPermission(assetOptionsData, permission);

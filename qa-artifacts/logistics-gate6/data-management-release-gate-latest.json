@@ -1,12 +1,12 @@
 {
   "ok": true,
-  "generated_at": "2026-06-26T03:13:14.030Z",
+  "generated_at": "2026-06-29T04:16:43.885Z",
   "mode": "data_management_release_gate",
   "auth_source": "password_grant",
   "options": {
-    "allow_submit": true,
+    "allow_submit": false,
     "edge_only": false,
-    "require_written_history": true,
+    "require_written_history": false,
     "expected_asset_count": 19,
     "expected_fund_count": 17,
     "expected_pair_needle": "404",
@@ -72,7 +72,7 @@
       },
       {
         "column_names": "{id,event_type,action,status_code,requested_by,edit_request_id,target_table,target_row_id,target_cell_id,field_name,before_value,after_value,readback_value,actor_id,approver_id,source_row_id,source_cell_id,approval_status,legacy_table,legacy_id,finding_id,audit_run_id,finding_type,severity,entity_type,entity_id,source_sheet_name,source_row_number,source_column_number,source_header,source_value_text,supabase_value_text,event_status,event_payload,request_payload,metadata,created_at,updated_at}",
-        "exact_rows": 39545,
+        "exact_rows": 41541,
         "primary_key": "{id}",
         "rls_enabled": true,
         "table_name": "ll_audit_events"
@@ -86,14 +86,14 @@
       },
       {
         "column_names": "{id,cache_type,cache_key,entity_type,entity_id,provider,provider_status,metric_scope,metric_key,asset_id,asset_name,tenant_id,tenant_name,basis_date,numeric_value,text_value,unit,source_table,source_row_count,request_payload,response_payload,payload,scope_hash,user_safe,computed_at,fetched_at,expires_at,created_by,created_at,updated_at}",
-        "exact_rows": 850,
+        "exact_rows": 855,
         "primary_key": "{id}",
         "rls_enabled": true,
         "table_name": "ll_cache_entries"
       },
       {
         "column_names": "{id,source_table,finding_id,target_type,target_name,target_row_id,target_cell_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,requested_by,approved_by,approved_at,approval_note,rejected_by,rejected_at,rejection_note,created_at,updated_at,write_started_at,written_at,write_status,write_error,write_result}",
-        "exact_rows": 215,
+        "exact_rows": 216,
         "primary_key": "{id}",
         "rls_enabled": true,
         "table_name": "ll_edit_requests"
@@ -149,14 +149,14 @@
       },
       {
         "column_names": "{news_item_id,news_run_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,payload,created_at}",
-        "exact_rows": 85,
+        "exact_rows": 95,
         "primary_key": "{news_item_id}",
         "rls_enabled": true,
         "table_name": "ll_news_items"
       },
       {
         "column_names": "{news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,created_at,completed_at}",
-        "exact_rows": 12,
+        "exact_rows": 13,
         "primary_key": "{news_run_id}",
         "rls_enabled": true,
         "table_name": "ll_news_runs"
@@ -303,7 +303,7 @@
       },
       {
         "column_names": "{id,item_type,legacy_text_id,entity_type,entity_id,asset_id,tenant_id,issue_type,severity,title,description,owner,task_name,company_name,related_asset_id,related_asset_name,related_tenant_id,next_action,issue,notes,due_date,priority,status,completed_at,workspace,week_key,week_label,week_range,group_label,basis_date,snapshot_data,task_count,created_by,created_by_email,created_by_name,organization,payload,source_sheet_row_id,source_payload,deleted_at,created_at,updated_at}",
-        "exact_rows": 63,
+        "exact_rows": 64,
         "primary_key": "{id}",
         "rls_enabled": true,
         "table_name": "ll_work_items"
@@ -316,7 +316,7 @@
       "counted_table_count": 67,
       "missing_relation_count": 0,
       "unconnected_table_count": 0,
-      "total_row_count": 265245
+      "total_row_count": 267263
     },
     "management_scope": {
       "owner": "IGIS Asset Management",
@@ -445,7 +445,7 @@
         "table_name": "ll_audit_events",
         "ui_domain_key": "approval_audit",
         "ui_domain_label": "승인/감사",
-        "row_count": 39544,
+        "row_count": 41540,
         "exists": true,
         "write_mode": "approval_auto_write",
         "metadata_domain_group": "Permission / Audit",
@@ -466,7 +466,7 @@
         "table_name": "ll_cache_entries",
         "ui_domain_key": "cache",
         "ui_domain_label": "캐시/스냅샷",
-        "row_count": 850,
+        "row_count": 855,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "metadata_domain_group": "Cache / Snapshot",
@@ -520,7 +520,7 @@
         "table_name": "ll_edit_requests",
         "ui_domain_key": "approval_audit",
         "ui_domain_label": "승인/감사",
-        "row_count": 215,
+        "row_count": 216,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "metadata_domain_group": "Permission / Audit",
@@ -697,7 +697,7 @@
         "table_name": "ll_login_history",
         "ui_domain_key": "permission",
         "ui_domain_label": "권한/사용자",
-        "row_count": 140,
+        "row_count": 144,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "metadata_domain_group": "Permission / Audit",
@@ -766,7 +766,7 @@
         "table_name": "ll_news_items",
         "ui_domain_key": "work_platform",
         "ui_domain_label": "업무 플랫폼",
-        "row_count": 85,
+        "row_count": 95,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "metadata_domain_group": "Work Platform",
@@ -778,7 +778,7 @@
         "table_name": "ll_news_runs",
         "ui_domain_key": "work_platform",
         "ui_domain_label": "업무 플랫폼",
-        "row_count": 12,
+        "row_count": 13,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "connected_to_data_management": true
@@ -1078,7 +1078,7 @@
         "table_name": "ll_work_items",
         "ui_domain_key": "work_platform",
         "ui_domain_label": "업무 플랫폼",
-        "row_count": 63,
+        "row_count": 64,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "connected_to_data_management": true
@@ -1752,7 +1752,7 @@
     "source_rows": 1055,
     "columns": 800,
     "edit_requests": 120,
-    "written_history_count": 112
+    "written_history_count": 111
   },
   "preview_probe": {
     "ok": true,
@@ -1771,7 +1771,7 @@
       "view_key": "lease_general_excel",
       "row_key": "dmv_lease_general_excel_c4d3ff37625f36bffe28",
       "field_key": "floor_label",
-      "requested_value": "5 QA-20260626-031257",
+      "requested_value": "5 QA-20260629-041625",
       "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
       "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
     },
@@ -1783,7 +1783,7 @@
       "type": "text"
     },
     "before_value": "5",
-    "requested_value": "5 QA-20260626-031257",
+    "requested_value": "5 QA-20260629-041625",
     "can_submit": true,
     "auto_write_enabled": true,
     "source_review_required": false,
@@ -1804,11 +1804,9 @@
     "validation_errors": [],
     "views_contract": {
       "workspaces": [
-        "igis",
-        "market",
-        "operations"
+        "igis"
       ],
-      "view_count": 15,
+      "view_count": 5,
       "bundle_count": 19,
       "management_scope": {
         "owner": "IGIS Asset Management",
@@ -1842,7 +1840,7 @@
           "view_key": "lease_general_excel",
           "row_key": "dmv_lease_general_excel_c4d3ff37625f36bffe28",
           "field_key": "floor_label",
-          "requested_value": "5 QA-20260626-031257",
+          "requested_value": "5 QA-20260629-041625",
           "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
           "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
         },
@@ -1854,7 +1852,7 @@
           "type": "text"
         },
         "before_value": "5",
-        "requested_value": "5 QA-20260626-031257",
+        "requested_value": "5 QA-20260629-041625",
         "can_submit": true,
         "auto_write_enabled": true,
         "source_review_required": false,
@@ -1875,11 +1873,9 @@
         "validation_errors": [],
         "views_contract": {
           "workspaces": [
-            "igis",
-            "market",
-            "operations"
+            "igis"
           ],
-          "view_count": 15,
+          "view_count": 5,
           "bundle_count": 19,
           "management_scope": {
             "owner": "IGIS Asset Management",
@@ -1910,32 +1906,8 @@
   },
   "view_field_submit_probe": {
     "ok": true,
-    "id": "1a204449-ad4b-40bf-8061-e33b617d9a11",
-    "submit": {
-      "id": "1a204449-ad4b-40bf-8061-e33b617d9a11",
-      "status": "submitted",
-      "write_status": "approval_required",
-      "created_at": "2026-06-26T03:13:13.469421+00:00"
-    },
-    "readback": {
-      "id": "1a204449-ad4b-40bf-8061-e33b617d9a11",
-      "status": "submitted",
-      "requested_by": "9ca68a02-f7cb-4c9f-bc63-982abc9251a4",
-      "readbacks": [
-        {
-          "target_table": "public.ll_lease_spaces",
-          "target_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
-          "target_cell_id": "undefined",
-          "field_name": "floor_label",
-          "before_value": "5",
-          "requested_value": "5 QA-20260626-031257",
-          "current_value": "5",
-          "stale": false,
-          "source_row_id": "asset_a120085001|tenant_brn_1208800767|20240801|20300501|5|na",
-          "source_cell_id": "undefined"
-        }
-      ]
-    }
+    "skipped": true,
+    "reason": "submit is guarded unless --allow-submit is set"
   },
   "release_note": "Approval is not automated because edits/approve has no rollback_after_write guard. The submit probe creates an approval request only, then reads back that pending request."
 }

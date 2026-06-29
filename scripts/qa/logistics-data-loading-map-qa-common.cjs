@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
-const DEFAULT_BASE_URL = 'http://127.0.0.1:5173/';
+const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const LIVE_RELEASE_URL_PATTERN = /https:\/\/kylee94\.github\.io\/logistics-gate6-preview\/?/iu;
 const DEFAULT_MAX_REGION_CLICK_MS = 800;
 const LOAD_TEXT = '시장자료를 불러오는 중입니다.';

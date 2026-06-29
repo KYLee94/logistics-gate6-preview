@@ -12,7 +12,7 @@ export const LOGISTICS_ROUTE_BY_KEY = {
   'analysis-tools': `${LOGISTICS_INTERNAL_BASE}/dashboard/tools`,
   'data-playground': `${LOGISTICS_INTERNAL_BASE}/dashboard/playground`,
   'pivot-table': `${LOGISTICS_INTERNAL_BASE}/dashboard/playground`,
-  'data-quality': `${LOGISTICS_INTERNAL_BASE}/dashboard/quality`,
+  'data-quality': `${LOGISTICS_INTERNAL_BASE}/data-management/data-quality`,
   'market-data': `${LOGISTICS_INTERNAL_BASE}/market-data/overview`,
   'market-data/overview': `${LOGISTICS_INTERNAL_BASE}/market-data/overview`,
   'market-data/lease-market': `${LOGISTICS_INTERNAL_BASE}/market-data/lease-market`,
@@ -24,7 +24,8 @@ export const LOGISTICS_ROUTE_BY_KEY = {
   'data-management/investment-data': `${LOGISTICS_INTERNAL_BASE}/data-management/investment-data`,
   'data-management/lease-contracts': `${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`,
   'data-management/managers': `${LOGISTICS_INTERNAL_BASE}/data-management/managers`,
-  'data-management/market-data': `${LOGISTICS_INTERNAL_BASE}/data-management/market-data`,
+  'data-management/data-quality': `${LOGISTICS_INTERNAL_BASE}/data-management/data-quality`,
+  'data-management/market-data': `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`,
   'contract-data': `${LOGISTICS_INTERNAL_BASE}/contract-data`,
   'pdf-report': `${LOGISTICS_INTERNAL_BASE}/pdf-report`,
 };
@@ -32,6 +33,7 @@ export const LOGISTICS_ROUTE_BY_KEY = {
 export const LOGISTICS_ROUTE_KEY_BY_INTERNAL = Object.fromEntries(
   Object.entries(LOGISTICS_ROUTE_BY_KEY).map(([key, value]) => [value, key]),
 );
+LOGISTICS_ROUTE_KEY_BY_INTERNAL[LOGISTICS_ROUTE_BY_KEY['market-data/source-update']] = 'market-data/source-update';
 
 export function normalizeLogisticsPath(path = '') {
   let clean = String(path || '').replace(/^\/+|\/+$/g, '');
@@ -46,6 +48,7 @@ export function normalizeLogisticsPath(path = '') {
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/contracts`)) return LOGISTICS_ROUTE_BY_KEY['contract-data'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/data-playground`)) return LOGISTICS_ROUTE_BY_KEY['data-playground'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/pivot-table`)) return LOGISTICS_ROUTE_BY_KEY['pivot-table'];
+  if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/quality`)) return LOGISTICS_ROUTE_BY_KEY['data-quality'];
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/contract-data`)) return LOGISTICS_ROUTE_BY_KEY['contract-data'];
   if (clean === `${LOGISTICS_INTERNAL_BASE}/market-data`) return LOGISTICS_ROUTE_BY_KEY['market-data'];
   if (clean === `${LOGISTICS_INTERNAL_BASE}/data-management`) return LOGISTICS_ROUTE_BY_KEY['data-management'];

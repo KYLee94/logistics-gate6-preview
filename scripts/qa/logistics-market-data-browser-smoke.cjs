@@ -4,7 +4,7 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
-const DEFAULT_BASE_URL = 'http://127.0.0.1:5173/';
+const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -112,6 +112,80 @@ function hasRequiredRows(apiBody, key) {
   return false;
 }
 
+async function checkRegionMultiSelectPopover(page) {
+  const result = {
+    control_count: 0,
+    before_label: '',
+    after_label: '',
+    reset_label: '',
+    portal_visible: false,
+    option_count: 0,
+    option_click_ok: false,
+    page_still_visible: false,
+    backdrop_count: 0,
+    black_fullscreen_overlay_count: 0,
+    ok: true,
+  };
+  const controls = page.locator('[data-market-filter-control="multi-select"] button').filter({ visible: true });
+  result.control_count = await controls.count().catch(() => 0);
+  if (!result.control_count) return result;
+  result.before_label = await controls.first().innerText({ timeout: 5000 }).catch(() => '');
+  await controls.first().click({ timeout: 10000 });
+  const portal = page.locator('[data-market-filter-portal="multi-select"]').first();
+  result.portal_visible = await portal.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
+  if (result.portal_visible) {
+    const portalOptions = portal.locator('button');
+    result.option_count = await portalOptions.count().catch(() => 0);
+    if (result.option_count > 1) {
+      const option = portalOptions.nth(1);
+      const optionLabel = await option.innerText({ timeout: 5000 }).catch(() => '');
+      await option.click({ timeout: 5000 });
+      result.after_label = await controls.first().innerText({ timeout: 5000 }).catch(() => '');
+      result.option_click_ok = Boolean(optionLabel)
+        && (result.after_label.includes(optionLabel.trim().split(/\s+/u)[0]) || result.after_label !== result.before_label);
+      const resetPortal = page.locator('[data-market-filter-portal="multi-select"]').first();
+      const resetVisible = await resetPortal.isVisible().catch(() => false);
+      if (resetVisible) {
+        await resetPortal.locator('button').first().click({ timeout: 5000 }).catch(() => null);
+      } else {
+        await controls.first().click({ timeout: 10000 }).catch(() => null);
+        const reopenedPortal = page.locator('[data-market-filter-portal="multi-select"]').first();
+        const reopenedVisible = await reopenedPortal.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false);
+        if (reopenedVisible) {
+          await reopenedPortal.locator('button').first().click({ timeout: 5000 }).catch(() => null);
+        }
+      }
+      await page.waitForTimeout(250);
+      result.reset_label = await controls.first().innerText({ timeout: 5000 }).catch(() => '');
+    } else {
+      result.option_click_ok = result.option_count > 0;
+    }
+  }
+  result.backdrop_count = await page.locator('[data-testid="market-modal-backdrop"]').count().catch(() => 0);
+  result.black_fullscreen_overlay_count = await page.evaluate(() => {
+    const viewportArea = Math.max(1, window.innerWidth * window.innerHeight);
+    return Array.from(document.body.querySelectorAll('*')).filter((el) => {
+      const style = getComputedStyle(el);
+      if (style.position !== 'fixed') return false;
+      const rect = el.getBoundingClientRect();
+      const area = Math.max(0, rect.width) * Math.max(0, rect.height);
+      if (area < viewportArea * 0.75) return false;
+      const bg = style.backgroundColor || '';
+      const opacity = Number(style.opacity || 1);
+      const isDark = /rgba?\(\s*(?:0|1|2|3|4|5|6|7|8|9|1\d|2\d|3\d)\s*,\s*(?:0|1|2|3|4|5|6|7|8|9|1\d|2\d|3\d)\s*,\s*(?:0|1|2|3|4|5|6|7|8|9|1\d|2\d|3\d)/u.test(bg);
+      return isDark && opacity > 0.55;
+    }).length;
+  }).catch(() => 0);
+  result.page_still_visible = await page.locator('[data-testid="market-data-dashboard"]').count().then((count) => count > 0).catch(() => false);
+  await page.keyboard.press('Escape').catch(() => null);
+  result.ok = result.portal_visible
+    && result.option_click_ok
+    && result.page_still_visible
+    && result.backdrop_count === 0
+    && result.black_fullscreen_overlay_count === 0;
+  return result;
+}
+
 async function evaluateMapButtonOverlap(page, containerSelector, buttonSelector, minCenterDistancePx) {
   return page.evaluate(({ containerSelector: outerSelector, buttonSelector: innerSelector, minCenterDistance }) => {
     const containers = Array.from(document.querySelectorAll(outerSelector));
@@ -172,7 +246,7 @@ async function waitForStableMarketDataPage(page, tab) {
     naver_ready: !tab.needsMap,
     table_ready: false,
   };
-  result.shell_ready = await page.waitForFunction(() => /Market\s*Data/iu.test(document.body?.innerText || ''), { timeout: 60000 }).then(() => true).catch(() => false);
+  result.shell_ready = await page.waitForFunction(() => Boolean(document.querySelector('[data-testid="market-data-dashboard"]')), { timeout: 60000 }).then(() => true).catch(() => false);
   result.loading_gone = await page.waitForFunction(() => {
     const text = document.body?.innerText || '';
     return !text.includes('\uc2dc\uc7a5\uc790\ub8cc\ub97c \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4.');
@@ -460,10 +534,11 @@ async function main() {
       const chartCount = await page.locator('[data-chart-role]').count().catch(() => 0);
       const emptyChartCount = await page.locator('[data-chart-empty="true"]').count().catch(() => 0);
       const chartVisualCount = await page.locator('[data-chart-role] rect, [data-chart-role] circle, [data-chart-role] polyline, [data-chart-role] [style*="width:"]').count().catch(() => 0);
-      const titleDomCount = await page.getByText(/market\s*data/iu).count().catch(() => 0);
+      const titleDomCount = await page.locator('[data-testid="market-data-dashboard"]').count().catch(() => 0);
       const regionPrefixDomCount = await page.getByText(/\((수도권|지방)\)/u).count().catch(() => 0);
-      const titlePresent = /market\s*data/iu.test(body) || titleDomCount > 0;
+      const titlePresent = titleDomCount > 0;
       const regionPrefixPresent = /\((수도권|지방)\)/u.test(body) || regionPrefixDomCount > 0;
+      const regionMultiSelectPopover = await checkRegionMultiSelectPopover(page);
       const leaseSlicerPresent = body.includes('상/저온') && body.includes('지표');
       const supplySlicerPresent = tab.key !== 'supply-pipeline'
         || (body.includes('유형')
@@ -752,6 +827,7 @@ async function main() {
         lease_statistic_explorer: leaseStatisticExplorer,
         cap_rate_chart: capRateChart,
         supply_area_charts: supplyAreaCharts,
+        region_multi_select_popover: regionMultiSelectPopover,
       };
       row.ok = row.api_ok
         && waitState.shell_ready
@@ -784,6 +860,8 @@ async function main() {
         && emptyChartCount === 0
         && (!requiresChart || chartVisualCount > 0)
         && (!requiresRegionPrefix || row.region_prefix_present)
+        && (tab.key === 'source-update' || row.region_multi_select_popover.control_count > 0)
+        && (tab.key === 'source-update' || row.region_multi_select_popover.ok)
         && (tab.key !== 'lease-market' || row.lease_slicer_present)
         && (tab.key !== 'supply-pipeline' || row.supply_slicer_present)
         && (tab.key !== 'supply-pipeline' || row.supply_area_charts.ok)

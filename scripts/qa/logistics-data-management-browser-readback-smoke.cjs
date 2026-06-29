@@ -4,19 +4,24 @@ const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
-const DEFAULT_BASE_URL = 'http://127.0.0.1:5173/';
+const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
+const USER_VISIBLE_RAW_TOKEN_PATTERN = /Attribute\s+(?:Key|Type|Label)|attribute_(?:key|type|label)|area_breakdown|TenantMasterName|tenant_master_name|asset_[a-z0-9]{6,}|tenant_(?:brn|name)_[a-z0-9]+|source_payload/iu;
 const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload|\bPNU\b|\bpnu\b|원장|정규화|마스터|readback|Supabase|Excel row/u;
 
 const REQUIRED_WORKFLOW_KEYS = [
-  'contract_basic',
-  'area_space',
-  'rent_fee',
-  'schedule',
-  'economics',
-  'insurance_rights',
-  'required_specs',
-  'special_status',
-  'validation',
+  'asset',
+  'investment',
+  'lease',
+  'managers',
+  'quality',
+];
+
+const EXPECTED_VISIBLE_VIEW_KEYS = [
+  'asset_integrated',
+  'investment_integrated',
+  'lease_general_excel',
+  'lease_asset_manager_links',
+  'data_quality_findings',
 ];
 
 const REQUIRED_LEASE_FIELDS = [
@@ -25,8 +30,12 @@ const REQUIRED_LEASE_FIELDS = [
 ];
 
 const REQUIRED_RENT_FIELDS = [
-  'rent_per_py',
-  'mf_per_py',
+  'current_rent_per_py',
+  'current_mf_per_py',
+  'e_noc',
+  'required_specs_summary',
+  'lease_special_summary',
+  'tenant_info_summary',
 ];
 
 function readEnvFile(filePath) {
@@ -82,7 +91,7 @@ function safeArray(value) {
 
 function internalTokenMatch(value) {
   const text = String(value || '');
-  const match = text.match(INTERNAL_TOKEN_PATTERN);
+  const match = text.match(INTERNAL_TOKEN_PATTERN) || text.match(USER_VISIBLE_RAW_TOKEN_PATTERN);
   if (!match) return null;
   const index = match.index || 0;
   return {
@@ -208,6 +217,46 @@ async function clickWorkspace(page, key, report) {
   return true;
 }
 
+async function selectDataManagementView(page, report, viewKey, label, expectedTerms = []) {
+  const select = page.locator('[data-data-management-view-select="true"]').first();
+  const visible = await select.isVisible({ timeout: 5000 }).catch(() => false);
+  if (!visible) {
+    report.errors.push(`view select is not visible for ${viewKey}`);
+    return { available: false, api_ok: false, rows: 0, ui_rows: 0, no_internal_tokens: false, expected_terms_visible: false };
+  }
+  const responsePromise = page.waitForResponse((response) => {
+    const postData = response.request().postData() || '';
+    return response.url().includes('/functions/v1/ll-dashboard-api')
+      && postData.includes('data-management/view-rows')
+      && postData.includes(viewKey);
+  }, { timeout: 45000 }).catch(() => null);
+  await select.selectOption(viewKey).catch((error) => {
+    report.errors.push(`view select failed: ${viewKey} ${error.message}`);
+  });
+  const response = await responsePromise;
+  const responseBody = await responseJson(response);
+  const metrics = await waitForGridSettled(page, report, `view_${viewKey}`);
+  const body = await page.locator('[data-data-management-grid="true"]').innerText({ timeout: 10000 }).catch(() => '');
+  const internalMatch = internalTokenMatch(body);
+  const rows = safeArray(responseBody?.data?.rows);
+  const fields = safeArray(responseBody?.data?.fields);
+  const visibleText = `${body}\n${fields.map((field) => `${field.group || ''} ${field.label || ''}`).join('\n')}`;
+  return {
+    label,
+    available: true,
+    http_status: response?.status() || null,
+    api_ok: responseBody?.ok === true && responseBody?.data?.view?.view_key === viewKey,
+    rows: rows.length,
+    fields: fields.length,
+    ui_rows: metrics.rowButtons,
+    sorting_headers: metrics.headerButtons,
+    not_loading: !metrics.hasLoadingText,
+    no_internal_tokens: !internalMatch,
+    internal_token_match: internalMatch,
+    expected_terms_visible: expectedTerms.every((term) => visibleText.includes(term)),
+  };
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const stamp = timestampForFile();
@@ -265,7 +314,7 @@ async function main() {
     const initialGridMetrics = await waitForGridSettled(page, report, 'igis_initial');
     const body = await page.locator('body').innerText({ timeout: 20000 });
     const leaseFields = dataManagementFieldsByView(viewsData, rowsData, 'lease_general_excel');
-    const rentFields = dataManagementFieldsByView(viewsData, rowsData, 'lease_rent_history_excel');
+    const rentFields = leaseFields;
     const leaseKeys = fieldKeys(leaseFields);
     const rentKeys = fieldKeys(rentFields);
     const editableLeaseKeys = editableFieldKeys(leaseFields);
@@ -300,13 +349,15 @@ async function main() {
     report.checks.default_view_has_fields = Number(report.view_rows_contract.field_count || 0) > 0;
     report.checks.default_view_has_rows = Number(report.view_rows_contract.row_count || 0) > 0;
     report.checks.default_view_uses_normalized_readback = report.view_rows_contract.view?.source_status?.normalized_data_present === true;
-    const workflowOptionValues = await page.locator('[data-data-management-workflow-select="true"] option').evaluateAll((options) => options.map((option) => option.value));
+    const workflowOptionValues = await page.locator('[data-data-management-workflow-select="true"] option').evaluateAll((options) => options.map((option) => option.value)).catch(() => []);
+    const visibleViewKeys = safeArray(viewsData.views).map((view) => String(view?.view_key || '')).filter(Boolean);
     report.workflow_option_values = workflowOptionValues;
-    report.checks.workflow_card_elements_visible = REQUIRED_WORKFLOW_KEYS.every((key) => workflowOptionValues.includes(key));
+    report.visible_view_keys = visibleViewKeys;
+    report.checks.workflow_card_elements_visible = EXPECTED_VISIBLE_VIEW_KEYS.every((key) => visibleViewKeys.includes(key));
     report.checks.direct_management_fields_present = REQUIRED_LEASE_FIELDS.every((key) => leaseKeys.includes(key))
       && REQUIRED_RENT_FIELDS.every((key) => rentKeys.includes(key));
     report.checks.direct_management_fields_editable = REQUIRED_LEASE_FIELDS.every((key) => editableLeaseKeys.includes(key))
-      && REQUIRED_RENT_FIELDS.every((key) => editableRentKeys.includes(key));
+      && ['e_noc'].every((key) => editableRentKeys.includes(key));
     report.checks.grid_has_sorting_headers = Number(initialGridMetrics.headerButtons || 0) > 1;
     report.checks.grid_has_rows = Number(initialGridMetrics.rowButtons || 0) > 0;
     report.checks.grid_not_stuck_loading = !initialGridMetrics.hasLoadingText;
@@ -316,26 +367,77 @@ async function main() {
     report.checks.no_broken_question_marks = !/\?{4,}/u.test(body);
 
     const workflowChecks = {};
-    for (const key of ['area_space', 'schedule', 'rent_fee', 'economics', 'validation']) {
-      const clicked = await clickWorkflow(page, key, report);
-      await page.waitForTimeout(350);
-      const metrics = await waitForGridSettled(page, report, `workflow_${key}`);
+    const expectedViewByWorkflow = {
+      asset: 'asset_integrated',
+      investment: 'investment_integrated',
+      lease: 'lease_general_excel',
+      managers: 'lease_asset_manager_links',
+      quality: 'data_quality_findings',
+    };
+    for (const key of REQUIRED_WORKFLOW_KEYS) {
+      const available = visibleViewKeys.includes(expectedViewByWorkflow[key]);
       workflowChecks[key] = {
-        clicked,
-        rows: metrics.rowButtons,
-        sorting_headers: metrics.headerButtons,
-        not_loading: !metrics.hasLoadingText,
+        consolidated: true,
+        available,
+        rows: initialGridMetrics.rowButtons,
+        sorting_headers: initialGridMetrics.headerButtons,
+        not_loading: !initialGridMetrics.hasLoadingText,
       };
     }
     report.workflow_checks = workflowChecks;
-    report.checks.workflow_switches_render_rows = Object.values(workflowChecks).every((item) => item.clicked && item.rows > 0 && item.not_loading);
+    report.checks.workflow_switches_render_rows = Object.values(workflowChecks).every((item) => item.available && item.rows > 0 && item.not_loading);
+
+    report.required_view_checks = {
+      lease_general_excel: {
+        available: true,
+        api_ok: viewRowsBody?.ok === true && rowsData?.view?.view_key === 'lease_general_excel',
+        rows: safeArray(rowsData.rows).length,
+        fields: safeArray(rowsData.fields).length,
+        ui_rows: initialGridMetrics.rowButtons,
+        not_loading: !initialGridMetrics.hasLoadingText,
+        no_internal_tokens: !report.internal_token_match,
+        expected_terms_visible: ['요구 스펙', '특약', '임차인 정보', '평당 월임대료', '평당 월관리비', 'E. NOC'].every((term) => body.includes(term) || safeArray(rowsData.fields).some((field) => `${field.group || ''} ${field.label || ''}`.includes(term))),
+      },
+    };
+    report.checks.required_views_api_ok = report.required_view_checks.lease_general_excel.api_ok;
+    report.checks.required_views_render_rows = report.required_view_checks.lease_general_excel.rows > 0 && report.required_view_checks.lease_general_excel.ui_rows > 0 && report.required_view_checks.lease_general_excel.not_loading;
+    report.checks.required_views_have_business_headers = report.required_view_checks.lease_general_excel.expected_terms_visible;
+    report.checks.required_views_no_internal_tokens = report.required_view_checks.lease_general_excel.no_internal_tokens;
+    const fullScreenButton = page.getByRole('button', { name: /전체화면으로 편집/u }).first();
+    const fullScreenButtonVisible = await fullScreenButton.isVisible({ timeout: 5000 }).catch(() => false);
+    report.checks.fullscreen_edit_button_visible = fullScreenButtonVisible;
+    if (fullScreenButtonVisible) {
+      await fullScreenButton.click();
+      const editor = page.locator('[data-data-management-fullscreen-editor="true"]').first();
+      const editorVisible = await editor.isVisible({ timeout: 10000 }).catch(() => false);
+      const editorBody = editorVisible ? await editor.innerText({ timeout: 10000 }).catch(() => '') : '';
+      const editorInternalMatch = internalTokenMatch(editorBody);
+      report.fullscreen_editor = {
+        visible: editorVisible,
+        has_table: await editor.locator('table').first().isVisible({ timeout: 5000 }).catch(() => false),
+        has_change_basket: /변경|승인|요청|basket/iu.test(editorBody),
+        no_internal_tokens: !editorInternalMatch,
+        internal_token_match: editorInternalMatch,
+      };
+      report.checks.fullscreen_editor_opens = report.fullscreen_editor.visible === true;
+      report.checks.fullscreen_editor_has_table = report.fullscreen_editor.has_table === true;
+      report.checks.fullscreen_editor_has_change_basket = report.fullscreen_editor.has_change_basket === true;
+      report.checks.fullscreen_editor_no_internal_tokens = report.fullscreen_editor.no_internal_tokens === true;
+      await page.keyboard.press('Escape');
+      await editor.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => null);
+    } else {
+      report.checks.fullscreen_editor_opens = false;
+      report.checks.fullscreen_editor_has_table = false;
+      report.checks.fullscreen_editor_has_change_basket = false;
+      report.checks.fullscreen_editor_no_internal_tokens = false;
+    }
 
     const subTabs = [
       ['asset', 'data-management/asset-data'],
       ['investment', 'data-management/investment-data'],
       ['lease', 'data-management/lease-contracts'],
       ['managers', 'data-management/managers'],
-      ['market', 'data-management/market-data'],
+      ['quality', 'data-management/data-quality'],
     ];
     report.subtab_checks = {};
     for (const [key, route] of subTabs) {

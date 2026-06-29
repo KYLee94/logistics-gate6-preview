@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "generated_at": "2026-06-29T04:19:36.407Z",
+  "checks": {
+    "filter_pills_render_dropdown": true,
+    "filter_pills_no_button_slicer": true,
+    "region_filter_uses_multi_select": true,
+    "region_filter_supports_multi_value": true,
+    "region_filter_portal_popover": true,
+    "region_filter_not_modal_backdrop": true,
+    "region_filter_event_isolation": true,
+    "market_modal_is_portal_and_target_close_only": true,
+    "market_data_error_boundary_present": true,
+    "edge_data_keeps_stale_data_on_payload_change": true,
+    "temperature_options_mix_merged": true,
+    "temperature_normalizer_merges_mix": true,
+    "overview_lease_has_period_metric_region_temp": true,
+    "overview_transaction_has_metric_region_temp": true,
+    "overview_transaction_popup_connected": true,
+    "popup_uses_filter_dropdown_component": true
+  },
+  "failed": []
+}
