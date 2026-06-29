@@ -67,7 +67,7 @@ const COMPANY_PAYLOADS = Object.fromEntries(Object.entries(companyPayloadModules
   .filter(Boolean));
 
 const MODULES = [
-  { id: 'home', label: '홈', source: '홈' },
+  { id: 'home', label: '대시보드 홈', source: '대시보드 홈' },
   { id: 'asset', label: '자산', source: '자산' },
   { id: 'company', label: '기업', source: '기업' },
   { id: 'investment-index', label: '투자 지수', source: '투자 지수' },
@@ -102,6 +102,28 @@ const DATA_STATUS = [
 
 const PRIMARY_BLUE_BUTTON_CLASS = 'border-[#3b82f6]/30 bg-[#3b82f6]/20 text-[#60a5fa] hover:bg-[#3b82f6]/30';
 const DARK_BUTTON_CLASS = 'border-[#333333] bg-[#222] text-[#D1D1D6] hover:border-[#555] hover:text-white';
+const WORK_PLATFORM_QUICK_TAB_LIMIT = 8;
+const WORK_PLATFORM_QUICK_TAB_CACHE_KEY = 'logisticsWorkPlatformQuickTabs:v1';
+const WORK_PLATFORM_QUICK_TAB_OPTIONS = [
+  { key: 'work-platform', label: '업무 플랫폼', path: LOGISTICS_INTERNAL_BASE },
+  { key: 'home', label: '대시보드 홈', path: pathFor('dashboard/home') },
+  { key: 'asset', label: '자산', path: pathFor('dashboard/asset') },
+  { key: 'company', label: '기업', path: pathFor('dashboard/company') },
+  { key: 'investment-index', label: '투자 지수', path: pathFor('dashboard/investment-index') },
+  { key: 'asset-spec', label: '자산 스펙', path: pathFor('dashboard/asset-spec') },
+  { key: 'market-overview', label: '시장 개요', path: pathFor('market-data/overview') },
+  { key: 'lease-market', label: '임대 시장', path: pathFor('market-data/lease-market') },
+  { key: 'supply-pipeline', label: '공급 예정', path: pathFor('market-data/supply-pipeline') },
+  { key: 'transactions', label: '거래 사례', path: pathFor('market-data/transactions') },
+  { key: 'source-update', label: '원천 업데이트', path: pathFor('market-data/source-update') },
+  { key: 'dm-asset', label: '자산 Data', path: pathFor('data-management/asset-data') },
+  { key: 'dm-investment', label: '투자 Data', path: pathFor('data-management/investment-data') },
+  { key: 'dm-lease', label: '임대차계약 Data', path: pathFor('data-management/lease-contracts') },
+  { key: 'dm-managers', label: '담당자 Data', path: pathFor('data-management/managers') },
+  { key: 'dm-quality', label: '데이터 품질', path: pathFor('data-management/data-quality') },
+  { key: 'pdf-report', label: 'PDF 보고서', path: pathFor('pdf-report') },
+];
+const WORK_PLATFORM_QUICK_TAB_MAP = new Map(WORK_PLATFORM_QUICK_TAB_OPTIONS.map((item) => [item.key, item]));
 const DASHBOARD_READ_MODE = import.meta.env.VITE_LOGISTICS_DASHBOARD_READ_MODE || 'primary-safe';
 const DASHBOARD_READ_CACHE = new Map();
 const DASHBOARD_READ_INFLIGHT = new Map();
@@ -195,6 +217,45 @@ function dashboardBasisLabel(basisDate) {
 function pathFor(suffix = '') {
   const base = LOGISTICS_INTERNAL_BASE;
   return suffix ? `${base}/${suffix}` : base;
+}
+
+function normalizeWorkPlatformQuickTabKeys(keys) {
+  const result = [];
+  (Array.isArray(keys) ? keys : []).forEach((key) => {
+    const normalized = String(key || '').trim();
+    if (!normalized || !WORK_PLATFORM_QUICK_TAB_MAP.has(normalized) || result.includes(normalized)) return;
+    result.push(normalized);
+  });
+  return result.slice(0, WORK_PLATFORM_QUICK_TAB_LIMIT);
+}
+
+function readWorkPlatformQuickTabKeys() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(WORK_PLATFORM_QUICK_TAB_CACHE_KEY) || '[]');
+    return normalizeWorkPlatformQuickTabKeys(parsed);
+  } catch {
+    return [];
+  }
+}
+
+function quickTabKeyFromDragEvent(event) {
+  const direct = event?.dataTransfer?.getData('application/x-logistics-tab-key');
+  if (direct && WORK_PLATFORM_QUICK_TAB_MAP.has(direct)) return direct;
+  const payload = event?.dataTransfer?.getData('application/x-logistics-tab');
+  if (payload) {
+    try {
+      const parsed = JSON.parse(payload);
+      if (parsed?.key && WORK_PLATFORM_QUICK_TAB_MAP.has(parsed.key)) return parsed.key;
+      const matched = WORK_PLATFORM_QUICK_TAB_OPTIONS.find((item) => item.path === parsed?.path || item.label === parsed?.label);
+      if (matched) return matched.key;
+    } catch {
+      // Plain text fallback below.
+    }
+  }
+  const plain = event?.dataTransfer?.getData('text/plain');
+  const matched = WORK_PLATFORM_QUICK_TAB_OPTIONS.find((item) => item.key === plain || item.path === plain || item.label === plain);
+  return matched?.key || '';
 }
 
 function numericDiff(expected, actual) {
@@ -5464,6 +5525,44 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const sortedWeeklyTasks = useMemo(() => sortMainTasks(permittedTasks), [permittedTasks]);
   const visibleTasks = showAllTasks ? sortedWeeklyTasks : sortedWeeklyTasks.slice(0, 5);
   const topAssets = useMemo(() => [...(permission.managedAssets || [])].sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR')), [permission.managedAssets]);
+  const [quickTabKeys, setQuickTabKeys] = useState(readWorkPlatformQuickTabKeys);
+  const [quickTabDragOver, setQuickTabDragOver] = useState(false);
+  const persistQuickTabKeys = useCallback((updater) => {
+    setQuickTabKeys((current) => {
+      const next = normalizeWorkPlatformQuickTabKeys(typeof updater === 'function' ? updater(current) : updater);
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(WORK_PLATFORM_QUICK_TAB_CACHE_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, []);
+  const addQuickTab = useCallback((key) => {
+    if (!WORK_PLATFORM_QUICK_TAB_MAP.has(key)) return;
+    persistQuickTabKeys((current) => {
+      if (current.includes(key)) {
+        return normalizeWorkPlatformQuickTabKeys([key, ...current.filter((item) => item !== key)]);
+      }
+      if (current.length >= WORK_PLATFORM_QUICK_TAB_LIMIT) return current;
+      return normalizeWorkPlatformQuickTabKeys([key, ...current]);
+    });
+  }, [persistQuickTabKeys]);
+  const removeQuickTab = useCallback((key) => {
+    persistQuickTabKeys((current) => current.filter((item) => item !== key));
+  }, [persistQuickTabKeys]);
+  const moveQuickTab = useCallback((dragKey, targetKey) => {
+    if (!dragKey || !targetKey || dragKey === targetKey) return;
+    persistQuickTabKeys((current) => {
+      const without = current.filter((item) => item !== dragKey);
+      const targetIndex = without.indexOf(targetKey);
+      if (targetIndex < 0) return normalizeWorkPlatformQuickTabKeys([dragKey, ...without]);
+      return normalizeWorkPlatformQuickTabKeys([
+        ...without.slice(0, targetIndex),
+        dragKey,
+        ...without.slice(targetIndex),
+      ]);
+    });
+  }, [persistQuickTabKeys]);
+  const quickTabs = useMemo(() => quickTabKeys.map((key) => WORK_PLATFORM_QUICK_TAB_MAP.get(key)).filter(Boolean), [quickTabKeys]);
   const searchResults = useMemo(() => buildLogisticsSearchResults(mainSearchQuery, permission), [mainSearchQuery, permission]);
   const taskStakeholderOptions = useMemo(() => buildTaskStakeholderOptions(taskRecords, []), [taskRecords]);
 
@@ -5914,18 +6013,64 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
 
       <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-[18px]">
         <div className="grid grid-cols-1 gap-4">
-          <div className="flex items-center gap-4">
-            <MemberAvatar memberInfo={memberInfo} name={permission.name} />
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[16px] font-bold text-white">{permission.name}</span>
-                <span className="rounded-full border border-[#333333] bg-[#1F1F1E] px-2.5 py-1 text-[12px] font-semibold text-[#A1A1AA]">{permission.organization}</span>
-                {!permission.matched && <span className="rounded-full border border-[#4C4329] bg-[#2B2613] px-2.5 py-1 text-[12px] font-semibold text-[#FFD166]">Excel 권한 미매칭</span>}
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch">
+            <div className="flex min-w-[260px] items-center gap-4">
+              <MemberAvatar memberInfo={memberInfo} name={permission.name} />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[16px] font-bold text-white">{permission.name}</span>
+                  <span className="rounded-full border border-[#333333] bg-[#1F1F1E] px-2.5 py-1 text-[12px] font-semibold text-[#A1A1AA]">{permission.organization}</span>
+                  {!permission.matched && <span className="rounded-full border border-[#4C4329] bg-[#2B2613] px-2.5 py-1 text-[12px] font-semibold text-[#FFD166]">Excel 권한 미매칭</span>}
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-[#86868B]">
+                  <span>팀 {permission.teamMembers.length}명</span>
+                  <span>담당 자산 {permission.managedAssets.length}개</span>
+                  <span>담당 펀드 {permission.managedFunds.length}개</span>
+                </div>
               </div>
-              <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-[#86868B]">
-                <span>팀 {permission.teamMembers.length}명</span>
-                <span>담당 자산 {permission.managedAssets.length}개</span>
-                <span>담당 펀드 {permission.managedFunds.length}개</span>
+            </div>
+            <div
+              className={`min-h-[48px] flex-1 rounded-[12px] border border-dashed px-3 py-2 transition-colors ${quickTabDragOver ? 'border-[#60A5FA] bg-[#3B82F6]/10' : 'border-[#3A3A3C] bg-[#1F1F1E]'}`}
+              data-work-platform-quick-tabs="true"
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+                setQuickTabDragOver(true);
+              }}
+              onDragLeave={() => setQuickTabDragOver(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setQuickTabDragOver(false);
+                addQuickTab(quickTabKeyFromDragEvent(event));
+              }}
+            >
+              <div className="mb-1.5 flex items-center justify-between gap-3">
+                <div className="text-[16px] font-bold text-white">빠른 탭</div>
+                <div className="text-[11px] text-[#86868B]">{quickTabs.length}/{WORK_PLATFORM_QUICK_TAB_LIMIT}</div>
+              </div>
+              <div className="flex min-h-[28px] flex-wrap items-center gap-2">
+                {quickTabs.length ? quickTabs.map((item) => (
+                  <span
+                    key={item.key}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.setData('application/x-logistics-tab-key', item.key);
+                      event.dataTransfer.setData('text/plain', item.path);
+                      event.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      moveQuickTab(quickTabKeyFromDragEvent(event), item.key);
+                    }}
+                    className="inline-flex h-7 items-center gap-1.5 rounded-[8px] border border-[#3A3A3C] bg-[#151515] text-[12px] font-semibold text-white shadow-sm"
+                  >
+                    <button type="button" onClick={() => navigateTo(item.path)} className="h-full px-2.5 text-left hover:text-[#9AD7FF]">{item.label}</button>
+                    <button type="button" onClick={() => removeQuickTab(item.key)} className="h-full border-l border-[#333333] px-2 text-[#86868B] hover:text-white" aria-label={`${item.label} 빠른 탭 제거`}>×</button>
+                  </span>
+                )) : (
+                  <div className="text-[12px] text-[#86868B]">좌측 메뉴에서 자주 쓰는 탭을 끌어오세요.</div>
+                )}
               </div>
             </div>
           </div>
@@ -14800,7 +14945,7 @@ function DashboardShell({ activeModule }) {
   ), [featureAccess]);
   const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
   const selectedTitle = {
-    home: '홈',
+    home: '대시보드 홈',
     asset: '자산',
     company: '기업',
     'investment-index': '투자 지수',

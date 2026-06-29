@@ -307,7 +307,7 @@ async function main() {
     const viewRowsBody = await responseJson(viewRowsResponse);
     await page.waitForSelector('[data-data-management-redesign="true"]', { timeout: 45000 });
     await page.waitForSelector('[data-data-management-grid="true"]', { timeout: 45000 });
-    await page.waitForSelector('[data-data-management-change-basket="true"]', { timeout: 45000 });
+    await page.waitForSelector('[data-data-management-inline-edit="true"]', { timeout: 45000 }).catch(() => null);
 
     const viewsData = viewsBody?.data || {};
     const rowsData = viewRowsBody?.data || {};
@@ -361,7 +361,10 @@ async function main() {
     report.checks.grid_has_sorting_headers = Number(initialGridMetrics.headerButtons || 0) > 1;
     report.checks.grid_has_rows = Number(initialGridMetrics.rowButtons || 0) > 0;
     report.checks.grid_not_stuck_loading = !initialGridMetrics.hasLoadingText;
-    report.checks.change_basket_visible = await page.locator('[data-data-management-change-basket="true"]').isVisible({ timeout: 5000 }).catch(() => false);
+    const visibleChangeBasket = await page.locator('[data-data-management-change-basket="true"]').isVisible({ timeout: 5000 }).catch(() => false);
+    report.checks.change_basket_removed_from_layout = visibleChangeBasket === false;
+    report.checks.inline_edit_inputs_present = (await page.locator('[data-data-management-inline-edit="true"]').count().catch(() => 0)) > 0;
+    report.checks.approval_request_button_present = (await page.locator('[data-data-management-approval-open="true"]').count().catch(() => 0)) > 0;
     report.internal_token_match = internalTokenMatch(body);
     report.checks.no_internal_tokens = !report.internal_token_match;
     report.checks.no_broken_question_marks = !/\?{4,}/u.test(body);
@@ -415,20 +418,23 @@ async function main() {
       report.fullscreen_editor = {
         visible: editorVisible,
         has_table: await editor.locator('table').first().isVisible({ timeout: 5000 }).catch(() => false),
-        has_change_basket: /변경|승인|요청|basket/iu.test(editorBody),
+        has_inline_edit: (await editor.locator('[data-data-management-inline-edit="true"]').count().catch(() => 0)) > 0,
+        has_approval_button: (await editor.locator('[data-data-management-approval-open="true"]').count().catch(() => 0)) > 0,
         no_internal_tokens: !editorInternalMatch,
         internal_token_match: editorInternalMatch,
       };
       report.checks.fullscreen_editor_opens = report.fullscreen_editor.visible === true;
       report.checks.fullscreen_editor_has_table = report.fullscreen_editor.has_table === true;
-      report.checks.fullscreen_editor_has_change_basket = report.fullscreen_editor.has_change_basket === true;
+      report.checks.fullscreen_editor_has_inline_edit = report.fullscreen_editor.has_inline_edit === true;
+      report.checks.fullscreen_editor_has_approval_button = report.fullscreen_editor.has_approval_button === true;
       report.checks.fullscreen_editor_no_internal_tokens = report.fullscreen_editor.no_internal_tokens === true;
       await page.keyboard.press('Escape');
       await editor.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => null);
     } else {
       report.checks.fullscreen_editor_opens = false;
       report.checks.fullscreen_editor_has_table = false;
-      report.checks.fullscreen_editor_has_change_basket = false;
+      report.checks.fullscreen_editor_has_inline_edit = false;
+      report.checks.fullscreen_editor_has_approval_button = false;
       report.checks.fullscreen_editor_no_internal_tokens = false;
     }
 

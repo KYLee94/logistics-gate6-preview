@@ -37,7 +37,7 @@ const TRANSACTION_SIZE_BUCKET_RULES = [
 ];
 const TRANSACTION_SIZE_BUCKET_VALUES = TRANSACTION_SIZE_BUCKET_RULES.map((rule) => rule.value);
 const TRANSACTION_TEMPERATURE_OPTIONS = ['전체', '상온', '저온', 'Mix'];
-const MARKET_TEMPERATURE_HELP = '상온은 냉장·냉동 설비 없이 일반 보관을 하는 상온창고입니다. 저온은 냉장·냉동 보관을 하는 저온창고입니다. Mix 또는 복합은 한 물류센터 안에 상온창고와 저온창고가 함께 있는 경우입니다. 상온(복합포함)은 단일 상온창고와 복합센터의 상온 구역을 함께 집계하고, 저온(복합포함)은 단일 저온창고와 복합센터의 저온 구역을 함께 집계합니다.';
+const MARKET_TEMPERATURE_HELP = '복합 상온은 한 물류센터 안에 상온창고와 저온창고가 함께 있는 복합센터 중 상온창고 구역만 따로 본 값입니다. 상온(복합포함)은 단일 상온창고 값에 복합센터의 상온창고 구역까지 합쳐 본 값입니다. 복합 저온은 복합센터 중 저온창고 구역만 따로 본 값이고, 저온(복합포함)은 단일 저온창고 값에 복합센터의 저온창고 구역까지 합쳐 본 값입니다.';
 const REGION_SERIES_COLORS = {
   동남권: '#9AD7FF',
   남부권: '#B5E48C',
@@ -568,14 +568,32 @@ function isInternalFieldName(field) {
     || normalized.includes('source_sheet_id')
     || normalized.includes('natural_key')
     || normalized.includes('row_hash')
+    || normalized.includes('revision_hash')
     || normalized.includes('payload')
+    || normalized.includes('attribute_key')
+    || normalized.includes('attribute_type')
+    || normalized.includes('attribute_id')
+    || normalized.includes('asset_id')
+    || normalized.includes('fund_id')
+    || normalized.includes('tenant_id')
+    || normalized.includes('lease_id')
+    || normalized.includes('lease_space_id')
+    || normalized.includes('rent_history_id')
+    || normalized.includes('target_table')
+    || normalized.includes('target_field')
+    || normalized.includes('target_record_id')
+    || normalized.includes('primary_key_field')
+    || normalized.includes('internal_meta')
+    || normalized.includes('row_values')
+    || normalized.includes('normalized_values')
+    || normalized.includes('validation_flags')
     || normalized === 'pnu'
     || source.toUpperCase() === 'PNU'
     || /법정동코드/u.test(source);
 }
 
 function hasInternalToken(value) {
-  return /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|natural\s+key|row_hash|row\s+hash|payload|excel[_\s-]?db|excel\s*row|source\s*row|raw[_\s-]?source|normalized[_\s-]?source|\bPNU\b|\bpnu\b|법정동코드/iu.test(String(value || ''));
+  return /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|natural\s+key|row_hash|row\s+hash|revision_hash|revision\s+hash|payload|attribute_key|attribute_type|attribute_id|asset_id|fund_id|tenant_id|lease_id|lease_space_id|rent_history_id|target_table|target_field|target_record_id|primary_key_field|internal_meta|row_values|normalized_values|validation_flags|excel[_\s-]?db|excel\s*row|source\s*row|raw[_\s-]?source|normalized[_\s-]?source|\bPNU\b|\bpnu\b|법정동코드/iu.test(String(value || ''));
 }
 
 function publicDisplayText(value, fallback = '관리 대상') {
@@ -767,7 +785,7 @@ const REGION_CLUSTER_COORDS = {
 };
 const REGION_OVERVIEW_CENTER = [36.55, 127.75];
 const REGION_OVERVIEW_ZOOM = 7;
-const INTERNAL_FIELD_PATTERN = /^ll_|^source_|(^|_)(id|uuid)$|source_row_id|source_file_id|source_sheet_id|row_hash|natural_key|payload|pnu|법정동|법정동코드|adm_code|legal_dong_code|geom|geometry|created_at|updated_at/iu;
+const INTERNAL_FIELD_PATTERN = /^ll_|^source_|(^|_)(id|uuid)$|source_row_id|source_file_id|source_sheet_id|row_hash|revision_hash|natural_key|payload|attribute_key|attribute_type|attribute_id|asset_id|fund_id|tenant_id|lease_id|lease_space_id|rent_history_id|target_table|target_field|target_record_id|primary_key_field|internal_meta|row_values|normalized_values|validation_flags|pnu|법정동|법정동코드|adm_code|legal_dong_code|geom|geometry|created_at|updated_at/iu;
 const FIELD_LABELS = {
   asset_name: '자산명',
   center_name: '센터명',
@@ -6144,12 +6162,14 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
           </section>
           <section className={`${CARD} p-5`}>
             <ModuleHeader eyebrow="PIPELINE" title="공급 예정 물량" subtitle="공급 예정 물량 구분 시트 기준입니다. 기간 선택은 지도, 표, 차트 결과에 동시에 적용됩니다." />
-            <div className="mb-4">
-              <div className="mb-3 grid grid-cols-1 items-stretch gap-3 xl:grid-cols-[320px_1fr]" data-market-filter-block="true">
+            <FilterPanel columns="md:grid-cols-2 xl:grid-cols-[260px_minmax(420px,1fr)]" className="mb-4">
+              <FilterBlock>
                 <FilterPills label="유형" value={supplyKind} onChange={setSupplyKind} options={supplyKindOptions} />
-                <div className="h-full min-h-[92px] rounded-[10px] border border-[#333333] bg-[#171717] p-3" data-supply-range-slicer="true" data-market-filter-card="true">
+              </FilterBlock>
+              <FilterBlock>
+                <div className="h-full min-h-[74px]" data-supply-range-slicer="true">
                   <div className="mb-2 flex items-center justify-between gap-3">
-                    <div className="text-[12px] font-semibold text-[#A1A1AA]">기간 선택</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">기간 선택</div>
                     <div className="flex items-center gap-2">
                       <div className="text-[11px] text-[#86868B]">{supplyStart} ~ {supplyEnd} · {formatNumber(rangedPipelineRows.length)}건{supplyPeriodTouched ? ' · 미정 제외' : ''}</div>
                       <button
@@ -6189,8 +6209,8 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                     />
                   </div>
                 </div>
-              </div>
-            </div>
+              </FilterBlock>
+            </FilterPanel>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
               <MarketMapPanel title="공급 예정 지도" rows={rangedPipelineRows} labelKey="center_name" onSelect={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
               <SortableTable minWidth={980} maxHeight={580} stickyCount={2} defaultSort={{ key: 'expected_year', direction: 'asc' }} columns={supplyColumns} rows={rangedPipelineRows} onRowClick={(row) => setModal({ title: text(row.center_name), row, columns: supplyColumns })} />
@@ -8063,6 +8083,10 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [submitStatus, setSubmitStatus] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [pendingEdits, setPendingEdits] = useState({});
+  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
+  const [approvalReason, setApprovalReason] = useState('');
+  const [bulkSubmitStatus, setBulkSubmitStatus] = useState(null);
   const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews } = useEdgeData('data-management/views', {}, []);
   const views = safeArray(viewCatalog?.views);
   const bundles = safeArray(viewCatalog?.fund_asset_bundles);
@@ -8241,6 +8265,50 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         : '운영 데이터 기준으로 표시 중입니다.')
       : '운영 데이터 조회 결과가 0건입니다.')
     : '';
+  const dataManagementEditKey = (rowKey, fieldKey) => `${rowKey}::${fieldKey}`;
+  const pendingEditList = useMemo(() => Object.values(pendingEdits), [pendingEdits]);
+  const getCellEditValue = (row, column) => {
+    const key = text(column.field_key || column.field);
+    const editId = dataManagementEditKey(row.row_key, key);
+    if (pendingEdits[editId]) return text(pendingEdits[editId].requested_value, '');
+    const displayValues = row?.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+    return text(displayValues[key], '');
+  };
+  const queueCellEdit = (row, column, nextValue) => {
+    const fieldKey = text(column.field_key || column.field);
+    if (!row?.row_key || !fieldKey || column.editable !== true || row.editable === false) return;
+    const displayValues = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+    const beforeDisplay = text(displayValues[fieldKey], '');
+    const editId = dataManagementEditKey(row.row_key, fieldKey);
+    setSelectedRowKey(row.row_key);
+    setSelectedField(fieldKey);
+    setPendingEdits((current) => {
+      const next = { ...current };
+      if (text(nextValue, '') === beforeDisplay) {
+        delete next[editId];
+        return next;
+      }
+      next[editId] = {
+        edit_id: editId,
+        row_key: row.row_key,
+        row_label: text(row.row_label, '행'),
+        field_key: fieldKey,
+        field_label: text(column.label || fieldKey),
+        field_group: text(column.group, ''),
+        before_display: beforeDisplay,
+        requested_value: text(nextValue, ''),
+        revision_hash: row.revision_hash,
+        bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+        view_key: effectiveViewKey,
+      };
+      return next;
+    });
+  };
+  const clearPendingEdits = () => {
+    setPendingEdits({});
+    setApprovalReason('');
+    setBulkSubmitStatus(null);
+  };
 
   useEffect(() => {
     if (!dataManagementLoading) {
@@ -8265,6 +8333,8 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     setSelectedField('');
     setShowAllFields(true);
     setEditModalOpen(false);
+    setApprovalModalOpen(false);
+    clearPendingEdits();
   }, [activeTabConfig.key]);
 
   useEffect(() => {
@@ -8275,6 +8345,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       setViewKey(nextView);
       setPage(1);
       setSelectedRowKey('');
+      clearPendingEdits();
     }
   }, [tabViewsForSpace.map((view) => view.view_key).join('|'), viewKey, activeTabConfig.defaultViewKey]);
 
@@ -8287,6 +8358,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       setPage(1);
       setSelectedRowKey('');
       setShowAllFields(true);
+      clearPendingEdits();
     }
   }, [spaceKey, businessGroupKey, effectiveViewKey]);
 
@@ -8383,6 +8455,41 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     }
   };
 
+  const submitPendingEdits = async () => {
+    if (!pendingEditList.length) {
+      setBulkSubmitStatus({ type: 'error', message: '변경된 값이 없습니다.' });
+      return;
+    }
+    if (!approvalReason.trim()) {
+      setBulkSubmitStatus({ type: 'error', message: '승인자가 이해할 수 있는 변경 사유를 입력해 주세요.' });
+      return;
+    }
+    setBulkSubmitStatus({ type: 'pending', message: `${formatNumber(pendingEditList.length)}개 변경값을 승인 요청으로 저장하는 중입니다.` });
+    try {
+      await invoke('data-management/submit-edit', {
+        edit_mode: 'view_field_batch',
+        view_key: effectiveViewKey,
+        bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+        reason: approvalReason,
+        changes: pendingEditList.map((edit) => ({
+          view_key: edit.view_key || effectiveViewKey,
+          row_key: edit.row_key,
+          field_key: edit.field_key,
+          requested_value: edit.requested_value,
+          revision_hash: edit.revision_hash,
+          bundle_key: edit.bundle_key || (bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : ''),
+        })),
+      });
+      setBulkSubmitStatus({ type: 'success', message: '승인 요청이 저장되었습니다. 최신 값을 다시 읽어옵니다.' });
+      clearPendingEdits();
+      setApprovalModalOpen(false);
+      reloadRows({}, { force: true });
+      reloadViews({}, { force: true });
+    } catch (submitError) {
+      setBulkSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 저장에 실패했습니다.' });
+    }
+  };
+
   const reloadAll = () => {
     reloadViews({}, { force: true });
     reloadRows({}, { force: true });
@@ -8475,15 +8582,27 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       {viewsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{viewsError}</div> : null}
       {rowsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{rowsError}</div> : null}
 
-      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 gap-5">
         <section className={`${CARD} min-w-0 p-5`}>
           <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="text-[12px] font-semibold text-[#86868B]">데이터 표</div>
               <h3 className="mt-1 text-[22px] font-bold text-white">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label, '업무 데이터')}</h3>
             </div>
-            <div className="text-right text-[12px] leading-5 text-[#A1A1AA]">
+            <div className="flex flex-wrap items-center justify-end gap-2 text-right text-[12px] leading-5 text-[#A1A1AA]">
               <div>{dataManagementLoading ? `데이터 로딩 ${Math.max(8, Math.min(96, Math.round(dataManagementLoadingProgress)))}%` : `${formatNumber(currentRowCount)}건 기준`}</div>
+              <button
+                type="button"
+                onClick={() => {
+                  setBulkSubmitStatus(null);
+                  setApprovalModalOpen(true);
+                }}
+                disabled={!pendingEditList.length}
+                className="h-9 rounded-[8px] border border-[#3A3A3C] bg-white px-3 text-[12px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:bg-[#2A2A29] disabled:text-[#6E6E73]"
+                data-data-management-approval-open="true"
+              >
+                변경값 승인 요청 {pendingEditList.length ? `${formatNumber(pendingEditList.length)}건` : ''}
+              </button>
             </div>
           </div>
           <div className="mb-4 text-[12px] leading-5 text-[#A1A1AA]" data-data-management-table-tabs="true">
@@ -8533,17 +8652,36 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                         </td>
                         {visibleColumns.map((column) => {
                           const key = text(column.field_key || column.field);
-                          const cellChanged = selected && key === selectedFieldKey && hasChange;
+                          const editId = dataManagementEditKey(row.row_key, key);
+                          const cellPending = pendingEdits[editId];
+                          const canEditCell = column.editable === true && row.editable !== false;
+                          const cellChanged = Boolean(cellPending);
+                          const cellValue = getCellEditValue(row, column);
                           return (
                             <td key={`${row.row_key}-${key}`} className={`max-w-[320px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''}`}>
-                              <button
-                                type="button"
-                                onClick={(event) => { event.stopPropagation(); setSelectedRowKey(row.row_key); setSelectedField(key); }}
-                                className="block w-full truncate text-left"
-                                title={formatDisplayValue(values[key], key)}
-                              >
-                                {formatDisplayValue(values[key], key)}
-                              </button>
+                              {canEditCell ? (
+                                <input
+                                  value={cellValue}
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    setSelectedRowKey(row.row_key);
+                                    setSelectedField(key);
+                                  }}
+                                  onChange={(event) => queueCellEdit(row, column, event.target.value)}
+                                  className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
+                                  title={formatDisplayValue(values[key], key)}
+                                  data-data-management-inline-edit="true"
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(event) => { event.stopPropagation(); setSelectedRowKey(row.row_key); setSelectedField(key); }}
+                                  className="block w-full truncate text-left"
+                                  title={formatDisplayValue(values[key], key)}
+                                >
+                                  {formatDisplayValue(values[key], key)}
+                                </button>
+                              )}
                             </td>
                           );
                         })}
@@ -8570,7 +8708,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           </div>
         </section>
 
-        <aside className={`${CARD} p-5`} data-data-management-change-basket="true">
+        <aside className="hidden" data-data-management-change-basket="true" aria-hidden="true">
           <button
             type="button"
             onClick={() => setEditModalOpen(true)}
@@ -8640,14 +8778,28 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         width="max-w-[calc(100vw-32px)]"
         fullscreen
       >
-        <div className="grid h-full min-h-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]" data-data-management-fullscreen-editor="true">
+        <div className="grid h-full min-h-0 grid-cols-1 gap-5" data-data-management-fullscreen-editor="true">
           <section className="min-w-0">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[12px] font-semibold text-[#86868B]">데이터 표</div>
                 <h3 className="mt-1 text-[22px] font-bold text-white">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label, '업무 데이터')}</h3>
               </div>
-              <div className="text-[12px] text-[#A1A1AA]">{formatNumber(currentRowCount)}건 기준</div>
+              <div className="flex flex-wrap items-center justify-end gap-2 text-[12px] text-[#A1A1AA]">
+                <span>{formatNumber(currentRowCount)}건 기준</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkSubmitStatus(null);
+                    setApprovalModalOpen(true);
+                  }}
+                  disabled={!pendingEditList.length}
+                  data-data-management-approval-open="true"
+                  className="h-9 rounded-[8px] border border-[#3A3A3C] bg-white px-3 text-[12px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:bg-[#2A2A29] disabled:text-[#6E6E73]"
+                >
+                  변경값 승인 요청 {pendingEditList.length ? `${formatNumber(pendingEditList.length)}건` : ''}
+                </button>
+              </div>
             </div>
             <div className="overflow-hidden rounded-[12px] border border-[#333333]">
               <div className="custom-scrollbar max-h-[calc(100vh-185px)] min-h-[560px] overflow-auto overscroll-contain">
@@ -8681,17 +8833,36 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                           </td>
                           {visibleColumns.map((column) => {
                             const key = text(column.field_key || column.field);
-                            const cellChanged = selected && key === selectedFieldKey && hasChange;
+                            const editId = dataManagementEditKey(row.row_key, key);
+                            const cellPending = pendingEdits[editId];
+                            const canEditCell = column.editable === true && row.editable !== false;
+                            const cellChanged = Boolean(cellPending);
+                            const cellValue = getCellEditValue(row, column);
                             return (
                               <td key={`fullscreen-${row.row_key}-${key}`} className={`max-w-[320px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''}`}>
-                                <button
-                                  type="button"
-                                  onClick={(event) => { event.stopPropagation(); setSelectedRowKey(row.row_key); setSelectedField(key); }}
-                                  className="block w-full truncate text-left"
-                                  title={formatDisplayValue(values[key], key)}
-                                >
-                                  {formatDisplayValue(values[key], key)}
-                                </button>
+                                {canEditCell ? (
+                                  <input
+                                    value={cellValue}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedRowKey(row.row_key);
+                                      setSelectedField(key);
+                                    }}
+                                    onChange={(event) => queueCellEdit(row, column, event.target.value)}
+                                    className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
+                                    title={formatDisplayValue(values[key], key)}
+                                    data-data-management-inline-edit="true"
+                                  />
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => { event.stopPropagation(); setSelectedRowKey(row.row_key); setSelectedField(key); }}
+                                    className="block w-full truncate text-left"
+                                    title={formatDisplayValue(values[key], key)}
+                                  >
+                                    {formatDisplayValue(values[key], key)}
+                                  </button>
+                                )}
                               </td>
                             );
                           })}
@@ -8709,7 +8880,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
               </div>
             </div>
           </section>
-          <aside className={`${INNER} p-4`}>
+          <aside className="hidden" aria-hidden="true">
             <div className="text-[12px] font-semibold text-[#86868B]">변경 요청</div>
             <h3 className="mt-1 text-[22px] font-bold text-white">검증 및 승인 요청</h3>
             <div className={`${INNER} mt-4 p-4`}>
@@ -8748,6 +8919,73 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             </button>
             {submitStatus ? <div className={`mt-3 text-[12px] leading-5 ${submitStatus.type === 'error' ? 'text-[#FF9F9F]' : submitStatus.type === 'success' ? 'text-[#B5E48C]' : 'text-[#A1A1AA]'}`}>{submitStatus.message}</div> : null}
           </aside>
+        </div>
+      </Modal>
+      <Modal
+        title={approvalModalOpen ? '변경값 승인 요청' : ''}
+        onClose={() => setApprovalModalOpen(false)}
+        width="max-w-[calc(100vw-64px)]"
+      >
+        <div className="space-y-4" data-data-management-approval-modal="true">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="text-[13px] leading-6 text-[#A1A1AA]">
+              표에서 직접 수정한 값만 모았습니다. 승인 요청 저장 전 변경 전/후와 사유를 확인해 주세요.
+            </div>
+            <div className="rounded-[8px] border border-[#333333] px-3 py-2 text-[12px] font-semibold text-white">
+              변경 {formatNumber(pendingEditList.length)}건
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-[12px] border border-[#333333]">
+            <div className="custom-scrollbar max-h-[44vh] overflow-auto">
+              <table className="w-full min-w-[920px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
+                <thead className="sticky top-0 z-10 bg-[#1F1F1E] text-[#A1A1AA]">
+                  <tr>
+                    {['수정 대상', '필드', '변경 전', '변경 후'].map((header) => (
+                      <th key={header} className="border-b border-r border-[#333333] px-3 py-2 font-semibold">{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#303033]">
+                  {pendingEditList.length ? pendingEditList.map((edit) => (
+                    <tr key={edit.edit_id} className="bg-[#171717] text-[#E5E5E5]">
+                      <td className="max-w-[300px] border-r border-[#242426] px-3 py-2 align-top">
+                        <div className="truncate font-semibold text-white" title={edit.row_label}>{edit.row_label}</div>
+                      </td>
+                      <td className="max-w-[220px] border-r border-[#242426] px-3 py-2 align-top">
+                        <div className="truncate font-semibold text-white" title={`${edit.field_group} ${edit.field_label}`}>{[edit.field_group, edit.field_label].filter(Boolean).join(' · ')}</div>
+                      </td>
+                      <td className="max-w-[260px] border-r border-[#242426] px-3 py-2 align-top text-[#C7C7CC]">{text(edit.before_display, '-')}</td>
+                      <td className="max-w-[260px] border-r border-[#242426] px-3 py-2 align-top font-semibold text-[#B5E48C]">{text(edit.requested_value, '-')}</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={4} className="bg-[#171717] px-4 py-8 text-center text-[#A1A1AA]">변경된 값이 없습니다.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <label className="block text-[12px] font-semibold text-[#A1A1AA]">
+            변경 사유
+            <textarea
+              value={approvalReason}
+              onChange={(event) => setApprovalReason(event.target.value)}
+              className="mt-2 h-24 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[13px] text-white outline-none focus:border-[#8E8E93]"
+              placeholder="승인자가 이해할 수 있도록 변경 사유를 적어 주세요."
+            />
+          </label>
+          {bulkSubmitStatus ? (
+            <div className={`rounded-[10px] border px-3 py-2 text-[12px] leading-5 ${bulkSubmitStatus.type === 'error' ? 'border-[#5A2A2A] bg-[#2A1717] text-[#FFB4A9]' : bulkSubmitStatus.type === 'success' ? 'border-[#2F4C2F] bg-[#172A17] text-[#B5E48C]' : 'border-[#333333] bg-[#171717] text-[#A1A1AA]'}`}>
+              {bulkSubmitStatus.message}
+            </div>
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={() => setApprovalModalOpen(false)} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93]">취소</button>
+            <button type="button" onClick={submitPendingEdits} disabled={!pendingEditList.length || bulkSubmitStatus?.type === 'pending'} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-40">
+              승인 요청 저장
+            </button>
+          </div>
         </div>
       </Modal>
     </div>

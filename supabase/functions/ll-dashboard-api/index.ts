@@ -9908,6 +9908,150 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
   return jsonResponse({ ok: true, data }, 200, ctx.origin);
 }
 
+async function dataManagementResolveViewFieldPayload(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const viewKey = safeText(payload.view_key || payload.viewKey);
+  const view = dataManagementViewByKey(viewKey);
+  if (view && safeText((view as Record<string, unknown>).fallback_table_key)) {
+    const resolved = await dataManagementResolveFallbackViewEdit(ctx, payload, scope || dataManagementEmptyScope(), view as Record<string, unknown>);
+    return resolved.table_payload as Record<string, unknown>;
+  }
+  const workbookConfig = dataManagementLeaseWorkbookConfig(viewKey);
+  if (workbookConfig && !DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
+    const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scope, workbookConfig);
+    return resolved.source_payload as Record<string, unknown>;
+  }
+  const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scope);
+  if ('error' in resolved) throw new Error('Data Management View edit target could not be resolved');
+  return resolved.table_payload as Record<string, unknown>;
+}
+
+async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Record<string, unknown>) {
+  const rawChanges = Array.isArray(payload.changes) ? payload.changes as Record<string, unknown>[] : [];
+  const reason = safeText(payload.reason || payload.change_reason || payload.changeReason);
+  if (!rawChanges.length) return fail(400, 'changes are required', ctx.origin);
+  if (!reason) return fail(400, 'change reason is required', ctx.origin);
+  if (rawChanges.length > 50) return fail(400, 'Too many changes in one approval request', ctx.origin);
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const scopeResult = await readDataManagementScope(ctx, managerView);
+  if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+  const scope = scopeResult.scope || dataManagementEmptyScope();
+  const cellEdits: Record<string, unknown>[] = [];
+  const submitReadbacks: Record<string, unknown>[] = [];
+  const labels: string[] = [];
+  for (const rawChange of rawChanges) {
+    const change = rawChange && typeof rawChange === 'object' ? rawChange : {};
+    const mergedPayload = {
+      ...payload,
+      ...change,
+      edit_mode: 'view_field',
+      reason,
+      view_key: change.view_key || change.viewKey || payload.view_key || payload.viewKey,
+      row_key: change.row_key || change.rowKey,
+      field_key: change.field_key || change.fieldKey,
+      requested_value: firstDefined(change.requested_value, change.requestedValue, change.after_value, change.afterValue),
+      revision_hash: change.revision_hash || change.revisionHash,
+      bundle_key: change.bundle_key || change.bundleKey || payload.bundle_key || payload.bundleKey,
+    } as Record<string, unknown>;
+    const tablePayload = await dataManagementResolveViewFieldPayload(ctx, mergedPayload, scope);
+    const input = dataManagementTableCellInput(tablePayload);
+    if (!input.targetTable || !input.targetRowId || !input.fieldName) return fail(400, 'target table, target row, and field_name are required', ctx.origin);
+    if (input.requestedValue === undefined || input.requestedValue === null) return fail(400, 'requested_value is required', ctx.origin);
+    if (!dataManagementEditableField(input.targetTable, input.fieldName)) return fail(403, 'This field is not editable through Data Management', ctx.origin);
+    const capability = dataManagementCapabilityForTable(input.tableName);
+    if (capability !== 'approval_required') return fail(400, 'Batch approval supports mapped operational fields only', ctx.origin);
+    const cell = {
+      targetTable: input.targetTable,
+      primaryKeyField: input.primaryKeyField,
+      targetRowId: input.targetRowId,
+      targetCellId: '',
+      sourceRowId: safeText(tablePayload.source_row_id || tablePayload.sourceRowId),
+      sourceCellId: '',
+      fieldName: input.fieldName,
+      operation: '?섏젙',
+      beforeValue: input.beforeValue,
+      afterValue: input.requestedValue,
+      assetId: safeText(tablePayload.asset_id || tablePayload.assetId),
+      assetName: safeText(tablePayload.asset_name || tablePayload.assetName),
+      leaseSpaceId: '',
+      leaseId: '',
+      tenantId: '',
+      sourceOnly: false,
+      sourceSheet: '',
+      sourceColumnLetter: '',
+      sourceHeader: input.fieldName,
+    };
+    const validationError = validateEditCell(ctx, cell);
+    if (validationError) return fail(400, validationError, ctx.origin);
+    const row = await readTargetRow(ctx.serviceClient, cell);
+    if (!await assertTargetRowPermission(ctx, row, cell)) return fail(403, 'Insufficient asset write permission for target row', ctx.origin);
+    assertRowTemporalWriteAllowed(cell, row);
+    const currentValue = row[cell.fieldName];
+    const currentRevisionHash = await dataManagementRevisionHash(row);
+    if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue)) {
+      return fail(409, 'Stale value blocked before submit', ctx.origin, { field_name: input.fieldName, current_value: currentValue });
+    }
+    const requestedRevisionHash = safeText(tablePayload.revision_hash || tablePayload.revisionHash);
+    const requestedViewRevisionHash = safeText(tablePayload.view_revision_hash || tablePayload.viewRevisionHash);
+    if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
+      return fail(409, 'Stale row revision blocked before submit', ctx.origin, { field_name: input.fieldName, current_revision_hash: currentRevisionHash });
+    }
+    if (valuesEqual(currentValue, input.requestedValue)) return fail(400, 'A changed requested value is required', ctx.origin, { field_name: input.fieldName });
+    const beforeValue = input.beforeValue === undefined || input.beforeValue === null ? currentValue : input.beforeValue;
+    cellEdits.push({
+      target_table: input.targetTable,
+      primary_key_field: input.primaryKeyField,
+      target_row_id: input.targetRowId,
+      field_name: input.fieldName,
+      before_value: beforeValue,
+      after_value: input.requestedValue,
+      asset_id: tablePayload.asset_id || tablePayload.assetId || row.asset_id || row.assetId || null,
+      asset_name: tablePayload.asset_name || tablePayload.assetName || row.asset_name || row.assetName || null,
+      source_row_id: tablePayload.source_row_id || tablePayload.sourceRowId || null,
+      source_header: input.fieldName,
+    });
+    submitReadbacks.push({
+      target_table: input.targetTable,
+      target_row_id: input.targetRowId,
+      field_name: input.fieldName,
+      submit_readback_value: currentValue,
+      stale_at_submit: !valuesEqual(currentValue, beforeValue),
+      current_revision_hash: currentRevisionHash,
+    });
+    labels.push(safeText(tablePayload.target_name || tablePayload.targetName || dataManagementRowLabelForTable(input.tableName, row)));
+  }
+  const firstCell = cellEdits[0];
+  const requestPayload = redactSensitivePayload({
+    kind: 'data_management_view_field_batch_edit',
+    edit_mode: 'view_field_batch',
+    bundle_key: payload.bundle_key || payload.bundleKey || null,
+    reason,
+    submit_readbacks: submitReadbacks,
+    cell_edits: cellEdits,
+  }) as Record<string, unknown>;
+  const targetName = uniqueStrings(labels, 3).join(' / ') || `${cellEdits.length} changes`;
+  const { data, error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .insert({
+      source_table: firstCell.target_table,
+      target_type: 'data_management_view_field_batch',
+      target_name: targetName,
+      target_row_id: firstCell.target_row_id,
+      field_name: 'multiple_fields',
+      reason_code: 'data_management_view_field_batch_update',
+      before_value: `${cellEdits.length} current values`,
+      requested_value: `${cellEdits.length} requested values`,
+      request_payload: requestPayload,
+      requested_by: ctx.user.id,
+      status: 'submitted',
+      write_status: 'approval_required',
+    })
+    .select('id,status,write_status,created_at')
+    .single();
+  if (error) return fail(500, 'Failed to submit data management batch edit request', ctx.origin, { error: error.message });
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/submit-edit/view-field-batch', 200, { id: data.id, changes: cellEdits.length });
+  return jsonResponse({ ok: true, data: { ...data, changes: cellEdits.length } }, 200, ctx.origin);
+}
+
 async function callDataManagementCoverage(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Manager') && !canManageFeatureAccess(ctx)) {
     return fail(403, 'Data Management coverage audit requires manager permission', ctx.origin);
@@ -10441,6 +10585,13 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
 async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/submit-edit', 40)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  if (safeText(payload.edit_mode || payload.editMode) === 'view_field_batch' || Array.isArray(payload.changes)) {
+    try {
+      return await callDataManagementSubmitViewFieldBatch(ctx, payload);
+    } catch (error) {
+      return fail(400, error instanceof Error ? error.message : 'Failed to submit Data Management batch edit request', ctx.origin);
+    }
+  }
   if (isDataManagementViewFieldPayload(payload)) {
     const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);

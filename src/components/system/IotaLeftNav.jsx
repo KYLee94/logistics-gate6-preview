@@ -500,7 +500,7 @@ const logisticsRootItem = {
 };
 const logisticsDashboardItems = [
     {
-        label: '홈',
+        label: '대시보드 홈',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/home`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 12l9-9 9 9M5 10v10h14V10M9 20v-6h6v6" /></svg>,
     },
@@ -1080,6 +1080,12 @@ export default function IotaLeftNav({ currentPath = '' }) {
             </span>
         ) : null
     );
+    const startQuickTabDrag = (event, item) => {
+        if (!item?.path) return;
+        event.dataTransfer.setData('application/x-logistics-tab', JSON.stringify({ label: item.label, path: item.path }));
+        event.dataTransfer.setData('text/plain', item.path);
+        event.dataTransfer.effectAllowed = 'copy';
+    };
 
     if (isLogisticsPath) {
         const visibleDashboardItems = logisticsDashboardItems.filter((item) => {
@@ -1115,7 +1121,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                             Logistics Platform
                     </div>
                     <div className="flex flex-col gap-0">
-                        <div title={isCollapsed ? logisticsRootItem.label : undefined} onClick={() => handleNavigation(logisticsRootItem.path)} className={`group relative flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isWorkPlatformActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
+                        <div title={isCollapsed ? logisticsRootItem.label : undefined} draggable={!isCollapsed} onDragStart={(event) => startQuickTabDrag(event, logisticsRootItem)} onClick={() => handleNavigation(logisticsRootItem.path)} className={`group relative flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isWorkPlatformActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
                             <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : ''}`}>
                                 <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>{logisticsRootItem.icon}</span>
                                 <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>{logisticsRootItem.label}</span>
@@ -1154,7 +1160,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     {visibleDashboardItems.map((item) => {
                                         const isActive = normalizedCurrentPath === item.path || normalizedCurrentPath.startsWith(`${item.path}/`);
                                         return (
-                                            <div key={item.path} title={isCollapsed ? item.label : undefined} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
+                                            <div key={item.path} title={isCollapsed ? item.label : undefined} draggable={!isCollapsed} onDragStart={(event) => startQuickTabDrag(event, item)} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
                                                 <div className="flex min-w-0 items-center">
                                                     <span className="text-white">{item.icon}</span>
                                                     <span className="overflow-hidden whitespace-nowrap text-[13px] font-light text-white">{item.label}</span>
@@ -1196,7 +1202,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     {visibleMarketDataItems.map((item) => {
                                         const isActive = normalizedCurrentPath === item.path || normalizedCurrentPath.startsWith(`${item.path}/`);
                                         return (
-                                            <div key={item.path} title={isCollapsed ? item.label : undefined} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
+                                            <div key={item.path} title={isCollapsed ? item.label : undefined} draggable={!isCollapsed} onDragStart={(event) => startQuickTabDrag(event, item)} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
                                                 <div className="flex min-w-0 items-center">
                                                     <span className="text-white">{item.icon}</span>
                                                     <span className="overflow-hidden whitespace-nowrap text-[13px] font-light text-white">{item.label}</span>
@@ -1238,7 +1244,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     {visibleDataManagementItems.map((item) => {
                                         const isActive = normalizedCurrentPath === item.path || normalizedCurrentPath.startsWith(`${item.path}/`);
                                         return (
-                                            <div key={item.path} title={isCollapsed ? item.label : undefined} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
+                                            <div key={item.path} title={isCollapsed ? item.label : undefined} draggable={!isCollapsed} onDragStart={(event) => startQuickTabDrag(event, item)} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center justify-between rounded-xl py-[6px] transition-colors duration-200 outline-none select-none cursor-pointer ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
                                                 <div className="flex min-w-0 items-center">
                                                     <span className="text-white">{item.icon}</span>
                                                     <span className="overflow-hidden whitespace-nowrap text-[13px] font-light text-white">{item.label}</span>
@@ -1253,7 +1259,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                             {visibleStandaloneItems.map((item) => {
                                 const isActive = normalizedCurrentPath === item.path || normalizedCurrentPath.startsWith(`${item.path}/`);
                                 return (
-                                    <div key={item.path} title={isCollapsed ? item.label : undefined} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
+                                    <div key={item.path} title={isCollapsed ? item.label : undefined} draggable={!isCollapsed} onDragStart={(event) => startQuickTabDrag(event, item)} onClick={() => handleNavigation(item.path)} className={`group relative flex items-center ${isCollapsed ? 'justify-center' : 'justify-between'} py-[7px] rounded-xl cursor-pointer transition-colors duration-200 outline-none select-none ${isActive ? 'bg-[#151515] px-[9px] -mx-[2px]' : 'px-[7px] hover:bg-[#151515]'}`}>
                                         <div className={`flex min-w-0 items-center ${isCollapsed ? 'justify-center' : ''}`}>
                                             <span className={`text-white ${isCollapsed ? '[&>svg]:mr-0' : ''}`}>{item.icon}</span>
                                             <span className={`overflow-hidden whitespace-nowrap text-[14px] text-white font-light transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[180px] translate-x-0 opacity-100'}`}>{item.label}</span>

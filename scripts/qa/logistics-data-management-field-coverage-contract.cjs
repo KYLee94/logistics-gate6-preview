@@ -79,9 +79,19 @@ const result = {
 };
 
 const artifact = path.join(artifactDir, 'data-management-field-coverage-contract-latest.json');
-fs.writeFileSync(artifact, JSON.stringify(result, null, 2), 'utf8');
+let writtenArtifact = artifact;
+try {
+  fs.writeFileSync(artifact, JSON.stringify(result, null, 2), 'utf8');
+} catch (error) {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  writtenArtifact = path.join(artifactDir, `data-management-field-coverage-contract-${timestamp}.json`);
+  fs.writeFileSync(writtenArtifact, JSON.stringify({
+    ...result,
+    latest_write_warning: error instanceof Error ? error.message : String(error),
+  }, null, 2), 'utf8');
+}
 if (!result.ok) {
   console.error(JSON.stringify(result, null, 2));
   process.exit(1);
 }
-console.log(JSON.stringify({ ok: true, artifact }, null, 2));
+console.log(JSON.stringify({ ok: true, artifact: writtenArtifact }, null, 2));

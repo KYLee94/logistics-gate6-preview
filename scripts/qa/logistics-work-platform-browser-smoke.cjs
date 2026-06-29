@@ -176,6 +176,22 @@ async function main() {
     };
     report.checks.permission_header_counts_nonzero = Number(report.permission_header_counts.asset_count || 0) > 0
       && Number(report.permission_header_counts.fund_count || 0) > 0;
+    report.quick_tabs = await page.evaluate(() => {
+      const container = document.querySelector('[data-work-platform-quick-tabs="true"]');
+      if (!container) return { visible: false, height: 0, candidate_buttons: 0, title_font_size: '' };
+      const box = container.getBoundingClientRect();
+      const title = [...container.querySelectorAll('div')].find((node) => (node.textContent || '').trim() === '빠른 탭');
+      return {
+        visible: box.width > 0 && box.height > 0,
+        height: Math.round(box.height),
+        candidate_buttons: [...container.querySelectorAll('button')].filter((button) => (button.textContent || '').includes('업무 플랫폼')).length,
+        title_font_size: title ? getComputedStyle(title).fontSize : '',
+      };
+    });
+    report.checks.quick_tabs_visible = report.quick_tabs.visible === true;
+    report.checks.quick_tabs_compact_height = Number(report.quick_tabs.height || 0) > 0 && Number(report.quick_tabs.height || 0) <= 96;
+    report.checks.quick_tabs_no_sample_buttons = Number(report.quick_tabs.candidate_buttons || 0) === 0;
+    report.checks.quick_tabs_title_font_matches_profile = report.quick_tabs.title_font_size === '16px';
     const taskHeaderText = await page.locator('#task-management').innerText();
     report.task_header_text = taskHeaderText;
     report.expected_week_label = expectedWeekLabel;
