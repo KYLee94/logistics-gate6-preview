@@ -540,7 +540,7 @@ function dataManagementColumnEditGuide(column) {
   const label = text(column?.label || '');
   const customHelp = DATA_MANAGEMENT_FIELD_HELP[key];
   const hasDetailEditor = /equity|loan|tranche|maturity|summary|insurance|required_specs|tenant_info|rent_per_py|mf_per_py|current_monthly|economic_terms|building_register/i.test(`${key} ${label}`)
-    && !/^(equity_amount_krw|loan_amount_krw|total_capital_krw)$/i.test(key);
+    && !/^(total_capital_krw)$/i.test(key);
   if (column?.editable === true) return `수정: 표에서 바로 값을 고친 뒤 승인 요청으로 저장합니다.${customHelp ? ` ${customHelp}` : ''}`;
   if (hasDetailEditor) return `수정: 셀을 눌러 상세 표에서 행별로 고친 뒤 승인 요청으로 저장합니다.${customHelp ? ` ${customHelp}` : ''}`;
   return `수정: ${text(column?.read_only_reason || customHelp, '조회 전용입니다. 다른 업무 탭 또는 관리자 직접 수정 대상입니다.')}`;
@@ -8546,7 +8546,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     'sublease_yn',
     'lease_special_summary',
     'tenant_info_summary',
-    'building_register_summary',
     'disposition_status',
     'fund_code',
     'fund_short_name',

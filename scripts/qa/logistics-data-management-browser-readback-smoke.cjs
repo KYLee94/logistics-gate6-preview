@@ -27,6 +27,7 @@ const EXPECTED_VISIBLE_VIEW_KEYS = [
 const REQUIRED_LEASE_FIELDS = [
   'exclusive_ratio',
   'current_contract_period',
+  'sublease_yn',
 ];
 
 const REQUIRED_RENT_FIELDS = [
@@ -40,11 +41,10 @@ const REQUIRED_RENT_FIELDS = [
 
 const REQUIRED_EDITABLE_LEASE_FIELDS = [
   'exclusive_ratio',
+  'sublease_yn',
 ];
 
-const REQUIRED_EDITABLE_RENT_FIELDS = [
-  'e_noc',
-];
+const REQUIRED_EDITABLE_RENT_FIELDS = [];
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};

@@ -348,6 +348,7 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'spaceLabel', 'space_label',
     'floorLabel', 'floor_label', 'detailAreaLabel', 'detail_area_label', 'temperatureType', 'temperature_type',
     'isPreleased', 'is_preleased', 'is3pl', 'is_3pl', 'goodsType', 'goods_type', 'isSingleTenant', 'is_single_tenant',
+    'isSubleased', 'is_subleased', 'subleaseYn', 'sublease_yn',
     'leasedAreaSqm', 'leased_area_sqm', 'exclusiveAreaSqm', 'exclusive_area_sqm',
     'exclusiveRatio', 'exclusive_ratio',
     'currentMonthlyRentTotal', 'current_monthly_rent_total',
@@ -6207,7 +6208,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'current_monthly_rent_total', label: '월 임대료', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_rent_total', width: 140 },
   { field_key: 'current_monthly_mf_total', label: '월 관리비', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_mf_total', width: 140 },
   { field_key: 'current_monthly_cost_total', label: '월 임관리비', group: '임대료·관리비', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_cost_total', width: 140, default_hidden: true },
-  { field_key: 'e_noc', label: 'E. NOC', group: '임대료·관리비', type: 'krw_per_py', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'e_noc', width: 120, default_hidden: true },
+  { field_key: 'e_noc', label: 'E. NOC', group: '임대료·관리비', type: 'krw_per_py', editable: false, width: 120, default_hidden: true, read_only_reason: '월 임관리비와 임대면적 기준으로 계산되는 표시값입니다.' },
   { field_key: 'current_rent_per_py', label: '평당 월임대료', group: '임대료·관리비', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료 이력 행에서 승인 요청합니다.' },
   { field_key: 'current_mf_per_py', label: '평당 월관리비', group: '임대료·관리비', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료 이력 행에서 승인 요청합니다.' },
   { field_key: 'deposit_amount', label: '보증금', group: '보증금·렌트프리·인상', type: 'krw', editable: true, target_table: 'public.ll_leases', target_field: 'deposit_amount', width: 130 },
@@ -6260,11 +6261,11 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS_V2 = [
   { field_key: 'current_monthly_cost_total', label: '월 임관리비', group: '임대료·관리비·보증금', type: 'krw', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'current_monthly_cost_total', width: 140 },
   { field_key: 'current_rent_per_py', label: '평당 월임대료', group: '임대료·관리비·보증금', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료·보증금 상세에서 기준 이력 행으로 승인 요청합니다.' },
   { field_key: 'current_mf_per_py', label: '평당 월관리비', group: '임대료·관리비·보증금', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '최신 임대료 이력 기준 표시값입니다. 수정은 임대료·보증금 상세에서 기준 이력 행으로 승인 요청합니다.' },
-  { field_key: 'e_noc', label: 'E. NOC', group: '임대료·관리비·보증금', type: 'krw_per_py', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'e_noc', width: 120 },
-  { field_key: 'economic_terms_summary', label: '임대료·보증금 상세', group: '임대료·관리비·보증금', type: 'text', editable: false, width: 300, read_only_reason: '보증금, 월임대료, 월관리비, 평당 단가, RF, FO, TI, E. NOC를 상세 편집에서 행별로 수정 요청합니다.' },
+  { field_key: 'e_noc', label: 'E. NOC', group: '임대료·관리비·보증금', type: 'krw_per_py', editable: false, width: 120, read_only_reason: '월 임관리비와 임대면적 기준으로 계산되는 표시값입니다.' },
+  { field_key: 'economic_terms_summary', label: '임대료·보증금 상세', group: '임대료·관리비·보증금', type: 'text', editable: false, width: 300, read_only_reason: '보증금, 월임대료, 월관리비, RF, FO, TI, 인상 조건을 상세 편집에서 행별로 수정 요청합니다. 평당 단가와 E. NOC는 계산값입니다.' },
   { field_key: 'required_specs_summary', label: '요구 스펙', group: '요구 스펙', type: 'text', editable: false, width: 260, read_only_reason: '요구 스펙은 상세 편집에서 항목별로 수정 요청합니다.' },
   { field_key: 'insurance_rights_summary', label: '보험·권리 상세', group: '보험·권리', type: 'text', editable: false, width: 260, read_only_reason: '보험·권리 조건은 상세 편집에서 항목별로 수정 요청합니다.' },
-  { field_key: 'sublease_yn', label: '전차 여부', group: '기타 특약', type: 'yn', editable: false, width: 110, read_only_reason: '원천에 전차 여부 필드가 있는 경우 상세 편집에서 분리 관리합니다.' },
+  { field_key: 'sublease_yn', label: '전차 여부', group: '기타 특약', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'sublease_yn', width: 110 },
   { field_key: 'lease_special_summary', label: '기타 특수 계약 조건', group: '기타 특약', type: 'text', editable: false, width: 300, read_only_reason: '다른 전용 컬럼에 있는 일정·금액·보험 조건은 제외하고 기타 특수 조건만 관리합니다.' },
   { field_key: 'tenant_info_summary', label: '임차인 정보', group: '임차인 정보', type: 'text', editable: false, width: 240, read_only_reason: '임차인 기준 lookup 정보입니다. 임차인 상세 편집에서 수정 요청합니다.' },
 ];
@@ -6380,7 +6381,6 @@ const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS_V2 = [
   { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_assets', target_field: 'gross_floor_area_sqm', width: 130 },
   { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_assets', target_field: 'land_area_sqm', width: 130 },
   { field_key: 'floor_count', label: '층수', group: '면적', type: 'number', editable: true, target_table: 'public.ll_assets', target_field: 'floor_count', width: 100 },
-  { field_key: 'building_register_summary', label: '건축물대장 상세', group: '건축물대장', type: 'text', editable: false, width: 260, read_only_reason: '건축물대장 API 및 저장값은 상세 편집에서 항목별로 확인·수정 요청합니다.' },
   { field_key: 'spec_summary', label: '주요 스펙', group: '자산 스펙', type: 'text', editable: false, width: 320 },
   { field_key: 'operating_cost_period', label: '운영비용 기준', group: '운영비용', type: 'text', editable: false, width: 140 },
   { field_key: 'pm_cost_krw', label: 'PM 비용', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'pm_cost_krw', width: 130 },
@@ -6389,6 +6389,7 @@ const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS_V2 = [
   { field_key: 'utility_cost_krw', label: 'Utility', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'utility_cost_krw', width: 130 },
   { field_key: 'other_cost_krw', label: '기타 운영비', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'other_cost_krw', width: 130 },
   { field_key: 'operating_cost_total_krw', label: '운영비용 합계', group: '운영비용', type: 'krw', editable: false, width: 140 },
+  { field_key: 'building_register_summary', label: '건축물대장 상세', group: '건축물대장', type: 'text', editable: false, width: 260, read_only_reason: '건축물대장 API 및 저장값은 상세 편집에서 항목별로 확인·수정 요청합니다.' },
 ];
 
 const DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS_V2 = [
@@ -6398,9 +6399,9 @@ const DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS_V2 = [
   { field_key: 'fund_short_name', label: '펀드 약칭', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'short_name', width: 140 },
   { field_key: 'fund_type', label: '펀드 유형', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'fund_type', width: 140 },
   { field_key: 'investment_strategy', label: '투자 전략', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'investment_strategy', width: 160 },
-  { field_key: 'equity_amount_krw', label: 'Equity', group: '투자 구조', type: 'krw_raw', editable: false, width: 160 },
-  { field_key: 'loan_amount_krw', label: 'Loan', group: '투자 구조', type: 'krw_raw', editable: false, width: 160 },
-  { field_key: 'total_capital_krw', label: '합계', group: '투자 구조', type: 'krw_raw', editable: false, width: 160 },
+  { field_key: 'equity_amount_krw', label: 'Equity', group: '투자 구조', type: 'krw_raw', editable: false, width: 160, read_only_reason: 'Equity 합계는 수익자 정보 행의 투입금액 합계입니다. 셀을 눌러 수익자별 상세 행에서 수정 요청합니다.' },
+  { field_key: 'loan_amount_krw', label: 'Loan', group: '투자 구조', type: 'krw_raw', editable: false, width: 160, read_only_reason: 'Loan 합계는 대주 정보 행의 인출금액 합계입니다. 셀을 눌러 대주별 상세 행에서 수정 요청합니다.' },
+  { field_key: 'total_capital_krw', label: '합계', group: '투자 구조', type: 'krw_raw', editable: false, width: 160, read_only_reason: 'Equity와 Loan 합계로 자동 계산됩니다.' },
   { field_key: 'equity_parties', label: '수익자', group: '투자자·대주', type: 'text', editable: false, width: 280 },
   { field_key: 'loan_lenders', label: '대주', group: '투자자·대주', type: 'text', editable: false, width: 280 },
 ];
@@ -8541,6 +8542,14 @@ function dataManagementLeaseSpecialLabelAllowed(label: unknown) {
   return /(특수|특약|기타)/iu.test(key);
 }
 
+function dataManagementNormalizeSpecialTerms(value: unknown) {
+  const raw = safeText(value).trim();
+  if (!raw) return '';
+  return raw
+    .replace(/^\s*(?:없음|해당\s*없음|N\/?A|NA|null|[-–—])\s*(?:[|｜]\s*)?/iu, '')
+    .trim();
+}
+
 function dataManagementDirectDetailSummary(rows: Record<string, unknown>[]) {
   return rows
     .map((row) => {
@@ -8740,19 +8749,30 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
   if (tranchesResult.error && !isMissingRelationError(tranchesResult.error)) throw new Error(tranchesResult.error.message);
   const tranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => hasMeaningfulInvestmentLoanData(row));
   const trancheKind = (row: Record<string, unknown>) => safeText(row.tranche_type) === 'loan' ? 'loan' : 'equity';
-  const fundLinkCount = new Map<string, number>();
-  readableLinks.forEach((link) => {
-    const key = safeText(link.fund_id);
-    if (!key) return;
-    fundLinkCount.set(key, (fundLinkCount.get(key) || 0) + 1);
-  });
-  const tranchesForLink = (link: Record<string, unknown>) => tranches.filter((row) => {
-    const fundId = safeText(row.fund_id);
-    if (fundId !== safeText(link.fund_id)) return false;
-    const trancheAssetId = safeText(row.asset_id);
-    if (!trancheAssetId && (fundLinkCount.get(fundId) || 0) > 1) return false;
-    return !trancheAssetId || trancheAssetId === safeText(link.asset_id);
-  });
+  const investmentGroups = [...readableLinks.reduce((map, link) => {
+    const groupKey = safeText(link.fund_id)
+      || safeText(link.fund_code)
+      || safeText(link.fund_name)
+      || safeText(link.fund_display_name)
+      || safeText(link.id)
+      || safeText(link.asset_id);
+    if (!groupKey) return map;
+    const current = map.get(groupKey) || { key: groupKey, links: [] as Record<string, unknown>[] };
+    current.links.push(link);
+    map.set(groupKey, current);
+    return map;
+  }, new Map<string, { key: string; links: Record<string, unknown>[] }>()).values()];
+  const tranchesForGroup = (group: { key: string; links: Record<string, unknown>[] }) => {
+    const firstLink = group.links[0] || {};
+    const fundId = safeText(firstLink.fund_id);
+    const assetIds = new Set(group.links.map((link) => safeText(link.asset_id)).filter(Boolean));
+    return tranches.filter((row) => {
+      const rowFundId = safeText(row.fund_id);
+      if (fundId && rowFundId !== fundId) return false;
+      const trancheAssetId = safeText(row.asset_id);
+      return !trancheAssetId || !assetIds.size || assetIds.has(trancheAssetId);
+    });
+  };
   const partyName = (row: Record<string, unknown>) => safeText(firstDefined(row.party_name, row.counterparty_name, row.lender_name, row.beneficiary_name));
   const amount = (row: Record<string, unknown>) => Number(firstDefined(row.committed_amount_krw, row.drawn_amount_krw, row.amount_krw) || 0);
   const rate = (row: Record<string, unknown>) => dataManagementNumberOrNull(firstDefined(row.interest_rate, row.loan_rate, row.all_in_rate, row.spread_rate));
@@ -8861,27 +8881,38 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       },
     });
   }));
-  const rows = await Promise.all(readableLinks.map(async (link) => {
-    const linkTranches = tranchesForLink(link);
+  const rows = await Promise.all(investmentGroups.map(async (group) => {
+    const firstLink = group.links[0] || {};
+    const linkTranches = tranchesForGroup(group);
     const equityRows = linkTranches.filter((row) => trancheKind(row) === 'equity');
     const loanRows = linkTranches.filter((row) => trancheKind(row) === 'loan');
     const equity = equityRows.reduce((sum, row) => sum + amount(row), 0);
     const loan = loanRows.reduce((sum, row) => sum + amount(row), 0);
+    const assetNames = uniqueStrings(group.links.map((link) => safeText(firstDefined(link.asset_name, link.asset_code))).filter(Boolean), 50);
+    const fundId = safeText(firstLink.fund_id);
+    const assetIds = uniqueStrings(group.links.map((link) => safeText(link.asset_id)).filter(Boolean), 50);
     const source = stripUndefined({
-      asset_name: firstDefined(link.asset_name, link.asset_code),
-      fund_name: firstDefined(link.fund_name, link.fund_display_name, link.fund_code),
-      fund_code: link.fund_code,
-      fund_short_name: firstDefined(link.short_name, link.fund_short_name),
-      fund_type: link.fund_type,
-      investment_strategy: link.investment_strategy,
+      asset_name: assetNames.join(' / '),
+      fund_name: firstDefined(firstLink.fund_name, firstLink.fund_display_name, firstLink.fund_code),
+      fund_code: firstLink.fund_code,
+      fund_short_name: firstDefined(firstLink.short_name, firstLink.fund_short_name),
+      fund_type: firstLink.fund_type,
+      investment_strategy: firstLink.investment_strategy,
       equity_amount_krw: equity,
       loan_amount_krw: loan,
       total_capital_krw: equity + loan,
       equity_parties: uniqueStrings(equityRows.map(partyName).filter(Boolean), 20).join(', '),
       loan_lenders: uniqueStrings(loanRows.map(partyName).filter(Boolean), 20).join(', '),
     });
-    const beneficiaryDetailRows = await buildTrancheDetailRows(link, equityRows, beneficiaryDetailColumns, 'beneficiary');
-    const loanDetailRows = await buildTrancheDetailRows(link, loanRows, loanDetailColumns, 'loan');
+    const groupMeta = stripUndefined({
+      fund_id: fundId,
+      asset_id: assetIds.length === 1 ? assetIds[0] : undefined,
+      asset_ids: assetIds,
+      fund_name: source.fund_name,
+      asset_name: source.asset_name,
+    });
+    const beneficiaryDetailRows = await buildTrancheDetailRows(groupMeta, equityRows, beneficiaryDetailColumns, 'beneficiary');
+    const loanDetailRows = await buildTrancheDetailRows(groupMeta, loanRows, loanDetailColumns, 'loan');
     const displayValues = Object.fromEntries(DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS_V2.map((field) => {
       const publicField = field as Record<string, unknown>;
       const key = safeText(publicField.field_key);
@@ -8891,6 +8922,42 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       const key = safeText((field as Record<string, unknown>).field_key);
       return [key, source[key] ?? null];
     }));
+    const beneficiaryDetail = {
+      title: '수익자 정보 편집',
+      description: '수익자별 tranche와 투입금액을 행 단위로 확인하고 수정 승인 요청으로 저장합니다.',
+      layout: 'fund_overview',
+      add_row_label: '수익자 행 추가',
+      columns: beneficiaryDetailColumns.map((field) => dataManagementPublicViewField(field)),
+      rows: [],
+      sections: [
+        {
+          section_key: 'beneficiary',
+          title: '수익자 정보',
+          columns: beneficiaryDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          rows: beneficiaryDetailRows,
+          empty_state: '등록된 수익자 정보가 없습니다.',
+        },
+      ],
+      empty_state: '등록된 수익자 정보가 없습니다.',
+    };
+    const loanDetail = {
+      title: '대주 정보 편집',
+      description: '대주별 tranche, 인출금액, 금리, 만기 정보를 행 단위로 확인하고 수정 승인 요청으로 저장합니다.',
+      layout: 'fund_overview',
+      add_row_label: '대주 행 추가',
+      columns: loanDetailColumns.map((field) => dataManagementPublicViewField(field)),
+      rows: [],
+      sections: [
+        {
+          section_key: 'loan',
+          title: '대주 정보',
+          columns: loanDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          rows: loanDetailRows,
+          empty_state: '등록된 대주 정보가 없습니다.',
+        },
+      ],
+      empty_state: '등록된 대주 정보가 없습니다.',
+    };
     const trancheDetail = {
       title: '수익자·대주 정보 편집',
       description: '자산 탭의 펀드개요처럼 수익자 정보와 대주 정보를 나눠 확인하고, 각 행의 값을 수정 승인 요청으로 저장합니다.',
@@ -8916,23 +8983,26 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       empty_state: '등록된 tranche 행이 없습니다.',
     };
     return stripUndefined({
-      row_key: await dataManagementOpaqueRowKey(viewKey, [link.asset_id, link.fund_id, link.asset_name, link.fund_name].map((item) => safeText(item)).join('|')),
+      row_key: await dataManagementOpaqueRowKey(viewKey, ['fund', group.key].join('|')),
       row_label: [source.asset_name, source.fund_name].map((item) => safeText(item)).filter(Boolean).join(' · ') || '투자 데이터',
       display_values: displayValues,
       values: displayValues,
       edit_values: editValues,
       lookup_status: { status: 'ok', label: '정상' },
       editable: true,
-      revision_hash: await dataManagementRevisionHash({ link, tranches: linkTranches }),
+      revision_hash: await dataManagementRevisionHash({ links: group.links, tranches: linkTranches }),
       cell_details: {
+        equity_amount_krw: beneficiaryDetail,
+        loan_amount_krw: loanDetail,
         equity_parties: trancheDetail,
         loan_lenders: trancheDetail,
       },
       meta: {
-        row_unit: 'fund_asset_link',
-        link_id: safeText(link.id),
-        asset_id: safeText(link.asset_id),
-        fund_id: safeText(link.fund_id),
+        row_unit: 'fund',
+        link_ids: group.links.map((link) => safeText(link.id)).filter(Boolean),
+        asset_id: assetIds.length === 1 ? assetIds[0] : undefined,
+        asset_ids: assetIds,
+        fund_id: fundId,
         tranche_count: linkTranches.length,
       },
     });
@@ -9000,13 +9070,18 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     { field_key: 'condition_label', label: '항목', group: '상세 항목', type: 'text', editable: false, width: 220 },
     { field_key: 'value', label: '값', group: '상세 항목', type: 'text', editable: true, width: 320 },
   ];
+  const specialConditionDetailColumns = conditionDetailColumns.map((field) => (
+    safeText(field.field_key) === 'condition_label'
+      ? { ...field, editable: true }
+      : field
+  ));
   const rentHistoryDetailColumns = [
     { field_key: 'basis_date', label: '기준일자', group: '임대료·관리비 이력', type: 'date', editable: true, width: 130 },
     { field_key: 'change_reason', label: '변동 원인', group: '임대료·관리비 이력', type: 'text', editable: true, width: 160 },
     { field_key: 'monthly_rent_total', label: '월임대료 총액', group: '임대료·관리비 이력', type: 'krw', editable: true, width: 150 },
     { field_key: 'monthly_mf_total', label: '월관리비 총액', group: '임대료·관리비 이력', type: 'krw', editable: true, width: 150 },
-    { field_key: 'rent_per_py', label: '평당 월임대료', group: '임대료·관리비 이력', type: 'krw_per_py', editable: true, width: 140 },
-    { field_key: 'mf_per_py', label: '평당 월관리비', group: '임대료·관리비 이력', type: 'krw_per_py', editable: true, width: 140 },
+    { field_key: 'rent_per_py', label: '평당 월임대료', group: '임대료·관리비 이력', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '월임대료 총액과 임대면적 기준으로 계산되는 표시값입니다.' },
+    { field_key: 'mf_per_py', label: '평당 월관리비', group: '임대료·관리비 이력', type: 'krw_per_py', editable: false, width: 140, read_only_reason: '월관리비 총액과 임대면적 기준으로 계산되는 표시값입니다.' },
   ];
   const buildRentHistoryDetailRow = async (history: Record<string, unknown>, index: number) => {
     const id = safeText(firstDefined(history.rent_history_id, history.id));
@@ -9035,13 +9110,11 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       revision_hash: await dataManagementRevisionHash(history),
       meta: {
         detail_kind: 'rent_history',
-        edit_targets: {
+      edit_targets: {
           basis_date: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'basis_date' },
           change_reason: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'change_reason' },
           monthly_rent_total: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'monthly_rent_total' },
           monthly_mf_total: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'monthly_mf_total' },
-          rent_per_py: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'rent_per_py' },
-          mf_per_py: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'mf_per_py' },
         },
       },
     });
@@ -9092,6 +9165,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     targetRecordId: string,
     targetField: string,
     revisionSource: Record<string, unknown>,
+    editable = true,
   ) => {
     const detailSource = { condition_label: conditionLabel, value };
     const displayValues = Object.fromEntries(conditionDetailColumns.map((field) => [
@@ -9107,13 +9181,13 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       row_label: conditionLabel,
       display_values: displayValues,
       edit_values: editValues,
-      editable: Boolean(targetRecordId && targetField),
+      editable: Boolean(targetRecordId && targetField && editable),
       revision_hash: await dataManagementRevisionHash(revisionSource),
       meta: {
         detail_kind: 'lease_direct_condition',
-        edit_targets: {
+        edit_targets: editable ? {
           value: { target_table: targetTable, primary_key_field: dataManagementPrimaryKeyForTable(clientTableName(targetTable)), target_record_id: targetRecordId, target_field: targetField },
-        },
+        } : {},
       },
     });
   };
@@ -9179,9 +9253,9 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       ['current_monthly_rent_total', '월임대료 총액', space.current_monthly_rent_total, 'public.ll_lease_spaces', leaseSpaceId, 'current_monthly_rent_total', space],
       ['current_monthly_mf_total', '월관리비 총액', space.current_monthly_mf_total, 'public.ll_lease_spaces', leaseSpaceId, 'current_monthly_mf_total', space],
       ['current_monthly_cost_total', '월 임관리비', space.current_monthly_cost_total, 'public.ll_lease_spaces', leaseSpaceId, 'current_monthly_cost_total', space],
-      ['current_rent_per_py', '평당 월임대료', firstDefined(latestHistory.rent_per_py, latestHistory.current_rent_per_py, latestHistory.rent_manwon_per_py), latestHistoryId ? 'public.ll_rent_history' : 'public.ll_lease_spaces', latestHistoryId || leaseSpaceId, latestHistoryId ? 'rent_per_py' : 'current_rent_per_py', latestHistoryId ? latestHistory : space],
-      ['current_mf_per_py', '평당 월관리비', firstDefined(latestHistory.mf_per_py, latestHistory.current_mf_per_py, latestHistory.management_fee_per_py), latestHistoryId ? 'public.ll_rent_history' : 'public.ll_lease_spaces', latestHistoryId || leaseSpaceId, latestHistoryId ? 'mf_per_py' : 'current_mf_per_py', latestHistoryId ? latestHistory : space],
-      ['e_noc', 'E. NOC', space.e_noc, 'public.ll_lease_spaces', leaseSpaceId, 'e_noc', space],
+      ['current_rent_per_py', '평당 월임대료', firstDefined(latestHistory.rent_per_py, latestHistory.current_rent_per_py, latestHistory.rent_manwon_per_py), latestHistoryId ? 'public.ll_rent_history' : 'public.ll_lease_spaces', latestHistoryId || leaseSpaceId, latestHistoryId ? 'rent_per_py' : 'current_rent_per_py', latestHistoryId ? latestHistory : space, false],
+      ['current_mf_per_py', '평당 월관리비', firstDefined(latestHistory.mf_per_py, latestHistory.current_mf_per_py, latestHistory.management_fee_per_py), latestHistoryId ? 'public.ll_rent_history' : 'public.ll_lease_spaces', latestHistoryId || leaseSpaceId, latestHistoryId ? 'mf_per_py' : 'current_mf_per_py', latestHistoryId ? latestHistory : space, false],
+      ['e_noc', 'E. NOC', space.e_noc, 'public.ll_lease_spaces', leaseSpaceId, 'e_noc', space, false],
       ['rf_months', 'RF', lease.rf_months, 'public.ll_leases', leaseId, 'rf_months', lease],
       ['fo_months', 'FO', lease.fo_months, 'public.ll_leases', leaseId, 'fo_months', lease],
       ['ti_amount', 'TI', lease.ti_amount, 'public.ll_leases', leaseId, 'ti_amount', lease],
@@ -9189,7 +9263,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       ['management_fee_escalation_rate', '관리비 인상률', lease.management_fee_escalation_rate, 'public.ll_leases', leaseId, 'management_fee_escalation_rate', lease],
       ['escalation_cycle_months', '인상주기', lease.escalation_cycle_months, 'public.ll_leases', leaseId, 'escalation_cycle_months', lease],
       ['next_escalation_date', '차기 인상일', lease.next_escalation_date, 'public.ll_leases', leaseId, 'next_escalation_date', lease],
-    ].map(([field, label, value, table, recordId, targetField, revisionSource]) => buildDirectConditionRow(
+    ].map(([field, label, value, table, recordId, targetField, revisionSource, editable]) => buildDirectConditionRow(
       `${leaseSpaceId || leaseId}:economic:${safeText(field)}`,
       safeText(label),
       value,
@@ -9197,13 +9271,15 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       safeText(recordId),
       safeText(targetField),
       revisionSource as Record<string, unknown>,
+      editable !== false,
     )));
     const specsDetailRows = await Promise.all(specsForSpace.map((item, index) => buildAttributeDetailRow(item, index, 'required_spec')));
     const specialAttributeSourceRows = specialTermsForSpace.filter((item) => dataManagementLeaseSpecialLabelAllowed(firstDefined(item.attribute_label, item.term_label, item.attribute_key, item.term_key, item.field_key)));
     const specialSummary = summarizeAttributes(specialAttributeSourceRows);
     const specialAttributeRows = await Promise.all(specialAttributeSourceRows.map((item, index) => buildAttributeDetailRow(item, index, 'special_term')));
-    const specialDirectRows = safeText(lease.special_terms)
-      ? [await buildDirectConditionRow(`${leaseId}:special_terms`, '특수 계약 조건', lease.special_terms, 'public.ll_leases', leaseId, 'special_terms', lease)]
+    const normalizedSpecialTerms = dataManagementNormalizeSpecialTerms(lease.special_terms);
+    const specialDirectRows = normalizedSpecialTerms
+      ? [await buildDirectConditionRow(`${leaseId}:special_terms`, '특수 계약 조건', normalizedSpecialTerms, 'public.ll_leases', leaseId, 'special_terms', lease)]
       : [];
     const insuranceRows = await Promise.all([
       ['tenant_cost_burden', '임차인 부담 비용', lease.tenant_cost_burden],
@@ -9288,9 +9364,9 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       renewal_option: lease.renewal_option,
       insurance_rights_summary: insuranceSummary,
       sublease_yn: firstDefined(space.is_subleased, space.sublease_yn, lease.is_subleased, lease.sublease_yn),
-      special_terms: lease.special_terms,
+      special_terms: normalizedSpecialTerms,
       required_specs_summary: specsSummary,
-      lease_special_summary: firstDefined(specialSummary, lease.special_terms),
+      lease_special_summary: firstDefined(specialSummary, normalizedSpecialTerms),
       tenant_info_summary: [firstDefined(tenant.display_name, tenant.tenant_master_name, tenant.company_name), tenant.business_registration_no].map((item) => safeText(item)).filter(Boolean).join(' · '),
       review_status: firstDefined(space.review_status, lease.review_status, '검토 전'),
       review_note: firstDefined(space.review_note, lease.review_note),
@@ -9324,7 +9400,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
         economic_terms_summary: {
           title: '임대료·보증금 상세 편집',
           description: '보증금, 월임대료, 월관리비, 월 임관리비, 평당 단가, RF, FO, TI, E. NOC, 인상 조건을 한 화면에서 행별로 수정 요청합니다.',
-          columns: conditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          columns: specialConditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
           rows: economicRows,
           empty_state: '등록된 임대료·보증금 상세 조건이 없습니다.',
         },
@@ -9339,6 +9415,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
           title: '특약 상세 편집',
           description: '특수 계약 조건과 특약 상세를 행별로 수정 요청합니다.',
           columns: conditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          add_row_label: '특약 번호 추가',
           rows: [
             ...specialDirectRows,
             ...specialAttributeRows.map((row) => {
@@ -9351,6 +9428,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
                 meta: {
                   ...(row.meta as Record<string, unknown> | undefined || {}),
                   edit_targets: {
+                    condition_label: ((row.meta as Record<string, unknown> | undefined)?.edit_targets as Record<string, unknown> | undefined)?.label,
                     value: ((row.meta as Record<string, unknown> | undefined)?.edit_targets as Record<string, unknown> | undefined)?.value,
                   },
                 },

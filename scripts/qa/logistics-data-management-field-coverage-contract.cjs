@@ -24,7 +24,7 @@ const leaseAllFrontendBlock = sliceBetween(frontend, "workflow: 'lease_all'", "w
 const dataManagementRenderBlock = sliceBetween(frontend, 'export function DataManagementDashboard', 'export function HomeOperatingCostSummary');
 const assetIntegratedFieldBlock = sliceBetween(api, 'const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS', '];');
 const investmentIntegratedFieldBlock = sliceBetween(api, 'const DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS', '];');
-const leaseGeneralFieldBlock = sliceBetween(api, 'const DATA_MANAGEMENT_LEASE_VIEW_FIELDS', '];');
+const leaseGeneralFieldBlock = sliceBetween(api, 'const DATA_MANAGEMENT_LEASE_VIEW_FIELDS_V2', '];');
 const assetIntegratedRowsBlock = sliceBetween(api, 'async function dataManagementAssetIntegratedRows', 'async function dataManagementInvestmentIntegratedRows');
 const investmentIntegratedRowsBlock = sliceBetween(api, 'async function dataManagementInvestmentIntegratedRows', 'async function dataManagementLeaseContractRows');
 const leaseContractRowsBlock = sliceBetween(api, 'async function dataManagementLeaseContractRows', 'async function dataManagementLeaseRentHistoryRows');
@@ -49,6 +49,8 @@ const requiredChecks = [
   ['lease_required_current_rent', /field_key:\s*'current_monthly_rent_total'/u.test(api)],
   ['lease_required_current_mf', /field_key:\s*'current_monthly_mf_total'/u.test(api)],
   ['lease_required_enoc', /field_key:\s*'e_noc'/u.test(api)],
+  ['lease_enoc_readonly_calculated', /field_key:\s*'e_noc'[\s\S]*?editable:\s*false/u.test(leaseGeneralFieldBlock)],
+  ['lease_sublease_editable', /field_key:\s*'sublease_yn'[\s\S]*?editable:\s*true[\s\S]*?target_field:\s*'sublease_yn'/u.test(leaseGeneralFieldBlock)],
   ['lease_required_exclusive_ratio', /field_key:\s*'exclusive_ratio'/u.test(api)],
   ['lease_required_contract_period', /field_key:\s*'current_contract_period'/u.test(api)],
   ['lease_required_per_py_fields', /field_key:\s*'current_rent_per_py'/u.test(leaseGeneralFieldBlock) && /field_key:\s*'current_mf_per_py'/u.test(leaseGeneralFieldBlock)],
@@ -61,7 +63,8 @@ const requiredChecks = [
   ['summaries_not_arbitrarily_truncated', !/\.slice\(0,\s*8\)/u.test(assetIntegratedRowsBlock) && !/\.slice\(0,\s*8\)/u.test(investmentIntegratedRowsBlock) && !/\.slice\(0,\s*8\)/u.test(leaseContractRowsBlock)],
   ['summary_labels_hide_internal_keys', /function dataManagementFriendlyLabel/u.test(api) && /dataManagementLooksInternalDisplayToken/u.test(api) && /dataManagementFriendlySummaryValue/u.test(api)],
   ['investment_tranche_detail_has_rate_and_maturity', /cell_details:\s*\{/u.test(investmentIntegratedRowsBlock) && /equity_parties:\s*trancheDetail/u.test(investmentIntegratedRowsBlock) && /loan_lenders:\s*trancheDetail/u.test(investmentIntegratedRowsBlock) && /dataManagementFormatViewValue\(rate\(row\),\s*\{\s*type:\s*'percent'\s*\}\)/u.test(investmentIntegratedRowsBlock) && /safeDateText\(row\.maturity_date\)/u.test(investmentIntegratedRowsBlock)],
-  ['investment_unscoped_tranche_not_duplicated_for_joint_fund', /fundLinkCount/u.test(investmentIntegratedRowsBlock) && /!trancheAssetId && \(fundLinkCount\.get\(fundId\) \|\| 0\) > 1/u.test(investmentIntegratedRowsBlock)],
+  ['investment_grouped_by_fund_for_joint_assets', /investmentGroups/u.test(investmentIntegratedRowsBlock) && /assetNames\.join\(' \/ '\)/u.test(investmentIntegratedRowsBlock) && /row_unit:\s*'fund'/u.test(investmentIntegratedRowsBlock)],
+  ['investment_equity_loan_amount_cells_open_detail', /equity_amount_krw:\s*beneficiaryDetail/u.test(investmentIntegratedRowsBlock) && /loan_amount_krw:\s*loanDetail/u.test(investmentIntegratedRowsBlock)],
   ['quality_api_view', /view_key:\s*'data_quality_findings'/u.test(api)],
   ['tenant_master_normalized_view', /'tenant_master'/u.test(normalizedViewSetBlock) && /async function dataManagementTenantMasterRows/u.test(api)],
   ['tenant_view_has_joined_rows_contract', /field_key:\s*'related_assets'/u.test(tenantFieldBlock) && /field_key:\s*'contract_count'/u.test(tenantFieldBlock)],

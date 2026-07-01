@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-07-01T07:52:48.674Z",
+  "generated_at": "2026-07-01T08:30:40.675Z",
   "checks": {
     "dm_tabs_asset": true,
     "dm_tabs_investment": true,
@@ -21,6 +21,8 @@
     "lease_required_current_rent": true,
     "lease_required_current_mf": true,
     "lease_required_enoc": true,
+    "lease_enoc_readonly_calculated": true,
+    "lease_sublease_editable": true,
     "lease_required_exclusive_ratio": true,
     "lease_required_contract_period": true,
     "lease_required_per_py_fields": true,
@@ -33,7 +35,8 @@
     "summaries_not_arbitrarily_truncated": true,
     "summary_labels_hide_internal_keys": true,
     "investment_tranche_detail_has_rate_and_maturity": true,
-    "investment_unscoped_tranche_not_duplicated_for_joint_fund": true,
+    "investment_grouped_by_fund_for_joint_assets": true,
+    "investment_equity_loan_amount_cells_open_detail": true,
     "quality_api_view": true,
     "tenant_master_normalized_view": true,
     "tenant_view_has_joined_rows_contract": true,
