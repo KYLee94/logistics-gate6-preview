@@ -319,6 +319,8 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'grossFloorAreaSqm', 'gross_floor_area_sqm', 'leasedAreaSqm', 'leased_area_sqm', 'vacancyAreaSqm', 'vacancy_area_sqm',
     'vacancyRate', 'vacancy_rate', 'monthlyCostTotal', 'monthly_cost_total', 'averageENoc', 'average_e_noc',
     'coldStorageAreaSqm', 'cold_storage_area_sqm', 'dryStorageAreaSqm', 'dry_storage_area_sqm',
+    'landAreaSqm', 'land_area_sqm', 'floorCount', 'floor_count', 'approvalDate', 'approval_date', 'firstConfiguredAt', 'first_configured_at',
+    'currentManagerName', 'current_manager_name', 'currentManagerTeam', 'current_manager_team', 'currentManagerEmail', 'current_manager_email',
   ]),
   'public.ll_leases': new Set([
     'tenantMasterName', 'tenant_master_name', 'assetName', 'asset_name', 'spaceLabel', 'space_label',
@@ -370,7 +372,7 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
   ]),
   'public.ll_tenants': new Set([
     'tenantMasterName', 'tenant_master_name', 'businessRegistrationNo', 'business_registration_no',
-    'dartCorpCode', 'dart_corp_code', 'companyName', 'company_name',
+    'dartCorpCode', 'dart_corp_code', 'companyName', 'company_name', 'displayName', 'display_name',
   ]),
   'public.ll_weekly_records': new Set([
     'record_type', 'asset_name', 'fund_name', 'project_type', 'project_name',
@@ -378,7 +380,7 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'source_text', 'source_file_name',
   ]),
   'public.ll_funds': new Set([
-    'fund_name', 'short_name', 'legal_form', 'investment_sector', 'fund_type', 'investment_strategy',
+    'fund_code', 'fund_name', 'short_name', 'legal_form', 'investment_sector', 'fund_type', 'investment_strategy',
     'initial_setup_date', 'maturity_date', 'notes',
   ]),
   'public.ll_fund_capital_tranches': new Set([
@@ -1311,6 +1313,12 @@ async function callMarketDocsUpload(ctx: Context, formData: FormData | null) {
   if (!canManageFeatureAccess(ctx)) return fail(403, 'Market document upload is limited to Planning Center users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'market-docs/upload', 12, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   if (!formData) return fail(400, 'Multipart form data is required', ctx.origin);
+  const payloadEntry = formData.get('payload');
+  const uploadPayload = typeof payloadEntry === 'string' && payloadEntry.trim()
+    ? parseJsonValue(payloadEntry, {}) as Record<string, unknown>
+    : {};
+  const uploadOrigin = safeText(uploadPayload.upload_origin || uploadPayload.uploadOrigin, 'workspace_ui');
+  const sourceDomain = safeText(uploadPayload.source_domain || uploadPayload.sourceDomain, 'market_documents');
   const file = formData.get('file');
   if (!(file instanceof File)) return fail(400, 'file is required', ctx.origin);
   const originalName = safeStorageFileName(file.name || 'market-source');
@@ -1354,7 +1362,8 @@ async function callMarketDocsUpload(ctx: Context, formData: FormData | null) {
       uploaded_at: new Date().toISOString(),
       content_type: file.type || '',
       original_file_name: originalName,
-      upload_origin: 'workspace_ui',
+      upload_origin: uploadOrigin,
+      source_domain: sourceDomain,
       processing_note: 'Original file is preserved in private Supabase Storage. Searchable chunks/facts are stored separately after extraction.',
     },
   }, ctx.user.id);
@@ -2090,7 +2099,7 @@ async function listLeaseSpaceSpecsForLeaseSpaces(ctx: Context, leaseSpaceIds: st
   const { data, error } = await ctx.serviceClient
     .from('ll_lease_attributes')
     .select('*')
-    .eq('attribute_type', 'space_spec')
+    .in('attribute_type', ['space_spec', 'required_spec'])
     .in('lease_space_id', ids)
     .limit(5000);
   if (error) return { rows: [], errorResponse: fail(500, 'Failed to read lease-space specs', ctx.origin) };
@@ -2126,6 +2135,19 @@ async function listSpecialTermsForLeaseSpaces(ctx: Context, leaseSpaceIds: strin
     })),
     errorResponse: null,
   };
+}
+
+async function listInsuranceRightsForLeaseSpaces(ctx: Context, leaseSpaceIds: string[]) {
+  const ids = [...new Set(leaseSpaceIds.filter(Boolean))];
+  if (!ids.length) return { rows: [], errorResponse: null };
+  const { data, error } = await ctx.serviceClient
+    .from('ll_lease_attributes')
+    .select('*')
+    .eq('attribute_type', 'insurance_right')
+    .in('lease_space_id', ids)
+    .limit(5000);
+  if (error) return { rows: [], errorResponse: fail(500, 'Failed to read lease insurance-right attributes', ctx.origin) };
+  return { rows: (data || []) as Record<string, unknown>[], errorResponse: null };
 }
 
 async function listTenantsByIds(ctx: Context, tenantIds: string[]) {
@@ -2832,8 +2854,8 @@ async function readTargetRow(client: SupabaseClient, cell: ReturnType<typeof nor
 
 function rowRelatedAsset(row: Record<string, unknown>, cell: ReturnType<typeof normalizeEditCells>[number]) {
   return {
-    assetId: firstDefined(row.asset_id, row.assetId, row.asset_code, row.assetCode, row.related_asset_id),
-    assetName: firstDefined(row.asset_name, row.assetName, row.target_asset_name, row.related_asset_name, row.target_name),
+    assetId: firstDefined(row.asset_id, row.assetId, row.asset_code, row.assetCode, row.related_asset_id, cell.assetId),
+    assetName: firstDefined(row.asset_name, row.assetName, row.target_asset_name, row.related_asset_name, row.target_name, cell.assetName),
   };
 }
 
@@ -5228,7 +5250,7 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
   const assets = ((assetsResult.data || []) as Record<string, unknown>[]).filter((row) => readableAssetIds.has(safeText(row.asset_id)) || canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
   const fundById = new Map(funds.map((fund) => [safeText(fund.fund_id), fund]));
   const assetById = new Map(assets.map((asset) => [safeText(asset.asset_id), asset]));
-  const fundDisplayName = (fund: Record<string, unknown>) => safeText(firstDefined(fund.short_name, fund.fund_name, fund.fund_code, fund.fund_id));
+  const fundDisplayName = (fund: Record<string, unknown>) => safeText(firstDefined(fund.fund_name, fund.short_name, fund.fund_code, fund.fund_id));
   const assetDisplayName = (asset: Record<string, unknown>) => safeText(firstDefined(asset.asset_name, asset.asset_code, asset.asset_id));
   const trancheKind = (row: Record<string, unknown>) => safeText(row.tranche_type) === 'loan' ? 'loan' : 'equity';
   const trancheTypeLabel = (row: Record<string, unknown>) => trancheKind(row) === 'loan' ? '대출(Loan)' : '수익자 지분(Equity)';
@@ -6139,17 +6161,17 @@ const DATA_MANAGEMENT_VISIBLE_VIEW_KEYS = new Set([
 const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
   { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 180 },
-  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, width: 170, read_only_reason: '임차인명은 임차인 마스터 lookup 값입니다. 임차인 마스터 View에서 별도 관리합니다.' },
-  { field_key: 'business_registration_no', label: '임차인 사업자번호', group: '기본정보', type: 'text', editable: false, width: 150, default_hidden: true },
-  { field_key: 'space_label', label: '임대구역', group: '면적·임차구역', type: 'text', editable: false, width: 150, read_only_reason: '임대구역은 층과 세부구역을 조합한 표시값입니다. 층/세부구역 필드를 수정해 주세요.' },
+  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'tenant_master_name', width: 170 },
+  { field_key: 'business_registration_no', label: '임차인 사업자번호', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'business_registration_no', width: 150, default_hidden: true },
+  { field_key: 'space_label', label: '임대구역', group: '면적·임차구역', type: 'text', editable: false, width: 150, default_hidden: true, read_only_reason: '임대구역은 층과 세부구역을 조합한 표시값입니다. 기본 표에서는 층/세부구역을 직접 관리합니다.' },
   { field_key: 'floor_label', label: '층', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'floor_label', width: 90 },
   { field_key: 'detail_area_label', label: '세부구역', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'detail_area_label', width: 130 },
   { field_key: 'temperature_type', label: '상/저온', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
-  { field_key: 'is_preleased', label: '선임차 여부', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_preleased', width: 120, default_hidden: true },
-  { field_key: 'is_3pl', label: '3PL 여부', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_3pl', width: 110, default_hidden: true },
+  { field_key: 'is_preleased', label: '선임차 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_preleased', width: 120, default_hidden: true },
+  { field_key: 'is_3pl', label: '3PL 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_3pl', width: 110, default_hidden: true },
   { field_key: 'goods_type', label: '취급 상품 유형', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'goods_type', width: 150, default_hidden: true },
-  { field_key: 'is_single_tenant', label: '단일 임차인 여부', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_single_tenant', width: 130, default_hidden: true },
-  { field_key: 'contract_status', label: '계약상태', group: '특약·상태', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
+  { field_key: 'is_single_tenant', label: '단일 임차인 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_single_tenant', width: 130, default_hidden: true },
+  { field_key: 'contract_status', label: '계약상태', group: '계약상태', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
   { field_key: 'leased_area_sqm', label: '임대면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
   { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130 },
   { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_ratio', width: 110 },
@@ -6158,6 +6180,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'first_end_date', label: '최초 계약만기일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_end_date', width: 140, default_hidden: true },
   { field_key: 'first_operation_date', label: '최초 운영개시일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_operation_date', width: 140, default_hidden: true },
   { field_key: 'recent_contract_date', label: '최근 계약일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'recent_contract_date', width: 130, default_hidden: true },
+  { field_key: 'recent_contract_end_date', label: '최근 만기일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_end_date', width: 130 },
   { field_key: 'current_start_date', label: '현재 계약개시일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_start_date', width: 140 },
   { field_key: 'current_end_date', label: '현재 계약만기일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'current_end_date', width: 140 },
   { field_key: 'current_contract_period', label: '현재 계약기간', group: '계약 일정', type: 'number', editable: true, target_table: 'public.ll_leases', target_field: 'contract_years', width: 130 },
@@ -6179,12 +6202,13 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'tenant_cost_burden', label: '임차인 부담 비용', group: '보험·권리', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'tenant_cost_burden', width: 180, default_hidden: true },
   { field_key: 'early_termination_right', label: '중도해지권', group: '보험·권리', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'early_termination_right', width: 140, default_hidden: true },
   { field_key: 'renewal_option', label: '갱신 옵션', group: '보험·권리', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'renewal_option', width: 140, default_hidden: true },
-  { field_key: 'special_terms', label: '특수 계약 조건', group: '특약·상태', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'special_terms', width: 240, default_hidden: true },
+  { field_key: 'insurance_rights_summary', label: '보험·권리 상세', group: '보험·권리', type: 'text', editable: false, width: 260, read_only_reason: '보험·권리 조건은 상세행 팝업에서 항목별로 승인 요청합니다.' },
+  { field_key: 'special_terms', label: '기타 특수 계약 조건', group: '특약', type: 'text', editable: true, target_table: 'public.ll_leases', target_field: 'special_terms', width: 240, default_hidden: true },
   { field_key: 'required_specs_summary', label: '요구 스펙', group: '요구 스펙', type: 'text', editable: false, width: 260, read_only_reason: '요구 스펙 상세 속성은 속성별 승인 요청으로 관리합니다.' },
-  { field_key: 'lease_special_summary', label: '특약 상세', group: '특약·상태', type: 'text', editable: false, width: 260, read_only_reason: '특약 상세 속성은 속성별 승인 요청으로 관리합니다.' },
+  { field_key: 'lease_special_summary', label: '특약 상세', group: '특약', type: 'text', editable: false, width: 260, read_only_reason: '특약 상세 속성은 속성별 승인 요청으로 관리합니다.' },
   { field_key: 'tenant_info_summary', label: '임차인 정보', group: '임차인 정보', type: 'text', editable: false, width: 240, read_only_reason: '임차인 정보는 임차인 기준 lookup 값입니다.' },
-  { field_key: 'review_status', label: '검토 상태', group: '특약·상태', type: 'text', editable: false, width: 120 },
-  { field_key: 'review_note', label: '검토 메모', group: '특약·상태', type: 'text', editable: false, width: 180, default_hidden: true },
+  { field_key: 'review_status', label: '검토 상태', group: '검토', type: 'text', editable: false, width: 120 },
+  { field_key: 'review_note', label: '검토 메모', group: '검토', type: 'text', editable: false, width: 180, default_hidden: true },
 ];
 const DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
@@ -6221,20 +6245,15 @@ const DATA_MANAGEMENT_LEASE_SPECIAL_STATUS_VIEW_FIELDS = [
   { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 170 },
   { field_key: 'space_label', label: '임대구역', group: '임대공간', type: 'text', editable: false, width: 160 },
   { field_key: 'contract_status', label: '계약상태', group: '계약상태', type: 'text', editable: false, width: 120 },
-  { field_key: 'current_start_date', label: '현재 계약개시일', group: '계약기간', type: 'date', editable: false, width: 140 },
-  { field_key: 'current_end_date', label: '현재 계약만기일', group: '계약기간', type: 'date', editable: false, width: 140 },
-  { field_key: 'tenant_cost_burden', label: '임차인 부담 비용', group: '보험·권리', type: 'text', editable: false, width: 180 },
-  { field_key: 'early_termination_right', label: '중도해지권', group: '보험·권리', type: 'text', editable: false, width: 140 },
-  { field_key: 'renewal_option', label: '갱신 옵션', group: '보험·권리', type: 'text', editable: false, width: 140 },
   { field_key: 'special_terms', label: '특수 계약 조건', group: '특약', type: 'text', editable: false, width: 240 },
   { field_key: 'review_status', label: '검토상태', group: '검토', type: 'text', editable: false, width: 120 },
   { field_key: 'review_note', label: '검토 메모', group: '검토', type: 'text', editable: false, width: 220 },
 ];
 const DATA_MANAGEMENT_TENANT_MASTER_VIEW_FIELDS = [
-  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 200 },
-  { field_key: 'business_registration_no', label: '사업자번호', group: '기본정보', type: 'text', editable: false, width: 150 },
-  { field_key: 'company_name', label: '회사명', group: '기본정보', type: 'text', editable: false, width: 180 },
-  { field_key: 'display_name', label: '표시명', group: '기본정보', type: 'text', editable: false, width: 160 },
+  { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'tenant_master_name', sticky: true, width: 200 },
+  { field_key: 'business_registration_no', label: '사업자번호', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'business_registration_no', width: 150 },
+  { field_key: 'company_name', label: '회사명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'company_name', width: 180 },
+  { field_key: 'display_name', label: '표시명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'display_name', width: 160 },
   { field_key: 'related_assets', label: '관련 자산', group: '연결 현황', type: 'text', editable: false, width: 320 },
   { field_key: 'contract_count', label: '계약 수', group: '연결 현황', type: 'number', editable: false, width: 100 },
   { field_key: 'active_contract_count', label: '현재 계약 수', group: '연결 현황', type: 'number', editable: false, width: 120 },
@@ -6242,41 +6261,50 @@ const DATA_MANAGEMENT_TENANT_MASTER_VIEW_FIELDS = [
   { field_key: 'review_status', label: '검토상태', group: '검토', type: 'text', editable: false, width: 120 },
 ];
 const DATA_MANAGEMENT_MANAGER_LINK_VIEW_FIELDS = [
-  { field_key: 'asset_name', label: '자산명', group: '관리 대상', type: 'text', editable: false, sticky: true, width: 220 },
-  { field_key: 'fund_name', label: '펀드명', group: '관리 대상', type: 'text', editable: false, sticky: true, width: 190 },
-  { field_key: 'asset_code', label: '자산코드', group: '관리 대상', type: 'text', editable: false, width: 130 },
-  { field_key: 'fund_code', label: '펀드코드', group: '관리 대상', type: 'text', editable: false, width: 130 },
-  { field_key: 'manager_name', label: '이지스 담당자', group: '담당자', type: 'text', editable: false, width: 160 },
-  { field_key: 'manager_email', label: '담당자 이메일', group: '담당자', type: 'text', editable: false, width: 220 },
+  { field_key: 'asset_name', label: '자산명', group: '자산·펀드', type: 'text', editable: false, sticky: true, width: 220 },
+  { field_key: 'fund_name', label: '펀드명', group: '자산·펀드', type: 'text', editable: false, sticky: true, width: 240 },
+  { field_key: 'manager_name', label: '이지스 담당자', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_name', width: 160 },
+  { field_key: 'manager_email', label: '담당자 이메일', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_email', width: 220 },
 ];
 const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS = [
-  { field_key: 'asset_name', label: '자산명', group: '자산 기본정보', type: 'text', editable: false, sticky: true, width: 220 },
+  { field_key: 'asset_name', label: '자산명', group: '자산 기본정보', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'asset_name', sticky: true, width: 220 },
   { field_key: 'fund_names', label: '연결 펀드', group: '자산 기본정보', type: 'text', editable: false, sticky: true, width: 240 },
-  { field_key: 'address', label: '주소', group: '자산 기본정보', type: 'text', editable: false, width: 260 },
-  { field_key: 'current_manager_name', label: '담당자', group: '담당자', type: 'text', editable: false, width: 140 },
-  { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', editable: false, width: 130 },
-  { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', editable: false, width: 130 },
+  { field_key: 'asset_code', label: '자산코드', group: '자산 기본정보', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'asset_code', width: 130 },
+  { field_key: 'sector', label: '섹터', group: '자산 기본정보', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'sector', width: 110 },
+  { field_key: 'address', label: '주소', group: '자산 기본정보', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'address', width: 300 },
+  { field_key: 'approval_date', label: '취득일', group: '자산 기본정보', type: 'date', editable: true, target_table: 'public.ll_assets', target_field: 'approval_date', width: 130 },
+  { field_key: 'first_configured_at', label: '최초 설정일', group: '자산 기본정보', type: 'date', editable: true, target_table: 'public.ll_assets', target_field: 'first_configured_at', width: 130 },
+  { field_key: 'current_manager_name', label: '담당자', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_name', width: 140 },
+  { field_key: 'current_manager_team', label: '담당 팀', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_team', width: 140 },
+  { field_key: 'current_manager_email', label: '담당자 이메일', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_email', width: 220 },
+  { field_key: 'gross_floor_area_sqm', label: '연면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_assets', target_field: 'gross_floor_area_sqm', width: 130 },
+  { field_key: 'land_area_sqm', label: '대지면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_assets', target_field: 'land_area_sqm', width: 130 },
+  { field_key: 'floor_count', label: '층수', group: '면적', type: 'number', editable: true, target_table: 'public.ll_assets', target_field: 'floor_count', width: 100 },
   { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: false, width: 130 },
   { field_key: 'exclusive_ratio', label: '전용률', group: '면적', type: 'percent', editable: false, width: 110 },
   { field_key: 'spec_summary', label: '주요 스펙', group: '자산 스펙', type: 'text', editable: false, width: 320 },
   { field_key: 'operating_cost_period', label: '운영비용 기준', group: '운영비용', type: 'text', editable: false, width: 140 },
-  { field_key: 'pm_cost_krw', label: 'PM 비용', group: '운영비용', type: 'krw', editable: false, width: 130 },
-  { field_key: 'fm_cost_krw', label: 'FM 비용', group: '운영비용', type: 'krw', editable: false, width: 130 },
-  { field_key: 'insurance_cost_krw', label: '보험료', group: '운영비용', type: 'krw', editable: false, width: 130 },
-  { field_key: 'utility_cost_krw', label: 'Utility', group: '운영비용', type: 'krw', editable: false, width: 130 },
+  { field_key: 'pm_cost_krw', label: 'PM 비용', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'pm_cost_krw', width: 130 },
+  { field_key: 'fm_cost_krw', label: 'FM 비용', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'fm_cost_krw', width: 130 },
+  { field_key: 'insurance_cost_krw', label: '보험료', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'insurance_cost_krw', width: 130 },
+  { field_key: 'utility_cost_krw', label: 'Utility', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'utility_cost_krw', width: 130 },
+  { field_key: 'other_cost_krw', label: '기타 운영비', group: '운영비용', type: 'krw', editable: true, target_table: 'public.ll_asset_operating_costs', target_field: 'other_cost_krw', width: 130 },
   { field_key: 'operating_cost_total_krw', label: '운영비용 합계', group: '운영비용', type: 'krw', editable: false, width: 140 },
 ];
 const DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS = [
   { field_key: 'asset_name', label: '자산명', group: '자산·펀드', type: 'text', editable: false, sticky: true, width: 220 },
-  { field_key: 'fund_name', label: '펀드명', group: '자산·펀드', type: 'text', editable: false, sticky: true, width: 240 },
-  { field_key: 'fund_code', label: '펀드코드', group: '자산·펀드', type: 'text', editable: false, width: 130 },
+  { field_key: 'fund_name', label: '펀드명', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'fund_name', sticky: true, width: 240 },
+  { field_key: 'fund_code', label: '펀드코드', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'fund_code', width: 130 },
+  { field_key: 'fund_short_name', label: '펀드 약칭', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'short_name', width: 140 },
+  { field_key: 'fund_type', label: '펀드 유형', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'fund_type', width: 140 },
+  { field_key: 'investment_strategy', label: '투자 전략', group: '자산·펀드', type: 'text', editable: true, target_table: 'public.ll_funds', target_field: 'investment_strategy', width: 160 },
   { field_key: 'asset_manager_name', label: '담당자', group: '담당자', type: 'text', editable: false, width: 140 },
   { field_key: 'equity_amount_krw', label: 'Equity', group: '투자 구조', type: 'krw', editable: false, width: 140 },
   { field_key: 'loan_amount_krw', label: 'Loan', group: '투자 구조', type: 'krw', editable: false, width: 140 },
   { field_key: 'total_capital_krw', label: '합계', group: '투자 구조', type: 'krw', editable: false, width: 140 },
   { field_key: 'equity_parties', label: '수익자', group: '투자자·대주', type: 'text', editable: false, width: 260 },
   { field_key: 'loan_lenders', label: '대주', group: '투자자·대주', type: 'text', editable: false, width: 260 },
-  { field_key: 'tranche_summary', label: 'Tranche', group: 'Tranche', type: 'text', editable: false, width: 320 },
+  { field_key: 'tranche_summary', label: 'Tranche 상세', group: 'Tranche', type: 'text', editable: false, width: 420 },
   { field_key: 'weighted_loan_rate', label: '가중평균 금리', group: '금리·만기', type: 'percent', editable: false, width: 140 },
   { field_key: 'nearest_maturity_date', label: '최근 만기', group: '금리·만기', type: 'date', editable: false, width: 130 },
   { field_key: 'maturity_summary', label: '만기 요약', group: '금리·만기', type: 'text', editable: false, width: 260 },
@@ -6418,9 +6446,9 @@ function dataManagementScopeRefs(assets: Record<string, unknown>[], funds: Recor
 
 async function readDataManagementScope(ctx: Context, managerView: boolean): Promise<{ scope?: DataManagementScope; error?: string }> {
   const [fundsResult, linksResult, assetsResult] = await Promise.all([
-    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,display_name').limit(500),
-    ctx.serviceClient.from('ll_fund_asset_links').select('asset_id,asset_code,asset_name,fund_id,source_payload').limit(1000),
-    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,current_manager_name,current_manager_email').limit(1000),
+    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,display_name,legal_form,investment_sector,fund_type,investment_strategy,initial_setup_date,maturity_date,setup_date,status,review_status,review_note').limit(500),
+    ctx.serviceClient.from('ll_fund_asset_links').select('id,fund_id,asset_id,asset_code,asset_name,link_type,source_type,source_name,source_payload').limit(1000),
+    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,fund_id,fund_code,fund_name,sector,address,latitude,longitude,approval_date,first_configured_at,gross_floor_area_sqm,land_area_sqm,floor_count,current_manager_name,current_manager_team,current_manager_email,raw_asset_name,review_status,review_note').limit(1000),
   ]);
   const hardError = [fundsResult, linksResult, assetsResult].find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return { error: hardError.error.message };
@@ -6429,6 +6457,19 @@ async function readDataManagementScope(ctx: Context, managerView: boolean): Prom
   const assets = (assetsResult.data || []) as Record<string, unknown>[];
   const fundById = new Map(funds.map((fund) => [safeText(fund.fund_id), fund]));
   const assetById = new Map(assets.map((asset) => [safeText(asset.asset_id), asset]));
+  const publicFundValues = (fundId: unknown, sourcePayload: Record<string, unknown> = {}) => {
+    const fund = fundById.get(safeText(fundId)) || {};
+    const sourceValues = sourcePayload.values && typeof sourcePayload.values === 'object' ? sourcePayload.values as Record<string, unknown> : {};
+    return stripUndefined({
+      ...sourceValues,
+      ...fund,
+      fund_id: safeText(firstDefined(fund.fund_id, fundId)),
+      fund_code: safeText(firstDefined(fund.fund_code, sourceValues['펀드코드'], safeText(fundId).replace(/^fund_/u, ''))),
+      fund_name: safeText(firstDefined(fund.fund_name, sourceValues['펀드명'])),
+      short_name: safeText(firstDefined(fund.short_name, sourceValues['약칭'])),
+      display_name: safeText(firstDefined(fund.display_name, fund.short_name, sourceValues['약칭'], fund.fund_name, sourceValues['펀드명'], fundId)),
+    });
+  };
   const scopeAssetMap = new Map<string, Record<string, unknown>>();
   links.forEach((link) => {
     const assetId = safeText(link.asset_id);
@@ -6446,17 +6487,8 @@ async function readDataManagementScope(ctx: Context, managerView: boolean): Prom
   const scopeFundMap = new Map<string, Record<string, unknown>>();
   links.forEach((link) => {
     const fundId = safeText(link.fund_id);
-    const fund = fundById.get(fundId);
     const sourcePayload = link.source_payload && typeof link.source_payload === 'object' ? link.source_payload as Record<string, unknown> : {};
-    const sourceValues = sourcePayload.values && typeof sourcePayload.values === 'object' ? sourcePayload.values as Record<string, unknown> : {};
-    const fallbackFund = {
-      fund_id: fundId,
-      fund_code: safeText(firstDefined(sourceValues['펀드코드'], fundId.replace(/^fund_/u, ''))),
-      fund_name: safeText(sourceValues['펀드명']),
-      short_name: safeText(sourceValues['약칭']),
-      display_name: safeText(firstDefined(sourceValues['약칭'], sourceValues['펀드명'], fundId)),
-    };
-    if (fundId) scopeFundMap.set(fundId, fund || fallbackFund);
+    if (fundId) scopeFundMap.set(fundId, publicFundValues(fundId, sourcePayload));
   });
   const scopeAssets = [...scopeAssetMap.values()]
     .sort((a, b) => safeText(a.asset_name || a.asset_code).localeCompare(safeText(b.asset_name || b.asset_code), 'ko'));
@@ -6474,14 +6506,37 @@ async function readDataManagementScope(ctx: Context, managerView: boolean): Prom
     (readableAssetIds.has(safeText(link.asset_id)) || readableAssetNames.has(safeText(link.asset_name)))
     && (!safeText(link.fund_id) || readableFundIds.has(safeText(link.fund_id)))
   ));
+  const hydrateLinks = (items: Record<string, unknown>[]) => items.map((link) => {
+    const fund = publicFundValues(link.fund_id, link.source_payload && typeof link.source_payload === 'object' ? link.source_payload as Record<string, unknown> : {});
+    const asset = assetById.get(safeText(link.asset_id)) || {};
+    return stripUndefined({
+      ...link,
+      fund_id: safeText(firstDefined(link.fund_id, fund.fund_id)),
+      fund_code: safeText(firstDefined(link.fund_code, fund.fund_code)),
+      fund_name: safeText(firstDefined(link.fund_name, fund.fund_name)),
+      fund_display_name: safeText(firstDefined(fund.fund_name, fund.display_name, fund.short_name, fund.fund_code)),
+      short_name: safeText(fund.short_name),
+      fund_type: fund.fund_type,
+      investment_strategy: fund.investment_strategy,
+      legal_form: fund.legal_form,
+      initial_setup_date: firstDefined(fund.initial_setup_date, fund.setup_date),
+      maturity_date: fund.maturity_date,
+      asset_id: safeText(firstDefined(link.asset_id, asset.asset_id)),
+      asset_code: safeText(firstDefined(link.asset_code, asset.asset_code)),
+      asset_name: safeText(firstDefined(link.asset_name, asset.asset_name)),
+      current_manager_name: firstDefined(asset.current_manager_name, link.current_manager_name),
+      current_manager_team: firstDefined(asset.current_manager_team, link.current_manager_team),
+      current_manager_email: firstDefined(asset.current_manager_email, link.current_manager_email),
+    });
+  });
   return {
     scope: {
       assets: scopeAssets,
       funds: scopeFunds,
-      links,
+      links: hydrateLinks(links),
       readableAssets,
       readableFunds,
-      readableLinks,
+      readableLinks: hydrateLinks(readableLinks),
       allRefs: dataManagementScopeRefs(scopeAssets, scopeFunds),
       readableRefs: dataManagementScopeRefs(readableAssets, readableFunds),
     },
@@ -6603,7 +6658,7 @@ function syntheticDataManagementRows(scope: {
   const fundRows = (scope.readableFunds || []).map((fund, index) => {
     const fundId = safeText(fund.fund_id || fund.fund_code || fund.fund_name);
     const fundCode = safeText(fund.fund_code);
-    const fundName = safeText(firstDefined(fund.display_name, fund.short_name, fund.fund_name, fundCode, fundId));
+    const fundName = safeText(firstDefined(fund.fund_name, fund.display_name, fund.short_name, fundCode, fundId));
     return stripUndefined({
       source_row_id: `managed_fund:${fundId || index + 1}`,
       source_sheet_id: 'managed_funds_sheet',
@@ -6860,10 +6915,32 @@ function dataManagementFieldType(fieldName: unknown, metadata?: Record<string, u
 function dataManagementUserVisibleField(fieldName: unknown) {
   const field = safeText(fieldName);
   const lower = field.toLowerCase();
+  const hiddenOperationalFields = new Set([
+    'attribute_key',
+    'attribute_type',
+    'attribute_kind',
+    'source_legacy_id',
+    'source_sheet_row_id',
+    'source_cell_id',
+    'source_table',
+    'source_column',
+    'target_table',
+    'target_row_id',
+    'target_field',
+    'primary_key_field',
+    'primary_key_value',
+    'natural_key',
+    'row_hash',
+    'revision_hash',
+    'relationship_type',
+    'relationship_kind',
+    'exception_group',
+  ]);
   if (!field) return false;
   if (IMMUTABLE_FIELDS.has(field)) return false;
   if (PRIMARY_KEY_FIELDS.has(field)) return false;
   if (SENSITIVE_KEY_PATTERN.test(field)) return false;
+  if (hiddenOperationalFields.has(lower)) return false;
   if (lower === 'payload' || lower.endsWith('_payload') || lower.includes('payload_')) return false;
   if (lower === 'request_payload' || lower === 'source_payload' || lower === 'response_payload') return false;
   if (lower === 'row_values' || lower === 'normalized_values' || lower === 'validation_flags') return false;
@@ -6991,7 +7068,7 @@ function dataManagementPublicBundles(scope: DataManagementScope) {
     const fund = fundById.get(safeText(link.fund_id)) || {};
     const assetId = safeText(firstDefined(link.asset_id, asset.asset_id, link.asset_code, asset.asset_code, link.asset_name, asset.asset_name));
     const fundId = safeText(firstDefined(link.fund_id, fund.fund_id, fund.fund_code, fund.fund_name));
-    const fundLabel = safeText(firstDefined(fund.display_name, fund.short_name, fund.fund_name, fund.fund_code, fundId));
+    const fundLabel = safeText(firstDefined(fund.fund_name, fund.display_name, fund.short_name, fund.fund_code, fundId));
     const assetLabel = safeText(firstDefined(link.asset_name, asset.asset_name, link.asset_code, asset.asset_code, assetId));
     const fundCode = safeText(fund.fund_code);
     const multiAsset = Number(fundAssetCounts.get(safeText(link.fund_id)) || 0) > 1;
@@ -7639,6 +7716,7 @@ function dataManagementFormatViewValue(value: unknown, field: Record<string, unk
   if (value === null || value === undefined || value === '') return '';
   const type = safeText(field.type);
   const numeric = dataManagementNumberOrNull(value);
+  if (type === 'yn') return ['true', '1', 'y', 'yes', 'Y', 'TRUE'].includes(safeText(value)) || value === true ? 'Y' : 'N';
   if (type === 'krw' && numeric !== null) return formatKoreanCompactWon(numeric);
   if (type === 'krw_per_py' && numeric !== null) return formatKoreanWon(numeric);
   if (type === 'area_sqm') {
@@ -8024,6 +8102,7 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
 function dataManagementParseViewRequestedValue(value: unknown, field: Record<string, unknown>) {
   const type = safeText(field.type);
   if (value === null || value === undefined || value === '') return null;
+  if (type === 'yn') return ['true', '1', 'y', 'yes', '예', 'Y'].includes(safeText(value).trim().toLowerCase());
   if (type === 'krw' || type === 'krw_per_py') return parseKrwAmount(value);
   if (type === 'area_sqm') {
     const textValue = safeText(value);
@@ -8179,7 +8258,7 @@ function dataManagementLeaseBusinessSource(space: Record<string, unknown>, busin
   const fund = matchedBundle.fund && typeof matchedBundle.fund === 'object' ? matchedBundle.fund as Record<string, unknown> : {};
   return stripUndefined({
     asset_name: firstDefined(space.asset_name, lease.asset_name, asset.label, asset.asset_name, asset.asset_code),
-    fund_name: firstDefined(fund.label, fund.display_name, fund.short_name, fund.fund_name),
+    fund_name: firstDefined(fund.fund_name, fund.label, fund.display_name, fund.short_name),
     tenant_master_name: firstDefined(space.tenant_master_name, lease.tenant_master_name, tenant.tenant_master_name, tenant.company_name),
     business_registration_no: firstDefined(space.business_registration_no, lease.business_registration_no, tenant.business_registration_no),
     company_name: firstDefined(tenant.company_name, tenant.corp_name),
@@ -8320,11 +8399,18 @@ async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<s
     const latestCost = latestCostByAsset.get(assetId) || {};
     const source = stripUndefined({
       asset_name: firstDefined(asset.asset_name, asset.asset_code),
+      asset_code: asset.asset_code,
+      sector: asset.sector,
       fund_names: fundNames.join(', '),
       address: firstDefined(asset.address, asset.road_address, asset.jibun_address),
+      approval_date: asset.approval_date,
+      first_configured_at: asset.first_configured_at,
       current_manager_name: asset.current_manager_name,
+      current_manager_team: asset.current_manager_team,
+      current_manager_email: asset.current_manager_email,
       gross_floor_area_sqm: firstDefined(asset.gross_floor_area_sqm, asset.gfa_sqm),
       land_area_sqm: firstDefined(asset.land_area_sqm, asset.site_area_sqm),
+      floor_count: asset.floor_count,
       exclusive_area_sqm: asset.exclusive_area_sqm,
       exclusive_ratio: asset.exclusive_ratio,
       spec_summary: summarizeSpecs(specsByAsset.get(assetId) || []),
@@ -8333,6 +8419,7 @@ async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<s
       fm_cost_krw: latestCost.fm_cost_krw,
       insurance_cost_krw: latestCost.insurance_cost_krw,
       utility_cost_krw: latestCost.utility_cost_krw,
+      other_cost_krw: latestCost.other_cost_krw,
       operating_cost_total_krw: ['pm_cost_krw', 'fm_cost_krw', 'insurance_cost_krw', 'utility_cost_krw', 'other_cost_krw']
         .reduce((sum, key) => sum + Number(latestCost[key] || 0), 0),
     });
@@ -8352,10 +8439,14 @@ async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<s
       values: displayValues,
       edit_values: editValues,
       lookup_status: { status: 'ok', label: '정상' },
-      editable: false,
-      read_only_reason: '통합 표시값입니다. 세부 수정은 연결된 원천 필드 승인 요청으로 처리합니다.',
+      editable: true,
       revision_hash: await dataManagementRevisionHash({ asset, latestCost, specs: specsByAsset.get(assetId) || [] }),
-      meta: { row_unit: 'asset_id' },
+      meta: {
+        row_unit: 'asset_id',
+        asset_id: assetId,
+        operating_cost_id: safeText(latestCost.operating_cost_id),
+        cost_row_present: Boolean(safeText(latestCost.operating_cost_id)),
+      },
     });
   }));
   return dataManagementFinalizeBusinessRows(rows, payload, page, pageSize);
@@ -8402,6 +8493,103 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
     rate(row) !== null ? dataManagementFormatViewValue(rate(row), { type: 'percent' }) : '',
     safeDateText(row.maturity_date),
   ].filter(Boolean).join(' / ');
+  const trancheDetailColumns = [
+    { field_key: 'tranche_type', label: '구분', group: 'Tranche', type: 'text', editable: true, width: 110 },
+    { field_key: 'tranche', label: 'Tranche', group: 'Tranche', type: 'text', editable: true, width: 110 },
+    { field_key: 'party_name', label: '수익자·대주', group: '투자자·대주', type: 'text', editable: true, width: 180 },
+    { field_key: 'committed_amount_krw', label: '약정·투입금액', group: '금액', type: 'krw', editable: true, width: 150 },
+    { field_key: 'drawdown_date', label: '인출시점', group: '일정', type: 'date', editable: true, width: 130 },
+    { field_key: 'maturity_date', label: '만기시점', group: '일정', type: 'date', editable: true, width: 130 },
+    { field_key: 'interest_type', label: '이자유형', group: '금리', type: 'text', editable: true, width: 130 },
+    { field_key: 'base_rate', label: '기준금리', group: '금리', type: 'percent', editable: true, width: 110 },
+    { field_key: 'spread_rate', label: '가산금리', group: '금리', type: 'percent', editable: true, width: 110 },
+    { field_key: 'loan_rate', label: '대출금리', group: '금리', type: 'percent', editable: true, width: 110 },
+    { field_key: 'all_in_rate', label: 'All-In', group: '금리', type: 'percent', editable: true, width: 110 },
+  ];
+  const beneficiaryDetailColumns = [
+    { field_key: 'tranche', label: 'tranche', group: '수익자 정보', type: 'text', editable: true, width: 120 },
+    { field_key: 'party_name', label: '수익자', group: '수익자 정보', type: 'text', editable: true, width: 260 },
+    { field_key: 'committed_amount_krw', label: '투입금액(원)', group: '수익자 정보', type: 'krw', editable: true, width: 180 },
+  ];
+  const loanDetailColumns = [
+    { field_key: 'loan_type', label: '대출유형', group: '대주 정보', type: 'text', editable: true, width: 120 },
+    { field_key: 'tranche', label: 'tranche', group: '대주 정보', type: 'text', editable: true, width: 120 },
+    { field_key: 'party_name', label: '대주', group: '대주 정보', type: 'text', editable: true, width: 240 },
+    { field_key: 'committed_amount_krw', label: '인출금액(원)', group: '대주 정보', type: 'krw', editable: true, width: 180 },
+    { field_key: 'drawdown_date', label: '인출시점', group: '대주 정보', type: 'date', editable: true, width: 130 },
+    { field_key: 'maturity_date', label: '만기시점', group: '대주 정보', type: 'date', editable: true, width: 130 },
+    { field_key: 'interest_type', label: '이자유형', group: '대주 정보', type: 'text', editable: true, width: 130 },
+    { field_key: 'base_rate', label: '기준금리', group: '대주 정보', type: 'percent', editable: true, width: 110 },
+    { field_key: 'spread_rate', label: '가산금리', group: '대주 정보', type: 'percent', editable: true, width: 110 },
+    { field_key: 'loan_rate', label: '대출금리', group: '대주 정보', type: 'percent', editable: true, width: 110 },
+    { field_key: 'all_in_rate', label: 'All-In', group: '대주 정보', type: 'percent', editable: true, width: 110 },
+  ];
+  const trancheTargetField = (trancheRow: Record<string, unknown>, fieldKey: string) => {
+    if (fieldKey === 'party_name') {
+      if (Object.prototype.hasOwnProperty.call(trancheRow, 'party_name')) return 'party_name';
+      if (Object.prototype.hasOwnProperty.call(trancheRow, 'lender_name')) return 'lender_name';
+      if (Object.prototype.hasOwnProperty.call(trancheRow, 'beneficiary_name')) return 'beneficiary_name';
+      return 'party_name';
+    }
+    if (fieldKey === 'committed_amount_krw') {
+      if (Object.prototype.hasOwnProperty.call(trancheRow, 'committed_amount_krw')) return 'committed_amount_krw';
+      if (Object.prototype.hasOwnProperty.call(trancheRow, 'drawn_amount_krw')) return 'drawn_amount_krw';
+      if (Object.prototype.hasOwnProperty.call(trancheRow, 'amount_krw')) return 'amount_krw';
+      return 'committed_amount_krw';
+    }
+    if (fieldKey === 'loan_rate') return Object.prototype.hasOwnProperty.call(trancheRow, 'loan_rate') ? 'loan_rate' : 'interest_rate';
+    if (fieldKey === 'all_in_rate') return Object.prototype.hasOwnProperty.call(trancheRow, 'all_in_rate') ? 'all_in_rate' : 'all_in';
+    return fieldKey;
+  };
+  const buildTrancheDetailRows = async (link: Record<string, unknown>, detailRows: Record<string, unknown>[], columns: Record<string, unknown>[], sectionKey: string) => Promise.all(detailRows.map(async (trancheRow, index) => {
+    const trancheId = safeText(trancheRow.id);
+    const detailSource = stripUndefined({
+      tranche_type: trancheKind(trancheRow) === 'loan' ? 'Loan' : 'Equity',
+      loan_type: firstDefined(trancheRow.loan_type, trancheRow.loan_category),
+      tranche: trancheLabel(trancheRow),
+      party_name: partyName(trancheRow),
+      committed_amount_krw: amount(trancheRow),
+      drawdown_date: safeDateText(trancheRow.drawdown_date),
+      maturity_date: safeDateText(trancheRow.maturity_date),
+      interest_type: trancheRow.interest_type,
+      base_rate: trancheRow.base_rate,
+      spread_rate: trancheRow.spread_rate,
+      loan_rate: firstDefined(trancheRow.loan_rate, trancheRow.interest_rate),
+      all_in_rate: firstDefined(trancheRow.all_in_rate, trancheRow.all_in),
+    });
+    const displayValues = Object.fromEntries(columns.map((field) => [
+      safeText(field.field_key),
+      dataManagementFormatViewValue(detailSource[safeText(field.field_key)], field),
+    ]));
+    const editValues = Object.fromEntries(columns.map((field) => [
+      safeText(field.field_key),
+      detailSource[safeText(field.field_key)] ?? null,
+    ]));
+    const editTargets = Object.fromEntries(columns
+      .filter((field) => field.editable === true)
+      .map((field) => {
+        const fieldKey = safeText(field.field_key);
+        return [fieldKey, {
+          target_table: 'public.ll_fund_capital_tranches',
+          primary_key_field: 'id',
+          target_record_id: trancheId,
+          target_field: trancheTargetField(trancheRow, fieldKey),
+        }];
+      }));
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(`${viewKey}:${sectionKey}`, trancheId || `${safeText(link.asset_id)}:${safeText(link.fund_id)}:${sectionKey}:${index}`),
+      row_label: [detailSource.tranche, detailSource.party_name].map((item) => safeText(item)).filter(Boolean).join(' · ') || `${sectionKey === 'loan' ? '대주' : '수익자'} ${index + 1}`,
+      display_values: displayValues,
+      edit_values: editValues,
+      editable: Boolean(trancheId),
+      revision_hash: await dataManagementRevisionHash(trancheRow),
+      meta: {
+        detail_kind: sectionKey === 'loan' ? 'fund_loan_tranche' : 'fund_beneficiary_tranche',
+        section_key: sectionKey,
+        edit_targets: editTargets,
+      },
+    });
+  }));
   const rows = await Promise.all(readableLinks.map(async (link) => {
     const linkTranches = tranchesForLink(link);
     const equityRows = linkTranches.filter((row) => trancheKind(row) === 'equity');
@@ -8415,6 +8603,9 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       asset_name: firstDefined(link.asset_name, link.asset_code),
       fund_name: firstDefined(link.fund_name, link.fund_display_name, link.fund_code),
       fund_code: link.fund_code,
+      fund_short_name: firstDefined(link.short_name, link.fund_short_name),
+      fund_type: link.fund_type,
+      investment_strategy: link.investment_strategy,
       asset_manager_name: firstDefined(link.current_manager_name, link.manager_name),
       equity_amount_krw: equity,
       loan_amount_krw: loan,
@@ -8426,6 +8617,8 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       nearest_maturity_date: maturityDates[0] || '',
       maturity_summary: maturityDates.join(', '),
     });
+    const beneficiaryDetailRows = await buildTrancheDetailRows(link, equityRows, beneficiaryDetailColumns, 'beneficiary');
+    const loanDetailRows = await buildTrancheDetailRows(link, loanRows, loanDetailColumns, 'loan');
     const displayValues = Object.fromEntries(DATA_MANAGEMENT_INVESTMENT_INTEGRATED_VIEW_FIELDS.map((field) => {
       const publicField = field as Record<string, unknown>;
       const key = safeText(publicField.field_key);
@@ -8435,6 +8628,30 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       const key = safeText((field as Record<string, unknown>).field_key);
       return [key, source[key] ?? null];
     }));
+    const trancheDetail = {
+      title: '수익자·대주 정보 편집',
+      description: '자산 탭의 펀드개요처럼 수익자 정보와 대주 정보를 나눠 확인하고, 각 행의 값을 수정 승인 요청으로 저장합니다.',
+      layout: 'fund_overview',
+      columns: trancheDetailColumns.map((field) => dataManagementPublicViewField(field)),
+      rows: [],
+      sections: [
+        {
+          section_key: 'beneficiary',
+          title: '수익자 정보',
+          columns: beneficiaryDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          rows: beneficiaryDetailRows,
+          empty_state: '등록된 수익자 정보가 없습니다.',
+        },
+        {
+          section_key: 'loan',
+          title: '대주 정보',
+          columns: loanDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          rows: loanDetailRows,
+          empty_state: '등록된 대주 정보가 없습니다.',
+        },
+      ],
+      empty_state: '등록된 tranche 행이 없습니다.',
+    };
     return stripUndefined({
       row_key: await dataManagementOpaqueRowKey(viewKey, [link.asset_id, link.fund_id, link.asset_name, link.fund_name].map((item) => safeText(item)).join('|')),
       row_label: [source.asset_name, source.fund_name].map((item) => safeText(item)).filter(Boolean).join(' · ') || '투자 데이터',
@@ -8442,10 +8659,26 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       values: displayValues,
       edit_values: editValues,
       lookup_status: { status: 'ok', label: '정상' },
-      editable: false,
-      read_only_reason: '투자 구조 통합 표시값입니다. 세부 수정은 tranche 원천 필드 승인 요청으로 처리합니다.',
+      editable: true,
       revision_hash: await dataManagementRevisionHash({ link, tranches: linkTranches }),
-      meta: { row_unit: 'fund_asset_link' },
+      cell_details: {
+        equity_amount_krw: trancheDetail,
+        loan_amount_krw: trancheDetail,
+        total_capital_krw: trancheDetail,
+        equity_parties: trancheDetail,
+        loan_lenders: trancheDetail,
+        tranche_summary: trancheDetail,
+        weighted_loan_rate: trancheDetail,
+        nearest_maturity_date: trancheDetail,
+        maturity_summary: trancheDetail,
+      },
+      meta: {
+        row_unit: 'fund_asset_link',
+        link_id: safeText(link.id),
+        asset_id: safeText(link.asset_id),
+        fund_id: safeText(link.fund_id),
+        tranche_count: linkTranches.length,
+      },
     });
   }));
   return dataManagementFinalizeBusinessRows(rows, payload, page, pageSize);
@@ -8479,6 +8712,8 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
   if (specsResult.errorResponse) throw new Error('요구 스펙 데이터를 읽지 못했습니다.');
   const specialTermsResult = await listSpecialTermsForLeaseSpaces(ctx, leaseSpaceIds);
   if (specialTermsResult.errorResponse) throw new Error('특약 데이터를 읽지 못했습니다.');
+  const insuranceRightsResult = await listInsuranceRightsForLeaseSpaces(ctx, leaseSpaceIds);
+  if (insuranceRightsResult.errorResponse) throw new Error('보험·권리 데이터를 읽지 못했습니다.');
   const leaseById = new Map((leasesResult.rows || []).map((row) => [safeText(row.lease_id), row]));
   const tenantById = new Map((tenantsResult.rows || []).map((row) => [safeText(row.tenant_id), row]));
   const latestHistoryBySpace = new Map<string, Record<string, unknown>>();
@@ -8499,6 +8734,133 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     })
     .filter(Boolean)
     .join(' · ');
+  const attributeDetailColumns = [
+    { field_key: 'label', label: '항목', group: '상세 항목', type: 'text', editable: true, width: 220 },
+    { field_key: 'value', label: '값', group: '상세 항목', type: 'text', editable: true, width: 260 },
+    { field_key: 'unit_label', label: '단위', group: '상세 항목', type: 'text', editable: true, width: 100 },
+    { field_key: 'review_note', label: '검토 메모', group: '검토', type: 'text', editable: true, width: 260 },
+  ];
+  const conditionDetailColumns = [
+    { field_key: 'condition_label', label: '항목', group: '상세 항목', type: 'text', editable: false, width: 220 },
+    { field_key: 'value', label: '값', group: '상세 항목', type: 'text', editable: true, width: 320 },
+  ];
+  const rentHistoryDetailColumns = [
+    { field_key: 'basis_date', label: '기준일자', group: '임대료·관리비 이력', type: 'date', editable: true, width: 130 },
+    { field_key: 'change_reason', label: '변동 원인', group: '임대료·관리비 이력', type: 'text', editable: true, width: 160 },
+    { field_key: 'monthly_rent_total', label: '월임대료 총액', group: '임대료·관리비 이력', type: 'krw', editable: true, width: 150 },
+    { field_key: 'monthly_mf_total', label: '월관리비 총액', group: '임대료·관리비 이력', type: 'krw', editable: true, width: 150 },
+    { field_key: 'rent_per_py', label: '평당 월임대료', group: '임대료·관리비 이력', type: 'krw_per_py', editable: true, width: 140 },
+    { field_key: 'mf_per_py', label: '평당 월관리비', group: '임대료·관리비 이력', type: 'krw_per_py', editable: true, width: 140 },
+  ];
+  const buildRentHistoryDetailRow = async (history: Record<string, unknown>, index: number) => {
+    const id = safeText(firstDefined(history.rent_history_id, history.id));
+    const detailSource = stripUndefined({
+      basis_date: firstDefined(history.basis_date, history.effective_date),
+      change_reason: firstDefined(history.change_reason, history.rent_change_reason),
+      monthly_rent_total: firstDefined(history.monthly_rent_total, history.current_monthly_rent_total),
+      monthly_mf_total: firstDefined(history.monthly_mf_total, history.current_monthly_mf_total),
+      rent_per_py: firstDefined(history.rent_per_py, history.current_rent_per_py, history.rent_manwon_per_py),
+      mf_per_py: firstDefined(history.mf_per_py, history.current_mf_per_py, history.management_fee_per_py),
+    });
+    const displayValues = Object.fromEntries(rentHistoryDetailColumns.map((field) => [
+      safeText(field.field_key),
+      dataManagementFormatViewValue(detailSource[safeText(field.field_key)], field),
+    ]));
+    const editValues = Object.fromEntries(rentHistoryDetailColumns.map((field) => [
+      safeText(field.field_key),
+      detailSource[safeText(field.field_key)] ?? null,
+    ]));
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey('lease-rent-detail', id || `${safeText(history.lease_space_id)}:${index}`),
+      row_label: safeText(detailSource.basis_date) || `임대료·관리비 이력 ${index + 1}`,
+      display_values: displayValues,
+      edit_values: editValues,
+      editable: Boolean(id),
+      revision_hash: await dataManagementRevisionHash(history),
+      meta: {
+        detail_kind: 'rent_history',
+        edit_targets: {
+          basis_date: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'basis_date' },
+          change_reason: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'change_reason' },
+          monthly_rent_total: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'monthly_rent_total' },
+          monthly_mf_total: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'monthly_mf_total' },
+          rent_per_py: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'rent_per_py' },
+          mf_per_py: { target_table: 'public.ll_rent_history', primary_key_field: 'rent_history_id', target_record_id: id, target_field: 'mf_per_py' },
+        },
+      },
+    });
+  };
+  const buildAttributeDetailRow = async (item: Record<string, unknown>, index: number, kind: string) => {
+    const id = safeText(item.id);
+    const valueSource = firstDefined(item.value_text, item.spec_value, item.term_value, item.value_numeric, item.spec_numeric, item.term_numeric);
+    const valueTargetField = (item.value_numeric !== undefined || item.spec_numeric !== undefined || item.term_numeric !== undefined) && safeText(item.value_text) === ''
+      ? 'value_numeric'
+      : 'value_text';
+    const detailSource = stripUndefined({
+      label: dataManagementFriendlyLabel(item.attribute_label, item.spec_label, item.term_label, item.attribute_key, item.spec_key, item.field_key),
+      value: valueSource,
+      unit_label: item.unit_label,
+      review_note: item.review_note,
+    });
+    const displayValues = Object.fromEntries(attributeDetailColumns.map((field) => [
+      safeText(field.field_key),
+      dataManagementFormatViewValue(detailSource[safeText(field.field_key)], field),
+    ]));
+    const editValues = Object.fromEntries(attributeDetailColumns.map((field) => [
+      safeText(field.field_key),
+      detailSource[safeText(field.field_key)] ?? null,
+    ]));
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey(`lease-detail:${kind}`, id || `${safeText(item.lease_space_id)}:${index}`),
+      row_label: safeText(detailSource.label) || `상세 항목 ${index + 1}`,
+      display_values: displayValues,
+      edit_values: editValues,
+      editable: Boolean(id),
+      revision_hash: await dataManagementRevisionHash(item),
+      meta: {
+        detail_kind: kind,
+        edit_targets: {
+          label: { target_table: 'public.ll_lease_attributes', primary_key_field: 'id', target_record_id: id, target_field: 'attribute_label' },
+          value: { target_table: 'public.ll_lease_attributes', primary_key_field: 'id', target_record_id: id, target_field: valueTargetField },
+          unit_label: { target_table: 'public.ll_lease_attributes', primary_key_field: 'id', target_record_id: id, target_field: 'unit_label' },
+          review_note: { target_table: 'public.ll_lease_attributes', primary_key_field: 'id', target_record_id: id, target_field: 'review_note' },
+        },
+      },
+    });
+  };
+  const buildDirectConditionRow = async (
+    rowKeyBase: string,
+    conditionLabel: string,
+    value: unknown,
+    targetTable: string,
+    targetRecordId: string,
+    targetField: string,
+    revisionSource: Record<string, unknown>,
+  ) => {
+    const detailSource = { condition_label: conditionLabel, value };
+    const displayValues = Object.fromEntries(conditionDetailColumns.map((field) => [
+      safeText(field.field_key),
+      dataManagementFormatViewValue(detailSource[safeText(field.field_key) as keyof typeof detailSource], field),
+    ]));
+    const editValues = Object.fromEntries(conditionDetailColumns.map((field) => [
+      safeText(field.field_key),
+      detailSource[safeText(field.field_key) as keyof typeof detailSource] ?? null,
+    ]));
+    return stripUndefined({
+      row_key: await dataManagementOpaqueRowKey('lease-direct-detail', rowKeyBase),
+      row_label: conditionLabel,
+      display_values: displayValues,
+      edit_values: editValues,
+      editable: Boolean(targetRecordId && targetField),
+      revision_hash: await dataManagementRevisionHash(revisionSource),
+      meta: {
+        detail_kind: 'lease_direct_condition',
+        edit_targets: {
+          value: { target_table: targetTable, primary_key_field: dataManagementPrimaryKeyForTable(clientTableName(targetTable)), target_record_id: targetRecordId, target_field: targetField },
+        },
+      },
+    });
+  };
   const specsBySpace = new Map<string, Record<string, unknown>[]>();
   (specsResult.rows || []).forEach((row) => {
     const key = safeText(row.lease_space_id);
@@ -8510,6 +8872,12 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     const key = safeText(row.lease_space_id);
     if (!key) return;
     specialTermsBySpace.set(key, [...(specialTermsBySpace.get(key) || []), row]);
+  });
+  const insuranceRightsBySpace = new Map<string, Record<string, unknown>[]>();
+  (insuranceRightsResult.rows || []).forEach((row) => {
+    const key = safeText(row.lease_space_id);
+    if (!key) return;
+    insuranceRightsBySpace.set(key, [...(insuranceRightsBySpace.get(key) || []), row]);
   });
   const publicBundles = dataManagementPublicBundles(scope);
   const bundleByAsset = new Map<string, Record<string, unknown>>();
@@ -8529,14 +8897,55 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     const lease = leaseById.get(safeText(space.lease_id)) || {};
     const tenant = tenantById.get(safeText(space.tenant_id)) || {};
     const latestHistory = latestHistoryBySpace.get(safeText(space.lease_space_id)) || {};
-    const specsSummary = summarizeAttributes(specsBySpace.get(safeText(space.lease_space_id)) || []);
-    const specialSummary = summarizeAttributes(specialTermsBySpace.get(safeText(space.lease_space_id)) || []);
+    const rentHistoryDetailRows = safeText(firstDefined(latestHistory.rent_history_id, latestHistory.id))
+      ? [await buildRentHistoryDetailRow(latestHistory, 0)]
+      : [];
+    const rentHistoryDetail = {
+      title: '임대료·관리비 최신 이력 편집',
+      description: '현재 표에 보이는 임대료·관리비 요약값의 원천 이력 row입니다. 총액과 평당 단가를 같은 화면에서 수정 승인 요청할 수 있습니다.',
+      columns: rentHistoryDetailColumns.map((field) => dataManagementPublicViewField(field)),
+      rows: rentHistoryDetailRows,
+      empty_state: '연결된 최신 임대료·관리비 이력이 없습니다.',
+    };
+    const specsForSpace = specsBySpace.get(safeText(space.lease_space_id)) || [];
+    const specialTermsForSpace = specialTermsBySpace.get(safeText(space.lease_space_id)) || [];
+    const insuranceRightsForSpace = insuranceRightsBySpace.get(safeText(space.lease_space_id)) || [];
+    const specsSummary = summarizeAttributes(specsForSpace);
+    const specialSummary = summarizeAttributes(specialTermsForSpace);
     const matchedBundle = bundle || bundleByAsset.get(safeText(space.asset_id)) || bundleByAsset.get(safeText(space.asset_code)) || bundleByAsset.get(safeText(space.asset_name)) || {};
     const asset = matchedBundle.asset && typeof matchedBundle.asset === 'object' ? matchedBundle.asset as Record<string, unknown> : {};
     const fund = matchedBundle.fund && typeof matchedBundle.fund === 'object' ? matchedBundle.fund as Record<string, unknown> : {};
+    const leaseId = safeText(firstDefined(space.lease_id, lease.lease_id));
+    const tenantId = safeText(firstDefined(space.tenant_id, tenant.tenant_id));
+    const specsDetailRows = await Promise.all(specsForSpace.map((item, index) => buildAttributeDetailRow(item, index, 'required_spec')));
+    const specialAttributeRows = await Promise.all(specialTermsForSpace.map((item, index) => buildAttributeDetailRow(item, index, 'special_term')));
+    const specialDirectRows = safeText(lease.special_terms)
+      ? [await buildDirectConditionRow(`${leaseId}:special_terms`, '특수 계약 조건', lease.special_terms, 'public.ll_leases', leaseId, 'special_terms', lease)]
+      : [];
+    const insuranceRows = await Promise.all([
+      ['tenant_cost_burden', '임차인 부담 비용', lease.tenant_cost_burden],
+      ['early_termination_right', '중도해지권', lease.early_termination_right],
+      ['renewal_option', '갱신 옵션', lease.renewal_option],
+    ].map(([field, label, value]) => buildDirectConditionRow(`${leaseId}:${field}`, safeText(label), value, 'public.ll_leases', leaseId, safeText(field), lease)));
+    const insuranceAttributeRows = await Promise.all(insuranceRightsForSpace.map((item, index) => buildAttributeDetailRow(item, index, 'insurance_right')));
+    const tenantDetailRows = await Promise.all([
+      ['tenant_master_name', '임차인명', firstDefined(tenant.tenant_master_name, tenant.display_name, tenant.company_name)],
+      ['business_registration_no', '사업자번호', tenant.business_registration_no],
+      ['company_name', '회사명', tenant.company_name],
+      ['dart_corp_code', 'DART 코드', tenant.dart_corp_code],
+    ].map(([field, label, value]) => buildDirectConditionRow(`${tenantId}:${field}`, safeText(label), value, 'public.ll_tenants', tenantId, safeText(field), tenant)));
+    const insuranceSummary = insuranceRows
+      .map((row) => {
+        const values = row.display_values as Record<string, unknown> | undefined;
+        const label = safeText(values?.condition_label);
+        const value = safeText(values?.value);
+        return value && value !== '-' ? `${label}: ${value}` : '';
+      })
+      .filter(Boolean)
+      .join(' · ');
     const source = stripUndefined({
       asset_name: firstDefined(space.asset_name, lease.asset_name, asset.label, asset.asset_name, asset.asset_code),
-      fund_name: firstDefined(fund.label, fund.display_name, fund.short_name, fund.fund_name),
+      fund_name: firstDefined(fund.fund_name, fund.label, fund.display_name, fund.short_name),
       tenant_master_name: firstDefined(space.tenant_master_name, lease.tenant_master_name, tenant.tenant_master_name, tenant.company_name),
       business_registration_no: firstDefined(space.business_registration_no, lease.business_registration_no, tenant.business_registration_no),
       space_label: firstDefined(space.space_label, lease.space_label),
@@ -8553,6 +8962,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       first_end_date: lease.first_end_date,
       first_operation_date: lease.first_operation_date,
       recent_contract_date: lease.recent_contract_date,
+      recent_contract_end_date: firstDefined(lease.current_end_date, space.current_end_date, lease.first_end_date),
       current_start_date: firstDefined(lease.current_start_date, space.current_start_date),
       current_end_date: firstDefined(lease.current_end_date, space.current_end_date),
       current_contract_period: firstDefined(lease.contract_years, lease.current_contract_period),
@@ -8577,6 +8987,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       tenant_cost_burden: lease.tenant_cost_burden,
       early_termination_right: lease.early_termination_right,
       renewal_option: lease.renewal_option,
+      insurance_rights_summary: insuranceSummary,
       special_terms: lease.special_terms,
       required_specs_summary: specsSummary,
       lease_special_summary: firstDefined(specialSummary, lease.special_terms),
@@ -8609,10 +9020,83 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       editable,
       read_only_reason: readOnlyReason || undefined,
       revision_hash: await dataManagementRevisionHash({ space, lease }),
+      cell_details: {
+        current_monthly_rent_total: rentHistoryDetail,
+        current_monthly_mf_total: rentHistoryDetail,
+        current_monthly_cost_total: rentHistoryDetail,
+        current_rent_per_py: rentHistoryDetail,
+        current_mf_per_py: rentHistoryDetail,
+        required_specs_summary: {
+          title: '요구 스펙 상세 편집',
+          description: '하중, 도크, 층고, 전력 등 요구 스펙을 항목별 행으로 수정 요청합니다.',
+          columns: attributeDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          rows: specsDetailRows,
+          empty_state: '등록된 요구 스펙 상세 행이 없습니다.',
+        },
+        lease_special_summary: {
+          title: '특약 상세 편집',
+          description: '특수 계약 조건과 특약 상세를 행별로 수정 요청합니다.',
+          columns: conditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          rows: [
+            ...specialDirectRows,
+            ...specialAttributeRows.map((row) => {
+              const values = row.display_values as Record<string, unknown> | undefined;
+              const editValues = row.edit_values as Record<string, unknown> | undefined;
+              return {
+                ...row,
+                display_values: { condition_label: values?.label, value: values?.value },
+                edit_values: { condition_label: editValues?.label, value: editValues?.value },
+                meta: {
+                  ...(row.meta as Record<string, unknown> | undefined || {}),
+                  edit_targets: {
+                    value: ((row.meta as Record<string, unknown> | undefined)?.edit_targets as Record<string, unknown> | undefined)?.value,
+                  },
+                },
+              };
+            }),
+          ],
+          empty_state: '등록된 특약 상세 행이 없습니다.',
+        },
+        insurance_rights_summary: {
+          title: '보험·권리 상세 편집',
+          description: '임차인 부담 비용, 중도해지권, 갱신 옵션을 행별로 수정 요청합니다.',
+          columns: conditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          rows: [
+            ...insuranceRows,
+            ...insuranceAttributeRows.map((row) => {
+              const values = row.display_values as Record<string, unknown> | undefined;
+              const editValues = row.edit_values as Record<string, unknown> | undefined;
+              return {
+                ...row,
+                display_values: { condition_label: values?.label, value: values?.value },
+                edit_values: { condition_label: editValues?.label, value: editValues?.value },
+                meta: {
+                  ...(row.meta as Record<string, unknown> | undefined || {}),
+                  edit_targets: {
+                    value: ((row.meta as Record<string, unknown> | undefined)?.edit_targets as Record<string, unknown> | undefined)?.value,
+                  },
+                },
+              };
+            }),
+          ],
+          empty_state: '등록된 보험·권리 조건이 없습니다.',
+        },
+        tenant_info_summary: {
+          title: '임차인 정보 상세 편집',
+          description: '임차인명, 사업자번호, 회사명, DART 코드를 행별로 수정 요청합니다.',
+          columns: conditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          rows: tenantDetailRows,
+          empty_state: '연결된 임차인 정보가 없습니다.',
+        },
+      },
       meta: {
         row_unit: 'lease_space_id',
         status: lookup.label,
         read_only_reason: readOnlyReason || undefined,
+        asset_id: safeText(space.asset_id),
+        lease_id: safeText(space.lease_id),
+        lease_space_id: safeText(space.lease_space_id),
+        tenant_id: safeText(space.tenant_id),
       },
     });
   }));
@@ -8696,7 +9180,7 @@ async function dataManagementLeaseRentHistoryRows(ctx: Context, payload: Record<
     const fund = matchedBundle.fund && typeof matchedBundle.fund === 'object' ? matchedBundle.fund as Record<string, unknown> : {};
     const source = stripUndefined({
       asset_name: firstDefined(history.asset_name, space.asset_name, asset.label, asset.asset_name, asset.asset_code),
-      fund_name: firstDefined(fund.label, fund.display_name, fund.short_name, fund.fund_name),
+      fund_name: firstDefined(fund.fund_name, fund.label, fund.display_name, fund.short_name),
       tenant_master_name: firstDefined(history.tenant_master_name, space.tenant_master_name, tenant.tenant_master_name, tenant.company_name),
       space_label: firstDefined(history.space_label, space.space_label, [space.floor_label, space.detail_area_label].map((item) => safeText(item)).filter(Boolean).join(' / ')),
       effective_date: firstDefined(history.effective_date, history.basis_date),
@@ -8920,6 +9404,7 @@ async function dataManagementTenantMasterRows(ctx: Context, payload: Record<stri
     const tenantKey = safeText(firstDefined(space.tenant_id, source.business_registration_no, source.tenant_master_name, source.company_name));
     if (!tenantKey) return;
     const existing = groups.get(tenantKey) || {
+      tenant_id: safeText(space.tenant_id),
       tenant_master_name: source.tenant_master_name,
       business_registration_no: source.business_registration_no,
       company_name: source.company_name,
@@ -8961,10 +9446,10 @@ async function dataManagementTenantMasterRows(ctx: Context, payload: Record<stri
       values: displayValues,
       edit_values: editValues,
       lookup_status: lookup,
-      editable: false,
-      read_only_reason: '임차인 정보는 연결된 계약 기준으로 집계 표시합니다. 수정은 임차인 기준값 매핑 확인 후 승인 요청으로 처리합니다.',
+      editable: Boolean(rowSource.tenant_id),
+      read_only_reason: rowSource.tenant_id ? undefined : '임차인 원본 row를 찾을 수 없어 관리자 확인이 필요합니다.',
       revision_hash: await dataManagementRevisionHash(rowSource),
-      meta: { row_unit: 'tenant', status: lookup.label, capability: 'readback_only' },
+      meta: { row_unit: 'tenant', status: lookup.label, tenant_id: safeText(rowSource.tenant_id), capability: rowSource.tenant_id ? 'approval_required' : 'readback_only' },
     });
   }));
   return { ...dataManagementFinalizeBusinessRows(rows, payload, page, pageSize), fields };
@@ -8995,7 +9480,7 @@ async function dataManagementManagerLinkRows(ctx: Context, payload: Record<strin
     )) || {};
     const source = stripUndefined({
       asset_name: firstDefined(asset.label, asset.asset_name, asset.asset_code),
-      fund_name: firstDefined(fund.label, fund.display_name, fund.short_name, fund.fund_name, fund.fund_code),
+      fund_name: firstDefined(fund.fund_name, fund.label, fund.display_name, fund.short_name, fund.fund_code),
       asset_code: firstDefined(asset.asset_code, assetId),
       fund_code: firstDefined(fund.fund_code, fund.fund_id),
       manager_name: firstDefined(assetRecord.current_manager_name, '미지정'),
@@ -9020,13 +9505,14 @@ async function dataManagementManagerLinkRows(ctx: Context, payload: Record<strin
       values: displayValues,
       edit_values: editValues,
       lookup_status: { status: 'ok', label: '정상' },
-      editable: false,
-      read_only_reason: '담당자 연결은 담당자 데이터 승인 흐름에서 별도로 관리합니다.',
+      editable: Boolean(assetRecord.asset_id),
+      read_only_reason: assetRecord.asset_id ? undefined : '자산 원본 row를 찾을 수 없어 관리자 확인이 필요합니다.',
       revision_hash: await dataManagementRevisionHash({ item, assetRecord }),
       meta: {
         row_unit: 'manager_link',
         status: '정상',
-        capability: 'readback_only',
+        capability: assetRecord.asset_id ? 'approval_required' : 'readback_only',
+        asset_id: safeText(assetRecord.asset_id),
       },
     });
   }));
@@ -9066,6 +9552,51 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
   if (field.editable !== true) throw new Error('이 필드는 읽기 전용입니다.');
   const targetTable = safeText(field.target_table);
   const targetField = safeText(field.target_field || field.field_key);
+  if (viewKey === 'tenant_master' || viewKey === 'lease_asset_manager_links') {
+    const result = viewKey === 'tenant_master'
+      ? await dataManagementTenantMasterRows(ctx, { page_size: 5000, resolve_all: true }, scope, viewKey)
+      : await dataManagementManagerLinkRows(ctx, { page_size: 5000, resolve_all: true }, scope, viewKey);
+    const rows = (Array.isArray(result.all_rows) ? result.all_rows : result.rows) as Record<string, unknown>[];
+    const row = rows.find((item) => safeText(item.row_key) === rowKey);
+    if (!row) throw new Error('수정 대상 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
+    if (row.editable === false) throw new Error(safeText(row.read_only_reason || (row.meta as Record<string, unknown> | undefined)?.read_only_reason || '이 행은 읽기 전용입니다.'));
+    const rowMeta = row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {};
+    const publicTargetTable = normalizePublicLlTable(targetTable);
+    const tableName = clientTableName(publicTargetTable);
+    const primaryKeyField = dataManagementPrimaryKeyForTable(tableName);
+    const targetRowId = publicTargetTable === 'public.ll_tenants'
+      ? safeText(rowMeta.tenant_id)
+      : publicTargetTable === 'public.ll_assets'
+        ? safeText(rowMeta.asset_id)
+        : '';
+    if (!targetRowId) throw new Error('수정 대상 Supabase row를 확인할 수 없습니다.');
+    const currentRawValue = (row.edit_values as Record<string, unknown> | undefined)?.[fieldKey];
+    return {
+      table_payload: {
+        edit_mode: 'table_cell',
+        table_key: dataManagementTableKey(tableName),
+        internal_table: publicTargetTable,
+        primary_key_field: primaryKeyField,
+        target_record_id: targetRowId,
+        field_name: targetField,
+        before_value: currentRawValue,
+        requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+        revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+        view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+        target_name: row.row_label,
+        asset_id: safeText(rowMeta.asset_id),
+        asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
+        reason: payload.reason,
+        target_type: 'data_management_view_field',
+        reason_code: viewKey === 'tenant_master' ? 'data_management_tenant_update' : 'data_management_manager_link_update',
+        view_key: viewKey,
+        row_key: rowKey,
+        field_key: fieldKey,
+      },
+      row,
+      field,
+    };
+  }
   if (viewKey === 'lease_rent_history_excel') {
     const result = await dataManagementLeaseRentHistoryRows(ctx, { page_size: 5000, resolve_all: true }, scope, viewKey);
     const row = ((result.all_rows || result.rows) as Record<string, unknown>[]).find((item) => safeText(item.row_key) === rowKey);
@@ -9117,7 +9648,11 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
     row_key: await dataManagementOpaqueRowKey(viewKey, space.lease_space_id),
   }))).then((items) => items.find((item) => item.row_key === rowKey)?.space || null);
   if (!matchingSpace) throw new Error('수정 대상 원장 행을 찾지 못했습니다.');
-  const targetRowId = publicTargetTable === 'public.ll_leases' ? safeText(matchingSpace.lease_id) : safeText(matchingSpace.lease_space_id);
+  const targetRowId = publicTargetTable === 'public.ll_leases'
+    ? safeText(matchingSpace.lease_id)
+    : publicTargetTable === 'public.ll_tenants'
+      ? safeText(matchingSpace.tenant_id)
+      : safeText(matchingSpace.lease_space_id);
   return {
     table_payload: {
       edit_mode: 'table_cell',
@@ -9180,6 +9715,256 @@ async function dataManagementResolveWorkbookViewEdit(ctx: Context, payload: Reco
     row,
     field,
   };
+}
+
+async function dataManagementResolveIntegratedViewEdit(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const viewKey = safeText(payload.view_key || payload.viewKey);
+  const rowKey = safeText(payload.row_key || payload.rowKey);
+  const fieldKey = safeText(payload.field_key || payload.fieldKey || payload.field_name || payload.fieldName);
+  if (!['asset_integrated', 'investment_integrated'].includes(viewKey)) throw new Error('지원하지 않는 통합 View입니다.');
+  if (!rowKey || !fieldKey) throw new Error('수정할 행과 필드를 선택해 주세요.');
+  const fields = dataManagementFieldsForViewKey(viewKey) as Record<string, unknown>[];
+  const field = fields.find((item) => safeText(item.field_key) === fieldKey);
+  if (!field) throw new Error('업무 View 필드를 찾을 수 없습니다.');
+  if (field.editable !== true) throw new Error('이 필드는 읽기 전용입니다.');
+  const targetTable = normalizePublicLlTable(field.target_table);
+  const targetField = safeText(field.target_field || field.field_key);
+  if (!targetTable || !targetField) throw new Error('이 필드는 아직 자동 승인 요청 대상과 연결되지 않았습니다.');
+  const result = viewKey === 'asset_integrated'
+    ? await dataManagementAssetIntegratedRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, viewKey)
+    : await dataManagementInvestmentIntegratedRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, viewKey);
+  const row = (result.rows || []).find((item) => safeText(item.row_key) === rowKey);
+  if (!row) throw new Error('수정 대상 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
+  if (row.editable === false) throw new Error(safeText(row.read_only_reason || (row.meta as Record<string, unknown> | undefined)?.read_only_reason || 'This row is read-only in Data Management.'));
+  const rowMeta = row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {};
+  const targetRowId = targetTable === 'public.ll_assets'
+    ? safeText(rowMeta.asset_id)
+    : targetTable === 'public.ll_asset_operating_costs'
+      ? safeText(rowMeta.operating_cost_id)
+      : targetTable === 'public.ll_funds'
+        ? safeText(rowMeta.fund_id)
+        : targetTable === 'public.ll_fund_asset_links'
+          ? safeText(rowMeta.link_id)
+          : '';
+  if (!targetRowId) {
+    if (targetTable === 'public.ll_asset_operating_costs') {
+      throw new Error('이 자산에는 아직 운영비용 행이 없어 기존 값 수정으로 처리할 수 없습니다. 행 추가 workflow가 필요합니다.');
+    }
+    throw new Error('수정 대상 Supabase row를 확인할 수 없습니다.');
+  }
+  const tableName = clientTableName(targetTable);
+  const primaryKeyField = dataManagementPrimaryKeyForTable(tableName);
+  const currentRawValue = (row.edit_values as Record<string, unknown> | undefined)?.[fieldKey];
+  return {
+    table_payload: {
+      edit_mode: 'table_cell',
+      table_key: dataManagementTableKey(tableName),
+      internal_table: targetTable,
+      primary_key_field: primaryKeyField,
+      target_record_id: targetRowId,
+      field_name: targetField,
+      before_value: currentRawValue,
+      requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+      revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+      view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+      target_name: row.row_label,
+      asset_id: safeText(rowMeta.asset_id),
+      asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
+      reason: payload.reason,
+      target_type: 'data_management_view_field',
+      reason_code: viewKey === 'asset_integrated' ? 'data_management_asset_update' : 'data_management_investment_update',
+      view_key: viewKey,
+      row_key: rowKey,
+      field_key: fieldKey,
+    },
+    row,
+    field,
+  };
+}
+
+async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const viewKey = safeText(payload.view_key || payload.viewKey);
+  const rowKey = safeText(payload.row_key || payload.rowKey);
+  const fieldKey = safeText(payload.field_key || payload.fieldKey);
+  const detailRowKey = safeText(payload.detail_row_key || payload.detailRowKey);
+  const detailFieldKey = safeText(payload.detail_field_key || payload.detailFieldKey);
+  if (!viewKey || !rowKey || !fieldKey || !detailRowKey || !detailFieldKey) {
+    throw new Error('상세 수정 대상 행과 필드를 선택해 주세요.');
+  }
+  let result: Record<string, unknown>;
+  if (viewKey === 'investment_integrated') {
+    result = await dataManagementInvestmentIntegratedRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, viewKey);
+  } else if (DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey) || viewKey === 'lease_general_excel') {
+    result = await dataManagementLeaseContractRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, viewKey);
+  } else {
+    throw new Error('상세 행 편집을 지원하지 않는 View입니다.');
+  }
+  const rows = (Array.isArray(result.all_rows) ? result.all_rows : Array.isArray(result.rows) ? result.rows : []) as Record<string, unknown>[];
+  const row = rows.find((item) => safeText(item.row_key) === rowKey);
+  if (!row) throw new Error('상세 수정 대상의 상위 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
+  if (row.editable === false) throw new Error(safeText(row.read_only_reason || (row.meta as Record<string, unknown> | undefined)?.read_only_reason || '이 행은 읽기 전용입니다.'));
+  const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details as Record<string, unknown> : {};
+  const detail = cellDetails[fieldKey] && typeof cellDetails[fieldKey] === 'object' ? cellDetails[fieldKey] as Record<string, unknown> : null;
+  if (!detail) throw new Error('이 셀에는 상세 행 편집 정보가 없습니다.');
+  const sectionRows = Array.isArray(detail.sections)
+    ? (detail.sections as Record<string, unknown>[]).flatMap((section) => (
+      Array.isArray(section.rows) ? section.rows as Record<string, unknown>[] : []
+    ))
+    : [];
+  const detailRows = [
+    ...(Array.isArray(detail.rows) ? detail.rows as Record<string, unknown>[] : []),
+    ...sectionRows,
+  ];
+  const detailRow = detailRows.find((item) => safeText(item.row_key) === detailRowKey);
+  if (!detailRow) throw new Error('상세 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
+  if (detailRow.editable === false) throw new Error(safeText(detailRow.read_only_reason || '이 상세 행은 읽기 전용입니다.'));
+  const sectionColumns = Array.isArray(detail.sections)
+    ? (detail.sections as Record<string, unknown>[]).flatMap((section) => (
+      Array.isArray(section.columns) ? section.columns as Record<string, unknown>[] : []
+    ))
+    : [];
+  const detailColumns = [
+    ...(Array.isArray(detail.columns) ? detail.columns as Record<string, unknown>[] : []),
+    ...sectionColumns,
+  ];
+  const detailColumn = detailColumns.find((item) => safeText(item.field_key || item.field) === detailFieldKey) || {};
+  if (detailColumn.editable !== true) throw new Error('이 상세 필드는 읽기 전용입니다.');
+  const detailMeta = detailRow.meta && typeof detailRow.meta === 'object' ? detailRow.meta as Record<string, unknown> : {};
+  const editTargets = detailMeta.edit_targets && typeof detailMeta.edit_targets === 'object' ? detailMeta.edit_targets as Record<string, unknown> : {};
+  const target = editTargets[detailFieldKey] && typeof editTargets[detailFieldKey] === 'object' ? editTargets[detailFieldKey] as Record<string, unknown> : null;
+  if (!target) throw new Error('이 상세 필드는 아직 자동 승인 요청 대상과 연결되지 않았습니다.');
+  const targetTable = normalizePublicLlTable(target.target_table);
+  const targetField = safeText(target.target_field || detailFieldKey);
+  const targetRowId = safeText(target.target_record_id);
+  const primaryKeyField = safeText(target.primary_key_field || dataManagementPrimaryKeyForTable(clientTableName(targetTable)));
+  if (!targetTable || !targetField || !targetRowId) throw new Error('상세 필드의 Supabase 수정 대상을 확인할 수 없습니다.');
+  const detailEditValues = detailRow.edit_values && typeof detailRow.edit_values === 'object' ? detailRow.edit_values as Record<string, unknown> : {};
+  const detailDisplayValues = detailRow.display_values && typeof detailRow.display_values === 'object' ? detailRow.display_values as Record<string, unknown> : {};
+  const currentRawValue = detailEditValues[detailFieldKey] ?? detailDisplayValues[detailFieldKey] ?? null;
+  const tableName = clientTableName(targetTable);
+  return {
+    table_payload: {
+      edit_mode: 'table_cell',
+      table_key: dataManagementTableKey(tableName),
+      internal_table: targetTable,
+      primary_key_field: primaryKeyField,
+      target_record_id: targetRowId,
+      field_name: targetField,
+      before_value: currentRawValue,
+      requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), detailColumn),
+      revision_hash: safeText(payload.revision_hash || payload.revisionHash || detailRow.revision_hash),
+      view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+      target_name: [row.row_label, detailRow.row_label].map((item) => safeText(item)).filter(Boolean).join(' · '),
+      asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
+      reason: payload.reason,
+      target_type: 'data_management_detail_field',
+      reason_code: 'data_management_detail_field_update',
+      view_key: viewKey,
+      row_key: rowKey,
+      field_key: fieldKey,
+      detail_row_key: detailRowKey,
+      detail_field_key: detailFieldKey,
+    },
+    row,
+    detail,
+    detailRow,
+    detailColumn,
+  };
+}
+
+async function callDataManagementSubmitDetailRowChange(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const editMode = safeText(payload.edit_mode || payload.editMode);
+  const isDelete = editMode === 'detail_row_delete';
+  const viewKey = safeText(payload.view_key || payload.viewKey);
+  const rowKey = safeText(payload.row_key || payload.rowKey);
+  const fieldKey = safeText(payload.field_key || payload.fieldKey);
+  const detailSectionKey = safeText(payload.detail_section_key || payload.detailSectionKey || 'detail');
+  const detailRowKey = safeText(payload.detail_row_key || payload.detailRowKey);
+  const reason = safeText(payload.reason);
+  if (!['detail_row_add', 'detail_row_delete'].includes(editMode)) {
+    return fail(400, 'Unknown detail row edit mode', ctx.origin);
+  }
+  if (!viewKey || !rowKey || !fieldKey) return fail(400, 'view_key, row_key, and field_key are required', ctx.origin);
+  if (isDelete && !detailRowKey) return fail(400, 'detail_row_key is required for delete', ctx.origin);
+  if (!reason) return fail(400, 'A change reason is required', ctx.origin);
+
+  let result: Record<string, unknown>;
+  if (viewKey === 'investment_integrated') {
+    result = await dataManagementInvestmentIntegratedRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, viewKey);
+  } else if (DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey) || viewKey === 'lease_general_excel') {
+    result = await dataManagementLeaseContractRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, viewKey);
+  } else {
+    return fail(400, 'This Data Management detail table does not support row add/delete requests', ctx.origin);
+  }
+  const rows = (Array.isArray(result.all_rows) ? result.all_rows : Array.isArray(result.rows) ? result.rows : []) as Record<string, unknown>[];
+  const row = rows.find((item) => safeText(item.row_key) === rowKey);
+  if (!row) return fail(404, 'Parent Data Management row was not found', ctx.origin);
+  if (row.editable === false) return fail(400, safeText(row.read_only_reason || 'This row is read-only'), ctx.origin);
+  const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details as Record<string, unknown> : {};
+  const detail = cellDetails[fieldKey] && typeof cellDetails[fieldKey] === 'object' ? cellDetails[fieldKey] as Record<string, unknown> : null;
+  if (!detail) return fail(404, 'Detail table was not found for this cell', ctx.origin);
+  const sections = Array.isArray(detail.sections) ? detail.sections as Record<string, unknown>[] : [];
+  const section = sections.find((item) => safeText(item.section_key || item.key) === detailSectionKey) || null;
+  const columns = (section && Array.isArray(section.columns) ? section.columns : Array.isArray(detail.columns) ? detail.columns : []) as Record<string, unknown>[];
+  const detailRows = (section && Array.isArray(section.rows) ? section.rows : Array.isArray(detail.rows) ? detail.rows : []) as Record<string, unknown>[];
+  const editableColumns = columns.filter((column) => column.editable === true);
+  const submittedValues = payload.values && typeof payload.values === 'object' ? payload.values as Record<string, unknown> : {};
+  const sanitizedValues = Object.fromEntries(editableColumns
+    .map((column) => safeText(column.field_key || column.field))
+    .filter(Boolean)
+    .map((key) => [key, submittedValues[key] ?? ''])
+  );
+  const detailRow = isDelete ? detailRows.find((item) => safeText(item.row_key) === detailRowKey) : null;
+  if (isDelete && !detailRow) return fail(404, 'Detail row to delete was not found', ctx.origin);
+  const targetTables = uniqueStrings([
+    ...editableColumns.map((column) => {
+      const metaTargets = (detailRow?.meta as Record<string, unknown> | undefined)?.edit_targets as Record<string, unknown> | undefined;
+      const target = metaTargets?.[safeText(column.field_key || column.field)] as Record<string, unknown> | undefined;
+      return safeText(target?.target_table);
+    }),
+    viewKey === 'investment_integrated' ? 'public.ll_fund_capital_tranches' : 'public.ll_lease_attributes',
+  ].filter(Boolean), 5);
+  const sourceTable = normalizePublicLlTable(targetTables[0] || (viewKey === 'investment_integrated' ? 'public.ll_fund_capital_tranches' : 'public.ll_lease_attributes'));
+  const requestPayload = redactSensitivePayload({
+    kind: 'data_management_detail_row_change',
+    edit_mode: editMode,
+    view_key: viewKey,
+    row_key: rowKey,
+    field_key: fieldKey,
+    detail_section_key: detailSectionKey,
+    detail_row_key: detailRowKey || null,
+    values: sanitizedValues,
+    parent_label: row.row_label,
+    parent_meta: row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {},
+    detail_row_meta: detailRow?.meta && typeof detailRow.meta === 'object' ? detailRow.meta as Record<string, unknown> : {},
+    detail_label: safeText((section || detail).title || fieldKey),
+    source_table: sourceTable,
+  }) as Record<string, unknown>;
+  const beforeValue = isDelete
+    ? JSON.stringify((detailRow?.display_values || detailRow?.values || {}) as Record<string, unknown>)
+    : '';
+  const requestedValue = isDelete ? 'delete detail row' : JSON.stringify(sanitizedValues);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .insert({
+      source_table: sourceTable,
+      target_type: isDelete ? 'data_management_detail_row_delete' : 'data_management_detail_row_add',
+      target_name: [row.row_label, safeText((section || detail).title || fieldKey)].filter(Boolean).join(' · '),
+      target_row_id: isDelete ? detailRowKey : rowKey,
+      field_name: detailSectionKey || fieldKey,
+      reason_code: isDelete ? 'data_management_detail_row_delete' : 'data_management_detail_row_add',
+      before_value: beforeValue,
+      requested_value: requestedValue,
+      request_payload: requestPayload,
+      requested_by: ctx.user.id,
+      status: 'submitted',
+      write_status: 'source_review_required',
+    })
+    .select('id,status,write_status,created_at')
+    .single();
+  if (error) return fail(500, 'Failed to submit detail row change request', ctx.origin, { error: error.message });
+  await auditOptional(ctx.serviceClient, ctx.user.id, `data-management/submit-edit/${editMode}`, 200, { id: data.id, view_key: viewKey });
+  return jsonResponse({ ok: true, data }, 200, ctx.origin);
 }
 
 async function callDataManagementViews(ctx: Context, payload: Record<string, unknown>) {
@@ -9910,6 +10695,10 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
 
 async function dataManagementResolveViewFieldPayload(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
   const viewKey = safeText(payload.view_key || payload.viewKey);
+  if (viewKey === 'asset_integrated' || viewKey === 'investment_integrated') {
+    const resolved = await dataManagementResolveIntegratedViewEdit(ctx, payload, scope || dataManagementEmptyScope());
+    return resolved.table_payload as Record<string, unknown>;
+  }
   const view = dataManagementViewByKey(viewKey);
   if (view && safeText((view as Record<string, unknown>).fallback_table_key)) {
     const resolved = await dataManagementResolveFallbackViewEdit(ctx, payload, scope || dataManagementEmptyScope(), view as Record<string, unknown>);
@@ -9967,7 +10756,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       sourceRowId: safeText(tablePayload.source_row_id || tablePayload.sourceRowId),
       sourceCellId: '',
       fieldName: input.fieldName,
-      operation: '?섏젙',
+      operation: '수정',
       beforeValue: input.beforeValue,
       afterValue: input.requestedValue,
       assetId: safeText(tablePayload.asset_id || tablePayload.assetId),
@@ -10387,7 +11176,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
           fund_code: safeText(fund.fund_code),
           fund_name: safeText(fund.fund_name),
           short_name: safeText(fund.short_name),
-          display_name: safeText(firstDefined(fund.display_name, fund.short_name, fund.fund_name, fund.fund_code, link.fund_id)),
+          display_name: safeText(firstDefined(fund.fund_name, fund.display_name, fund.short_name, fund.fund_code, link.fund_id)),
         });
       }),
       readableLinks: managementScope.readableLinks.map((link) => {
@@ -10405,7 +11194,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
           fund_code: safeText(fund.fund_code),
           fund_name: safeText(fund.fund_name),
           short_name: safeText(fund.short_name),
-          display_name: safeText(firstDefined(fund.display_name, fund.short_name, fund.fund_name, fund.fund_code, link.fund_id)),
+          display_name: safeText(firstDefined(fund.fund_name, fund.display_name, fund.short_name, fund.fund_code, link.fund_id)),
         });
       }),
     },
@@ -10422,11 +11211,30 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
 async function callDataManagementPreviewEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/preview-edit', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  if (safeText(payload.edit_mode || payload.editMode) === 'detail_field') {
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const scopeResult = await readDataManagementScope(ctx, managerView);
+    if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+    try {
+      const resolved = await dataManagementResolveDetailFieldEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
+      return callDataManagementPreviewTableCell(ctx, resolved.table_payload);
+    } catch (error) {
+      return fail(400, error instanceof Error ? error.message : 'Data Management 상세 행 수정 대상을 확인하지 못했습니다.', ctx.origin);
+    }
+  }
   if (isDataManagementViewFieldPayload(payload)) {
     const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     const viewKey = safeText(payload.view_key || payload.viewKey);
+    if (viewKey === 'asset_integrated' || viewKey === 'investment_integrated') {
+      try {
+        const resolved = await dataManagementResolveIntegratedViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
+        return callDataManagementPreviewTableCell(ctx, resolved.table_payload);
+      } catch (error) {
+        return fail(400, error instanceof Error ? error.message : 'Data Management View edit target could not be resolved', ctx.origin);
+      }
+    }
     const view = dataManagementViewByKey(viewKey);
     if (view && safeText((view as Record<string, unknown>).fallback_table_key)) {
       try {
@@ -10585,6 +11393,23 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
 async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/submit-edit', 40)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  if (['detail_row_add', 'detail_row_delete'].includes(safeText(payload.edit_mode || payload.editMode))) {
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const scopeResult = await readDataManagementScope(ctx, managerView);
+    if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+    return callDataManagementSubmitDetailRowChange(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
+  }
+  if (safeText(payload.edit_mode || payload.editMode) === 'detail_field') {
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const scopeResult = await readDataManagementScope(ctx, managerView);
+    if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
+    try {
+      const resolved = await dataManagementResolveDetailFieldEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
+      return callDataManagementSubmitTableCell(ctx, resolved.table_payload);
+    } catch (error) {
+      return fail(400, error instanceof Error ? error.message : 'Data Management 상세 행 수정 대상을 확인하지 못했습니다.', ctx.origin);
+    }
+  }
   if (safeText(payload.edit_mode || payload.editMode) === 'view_field_batch' || Array.isArray(payload.changes)) {
     try {
       return await callDataManagementSubmitViewFieldBatch(ctx, payload);
@@ -10597,6 +11422,14 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     const viewKey = safeText(payload.view_key || payload.viewKey);
+    if (viewKey === 'asset_integrated' || viewKey === 'investment_integrated') {
+      try {
+        const resolved = await dataManagementResolveIntegratedViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
+        return callDataManagementSubmitTableCell(ctx, resolved.table_payload);
+      } catch (error) {
+        return fail(400, error instanceof Error ? error.message : 'Data Management View edit target could not be resolved', ctx.origin);
+      }
+    }
     const view = dataManagementViewByKey(viewKey);
     if (view && safeText((view as Record<string, unknown>).fallback_table_key)) {
       try {
@@ -12789,6 +13622,159 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
   }
 }
 
+function dataManagementDetailNumber(value: unknown) {
+  const text = safeText(value).trim();
+  const raw = text.replace(/[^0-9.-]/g, '').trim();
+  if (!raw) return null;
+  const numeric = Number(raw);
+  if (!Number.isFinite(numeric)) return null;
+  if (text.includes('억원')) return numeric * 100000000;
+  if (text.includes('만원')) return numeric * 10000;
+  return numeric;
+}
+
+function dataManagementDetailRate(value: unknown) {
+  const rawText = safeText(value).trim();
+  const numeric = dataManagementDetailNumber(rawText);
+  if (numeric === null) return null;
+  if (rawText.includes('%')) return numeric / 100;
+  return numeric;
+}
+
+async function approveDataManagementDetailRowChange(ctx: Context, payload: Record<string, unknown>, data: Record<string, unknown>) {
+  const id = safeText(data.id);
+  const requestPayload = parseJsonValue(data.request_payload, {}) as Record<string, unknown>;
+  const editMode = safeText(requestPayload.edit_mode || data.target_type);
+  const isDelete = editMode === 'detail_row_delete' || safeText(data.target_type) === 'data_management_detail_row_delete';
+  const sourceTable = normalizePublicLlTable(requestPayload.source_table || data.source_table);
+  if (!['public.ll_fund_capital_tranches', 'public.ll_lease_attributes'].includes(sourceTable)) {
+    return fail(400, 'This detail row add/delete target requires manual source review', ctx.origin);
+  }
+  const startedAt = new Date().toISOString();
+  const { data: runningRequest, error: runningError } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .update({
+      status: 'approved_write_running',
+      approved_by: ctx.user.id,
+      approved_at: startedAt,
+      approval_note: payload.approval_note || null,
+      write_started_at: startedAt,
+      updated_at: startedAt,
+    })
+    .eq('id', id)
+    .eq('status', 'submitted')
+    .select('id,status')
+    .maybeSingle();
+  if (runningError) return fail(500, 'Failed to mark detail row request as running', ctx.origin);
+  if (!runningRequest) return fail(409, 'Edit request is already being processed or is no longer submitted', ctx.origin);
+  try {
+    let readback: Record<string, unknown> | null = null;
+    if (isDelete) {
+      const detailMeta = requestPayload.detail_row_meta && typeof requestPayload.detail_row_meta === 'object' ? requestPayload.detail_row_meta as Record<string, unknown> : {};
+      const editTargets = detailMeta.edit_targets && typeof detailMeta.edit_targets === 'object' ? detailMeta.edit_targets as Record<string, unknown> : {};
+      const firstTarget = Object.values(editTargets).find((target) => target && typeof target === 'object') as Record<string, unknown> | undefined;
+      const targetTable = normalizePublicLlTable(firstTarget?.target_table || sourceTable);
+      const tableName = clientTableName(targetTable);
+      const primaryKeyField = safeText(firstTarget?.primary_key_field || dataManagementPrimaryKeyForTable(tableName));
+      const targetRecordId = safeText(firstTarget?.target_record_id);
+      if (!targetRecordId || !['public.ll_fund_capital_tranches', 'public.ll_lease_attributes'].includes(targetTable)) throw new Error('Detail row delete target could not be resolved');
+      const { data: updated, error } = await ctx.serviceClient
+        .from(tableName)
+        .update({ is_active: false })
+        .eq(primaryKeyField, targetRecordId)
+        .select('*')
+        .maybeSingle();
+      if (error) throw error;
+      readback = updated as Record<string, unknown> | null;
+    } else if (sourceTable === 'public.ll_fund_capital_tranches') {
+      const values = requestPayload.values && typeof requestPayload.values === 'object' ? requestPayload.values as Record<string, unknown> : {};
+      const parentMeta = requestPayload.parent_meta && typeof requestPayload.parent_meta === 'object' ? requestPayload.parent_meta as Record<string, unknown> : {};
+      const sectionKey = safeText(requestPayload.detail_section_key);
+      const trancheType = sectionKey === 'loan' ? 'loan' : 'equity';
+      const party = safeText(values.party_name);
+      const insertRow = stripUndefined({
+        fund_id: safeText(parentMeta.fund_id),
+        asset_id: safeText(parentMeta.asset_id),
+        tranche_type: trancheType,
+        loan_type: trancheType === 'loan' ? safeText(values.loan_type) : undefined,
+        tranche: safeText(values.tranche) || (trancheType === 'loan' ? 'Tr. A' : '-'),
+        party_name: party,
+        beneficiary_name: trancheType === 'equity' ? party : undefined,
+        lender_name: trancheType === 'loan' ? party : undefined,
+        committed_amount_krw: dataManagementDetailNumber(values.committed_amount_krw),
+        drawdown_date: safeDateText(values.drawdown_date),
+        maturity_date: safeDateText(values.maturity_date),
+        interest_type: safeText(values.interest_type),
+        base_rate: dataManagementDetailRate(values.base_rate),
+        spread_rate: dataManagementDetailRate(values.spread_rate),
+        loan_rate: dataManagementDetailRate(values.loan_rate),
+        all_in_rate: dataManagementDetailRate(values.all_in_rate),
+        is_active: true,
+      });
+      if (!insertRow.fund_id) throw new Error('fund_id is required for tranche row add');
+      const { data: inserted, error } = await ctx.serviceClient
+        .from('ll_fund_capital_tranches')
+        .insert(insertRow)
+        .select('*')
+        .single();
+      if (error) throw error;
+      readback = inserted as Record<string, unknown>;
+    } else {
+      const values = requestPayload.values && typeof requestPayload.values === 'object' ? requestPayload.values as Record<string, unknown> : {};
+      const parentMeta = requestPayload.parent_meta && typeof requestPayload.parent_meta === 'object' ? requestPayload.parent_meta as Record<string, unknown> : {};
+      const fieldKey = safeText(requestPayload.field_key);
+      const attributeType = fieldKey === 'required_specs_summary'
+        ? 'required_spec'
+        : fieldKey === 'lease_special_summary'
+          ? 'special_term'
+          : fieldKey === 'insurance_rights_summary'
+            ? 'insurance_right'
+            : 'detail_attribute';
+      const label = safeText(firstDefined(values.label, values.condition_label, '신규 항목'));
+      const insertRow = stripUndefined({
+        lease_id: safeText(parentMeta.lease_id),
+        lease_space_id: safeText(parentMeta.lease_space_id),
+        asset_id: safeText(parentMeta.asset_id),
+        tenant_id: safeText(parentMeta.tenant_id),
+        attribute_type: attributeType,
+        attribute_key: `manual_${attributeType}_${Date.now()}`,
+        attribute_label: label,
+        value_text: safeText(values.value),
+        unit_label: safeText(values.unit_label),
+        review_note: safeText(values.review_note),
+        is_active: true,
+      });
+      if (!insertRow.lease_id && !insertRow.lease_space_id) throw new Error('lease_id or lease_space_id is required for lease attribute row add');
+      const { data: inserted, error } = await ctx.serviceClient
+        .from('ll_lease_attributes')
+        .insert(insertRow)
+        .select('*')
+        .single();
+      if (error) throw error;
+      readback = inserted as Record<string, unknown>;
+    }
+    const completedAt = new Date().toISOString();
+    await ctx.serviceClient.from('ll_edit_requests').update({
+      status: 'written',
+      write_status: 'written',
+      written_at: completedAt,
+      readback_value: JSON.stringify(readback || {}),
+      write_result: redactSensitivePayload({ readback }),
+      updated_at: completedAt,
+    }).eq('id', id);
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/data-management-detail-row-change', 200, { id, source_table: sourceTable, mode: editMode });
+    return jsonResponse({ ok: true, data: { id, status: 'written', write_status: 'written', readback } }, 200, ctx.origin);
+  } catch (error) {
+    await ctx.serviceClient.from('ll_edit_requests').update({
+      status: 'write_failed_rolled_back',
+      write_status: 'write_failed',
+      write_error: error instanceof Error ? error.message : 'unknown detail row write error',
+      updated_at: new Date().toISOString(),
+    }).eq('id', id);
+    return fail(500, 'Detail row add/delete write failed', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
 async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Manager')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
@@ -12808,6 +13794,13 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
   const requestPayload = parseJsonValue(data.request_payload, {}) as Record<string, unknown>;
   if (data.target_type === 'fund_overview' || requestPayload.kind === 'fund_overview') {
     return approveFundOverviewEdit(ctx, payload, data as Record<string, unknown>);
+  }
+  if (
+    data.target_type === 'data_management_detail_row_add'
+    || data.target_type === 'data_management_detail_row_delete'
+    || requestPayload.kind === 'data_management_detail_row_change'
+  ) {
+    return approveDataManagementDetailRowChange(ctx, payload, data as Record<string, unknown>);
   }
 
   const cells = normalizeEditCells(data as Record<string, unknown>);

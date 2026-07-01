@@ -21,10 +21,10 @@ loadEnvFile('.env.local');
 
 const ALWAYS_RECIPIENT_NAMES = ['이관용', '전기영', '이시정', '이승훈', '우형석', '김지현', '이현호'];
 const ALERT_RULES = [
-  { label: '6개월 전', months: 6, leadDays: 180 },
-  { label: '3개월 전', months: 3, leadDays: 90 },
   { label: '1개월 전', months: 1, leadDays: 30 },
-  { label: '만기일', months: 0, leadDays: 0 },
+  { label: '2주 전', days: 14, leadDays: 14 },
+  { label: '1주 전', days: 7, leadDays: 7 },
+  { label: '1일 전', days: 1, leadDays: 1 },
 ];
 
 function parseArgs(argv) {
@@ -63,6 +63,19 @@ function addMonths(dateText, diff) {
   const expectedMonth = month - 1 + diff;
   if (date.getUTCMonth() !== ((expectedMonth % 12) + 12) % 12) date.setUTCDate(0);
   return date.toISOString().slice(0, 10);
+}
+
+function addDays(dateText, diff) {
+  const [year, month, day] = dateText.split('-').map(Number);
+  if (!year || !month || !day) return '';
+  const date = new Date(Date.UTC(year, month - 1, day + diff));
+  return date.toISOString().slice(0, 10);
+}
+
+function triggerDateForRule(dueDate, rule) {
+  if (Number.isFinite(rule.months)) return addMonths(dueDate, -rule.months);
+  if (Number.isFinite(rule.days)) return addDays(dueDate, -rule.days);
+  return '';
 }
 
 function compact(value) {
@@ -127,7 +140,45 @@ function recipientsForAsset(assetId, assetById, permissionRows) {
 }
 
 function dueRulesForToday(dueDate, today) {
-  return ALERT_RULES.filter((rule) => addMonths(dueDate, -rule.months) === today);
+  return ALERT_RULES.filter((rule) => triggerDateForRule(dueDate, rule) === today);
+}
+
+function pushNotificationTask(tasks, {
+  notificationType,
+  dedupePrefix,
+  targetId,
+  dueDate,
+  rules,
+  assetId,
+  fundId = null,
+  leaseId = null,
+  leaseSpaceId = null,
+  fundTrancheId = null,
+  titlePrefix,
+  body,
+  payload = {},
+  recipients,
+}) {
+  if (!dueDate || !rules.length || !recipients.length) return;
+  for (const rule of rules) {
+    tasks.push({
+      notification: {
+        notification_type: notificationType,
+        dedupe_key: `${dedupePrefix}:${compact(targetId)}:${dueDate}:${rule.leadDays}`,
+        asset_id: assetId || null,
+        fund_id: fundId || null,
+        lease_id: leaseId || null,
+        lease_space_id: leaseSpaceId || null,
+        fund_tranche_id: fundTrancheId || null,
+        title: `${titlePrefix} ${rule.label}`,
+        body,
+        due_date: dueDate,
+        lead_days: rule.leadDays,
+        payload: { ...payload, alert_label: rule.label },
+      },
+      recipients,
+    });
+  }
 }
 
 async function upsertNotification(client, notification, recipients, dryRun) {
@@ -178,16 +229,20 @@ async function main() {
     { auth: { persistSession: false } },
   );
 
-  const [assets, leases, leaseSpaces, tranches, fundLinks, permissions] = await Promise.all([
+  const [assets, leases, leaseSpaces, rentHistory, tranches, funds, fundLinks, operatingCosts, permissions] = await Promise.all([
     readAll(supabase, 'll_assets'),
     readAll(supabase, 'll_leases'),
     readAll(supabase, 'll_lease_spaces'),
+    readAll(supabase, 'll_rent_history'),
     readAll(supabase, 'll_fund_capital_tranches'),
+    readAll(supabase, 'll_funds'),
     readAll(supabase, 'll_fund_asset_links'),
+    readAll(supabase, 'll_asset_operating_costs'),
     readAll(supabase, 'll_user_permissions'),
   ]);
 
   const assetById = new Map(assets.map((asset) => [compact(asset.asset_id), asset]));
+  const leaseSpaceById = new Map(leaseSpaces.map((space) => [compact(space.lease_space_id), space]));
   const leaseSpacesByLease = new Map();
   leaseSpaces.forEach((space) => {
     const leaseId = compact(space.lease_id);
@@ -202,37 +257,159 @@ async function main() {
     if (!fundLinksByFund.has(fundId)) fundLinksByFund.set(fundId, []);
     fundLinksByFund.get(fundId).push(link);
   });
+  const latestRentHistoryBySpace = new Map();
+  rentHistory.forEach((row) => {
+    const spaceId = compact(row.lease_space_id);
+    if (!spaceId) return;
+    const dueDate = dateOnly(row.period_end || row.effective_end_date || row.end_date || row.current_end_date);
+    if (!dueDate) return;
+    const previous = latestRentHistoryBySpace.get(spaceId);
+    const previousDate = previous ? dateOnly(previous.period_end || previous.effective_end_date || previous.end_date || previous.current_end_date) : '';
+    if (!previous || dueDate > previousDate) latestRentHistoryBySpace.set(spaceId, row);
+  });
 
   const tasks = [];
   for (const lease of leases) {
-    const dueDate = dateOnly(lease.current_end_date || lease.end_date || lease.lease_end_date || lease.expiry_date);
-    if (!dueDate) continue;
-    const rules = dueRulesForToday(dueDate, today);
-    if (!rules.length) continue;
     const spaces = leaseSpacesByLease.get(compact(lease.lease_id)) || [];
     const assetId = compact(lease.asset_id || spaces[0]?.asset_id);
     const asset = assetById.get(assetId) || {};
     const recipients = recipientsForAsset(assetId, assetById, permissions);
     if (!recipients.length) continue;
-    for (const rule of rules) {
-      const assetName = compact(asset.asset_name || lease.asset_name || spaces[0]?.asset_name || '자산');
-      const tenantName = compact(lease.tenant_name || lease.tenant_master_name || lease.company_name || '임차인');
-      tasks.push({
-        notification: {
-          notification_type: 'lease_maturity',
-          dedupe_key: `lease_maturity:${compact(lease.lease_id)}:${dueDate}:${rule.leadDays}`,
-          asset_id: assetId || null,
-          lease_id: compact(lease.lease_id) || null,
-          lease_space_id: compact(spaces[0]?.lease_space_id) || null,
-          title: `임대차 만기 ${rule.label}`,
-          body: `${assetName}의 ${tenantName} 임대차 만기일이 ${dueDate}입니다.`,
-          due_date: dueDate,
-          lead_days: rule.leadDays,
-          payload: { asset_name: assetName, tenant_name: tenantName, alert_label: rule.label },
-        },
-        recipients,
-      });
-    }
+    const assetName = compact(asset.asset_name || lease.asset_name || spaces[0]?.asset_name || '자산');
+    const tenantName = compact(lease.tenant_name || lease.tenant_master_name || lease.company_name || '임차인');
+    const leaseId = compact(lease.lease_id);
+    const firstEndDate = dateOnly(lease.first_end_date);
+    const currentEndDate = dateOnly(lease.current_end_date || lease.end_date || lease.lease_end_date || lease.expiry_date || spaces[0]?.current_end_date);
+    const nextEscalationDate = dateOnly(lease.next_escalation_date);
+    pushNotificationTask(tasks, {
+      notificationType: 'lease_maturity',
+      dedupePrefix: 'lease_first_maturity',
+      targetId: leaseId,
+      dueDate: firstEndDate,
+      rules: dueRulesForToday(firstEndDate, today),
+      assetId,
+      leaseId,
+      leaseSpaceId: compact(spaces[0]?.lease_space_id),
+      titlePrefix: '최초 계약만기',
+      body: `${assetName}의 ${tenantName} 최초 계약만기일이 ${firstEndDate}입니다. Data Management에서 계약 상태와 최신 계약 조건을 확인해 주세요.`,
+      payload: { asset_name: assetName, tenant_name: tenantName, date_field: 'first_end_date', date_label: '최초 계약만기일' },
+      recipients,
+    });
+    pushNotificationTask(tasks, {
+      notificationType: 'lease_maturity',
+      dedupePrefix: 'lease_current_maturity',
+      targetId: leaseId,
+      dueDate: currentEndDate,
+      rules: dueRulesForToday(currentEndDate, today),
+      assetId,
+      leaseId,
+      leaseSpaceId: compact(spaces[0]?.lease_space_id),
+      titlePrefix: '현재 계약만기',
+      body: `${assetName}의 ${tenantName} 현재 계약만기일이 ${currentEndDate}입니다. 만기 전에 계약 연장, 종료, 임대조건 수정 여부를 확인해 주세요.`,
+      payload: { asset_name: assetName, tenant_name: tenantName, date_field: 'current_end_date', date_label: '현재 계약만기일' },
+      recipients,
+    });
+    pushNotificationTask(tasks, {
+      notificationType: 'data_update',
+      dedupePrefix: 'lease_next_escalation',
+      targetId: leaseId,
+      dueDate: nextEscalationDate,
+      rules: dueRulesForToday(nextEscalationDate, today),
+      assetId,
+      leaseId,
+      leaseSpaceId: compact(spaces[0]?.lease_space_id),
+      titlePrefix: '임대료·관리비 인상일',
+      body: `${assetName}의 ${tenantName} 차기 인상일이 ${nextEscalationDate}입니다. 임대료·관리비와 인상률을 Data Management에서 확인해 주세요.`,
+      payload: { asset_name: assetName, tenant_name: tenantName, date_field: 'next_escalation_date', date_label: '차기 인상일' },
+      recipients,
+    });
+  }
+
+  for (const [spaceId, row] of latestRentHistoryBySpace.entries()) {
+    const dueDate = dateOnly(row.period_end || row.effective_end_date || row.end_date || row.current_end_date);
+    const rules = dueRulesForToday(dueDate, today);
+    if (!rules.length) continue;
+    const space = leaseSpaceById.get(spaceId) || {};
+    const assetId = compact(row.asset_id || space.asset_id);
+    const asset = assetById.get(assetId) || {};
+    const recipients = recipientsForAsset(assetId, assetById, permissions);
+    if (!recipients.length) continue;
+    const assetName = compact(asset.asset_name || row.asset_name || space.asset_name || '자산');
+    const tenantName = compact(row.tenant_master_name || space.tenant_master_name || row.tenant_name || '임차인');
+    pushNotificationTask(tasks, {
+      notificationType: 'data_update',
+      dedupePrefix: 'rent_history_period_end',
+      targetId: row.rent_history_id || row.id || spaceId,
+      dueDate,
+      rules,
+      assetId,
+      leaseId: compact(row.lease_id || space.lease_id),
+      leaseSpaceId: spaceId,
+      titlePrefix: '임대료·관리비 기준 만기',
+      body: `${assetName}의 ${tenantName} 임대료·관리비 기준 만기일이 ${dueDate}입니다. 최신 임대료와 관리비 이력을 확인해 주세요.`,
+      payload: { asset_name: assetName, tenant_name: tenantName, date_field: 'rent_history_period_end', date_label: '임대료·관리비 기준 만기일' },
+      recipients,
+    });
+  }
+
+  for (const fund of funds) {
+    const dueDate = dateOnly(fund.maturity_date || fund.fund_maturity_date);
+    const rules = dueRulesForToday(dueDate, today);
+    if (!rules.length) continue;
+    const fundId = compact(fund.fund_id || fund.id);
+    const links = fundLinksByFund.get(fundId) || [];
+    const recipients = dedupeRecipients(
+      (links.length ? links : [{ asset_id: '' }]).flatMap((link) => recipientsForAsset(compact(link.asset_id), assetById, permissions)),
+    );
+    if (!recipients.length) continue;
+    const primaryAssetId = compact(links[0]?.asset_id);
+    const assetNames = links.map((link) => compact(assetById.get(compact(link.asset_id))?.asset_name || link.asset_name)).filter(Boolean);
+    pushNotificationTask(tasks, {
+      notificationType: 'data_update',
+      dedupePrefix: 'fund_maturity',
+      targetId: fundId,
+      dueDate,
+      rules,
+      assetId: primaryAssetId,
+      fundId,
+      titlePrefix: '펀드 만기',
+      body: `${compact(fund.fund_name || fund.short_name || fund.fund_code || '펀드')} 만기일이 ${dueDate}입니다.${assetNames.length ? ` 관련 자산: ${assetNames.slice(0, 3).join(', ')}${assetNames.length > 3 ? ' 외' : ''}.` : ''}`,
+      payload: {
+        fund_name: compact(fund.fund_name || fund.short_name || fund.fund_code),
+        asset_names: assetNames,
+        date_field: 'maturity_date',
+        date_label: '펀드 만기일',
+      },
+      recipients,
+    });
+  }
+
+  for (const cost of operatingCosts) {
+    const dueDate = dateOnly(cost.period_end || cost.effective_end_date || cost.end_date);
+    const rules = dueRulesForToday(dueDate, today);
+    if (!rules.length) continue;
+    const assetId = compact(cost.asset_id);
+    const asset = assetById.get(assetId) || {};
+    const recipients = recipientsForAsset(assetId, assetById, permissions);
+    if (!recipients.length) continue;
+    const assetName = compact(asset.asset_name || cost.asset_name || '자산');
+    pushNotificationTask(tasks, {
+      notificationType: 'data_update',
+      dedupePrefix: 'asset_operating_cost_period_end',
+      targetId: cost.operating_cost_id || cost.id || `${assetId}:${dueDate}`,
+      dueDate,
+      rules,
+      assetId,
+      titlePrefix: '운영비용 기준 만기',
+      body: `${assetName} 운영비용 기준기간 종료일이 ${dueDate}입니다. PM/FM, 보험료, Utility 등 최신 비용 값을 확인해 주세요.`,
+      payload: {
+        asset_name: assetName,
+        date_field: 'period_end',
+        date_label: '운영비용 기준기간 종료일',
+        cost_type: compact(cost.cost_type || cost.category),
+      },
+      recipients,
+    });
   }
 
   for (const tranche of tranches) {

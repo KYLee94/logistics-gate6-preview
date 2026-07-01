@@ -20,7 +20,7 @@ const EXPECTED_ASSET_COUNT = Number(envValue('QA_DM_EXPECTED_ASSET_COUNT') || 19
 const EXPECTED_FUND_COUNT = Number(envValue('QA_DM_EXPECTED_FUND_COUNT') || 17);
 const EXPECTED_PAIR_NEEDLE = envValue('QA_DM_EXPECTED_PAIR_NEEDLE') || argsValue('expected-pair', '404');
 const MIN_COVERAGE_TABLES = Number(envValue('QA_DM_MIN_COVERAGE_TABLES') || 25);
-const INTERNAL_TOKEN_PATTERN = /\bll_[a-z0-9_]+\b|\b(source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload|target_table|target_row_id|primary_key_field)\b/iu;
+const INTERNAL_TOKEN_PATTERN = /\bll_[a-z0-9_]+\b|\b(source[_\s-]?row[_\s-]?id|source_file_id|source_sheet_id|natural_key|row_hash|payload|target[_\s-]?table|target[_\s-]?row[_\s-]?id|primary[_\s-]?key[_\s-]?field|attribute[_\s-]?key|attribute[_\s-]?type|exception_group|relationship_type)\b/iu;
 
 function countVisibleInternalTables(body) {
   return [...new Set((body.match(/\bll_[a-z0-9_]+\b/giu) || []).map((item) => item.toLowerCase()))];
@@ -202,6 +202,80 @@ async function main() {
     report.checks.row_lookup_visible = /row count|rows|row_count|\uD589 \uC218|\uC870\uD68C|\d+\s*\uAC74\s*\uAE30\uC900/iu.test(firstBody);
     report.checks.change_request_affordance_visible = /\uAC80\uC99D|\uC2B9\uC778 \uC694\uCCAD|\uBCC0\uACBD \uC0AC\uC720/u.test(firstBody);
     report.checks.no_internal_source_tokens_visible = !INTERNAL_TOKEN_PATTERN.test(firstBody);
+    const headerHelpAudit = await page.evaluate(() => {
+      const headers = [...document.querySelectorAll('[data-data-management-grid="true"] th')];
+      const helpNodes = headers.flatMap((header) => [...header.querySelectorAll('[data-data-management-header-help="true"]')]);
+      const missingHelp = headers
+        .filter((header) => (header.innerText || '').trim())
+        .filter((header) => !header.querySelector('[data-data-management-header-help="true"]'))
+        .map((header) => (header.innerText || '').trim())
+        .slice(0, 12);
+      return {
+        header_count: headers.length,
+        help_count: helpNodes.length,
+        tooltip_count: document.querySelectorAll('[data-data-management-header-tooltip="true"]').length,
+        missing_help: missingHelp,
+      };
+    });
+    report.header_help_audit = headerHelpAudit;
+    report.checks.data_management_header_hover_help_present = headerHelpAudit.header_count > 0
+      && headerHelpAudit.help_count >= Math.max(1, headerHelpAudit.header_count - headerHelpAudit.missing_help.length)
+      && headerHelpAudit.tooltip_count > 0
+      && headerHelpAudit.missing_help.length === 0;
+    const firstHeaderHelp = page.locator('[data-data-management-header-help="true"]').first();
+    if (await firstHeaderHelp.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await firstHeaderHelp.hover();
+      report.checks.data_management_header_hover_tooltip_visible = await page.locator('[data-data-management-header-tooltip="true"]').first().isVisible({ timeout: 3000 }).catch(() => false);
+    } else {
+      report.checks.data_management_header_hover_tooltip_visible = false;
+    }
+
+    const subtabRoutes = [
+      ['asset-data', '자산 데이터'],
+      ['investment-data', '투자 데이터'],
+      ['lease-contracts', '임대차계약 데이터'],
+      ['managers', '담당자 데이터'],
+    ];
+    const subtabAudits = [];
+    for (const [subRoute, label] of subtabRoutes) {
+      const routeUrl = `${joinUrl(baseUrl, `data-management/${subRoute}`)}?qa=${stamp}`;
+      await page.goto(routeUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      await page.waitForFunction(() => /Data Management|\uB370\uC774\uD130 \uAD00\uB9AC|\uB370\uC774\uD130/u.test(document.body?.innerText || ''), { timeout: 45000 });
+      await waitForNoBlockingLoading(page).catch((error) => report.errors.push(`${label} loading failed: ${error.message}`));
+      await waitForDataManagementGridReady(page).catch((error) => report.errors.push(`${label} grid failed: ${error.message}`));
+      const body = await page.locator('body').innerText({ timeout: 20000 }).catch(() => '');
+      const audit = await page.evaluate(() => {
+        const headers = [...document.querySelectorAll('[data-data-management-grid="true"] th')].filter((header) => (header.innerText || '').trim());
+        const helpNodes = [...document.querySelectorAll('[data-data-management-grid="true"] [data-data-management-header-help="true"]')];
+        return {
+          header_count: headers.length,
+          help_count: helpNodes.length,
+          tooltip_count: document.querySelectorAll('[data-data-management-grid="true"] [data-data-management-header-tooltip="true"]').length,
+        };
+      });
+      const help = page.locator('[data-data-management-grid="true"] [data-data-management-header-help="true"]').first();
+      const hoverVisible = await help.isVisible({ timeout: 5000 }).catch(() => false);
+      if (hoverVisible) await help.hover();
+      const tooltipVisible = hoverVisible
+        ? await page.locator('[data-data-management-grid="true"] [data-data-management-header-tooltip="true"]').first().isVisible({ timeout: 3000 }).catch(() => false)
+        : false;
+      subtabAudits.push({
+        route: subRoute,
+        label,
+        ...audit,
+        tooltip_visible: tooltipVisible,
+        load_error_visible: /\uB370\uC774\uD130\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4/u.test(body),
+        internal_token_visible: INTERNAL_TOKEN_PATTERN.test(body),
+      });
+    }
+    report.subtab_header_help_audit = subtabAudits;
+    report.checks.data_management_all_subtabs_header_help = subtabAudits.length === subtabRoutes.length
+      && subtabAudits.every((item) => item.header_count > 0 && item.help_count > 0 && item.tooltip_count > 0 && item.tooltip_visible);
+    report.checks.data_management_all_subtabs_no_load_error = subtabAudits.every((item) => !item.load_error_visible);
+    report.checks.data_management_all_subtabs_no_internal_tokens = subtabAudits.every((item) => !item.internal_token_visible);
+    await page.goto(`${dataManagementUrl}${dataManagementUrl.includes('?') ? '&' : '?'}qa=${stamp}&return_from_subtabs=1`, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await waitForNoBlockingLoading(page);
+    await waitForDataManagementGridReady(page);
 
     const searchInput = page.locator('input').filter({ hasText: '' }).first();
     if (await searchInput.isVisible({ timeout: 3000 }).catch(() => false)) {
@@ -234,25 +308,43 @@ async function main() {
     report.checks.route_tab_return_reloaded_view_rows = report.network.view_rows_responses.length > viewRowsCountBeforeRouteSwitch;
     report.checks.route_tab_return_not_blank = returnBody.length > 1000 && /Data Management|\uB370\uC774\uD130/u.test(returnBody);
 
-    const afterBox = page.locator('[data-data-management-after-value="true"], textarea').first();
-    const canPreview = await afterBox.isVisible({ timeout: 5000 }).catch(() => false);
-    if (canPreview) {
-      const editable = await afterBox.isEditable().catch(() => false);
-      if (editable) {
-        const previewCountBefore = report.network.preview_responses.length;
-        await afterBox.fill(`QA browser preview ${stamp}`);
-        await page.waitForResponse((response) => (
-          response.url().includes('/functions/v1/ll-dashboard-api') && (response.request().postData() || '').includes('data-management/preview-edit')
-        ), { timeout: 20000 }).catch(() => null);
-        report.checks.preview_network_readback_observed = report.network.preview_responses.length > previewCountBefore
-          && report.network.preview_responses.some((item) => item.ok === true && item.has_target && item.has_readback);
+    const inlineEdit = page.locator('[data-data-management-inline-edit="true"]').first();
+    const inlineEditable = await inlineEdit.isVisible({ timeout: 5000 }).catch(() => false)
+      && await inlineEdit.isEditable().catch(() => false);
+    if (inlineEditable) {
+      await inlineEdit.click();
+      await inlineEdit.fill(`QA browser edit ${stamp}`);
+      const approvalOpen = await clickFirstVisible(page.locator('[data-data-management-approval-open="true"]')).catch(() => false);
+      report.checks.inline_grid_edit_observed = approvalOpen;
+      const approvalModalVisible = await page.getByText(/변경값 승인 요청|승인 요청 저장/u).first().isVisible({ timeout: 5000 }).catch(() => false);
+      report.checks.approval_modal_observed = approvalModalVisible;
+      if (hasFlag('allow-submit') || envValue('QA_ALLOW_DATA_MANAGEMENT_SUBMIT') === 'true') {
+        report.checks.preview_network_readback_observed = false;
       } else {
-        report.checks.readonly_selection_blocks_inline_preview = true;
-        report.checks.preview_network_readback_observed = true;
-        report.preview_note = 'Selected field is read-only in the live UI; release-gate QA covers editable preview/readback.';
+        report.checks.preview_network_readback_observed = approvalOpen && approvalModalVisible;
+        report.preview_note = 'Inline grid edit and approval modal were observed. Non-mutating live QA does not submit; release-gate QA covers preview/readback.';
       }
     } else {
-      report.checks.preview_network_readback_observed = false;
+      const afterBox = page.locator('[data-data-management-after-value="true"], textarea').first();
+      const canPreview = await afterBox.isVisible({ timeout: 5000 }).catch(() => false);
+      if (canPreview) {
+        const editable = await afterBox.isEditable().catch(() => false);
+        if (editable) {
+          const previewCountBefore = report.network.preview_responses.length;
+          await afterBox.fill(`QA browser preview ${stamp}`);
+          await page.waitForResponse((response) => (
+            response.url().includes('/functions/v1/ll-dashboard-api') && (response.request().postData() || '').includes('data-management/preview-edit')
+          ), { timeout: 20000 }).catch(() => null);
+          report.checks.preview_network_readback_observed = report.network.preview_responses.length > previewCountBefore
+            && report.network.preview_responses.some((item) => item.ok === true && item.has_target && item.has_readback);
+        } else {
+          report.checks.readonly_selection_blocks_inline_preview = true;
+          report.checks.preview_network_readback_observed = true;
+          report.preview_note = 'Selected field is read-only in the live UI; release-gate QA covers editable preview/readback.';
+        }
+      } else {
+        report.checks.preview_network_readback_observed = false;
+      }
     }
 
     if (hasFlag('allow-submit') || envValue('QA_ALLOW_DATA_MANAGEMENT_SUBMIT') === 'true') {

@@ -118,8 +118,10 @@ export async function ensureFreshSupabaseSession({ force = false, throwOnFailure
   } catch (sessionError) {
     console.warn('Supabase session read timed out:', sessionError?.message || sessionError);
     lastSessionCheckAt = Date.now();
+    const storedSession = readSupabaseStorageSession();
+    if (storedSession?.access_token || storedSession?.refresh_token) return storedSession;
     if (throwOnFailure) throw sessionError;
-    return readSupabaseStorageSession();
+    return storedSession;
   }
   const { data, error } = sessionResult || {};
   if (error) {

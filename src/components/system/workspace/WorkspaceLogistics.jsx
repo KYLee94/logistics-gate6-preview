@@ -70,7 +70,7 @@ const MODULES = [
   { id: 'home', label: '대시보드 홈', source: '대시보드 홈' },
   { id: 'asset', label: '자산', source: '자산' },
   { id: 'company', label: '기업', source: '기업' },
-  { id: 'investment-index', label: '투자 지수', source: '투자 지수' },
+  { id: 'investment-index', label: '투자 정보', source: '투자 정보' },
   { id: 'asset-spec', label: '자산 스펙', source: '자산 스펙' },
   { id: 'tools', label: '분석 도구', source: '분석 도구' },
   { id: 'playground', label: '피벗 테이블', source: '피벗 테이블' },
@@ -109,17 +109,17 @@ const WORK_PLATFORM_QUICK_TAB_OPTIONS = [
   { key: 'home', label: '대시보드 홈', path: pathFor('dashboard/home') },
   { key: 'asset', label: '자산', path: pathFor('dashboard/asset') },
   { key: 'company', label: '기업', path: pathFor('dashboard/company') },
-  { key: 'investment-index', label: '투자 지수', path: pathFor('dashboard/investment-index') },
+  { key: 'investment-index', label: '투자 정보', path: pathFor('dashboard/investment-index') },
   { key: 'asset-spec', label: '자산 스펙', path: pathFor('dashboard/asset-spec') },
   { key: 'market-overview', label: '시장 개요', path: pathFor('market-data/overview') },
   { key: 'lease-market', label: '임대 시장', path: pathFor('market-data/lease-market') },
   { key: 'supply-pipeline', label: '공급 예정', path: pathFor('market-data/supply-pipeline') },
   { key: 'transactions', label: '거래 사례', path: pathFor('market-data/transactions') },
-  { key: 'source-update', label: '원천 업데이트', path: pathFor('market-data/source-update') },
-  { key: 'dm-asset', label: '자산 Data', path: pathFor('data-management/asset-data') },
-  { key: 'dm-investment', label: '투자 Data', path: pathFor('data-management/investment-data') },
-  { key: 'dm-lease', label: '임대차계약 Data', path: pathFor('data-management/lease-contracts') },
-  { key: 'dm-managers', label: '담당자 Data', path: pathFor('data-management/managers') },
+  { key: 'source-update', label: '업데이트', path: pathFor('market-data/source-update') },
+  { key: 'dm-asset', label: '자산 데이터', path: pathFor('data-management/asset-data') },
+  { key: 'dm-investment', label: '투자 데이터', path: pathFor('data-management/investment-data') },
+  { key: 'dm-lease', label: '임대차계약 데이터', path: pathFor('data-management/lease-contracts') },
+  { key: 'dm-managers', label: '담당자 데이터', path: pathFor('data-management/managers') },
   { key: 'dm-quality', label: '데이터 품질', path: pathFor('data-management/data-quality') },
   { key: 'pdf-report', label: 'PDF 보고서', path: pathFor('pdf-report') },
 ];
@@ -14932,6 +14932,26 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal,
   );
 }
 
+function DashboardPageLoadingBadge({ loading, progress }) {
+  if (!loading) return null;
+  const value = Math.max(8, Math.min(99, Math.round(Number(progress || 0))));
+  return (
+    <div
+      className="min-w-[150px] rounded-[8px] border border-[#2F3A4A] bg-[#151C27] px-3 py-2 text-[12px] font-semibold text-[#D7E8FF]"
+      data-dashboard-loading-progress="true"
+      data-loading-progress="true"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <span>데이터 로딩</span>
+        <span className="tabular-nums">{value}%</span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#0B1220]">
+        <div className="h-full rounded-full bg-[#60A5FA] transition-[width] duration-200" style={{ width: `${value}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function DashboardShell({ activeModule }) {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
@@ -14948,7 +14968,7 @@ function DashboardShell({ activeModule }) {
     home: '대시보드 홈',
     asset: '자산',
     company: '기업',
-    'investment-index': '투자 지수',
+    'investment-index': '투자 정보',
     'asset-spec': '자산 스펙',
     tools: '분석 도구',
     playground: '피벗 테이블',
@@ -14956,7 +14976,39 @@ function DashboardShell({ activeModule }) {
   }[selected?.id] || selected?.label;
   const shouldShowExternalApiRefresh = selected?.id !== 'investment-index' && featureAccess.buildingRegisterRefresh;
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission) && shouldShowExternalApiRefresh);
+  const [dashboardPageLoading, setDashboardPageLoading] = useState(false);
+  const [dashboardLoadingProgress, setDashboardLoadingProgress] = useState(100);
   const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
+  useEffect(() => {
+    if (!selected?.id) return undefined;
+    setDashboardPageLoading(true);
+    setDashboardLoadingProgress(18);
+    const progressTimer = window.setInterval(() => {
+      setDashboardLoadingProgress((current) => Math.min(96, current + 9));
+    }, 180);
+    const settleTimer = window.setTimeout(() => {
+      if (!dashboardDataset.loading) {
+        setDashboardLoadingProgress(100);
+        setDashboardPageLoading(false);
+      }
+    }, selected.id === 'home' ? 900 : 650);
+    return () => {
+      window.clearInterval(progressTimer);
+      window.clearTimeout(settleTimer);
+    };
+  }, [selected?.id]);
+  useEffect(() => {
+    if (dashboardDataset.loading) {
+      setDashboardPageLoading(true);
+      setDashboardLoadingProgress((current) => Math.min(current || 24, 84));
+      return undefined;
+    }
+    const timer = window.setTimeout(() => {
+      setDashboardLoadingProgress(100);
+      setDashboardPageLoading(false);
+    }, 220);
+    return () => window.clearTimeout(timer);
+  }, [dashboardDataset.loading]);
   useEffect(() => {
     if (!selected?.id) return undefined;
     const timer = window.setTimeout(() => {
@@ -14990,9 +15042,14 @@ function DashboardShell({ activeModule }) {
       <LogisticsModal modal={modal} onClose={() => setModal(null)} />
       <SectionHeader
         title={selectedTitle}
-        right={shouldShowExternalApiRefresh ? (
-          <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={{ ...featureAccess, openDartRefresh: false }} />
-        ) : null}
+        right={(
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <DashboardPageLoadingBadge loading={dashboardPageLoading || dashboardDataset.loading} progress={dashboardLoadingProgress} />
+            {shouldShowExternalApiRefresh ? (
+              <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={{ ...featureAccess, openDartRefresh: false }} />
+            ) : null}
+          </div>
+        )}
       />
 
       <div className="relative min-h-[540px]">

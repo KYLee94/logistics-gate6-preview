@@ -51,6 +51,7 @@
     "qa:data-management:browser-readback": "node scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
     "qa:data-management:coverage": "node scripts/qa/logistics-data-management-coverage-audit.cjs",
     "qa:data-management:field-coverage": "node scripts/qa/logistics-data-management-field-coverage-contract.cjs",
+    "qa:data-management:column-editability": "node scripts/qa/logistics-data-management-column-editability-audit.cjs",
     "qa:data-management:required-fields-preview": "node scripts/qa/logistics-data-management-required-fields-preview.cjs",
     "qa:data-management:release-gate": "node scripts/qa/logistics-data-management-release-gate.cjs",
     "qa:data-management:submit-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --allow-submit",

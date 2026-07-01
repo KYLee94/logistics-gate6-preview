@@ -515,7 +515,7 @@ const logisticsDashboardItems = [
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 21h18M5 21V5a2 2 0 012-2h5v18M12 8h5a2 2 0 012 2v11M8 7h.01M8 11h.01M8 15h.01M16 12h.01M16 16h.01" /></svg>,
     },
     {
-        label: '투자 지수',
+        label: '투자 정보',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/investment-index`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 15l3-3 3 2 4-6M8 19v-4m4 4v-7m4 7v-5m4 5V8" /></svg>,
     },
@@ -564,29 +564,29 @@ const logisticsMarketDataItems = [
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 7h10M7 12h10M7 17h6M4 4h16v16H4z" /></svg>,
     },
     {
-        label: '원천 업데이트',
+        label: '업데이트',
         path: `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10v5h4l-9 11-9-11h4V4z" /></svg>,
     },
 ];
 const logisticsDataManagementItems = [
     {
-        label: '자산 Data',
+        label: '자산 데이터',
         path: `${LOGISTICS_INTERNAL_BASE}/data-management/asset-data`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V8l8-5 8 5v11M8 19v-6h8v6M7 10h10" /></svg>,
     },
     {
-        label: '투자 Data',
+        label: '투자 데이터',
         path: `${LOGISTICS_INTERNAL_BASE}/data-management/investment-data`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 18h16M6 18V8m4 10V5m4 13v-7m4 7v-4" /></svg>,
     },
     {
-        label: '임대차계약 Data',
+        label: '임대차계약 데이터',
         path: `${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10a2 2 0 012 2v14l-3-2-3 2-3-2-3 2V6a2 2 0 012-2zM9 8h6M9 12h6M9 16h4" /></svg>,
     },
     {
-        label: '담당자 Data',
+        label: '담당자 데이터',
         path: `${LOGISTICS_INTERNAL_BASE}/data-management/managers`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M8 11a3 3 0 100-6 3 3 0 000 6zM16 11a3 3 0 100-6 3 3 0 000 6zM3.5 20a4.5 4.5 0 019 0M11.5 20a4.5 4.5 0 019 0" /></svg>,
     },

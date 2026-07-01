@@ -113,11 +113,11 @@ const DETAILED_SURFACES = [
   ['market-lease', 'Lease Market', '/market-data/lease-market', ['latest lease statistics', 'regional center map/table', 'detail modals'], ['period/metric/temp/region slicers', 'table sort', 'map label/pin', 'chart popup']],
   ['market-supply', 'Supply Pipeline', '/market-data/supply-pipeline', ['new supply', 'pipeline', 'cumulative supply', 'area charts'], ['date range', 'reset', 'map label/pin', 'chart popup', 'table sort']],
   ['market-transactions', 'Transactions', '/market-data/transactions', ['deal comparison', 'market size', 'size buckets', 'cap rate'], ['period/region/temp/type slicers', 'chart popup', 'legend focus', 'table sort']],
-  ['market-source-update', 'Source Update', '/market-data/source-update', ['source coverage', 'raw/normalized counts', 'dry-run flow'], ['source readback', 'count parity', 'validation result']],
-  ['data-management-asset', 'Data Management - Asset Data', '/data-management/asset-data', ['asset overview', 'specs', 'operating costs', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
-  ['data-management-investment', 'Data Management - Investment Data', '/data-management/investment-data', ['funds', 'fund-asset links', 'equity/loan tranches', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
-  ['data-management-lease', 'Data Management - Lease Contract Data', '/data-management/lease-contracts', ['leases', 'lease spaces', 'rent history', 'required specs', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
-  ['data-management-managers', 'Data Management - Manager Data', '/data-management/managers', ['asset managers', 'fund managers', 'user-readable columns'], ['view switch', 'filter', 'table sort', 'readback']],
+  ['market-source-update', '업데이트', '/market-data/source-update', ['source coverage', 'raw/normalized counts', 'dry-run flow', 'Excel upload preservation'], ['source readback', 'count parity', 'validation result']],
+  ['data-management-asset', 'Data Management - 자산 데이터', '/data-management/asset-data', ['asset overview', 'specs', 'operating costs', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
+  ['data-management-investment', 'Data Management - 투자 데이터', '/data-management/investment-data', ['funds', 'fund-asset links', 'equity/loan tranches', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
+  ['data-management-lease', 'Data Management - 임대차계약 데이터', '/data-management/lease-contracts', ['leases', 'lease spaces', 'rent history', 'required specs', 'edit basket'], ['view switch', 'field edit', 'preview', 'submit', 'readback']],
+  ['data-management-managers', 'Data Management - 담당자 데이터', '/data-management/managers', ['asset managers', 'fund managers', 'user-readable columns'], ['view switch', 'filter', 'table sort', 'readback']],
   ['data-management-quality', 'Data Management - Data Quality', '/data-management/data-quality', ['quality findings', 'validation status', 'approval flow'], ['filter', 'row click', 'edit preview', 'submit', 'readback']],
 ];
 

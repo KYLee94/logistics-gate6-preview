@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supabaseSession';
+import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
 import {
   getNaverMapsClientId,
   loadLeafletSdk,
@@ -305,7 +306,7 @@ const DATA_MANAGEMENT_BUSINESS_GROUPS = [
     label: '특약·상태',
     description: '계약 상태, 연체·미납, 보험 특약, 기타 특수 조건',
     primaryViewKey: 'lease_attributes',
-    viewKeys: ['lease_attributes', 'lease_general_excel'],
+    viewKeys: ['lease_attributes'],
     labels: ['자산명', '펀드명', '임차인명', '계약상태', '임대료 연체', '미납', '보험 관련 특수 계약 조건', '기타 각종 특수 계약 조건', '검토 상태', '검토 메모'],
   },
   {
@@ -442,13 +443,135 @@ function dataManagementColumnMatchesBusinessGroup(column, group) {
     );
   });
 }
+const DATA_MANAGEMENT_FIELD_HELP = {
+  fund_names: '연결 펀드는 자산 데이터에서는 조회만 합니다. 자산과 펀드의 연결 변경은 투자 데이터에서 처리합니다.',
+  exclusive_area_sqm: '전용면적은 임대면적과 전용률 검증에 같이 쓰입니다. 임대차계약 데이터의 면적 항목에서 관리합니다.',
+  exclusive_ratio: '전용률은 전용면적을 임대면적으로 나눈 비율입니다. 입력값과 계산값이 다르면 검증 경고가 표시됩니다.',
+  spec_summary: '주요 스펙은 여러 스펙 항목의 요약입니다. 상세 항목은 스펙 상세 또는 자산 스펙 입력 화면에서 관리합니다.',
+  operating_cost_period: '운영비용 기준기간입니다. 운영비용 행을 추가하거나 해당 기간의 비용 행에서 관리합니다.',
+  operating_cost_total_krw: '운영비용 합계는 PM, FM, 보험료, Utility, 기타 비용을 합산한 값입니다.',
+  asset_manager_name: '담당자는 담당자 데이터에서 관리합니다. 투자 데이터에서는 조회용으로 표시합니다.',
+  review_status: '검토 상태는 승인 요청, 품질 점검, readback 결과로 관리되는 상태값입니다.',
+  review_note: '검토 메모는 승인/반려 또는 품질 점검 과정에서 남기는 기록입니다.',
+  tenant_master_name: '임차인명입니다. 임대차계약 데이터에서는 직접 수정 요청할 수 있고, 이력 화면에서는 조회용으로 표시됩니다.',
+  is_latest: '최신 여부는 기준일자 기준으로 자동 판정됩니다.',
+  asset_code: '자산코드는 자산을 식별하는 코드입니다. 자산 데이터에서 관리합니다.',
+  fund_code: '펀드코드는 펀드를 식별하는 코드입니다. 투자 데이터에서 관리합니다.',
+  contract_count: '계약 수는 연결된 임대차계약 수를 자동 집계한 값입니다.',
+  active_contract_count: '현재 계약 수는 유효 계약만 자동 집계한 값입니다.',
+  latest_contract_end_date: '최근 계약만기일은 연결 계약의 만기일 중 최신값입니다.',
+  equity_parties: '수익자 정보는 여러 행으로 관리됩니다. 셀을 누르면 수익자별 투입금액을 상세 표에서 수정 요청할 수 있습니다.',
+  loan_lenders: '대주 정보는 여러 행으로 관리됩니다. 셀을 누르면 대주별 tranche, 인출금액, 금리, 만기를 상세 표에서 수정 요청할 수 있습니다.',
+  tranche_summary: 'Tranche는 한 자산·펀드 안의 투자 또는 대출 구분입니다. 셀을 누르면 tranche별 행을 추가, 수정, 삭제 요청할 수 있습니다.',
+  weighted_loan_rate: '가중평균 금리는 대출금액으로 가중평균한 금리입니다. 개별 대출 행의 금리 수정 후 자동 계산됩니다.',
+  nearest_maturity_date: '가장 가까운 대출 만기입니다. 개별 대출 행의 만기 수정 후 자동 계산됩니다.',
+  maturity_summary: '만기 요약은 여러 대출 만기 행의 요약입니다. 셀을 눌러 상세 행을 관리합니다.',
+  current_rent_per_py: '평당 월임대료입니다. 월임대료 총액과 임대면적 기준으로 검증합니다.',
+  current_mf_per_py: '평당 월관리비입니다. 월관리비 총액과 임대면적 기준으로 검증합니다.',
+};
+
+const DATA_MANAGEMENT_GROUP_HELP = {
+  '자산 기본정보': '자산명, 자산코드, 주소처럼 자산을 식별하는 기본 값입니다.',
+  '자산·펀드': '자산과 펀드의 연결 관계입니다. 자산 데이터에서는 조회하고 투자 데이터에서 연결을 관리합니다.',
+  '기본정보': '자산, 펀드, 임차인, 상/저온, 계약상태처럼 행을 식별하는 기본 정보입니다.',
+  '면적': '연면적, 대지면적, 전용면적, 전용률 같은 면적 관련 값입니다.',
+  '면적·임차구역': '층, 세부구역, 임대면적, 전용면적, 전용률을 관리합니다.',
+  '계약 일정': '계약일, 개시일, 만기일, 계약기간, 연장횟수처럼 일정 관련 값입니다.',
+  '임대료·관리비': '월 임대료, 월 관리비, 평당 단가, E. NOC를 관리합니다.',
+  '보증금·렌트프리·인상': '보증금, RF, FO, TI, 인상률, 인상주기, 차기 인상일을 관리합니다.',
+  '보험·권리': '임차인 부담 비용, 중도해지권, 갱신 옵션 등 보험과 권리 조건입니다.',
+  '요구 스펙': '임차인이 요구한 하중, 도크, 층고, 전력, 램프, 조명 등 스펙입니다.',
+  '특약': '계약 일정, 보증금, RF/FO/TI, 보험·권리와 분리되는 기타 특수 계약 조건입니다.',
+  '검토': '검토 상태와 검토 메모입니다. 원천값 자체가 아니라 확인·승인 상태를 나타냅니다.',
+  '임차인 정보': '임차인명, 사업자번호, 회사명 등 임차인 기준 lookup 정보입니다.',
+  '투자 구조': 'Equity, Loan, 합계처럼 투자 구조를 요약한 값입니다. 상세는 수익자·대주 상세 편집에서 관리합니다.',
+  '투자자·대주': '수익자와 대주 정보입니다. 셀을 누르면 자산 탭 펀드개요 형식의 상세 표가 열립니다.',
+  Tranche: '한 펀드 안에서 투자 또는 대출을 구분하는 행 단위 정보입니다. 상세 편집에서 행 추가, 수정, 삭제를 요청합니다.',
+  '금리·만기': '대출 금리, All-in, 만기일 같은 금융 조건입니다. 상세 편집에서 대주별로 관리합니다.',
+  담당자: '이지스 담당자 이름, 팀, 이메일 등 담당자 연결 정보입니다.',
+  운영비용: 'PM, FM, 보험료, Utility 등 기간별 운영비용입니다.',
+};
+
 function dataManagementConsistencyGuide(fieldKey, label) {
   const source = `${fieldKey || ''} ${label || ''}`;
-  if (/exclusive_ratio|전용률/iu.test(source)) return '전용률은 전용면적 ÷ 임대면적 기준과 함께 검증합니다.';
-  if (/current_contract_period|contract_years|현재\s*계약기간/iu.test(source)) return '현재 계약기간은 현재 계약개시일과 현재 계약만기일 기준과 함께 검증합니다.';
-  if (/rent_per_py|평당\s*월?임대료/iu.test(source)) return '평당 월임대료는 월임대료 총액 ÷ 임대면적 기준과 함께 검증합니다.';
-  if (/mf_per_py|management.*per.*py|평당\s*월?관리비/iu.test(source)) return '평당 월관리비는 월관리비 총액 ÷ 임대면적 기준과 함께 검증합니다.';
+  if (/exclusive_ratio|전용률/iu.test(source)) return '전용면적 / 임대면적 계산값과 함께 검증합니다.';
+  if (/current_contract_period|contract_years|현재\s*계약기간/iu.test(source)) return '현재 계약개시일과 현재 계약만기일 기준 기간과 함께 검증합니다.';
+  if (/rent_per_py|평당\s*월임대료/iu.test(source)) return '월임대료 총액 / 임대면적 계산값과 함께 검증합니다.';
+  if (/mf_per_py|management.*per.*py|평당\s*월관리비/iu.test(source)) return '월관리비 총액 / 임대면적 계산값과 함께 검증합니다.';
   return '';
+}
+
+function dataManagementColumnUnitGuide(column) {
+  const type = text(column?.type || '');
+  const key = text(column?.field_key || column?.field || '').toLowerCase();
+  const label = text(column?.label || '');
+  if (type === 'krw') return '원 단위 금액입니다. 예: 2500000000 또는 25억원';
+  if (type === 'krw_per_py') return '평당 월 단가입니다. 예: 36050원 또는 3.6만원';
+  if (type === 'area_sqm') return '면적입니다. ㎡ 또는 평 입력을 허용하고 저장 전 환산 검증합니다.';
+  if (type === 'percent') return '비율입니다. 예: 3% 또는 0.03';
+  if (type === 'months') return '개월 수입니다. 예: 6';
+  if (type === 'date') return '날짜입니다. YYYY-MM-DD 형식으로 입력합니다.';
+  if (type === 'yn') return 'Y/N 값입니다. 해당하면 Y, 해당하지 않거나 비어 있으면 N으로 표시합니다.';
+  if (type === 'number') return '숫자입니다. 컬럼명에 맞는 단위로 입력합니다.';
+  if (/tranche/i.test(key + label)) return 'Tranche 구분값입니다. 여러 행이 있으면 상세 편집에서 행별로 관리합니다.';
+  return '텍스트 값입니다. 계약서, 원장, 담당자 명칭과 동일하게 입력합니다.';
+}
+
+function dataManagementColumnEditGuide(column) {
+  const key = text(column?.field_key || column?.field || '');
+  const label = text(column?.label || '');
+  const customHelp = DATA_MANAGEMENT_FIELD_HELP[key];
+  const hasDetailEditor = /equity|loan|tranche|maturity|summary|insurance|required_specs|tenant_info|rent_per_py|mf_per_py|current_monthly/i.test(`${key} ${label}`);
+  if (column?.editable === true) return `수정: 표에서 바로 값을 고친 뒤 승인 요청으로 저장합니다.${customHelp ? ` ${customHelp}` : ''}`;
+  if (hasDetailEditor) return `수정: 셀을 눌러 상세 표에서 행별로 고친 뒤 승인 요청으로 저장합니다.${customHelp ? ` ${customHelp}` : ''}`;
+  return `수정: ${text(column?.read_only_reason || customHelp, '조회 전용입니다. 다른 업무 탭 또는 관리자 직접 수정 대상입니다.')}`;
+}
+
+function dataManagementColumnHelp(column) {
+  const label = text(column?.label || column?.field_key || column?.field || '컬럼');
+  const group = text(column?.group || '');
+  const consistency = dataManagementConsistencyGuide(column?.field_key || column?.field, label);
+  return [
+    group ? `${group} · ${label}` : label,
+    `단위: ${dataManagementColumnUnitGuide(column)}`,
+    dataManagementColumnEditGuide(column),
+    consistency ? `검증: ${consistency}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function dataManagementGroupHelp(group) {
+  const label = text(group?.label || group, '그룹');
+  const columns = safeArray(group?.columns).map((column) => text(column.label || column.field_key || column.field)).filter(Boolean);
+  const defaultHelp = columns.length ? `${columns.slice(0, 8).join(', ')}${columns.length > 8 ? ' 등' : ''} 컬럼을 포함합니다.` : '관련 컬럼 묶음입니다.';
+  return [
+    label,
+    DATA_MANAGEMENT_GROUP_HELP[label] || defaultHelp,
+    columns.length ? `포함 컬럼: ${columns.join(', ')}` : '',
+  ].filter(Boolean).join('\n');
+}
+
+function DataManagementHeaderHelp({ help, children, align = 'left', className = '' }) {
+  const tooltipAlign = align === 'center'
+    ? 'left-1/2 -translate-x-1/2'
+    : align === 'right'
+      ? 'right-0'
+      : 'left-0';
+  return (
+    <span
+      className={`group relative inline-flex min-w-0 max-w-full items-center gap-1 ${className}`}
+      title={help}
+      data-data-management-header-help="true"
+    >
+      <span className="min-w-0 truncate">{children}</span>
+      <span className="shrink-0 text-[10px] font-bold text-[#86868B]">ⓘ</span>
+      <span
+        className={`pointer-events-none absolute top-[calc(100%+8px)] ${tooltipAlign} z-[90] hidden w-[300px] whitespace-pre-line rounded-[8px] border border-[#3A3A3C] bg-[#F5F5F7] px-3 py-2 text-left text-[12px] font-semibold leading-5 text-[#1F1F1E] shadow-xl group-hover:block dark:bg-[#F5F5F7] dark:text-[#1F1F1E]`}
+        data-data-management-header-tooltip="true"
+      >
+        {help}
+      </span>
+    </span>
+  );
 }
 const SUPPLY_PERIOD_DEFAULT_START = '2024-01-01';
 const SUPPLY_PERIOD_DEFAULT_END = '2028-12-31';
@@ -458,7 +581,7 @@ const MARKET_TABS = [
   { id: 'lease', route: 'lease-market', label: 'Lease Market' },
   { id: 'supply', route: 'supply-pipeline', label: 'Supply Pipeline' },
   { id: 'transactions', route: 'transactions', label: 'Transactions' },
-  { id: 'source', route: 'source-update', label: 'Source Update' },
+  { id: 'source', route: 'source-update', label: '업데이트' },
 ];
 
 const MARKET_TAB_TITLES = {
@@ -466,7 +589,7 @@ const MARKET_TAB_TITLES = {
   lease: '임대 시장 분석',
   supply: '공급 파이프라인',
   transactions: '매매 거래 분석',
-  source: '원천 데이터 업데이트',
+  source: '업데이트',
 };
 
 const MARKET_TAB_SUBTITLES = {
@@ -474,7 +597,7 @@ const MARKET_TAB_SUBTITLES = {
   lease: '임대시장 통계와 센터별 임대 현황을 시점, 권역, 상/저온 기준으로 비교합니다.',
   supply: '신규 공급, 공급 예정, 누적 공급을 지도, 표, 시계열로 함께 확인합니다.',
   transactions: '매매사례를 기간, 권역, 상/저온, 실물·선매입 기준으로 분석합니다.',
-  source: '분기별 Excel 원천의 적재 상태, 검증 결과, active 교체 흐름을 관리합니다.',
+  source: '분기별 Excel 업로드, 검증 결과, active 교체 흐름을 관리합니다.',
 };
 
 const MARKET_VIEW_LIMITS = {
@@ -1119,8 +1242,8 @@ function userFacingLoadError() {
 const USER_FACING_LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다. 탭을 다시 열거나 잠시 후 재시도해 주세요.';
 const EDGE_DATA_CACHE_TTL_MS = 10 * 60 * 1000;
 const EDGE_DATA_REVALIDATE_MS = 90 * 1000;
-const EDGE_DATA_REQUEST_TIMEOUT_MS = 12 * 1000;
-const EDGE_DATA_INFLIGHT_STALE_MS = 12 * 1000;
+const EDGE_DATA_REQUEST_TIMEOUT_MS = 45 * 1000;
+const EDGE_DATA_INFLIGHT_STALE_MS = 45 * 1000;
 const EDGE_DATA_CACHE = new Map();
 const EDGE_DATA_INFLIGHT = new Map();
 const EDGE_DATA_REFRESH_SUBSCRIBERS = new Set();
@@ -1243,7 +1366,7 @@ function useEdgeData(action, payload = {}, deps = []) {
       if (mountedRef.current && requestRef.current === requestId) {
         setState((current) => ({
           loading: false,
-          error: USER_FACING_LOAD_ERROR_TEXT,
+          error: (current.sourceKey === requestKey ? (current.data || fallbackCached?.data) : fallbackCached?.data) ? '' : USER_FACING_LOAD_ERROR_TEXT,
           data: current.sourceKey === requestKey ? (current.data || fallbackCached?.data || null) : (fallbackCached?.data || null),
           loadedAt: current.sourceKey === requestKey ? (current.loadedAt || fallbackCached?.loadedAt || 0) : (fallbackCached?.loadedAt || 0),
           sourceKey: requestKey,
@@ -4969,6 +5092,8 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const [supplyKind, setSupplyKind] = useState('전체');
   const [supplyRegion, setSupplyRegion] = useState('전체');
   const [modalFiltersCollapsed, setModalFiltersCollapsed] = useState(false);
+  const [sourceUploadFile, setSourceUploadFile] = useState(null);
+  const [sourceUploadState, setSourceUploadState] = useState({ type: 'idle', message: '' });
   const summary = data?.summary || {};
   const marketViews = data?.views || {};
   const overviewView = marketViews.overview || {};
@@ -5081,6 +5206,53 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       else window.clearTimeout(idleId);
     };
   }, [currentTab, data, loading]);
+
+  const uploadMarketSourceWorkbook = async () => {
+    if (!sourceUploadFile) {
+      setSourceUploadState({ type: 'warning', message: '업데이트할 Excel 파일을 먼저 선택해 주세요.' });
+      return;
+    }
+    const extension = text(sourceUploadFile.name, '').split('.').pop()?.toLowerCase();
+    if (!['xlsx', 'xls'].includes(extension || '')) {
+      setSourceUploadState({ type: 'warning', message: '시장 데이터 업데이트는 Excel 파일(.xlsx, .xls)만 선택할 수 있습니다.' });
+      return;
+    }
+    setSourceUploadState({ type: 'pending', message: '원본 Excel 파일을 보존 저장하는 중입니다.' });
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      const accessToken = sessionData?.session?.access_token;
+      if (sessionError || !accessToken) throw new Error('로그인 세션을 확인하지 못했습니다. 새로고침 없이 다시 로그인 상태를 확인해 주세요.');
+      const formData = new FormData();
+      formData.append('action', 'market-docs/upload');
+      formData.append('payload', JSON.stringify({ source_domain: 'sector_market', upload_origin: 'market_data_update_tab' }));
+      formData.append('file', sourceUploadFile);
+      const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/functions/v1/ll-dashboard-api`, {
+        method: 'POST',
+        headers: {
+          apikey: supabaseAnonKey,
+          authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+      const raw = await response.text();
+      let parsed = null;
+      try {
+        parsed = raw ? JSON.parse(raw) : null;
+      } catch {
+        parsed = { message: raw.slice(0, 300) };
+      }
+      if (!response.ok || parsed?.ok === false) {
+        throw new Error(parsed?.message || parsed?.error || `업로드 실패 (${response.status})`);
+      }
+      setSourceUploadState({
+        type: 'success',
+        message: '원본 Excel 보존 저장이 완료되었습니다. 기존 active 데이터는 유지되며, dry-run 검증과 승인 후에만 최신 수치로 교체됩니다.',
+      });
+    } catch (uploadError) {
+      setSourceUploadState({ type: 'warning', message: uploadError?.message || '업로드 중 오류가 발생했습니다.' });
+    }
+  };
+
   const supplyKindOptions = [
     { value: '전체', label: '전체' },
     { value: 'new_supply', label: '신규공급' },
@@ -5377,6 +5549,28 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       value: row.value,
     }));
   })();
+  const overviewTopLeaseRow = [...overviewLeaseRentSelectedRows].sort((a, b) => number(b.value) - number(a.value))[0];
+  const overviewTopTransactionRow = [...overviewTransactionRows].sort((a, b) => number(b.value) - number(a.value))[0];
+  const overviewTopSupplyRow = [...overviewSupplyRows]
+    .filter((row) => text(row.period_label) !== '미정')
+    .sort((a, b) => number(b.value) - number(a.value))[0];
+  const overviewCheckpointRows = [
+    {
+      label: '임대료 상위 권역',
+      value: overviewTopLeaseRow ? `${text(overviewTopLeaseRow.label)} · ${leaseMetricFormatterFor(overviewLeaseSelectedMetric)(overviewTopLeaseRow.value)}` : '-',
+      detail: `${overviewLeaseSelectedPeriod || '시점 미정'} · ${overviewLeaseTemp === '전체' ? '기본 온도 구분' : overviewLeaseTemp}`,
+    },
+    {
+      label: overviewTxnMetric === 'unit_price' ? '거래 평당가 상위 권역' : '거래금액 상위 권역',
+      value: overviewTopTransactionRow ? `${text(overviewTopTransactionRow.label)} · ${formatKrw(overviewTopTransactionRow.value)}` : '-',
+      detail: `${overviewTxnPeriod === '전체' ? '전체 기간' : `${overviewTxnPeriod}년`} · ${overviewTxnTemp}`,
+    },
+    {
+      label: '공급 예정 집중 시점',
+      value: overviewTopSupplyRow ? `${text(overviewTopSupplyRow.period_label)} · ${formatNumber(overviewTopSupplyRow.value, 0)}평` : '-',
+      detail: overviewTopSupplyRow ? text(overviewTopSupplyRow.region, '권역 합계') : '공급 예정 데이터 확인 필요',
+    },
+  ];
   const leaseSegmentedRows = latestLeases.filter((row) => leaseTemperatureMatches(leaseCenterTemp, row.temperature_type));
   const filteredLeaseRows = leaseSegmentedRows
     .filter((row) => regionMatches(leaseRegion, row.region))
@@ -5615,6 +5809,35 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   });
   const capRateTableRows = [...capRateDetailMap.values()]
     .sort((a, b) => periodSortValue(a.label) - periodSortValue(b.label) || a.series.localeCompare(b.series, 'ko'));
+  const capRateWideMap = new Map();
+  capRateTableRows.forEach((row) => {
+    const label = text(row.label, '미정');
+    const scope = /수도권/u.test(text(row.series)) ? 'capital' : 'national';
+    const current = capRateWideMap.get(label) || {
+      label,
+      bayesian_capital: null,
+      bayesian_national: null,
+      general_capital: null,
+      general_national: null,
+      weighted_capital: null,
+      weighted_national: null,
+    };
+    current[`bayesian_${scope}`] = row.bayesian;
+    current[`general_${scope}`] = row.general;
+    current[`weighted_${scope}`] = row.weighted;
+    capRateWideMap.set(label, current);
+  });
+  const capRateWideRows = [...capRateWideMap.values()]
+    .sort((a, b) => periodSortValue(a.label) - periodSortValue(b.label));
+  const capRateWideColumns = [
+    { key: 'label', label: '시점', width: 140 },
+    { key: 'bayesian_capital', label: '베이지안-수도권', align: 'right', width: 140, render: (row) => row.bayesian_capital == null ? '-' : formatRate(row.bayesian_capital), sortValue: (row) => number(row.bayesian_capital) },
+    { key: 'bayesian_national', label: '베이지안-전국', align: 'right', width: 140, render: (row) => row.bayesian_national == null ? '-' : formatRate(row.bayesian_national), sortValue: (row) => number(row.bayesian_national) },
+    { key: 'general_capital', label: '일반-수도권', align: 'right', width: 130, render: (row) => row.general_capital == null ? '-' : formatRate(row.general_capital), sortValue: (row) => number(row.general_capital) },
+    { key: 'general_national', label: '일반-전국', align: 'right', width: 130, render: (row) => row.general_national == null ? '-' : formatRate(row.general_national), sortValue: (row) => number(row.general_national) },
+    { key: 'weighted_capital', label: '가중평균-수도권', align: 'right', width: 150, render: (row) => row.weighted_capital == null ? '-' : formatRate(row.weighted_capital), sortValue: (row) => number(row.weighted_capital) },
+    { key: 'weighted_national', label: '가중평균-전국', align: 'right', width: 150, render: (row) => row.weighted_national == null ? '-' : formatRate(row.weighted_national), sortValue: (row) => number(row.weighted_national) },
+  ];
   const capRateChartRows = capRateTableRows
     .map((row) => ({
       ...row,
@@ -5857,6 +6080,18 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
             <MetricCard compact label="공급 예정" value={isInitialMarketLoading ? '-' : `${formatNumber(summary.pipeline_supply_count || 0)}건`} detail={isInitialMarketLoading ? '데이터 확인 중' : `당분기 신규공급 ${formatNumber(summary.new_supply_total_gross_area_py, 1)}평`} />
             <MetricCard compact label="매매 사례" value={isInitialMarketLoading ? '-' : `${formatNumber(summary.transaction_case_count || transactions.length)}건`} detail={isInitialMarketLoading ? '데이터 확인 중' : (summary.latest_cap_rate ? `최근 Cap Rate ${formatRate(summary.latest_cap_rate.cap_rate)}` : '2010년 이후 거래')} />
           </section>
+          <section className={`${CARD} p-4`}>
+            <ModuleHeader eyebrow="SUMMARY" title="시장 체크포인트" />
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
+              {overviewCheckpointRows.map((row) => (
+                <div key={row.label} className="rounded-[10px] border border-[#333333] bg-[#1F1F1E] px-4 py-3">
+                  <div className="text-[12px] text-[#A1A1AA]">{row.label}</div>
+                  <div className="mt-1 text-[16px] font-semibold text-white">{row.value}</div>
+                  <div className="mt-1 text-[12px] text-[#86868B]">{row.detail}</div>
+                </div>
+              ))}
+            </div>
+          </section>
           <section className="grid grid-cols-1 gap-5 xl:grid-cols-2">
             <div className={`${CARD} p-5`}>
               <ModuleHeader eyebrow="LEASE" title="권역별 최신 임대료" />
@@ -5980,12 +6215,12 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               <FilterBlock><FilterPills label="상/저온" value={txnSizeTemp} onChange={setTxnSizeTemp} options={transactionSizeTempOptions} help={MARKET_TEMPERATURE_HELP} /></FilterBlock>
               <div className="xl:col-span-4 rounded-[10px] border border-[#333333] bg-[#171717] px-4 py-3 text-[12px] leading-5 text-[#A1A1AA]">{sizeBucketNote}</div>
             </FilterPanel>
-            <div className="grid grid-cols-1 gap-5">
-              <div className="min-w-0">
+            <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+              <div className="min-w-0 rounded-[10px] border border-[#333333] bg-[#171717] p-4">
                 <div className="mb-2 text-[13px] font-semibold text-white">평당 거래가</div>
                 <BarList rows={sizeUnitPriceChartRows} formatter={formatKrw} color={CHART_COLORS.secondary} onRowClick={(row) => openTransactionSizeModal(row, '평당 거래가')} />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 rounded-[10px] border border-[#333333] bg-[#171717] p-4">
                 <div className="mb-2 text-[13px] font-semibold text-white">거래시장 규모</div>
                 <BarList rows={sizeMarketChartRows} formatter={formatKrw} color={CHART_COLORS.primary} onRowClick={(row) => openTransactionSizeModal(row, '거래시장 규모')} />
               </div>
@@ -6001,19 +6236,13 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
                   type="button"
                   onClick={() => setModal({
                     title: 'Cap Rate 추이 상세',
-                    rows: capRateTableRows,
-                    columns: [
-                      { key: 'label', label: '시점', width: 140 },
-                      { key: 'series', label: '구분', width: 140 },
-                      { key: 'bayesian', label: '베이지안', align: 'right', render: (row) => row.bayesian == null ? '-' : formatRate(row.bayesian), sortValue: (row) => number(row.bayesian) },
-                      { key: 'general', label: '일반', align: 'right', render: (row) => row.general == null ? '-' : formatRate(row.general), sortValue: (row) => number(row.general) },
-                      { key: 'weighted', label: '가중평균', align: 'right', render: (row) => row.weighted == null ? '-' : formatRate(row.weighted), sortValue: (row) => number(row.weighted) },
-                    ],
+                    rows: capRateWideRows,
+                    columns: capRateWideColumns,
                     width: 'max-w-[calc(100vw-32px)]',
-                    minWidth: 720,
+                    minWidth: 1040,
                     maxHeight: 'calc(100vh - 150px)',
                     fullscreen: true,
-                    defaultSort: [{ key: 'label', direction: 'asc' }, { key: 'series', direction: 'asc' }],
+                    defaultSort: { key: 'label', direction: 'asc' },
                   })}
                   className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:bg-white/5"
                 >
@@ -6033,19 +6262,13 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               height={360}
               onPointClick={(row) => setModal({
                 title: 'Cap Rate 추이 전체 상세',
-                rows: capRateTableRows,
-                columns: [
-                  { key: 'label', label: '시점', width: 140 },
-                  { key: 'series', label: '구분', width: 140 },
-                  { key: 'bayesian', label: '베이지안', align: 'right', render: (item) => item.bayesian == null ? '-' : formatRate(item.bayesian), sortValue: (item) => number(item.bayesian) },
-                  { key: 'general', label: '일반', align: 'right', render: (item) => item.general == null ? '-' : formatRate(item.general), sortValue: (item) => number(item.general) },
-                  { key: 'weighted', label: '가중평균', align: 'right', render: (item) => item.weighted == null ? '-' : formatRate(item.weighted), sortValue: (item) => number(item.weighted) },
-                ],
+                rows: capRateWideRows,
+                columns: capRateWideColumns,
                 width: 'max-w-[calc(100vw-32px)]',
-                minWidth: 820,
+                minWidth: 1040,
                 maxHeight: 'calc(100vh - 150px)',
                 fullscreen: true,
-                defaultSort: [{ key: 'label', direction: 'asc' }, { key: 'series', direction: 'asc' }],
+                defaultSort: { key: 'label', direction: 'asc' },
               })}
             />
           </section>
@@ -6234,7 +6457,50 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
 
       {currentTab === 'source' ? (
         <section className={`${CARD} p-5`}>
-          <ModuleHeader eyebrow="SOURCE UPDATE" title="분기별 Excel 업데이트 관리" subtitle="업로드, dry-run 검증, active와 diff, 승인 후 active 교체 순서로 관리합니다." />
+          <ModuleHeader eyebrow="UPDATE" title="시장 데이터 업데이트" subtitle="Excel 원본은 먼저 보존 저장하고, 검증·승인 후에만 최신 수치를 active로 전환합니다." />
+          <div className={`${INNER} mb-5 p-4`}>
+            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <div>
+                <div className="text-[14px] font-semibold text-white">Excel 파일로 업데이트 준비</div>
+                <div className="mt-2 text-[12px] leading-5 text-[#A1A1AA]">
+                  기존 Supabase 데이터는 삭제하지 않습니다. 이 화면에서는 Excel 원본을 먼저 보존하고, dry-run 검증과 기존 active diff 확인을 거쳐 승인된 경우에만 시장 데이터 하위 탭의 최신 수치를 교체합니다.
+                </div>
+                <div className="mt-3 grid grid-cols-1 gap-2 text-[12px] text-[#D1D1D6] md:grid-cols-3">
+                  <div className="rounded-[8px] border border-[#333333] bg-[#171717] px-3 py-2">1. 원본 보존 저장</div>
+                  <div className="rounded-[8px] border border-[#333333] bg-[#171717] px-3 py-2">2. 형식 확인 대기</div>
+                  <div className="rounded-[8px] border border-[#333333] bg-[#171717] px-3 py-2">3. 승인 후 active 전환</div>
+                </div>
+              </div>
+              <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
+                  Excel 파일 선택
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] || null;
+                      setSourceUploadFile(file);
+                      setSourceUploadState(file ? { type: 'idle', message: `${file.name} 선택됨` } : { type: 'idle', message: '' });
+                    }}
+                    className="mt-2 block w-full rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-[#D1D1D6] file:mr-3 file:rounded-[6px] file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-[12px] file:font-semibold file:text-black"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={uploadMarketSourceWorkbook}
+                  disabled={!sourceUploadFile || sourceUploadState.type === 'pending'}
+                  className={`mt-3 h-10 w-full rounded-[8px] border px-3 text-[13px] font-semibold ${!sourceUploadFile || sourceUploadState.type === 'pending' ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : 'border-[#3b82f6]/30 bg-[#3b82f6]/20 text-[#60a5fa] hover:bg-[#3b82f6]/30'}`}
+                >
+                  {sourceUploadState.type === 'pending' ? '보존 저장 중' : '원본 보존 저장'}
+                </button>
+                {sourceUploadState.message ? (
+                  <div className={`mt-3 rounded-[8px] border px-3 py-2 text-[12px] leading-5 ${sourceUploadState.type === 'success' ? 'border-[#2F5F3B] bg-[#142418] text-[#B5E48C]' : sourceUploadState.type === 'warning' ? 'border-[#7A5A20] bg-[#2A1E08] text-[#FFD166]' : 'border-[#333333] bg-[#111] text-[#A1A1AA]'}`}>
+                    {sourceUploadState.message}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
           <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-4">
             <MetricCard label="원본 시트" value={`${formatNumber(sourceAudit.sheet_count || 0)}개`} detail={`${formatNumber(sourceAudit.source_row_count || 0)}행`} />
             <MetricCard label="원본 컬럼" value={`${formatNumber(sourceAudit.source_column_count || 0)}개`} detail="원본 컬럼 매핑 확인" />
@@ -7130,27 +7396,39 @@ export function AssetSpecDashboard() {
             <button type="button" disabled={!selectedEditAsset?.can_delete} onClick={deleteAssetSpec} className="h-10 rounded-[9px] border border-[#5A4420] px-5 text-[13px] font-semibold text-[#FFD479] hover:bg-[#2A2115] disabled:cursor-not-allowed disabled:opacity-40">선택 자산 스펙 삭제</button>
           </div>
           {editStatus ? <div className={`rounded-[10px] border px-4 py-3 text-[13px] ${editStatus.type === 'success' ? 'border-[#2F6B3C] bg-[#152A1A] text-[#A7F3D0]' : editStatus.type === 'loading' ? 'border-[#34547A] bg-[#142033] text-[#BFD7FF]' : 'border-[#5A4420] bg-[#2A2115] text-[#FFD479]'}`}>{editStatus.message}</div> : null}
-          <div className="custom-scrollbar max-h-[calc(100vh-260px)] overflow-auto rounded-[12px] border border-[#333333]">
-            <table className="w-full min-w-[980px] border-collapse text-left text-[12px]">
-              <thead className="sticky top-0 z-10 bg-[#1F1F1E] text-[#A1A1AA]">
-                <tr>
-                  <th className="w-[72px] px-3 py-2 text-right font-semibold">행</th>
-                  <th className="w-[240px] px-3 py-2 font-semibold">항목</th>
-                  <th className="px-3 py-2 font-semibold">값</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#303033]">
+          <div className="overflow-hidden rounded-[12px] border border-[#333333] bg-[#171717]">
+            <div
+              className="grid border-b border-[#333333] bg-[#202020] text-[12px] font-semibold uppercase text-[#A1A1AA]"
+              style={{ gridTemplateColumns: '68px 230px minmax(420px, 1fr)', minWidth: 760 }}
+            >
+              <div className="px-3 py-3 text-right">No.</div>
+              <div className="border-l border-[#2D2D30] px-3 py-3">항목</div>
+              <div className="border-l border-[#2D2D30] px-3 py-3">입력값</div>
+            </div>
+            <div className="custom-scrollbar max-h-[calc(100vh-260px)] overflow-auto">
+              <div className="divide-y divide-[#2D2D30]" style={{ minWidth: 760 }}>
                 {editRows.map((row) => (
-                  <tr key={row.row_number} className="bg-[#171717] text-[#E5E5E5]">
-                    <td className="px-3 py-2 text-right text-[#A1A1AA]">{row.row_number}</td>
-                    <td className="px-3 py-2 font-semibold">{row.label}</td>
-                    <td className="px-3 py-2">
-                      <textarea value={text(row.value, '')} onChange={(event) => setEditValue(row.row_number, event.target.value)} className="min-h-[36px] w-full resize-y rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-white outline-none focus:border-[#7DD3FC]" />
-                    </td>
-                  </tr>
+                  <div
+                    key={row.row_number}
+                    className="grid bg-[#171717] text-[12px] text-[#E5E5E5] hover:bg-white/[0.025]"
+                    style={{ gridTemplateColumns: '68px 230px minmax(420px, 1fr)' }}
+                  >
+                    <div className="px-3 py-2 text-right leading-8 text-[#86868B]">{row.row_number}</div>
+                    <div className="min-w-0 border-l border-[#2D2D30] px-3 py-2 font-semibold leading-8 text-white">
+                      <span className="block truncate" title={row.label}>{row.label}</span>
+                    </div>
+                    <div className="min-w-0 border-l border-[#2D2D30] px-3 py-2">
+                      <input
+                        value={text(row.value, '')}
+                        onChange={(event) => setEditValue(row.row_number, event.target.value)}
+                        title={text(row.value, '')}
+                        className="h-8 w-full rounded-[7px] border border-[#3A3A3C] bg-[#111111] px-3 text-[12px] text-white outline-none focus:border-[#7DD3FC]"
+                      />
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
         </div>
       </Modal>
@@ -7309,7 +7587,7 @@ function DataManagementDashboardLegacy() {
     : `이지스자산운용 관리 범위 중 내 권한: 자산 ${formatNumber(scopeReadableAssetCount)}개 / 펀드 ${formatNumber(scopeReadableFundCount)}개`;
   const rowAccessMessage = !sourceRows.length
     ? (accessScope === 'manager_full_source'
-      ? '아직 조회 가능한 수정 대상 데이터가 없습니다. Source Update의 active 상태 또는 관리 권한을 확인해 주세요.'
+      ? '아직 조회 가능한 수정 대상 데이터가 없습니다. 업데이트 탭의 active 상태 또는 관리 권한을 확인해 주세요.'
       : `현재 계정은 담당 자산 범위만 조회할 수 있습니다.${managedAssetCodes.length ? ` 담당 자산: ${managedAssetCodes.join(', ')}` : ' 담당 자산이 배정되지 않았습니다.'}`)
     : (!filteredRows.length ? '선택한 이지스자산운용 관리 범위에 해당하는 수정 대상 데이터가 없습니다. 다른 업무 탭이나 자산/펀드 필터를 확인해 주세요.' : '');
   const fallbackGridRows = !filteredRows.length
@@ -7695,7 +7973,7 @@ function DataManagementDashboardLegacy() {
 
       <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[270px_minmax(0,1fr)_360px]">
         <aside className={`${CARD} p-4`}>
-          <div className="mb-3 text-[13px] font-bold text-white">ll_ 전체 업무 데이터</div>
+          <div className="mb-3 text-[13px] font-bold text-white">전체 업무 데이터</div>
           <div className="space-y-2">
             {[
               ['이지스 Data', igisWorkbenchAreas],
@@ -7976,8 +8254,8 @@ function DataManagementDashboardLegacy() {
                         const key = text(column.field_key || column.field);
                         const activeSort = sort.key === key;
                         return (
-                          <th key={`modal-${key}`} style={{ minWidth: column.width || 150 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
-                            <button type="button" onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
+                          <th key={`modal-${key}`} title={dataManagementColumnHelp(column)} style={{ minWidth: column.width || 150 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                            <button type="button" title={dataManagementColumnHelp(column)} onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
                               <span className="truncate" title={text(column.label)}>{text(column.label)}</span>
                               <span className="text-[10px] text-[#86868B]">{activeSort ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
                             </button>
@@ -8087,6 +8365,12 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
   const [approvalReason, setApprovalReason] = useState('');
   const [bulkSubmitStatus, setBulkSubmitStatus] = useState(null);
+  const [detailModal, setDetailModal] = useState(null);
+  const [detailDrafts, setDetailDrafts] = useState({});
+  const [detailAddedRows, setDetailAddedRows] = useState({});
+  const [detailDeletedRows, setDetailDeletedRows] = useState({});
+  const [detailReason, setDetailReason] = useState('');
+  const [detailSubmitStatus, setDetailSubmitStatus] = useState(null);
   const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews } = useEdgeData('data-management/views', {}, []);
   const views = safeArray(viewCatalog?.views);
   const bundles = safeArray(viewCatalog?.fund_asset_bundles);
@@ -8161,6 +8445,8 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const { loading: rowsLoading, error: rowsError, data: rowsData, reload: reloadRows } = useEdgeData('data-management/view-rows', rowsPayload, [rowsPayload]);
   const dataManagementLoading = viewsLoading || rowsLoading;
   const hasDataManagementRows = Boolean(safeArray(rowsData?.rows).length || safeArray(viewCatalog?.views).length);
+  const blockingViewsError = Boolean(viewsError && !safeArray(viewCatalog?.views).length);
+  const blockingRowsError = Boolean(rowsError && !safeArray(rowsData?.rows).length && !safeArray(rowsData?.fields).length);
   const [dataManagementLoadingProgress, setDataManagementLoadingProgress] = useState(dataManagementLoading ? 12 : 100);
   const columns = safeArray(rowsData?.fields).filter((column) => (
     column
@@ -8172,15 +8458,31 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     'asset_name',
     'fund_name',
     'tenant_master_name',
-    'space_label',
+    'temperature_type',
+    'is_preleased',
+    'is_3pl',
+    'goods_type',
+    'is_single_tenant',
+    'contract_status',
+    'business_registration_no',
     'floor_label',
     'detail_area_label',
-    'temperature_type',
+    'leased_area_sqm',
+    'exclusive_area_sqm',
+    'exclusive_ratio',
     'current_start_date',
+    'first_contract_date',
+    'first_start_date',
+    'first_end_date',
+    'first_operation_date',
+    'recent_contract_date',
+    'recent_contract_end_date',
     'current_end_date',
     'current_contract_period',
+    'extension_count',
     'current_monthly_rent_total',
     'current_monthly_mf_total',
+    'current_monthly_cost_total',
     'current_rent_per_py',
     'current_mf_per_py',
     'e_noc',
@@ -8188,8 +8490,19 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     'rf_months',
     'fo_months',
     'ti_amount',
+    'rent_escalation_rate',
+    'management_fee_escalation_rate',
+    'escalation_cycle_months',
+    'next_escalation_date',
+    'insurance_rights_summary',
+    'tenant_cost_burden',
+    'early_termination_right',
+    'renewal_option',
     'required_specs_summary',
+    'special_terms',
     'lease_special_summary',
+    'review_status',
+    'review_note',
     'tenant_info_summary',
     'effective_date',
     'period_start',
@@ -8197,7 +8510,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     'cost_type',
     'spec_scope',
     'area_label',
-    'contract_status',
   ].map((key, index) => [key, index])), []);
   const orderedColumns = useMemo(() => [...columns].sort((a, b) => {
     const aKey = text(a.field_key || a.field);
@@ -8207,7 +8519,23 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     if (aRank !== bRank) return aRank - bRank;
     return columns.indexOf(a) - columns.indexOf(b);
   }), [columns, priorityColumnOrder]);
-  const scopedColumns = useMemo(() => orderedColumns, [orderedColumns]);
+  const rows = safeArray(rowsData?.rows);
+  const nonEmptyColumnKeys = useMemo(() => {
+    const keys = new Set();
+    rows.slice(0, 250).forEach((row) => {
+      const values = row?.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+      Object.entries(values).forEach(([key, value]) => {
+        if (text(value, '').trim()) keys.add(key);
+      });
+    });
+    return keys;
+  }, [rows]);
+  const scopedColumns = useMemo(() => orderedColumns.filter((column) => {
+    const key = text(column.field_key || column.field);
+    if (!rows.length) return true;
+    if (column.sticky || column.editable === true || priorityColumnOrder.has(key)) return true;
+    return nonEmptyColumnKeys.has(key);
+  }), [orderedColumns, rows.length, nonEmptyColumnKeys, priorityColumnOrder]);
   const visibleColumns = useMemo(() => (
     scopedColumns
   ), [scopedColumns, showAllFields]);
@@ -8228,7 +8556,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     });
     return groups;
   }, [visibleColumns]);
-  const rows = safeArray(rowsData?.rows);
   const pagination = rowsData?.pagination || {};
   const selectedRow = rows.find((row) => row.row_key === selectedRowKey) || rows[0] || null;
   const editableColumns = scopedColumns.filter((column) => column.editable === true);
@@ -8309,6 +8636,278 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     setApprovalReason('');
     setBulkSubmitStatus(null);
   };
+  const dataManagementDetailEditKey = (rowKey, fieldKey) => `${rowKey}::${fieldKey}`;
+  const openCellDetail = (row, column, detail) => {
+    const key = text(column.field_key || column.field);
+    setSelectedRowKey(row.row_key);
+    setSelectedField(key);
+    setDetailModal({ row, column, columnKey: key, detail });
+    setDetailDrafts({});
+    setDetailAddedRows({});
+    setDetailDeletedRows({});
+    setDetailReason('');
+    setDetailSubmitStatus(null);
+  };
+  const detailRows = safeArray(detailModal?.detail?.rows);
+  const detailColumns = safeArray(detailModal?.detail?.columns);
+  const detailSections = safeArray(detailModal?.detail?.sections);
+  const detailEditList = useMemo(() => Object.values(detailDrafts), [detailDrafts]);
+  const detailAddedList = useMemo(() => Object.entries(detailAddedRows).flatMap(([sectionKey, rows]) => safeArray(rows).map((row) => ({ sectionKey, row }))), [detailAddedRows]);
+  const detailDeletedList = useMemo(() => Object.entries(detailDeletedRows).flatMap(([sectionKey, rows]) => safeArray(rows).map((row) => ({ sectionKey, row }))), [detailDeletedRows]);
+  const detailChangeCount = detailEditList.length + detailAddedList.length + detailDeletedList.length;
+  const getDetailCellValue = (row, column) => {
+    const key = text(column.field_key || column.field);
+    const editId = dataManagementDetailEditKey(row.row_key, key);
+    if (detailDrafts[editId]) return text(detailDrafts[editId].requested_value, '');
+    const values = row?.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+    return text(values[key], '');
+  };
+  const queueDetailEdit = (row, column, nextValue) => {
+    const fieldKey = text(column.field_key || column.field);
+    if (!row?.row_key || !fieldKey || column.editable !== true || row.editable === false) return;
+    const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+    const beforeDisplay = text(values[fieldKey], '');
+    const editId = dataManagementDetailEditKey(row.row_key, fieldKey);
+    setDetailDrafts((current) => {
+      const next = { ...current };
+      if (text(nextValue, '') === beforeDisplay) {
+        delete next[editId];
+        return next;
+      }
+      next[editId] = {
+        edit_id: editId,
+        row_key: row.row_key,
+        row_label: text(row.row_label, '상세 행'),
+        field_key: fieldKey,
+        field_label: text(column.label || fieldKey),
+        before_display: beforeDisplay,
+        requested_value: text(nextValue, ''),
+        revision_hash: row.revision_hash,
+      };
+      return next;
+    });
+  };
+  const addDetailRowDraft = (sectionKey, columns) => {
+    const rowKey = `new:${sectionKey || 'detail'}:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
+    const editableColumns = safeArray(columns).filter((column) => column.editable === true);
+    const emptyValues = Object.fromEntries(editableColumns.map((column) => [text(column.field_key || column.field), '']));
+    const row = {
+      row_key: rowKey,
+      row_label: '신규 행',
+      display_values: emptyValues,
+      edit_values: emptyValues,
+      editable: true,
+      is_new_detail_row: true,
+    };
+    setDetailAddedRows((current) => ({
+      ...current,
+      [sectionKey || 'detail']: [...safeArray(current[sectionKey || 'detail']), row],
+    }));
+  };
+  const markDetailRowDelete = (sectionKey, row) => {
+    if (!row?.row_key) return;
+    if (row.is_new_detail_row) {
+      setDetailAddedRows((current) => ({
+        ...current,
+        [sectionKey || 'detail']: safeArray(current[sectionKey || 'detail']).filter((item) => item.row_key !== row.row_key),
+      }));
+      setDetailDrafts((current) => Object.fromEntries(Object.entries(current).filter(([key]) => !key.startsWith(`${row.row_key}:`))));
+      return;
+    }
+    setDetailDeletedRows((current) => {
+      const key = sectionKey || 'detail';
+      const rows = safeArray(current[key]);
+      if (rows.some((item) => item.row_key === row.row_key)) return current;
+      return { ...current, [key]: [...rows, row] };
+    });
+  };
+  const undoDetailRowDelete = (sectionKey, rowKey) => {
+    setDetailDeletedRows((current) => ({
+      ...current,
+      [sectionKey || 'detail']: safeArray(current[sectionKey || 'detail']).filter((item) => item.row_key !== rowKey),
+    }));
+  };
+  const isDetailRowDeleted = (sectionKey, rowKey) => safeArray(detailDeletedRows[sectionKey || 'detail']).some((item) => item.row_key === rowKey);
+  const detailNewRowValues = (row, columns) => Object.fromEntries(safeArray(columns)
+    .filter((column) => column.editable === true)
+    .map((column) => {
+      const key = text(column.field_key || column.field);
+      const editId = dataManagementDetailEditKey(row.row_key, key);
+      return [key, text(detailDrafts[editId]?.requested_value, '')];
+    }));
+  const hasNonEmptyNewRowValue = (values) => Object.values(values || {}).some((value) => text(value, '').trim());
+  const detailColumnsForSection = (sectionKey) => {
+    const section = safeArray(detailModal?.detail?.sections).find((item) => text(item.section_key || item.key) === sectionKey);
+    return section ? safeArray(section.columns) : detailColumns;
+  };
+  const submitDetailEdits = async () => {
+    const addedRowsWithValues = detailAddedList
+      .map(({ sectionKey, row }) => ({ sectionKey, row, values: detailNewRowValues(row, detailColumnsForSection(sectionKey)) }))
+      .filter((item) => hasNonEmptyNewRowValue(item.values));
+    const totalChangeCount = detailEditList.length + addedRowsWithValues.length + detailDeletedList.length;
+    if (!detailModal || !totalChangeCount) {
+      setDetailSubmitStatus({ type: 'error', message: '변경된 상세 값이 없습니다.' });
+      return;
+    }
+    if (!detailReason.trim()) {
+      setDetailSubmitStatus({ type: 'error', message: '승인자가 이해할 수 있는 변경 사유를 입력해 주세요.' });
+      return;
+    }
+    setDetailSubmitStatus({ type: 'pending', message: `${formatNumber(totalChangeCount)}개 상세 변경을 승인 요청으로 저장하는 중입니다.` });
+    try {
+      for (const edit of detailEditList) {
+        await invoke('data-management/submit-edit', {
+          edit_mode: 'detail_field',
+          view_key: effectiveViewKey,
+          row_key: detailModal.row.row_key,
+          field_key: detailModal.columnKey,
+          detail_row_key: edit.row_key,
+          detail_field_key: edit.field_key,
+          requested_value: edit.requested_value,
+          revision_hash: edit.revision_hash,
+          bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+          reason: detailReason,
+        });
+      }
+      for (const { sectionKey, values } of addedRowsWithValues) {
+        await invoke('data-management/submit-edit', {
+          edit_mode: 'detail_row_add',
+          view_key: effectiveViewKey,
+          row_key: detailModal.row.row_key,
+          field_key: detailModal.columnKey,
+          detail_section_key: sectionKey,
+          values,
+          bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+          reason: detailReason,
+        });
+      }
+      for (const { sectionKey, row } of detailDeletedList) {
+        await invoke('data-management/submit-edit', {
+          edit_mode: 'detail_row_delete',
+          view_key: effectiveViewKey,
+          row_key: detailModal.row.row_key,
+          field_key: detailModal.columnKey,
+          detail_section_key: sectionKey,
+          detail_row_key: row.row_key,
+          bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+          reason: detailReason,
+        });
+      }
+      setDetailSubmitStatus({ type: 'success', message: '상세 변경값 승인 요청이 저장되었습니다. 최신 값을 다시 읽습니다.' });
+      setDetailDrafts({});
+      setDetailAddedRows({});
+      setDetailDeletedRows({});
+      reloadRows({}, { force: true });
+      reloadViews({}, { force: true });
+    } catch (error) {
+      setDetailSubmitStatus({ type: 'error', message: error.message || '상세 변경값 승인 요청 저장에 실패했습니다.' });
+    }
+  };
+  const renderDetailEditorTable = (rows, columns, emptyState = '상세 행이 없습니다.', sectionKey = 'detail') => {
+    const normalizedSectionKey = sectionKey || 'detail';
+    const visibleDetailColumns = safeArray(columns).filter((column) => (
+      column
+      && !column.sensitive
+      && !isInternalFieldName([column.field_key, column.field, column.label, column.group].map((item) => text(item, '')).join(' '))
+      && !hasInternalToken([column.field_key, column.field, column.label, column.group].map((item) => text(item, '')).join(' '))
+    ));
+    const sectionRows = [...safeArray(rows), ...safeArray(detailAddedRows[normalizedSectionKey])];
+    const canAddDetailRow = visibleDetailColumns.some((column) => column.editable === true);
+    return (
+      <div className="min-h-0 overflow-hidden rounded-[12px] border border-[#333333]">
+        <div className="flex items-center justify-end border-b border-[#333333] bg-[#171717] px-3 py-2">
+          {canAddDetailRow ? (
+            <button type="button" onClick={() => addDetailRowDraft(normalizedSectionKey, visibleDetailColumns)} className="h-8 rounded-[7px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]">
+              행 추가
+            </button>
+          ) : (
+            <span className="text-[12px] font-semibold text-[#86868B]">읽기 전용 상세</span>
+          )}
+        </div>
+        <div className="custom-scrollbar max-h-[calc(100vh-360px)] min-h-[220px] overflow-auto">
+          <table className="w-full min-w-[1040px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
+            <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#A1A1AA]">
+              <tr>
+                <th className="sticky left-0 z-30 w-[260px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                  <DataManagementHeaderHelp help="상세 표의 각 행을 식별하는 값입니다. Tranche, 수익자, 대주, 특약 항목처럼 한 셀 안에 여러 행으로 들어가는 데이터를 나눠 보여줍니다.">상세 행</DataManagementHeaderHelp>
+                </th>
+                <th className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                  <DataManagementHeaderHelp help="상세 행을 추가하거나 삭제 요청합니다. 삭제는 즉시 반영되지 않고 승인 요청으로 저장됩니다.">행 관리</DataManagementHeaderHelp>
+                </th>
+                {visibleDetailColumns.map((column) => {
+                  const key = text(column.field_key || column.field);
+                  return (
+                    <th key={`detail-head-${key}`} title={dataManagementColumnHelp(column)} style={{ minWidth: column.width || 160, width: column.width || 160 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                      <DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>
+                        {text(column.label)}
+                      </DataManagementHeaderHelp>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#303033]">
+              {sectionRows.length ? sectionRows.map((row) => {
+                const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+                const rowDeleted = isDetailRowDeleted(normalizedSectionKey, row.row_key);
+                const rowMeta = row.meta && typeof row.meta === 'object' ? row.meta : {};
+                const editTargets = rowMeta.edit_targets && typeof rowMeta.edit_targets === 'object' ? rowMeta.edit_targets : {};
+                const rowDeleteSupported = row.editable !== false && (row.is_new_detail_row || Object.values(editTargets).some((target) => {
+                  const targetTable = text(target?.target_table);
+                  return targetTable === 'public.ll_fund_capital_tranches' || targetTable === 'public.ll_lease_attributes';
+                }));
+                return (
+                  <tr key={`detail-row-${row.row_key}`} className={`bg-[#171717] text-[#E5E5E5] hover:bg-[#1F1F1F] ${rowDeleted ? 'opacity-50' : ''}`}>
+                    <td className="sticky left-0 z-10 w-[260px] border-r border-[#303033] bg-inherit px-3 py-2 align-top">
+                      <div className="max-w-[230px] truncate font-semibold text-white" title={text(row.row_label)}>{text(row.row_label, '상세 행')}</div>
+                      <div className="mt-1 text-[11px] text-[#86868B]">{row.is_new_detail_row ? '신규 행' : row.editable === false ? text(row.read_only_reason, '읽기 전용') : '수정 요청 가능'}</div>
+                    </td>
+                    <td className="border-r border-[#242426] px-3 py-2 align-top">
+                      {!rowDeleteSupported ? (
+                        <span className="text-[12px] font-semibold text-[#86868B]">삭제 불가</span>
+                      ) : rowDeleted ? (
+                        <button type="button" onClick={() => undoDetailRowDelete(normalizedSectionKey, row.row_key)} className="h-8 rounded-[7px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]">삭제 취소</button>
+                      ) : (
+                        <button type="button" onClick={() => markDetailRowDelete(normalizedSectionKey, row)} className="h-8 rounded-[7px] border border-[#5A2A2A] px-3 text-[12px] font-semibold text-[#FFB4A9] hover:border-[#FFB4A9]">삭제 요청</button>
+                      )}
+                    </td>
+                    {visibleDetailColumns.map((column) => {
+                      const key = text(column.field_key || column.field);
+                      const editId = dataManagementDetailEditKey(row.row_key, key);
+                      const cellChanged = Boolean(detailDrafts[editId]);
+                      const canEditCell = column.editable === true && row.editable !== false && !rowDeleted;
+                      const cellValue = getDetailCellValue(row, column);
+                      return (
+                        <td key={`detail-cell-${row.row_key}-${key}`} className={`border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B]' : ''}`}>
+                          {canEditCell ? (
+                            <input
+                              value={cellValue}
+                              onChange={(event) => queueDetailEdit(row, column, event.target.value)}
+                              className={`h-8 w-full rounded-[7px] border px-2 text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-[#2A2A2A] bg-[#111111] text-[#E5E5E5] focus:border-[#8E8E93]'}`}
+                              title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                              data-data-management-detail-inline-edit="true"
+                            />
+                          ) : (
+                            <div className="max-w-[320px] truncate text-[#C7C7CC]" title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}>{formatDisplayValue(values[key], key)}</div>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              }) : (
+                <tr>
+                  <td colSpan={visibleDetailColumns.length + 2} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
+                    {emptyState}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (!dataManagementLoading) {
@@ -8334,6 +8933,12 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     setShowAllFields(true);
     setEditModalOpen(false);
     setApprovalModalOpen(false);
+    setDetailModal(null);
+    setDetailDrafts({});
+    setDetailAddedRows({});
+    setDetailDeletedRows({});
+    setDetailReason('');
+    setDetailSubmitStatus(null);
     clearPendingEdits();
   }, [activeTabConfig.key]);
 
@@ -8573,14 +9178,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             검색
             <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]" placeholder={activeTabConfig.searchPlaceholder} />
           </label>
-          <button type="button" onClick={() => setEditModalOpen(true)} disabled={!selectedRow} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93] disabled:opacity-35">
+          <button type="button" onClick={() => setEditModalOpen(true)} disabled={!rows.length} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93] disabled:opacity-35">
             전체화면으로 편집
           </button>
         </div>
       </section>
 
-      {viewsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{viewsError}</div> : null}
-      {rowsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{rowsError}</div> : null}
+      {blockingViewsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{viewsError}</div> : null}
+      {blockingRowsError ? <div className="rounded-[12px] border border-[#4C2F2F] bg-[#2B1717] px-4 py-3 text-[13px] text-[#FFB4B4]">{rowsError}</div> : null}
 
       <div className="grid grid-cols-1 gap-5">
         <section className={`${CARD} min-w-0 p-5`}>
@@ -8614,10 +9219,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
               <table className="w-full border-separate text-left text-[12px]" style={{ borderSpacing: 0, minWidth: dataManagementTableMinWidth }}>
                 <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
                   <tr>
-                    <th rowSpan={2} className="sticky left-0 z-40 w-[300px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">관리 대상</th>
+                    <th rowSpan={2} className="sticky left-0 z-40 w-[300px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                      <DataManagementHeaderHelp help="이 행을 식별하는 값입니다. 자산명, 펀드명, 임차인명, 임대구역 등 핵심 정보를 합쳐 보여줍니다.">관리 대상</DataManagementHeaderHelp>
+                    </th>
                     {columnGroups.map((group) => (
-                      <th key={group.label} colSpan={group.columns.length} className="border-b border-r border-[#333333] bg-[#202020] px-3 py-2 text-center text-[11px] font-bold text-[#D1D1D6]">
-                        {group.label}
+                      <th key={group.label} colSpan={group.columns.length} title={dataManagementGroupHelp(group)} className="border-b border-r border-[#333333] bg-[#202020] px-3 py-2 text-center text-[11px] font-bold text-[#D1D1D6]">
+                        <DataManagementHeaderHelp help={dataManagementGroupHelp(group)} align="center" className="justify-center">
+                          {group.label}
+                        </DataManagementHeaderHelp>
                       </th>
                     ))}
                   </tr>
@@ -8626,9 +9235,11 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                       const key = text(column.field_key || column.field);
                       const activeSort = sort.key === key;
                       return (
-                        <th key={key} style={{ minWidth: column.width || 170, width: column.width || 170 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                        <th key={key} title={dataManagementColumnHelp(column)} style={{ minWidth: column.width || 170, width: column.width || 170 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
                           <button type="button" onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
-                            <span className="truncate" title={text(column.label)}>{text(column.label)}</span>
+                            <DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>
+                              {text(column.label)}
+                            </DataManagementHeaderHelp>
                             <span className="text-[10px] text-[#86868B]">{activeSort ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
                           </button>
                         </th>
@@ -8657,9 +9268,25 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                           const canEditCell = column.editable === true && row.editable !== false;
                           const cellChanged = Boolean(cellPending);
                           const cellValue = getCellEditValue(row, column);
+                          const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details : {};
+                          const cellDetail = cellDetails[key] && typeof cellDetails[key] === 'object' ? cellDetails[key] : null;
                           return (
                             <td key={`${row.row_key}-${key}`} className={`max-w-[320px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''}`}>
-                              {canEditCell ? (
+                              {cellDetail ? (
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openCellDetail(row, column, cellDetail);
+                                  }}
+                                  className="flex min-h-8 w-full items-center justify-between gap-2 rounded-[7px] border border-transparent px-2 text-left text-[12px] font-semibold text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111]"
+                                  title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                                  data-data-management-detail-cell="true"
+                                >
+                                  <span className="min-w-0 truncate">{formatDisplayValue(values[key], key)}</span>
+                                  <span className="shrink-0 text-[11px] text-[#B5E48C]">상세 편집</span>
+                                </button>
+                              ) : canEditCell ? (
                                 <input
                                   value={cellValue}
                                   onClick={(event) => {
@@ -8669,7 +9296,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                   }}
                                   onChange={(event) => queueCellEdit(row, column, event.target.value)}
                                   className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
-                                  title={formatDisplayValue(values[key], key)}
+                                  title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
                                   data-data-management-inline-edit="true"
                                 />
                               ) : (
@@ -8677,7 +9304,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                   type="button"
                                   onClick={(event) => { event.stopPropagation(); setSelectedRowKey(row.row_key); setSelectedField(key); }}
                                   className="block w-full truncate text-left"
-                                  title={formatDisplayValue(values[key], key)}
+                                  title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
                                 >
                                   {formatDisplayValue(values[key], key)}
                                 </button>
@@ -8806,14 +9433,18 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 <table className="w-full border-separate text-left text-[12px]" style={{ borderSpacing: 0, minWidth: dataManagementTableMinWidth }}>
                   <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
                     <tr>
-                      <th className="sticky left-0 z-40 w-[340px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">관리 대상</th>
+                      <th className="sticky left-0 z-40 w-[340px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                        <DataManagementHeaderHelp help="이 행을 식별하는 값입니다. 자산명, 펀드명, 임차인명, 임대구역 등 핵심 정보를 합쳐 보여줍니다.">관리 대상</DataManagementHeaderHelp>
+                      </th>
                       {visibleColumns.map((column) => {
                         const key = text(column.field_key || column.field);
                         const activeSort = sort.key === key;
                         return (
-                          <th key={`fullscreen-${key}`} style={{ minWidth: column.width || 170, width: column.width || 170 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                          <th key={`fullscreen-${key}`} title={dataManagementColumnHelp(column)} style={{ minWidth: column.width || 170, width: column.width || 170 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
                             <button type="button" onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
-                              <span className="truncate" title={text(column.label)}>{text(column.label)}</span>
+                              <DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>
+                                {text(column.label)}
+                              </DataManagementHeaderHelp>
                               <span className="text-[10px] text-[#86868B]">{activeSort ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
                             </button>
                           </th>
@@ -8838,9 +9469,25 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                             const canEditCell = column.editable === true && row.editable !== false;
                             const cellChanged = Boolean(cellPending);
                             const cellValue = getCellEditValue(row, column);
+                            const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details : {};
+                            const cellDetail = cellDetails[key] && typeof cellDetails[key] === 'object' ? cellDetails[key] : null;
                             return (
                               <td key={`fullscreen-${row.row_key}-${key}`} className={`max-w-[320px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''}`}>
-                                {canEditCell ? (
+                                {cellDetail ? (
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openCellDetail(row, column, cellDetail);
+                                    }}
+                                    className="flex min-h-8 w-full items-center justify-between gap-2 rounded-[7px] border border-transparent px-2 text-left text-[12px] font-semibold text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111]"
+                                    title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                                    data-data-management-detail-cell="true"
+                                  >
+                                    <span className="min-w-0 truncate">{formatDisplayValue(values[key], key)}</span>
+                                    <span className="shrink-0 text-[11px] text-[#B5E48C]">상세 편집</span>
+                                  </button>
+                                ) : canEditCell ? (
                                   <input
                                     value={cellValue}
                                     onClick={(event) => {
@@ -8850,7 +9497,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                     }}
                                     onChange={(event) => queueCellEdit(row, column, event.target.value)}
                                     className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
-                                    title={formatDisplayValue(values[key], key)}
+                                    title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
                                     data-data-management-inline-edit="true"
                                   />
                                 ) : (
@@ -8858,7 +9505,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                     type="button"
                                     onClick={(event) => { event.stopPropagation(); setSelectedRowKey(row.row_key); setSelectedField(key); }}
                                     className="block w-full truncate text-left"
-                                    title={formatDisplayValue(values[key], key)}
+                                    title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
                                   >
                                     {formatDisplayValue(values[key], key)}
                                   </button>
@@ -8919,6 +9566,64 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             </button>
             {submitStatus ? <div className={`mt-3 text-[12px] leading-5 ${submitStatus.type === 'error' ? 'text-[#FF9F9F]' : submitStatus.type === 'success' ? 'text-[#B5E48C]' : 'text-[#A1A1AA]'}`}>{submitStatus.message}</div> : null}
           </aside>
+        </div>
+      </Modal>
+      <Modal
+        title={detailModal ? text(detailModal.detail?.title, '상세 데이터 편집') : ''}
+        onClose={() => setDetailModal(null)}
+        width="max-w-[calc(100vw-48px)]"
+        fullscreen
+      >
+        <div className="grid h-full min-h-0 grid-cols-1 gap-4" data-data-management-detail-editor="true">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-semibold text-[#86868B]">{text(detailModal?.row?.row_label, '선택 행')}</div>
+              <h3 className="mt-1 text-[22px] font-bold text-white">{text(detailModal?.detail?.title, '상세 데이터 편집')}</h3>
+              {detailModal?.detail?.description ? <div className="mt-2 text-[12px] leading-5 text-[#A1A1AA]">{detailModal.detail.description}</div> : null}
+            </div>
+            <div className="rounded-[8px] border border-[#333333] px-3 py-2 text-[12px] font-semibold text-white">
+              변경 {formatNumber(detailChangeCount)}건
+            </div>
+          </div>
+          {detailSections.length ? (
+            <div className="custom-scrollbar min-h-0 max-h-[calc(100vh-295px)] space-y-4 overflow-auto pr-1" data-data-management-fund-overview-detail="true">
+              {detailSections.map((section, index) => {
+                const sectionRows = safeArray(section.rows);
+                const sectionColumns = safeArray(section.columns);
+                return (
+                  <section key={text(section.section_key || section.title)} className="space-y-2">
+                    <div className="flex items-center justify-between gap-3 rounded-t-[12px] border border-[#333333] bg-[#20201F] px-4 py-3">
+                      <h4 className="text-[14px] font-bold text-white">{text(section.title, '상세 정보')}</h4>
+                      <span className="text-[12px] font-semibold text-[#A1A1AA]">{formatNumber(sectionRows.length)}건</span>
+                    </div>
+                    {renderDetailEditorTable(sectionRows, sectionColumns, text(section.empty_state, '상세 행이 없습니다.'), text(section.section_key || section.key, `section-${index}`))}
+                  </section>
+                );
+              })}
+            </div>
+          ) : renderDetailEditorTable(detailRows, detailColumns, text(detailModal?.detail?.empty_state, '상세 행이 없습니다.'), 'detail')}
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+            <label className="block text-[12px] font-semibold text-[#A1A1AA]">
+              변경 사유
+              <input
+                value={detailReason}
+                onChange={(event) => setDetailReason(event.target.value)}
+                className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]"
+                placeholder="승인자가 이해할 수 있는 수정 사유"
+              />
+            </label>
+            <div className="flex items-end gap-2">
+              <button type="button" onClick={() => setDetailModal(null)} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93]">닫기</button>
+              <button type="button" onClick={submitDetailEdits} disabled={!detailChangeCount || detailSubmitStatus?.type === 'pending'} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-40">
+                상세 변경 승인 요청
+              </button>
+            </div>
+          </div>
+          {detailSubmitStatus ? (
+            <div className={`rounded-[10px] border px-3 py-2 text-[12px] leading-5 ${detailSubmitStatus.type === 'error' ? 'border-[#5A2A2A] bg-[#2A1717] text-[#FFB4A9]' : detailSubmitStatus.type === 'success' ? 'border-[#2F4C2F] bg-[#172A17] text-[#B5E48C]' : 'border-[#333333] bg-[#171717] text-[#A1A1AA]'}`}>
+              {detailSubmitStatus.message}
+            </div>
+          ) : null}
         </div>
       </Modal>
       <Modal
@@ -9032,3 +9737,4 @@ export function HomeOperatingCostSummary() {
     </section>
   );
 }
+

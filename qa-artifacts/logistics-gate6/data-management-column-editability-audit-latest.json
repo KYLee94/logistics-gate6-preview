@@ -1,0 +1,84 @@
+{
+  "ok": true,
+  "generated_at": "2026-07-01T04:56:23.226Z",
+  "mode": "data_management_column_editability_audit",
+  "checks": [
+    {
+      "name": "data_management_header_help_component_exists",
+      "pass": true
+    },
+    {
+      "name": "header_help_has_dom_marker",
+      "pass": true
+    },
+    {
+      "name": "main_table_uses_header_help",
+      "pass": true
+    },
+    {
+      "name": "fullscreen_table_uses_header_help",
+      "pass": true
+    },
+    {
+      "name": "detail_table_uses_header_help",
+      "pass": true
+    },
+    {
+      "name": "yn_columns_supported",
+      "pass": true
+    },
+    {
+      "name": "load_error_keeps_cached_data",
+      "pass": true
+    },
+    {
+      "name": "blocking_error_requires_empty_data",
+      "pass": true
+    },
+    {
+      "name": "detail_columns_filter_internal_fields",
+      "pass": true
+    },
+    {
+      "name": "special_status_selector_uses_special_view_only",
+      "pass": true
+    },
+    {
+      "name": "no_special_status_duplicate_group_name",
+      "pass": true
+    },
+    {
+      "name": "special_status_view_excludes_contract_schedule_and_money_terms",
+      "pass": true,
+      "forbidden": []
+    },
+    {
+      "name": "special_detail_only_contains_special_term_rows",
+      "pass": true
+    },
+    {
+      "name": "required_spec_rows_are_read_back",
+      "pass": true
+    },
+    {
+      "name": "insurance_right_rows_are_read_back",
+      "pass": true
+    },
+    {
+      "name": "tranche_detail_uses_sections_without_duplicate_top_rows",
+      "pass": true
+    },
+    {
+      "name": "internal_operational_fields_hidden_from_public_fields",
+      "pass": true,
+      "missing": []
+    },
+    {
+      "name": "live_qa_checks_internal_tokens",
+      "pass": true
+    }
+  ],
+  "artifacts": {
+    "latest_json": "qa-artifacts/logistics-gate6/data-management-column-editability-audit-latest.json"
+  }
+}
