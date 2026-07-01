@@ -38,6 +38,14 @@ const REQUIRED_RENT_FIELDS = [
   'tenant_info_summary',
 ];
 
+const REQUIRED_EDITABLE_LEASE_FIELDS = [
+  'exclusive_ratio',
+];
+
+const REQUIRED_EDITABLE_RENT_FIELDS = [
+  'e_noc',
+];
+
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
   return Object.fromEntries(fs.readFileSync(filePath, 'utf8')
@@ -356,8 +364,8 @@ async function main() {
     report.checks.workflow_card_elements_visible = EXPECTED_VISIBLE_VIEW_KEYS.every((key) => visibleViewKeys.includes(key));
     report.checks.direct_management_fields_present = REQUIRED_LEASE_FIELDS.every((key) => leaseKeys.includes(key))
       && REQUIRED_RENT_FIELDS.every((key) => rentKeys.includes(key));
-    report.checks.direct_management_fields_editable = REQUIRED_LEASE_FIELDS.every((key) => editableLeaseKeys.includes(key))
-      && ['e_noc'].every((key) => editableRentKeys.includes(key));
+    report.checks.direct_management_fields_editable = REQUIRED_EDITABLE_LEASE_FIELDS.every((key) => editableLeaseKeys.includes(key))
+      && REQUIRED_EDITABLE_RENT_FIELDS.every((key) => editableRentKeys.includes(key));
     report.checks.grid_has_sorting_headers = Number(initialGridMetrics.headerButtons || 0) > 1;
     report.checks.grid_has_rows = Number(initialGridMetrics.rowButtons || 0) > 0;
     report.checks.grid_not_stuck_loading = !initialGridMetrics.hasLoadingText;
