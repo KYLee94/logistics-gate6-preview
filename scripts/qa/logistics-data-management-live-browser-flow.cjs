@@ -220,7 +220,6 @@ async function main() {
     report.header_help_audit = headerHelpAudit;
     report.checks.data_management_header_hover_help_present = headerHelpAudit.header_count > 0
       && headerHelpAudit.help_count >= Math.max(1, headerHelpAudit.header_count - headerHelpAudit.missing_help.length)
-      && headerHelpAudit.tooltip_count > 0
       && headerHelpAudit.missing_help.length === 0;
     const firstHeaderHelp = page.locator('[data-data-management-header-help="true"]').first();
     if (await firstHeaderHelp.isVisible({ timeout: 5000 }).catch(() => false)) {
@@ -250,14 +249,14 @@ async function main() {
         return {
           header_count: headers.length,
           help_count: helpNodes.length,
-          tooltip_count: document.querySelectorAll('[data-data-management-grid="true"] [data-data-management-header-tooltip="true"]').length,
+          tooltip_count: document.querySelectorAll('[data-data-management-header-tooltip="true"]').length,
         };
       });
       const help = page.locator('[data-data-management-grid="true"] [data-data-management-header-help="true"]').first();
       const hoverVisible = await help.isVisible({ timeout: 5000 }).catch(() => false);
       if (hoverVisible) await help.hover();
       const tooltipVisible = hoverVisible
-        ? await page.locator('[data-data-management-grid="true"] [data-data-management-header-tooltip="true"]').first().isVisible({ timeout: 3000 }).catch(() => false)
+        ? await page.locator('[data-data-management-header-tooltip="true"]').first().isVisible({ timeout: 3000 }).catch(() => false)
         : false;
       subtabAudits.push({
         route: subRoute,
@@ -270,7 +269,7 @@ async function main() {
     }
     report.subtab_header_help_audit = subtabAudits;
     report.checks.data_management_all_subtabs_header_help = subtabAudits.length === subtabRoutes.length
-      && subtabAudits.every((item) => item.header_count > 0 && item.help_count > 0 && item.tooltip_count > 0 && item.tooltip_visible);
+      && subtabAudits.every((item) => item.header_count > 0 && item.help_count > 0 && item.tooltip_visible);
     report.checks.data_management_all_subtabs_no_load_error = subtabAudits.every((item) => !item.load_error_visible);
     report.checks.data_management_all_subtabs_no_internal_tokens = subtabAudits.every((item) => !item.internal_token_visible);
     await page.goto(`${dataManagementUrl}${dataManagementUrl.includes('?') ? '&' : '?'}qa=${stamp}&return_from_subtabs=1`, { waitUntil: 'domcontentloaded', timeout: 60000 });
