@@ -8906,7 +8906,10 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 const editTargets = rowMeta.edit_targets && typeof rowMeta.edit_targets === 'object' ? rowMeta.edit_targets : {};
                 const rowDeleteSupported = row.editable !== false && (row.is_new_detail_row || row.delete_supported === true || Object.values(editTargets).some((target) => {
                   const targetTable = text(target?.target_table);
-                  return targetTable === 'public.ll_fund_capital_tranches' || targetTable === 'public.ll_lease_attributes';
+                  const targetField = text(target?.target_field);
+                  return targetTable === 'public.ll_fund_capital_tranches'
+                    || targetTable === 'public.ll_lease_attributes'
+                    || (targetTable === 'public.ll_leases' && targetField === 'special_terms');
                 }));
                 return (
                   <tr key={`detail-row-${row.row_key}`} className={`bg-[#171717] text-[#E5E5E5] hover:bg-[#1F1F1F] ${rowDeleted ? 'opacity-50' : ''}`}>

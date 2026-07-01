@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-25T10:04:13.843Z",
+  "generated_at": "2026-07-01T09:38:05.821Z",
   "auth_source": "password_grant",
   "checks": {
     "all_required_fields_previewable": true,
@@ -10,7 +10,7 @@
   "errors": [],
   "probes": [
     {
-      "view_key": "lease_general_excel",
+      "view_key": "lease_contracts",
       "field_key": "exclusive_ratio",
       "label": "exclusive ratio",
       "ok": true,
@@ -20,7 +20,7 @@
         "group": "면적·임차구역",
         "editable": true
       },
-      "row_label": "경산 쿠팡물류센터 · 경산로지스1호 · 쿠팡(주)",
+      "row_label": "경산 쿠팡물류센터 · 이지스경산로지스제1호일반사모부동산투자회사(운용) · 쿠팡(주)",
       "before_value": 97.764,
       "requested_value": "97.765",
       "can_submit": true,
@@ -30,45 +30,19 @@
       "validation_warnings": []
     },
     {
-      "view_key": "lease_general_excel",
-      "field_key": "current_contract_period",
-      "label": "current contract period",
+      "view_key": "lease_contracts",
+      "field_key": "current_end_date",
+      "label": "current contract end date",
       "ok": true,
       "field": {
-        "field_key": "current_contract_period",
-        "label": "현재 계약기간",
-        "group": "계약 일정",
+        "field_key": "current_end_date",
+        "label": "현재 계약만기일",
+        "group": "계약 일정 · 현재",
         "editable": true
       },
-      "row_label": "경산 쿠팡물류센터 · 경산로지스1호 · 쿠팡(주)",
-      "before_value": 5.8,
-      "requested_value": "5.9",
-      "can_submit": true,
-      "auto_write_enabled": true,
-      "has_target_readback": true,
-      "validation_errors": [],
-      "validation_warnings": [
-        {
-          "level": "warning",
-          "code": "current_contract_period_consistency",
-          "message": "검증 필요: 현재 계약기간 입력값이 현재 계약개시일~현재 계약만기일 기준(5.7년)과 다릅니다."
-        }
-      ]
-    },
-    {
-      "view_key": "lease_rent_history_excel",
-      "field_key": "rent_per_py",
-      "label": "rent per py",
-      "ok": true,
-      "field": {
-        "field_key": "rent_per_py",
-        "label": "평당 월임대료",
-        "group": "경제조건",
-        "editable": true
-      },
-      "row_label": "아레나스안성 · 아레나스1-2호(모) · tenant_name_3997f492184c",
-      "before_value": null,
-      "requested_value": "1",
+      "row_label": "경산 쿠팡물류센터 · 이지스경산로지스제1호일반사모부동산투자회사(운용) · 쿠팡(주)",
+      "before_value": "2030-05-01",
+      "requested_value": "2030-05-02",
       "can_submit": true,
       "auto_write_enabled": true,
       "has_target_readback": true,
@@ -76,19 +50,39 @@
       "validation_warnings": []
     },
     {
-      "view_key": "lease_rent_history_excel",
-      "field_key": "mf_per_py",
-      "label": "management fee per py",
+      "view_key": "lease_contracts",
+      "field_key": "current_monthly_rent_total",
+      "label": "monthly rent total",
       "ok": true,
       "field": {
-        "field_key": "mf_per_py",
-        "label": "평당 월관리비",
-        "group": "경제조건",
+        "field_key": "current_monthly_rent_total",
+        "label": "월 임대료",
+        "group": "임대료·관리비·보증금",
         "editable": true
       },
-      "row_label": "아레나스안성 · 아레나스1-2호(모) · tenant_name_3997f492184c",
-      "before_value": null,
-      "requested_value": "1",
+      "row_label": "경산 쿠팡물류센터 · 이지스경산로지스제1호일반사모부동산투자회사(운용) · 쿠팡(주)",
+      "before_value": 99318872,
+      "requested_value": "99318873",
+      "can_submit": true,
+      "auto_write_enabled": true,
+      "has_target_readback": true,
+      "validation_errors": [],
+      "validation_warnings": []
+    },
+    {
+      "view_key": "lease_contracts",
+      "field_key": "current_monthly_mf_total",
+      "label": "monthly management fee total",
+      "ok": true,
+      "field": {
+        "field_key": "current_monthly_mf_total",
+        "label": "월 관리비",
+        "group": "임대료·관리비·보증금",
+        "editable": true
+      },
+      "row_label": "경산 쿠팡물류센터 · 이지스경산로지스제1호일반사모부동산투자회사(운용) · 쿠팡(주)",
+      "before_value": 8513046,
+      "requested_value": "8513047",
       "can_submit": true,
       "auto_write_enabled": true,
       "has_target_readback": true,

@@ -321,6 +321,7 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'coldStorageAreaSqm', 'cold_storage_area_sqm', 'dryStorageAreaSqm', 'dry_storage_area_sqm',
     'landAreaSqm', 'land_area_sqm', 'floorCount', 'floor_count', 'approvalDate', 'approval_date', 'firstConfiguredAt', 'first_configured_at',
     'currentManagerName', 'current_manager_name', 'currentManagerTeam', 'current_manager_team', 'currentManagerEmail', 'current_manager_email',
+    'assetStatus', 'asset_status', 'dispositionStatus', 'disposition_status', 'reviewStatus', 'review_status', 'status',
   ]),
   'public.ll_leases': new Set([
     'tenantMasterName', 'tenant_master_name', 'assetName', 'asset_name', 'spaceLabel', 'space_label',
@@ -686,9 +687,16 @@ function normalizeText(value: unknown) {
   return String(value);
 }
 
+function normalizeComparableEditValue(value: unknown) {
+  return normalizeText(value)
+    .trim()
+    .replace(/^\s*(?:없음|해당\s*없음|N\/?A|NA|null|[-–—])\s*(?:[|｜]\s*)?/iu, '')
+    .trim();
+}
+
 function valuesEqual(a: unknown, b: unknown) {
-  const left = normalizeText(a).trim();
-  const right = normalizeText(b).trim();
+  const left = normalizeComparableEditValue(a);
+  const right = normalizeComparableEditValue(b);
   if (left === right) return true;
   const leftNumber = Number(left.replace(/,/gu, ''));
   const rightNumber = Number(right.replace(/,/gu, ''));
@@ -1674,6 +1682,7 @@ function dashboardAssetDispositionStatus(row: Record<string, unknown>) {
   const assetName = safeText(row.asset_name);
   if (/매각|sold|disposed|archived/i.test(status)) return 'sold';
   if (/안성\s*성은|성은\s*물류센터/iu.test(assetName)) return 'sold';
+  if (/리뷰|검토|review/i.test(status)) return 'review';
   return status ? 'active' : 'active';
 }
 
@@ -5252,17 +5261,24 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
     ctx.serviceClient.from('ll_funds').select('*').limit(500),
     ctx.serviceClient.from('ll_fund_asset_links').select('*').limit(1000),
     ctx.serviceClient.from('ll_fund_capital_tranches').select('*').eq('is_active', true).limit(2000),
-    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,current_manager_name,current_manager_email,gross_floor_area_sqm,gross_floor_area_py').limit(1000),
+    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,current_manager_name,current_manager_email,gross_floor_area_sqm,gross_floor_area_py,asset_status,disposition_status,review_status,status').limit(1000),
   ]);
   const hardError = [fundsResult, linksResult, tranchesResult, assetsResult].find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return fail(500, 'Failed to read investment index', ctx.origin, { error: hardError.error.message });
   const funds = (fundsResult.data || []) as Record<string, unknown>[];
-  const links = ((linksResult.data || []) as Record<string, unknown>[]).filter((row) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
-  const readableAssetIds = new Set(links.map((row) => safeText(row.asset_id)).filter(Boolean));
-  const rawTranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => links.some((link) => safeText(link.fund_id) === safeText(row.fund_id)));
   const assets = ((assetsResult.data || []) as Record<string, unknown>[])
     .filter(isDashboardVisibleAsset)
-    .filter((row) => readableAssetIds.has(safeText(row.asset_id)) || canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
+    .filter((row) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
+  const visibleAssetIds = new Set(assets.map((row) => safeText(row.asset_id)).filter(Boolean));
+  const visibleAssetNames = new Set(assets.map((row) => safeText(row.asset_name)).filter(Boolean));
+  const links = ((linksResult.data || []) as Record<string, unknown>[])
+    .filter((row) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name))
+    .filter((row) => {
+      const assetId = safeText(row.asset_id);
+      const assetName = safeText(row.asset_name);
+      return (assetId && visibleAssetIds.has(assetId)) || (assetName && visibleAssetNames.has(assetName));
+    });
+  const rawTranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => links.some((link) => safeText(link.fund_id) === safeText(row.fund_id)));
   const fundById = new Map(funds.map((fund) => [safeText(fund.fund_id), fund]));
   const assetById = new Map(assets.map((asset) => [safeText(asset.asset_id), asset]));
   const fundDisplayName = (fund: Record<string, unknown>) => safeText(firstDefined(fund.fund_name, fund.short_name, fund.fund_code, fund.fund_id));
@@ -6175,6 +6191,7 @@ const DATA_MANAGEMENT_VISIBLE_VIEW_KEYS = new Set([
   'asset_integrated',
   'investment_integrated',
   'lease_general_excel',
+  'lease_contracts',
   'lease_asset_manager_links',
   'data_quality_findings',
 ]);
@@ -8277,6 +8294,14 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
 
 function dataManagementParseViewRequestedValue(value: unknown, field: Record<string, unknown>) {
   const type = safeText(field.type);
+  const fieldKey = safeText(firstDefined(field.field_key, field.field, field.target_field));
+  const labelKey = dataManagementLabelKey(firstDefined(field.label, field.group));
+  if (fieldKey === 'disposition_status' || (fieldKey === 'review_status' && /자산상태|매각|아카이브/iu.test(labelKey))) {
+    const status = safeText(value).trim();
+    if (/매각|sold|disposed|archived/i.test(status)) return '매각';
+    if (/리뷰|검토|review/i.test(status)) return '리뷰 필요';
+    return '정상';
+  }
   if (value === null || value === undefined || value === '') return null;
   if (type === 'yn') return ['true', '1', 'y', 'yes', '예', 'Y'].includes(safeText(value).trim().toLowerCase());
   if (type === 'krw' || type === 'krw_per_py') return parseKrwAmount(value);
@@ -8550,6 +8575,36 @@ function dataManagementNormalizeSpecialTerms(value: unknown) {
     .trim();
 }
 
+function dataManagementSpecialTermItems(value: unknown) {
+  const raw = safeText(value).trim();
+  const normalized = dataManagementNormalizeSpecialTerms(raw);
+  if (!normalized) return [] as Array<{ label: string; value: string }>;
+  const markerPattern = /(?:^|\s)(\d{1,2})\.\s*/gu;
+  const matches = [...normalized.matchAll(markerPattern)];
+  if (!matches.length || matches[0].index !== 0) {
+    return [{ label: '1.', value: normalized }];
+  }
+  const items: Array<{ label: string; value: string }> = [];
+  matches.forEach((match, index) => {
+    const start = (match.index || 0) + match[0].length;
+    const end = index + 1 < matches.length ? (matches[index + 1].index || normalized.length) : normalized.length;
+    const valueText = normalized.slice(start, end).trim().replace(/\s+/gu, ' ');
+    if (valueText) items.push({ label: `${match[1]}.`, value: valueText });
+  });
+  return items.length ? items : [{ label: '1.', value: normalized }];
+}
+
+function dataManagementJoinSpecialTermItems(items: Array<{ label?: unknown; value?: unknown }>) {
+  return items
+    .map((item, index) => {
+      const value = safeText(item.value).trim().replace(/\s+/gu, ' ');
+      if (!value) return '';
+      return `${index + 1}. ${value}`;
+    })
+    .filter(Boolean)
+    .join(' ');
+}
+
 function dataManagementDirectDetailSummary(rows: Record<string, unknown>[]) {
   return rows
     .map((row) => {
@@ -8567,7 +8622,8 @@ function dataManagementAssetDispositionStatus(asset: Record<string, unknown>) {
   const assetName = safeText(asset.asset_name);
   if (/매각|sold|disposed|archived/i.test(status)) return '매각';
   if (/안성\s*성은|성은\s*물류센터/iu.test(assetName)) return '매각';
-  return status || '운영';
+  if (/리뷰|검토|review/i.test(status)) return '리뷰 필요';
+  return '정상';
 }
 
 function dataManagementIsSoldAsset(asset: Record<string, unknown>) {
@@ -9166,6 +9222,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     targetField: string,
     revisionSource: Record<string, unknown>,
     editable = true,
+    options: Record<string, unknown> = {},
   ) => {
     const detailSource = { condition_label: conditionLabel, value };
     const displayValues = Object.fromEntries(conditionDetailColumns.map((field) => [
@@ -9183,8 +9240,10 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       edit_values: editValues,
       editable: Boolean(targetRecordId && targetField && editable),
       revision_hash: await dataManagementRevisionHash(revisionSource),
+      delete_supported: options.delete_supported === true,
       meta: {
-        detail_kind: 'lease_direct_condition',
+        detail_kind: safeText(options.detail_kind) || 'lease_direct_condition',
+        ...((options.meta && typeof options.meta === 'object') ? options.meta as Record<string, unknown> : {}),
         edit_targets: editable ? {
           value: { target_table: targetTable, primary_key_field: dataManagementPrimaryKeyForTable(clientTableName(targetTable)), target_record_id: targetRecordId, target_field: targetField },
         } : {},
@@ -9278,9 +9337,26 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     const specialSummary = summarizeAttributes(specialAttributeSourceRows);
     const specialAttributeRows = await Promise.all(specialAttributeSourceRows.map((item, index) => buildAttributeDetailRow(item, index, 'special_term')));
     const normalizedSpecialTerms = dataManagementNormalizeSpecialTerms(lease.special_terms);
-    const specialDirectRows = normalizedSpecialTerms
-      ? [await buildDirectConditionRow(`${leaseId}:special_terms`, '특수 계약 조건', normalizedSpecialTerms, 'public.ll_leases', leaseId, 'special_terms', lease)]
-      : [];
+    const specialTermItems = dataManagementSpecialTermItems(lease.special_terms);
+    const specialDirectRows = await Promise.all(specialTermItems.map((item, index) => buildDirectConditionRow(
+      `${leaseId}:special_terms:${index}`,
+      safeText(item.label) || `${index + 1}.`,
+      item.value,
+      'public.ll_leases',
+      leaseId,
+      'special_terms',
+      lease,
+      true,
+      {
+        detail_kind: 'lease_special_term_item',
+        delete_supported: true,
+        meta: {
+          special_terms_index: index,
+          special_terms_items: specialTermItems,
+          special_terms_raw: lease.special_terms,
+        },
+      },
+    )));
     const insuranceRows = await Promise.all([
       ['tenant_cost_burden', '임차인 부담 비용', lease.tenant_cost_burden],
       ['early_termination_right', '중도해지권', lease.early_termination_right],
@@ -10136,6 +10212,10 @@ async function dataManagementResolveIntegratedViewEdit(ctx: Context, payload: Re
   const tableName = clientTableName(targetTable);
   const primaryKeyField = dataManagementPrimaryKeyForTable(tableName);
   const currentRawValue = (row.edit_values as Record<string, unknown> | undefined)?.[fieldKey];
+  const relatedAssetIdForEdit = safeText(rowMeta.asset_id)
+    || (Array.isArray(rowMeta.asset_ids) ? safeText(rowMeta.asset_ids[0]) : '');
+  const relatedAssetNameForEdit = safeText((row.display_values as Record<string, unknown> | undefined)?.asset_name)
+    || (Array.isArray(rowMeta.asset_names) ? safeText(rowMeta.asset_names[0]) : '');
   return {
     table_payload: {
       edit_mode: 'table_cell',
@@ -10149,8 +10229,8 @@ async function dataManagementResolveIntegratedViewEdit(ctx: Context, payload: Re
       revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
       view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
       target_name: row.row_label,
-      asset_id: safeText(rowMeta.asset_id),
-      asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
+      asset_id: relatedAssetIdForEdit,
+      asset_name: relatedAssetNameForEdit,
       reason: payload.reason,
       target_type: 'data_management_view_field',
       reason_code: viewKey === 'asset_integrated' ? 'data_management_asset_update' : 'data_management_investment_update',
@@ -10219,6 +10299,57 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
   const targetRowId = safeText(target.target_record_id);
   const primaryKeyField = safeText(target.primary_key_field || dataManagementPrimaryKeyForTable(clientTableName(targetTable)));
   if (!targetTable || !targetField || !targetRowId) throw new Error('상세 필드의 Supabase 수정 대상을 확인할 수 없습니다.');
+  if (
+    safeText(detailMeta.detail_kind) === 'lease_special_term_item'
+    && targetTable === 'public.ll_leases'
+    && targetField === 'special_terms'
+    && detailFieldKey === 'value'
+  ) {
+    const rawItems = Array.isArray(detailMeta.special_terms_items)
+      ? detailMeta.special_terms_items as Record<string, unknown>[]
+      : dataManagementSpecialTermItems(detailMeta.special_terms_raw);
+    const index = Number(detailMeta.special_terms_index);
+    const currentItems = rawItems.map((item) => ({
+      label: safeText(item.label),
+      value: safeText(item.value),
+    }));
+    if (!Number.isInteger(index) || index < 0 || index >= currentItems.length) {
+      throw new Error('특수 계약 조건 번호를 다시 확인해 주세요.');
+    }
+    currentItems[index] = {
+      ...currentItems[index],
+      value: safeText(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue)),
+    };
+    const tableName = clientTableName(targetTable);
+    return {
+      table_payload: {
+        edit_mode: 'table_cell',
+        table_key: dataManagementTableKey(tableName),
+        internal_table: targetTable,
+        primary_key_field: primaryKeyField,
+        target_record_id: targetRowId,
+        field_name: targetField,
+        before_value: firstDefined(detailMeta.special_terms_raw, dataManagementJoinSpecialTermItems(rawItems)),
+        requested_value: dataManagementJoinSpecialTermItems(currentItems),
+        revision_hash: safeText(payload.revision_hash || payload.revisionHash || detailRow.revision_hash),
+        view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
+        target_name: [row.row_label, `${index + 1}. 특수 계약 조건`].map((item) => safeText(item)).filter(Boolean).join(' · '),
+        asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
+        reason: payload.reason,
+        target_type: 'data_management_detail_field',
+        reason_code: 'data_management_special_terms_update',
+        view_key: viewKey,
+        row_key: rowKey,
+        field_key: fieldKey,
+        detail_row_key: detailRowKey,
+        detail_field_key: detailFieldKey,
+      },
+      row,
+      detail,
+      detailRow,
+      detailColumn,
+    };
+  }
   const detailEditValues = detailRow.edit_values && typeof detailRow.edit_values === 'object' ? detailRow.edit_values as Record<string, unknown> : {};
   const detailDisplayValues = detailRow.display_values && typeof detailRow.display_values === 'object' ? detailRow.display_values as Record<string, unknown> : {};
   const currentRawValue = detailEditValues[detailFieldKey] ?? detailDisplayValues[detailFieldKey] ?? null;
@@ -10297,6 +10428,54 @@ async function callDataManagementSubmitDetailRowChange(ctx: Context, payload: Re
   );
   const detailRow = isDelete ? detailRows.find((item) => safeText(item.row_key) === detailRowKey) : null;
   if (isDelete && !detailRow) return fail(404, 'Detail row to delete was not found', ctx.origin);
+  const detailRowMeta = detailRow?.meta && typeof detailRow.meta === 'object' ? detailRow.meta as Record<string, unknown> : {};
+  const isSpecialTermsChange = fieldKey === 'lease_special_summary'
+    && (!isDelete || safeText(detailRowMeta.detail_kind) === 'lease_special_term_item');
+  if (isSpecialTermsChange) {
+    const rowMeta = row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {};
+    const rowEditValues = row.edit_values && typeof row.edit_values === 'object' ? row.edit_values as Record<string, unknown> : {};
+    const leaseId = safeText(rowMeta.lease_id);
+    if (!leaseId) return fail(400, '특수 계약 조건의 계약 row를 확인하지 못했습니다.', ctx.origin);
+    const beforeRaw = firstDefined(detailRowMeta.special_terms_raw, rowEditValues.special_terms, '');
+    const currentItems = (Array.isArray(detailRowMeta.special_terms_items)
+      ? detailRowMeta.special_terms_items as Record<string, unknown>[]
+      : dataManagementSpecialTermItems(beforeRaw)
+    ).map((item) => ({ label: safeText(item.label), value: safeText(item.value) }));
+    let nextItems = [...currentItems];
+    if (isDelete) {
+      const index = Number(detailRowMeta.special_terms_index);
+      if (!Number.isInteger(index) || index < 0 || index >= nextItems.length) {
+        return fail(400, '삭제할 특수 계약 조건 번호를 확인하지 못했습니다.', ctx.origin);
+      }
+      nextItems = nextItems.filter((_item, itemIndex) => itemIndex !== index);
+    } else {
+      const value = safeText(firstDefined(sanitizedValues.value, submittedValues.value)).trim();
+      if (!value) return fail(400, '추가할 특수 계약 조건 내용을 입력해 주세요.', ctx.origin);
+      nextItems.push({ label: `${nextItems.length + 1}.`, value });
+    }
+    return callDataManagementSubmitTableCell(ctx, {
+      edit_mode: 'table_cell',
+      internal_table: 'public.ll_leases',
+      primary_key_field: 'lease_id',
+      target_record_id: leaseId,
+      field_name: 'special_terms',
+      before_value: beforeRaw,
+      requested_value: dataManagementJoinSpecialTermItems(nextItems),
+      revision_hash: isDelete ? safeText(detailRow?.revision_hash) : '',
+      view_revision_hash: safeText(row.revision_hash),
+      target_name: [row.row_label, '특수 계약 조건'].map((item) => safeText(item)).filter(Boolean).join(' · '),
+      asset_id: safeText(rowMeta.asset_id),
+      asset_name: (row.display_values as Record<string, unknown> | undefined)?.asset_name,
+      reason,
+      target_type: isDelete ? 'data_management_special_terms_row_delete' : 'data_management_special_terms_row_add',
+      reason_code: isDelete ? 'data_management_special_terms_row_delete' : 'data_management_special_terms_row_add',
+      view_key: viewKey,
+      row_key: rowKey,
+      field_key: fieldKey,
+      detail_section_key: detailSectionKey,
+      detail_row_key: detailRowKey || '',
+    });
+  }
   const targetTables = uniqueStrings([
     ...editableColumns.map((column) => {
       const metaTargets = (detailRow?.meta as Record<string, unknown> | undefined)?.edit_targets as Record<string, unknown> | undefined;

@@ -1,10 +1,10 @@
 {
   "ok": true,
-  "generated_at": "2026-07-01T07:53:27.893Z",
+  "generated_at": "2026-07-01T09:38:16.379Z",
   "mode": "data_management_release_gate",
   "auth_source": "password_grant",
   "options": {
-    "allow_submit": false,
+    "allow_submit": true,
     "edge_only": false,
     "require_written_history": false,
     "expected_asset_count": 19,
@@ -72,7 +72,7 @@
       },
       {
         "column_names": "{id,event_type,action,status_code,requested_by,edit_request_id,target_table,target_row_id,target_cell_id,field_name,before_value,after_value,readback_value,actor_id,approver_id,source_row_id,source_cell_id,approval_status,legacy_table,legacy_id,finding_id,audit_run_id,finding_type,severity,entity_type,entity_id,source_sheet_name,source_row_number,source_column_number,source_header,source_value_text,supabase_value_text,event_status,event_payload,request_payload,metadata,created_at,updated_at}",
-        "exact_rows": 42683,
+        "exact_rows": 42821,
         "primary_key": "{id}",
         "rls_enabled": true,
         "table_name": "ll_audit_events"
@@ -93,7 +93,7 @@
       },
       {
         "column_names": "{id,source_table,finding_id,target_type,target_name,target_row_id,target_cell_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,requested_by,approved_by,approved_at,approval_note,rejected_by,rejected_at,rejection_note,created_at,updated_at,write_started_at,written_at,write_status,write_error,write_result}",
-        "exact_rows": 216,
+        "exact_rows": 217,
         "primary_key": "{id}",
         "rls_enabled": true,
         "table_name": "ll_edit_requests"
@@ -316,7 +316,7 @@
       "counted_table_count": 67,
       "missing_relation_count": 0,
       "unconnected_table_count": 0,
-      "total_row_count": 268418
+      "total_row_count": 268557
     },
     "management_scope": {
       "owner": "IGIS Asset Management",
@@ -445,7 +445,7 @@
         "table_name": "ll_audit_events",
         "ui_domain_key": "approval_audit",
         "ui_domain_label": "승인/감사",
-        "row_count": 42682,
+        "row_count": 42820,
         "exists": true,
         "write_mode": "approval_auto_write",
         "metadata_domain_group": "Permission / Audit",
@@ -520,7 +520,7 @@
         "table_name": "ll_edit_requests",
         "ui_domain_key": "approval_audit",
         "ui_domain_label": "승인/감사",
-        "row_count": 216,
+        "row_count": 217,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "metadata_domain_group": "Permission / Audit",
@@ -1752,7 +1752,7 @@
     "source_rows": 1055,
     "columns": 800,
     "edit_requests": 120,
-    "written_history_count": 111
+    "written_history_count": 110
   },
   "preview_probe": {
     "ok": true,
@@ -1771,7 +1771,7 @@
       "view_key": "lease_general_excel",
       "row_key": "dmv_lease_general_excel_c4d3ff37625f36bffe28",
       "field_key": "tenant_master_name",
-      "requested_value": "쿠팡(주) QA-20260701-075306",
+      "requested_value": "쿠팡(주) QA-20260701-093753",
       "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
       "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
     },
@@ -1783,7 +1783,7 @@
       "type": "text"
     },
     "before_value": "쿠팡(주)",
-    "requested_value": "쿠팡(주) QA-20260701-075306",
+    "requested_value": "쿠팡(주) QA-20260701-093753",
     "can_submit": true,
     "auto_write_enabled": true,
     "source_review_required": false,
@@ -1806,7 +1806,7 @@
       "workspaces": [
         "igis"
       ],
-      "view_count": 5,
+      "view_count": 6,
       "bundle_count": 19,
       "management_scope": {
         "owner": "IGIS Asset Management",
@@ -1822,7 +1822,7 @@
     },
     "rows_contract": {
       "view_key": "lease_general_excel",
-      "field_count": 21,
+      "field_count": 25,
       "row_count": 71,
       "pagination": {
         "page": 1,
@@ -1840,7 +1840,7 @@
           "view_key": "lease_general_excel",
           "row_key": "dmv_lease_general_excel_c4d3ff37625f36bffe28",
           "field_key": "tenant_master_name",
-          "requested_value": "쿠팡(주) QA-20260701-075306",
+          "requested_value": "쿠팡(주) QA-20260701-093753",
           "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
           "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
         },
@@ -1852,7 +1852,7 @@
           "type": "text"
         },
         "before_value": "쿠팡(주)",
-        "requested_value": "쿠팡(주) QA-20260701-075306",
+        "requested_value": "쿠팡(주) QA-20260701-093753",
         "can_submit": true,
         "auto_write_enabled": true,
         "source_review_required": false,
@@ -1875,7 +1875,7 @@
           "workspaces": [
             "igis"
           ],
-          "view_count": 5,
+          "view_count": 6,
           "bundle_count": 19,
           "management_scope": {
             "owner": "IGIS Asset Management",
@@ -1891,7 +1891,7 @@
         },
         "rows_contract": {
           "view_key": "lease_general_excel",
-          "field_count": 21,
+          "field_count": 25,
           "row_count": 71,
           "pagination": {
             "page": 1,
@@ -1906,8 +1906,32 @@
   },
   "view_field_submit_probe": {
     "ok": true,
-    "skipped": true,
-    "reason": "submit is guarded unless --allow-submit is set"
+    "id": "ebc15472-0fb8-45bb-b05b-d18071588b85",
+    "submit": {
+      "id": "ebc15472-0fb8-45bb-b05b-d18071588b85",
+      "status": "submitted",
+      "write_status": "approval_required",
+      "created_at": "2026-07-01T09:38:15.660776+00:00"
+    },
+    "readback": {
+      "id": "ebc15472-0fb8-45bb-b05b-d18071588b85",
+      "status": "submitted",
+      "requested_by": "9ca68a02-f7cb-4c9f-bc63-982abc9251a4",
+      "readbacks": [
+        {
+          "target_table": "public.ll_tenants",
+          "target_row_id": "tenant_brn_1208800767",
+          "target_cell_id": "undefined",
+          "field_name": "tenant_master_name",
+          "before_value": "쿠팡(주)",
+          "requested_value": "쿠팡(주) QA-20260701-093753",
+          "current_value": "쿠팡(주)",
+          "stale": false,
+          "source_row_id": "tenant_brn_1208800767",
+          "source_cell_id": "undefined"
+        }
+      ]
+    }
   },
   "release_note": "Approval is not automated because edits/approve has no rollback_after_write guard. The submit probe creates an approval request only, then reads back that pending request."
 }

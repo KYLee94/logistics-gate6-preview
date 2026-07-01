@@ -12,10 +12,10 @@ const {
 } = require('./logistics-data-management-qa-utils.cjs');
 
 const REQUIRED_PROBES = [
-  { view_key: 'lease_general_excel', field_key: 'exclusive_ratio', label: 'exclusive ratio' },
-  { view_key: 'lease_general_excel', field_key: 'current_contract_period', label: 'current contract period' },
-  { view_key: 'lease_rent_history_excel', field_key: 'rent_per_py', label: 'rent per py' },
-  { view_key: 'lease_rent_history_excel', field_key: 'mf_per_py', label: 'management fee per py' },
+  { view_key: 'lease_contracts', field_key: 'exclusive_ratio', label: 'exclusive ratio' },
+  { view_key: 'lease_contracts', field_key: 'current_end_date', label: 'current contract end date' },
+  { view_key: 'lease_contracts', field_key: 'current_monthly_rent_total', label: 'monthly rent total' },
+  { view_key: 'lease_contracts', field_key: 'current_monthly_mf_total', label: 'monthly management fee total' },
 ];
 
 function numericValue(value, fallback) {
@@ -25,7 +25,14 @@ function numericValue(value, fallback) {
 
 function nextRequestedValue(fieldKey, beforeValue) {
   if (fieldKey === 'exclusive_ratio') return String(Number((numericValue(beforeValue, 0.8) + 0.001).toFixed(4)));
-  if (fieldKey === 'current_contract_period') return String(Number((numericValue(beforeValue, 1) + 0.1).toFixed(1)));
+  if (/date$/u.test(fieldKey)) {
+    const base = new Date(text(beforeValue) || '2030-12-31');
+    if (Number.isFinite(base.getTime())) {
+      base.setUTCDate(base.getUTCDate() + 1);
+      return base.toISOString().slice(0, 10);
+    }
+    return '2030-12-31';
+  }
   return String(Math.round(numericValue(beforeValue, 1000) + 1));
 }
 
