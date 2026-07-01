@@ -450,7 +450,6 @@ const DATA_MANAGEMENT_FIELD_HELP = {
   spec_summary: '주요 스펙은 여러 스펙 항목의 요약입니다. 상세 항목은 스펙 상세 또는 자산 스펙 입력 화면에서 관리합니다.',
   operating_cost_period: '운영비용 기준기간입니다. 운영비용 행을 추가하거나 해당 기간의 비용 행에서 관리합니다.',
   operating_cost_total_krw: '운영비용 합계는 PM, FM, 보험료, Utility, 기타 비용을 합산한 값입니다.',
-  asset_manager_name: '담당자는 담당자 데이터에서 관리합니다. 투자 데이터에서는 조회용으로 표시합니다.',
   review_status: '검토 상태는 승인 요청, 품질 점검, readback 결과로 관리되는 상태값입니다.',
   review_note: '검토 메모는 승인/반려 또는 품질 점검 과정에서 남기는 기록입니다.',
   tenant_master_name: '임차인명입니다. 임대차계약 데이터에서는 직접 수정 요청할 수 있고, 이력 화면에서는 조회용으로 표시됩니다.',
@@ -462,12 +461,23 @@ const DATA_MANAGEMENT_FIELD_HELP = {
   latest_contract_end_date: '최근 계약만기일은 연결 계약의 만기일 중 최신값입니다.',
   equity_parties: '수익자 정보는 여러 행으로 관리됩니다. 셀을 누르면 수익자별 투입금액을 상세 표에서 수정 요청할 수 있습니다.',
   loan_lenders: '대주 정보는 여러 행으로 관리됩니다. 셀을 누르면 대주별 tranche, 인출금액, 금리, 만기를 상세 표에서 수정 요청할 수 있습니다.',
-  tranche_summary: 'Tranche는 한 자산·펀드 안의 투자 또는 대출 구분입니다. 셀을 누르면 tranche별 행을 추가, 수정, 삭제 요청할 수 있습니다.',
-  weighted_loan_rate: '가중평균 금리는 대출금액으로 가중평균한 금리입니다. 개별 대출 행의 금리 수정 후 자동 계산됩니다.',
-  nearest_maturity_date: '가장 가까운 대출 만기입니다. 개별 대출 행의 만기 수정 후 자동 계산됩니다.',
-  maturity_summary: '만기 요약은 여러 대출 만기 행의 요약입니다. 셀을 눌러 상세 행을 관리합니다.',
   current_rent_per_py: '평당 월임대료입니다. 월임대료 총액과 임대면적 기준으로 검증합니다.',
   current_mf_per_py: '평당 월관리비입니다. 월관리비 총액과 임대면적 기준으로 검증합니다.',
+  economic_terms_summary: '보증금, 월임대료, 월관리비, 월 임관리비, 평당 월임대료, 평당 월관리비, RF, FO, TI, E. NOC, 임대료·관리비 인상 조건을 한 상세 표에서 관리합니다. 단위는 금액 원, RF/FO 개월, 비율 %, E. NOC 원/평입니다.',
+  first_contract_date: '최초 계약을 체결한 날짜입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
+  first_start_date: '최초 계약이 시작된 날짜입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
+  first_end_date: '최초 계약의 만기일입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
+  first_operation_date: '최초 운영이 시작된 날짜입니다. 계약 개시일과 다를 수 있습니다.',
+  current_start_date: '현재 유효한 계약의 개시일입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
+  current_end_date: '현재 유효한 계약의 만기일입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
+  current_contract_period: '현재 계약개시일과 현재 계약만기일로 자동 계산한 기간입니다. 단위는 년입니다.',
+  extension_count: '계약이 연장된 횟수입니다. 단위는 회입니다.',
+  required_specs_summary: '하중, 도크, 층고, 전력, 램프, 통로, 조명, 외벽자재 등 임차인이 요구한 스펙을 상세 표에서 항목별로 관리합니다.',
+  insurance_rights_summary: '임차인 부담 비용, 중도해지권, 갱신 옵션, 보험 한도, 구상권·대위권 포기 여부, 보험 관련 특수 조건을 상세 표에서 관리합니다.',
+  lease_special_summary: '다른 전용 컬럼에 이미 있는 일정, 금액, 보험 조건을 제외한 기타 특수 계약 조건만 관리합니다.',
+  sublease_yn: '전차 여부입니다. 해당하면 Y, 해당하지 않거나 원천값이 없으면 N으로 표시합니다.',
+  building_register_summary: '건축물대장 API와 자산 기본정보에 저장된 사용승인일, 연면적, 대지면적, 층수, 좌표 값을 상세 표에서 관리합니다.',
+  disposition_status: '자산의 운영 상태입니다. 매각으로 표시된 자산은 아카이빙 대상이며 대시보드 표시 대상에서 제외합니다.',
 };
 
 const DATA_MANAGEMENT_GROUP_HELP = {
@@ -477,11 +487,15 @@ const DATA_MANAGEMENT_GROUP_HELP = {
   '면적': '연면적, 대지면적, 전용면적, 전용률 같은 면적 관련 값입니다.',
   '면적·임차구역': '층, 세부구역, 임대면적, 전용면적, 전용률을 관리합니다.',
   '계약 일정': '계약일, 개시일, 만기일, 계약기간, 연장횟수처럼 일정 관련 값입니다.',
+  '계약 일정 · 최초': '최초 계약일, 최초 계약개시일, 최초 계약만기일, 최초 운영개시일을 묶은 값입니다.',
+  '계약 일정 · 현재': '최근 계약일, 현재 계약개시일, 현재 계약만기일, 현재 계약기간, 연장횟수를 묶은 값입니다.',
+  '임대료·관리비·보증금': '보증금, 월임대료, 월관리비, 평당 단가, RF, FO, TI, E. NOC, 인상 조건을 한 상세 표에서 관리합니다.',
   '임대료·관리비': '월 임대료, 월 관리비, 평당 단가, E. NOC를 관리합니다.',
   '보증금·렌트프리·인상': '보증금, RF, FO, TI, 인상률, 인상주기, 차기 인상일을 관리합니다.',
   '보험·권리': '임차인 부담 비용, 중도해지권, 갱신 옵션 등 보험과 권리 조건입니다.',
   '요구 스펙': '임차인이 요구한 하중, 도크, 층고, 전력, 램프, 조명 등 스펙입니다.',
   '특약': '계약 일정, 보증금, RF/FO/TI, 보험·권리와 분리되는 기타 특수 계약 조건입니다.',
+  '기타 특약': '일정, 금액, 보험·권리처럼 별도 컬럼으로 관리되는 조건을 제외한 기타 특수 계약 조건입니다.',
   '검토': '검토 상태와 검토 메모입니다. 원천값 자체가 아니라 확인·승인 상태를 나타냅니다.',
   '임차인 정보': '임차인명, 사업자번호, 회사명 등 임차인 기준 lookup 정보입니다.',
   '투자 구조': 'Equity, Loan, 합계처럼 투자 구조를 요약한 값입니다. 상세는 수익자·대주 상세 편집에서 관리합니다.',
@@ -490,6 +504,8 @@ const DATA_MANAGEMENT_GROUP_HELP = {
   '금리·만기': '대출 금리, All-in, 만기일 같은 금융 조건입니다. 상세 편집에서 대주별로 관리합니다.',
   담당자: '이지스 담당자 이름, 팀, 이메일 등 담당자 연결 정보입니다.',
   운영비용: 'PM, FM, 보험료, Utility 등 기간별 운영비용입니다.',
+  건축물대장: '건축물대장 API와 저장된 자산 물리 정보를 한 상세 표에서 확인합니다.',
+  '매각·아카이브': '매각 또는 아카이빙 상태를 관리합니다. 매각 자산은 대시보드 노출 대상에서 제외합니다.',
 };
 
 function dataManagementConsistencyGuide(fieldKey, label) {
@@ -498,6 +514,7 @@ function dataManagementConsistencyGuide(fieldKey, label) {
   if (/current_contract_period|contract_years|현재\s*계약기간/iu.test(source)) return '현재 계약개시일과 현재 계약만기일 기준 기간과 함께 검증합니다.';
   if (/rent_per_py|평당\s*월임대료/iu.test(source)) return '월임대료 총액 / 임대면적 계산값과 함께 검증합니다.';
   if (/mf_per_py|management.*per.*py|평당\s*월관리비/iu.test(source)) return '월관리비 총액 / 임대면적 계산값과 함께 검증합니다.';
+  if (/economic_terms_summary|임대료.*보증금/iu.test(source)) return '상세 표 안의 금액, 개월 수, 비율 단위가 원본 Excel Meta 항목 설명과 맞는지 검증합니다.';
   return '';
 }
 
@@ -506,6 +523,7 @@ function dataManagementColumnUnitGuide(column) {
   const key = text(column?.field_key || column?.field || '').toLowerCase();
   const label = text(column?.label || '');
   if (type === 'krw') return '원 단위 금액입니다. 예: 2500000000 또는 25억원';
+  if (type === 'krw_raw') return '원 단위 숫자입니다. 예: 1,000,000,000';
   if (type === 'krw_per_py') return '평당 월 단가입니다. 예: 36050원 또는 3.6만원';
   if (type === 'area_sqm') return '면적입니다. ㎡ 또는 평 입력을 허용하고 저장 전 환산 검증합니다.';
   if (type === 'percent') return '비율입니다. 예: 3% 또는 0.03';
@@ -521,7 +539,8 @@ function dataManagementColumnEditGuide(column) {
   const key = text(column?.field_key || column?.field || '');
   const label = text(column?.label || '');
   const customHelp = DATA_MANAGEMENT_FIELD_HELP[key];
-  const hasDetailEditor = /equity|loan|tranche|maturity|summary|insurance|required_specs|tenant_info|rent_per_py|mf_per_py|current_monthly/i.test(`${key} ${label}`);
+  const hasDetailEditor = /equity|loan|tranche|maturity|summary|insurance|required_specs|tenant_info|rent_per_py|mf_per_py|current_monthly|economic_terms|building_register/i.test(`${key} ${label}`)
+    && !/^(equity_amount_krw|loan_amount_krw|total_capital_krw)$/i.test(key);
   if (column?.editable === true) return `수정: 표에서 바로 값을 고친 뒤 승인 요청으로 저장합니다.${customHelp ? ` ${customHelp}` : ''}`;
   if (hasDetailEditor) return `수정: 셀을 눌러 상세 표에서 행별로 고친 뒤 승인 요청으로 저장합니다.${customHelp ? ` ${customHelp}` : ''}`;
   return `수정: ${text(column?.read_only_reason || customHelp, '조회 전용입니다. 다른 업무 탭 또는 관리자 직접 수정 대상입니다.')}`;
@@ -551,25 +570,45 @@ function dataManagementGroupHelp(group) {
 }
 
 function DataManagementHeaderHelp({ help, children, align = 'left', className = '' }) {
-  const tooltipAlign = align === 'center'
-    ? 'left-1/2 -translate-x-1/2'
-    : align === 'right'
-      ? 'right-0'
-      : 'left-0';
+  const [tooltipPosition, setTooltipPosition] = useState(null);
+  const showTooltip = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const width = 320;
+    const left = align === 'center'
+      ? rect.left + (rect.width / 2) - (width / 2)
+      : align === 'right'
+        ? rect.right - width
+        : rect.left;
+    setTooltipPosition({
+      top: Math.max(12, Math.min(rect.bottom + 8, window.innerHeight - 180)),
+      left: Math.max(12, Math.min(left, window.innerWidth - width - 12)),
+      width,
+    });
+  };
+  const hideTooltip = () => setTooltipPosition(null);
   return (
     <span
       className={`group relative inline-flex min-w-0 max-w-full items-center gap-1 ${className}`}
       title={help}
       data-data-management-header-help="true"
+      onMouseEnter={showTooltip}
+      onMouseMove={showTooltip}
+      onMouseLeave={hideTooltip}
+      onFocus={showTooltip}
+      onBlur={hideTooltip}
     >
       <span className="min-w-0 truncate">{children}</span>
       <span className="shrink-0 text-[10px] font-bold text-[#86868B]">ⓘ</span>
-      <span
-        className={`pointer-events-none absolute top-[calc(100%+8px)] ${tooltipAlign} z-[90] hidden w-[300px] whitespace-pre-line rounded-[8px] border border-[#3A3A3C] bg-[#F5F5F7] px-3 py-2 text-left text-[12px] font-semibold leading-5 text-[#1F1F1E] shadow-xl group-hover:block dark:bg-[#F5F5F7] dark:text-[#1F1F1E]`}
-        data-data-management-header-tooltip="true"
-      >
-        {help}
-      </span>
+      {tooltipPosition && typeof document !== 'undefined' ? createPortal(
+        <div
+          className="pointer-events-none fixed max-h-[160px] overflow-hidden whitespace-pre-line rounded-[8px] border border-[#3A3A3C] bg-[#F5F5F7] px-3 py-2 text-left text-[12px] font-semibold leading-5 text-[#1F1F1E] shadow-xl"
+          data-data-management-header-tooltip="true"
+          style={{ ...tooltipPosition, zIndex: 2147483647 }}
+        >
+          {help}
+        </div>,
+        document.body,
+      ) : null}
     </span>
   );
 }
@@ -8444,11 +8483,15 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   }), [spaceKey, effectiveViewKey, bundleKey, search, page, sort.key, sort.direction, activeTabConfig.showBundle]);
   const { loading: rowsLoading, error: rowsError, data: rowsData, reload: reloadRows } = useEdgeData('data-management/view-rows', rowsPayload, [rowsPayload]);
   const dataManagementLoading = viewsLoading || rowsLoading;
-  const hasDataManagementRows = Boolean(safeArray(rowsData?.rows).length || safeArray(viewCatalog?.views).length);
-  const blockingViewsError = Boolean(viewsError && !safeArray(viewCatalog?.views).length);
-  const blockingRowsError = Boolean(rowsError && !safeArray(rowsData?.rows).length && !safeArray(rowsData?.fields).length);
   const [dataManagementLoadingProgress, setDataManagementLoadingProgress] = useState(dataManagementLoading ? 12 : 100);
-  const columns = safeArray(rowsData?.fields).filter((column) => (
+  const rowsDataViewKey = text(rowsData?.view?.view_key || rowsData?.view_key || '');
+  const rowsDataMatchesView = Boolean(rowsData && rowsDataViewKey && rowsDataViewKey === effectiveViewKey);
+  const rowsDataStaleForView = Boolean(rowsData && rowsDataViewKey && rowsDataViewKey !== effectiveViewKey);
+  const currentRowsData = rowsDataMatchesView ? rowsData : null;
+  const hasDataManagementRows = Boolean(safeArray(currentRowsData?.rows).length || safeArray(viewCatalog?.views).length);
+  const blockingViewsError = Boolean(viewsError && !safeArray(viewCatalog?.views).length);
+  const blockingRowsError = Boolean(rowsError && !rowsDataStaleForView && !safeArray(currentRowsData?.rows).length && !safeArray(currentRowsData?.fields).length);
+  const columns = safeArray(currentRowsData?.fields).filter((column) => (
     column
     && !column.sensitive
     && !isInternalFieldName([column.field_key, column.field, column.label, column.group].map((item) => text(item, '')).join(' '))
@@ -8480,6 +8523,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     'current_end_date',
     'current_contract_period',
     'extension_count',
+    'economic_terms_summary',
     'current_monthly_rent_total',
     'current_monthly_mf_total',
     'current_monthly_cost_total',
@@ -8499,11 +8543,20 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     'early_termination_right',
     'renewal_option',
     'required_specs_summary',
-    'special_terms',
+    'sublease_yn',
     'lease_special_summary',
-    'review_status',
-    'review_note',
     'tenant_info_summary',
+    'building_register_summary',
+    'disposition_status',
+    'fund_code',
+    'fund_short_name',
+    'fund_type',
+    'investment_strategy',
+    'equity_amount_krw',
+    'loan_amount_krw',
+    'total_capital_krw',
+    'equity_parties',
+    'loan_lenders',
     'effective_date',
     'period_start',
     'period_end',
@@ -8519,7 +8572,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     if (aRank !== bRank) return aRank - bRank;
     return columns.indexOf(a) - columns.indexOf(b);
   }), [columns, priorityColumnOrder]);
-  const rows = safeArray(rowsData?.rows);
+  const rows = safeArray(currentRowsData?.rows);
   const nonEmptyColumnKeys = useMemo(() => {
     const keys = new Set();
     rows.slice(0, 250).forEach((row) => {
@@ -8556,7 +8609,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     });
     return groups;
   }, [visibleColumns]);
-  const pagination = rowsData?.pagination || {};
+  const pagination = currentRowsData?.pagination || {};
   const selectedRow = rows.find((row) => row.row_key === selectedRowKey) || rows[0] || null;
   const editableColumns = scopedColumns.filter((column) => column.editable === true);
   const selectedColumn = scopedColumns.find((column) => column.field_key === selectedField || column.field === selectedField)
@@ -8581,9 +8634,9 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     feature_access_workflow: '권한 전용 workflow',
     readback_only: '읽기 전용',
   }[text(capability)] || '읽기 전용');
-  const writeModeLabel = capabilityLabel(rowsData?.view?.capability || selectedView.capability);
-  const sourceStatus = rowsData?.view?.source_status && typeof rowsData.view.source_status === 'object'
-    ? rowsData.view.source_status
+  const writeModeLabel = capabilityLabel(currentRowsData?.view?.capability || selectedView.capability);
+  const sourceStatus = currentRowsData?.view?.source_status && typeof currentRowsData.view.source_status === 'object'
+    ? currentRowsData.view.source_status
     : null;
   const sourceStatusText = sourceStatus
     ? (sourceStatus.normalized_data_present
@@ -8852,7 +8905,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 const rowDeleted = isDetailRowDeleted(normalizedSectionKey, row.row_key);
                 const rowMeta = row.meta && typeof row.meta === 'object' ? row.meta : {};
                 const editTargets = rowMeta.edit_targets && typeof rowMeta.edit_targets === 'object' ? rowMeta.edit_targets : {};
-                const rowDeleteSupported = row.editable !== false && (row.is_new_detail_row || Object.values(editTargets).some((target) => {
+                const rowDeleteSupported = row.editable !== false && (row.is_new_detail_row || row.delete_supported === true || Object.values(editTargets).some((target) => {
                   const targetTable = text(target?.target_table);
                   return targetTable === 'public.ll_fund_capital_tranches' || targetTable === 'public.ll_lease_attributes';
                 }));
@@ -9317,8 +9370,8 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                   }) : (
                     <tr>
                       <td colSpan={visibleColumns.length + 1} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
-                        {rowsLoading ? '데이터를 불러오는 중입니다.' : text(rowsData?.empty_state?.title, '현재 조건 0건입니다.')}
-                        {!rowsLoading ? <div className="mt-2 text-[12px] text-[#86868B]">{text(rowsData?.empty_state?.description, '다른 업무 카드, 자산·펀드 묶음, 검색 조건을 선택해 주세요.')}</div> : null}
+                        {rowsLoading ? '데이터를 불러오는 중입니다.' : text(currentRowsData?.empty_state?.title, '현재 조건 0건입니다.')}
+                        {!rowsLoading ? <div className="mt-2 text-[12px] text-[#86868B]">{text(currentRowsData?.empty_state?.description, '다른 업무 카드, 자산·펀드 묶음, 검색 조건을 선택해 주세요.')}</div> : null}
                       </td>
                     </tr>
                   )}
@@ -9518,7 +9571,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                     }) : (
                       <tr>
                         <td colSpan={visibleColumns.length + 1} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
-                          {rowsLoading ? '데이터를 불러오는 중입니다.' : text(rowsData?.empty_state?.title, '현재 조건 0건입니다.')}
+                          {rowsLoading ? '데이터를 불러오는 중입니다.' : text(currentRowsData?.empty_state?.title, '현재 조건 0건입니다.')}
                         </td>
                       </tr>
                     )}

@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-29T06:02:01.037Z",
+  "generated_at": "2026-07-01T07:40:40.106Z",
   "checks": {
     "dm_tabs_asset": true,
     "dm_tabs_investment": true,
@@ -32,7 +32,7 @@
     "investment_integrated_fields": true,
     "summaries_not_arbitrarily_truncated": true,
     "summary_labels_hide_internal_keys": true,
-    "investment_tranche_summary_has_rate_and_maturity": true,
+    "investment_tranche_detail_has_rate_and_maturity": true,
     "investment_unscoped_tranche_not_duplicated_for_joint_fund": true,
     "quality_api_view": true,
     "tenant_master_normalized_view": true,
