@@ -7020,7 +7020,6 @@ export function InvestmentIndexDashboard() {
         <ModuleHeader
           eyebrow="CAPITAL STACK"
           title={mode === 'fund' ? '펀드별 Equity / Loan 구성' : '자산별 Equity / Loan 구성'}
-          subtitle={mode === 'asset' && assetBasisReferenceTotal ? '공동펀드는 중복 합산하지 않고 자산별 확정 배분 금액만 표시합니다.' : '합계 금액 기준 내림차순'}
         />
         <StackedCapitalChart
           rows={rows}
@@ -7052,7 +7051,7 @@ export function InvestmentIndexDashboard() {
         ) : null}
       </section>
       <section className={`${CARD} p-5`}>
-        <ModuleHeader eyebrow="LOAN MATURITY" title="대출 만기 일정" subtitle={`x축 시작: ${formatMonthKey(currentMonthKey())}`} />
+        <ModuleHeader eyebrow="LOAN MATURITY" title="대출 만기 일정" />
         <LoanMaturityTimelineChart rows={loanMaturityChartRows} onMonthClick={(row) => setDetailTarget({ type: 'loan-maturity-month', row })} />
         <div className="mt-5">
           <SortableTable
@@ -7076,7 +7075,7 @@ export function InvestmentIndexDashboard() {
         </div>
       </section>
       <section className={`${CARD} p-5`}>
-        <ModuleHeader eyebrow="LOAN RATE" title="대출 금리 비교" subtitle="자산별 대출금액 가중평균 기준" />
+        <ModuleHeader eyebrow="LOAN RATE" title="대출 금리 비교" />
         <div className="mb-4">
           <FilterPills
             label="Tranche"

@@ -123,7 +123,7 @@ async function main() {
     const page = await context.newPage();
     page.on('pageerror', (error) => report.errors.push(error.message));
     await page.goto(joinUrl(baseUrl, 'investment-index'), { waitUntil: 'domcontentloaded', timeout: 60000 });
-    report.checks.shell_ready = await page.waitForFunction(() => /Investment\s*Index/iu.test(document.body?.innerText || ''), { timeout: 60000 }).then(() => true).catch(() => false);
+    report.checks.shell_ready = await page.waitForFunction(() => /투자\s*정보|Investment\s*Index/iu.test(document.body?.innerText || ''), { timeout: 60000 }).then(() => true).catch(() => false);
     report.checks.loading_gone = await page.waitForFunction(() => !(document.body?.innerText || '').includes('투자지표를 불러오는 중입니다.'), { timeout: 90000 }).then(() => true).catch(() => false);
     report.checks.capital_chart_ready = await page.waitForSelector('[data-chart-role="capital-stack"][data-chart-empty="false"]', { timeout: 90000 }).then(() => true).catch(() => false);
     report.checks.removed_top_exposure = !(await page.getByText('상위 노출액 비교').count().catch(() => 0));
