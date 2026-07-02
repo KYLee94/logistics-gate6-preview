@@ -669,6 +669,13 @@ function text(value, fallback = '-') {
   return String(value);
 }
 
+function normalizeSearch(value) {
+  return String(value === undefined || value === null ? '' : value)
+    .toLowerCase()
+    .replace(/\s+/gu, '')
+    .trim();
+}
+
 function firstText(...values) {
   const found = values.find((value) => value !== undefined && value !== null && String(value).trim() !== '');
   return found === undefined ? '' : found;
