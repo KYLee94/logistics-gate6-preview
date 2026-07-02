@@ -1,87 +1,114 @@
 {
   "ok": true,
-  "generated_at": "2026-06-18T10:08:32.184Z",
+  "generated_at": "2026-07-02T01:52:43.105Z",
   "auth_source": "password_grant",
   "checks": [
     {
-      "date": "2026-06-18",
+      "date": "2026-07-02",
       "http_status": 200,
       "data_status": "completed",
-      "selected_date": "2026-06-18",
-      "run_key": "daily-news:2026-06-18:0700KST",
-      "news_run_id": "b5ea53fc-de81-454f-a6bb-8620b4455b4c",
-      "completed_at": "2026-06-18T08:50:14.461+00:00",
-      "item_count": 7,
+      "selected_date": "2026-07-02",
+      "run_key": "daily-news:2026-07-02:0700KST",
+      "news_run_id": "22bf212e-3833-4eaf-b692-4a4e68f0a4a7",
+      "completed_at": "2026-07-02T01:52:42.764+00:00",
+      "item_count": 10,
       "item_keys": [
-        "url:90d195f1d1a8ccf13c561aea3a568946e0174a776f554e7b53ec2442a3e303ef",
-        "url:1d7d73f094890e8720945764f740e70a30b07937bd3f73617da2561f7237c49f",
-        "url:bcd00cda7e8dd2273614bc72a6bc57d59b182b6a3e6f5ced7d75dba2992d2c43",
-        "url:2e9c6e89b7b0f8f69b46b481bb2524056a51cbaa892515e8ba3051d75ef820be",
-        "url:364de165c9343789e7ca71ac5d8794a0c3c6aeaea0991e6e62b27e2533fb61b4",
-        "url:c340af26ac6da9c6c08a71ca3bee35955a2c8e6b201b375483df98c8971ffb2f",
-        "url:dec6fa5542db3101ef79bc17caf8ebb01d0e5e75f36825b51b4fef75aeef4bea"
+        "url:40f7eddd64ff44692c3f881dc6d32a0cde3ddc94ea7e28a04eb167a677ab37ff",
+        "url:a56a66be8b6e14cdc9c56de03da871897e2ed9d1030ef490ae71c246284f05fa",
+        "url:adf5afc5a2005a04f1c44cde37c9ae65f52fc1dfe03988efec3a3ddab9f15a47",
+        "url:c80cbba768ffc98dfff1d0991663019c180accafe1ed18ec76d4d5b4c82055d1",
+        "url:1e82bb54db6d512d44ef83cc51634c41821263471b1c83305f08ed4173e088ef",
+        "url:68bf25e7958b7c7b8f81c5fec775889db4b3d312a8bc9d382dd6e29e0b421255",
+        "url:1f822b2858d97f80b1349e52d79e1cd9bd30f44425f43903cb6500e2c1276a3b",
+        "url:8a5b3826227995a362222fe889f481c0f856956faf7d7a1a09b5c875c0654799",
+        "url:333d1eacf6cca73773ec619bdf7ee4eec412615082dd2f107a474ec6c5a765f3",
+        "url:1f03033d616f35a874cd6b5298b7625e1874b94acad832f50ba2209d4de9cca3"
       ],
       "items_summary": [
         {
-          "dedupe_key": "url:90d195f1d1a8ccf13c561aea3a568946e0174a776f554e7b53ec2442a3e303ef",
-          "title": "CU 물류센터 앞 화물연대 집회서 차로 조합원 숨지게 한 40대 집행유예",
+          "dedupe_key": "url:40f7eddd64ff44692c3f881dc6d32a0cde3ddc94ea7e28a04eb167a677ab37ff",
+          "title": "계약서 외 업무 거부한 쿠팡 택배노동자 집단 계약해지",
+          "publisher": "매일노동뉴스",
+          "published_at": "2026-07-01T21:30:03+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMicEFVX3lxTE01MUFQalhNUjZjWXhqT2J1VHkyRjlIN0lTN3pETzhNNmk4MGo2Uml2NWthb1pnTTJWR3BST2xkNEdsYWRIbkxvejZOYjBrM0drV2kxRTdfQXpxZFpaTVktZWs5X3lYZU84blVZYW9DZXA?oc=5",
+          "category": ""
+        },
+        {
+          "dedupe_key": "url:a56a66be8b6e14cdc9c56de03da871897e2ed9d1030ef490ae71c246284f05fa",
+          "title": "캐나다연기금, 한국 물류센터 PF 참여…바스티언 1천억 유치",
           "publisher": "bing.com",
-          "published_at": "2026-06-17T21:58:43+00:00",
-          "canonical_url": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6a33b143ef2f418d9436dba50aaa28fd&url=https%3A%2F%2Fwww.msn.com%2Fko-kr%2Fnews%2Fother%2Fcu-%25EB%25AC%25BC%25EB%25A5%2598%25EC%2584%25BC%25ED%2584%25B0-%25EC%2595%259E-%25ED%2599%2594%25EB%25AC%25BC%25EC%2597%25B0%25EB%258C%2580-%25EC%25A7%2591%25ED%259A%258C%25EC%2584%259C-%25EC%25B0%25A8%25EB%25A1%259C-%25EC%25A1%25B0%25ED%2595%25A9%25EC%259B%2590-%25EC%2588%25A8%25EC%25A7%2580%25EA%25B2%258C-%25ED%2595%259C-40%25EB%258C%2580-%25EC%25A7%2591%25ED%2596%2589%25EC%259C%25A0%25EC%2598%2588%2Far-AA25VCqE&c=1007971807161349042&mkt=ko-kr",
+          "published_at": "2026-07-01T18:06:00+00:00",
+          "canonical_url": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6a45c46837a84cf183a39b0cf0f9cdb8&url=https%3A%2F%2Fwww.msn.com%2Fko-kr%2Fnews%2Fother%2F%25EC%25BA%2590%25EB%2582%2598%25EB%258B%25A4%25EC%2597%25B0%25EA%25B8%25B0%25EA%25B8%2588-%25ED%2595%259C%25EA%25B5%25AD-%25EB%25AC%25BC%25EB%25A5%2598%25EC%2584%25BC%25ED%2584%25B0-pf-%25EC%25B0%25B8%25EC%2597%25AC-%25EB%25B0%2594%25EC%258A%25A4%25ED%258B%25B0%25EC%2596%25B8-1%25EC%25B2%259C%25EC%2596%25B5-%25EC%259C%25A0%25EC%25B9%2598%2Far-AA271oZ3&c=1261124318500958427&mkt=ko-kr",
           "category": ""
         },
         {
-          "dedupe_key": "url:1d7d73f094890e8720945764f740e70a30b07937bd3f73617da2561f7237c49f",
-          "title": "택배 종사자 건강 지킨다…경산근로자건강센터-롯데글로벌로지스 협약",
+          "dedupe_key": "url:adf5afc5a2005a04f1c44cde37c9ae65f52fc1dfe03988efec3a3ddab9f15a47",
+          "title": "트러스트에이엔씨 \"스마트 물류센터, 자동화 넘어 SaaS로 진화\"",
           "publisher": "bing.com",
-          "published_at": "2026-06-17T21:58:00+00:00",
-          "canonical_url": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6a33b14364a745f795219807bb7f23e3&url=https%3A%2F%2Fwww.kyongbuk.co.kr%2Fnews%2FarticleView.html%3Fidxno%3D4075763&c=17964721507351698821&mkt=ko-kr",
+          "published_at": "2026-07-01T17:58:00+00:00",
+          "canonical_url": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6a45c46837a84cf183a39b0cf0f9cdb8&url=https%3A%2F%2Fwww.klnews.co.kr%2Fnews%2FarticleView.html%3Fidxno%3D321748&c=4233580772820378768&mkt=ko-kr",
           "category": ""
         },
         {
-          "dedupe_key": "url:bcd00cda7e8dd2273614bc72a6bc57d59b182b6a3e6f5ced7d75dba2992d2c43",
-          "title": "택배노조 \"쿠팡 프레시백 추가 업무 강요\" 공정위 신고",
-          "publisher": "네이트",
-          "published_at": "2026-06-17T21:33:00+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiU0FVX3lxTE5zTFBpTVRxcTE1RHNfYW10N0JqQzNFNGgxMGt2WW5CRzY3bjhUWWJjd3Uyb2NUZFBpMlJpaDQtZUNkdnBwM2Vzc3Y5SzY4VHI5a3Yw?oc=5",
+          "dedupe_key": "url:c80cbba768ffc98dfff1d0991663019c180accafe1ed18ec76d4d5b4c82055d1",
+          "title": "라이드플럭스, 한진택배와 116km 구간 자율주행 화물 운송 개시",
+          "publisher": "엠투데이",
+          "published_at": "2026-07-01T13:46:46+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMic0FVX3lxTE96T2ZnVl9VcGN4MWxoa3Qtczg1XzRydzRkYmJmdHU4cVpOU1MzbTBsVXZncjBVcjlJd0tBVWhQa0VEZlV5SGxxMmVjWF91ZFN0X1ZLMHhwZ2JKcVpMeTFSVWJESTlJaUYzSVBVTW9VbkVxM2vSAXNBVV95cUxPek9mZ1ZfVXBjeDFsaGt0LXM4NV80cnc0ZGJiZnR1OHFaTlNTM20wbFV2Z3IwVXI5SXdLQVVoUGtFRGZVeUhscTJlY1hfdWRTdF9WSzB4cGdiSnFaTHkxUlViREk5SWlGM0lQVU1vVW5FcTNr?oc=5",
           "category": ""
         },
         {
-          "dedupe_key": "url:2e9c6e89b7b0f8f69b46b481bb2524056a51cbaa892515e8ba3051d75ef820be",
-          "title": "화물연대 CU물류센터 봉쇄중 출차하다 1명 숨지게 한 非조합원, 상해치사 집행유예",
-          "publisher": "bing.com",
-          "published_at": "2026-06-17T19:15:47+00:00",
-          "canonical_url": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6a33b143ef2f418d9436dba50aaa28fd&url=https%3A%2F%2Fwww.msn.com%2Fko-kr%2Fnews%2Fother%2F%25ED%2599%2594%25EB%25AC%25BC%25EC%2597%25B0%25EB%258C%2580-cu%25EB%25AC%25BC%25EB%25A5%2598%25EC%2584%25BC%25ED%2584%25B0-%25EB%25B4%2589%25EC%2587%2584%25EC%25A4%2591-%25EC%25B6%259C%25EC%25B0%25A8%25ED%2595%2598%25EB%258B%25A4-1%25EB%25AA%2585-%25EC%2588%25A8%25EC%25A7%2580%25EA%25B2%258C-%25ED%2595%259C-%25E9%259D%259E%25EC%25A1%25B0%25ED%2595%25A9%25EC%259B%2590-%25EC%2583%2581%25ED%2595%25B4%25EC%25B9%2598%25EC%2582%25AC-%25EC%25A7%2591%25ED%2596%2589%25EC%259C%25A0%25EC%2598%2588%2Far-AA25UQYP&c=13055392736805108019&mkt=ko-kr",
+          "dedupe_key": "url:1e82bb54db6d512d44ef83cc51634c41821263471b1c83305f08ed4173e088ef",
+          "title": "대규모 현대식 물류센터 건설은 투자를 유치하는 데 중요한 역할을 할 것입니다.",
+          "publisher": "Vietnam.vn",
+          "published_at": "2026-07-01T08:50:51+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMingFBVV95cUxOcHNRYmdBcW82V1pmYmJUbjU2RUdULUNLZ19TdjJBRTdxMXJXTW1YdkZycVk2VmR3ZDRFZjZvcU43Zk0yNG1JUFdRQlFmRElJYkpEdzlDRlljREgxVWhxbzIxUTVQWUNXQ2lPY2NwUC1ldG9PTWZ4SVNSUll3VVAxY2N0Ymo4WEFBWEhwdE43Y2htOFpDbWxHaWgyaGNGdw?oc=5",
           "category": ""
         },
         {
-          "dedupe_key": "url:364de165c9343789e7ca71ac5d8794a0c3c6aeaea0991e6e62b27e2533fb61b4",
-          "title": "물류센터 시장 빨간불…1조 원 선매입 계약 취소, 부동산 PF 위기로 번지나",
-          "publisher": "한국공공정책신문",
-          "published_at": "2026-06-17T17:55:45+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiSEFVX3lxTFAtc3ZlVkxIVncwTHlvS1RmZ3gyRjh3SEJKQWt0U3p4Z0FDMTNhRWZRcFA3dXBHYU5Ld0pnUHlSbzZtZHBDRmpWWg?oc=5",
+          "dedupe_key": "url:68bf25e7958b7c7b8f81c5fec775889db4b3d312a8bc9d382dd6e29e0b421255",
+          "title": "쿠팡CLS 협력사 SS로지스틱스, 7월 20일부터 한 달간 주간 배송기사 전원 하계 휴가 지원",
+          "publisher": "로이슈",
+          "published_at": "2026-07-01T08:30:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiekFVX3lxTE9DWDlTbEZOeHRfRllWMmZFTUs3MTZPVnp4NGZyZ2VOYnAwUmVRREJQWTFaaUhpRGJBS3pNTlJDZzdUYi1EVzBwSE52dXRzOFJ5T0dPaG9oWGd5RUJXWlMyekg5V1NId1pkYnFDUWUzaHJKWTNONU5TY3NB?oc=5",
           "category": ""
         },
         {
-          "dedupe_key": "url:c340af26ac6da9c6c08a71ca3bee35955a2c8e6b201b375483df98c8971ffb2f",
-          "title": "CJ대한통운이 투자한 피지컬 AI, 어디까지 왔나",
-          "publisher": "브런치",
-          "published_at": "2026-06-17T17:08:24+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiS0FVX3lxTFAxRERaTlpoUkhrLWd5V3NocEFlbVZGN1k1QW96d1BuN1kzejRfRmRma2lDeTZ5NFJtU1lQdTBrLVI5MzJ3dWlDajRoOA?oc=5",
+          "dedupe_key": "url:1f822b2858d97f80b1349e52d79e1cd9bd30f44425f43903cb6500e2c1276a3b",
+          "title": "경기 광주 오포읍 수년째 미준공 아파트 인근 물류창고 허가 논란",
+          "publisher": "매일일보",
+          "published_at": "2026-07-01T04:15:57+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiZEFVX3lxTE43enUxeEVyTUEtT0FqakFnQ3puLXVUaFlsWnpDNTV6Rk5EYi0yS3pwbWxXTy1XVWxuNGszOVFTNko2Y1VTczFfQzlWcTZvd0E0c183QWhsV1drOWU5cVNJdEotTEk?oc=5",
           "category": ""
         },
         {
-          "dedupe_key": "url:dec6fa5542db3101ef79bc17caf8ebb01d0e5e75f36825b51b4fef75aeef4bea",
-          "title": "쿠팡풀필먼트, '캠퍼스크루 인증제도' 도입… 대학생 물류 경력 공식 인정·정규직 채용 기회",
-          "publisher": "CBC뉴스",
-          "published_at": "2026-06-17T14:47:50+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiaEFVX3lxTE0xMkY4RVZCeFgwemxNVVgxelgyYWtSYm9CeFRVUXFSZHlNeVJLbmRiVFZrUEd3Q1hJOHJnVjR3LXZ2Y280SzJWQ2Y4ZWZlZmVCMjVFR25Ec2hKbjZZQWhBdUptaFVUbkZM?oc=5",
+          "dedupe_key": "url:8a5b3826227995a362222fe889f481c0f856956faf7d7a1a09b5c875c0654799",
+          "title": "신선식품 배송 12년째 노젓기…쓱닷컴, ‘주간·바로배송’으로 승부수",
+          "publisher": "녹색경제신문",
+          "published_at": "2026-07-01T02:44:22+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiaEFVX3lxTFBwdVFIaGczc2dEeFA0WmdaQUctNFNodFlrbl9EMnN4SzhKLVUxSXJvUEw3VWF1eHo2b3g0SzNDTi1ZbF8za1NiZVZDMHVWdjBHLXBVcDZqcU0xc24yaHNSTTg5TWVTTUxm?oc=5",
+          "category": ""
+        },
+        {
+          "dedupe_key": "url:333d1eacf6cca73773ec619bdf7ee4eec412615082dd2f107a474ec6c5a765f3",
+          "title": "CJ대한통운, 기증품 배송해 발달장애인 일자리 만든다",
+          "publisher": "v.daum.net",
+          "published_at": "2026-07-01T02:17:25+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiT0FVX3lxTE9hT2JiaktYdmVhR2x6UkdRaTlha0hldnN5OU52dkNLR0d2YVltazROdXA3Tm1paDdYaDNIUmZIMmxuWFQ5X2c4SXJUbG9JNzg?oc=5",
+          "category": ""
+        },
+        {
+          "dedupe_key": "url:1f03033d616f35a874cd6b5298b7625e1874b94acad832f50ba2209d4de9cca3",
+          "title": "경기 광주시, 오포 대규모 물류창고 시설 인허가 논란",
+          "publisher": "중도일보",
+          "published_at": "2026-07-01T02:13:58+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMibEFVX3lxTE5YN1c0NGlNdU0yVVhlVE9PSzlaMl9aVDBuWVFnUXVSQUE2alhvOW1WOWtFcDFHUzhwOU1JWFAydEc2aWpiVHlZNlRackx1WEFtLXZMR0NjcHlSYTZsaUZKOGtwZWxWMFFVTkdNQQ?oc=5",
           "category": ""
         }
       ],
       "missing_dedupe_count": 0,
-      "unique_dedupe_count": 7,
-      "unique_title_count": 7,
+      "unique_dedupe_count": 10,
+      "unique_title_count": 10,
       "empty_message": "수집된 뉴스가 없습니다.",
       "source_summary": {
         "primary": "google_news_rss",
@@ -120,11 +147,11 @@
         "empty_state": false,
         "query_count": 29,
         "source_stats": {
-          "bing_news_rss": 55,
-          "google_news_rss": 148
+          "bing_news_rss": 59,
+          "google_news_rss": 159
         },
         "window_hours": 24,
-        "candidate_count": 10,
+        "candidate_count": 34,
         "selection_policy": {
           "limit": 10,
           "category_targets": {
@@ -136,12 +163,13 @@
           "max_items_per_company": 2,
           "max_major_company_only_items": 5
         },
-        "collector_version": "google-bing-rss-v5-strict-window-balanced-market",
+        "collector_version": "google-bing-rss-v6-today-expands-when-sparse",
         "strict_24h_window": true,
-        "strict_item_count": 7,
-        "strict_window_end": "2026-06-17T22:00:00.000Z",
-        "strict_window_start": "2026-06-16T22:00:00.000Z",
-        "expanded_to_recent_7d": false
+        "strict_item_count": 10,
+        "strict_window_end": "2026-07-01T22:00:00.000Z",
+        "strict_window_start": "2026-06-30T22:00:00.000Z",
+        "expanded_to_recent_7d": false,
+        "expanded_window_start": "2026-06-30T22:00:00.000Z"
       },
       "window_hours": 24,
       "strict_24h_window": true,
@@ -150,35 +178,14 @@
       "titles_with_publisher_suffix": [],
       "missing_publisher_count": 0,
       "company_mention_counts": {
-        "lotte": 1,
         "coupang": 2,
+        "hanjin": 1,
         "cjlogistics": 1
       },
       "category_counts": {
-        "unknown": 7
+        "unknown": 10
       }
     }
   ],
-  "preservation_checks": [
-    {
-      "date": "2026-06-17",
-      "min_required_count": 8,
-      "max_required_count": 10,
-      "before_count": 8,
-      "after_count": 8,
-      "before_run_key": "daily-news:2026-06-17:0700KST",
-      "after_run_key": "daily-news:2026-06-17:0700KST",
-      "before_news_run_id": "596ef533-2953-47d5-8303-8c0af1c7ee66",
-      "after_news_run_id": "596ef533-2953-47d5-8303-8c0af1c7ee66",
-      "before_completed_at": "2026-06-18T01:40:01.878+00:00",
-      "after_completed_at": "2026-06-18T01:40:01.878+00:00",
-      "today_before_completed_at": "2026-06-18T08:50:14.461+00:00",
-      "today_after_completed_at": "2026-06-18T10:08:31.608+00:00",
-      "removed_keys": [],
-      "today_refresh_attempted": true,
-      "today_refresh_updated": true,
-      "past_run_unchanged": true,
-      "ok": true
-    }
-  ]
+  "preservation_checks": []
 }

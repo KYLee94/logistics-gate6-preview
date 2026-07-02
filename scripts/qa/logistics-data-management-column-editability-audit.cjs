@@ -97,7 +97,7 @@ report.checks.push(
   check(
     'special_detail_only_contains_special_term_rows',
     specialDetailBlock.includes('specialDirectRows')
-      && specialDetailBlock.includes('specialAttributeRows')
+      && !specialDetailBlock.includes('specialAttributeRows.map')
       && !specialDetailBlock.includes('insuranceRows')
       && !specialDetailBlock.includes('rentHistoryDetailRows'),
   ),

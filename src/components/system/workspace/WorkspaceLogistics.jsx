@@ -3605,7 +3605,14 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
   const [saveStatus, setSaveStatus] = useState(null);
   const originalAssetNamesRef = useRef([]);
   const loadedAssetRowsRef = useRef([]);
-  const assetRows = assetRowsDraft;
+  const isSoldWorkspaceAsset = (asset) => {
+    const name = cleanDisplay(asset?.assetName || asset?.asset_name || asset?.name || '');
+    const status = cleanDisplay(asset?.assetStatus || asset?.asset_status || asset?.dispositionStatus || asset?.disposition_status || asset?.status || '');
+    const soldNameTerms = ['안성 성은', '안성성은', '성은지구', '성은 물류센터'];
+    return soldNameTerms.some((term) => name.includes(term))
+      || /매각|sold|disposed|archived/iu.test(status);
+  };
+  const assetRows = useMemo(() => assetRowsDraft.filter((row) => !isSoldWorkspaceAsset(row)), [assetRowsDraft]);
   const canEditWeeklyAssets = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete || permission.role === 'Admin');
   const displayFieldDefs = [
     ['assetName', '자산명', false],
@@ -3630,9 +3637,10 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
   useEffect(() => {
     let cancelled = false;
     const applyRows = (rows) => {
-      setAssetRowsDraft(rows);
-      loadedAssetRowsRef.current = rows;
-      originalAssetNamesRef.current = rows.map((row) => row.assetName).filter(Boolean);
+      const filteredRows = rows.filter((row) => !isSoldWorkspaceAsset(row));
+      setAssetRowsDraft(filteredRows);
+      loadedAssetRowsRef.current = filteredRows;
+      originalAssetNamesRef.current = filteredRows.map((row) => row.assetName).filter(Boolean);
     };
     const fetchRows = async () => {
       let rows = [];
@@ -5524,7 +5532,18 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const permittedTasks = useMemo(() => filterMainTasksByPermission(taskRecords, permission, showCompletedTasks), [permission, showCompletedTasks, taskRecords]);
   const sortedWeeklyTasks = useMemo(() => sortMainTasks(permittedTasks), [permittedTasks]);
   const visibleTasks = showAllTasks ? sortedWeeklyTasks : sortedWeeklyTasks.slice(0, 5);
-  const topAssets = useMemo(() => [...(permission.managedAssets || [])].sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR')), [permission.managedAssets]);
+  const topAssets = useMemo(() => {
+    const isSoldAsset = (asset) => {
+      const name = String(asset?.assetName || asset?.asset_name || '').trim();
+      const status = String(asset?.assetStatus || asset?.asset_status || asset?.dispositionStatus || asset?.disposition_status || asset?.status || '').trim();
+      const soldNameTerms = ['안성 성은', '안성성은', '성은지구', '성은 물류센터'];
+      return soldNameTerms.some((term) => name.includes(term))
+        || /매각|sold|disposed|archived/iu.test(status);
+    };
+    return [...(permission.managedAssets || [])]
+      .filter((asset) => !isSoldAsset(asset))
+      .sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR'));
+  }, [permission.managedAssets]);
   const [quickTabKeys, setQuickTabKeys] = useState(readWorkPlatformQuickTabKeys);
   const [quickTabDragOver, setQuickTabDragOver] = useState(false);
   const persistQuickTabKeys = useCallback((updater) => {
@@ -6024,7 +6043,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-[#86868B]">
                   <span>팀 {permission.teamMembers.length}명</span>
-                  <span>담당 자산 {permission.managedAssets.length}개</span>
+                  <span>담당 자산 {topAssets.length}개</span>
                   <span>담당 펀드 {permission.managedFunds.length}개</span>
                 </div>
               </div>

@@ -7774,7 +7774,7 @@ function DataManagementDashboardLegacy() {
       setSubmitStatus({ type: 'success', message: '승인 요청이 저장되었습니다. 승인 대기 탭에서 처리 상태를 확인해 주세요.' });
       reload({}, { force: true });
     } catch (submitError) {
-      setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 저장에 실패했습니다.' });
+      setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 확인에 실패했습니다.' });
     }
   };
   const setGridCellDraft = (row, field, value) => {
@@ -7833,7 +7833,7 @@ function DataManagementDashboardLegacy() {
       setSubmitStatus({ type: 'success', message: `변경 ${formatNumber(managementDraftEntries.length)}건의 승인 요청이 저장되었습니다.` });
       reload({}, { force: true });
     } catch (submitError) {
-      setSubmitStatus({ type: 'error', message: submitError.message || '그리드 변경 승인 요청 저장에 실패했습니다.' });
+      setSubmitStatus({ type: 'error', message: submitError.message || '그리드 변경 승인 요청 확인에 실패했습니다.' });
     }
   };
   const reviewEdit = async (action, row) => {
@@ -8373,7 +8373,7 @@ function DataManagementDashboardLegacy() {
               )}
             </div>
             <button type="button" onClick={submitEdit} disabled={!canEditSelected || !hasChange || previewLoading || safeArray(preview?.validations).some((item) => item.level === 'error')} className="mt-4 h-11 w-full rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35">
-              승인 요청 저장
+              승인 요청 확인
             </button>
           </div>
         </div>
@@ -8410,6 +8410,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const [detailDeletedRows, setDetailDeletedRows] = useState({});
   const [detailReason, setDetailReason] = useState('');
   const [detailSubmitStatus, setDetailSubmitStatus] = useState(null);
+  const [bundleSearchFocused, setBundleSearchFocused] = useState(false);
   const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews } = useEdgeData('data-management/views', {}, []);
   const views = safeArray(viewCatalog?.views);
   const bundles = safeArray(viewCatalog?.fund_asset_bundles);
@@ -8504,6 +8505,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     'temperature_type',
     'is_preleased',
     'is_3pl',
+    'sublease_yn',
     'goods_type',
     'is_single_tenant',
     'contract_status',
@@ -8543,7 +8545,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     'early_termination_right',
     'renewal_option',
     'required_specs_summary',
-    'sublease_yn',
     'lease_special_summary',
     'tenant_info_summary',
     'disposition_status',
@@ -8593,8 +8594,37 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   ), [scopedColumns, showAllFields]);
   const dataManagementTableMinWidth = useMemo(() => {
     const columnWidth = visibleColumns.reduce((sum, column) => sum + Number(column.width || 170), 0);
-    return Math.max(1180, 320 + columnWidth);
+    return Math.max(1180, columnWidth);
   }, [visibleColumns]);
+  const bundleSuggestions = useMemo(() => {
+    const query = normalizeSearch(search);
+    if (!activeTabConfig.showBundle || !query) return [];
+    return bundles
+      .filter((bundle) => normalizeSearch([
+        bundle.selection_label,
+        bundle.asset?.asset_name,
+        bundle.asset?.asset_code,
+        bundle.fund?.fund_name,
+        bundle.fund?.fund_code,
+      ].map((item) => text(item)).join(' ')).includes(query))
+      .slice(0, 8);
+  }, [activeTabConfig.showBundle, bundles, search]);
+  const applyBundleSuggestion = (bundle) => {
+    const nextKey = text(bundle?.bundle_key);
+    if (!nextKey) return;
+    setBundleKey(nextKey);
+    setSearch(text(bundle.selection_label || bundle.asset?.asset_name || ''));
+    setPage(1);
+    setSelectedRowKey('');
+    setBundleSearchFocused(false);
+  };
+  const resetBundleSelection = () => {
+    setBundleKey(MANAGEMENT_ALL_OPTION);
+    setSearch('');
+    setPage(1);
+    setSelectedRowKey('');
+    setBundleSearchFocused(false);
+  };
   const columnGroups = useMemo(() => {
     const groups = [];
     visibleColumns.forEach((column) => {
@@ -8852,19 +8882,38 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       reloadRows({}, { force: true });
       reloadViews({}, { force: true });
     } catch (error) {
-      setDetailSubmitStatus({ type: 'error', message: error.message || '상세 변경값 승인 요청 저장에 실패했습니다.' });
+      setDetailSubmitStatus({ type: 'error', message: error.message || '상세 변경값 승인 요청 확인에 실패했습니다.' });
     }
   };
   const renderDetailEditorTable = (rows, columns, emptyState = '상세 행이 없습니다.', sectionKey = 'detail') => {
     const normalizedSectionKey = sectionKey || 'detail';
-    const visibleDetailColumns = safeArray(columns).filter((column) => (
-      column
-      && !column.sensitive
-      && !isInternalFieldName([column.field_key, column.field, column.label, column.group].map((item) => text(item, '')).join(' '))
-      && !hasInternalToken([column.field_key, column.field, column.label, column.group].map((item) => text(item, '')).join(' '))
-    ));
+    const hiddenDetailColumnKeys = new Set(['row_label', 'detail_row', 'row_management', 'review_note', 'review_status', 'basis']);
+    const detailColumnWidth = (column) => {
+      const key = text(column.field_key || column.field);
+      const label = text(column.label);
+      if (/value|amount|memo|description|condition|특약|조건|값/iu.test(`${key} ${label}`)) return 520;
+      if (/unit|단위/iu.test(`${key} ${label}`)) return 120;
+      if (/label|item|항목|title|순서/iu.test(`${key} ${label}`)) return 260;
+      return Number(column.width || 180);
+    };
+    const visibleDetailColumns = safeArray(columns)
+      .filter((column) => {
+        const key = text(column?.field_key || column?.field);
+        const descriptor = [column?.field_key, column?.field, column?.label, column?.group].map((item) => text(item, '')).join(' ');
+        return column
+          && !hiddenDetailColumnKeys.has(key)
+          && !column.sensitive
+          && !isInternalFieldName(descriptor)
+          && !hasInternalToken(descriptor);
+      })
+      .map((column) => {
+        const key = text(column.field_key || column.field);
+        const nextLabel = key === 'condition_label' ? '항목' : text(column.label);
+        return { ...column, label: nextLabel, width: detailColumnWidth(column) };
+      });
     const sectionRows = [...safeArray(rows), ...safeArray(detailAddedRows[normalizedSectionKey])];
     const canAddDetailRow = visibleDetailColumns.some((column) => column.editable === true);
+    const tableMinWidth = Math.max(780, visibleDetailColumns.reduce((sum, column) => sum + Number(column.width || 180), 0));
     return (
       <div className="min-h-0 overflow-hidden rounded-[12px] border border-[#333333]">
         <div className="flex items-center justify-end border-b border-[#333333] bg-[#171717] px-3 py-2">
@@ -8877,15 +8926,9 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           )}
         </div>
         <div className="custom-scrollbar max-h-[calc(100vh-360px)] min-h-[220px] overflow-auto">
-          <table className="w-full min-w-[1040px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
+          <table className="w-full border-separate text-left text-[12px]" style={{ borderSpacing: 0, minWidth: tableMinWidth }}>
             <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#A1A1AA]">
               <tr>
-                <th className="sticky left-0 z-30 w-[260px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
-                  <DataManagementHeaderHelp help="상세 표의 각 행을 식별하는 값입니다. Tranche, 수익자, 대주, 특약 항목처럼 한 셀 안에 여러 행으로 들어가는 데이터를 나눠 보여줍니다.">상세 행</DataManagementHeaderHelp>
-                </th>
-                <th className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
-                  <DataManagementHeaderHelp help="상세 행을 추가하거나 삭제 요청합니다. 삭제는 즉시 반영되지 않고 승인 요청으로 저장됩니다.">행 관리</DataManagementHeaderHelp>
-                </th>
                 {visibleDetailColumns.map((column) => {
                   const key = text(column.field_key || column.field);
                   return (
@@ -8904,7 +8947,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 const rowDeleted = isDetailRowDeleted(normalizedSectionKey, row.row_key);
                 const rowMeta = row.meta && typeof row.meta === 'object' ? row.meta : {};
                 const editTargets = rowMeta.edit_targets && typeof rowMeta.edit_targets === 'object' ? rowMeta.edit_targets : {};
-                const rowDeleteSupported = row.editable !== false && (row.is_new_detail_row || row.delete_supported === true || Object.values(editTargets).some((target) => {
+                  const rowDeleteSupported = row.editable !== false && (row.is_new_detail_row || row.delete_supported === true || Object.values(editTargets).some((target) => {
                   const targetTable = text(target?.target_table);
                   const targetField = text(target?.target_field);
                   return targetTable === 'public.ll_fund_capital_tranches'
@@ -8913,20 +8956,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 }));
                 return (
                   <tr key={`detail-row-${row.row_key}`} className={`bg-[#171717] text-[#E5E5E5] hover:bg-[#1F1F1F] ${rowDeleted ? 'opacity-50' : ''}`}>
-                    <td className="sticky left-0 z-10 w-[260px] border-r border-[#303033] bg-inherit px-3 py-2 align-top">
-                      <div className="max-w-[230px] truncate font-semibold text-white" title={text(row.row_label)}>{text(row.row_label, '상세 행')}</div>
-                      <div className="mt-1 text-[11px] text-[#86868B]">{row.is_new_detail_row ? '신규 행' : row.editable === false ? text(row.read_only_reason, '읽기 전용') : '수정 요청 가능'}</div>
-                    </td>
-                    <td className="border-r border-[#242426] px-3 py-2 align-top">
-                      {!rowDeleteSupported ? (
-                        <span className="text-[12px] font-semibold text-[#86868B]">삭제 불가</span>
-                      ) : rowDeleted ? (
-                        <button type="button" onClick={() => undoDetailRowDelete(normalizedSectionKey, row.row_key)} className="h-8 rounded-[7px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]">삭제 취소</button>
-                      ) : (
-                        <button type="button" onClick={() => markDetailRowDelete(normalizedSectionKey, row)} className="h-8 rounded-[7px] border border-[#5A2A2A] px-3 text-[12px] font-semibold text-[#FFB4A9] hover:border-[#FFB4A9]">삭제 요청</button>
-                      )}
-                    </td>
-                    {visibleDetailColumns.map((column) => {
+                    {visibleDetailColumns.map((column, columnIndex) => {
                       const key = text(column.field_key || column.field);
                       const editId = dataManagementDetailEditKey(row.row_key, key);
                       const cellChanged = Boolean(detailDrafts[editId]);
@@ -8934,6 +8964,18 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                       const cellValue = getDetailCellValue(row, column);
                       return (
                         <td key={`detail-cell-${row.row_key}-${key}`} className={`border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B]' : ''}`}>
+                          {columnIndex === 0 ? (
+                            <div className="mb-1 flex flex-wrap items-center gap-2">
+                              <span className="text-[11px] font-semibold text-[#B5E48C]">{row.is_new_detail_row ? '신규 행' : row.editable === false ? text(row.read_only_reason, '읽기 전용') : '수정 요청 가능'}</span>
+                              {rowDeleteSupported ? (
+                                rowDeleted ? (
+                                  <button type="button" onClick={() => undoDetailRowDelete(normalizedSectionKey, row.row_key)} className="h-6 rounded-[6px] border border-[#3A3A3C] px-2 text-[11px] font-semibold text-white hover:border-[#8E8E93]">삭제 취소</button>
+                                ) : (
+                                  <button type="button" onClick={() => markDetailRowDelete(normalizedSectionKey, row)} className="h-6 rounded-[6px] border border-[#5A2A2A] px-2 text-[11px] font-semibold text-[#FFB4A9] hover:border-[#FFB4A9]">삭제 요청</button>
+                                )
+                              ) : null}
+                            </div>
+                          ) : null}
                           {canEditCell ? (
                             <input
                               value={cellValue}
@@ -8952,7 +8994,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 );
               }) : (
                 <tr>
-                  <td colSpan={visibleDetailColumns.length + 2} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
+                      <td colSpan={Math.max(1, visibleDetailColumns.length)} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
                     {emptyState}
                   </td>
                 </tr>
@@ -9111,7 +9153,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       reloadRows({}, { force: true });
       reloadViews({}, { force: true });
     } catch (submitError) {
-      setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 저장에 실패했습니다.' });
+      setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 확인에 실패했습니다.' });
     }
   };
 
@@ -9146,7 +9188,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       reloadRows({}, { force: true });
       reloadViews({}, { force: true });
     } catch (submitError) {
-      setBulkSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 저장에 실패했습니다.' });
+      setBulkSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 확인에 실패했습니다.' });
     }
   };
 
@@ -9220,19 +9262,49 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           ) : null}
           {activeTabConfig.showBundle ? (
             <label className="text-[12px] font-semibold text-[#A1A1AA]">
-              자산 · 펀드 묶음
+              자산·펀드 선택
               <select value={bundleKey} onChange={(event) => { setBundleKey(event.target.value); setPage(1); setSelectedRowKey(''); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]">
-                <option value={MANAGEMENT_ALL_OPTION}>전체 자산 · 펀드</option>
+                <option value={MANAGEMENT_ALL_OPTION}>전체 자산·펀드</option>
                 {bundles.map((bundle) => (
                   <option key={bundle.bundle_key} value={bundle.bundle_key}>{bundle.selection_label}</option>
                 ))}
               </select>
             </label>
           ) : null}
-          <label className="text-[12px] font-semibold text-[#A1A1AA]">
+          <label className="relative text-[12px] font-semibold text-[#A1A1AA]">
             검색
-            <input value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]" placeholder={activeTabConfig.searchPlaceholder} />
+            <input
+              value={search}
+              onChange={(event) => { setSearch(event.target.value); setPage(1); setBundleSearchFocused(true); }}
+              onFocus={() => setBundleSearchFocused(true)}
+              onBlur={() => window.setTimeout(() => setBundleSearchFocused(false), 140)}
+              className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]"
+              placeholder={activeTabConfig.searchPlaceholder}
+            />
+            {bundleSearchFocused && bundleSuggestions.length ? (
+              <div className="absolute left-0 right-0 top-[66px] z-50 overflow-hidden rounded-[10px] border border-[#3A3A3C] bg-[#1F1F1E] shadow-[0_18px_50px_rgba(0,0,0,0.45)]" data-data-management-search-suggestions="true">
+                {bundleSuggestions.map((bundle) => (
+                  <button
+                    key={`bundle-suggest-${bundle.bundle_key}`}
+                    type="button"
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      applyBundleSuggestion(bundle);
+                    }}
+                    className="block w-full border-b border-[#2A2A2A] px-3 py-2 text-left text-[12px] text-white last:border-b-0 hover:bg-[#2A2A29]"
+                  >
+                    <span className="block truncate font-semibold">{text(bundle.asset?.asset_name || bundle.selection_label, '자산')}</span>
+                    <span className="mt-0.5 block truncate text-[#A1A1AA]">{text(bundle.fund?.fund_name || bundle.selection_label, '연결 펀드')}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </label>
+          {activeTabConfig.showBundle ? (
+            <button type="button" onClick={resetBundleSelection} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93]">
+              전체 자산 보기
+            </button>
+          ) : null}
           <button type="button" onClick={() => setEditModalOpen(true)} disabled={!rows.length} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93] disabled:opacity-35">
             전체화면으로 편집
           </button>
@@ -9274,9 +9346,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
               <table className="w-full border-separate text-left text-[12px]" style={{ borderSpacing: 0, minWidth: dataManagementTableMinWidth }}>
                 <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
                   <tr>
-                    <th rowSpan={2} className="sticky left-0 z-40 w-[300px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
-                      <DataManagementHeaderHelp help="이 행을 식별하는 값입니다. 자산명, 펀드명, 임차인명, 임대구역 등 핵심 정보를 합쳐 보여줍니다.">관리 대상</DataManagementHeaderHelp>
-                    </th>
                     {columnGroups.map((group) => (
                       <th key={group.label} colSpan={group.columns.length} title={dataManagementGroupHelp(group)} className="border-b border-r border-[#333333] bg-[#202020] px-3 py-2 text-center text-[11px] font-bold text-[#D1D1D6]">
                         <DataManagementHeaderHelp help={dataManagementGroupHelp(group)} align="center" className="justify-center">
@@ -9306,16 +9375,8 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                   {rows.length ? rows.map((row) => {
                     const selected = row.row_key === selectedRow?.row_key;
                     const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
-                    const lookup = row.lookup_status && typeof row.lookup_status === 'object' ? row.lookup_status : {};
                     return (
                       <tr key={row.row_key} onClick={() => setSelectedRowKey(row.row_key)} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
-                        <td className="sticky left-0 z-20 w-[300px] border-r border-[#303033] bg-inherit px-3 py-2 align-top">
-                          <button type="button" className="block max-w-[270px] truncate text-left font-semibold text-white" title={text(row.row_label)}>{text(row.row_label, '행')}</button>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-                            <span className={lookup.status === 'missing' ? 'text-[#FFD479]' : lookup.status === 'exception_404' ? 'text-[#9AD7FF]' : 'text-[#B5E48C]'}>{text(lookup.label, '정상')}</span>
-                            <span className="text-[#86868B]">{row.editable ? '수정 요청 가능' : writeModeLabel}</span>
-                          </div>
-                        </td>
                         {visibleColumns.map((column) => {
                           const key = text(column.field_key || column.field);
                           const editId = dataManagementEditKey(row.row_key, key);
@@ -9371,7 +9432,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                     );
                   }) : (
                     <tr>
-                      <td colSpan={visibleColumns.length + 1} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
+                      <td colSpan={visibleColumns.length} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
                         {rowsLoading ? '데이터를 불러오는 중입니다.' : text(currentRowsData?.empty_state?.title, '현재 조건 0건입니다.')}
                         {!rowsLoading ? <div className="mt-2 text-[12px] text-[#86868B]">{text(currentRowsData?.empty_state?.description, '다른 업무 카드, 자산·펀드 묶음, 검색 조건을 선택해 주세요.')}</div> : null}
                       </td>
@@ -9449,7 +9510,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             disabled={!canEditSelected || !hasChange || previewLoading || safeArray(preview?.validations).some((item) => item.level === 'error')}
             className="mt-4 h-11 w-full rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35"
           >
-            승인 요청 저장
+            승인 요청 확인
           </button>
           {submitStatus ? <div className={`mt-3 text-[12px] leading-5 ${submitStatus.type === 'error' ? 'text-[#FF9F9F]' : submitStatus.type === 'success' ? 'text-[#B5E48C]' : 'text-[#A1A1AA]'}`}>{submitStatus.message}</div> : null}
         </aside>
@@ -9488,9 +9549,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 <table className="w-full border-separate text-left text-[12px]" style={{ borderSpacing: 0, minWidth: dataManagementTableMinWidth }}>
                   <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
                     <tr>
-                      <th className="sticky left-0 z-40 w-[340px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
-                        <DataManagementHeaderHelp help="이 행을 식별하는 값입니다. 자산명, 펀드명, 임차인명, 임대구역 등 핵심 정보를 합쳐 보여줍니다.">관리 대상</DataManagementHeaderHelp>
-                      </th>
                       {visibleColumns.map((column) => {
                         const key = text(column.field_key || column.field);
                         const activeSort = sort.key === key;
@@ -9513,10 +9571,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                       const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
                       return (
                         <tr key={`fullscreen-${row.row_key}`} onClick={() => setSelectedRowKey(row.row_key)} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
-                          <td className="sticky left-0 z-20 w-[340px] border-r border-[#303033] bg-inherit px-3 py-2 align-top">
-                            <button type="button" className="block max-w-[310px] truncate text-left font-semibold text-white" title={text(row.row_label)}>{text(row.row_label, '-')}</button>
-                            <div className="mt-1 text-[12px] text-[#86868B]">{row.editable ? '수정 요청 가능' : text(row.read_only_reason || (row.meta || {}).read_only_reason || '읽기 전용')}</div>
-                          </td>
                           {visibleColumns.map((column) => {
                             const key = text(column.field_key || column.field);
                             const editId = dataManagementEditKey(row.row_key, key);
@@ -9572,7 +9626,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                       );
                     }) : (
                       <tr>
-                        <td colSpan={visibleColumns.length + 1} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
+                        <td colSpan={visibleColumns.length} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">
                           {rowsLoading ? '데이터를 불러오는 중입니다.' : text(currentRowsData?.empty_state?.title, '현재 조건 0건입니다.')}
                         </td>
                       </tr>
@@ -9617,7 +9671,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
               disabled={!canEditSelected || !hasChange || previewLoading || safeArray(preview?.validations).some((item) => item.level === 'error')}
               className="mt-4 h-11 w-full rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35"
             >
-              승인 요청 저장
+              승인 요청 확인
             </button>
             {submitStatus ? <div className={`mt-3 text-[12px] leading-5 ${submitStatus.type === 'error' ? 'text-[#FF9F9F]' : submitStatus.type === 'success' ? 'text-[#B5E48C]' : 'text-[#A1A1AA]'}`}>{submitStatus.message}</div> : null}
           </aside>
@@ -9689,7 +9743,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         <div className="space-y-4" data-data-management-approval-modal="true">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-[13px] leading-6 text-[#A1A1AA]">
-              표에서 직접 수정한 값만 모았습니다. 승인 요청 저장 전 변경 전/후와 사유를 확인해 주세요.
+              표에서 직접 수정한 값만 모았습니다. 승인 요청 확인 전 변경 전/후와 사유를 확인해 주세요.
             </div>
             <div className="rounded-[8px] border border-[#333333] px-3 py-2 text-[12px] font-semibold text-white">
               변경 {formatNumber(pendingEditList.length)}건
@@ -9743,7 +9797,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           <div className="flex flex-wrap justify-end gap-2">
             <button type="button" onClick={() => setApprovalModalOpen(false)} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93]">취소</button>
             <button type="button" onClick={submitPendingEdits} disabled={!pendingEditList.length || bulkSubmitStatus?.type === 'pending'} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-40">
-              승인 요청 저장
+              승인 요청 확인
             </button>
           </div>
         </div>

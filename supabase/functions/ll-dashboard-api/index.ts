@@ -6256,6 +6256,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS_V2 = [
   { field_key: 'contract_status', label: '계약상태', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
   { field_key: 'is_preleased', label: '선임차 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_preleased', width: 120, default_hidden: true },
   { field_key: 'is_3pl', label: '3PL 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_3pl', width: 110, default_hidden: true },
+  { field_key: 'sublease_yn', label: '전차 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'sublease_yn', width: 110 },
   { field_key: 'goods_type', label: '취급 상품', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'goods_type', width: 150, default_hidden: true },
   { field_key: 'is_single_tenant', label: '단일 임차인 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_single_tenant', width: 140, default_hidden: true },
   { field_key: 'floor_label', label: '층', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'floor_label', width: 90 },
@@ -6282,7 +6283,6 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS_V2 = [
   { field_key: 'economic_terms_summary', label: '임대료·보증금 상세', group: '임대료·관리비·보증금', type: 'text', editable: false, width: 300, read_only_reason: '보증금, 월임대료, 월관리비, RF, FO, TI, 인상 조건을 상세 편집에서 행별로 수정 요청합니다. 평당 단가와 E. NOC는 계산값입니다.' },
   { field_key: 'required_specs_summary', label: '요구 스펙', group: '요구 스펙', type: 'text', editable: false, width: 260, read_only_reason: '요구 스펙은 상세 편집에서 항목별로 수정 요청합니다.' },
   { field_key: 'insurance_rights_summary', label: '보험·권리 상세', group: '보험·권리', type: 'text', editable: false, width: 260, read_only_reason: '보험·권리 조건은 상세 편집에서 항목별로 수정 요청합니다.' },
-  { field_key: 'sublease_yn', label: '전차 여부', group: '기타 특약', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'sublease_yn', width: 110 },
   { field_key: 'lease_special_summary', label: '기타 특수 계약 조건', group: '기타 특약', type: 'text', editable: false, width: 300, read_only_reason: '다른 전용 컬럼에 있는 일정·금액·보험 조건은 제외하고 기타 특수 조건만 관리합니다.' },
   { field_key: 'tenant_info_summary', label: '임차인 정보', group: '임차인 정보', type: 'text', editable: false, width: 240, read_only_reason: '임차인 기준 lookup 정보입니다. 임차인 상세 편집에서 수정 요청합니다.' },
 ];
@@ -8711,13 +8711,36 @@ async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<s
   const rows = await Promise.all(readableAssets.map(async (asset) => {
     const assetId = safeText(asset.asset_id);
     const links = linksByAsset.get(assetId) || [];
+    const primaryLink = links[0] || {};
+    const primaryFundId = safeText(primaryLink.fund_id);
+    const primaryLinkId = safeText(primaryLink.id);
     const fundNames = uniqueStrings(links.map((link) => safeText(firstDefined(link.fund_name, link.fund_display_name, link.fund_code))).filter(Boolean), 10);
     const latestCost = latestCostByAsset.get(assetId) || {};
     const buildingRegisterRows = await Promise.all([
+      ['site_location', '대지위치', firstDefined(asset.site_location, asset.jibun_address, asset.address), 'site_location'],
+      ['road_address', '도로명주소', firstDefined(asset.road_address, asset.standard_address), 'road_address'],
+      ['building_name', '건물명', firstDefined(asset.building_name, asset.asset_name), 'building_name'],
+      ['main_use', '주용도', firstDefined(asset.main_use, asset.main_purpose, asset.usage), 'main_use'],
+      ['other_use', '기타용도', firstDefined(asset.other_use, asset.sub_use), 'other_use'],
+      ['structure', '구조', firstDefined(asset.structure, asset.main_structure), 'structure'],
+      ['roof', '지붕', asset.roof, 'roof'],
+      ['land_area_sqm', '대지면적', firstDefined(asset.land_area_sqm, asset.site_area_sqm), 'land_area_sqm'],
+      ['building_area_sqm', '건축면적', firstDefined(asset.building_area_sqm, asset.architecture_area_sqm), 'building_area_sqm'],
+      ['gross_floor_area_sqm', '연면적', firstDefined(asset.gross_floor_area_sqm, asset.gfa_sqm), 'gross_floor_area_sqm'],
+      ['floor_area_for_far_sqm', '용적률 산정 연면적', firstDefined(asset.floor_area_for_far_sqm, asset.far_floor_area_sqm), 'floor_area_for_far_sqm'],
+      ['building_coverage_ratio', '건폐율', firstDefined(asset.building_coverage_ratio, asset.coverage_ratio), 'building_coverage_ratio'],
+      ['floor_area_ratio', '용적률', firstDefined(asset.floor_area_ratio, asset.far_ratio), 'floor_area_ratio'],
+      ['ground_floor_count', '지상층수', firstDefined(asset.ground_floor_count, asset.above_ground_floors), 'ground_floor_count'],
+      ['basement_floor_count', '지하층수', firstDefined(asset.basement_floor_count, asset.underground_floors), 'basement_floor_count'],
+      ['height_m', '높이', firstDefined(asset.height_m, asset.building_height_m), 'height_m'],
+      ['household_count', '세대수', asset.household_count, 'household_count'],
+      ['family_count', '가구수', asset.family_count, 'family_count'],
+      ['unit_count', '호수', asset.unit_count, 'unit_count'],
+      ['main_building_count', '주건축물 수', asset.main_building_count, 'main_building_count'],
+      ['annex_building_count', '부속건축물 수', asset.annex_building_count, 'annex_building_count'],
+      ['total_parking_count', '총 주차대수', firstDefined(asset.total_parking_count, asset.parking_count), 'total_parking_count'],
       ['approval_date', '사용승인일', firstDefined(asset.approval_date, asset.use_approval_date), 'approval_date'],
       ['first_configured_at', '최초 설정일', asset.first_configured_at, 'first_configured_at'],
-      ['gross_floor_area_sqm', '연면적', firstDefined(asset.gross_floor_area_sqm, asset.gfa_sqm), 'gross_floor_area_sqm'],
-      ['land_area_sqm', '대지면적', firstDefined(asset.land_area_sqm, asset.site_area_sqm), 'land_area_sqm'],
       ['floor_count', '층수', asset.floor_count, 'floor_count'],
       ['latitude', '위도', asset.latitude, 'latitude'],
       ['longitude', '경도', asset.longitude, 'longitude'],
@@ -8728,6 +8751,9 @@ async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<s
       asset_code: asset.asset_code,
       sector: asset.sector,
       fund_names: fundNames.join(', '),
+      fund_name: firstDefined(primaryLink.fund_name, primaryLink.fund_display_name, primaryLink.fund_code),
+      fund_code: primaryLink.fund_code,
+      fund_short_name: firstDefined(primaryLink.short_name, primaryLink.fund_short_name),
       address: firstDefined(asset.address, asset.road_address, asset.jibun_address),
       approval_date: asset.approval_date,
       first_configured_at: asset.first_configured_at,
@@ -8771,6 +8797,10 @@ async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<s
       meta: {
         row_unit: 'asset_id',
         asset_id: assetId,
+        fund_id: primaryFundId,
+        link_id: primaryLinkId,
+        fund_ids: links.map((link) => safeText(link.fund_id)).filter(Boolean),
+        link_ids: links.map((link) => safeText(link.id)).filter(Boolean),
         operating_cost_id: safeText(latestCost.operating_cost_id),
         cost_row_present: Boolean(safeText(latestCost.operating_cost_id)),
       },
@@ -9092,8 +9122,6 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
   if (historyResult.errorResponse) throw new Error('임대료 이력 데이터를 읽지 못했습니다.');
   const specsResult = await listLeaseSpaceSpecsForLeaseSpaces(ctx, leaseSpaceIds);
   if (specsResult.errorResponse) throw new Error('요구 스펙 데이터를 읽지 못했습니다.');
-  const specialTermsResult = await listSpecialTermsForLeaseSpaces(ctx, leaseSpaceIds);
-  if (specialTermsResult.errorResponse) throw new Error('특약 데이터를 읽지 못했습니다.');
   const insuranceRightsResult = await listInsuranceRightsForLeaseSpaces(ctx, leaseSpaceIds);
   if (insuranceRightsResult.errorResponse) throw new Error('보험·권리 데이터를 읽지 못했습니다.');
   const leaseById = new Map((leasesResult.rows || []).map((row) => [safeText(row.lease_id), row]));
@@ -9117,20 +9145,14 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     .filter(Boolean)
     .join(' · ');
   const attributeDetailColumns = [
-    { field_key: 'label', label: '항목', group: '상세 항목', type: 'text', editable: true, width: 220 },
-    { field_key: 'value', label: '값', group: '상세 항목', type: 'text', editable: true, width: 260 },
-    { field_key: 'unit_label', label: '단위', group: '상세 항목', type: 'text', editable: true, width: 100 },
-    { field_key: 'review_note', label: '검토 메모', group: '검토', type: 'text', editable: true, width: 260 },
+    { field_key: 'label', label: '항목', group: '상세 항목', type: 'text', editable: true, width: 260 },
+    { field_key: 'value', label: '값', group: '상세 항목', type: 'text', editable: true, width: 520 },
+    { field_key: 'unit_label', label: '단위', group: '상세 항목', type: 'text', editable: true, width: 120 },
   ];
   const conditionDetailColumns = [
-    { field_key: 'condition_label', label: '항목', group: '상세 항목', type: 'text', editable: false, width: 220 },
-    { field_key: 'value', label: '값', group: '상세 항목', type: 'text', editable: true, width: 320 },
+    { field_key: 'condition_label', label: '항목', group: '상세 항목', type: 'text', editable: false, width: 260 },
+    { field_key: 'value', label: '값', group: '상세 항목', type: 'text', editable: true, width: 520 },
   ];
-  const specialConditionDetailColumns = conditionDetailColumns.map((field) => (
-    safeText(field.field_key) === 'condition_label'
-      ? { ...field, editable: true }
-      : field
-  ));
   const rentHistoryDetailColumns = [
     { field_key: 'basis_date', label: '기준일자', group: '임대료·관리비 이력', type: 'date', editable: true, width: 130 },
     { field_key: 'change_reason', label: '변동 원인', group: '임대료·관리비 이력', type: 'text', editable: true, width: 160 },
@@ -9185,7 +9207,6 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       label: dataManagementFriendlyLabel(item.attribute_label, item.spec_label, item.term_label, item.attribute_key, item.spec_key, item.field_key),
       value: valueSource,
       unit_label: item.unit_label,
-      review_note: item.review_note,
     });
     const displayValues = Object.fromEntries(attributeDetailColumns.map((field) => [
       safeText(field.field_key),
@@ -9208,7 +9229,6 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
           label: { target_table: 'public.ll_lease_attributes', primary_key_field: 'id', target_record_id: id, target_field: 'attribute_label' },
           value: { target_table: 'public.ll_lease_attributes', primary_key_field: 'id', target_record_id: id, target_field: valueTargetField },
           unit_label: { target_table: 'public.ll_lease_attributes', primary_key_field: 'id', target_record_id: id, target_field: 'unit_label' },
-          review_note: { target_table: 'public.ll_lease_attributes', primary_key_field: 'id', target_record_id: id, target_field: 'review_note' },
         },
       },
     });
@@ -9256,12 +9276,6 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     if (!key) return;
     specsBySpace.set(key, [...(specsBySpace.get(key) || []), row]);
   });
-  const specialTermsBySpace = new Map<string, Record<string, unknown>[]>();
-  (specialTermsResult.rows || []).forEach((row) => {
-    const key = safeText(row.lease_space_id);
-    if (!key) return;
-    specialTermsBySpace.set(key, [...(specialTermsBySpace.get(key) || []), row]);
-  });
   const insuranceRightsBySpace = new Map<string, Record<string, unknown>[]>();
   (insuranceRightsResult.rows || []).forEach((row) => {
     const key = safeText(row.lease_space_id);
@@ -9297,7 +9311,6 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       empty_state: '연결된 최신 임대료·관리비 이력이 없습니다.',
     };
     const specsForSpace = specsBySpace.get(safeText(space.lease_space_id)) || [];
-    const specialTermsForSpace = specialTermsBySpace.get(safeText(space.lease_space_id)) || [];
     const insuranceRightsForSpace = insuranceRightsBySpace.get(safeText(space.lease_space_id)) || [];
     const specsSummary = summarizeAttributes(specsForSpace);
     const matchedBundle = bundle || bundleByAsset.get(safeText(space.asset_id)) || bundleByAsset.get(safeText(space.asset_code)) || bundleByAsset.get(safeText(space.asset_name)) || {};
@@ -9333,9 +9346,6 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       editable !== false,
     )));
     const specsDetailRows = await Promise.all(specsForSpace.map((item, index) => buildAttributeDetailRow(item, index, 'required_spec')));
-    const specialAttributeSourceRows = specialTermsForSpace.filter((item) => dataManagementLeaseSpecialLabelAllowed(firstDefined(item.attribute_label, item.term_label, item.attribute_key, item.term_key, item.field_key)));
-    const specialSummary = summarizeAttributes(specialAttributeSourceRows);
-    const specialAttributeRows = await Promise.all(specialAttributeSourceRows.map((item, index) => buildAttributeDetailRow(item, index, 'special_term')));
     const normalizedSpecialTerms = dataManagementNormalizeSpecialTerms(lease.special_terms);
     const specialTermItems = dataManagementSpecialTermItems(lease.special_terms);
     const specialDirectRows = await Promise.all(specialTermItems.map((item, index) => buildDirectConditionRow(
@@ -9442,7 +9452,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       sublease_yn: firstDefined(space.is_subleased, space.sublease_yn, lease.is_subleased, lease.sublease_yn),
       special_terms: normalizedSpecialTerms,
       required_specs_summary: specsSummary,
-      lease_special_summary: firstDefined(specialSummary, normalizedSpecialTerms),
+      lease_special_summary: normalizedSpecialTerms,
       tenant_info_summary: [firstDefined(tenant.display_name, tenant.tenant_master_name, tenant.company_name), tenant.business_registration_no].map((item) => safeText(item)).filter(Boolean).join(' · '),
       review_status: firstDefined(space.review_status, lease.review_status, '검토 전'),
       review_note: firstDefined(space.review_note, lease.review_note),
@@ -9476,7 +9486,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
         economic_terms_summary: {
           title: '임대료·보증금 상세 편집',
           description: '보증금, 월임대료, 월관리비, 월 임관리비, 평당 단가, RF, FO, TI, E. NOC, 인상 조건을 한 화면에서 행별로 수정 요청합니다.',
-          columns: specialConditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
+          columns: conditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
           rows: economicRows,
           empty_state: '등록된 임대료·보증금 상세 조건이 없습니다.',
         },
@@ -9492,25 +9502,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
           description: '특수 계약 조건과 특약 상세를 행별로 수정 요청합니다.',
           columns: conditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
           add_row_label: '특약 번호 추가',
-          rows: [
-            ...specialDirectRows,
-            ...specialAttributeRows.map((row) => {
-              const values = row.display_values as Record<string, unknown> | undefined;
-              const editValues = row.edit_values as Record<string, unknown> | undefined;
-              return {
-                ...row,
-                display_values: { condition_label: values?.label, value: values?.value },
-                edit_values: { condition_label: editValues?.label, value: editValues?.value },
-                meta: {
-                  ...(row.meta as Record<string, unknown> | undefined || {}),
-                  edit_targets: {
-                    condition_label: ((row.meta as Record<string, unknown> | undefined)?.edit_targets as Record<string, unknown> | undefined)?.label,
-                    value: ((row.meta as Record<string, unknown> | undefined)?.edit_targets as Record<string, unknown> | undefined)?.value,
-                  },
-                },
-              };
-            }),
-          ],
+          rows: specialDirectRows,
           empty_state: '등록된 특약 상세 행이 없습니다.',
         },
         insurance_rights_summary: {
@@ -12130,7 +12122,9 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
 }
 
 const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v5-strict-window-balanced-market';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v6-today-expands-when-sparse';
+const NEWS_MIN_DAILY_ITEMS = 8;
+const NEWS_EXPANDED_RECENT_DAYS = 7;
 const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NEWS_HOUR_MS = 60 * 60 * 1000;
 const NEWS_RSS_FETCH_TIMEOUT_MS = 7000;
@@ -12546,6 +12540,27 @@ async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days
   };
 }
 
+async function collectNewsRowsForWindowWithExpansion(windowStart: Date, windowEnd: Date, days: number) {
+  const strict = await collectNewsRowsForWindow(windowStart, windowEnd, days);
+  if (days !== 1 || strict.items.length >= NEWS_MIN_DAILY_ITEMS) {
+    return {
+      ...strict,
+      strictItemCount: strict.items.length,
+      expandedToRecent7d: false,
+      expandedWindowStart: windowStart,
+    };
+  }
+  const expandedWindowStart = new Date(windowEnd.getTime() - NEWS_EXPANDED_RECENT_DAYS * 24 * 60 * 60 * 1000);
+  const expanded = await collectNewsRowsForWindow(expandedWindowStart, windowEnd, NEWS_EXPANDED_RECENT_DAYS);
+  const useExpanded = expanded.items.length >= strict.items.length;
+  return {
+    ...(useExpanded ? expanded : strict),
+    strictItemCount: strict.items.length,
+    expandedToRecent7d: true,
+    expandedWindowStart,
+  };
+}
+
 async function collectNewsRowsForHistoricalWindow(windowStart: Date, windowEnd: Date) {
   const seen = new Map<string, NewsCollectorItem>();
   const sourceStats: Record<string, number> = {};
@@ -12607,8 +12622,11 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
   const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(dateText) ? dateText : newsTodayKstDateKey();
   const strictWindow = newsWindowForDate(selectedDate);
   const strictDays = Math.ceil(strictWindow.windowHours / 24);
-  const collected = await collectNewsRowsForWindow(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
-  const strictItemCount = collected.items.length;
+  const isToday = selectedDate === newsTodayKstDateKey();
+  const collected = isToday
+    ? await collectNewsRowsForWindowWithExpansion(strictWindow.windowStart, strictWindow.windowEnd, strictDays)
+    : await collectNewsRowsForWindow(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
+  const strictItemCount = Number((collected as Record<string, unknown>).strictItemCount || collected.items.length);
   const runKey = `daily-news:${selectedDate}:0700KST`;
   const { data: runRow, error: runError } = await ctx.serviceClient
     .from('ll_news_runs')
@@ -12627,7 +12645,8 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
         strict_window_start: strictWindow.windowStart.toISOString(),
         strict_window_end: strictWindow.windowEnd.toISOString(),
         strict_item_count: strictItemCount,
-        expanded_to_recent_7d: false,
+        expanded_to_recent_7d: Boolean((collected as Record<string, unknown>).expandedToRecent7d),
+        expanded_window_start: ((collected as Record<string, unknown>).expandedWindowStart as Date | undefined)?.toISOString?.() || null,
         strict_24h_window: strictWindow.windowHours === 24,
         candidate_count: collected.candidateCount || collected.items.length,
         selection_policy: {

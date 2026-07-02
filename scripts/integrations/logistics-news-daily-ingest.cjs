@@ -6,7 +6,9 @@ const { createClient } = require('@supabase/supabase-js');
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
 const BING_NEWS_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v5-strict-window-balanced-market';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v6-today-expands-when-sparse';
+const MIN_DAILY_NEWS_ITEMS = 8;
+const EXPANDED_RECENT_DAYS = 7;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -431,6 +433,31 @@ async function collectNews(windowStart, windowEnd) {
   return items;
 }
 
+async function collectDailyNewsWithExpansion(windowStart, windowEnd, windowHours) {
+  const strictItems = await collectNews(windowStart, windowEnd);
+  const shouldExpand = windowHours === 24 && strictItems.length < MIN_DAILY_NEWS_ITEMS;
+  if (!shouldExpand) {
+    return {
+      items: strictItems,
+      strictItemCount: strictItems.length,
+      expandedToRecent7d: false,
+      expandedWindowStart: windowStart,
+      sourceStats: strictItems.sourceStats || {},
+      candidateCount: strictItems.candidateCount || strictItems.length,
+    };
+  }
+  const expandedWindowStart = new Date(windowEnd.getTime() - EXPANDED_RECENT_DAYS * 24 * HOUR_MS);
+  const expandedItems = await collectNews(expandedWindowStart, windowEnd);
+  return {
+    items: expandedItems.length >= strictItems.length ? expandedItems : strictItems,
+    strictItemCount: strictItems.length,
+    expandedToRecent7d: true,
+    expandedWindowStart,
+    sourceStats: expandedItems.sourceStats || strictItems.sourceStats || {},
+    candidateCount: expandedItems.candidateCount || strictItems.candidateCount || expandedItems.length || strictItems.length,
+  };
+}
+
 function supabaseClientFromEnv() {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -461,7 +488,7 @@ async function publish(run, items) {
       strict_window_start: run.strictWindowStart?.toISOString?.() || run.windowStart.toISOString(),
       strict_window_end: run.windowEnd.toISOString(),
       strict_item_count: run.strictItemCount,
-      expanded_to_recent_7d: false,
+      expanded_to_recent_7d: run.expandedToRecent7d === true,
       strict_24h_window: run.windowHours === 24,
       candidate_count: run.candidateCount || items.length,
       selection_policy: {
@@ -470,6 +497,7 @@ async function publish(run, items) {
         max_items_per_company: MAX_ITEMS_PER_COMPANY,
         max_major_company_only_items: MAX_MAJOR_COMPANY_ONLY_ITEMS,
       },
+      expanded_window_start: run.expandedWindowStart?.toISOString?.() || null,
       source_stats: run.sourceStats || {},
       empty_state: items.length === 0,
     },
@@ -539,10 +567,13 @@ async function main() {
   const runKey = `daily-news:${kstDateKey(windowEnd)}:0700KST`;
   const run = { run_key: runKey, windowStart, windowEnd, windowHours, strictWindowStart: windowStart, strictItemCount: 0, expandedToRecent7d: false, sourceStats: {}, candidateCount: 0 };
   try {
-    const items = await collectNews(windowStart, windowEnd);
-    run.strictItemCount = items.length;
-    run.sourceStats = items.sourceStats || {};
-    run.candidateCount = items.candidateCount || items.length;
+    const collected = await collectDailyNewsWithExpansion(windowStart, windowEnd, windowHours);
+    const items = collected.items;
+    run.strictItemCount = collected.strictItemCount;
+    run.expandedToRecent7d = collected.expandedToRecent7d;
+    run.expandedWindowStart = collected.expandedWindowStart;
+    run.sourceStats = collected.sourceStats || {};
+    run.candidateCount = collected.candidateCount || items.length;
     const output = {
       ok: true,
       dry_run: hasFlag('--dry-run'),
@@ -552,9 +583,10 @@ async function main() {
       strict_window_start: windowStart.toISOString(),
       window_end: windowEnd.toISOString(),
       strict_item_count: run.strictItemCount,
-      expanded_to_recent_7d: false,
+      expanded_to_recent_7d: run.expandedToRecent7d === true,
       strict_24h_window: windowHours === 24,
       candidate_count: run.candidateCount,
+      expanded_window_start: run.expandedWindowStart?.toISOString?.() || null,
       source_stats: run.sourceStats,
       item_count: items.length,
       empty_message: items.length ? '' : '수집된 뉴스가 없습니다.',
