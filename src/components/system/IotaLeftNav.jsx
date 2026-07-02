@@ -427,8 +427,24 @@ const joinNotificationParts = (parts, fallback) => {
     const cleaned = parts.map((item) => sanitizeNotificationText(item, '')).filter(Boolean);
     return cleaned.length ? cleaned.join(' · ') : fallback;
 };
+const notificationRouteFromRow = (row = {}) => {
+    const type = String(row.type || row.notification_type || '').toLowerCase();
+    const payload = parseNotificationPayload(row.payload || row.notification_payload || row.request_payload);
+    const route = String(row.route || payload.route || payload.path || '').trim();
+    if (route) {
+        const normalized = normalizeLogisticsPath(route);
+        return normalized.startsWith(LOGISTICS_INTERNAL_BASE) ? normalized : `${LOGISTICS_INTERNAL_BASE}/${route.replace(/^\/+/u, '')}`;
+    }
+    if (/lease|rent|contract|maturity/u.test(type)) return `${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`;
+    if (/loan|fund|tranche|capital/u.test(type)) return `${LOGISTICS_INTERNAL_BASE}/data-management/investment-data`;
+    if (/asset|building|spec|cost/u.test(type)) return `${LOGISTICS_INTERNAL_BASE}/data-management/asset-data`;
+    if (/approval|edit|change/u.test(type)) return `${LOGISTICS_INTERNAL_BASE}/data-management/approval`;
+    return LOGISTICS_INTERNAL_BASE;
+};
 const buildCanonicalNotification = (row = {}) => {
     const type = sanitizeNotificationText(row.type || row.notification_type, '알림');
+    const deliveryStatus = String(row.delivery_status || row.deliveryStatus || '').toLowerCase();
+    const readAt = row.read_at || row.readAt || '';
     return {
         id: String(row.id || row.delivery_id || row.notification_id || `${type}:${row.created_at || Date.now()}`),
         canonical: true,
@@ -437,6 +453,9 @@ const buildCanonicalNotification = (row = {}) => {
         body: sanitizeNotificationText(row.body, '확인할 알림이 있습니다.'),
         createdAt: row.created_at || row.createdAt || row.due_date || '',
         tone: row.tone || 'warning',
+        route: notificationRouteFromRow(row),
+        readAt,
+        deliveryStatus,
     };
 };
 const buildLeaseEventNotification = (row = {}) => {
@@ -455,6 +474,7 @@ const buildLeaseEventNotification = (row = {}) => {
         body: joinNotificationParts([asset, tenant, summary], '계약 변경 반영 이력이 있습니다.'),
         createdAt: row.created_at || row.updated_at || '',
         tone: String(status).includes('failed') ? 'error' : status === 'submitted' ? 'warning' : 'success',
+        route: `${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`,
     };
 };
 const buildEditRequestNotification = (row = {}) => {
@@ -470,6 +490,7 @@ const buildEditRequestNotification = (row = {}) => {
         body: joinNotificationParts([target, field, reason], '승인이 필요한 수정 요청이 있습니다.'),
         createdAt: row.created_at || row.updated_at || '',
         tone: 'warning',
+        route: `${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`,
     };
 };
 const sortNotifications = (rows) => [...rows].sort((left, right) => Date.parse(right.createdAt || '') - Date.parse(left.createdAt || ''));
@@ -595,6 +616,12 @@ const logisticsDataManagementItems = [
         path: `${LOGISTICS_INTERNAL_BASE}/data-management/data-quality`,
         adminOnly: true,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-2.8 8.2-7 9-4.2-.8-7-4.5-7-9V7l7-4z" /></svg>,
+    },
+    {
+        label: '승인 대기',
+        path: `${LOGISTICS_INTERNAL_BASE}/data-management/approval`,
+        adminOnly: true,
+        icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4M5 5h14v14H5z" /></svg>,
     },
 ];
 const logisticsStandaloneItems = [
@@ -723,9 +750,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const memberRole = memberInfo?.logistics_role || memberInfo?.logisticsRole || memberInfo?.role || memberInfo?.logistics_permission?.logistics_role;
     const memberEmail = String(memberInfo?.email || memberInfo?.logistics_permission?.email || user?.email || '').trim().toLowerCase();
     const memberName = memberInfo?.staff_name || memberInfo?.name;
-    const canUseAccessAdminTools = LOGISTICS_ADMIN_EMAILS.has(memberEmail) || LOGISTICS_ADMIN_NAMES.has(memberName);
-    const canViewSourceUpdateAndDataQuality = SOURCE_UPDATE_DATA_QUALITY_EMAILS.has(memberEmail)
+    const canUseCoreOnlyTools = SOURCE_UPDATE_DATA_QUALITY_EMAILS.has(memberEmail)
         || SOURCE_UPDATE_DATA_QUALITY_NAMES.has(memberName);
+    const canUseAccessAdminTools = LOGISTICS_ADMIN_EMAILS.has(memberEmail) || LOGISTICS_ADMIN_NAMES.has(memberName);
+    const canViewSourceUpdateAndDataQuality = canUseCoreOnlyTools;
     const isLogisticsAdmin = memberRole === 'System Admin'
         || canUseAccessAdminTools;
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
@@ -764,14 +792,44 @@ export default function IotaLeftNav({ currentPath = '' }) {
             direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
         }));
     };
-    const markNotificationsRead = (rows = notifications) => {
-        const ids = rows.map((item) => item.id).filter(Boolean);
-        if (!ids.length) return;
+    const persistReadNotificationIds = (updater) => {
         setReadNotificationIds((current) => {
-            const next = [...new Set([...current, ...ids])].slice(-300);
+            const next = [...new Set(typeof updater === 'function' ? updater(current) : updater)].slice(-300);
             localStorage.setItem(notificationStorageKey, JSON.stringify(next));
             return next;
         });
+    };
+    const markNotificationsRead = async (rows = notifications) => {
+        const ids = rows.map((item) => item.id).filter(Boolean);
+        if (!ids.length) return;
+        persistReadNotificationIds((current) => [...current, ...ids]);
+        const canonicalIds = rows.filter((item) => item.canonical).map((item) => item.id).filter(Boolean);
+        if (canonicalIds.length) {
+            try {
+                await invokeWithTimeout('notifications/mark-read', { ids: canonicalIds }, 10000);
+            } catch {
+                setNotificationsError('읽음 처리 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
+            }
+        }
+    };
+    const markAllNotificationsRead = async () => {
+        const rows = notifications;
+        const ids = rows.map((item) => item.id).filter(Boolean);
+        if (!ids.length) return;
+        persistReadNotificationIds((current) => [...current, ...ids]);
+        if (rows.some((item) => item.canonical)) {
+            try {
+                await invokeWithTimeout('notifications/mark-read', { all: true }, 12000);
+            } catch {
+                setNotificationsError('전체 읽음 처리 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
+            }
+        }
+    };
+    const handleNotificationNavigate = (item) => {
+        const route = item?.route || LOGISTICS_INTERNAL_BASE;
+        if (item?.id) markNotificationsRead([item]);
+        setShowNotificationsPanel(false);
+        handleNavigation(route);
     };
     const loadNotifications = async ({ markRead = false, silent = false } = {}) => {
         const cachedRows = notifications;
@@ -830,6 +888,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
             const next = sortNotifications(rows).slice(0, 80);
             setNotifications(next);
             writeCachedNotifications(next);
+            const serverReadIds = next.filter((item) => item.readAt || item.deliveryStatus === 'read').map((item) => item.id).filter(Boolean);
+            if (serverReadIds.length) persistReadNotificationIds((current) => [...current, ...serverReadIds]);
             if (markRead) markNotificationsRead(next);
             return next;
         } catch (error) {
@@ -852,11 +912,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setShowNotificationsPanel(willOpen);
         if (willOpen) {
             if (notifications.length) {
-                markNotificationsRead(notifications);
-                loadNotifications({ markRead: true, silent: true });
+                loadNotifications({ markRead: false, silent: true });
             } else {
-                const rows = await loadNotifications({ markRead: false });
-                markNotificationsRead(rows);
+                await loadNotifications({ markRead: false });
             }
         }
     };
@@ -983,7 +1041,6 @@ export default function IotaLeftNav({ currentPath = '' }) {
     };
     const toggleFeatureAccessUser = (featureKey, userRow) => {
         if (featureAccessSaving || featureAccessLoading) return;
-        if (isDefaultFeatureAccessUser(userRow)) return;
         const current = normalizeFeatureAccessConfig(featureAccessDraft || featureAccessData);
         const users = current.features[featureKey]?.users || [];
         const userKeys = new Set(featureUserKeys(userRow));
@@ -1273,7 +1330,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 </div>
 
                 <div className={`relative border-t border-[#2C2C2E] ${isCollapsed ? 'flex flex-col items-center gap-2 px-0 py-2' : 'p-3'}`}>
-                    {canUseAccessAdminTools ? (
+                    {canUseCoreOnlyTools ? (
                         <div className={isCollapsed ? 'flex w-full flex-col items-center gap-2' : 'mb-2 space-y-2'}>
                             <button
                                 type="button"
@@ -1311,8 +1368,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                         <div className="mt-0.5 text-[11px] text-[#8E8E93]">만기 · 데이터 반영 · 승인 요청</div>
                                     </div>
                                     <div className="flex items-center gap-2">
-                                        <button type="button" onClick={() => loadNotifications({ markRead: true })} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5">
+                                        <button type="button" onClick={() => loadNotifications({ markRead: false })} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5">
                                             새로고침
+                                        </button>
+                                        <button type="button" onClick={markAllNotificationsRead} disabled={!notifications.length} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40">
+                                            전체 읽음
                                         </button>
                                         <button type="button" onClick={dismissAllNotifications} disabled={!notifications.length} className="rounded-[8px] border border-[#3A3A3C] px-2.5 py-1.5 text-[11px] font-semibold text-[#E5E5E5] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40">
                                             전체 삭제
@@ -1330,16 +1390,29 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                             {notifications.map((item) => (
                                                 <div key={item.id} className="rounded-[12px] border border-[#303033] bg-[#171717] px-3 py-3">
                                                     <div className="flex items-start justify-between gap-3">
-                                                        <div className="min-w-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleNotificationNavigate(item)}
+                                                            className="min-w-0 flex-1 text-left"
+                                                        >
                                                             <div className="flex items-center gap-2">
                                                                 <span className={`h-1.5 w-1.5 rounded-full ${item.tone === 'warning' ? 'bg-[#FF9F0A]' : item.tone === 'error' ? 'bg-[#FF453A]' : 'bg-[#34C759]'}`} />
                                                                 <span className="text-[11px] font-semibold text-[#8E8E93]">{item.tag}</span>
+                                                                {!readNotificationIds.includes(item.id) ? <span className="rounded-full bg-[#FF9F0A]/15 px-1.5 py-0.5 text-[10px] font-bold text-[#FFB340]">새 알림</span> : null}
                                                             </div>
                                                             <div className="mt-1 text-[13px] font-semibold text-white">{item.title}</div>
                                                             <div className="mt-1 text-[12px] leading-5 text-[#A1A1AA]">{item.body}</div>
-                                                        </div>
+                                                        </button>
                                                         <div className="flex shrink-0 flex-col items-end gap-2">
                                                             <div className="text-[11px] text-[#6E6E73]">{formatLoginHistoryTime(item.createdAt)}</div>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => markNotificationsRead([item])}
+                                                                disabled={readNotificationIds.includes(item.id)}
+                                                                className="rounded-[7px] border border-[#3A3A3C] px-2 py-1 text-[11px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                                                            >
+                                                                {readNotificationIds.includes(item.id) ? '읽음' : '읽음 체크'}
+                                                            </button>
                                                             <button type="button" onClick={() => dismissNotification(item)} className="rounded-[7px] border border-[#3A3A3C] px-2 py-1 text-[11px] font-semibold text-[#A1A1AA] hover:bg-white/5 hover:text-white">
                                                                 삭제
                                                             </button>
@@ -1606,8 +1679,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                         </button>
                                                         {isOpen ? <div className="custom-scrollbar grid max-h-[360px] grid-cols-1 gap-2 overflow-auto border-t border-[#303033] p-4 md:grid-cols-2 xl:grid-cols-3">
                                                             {selectableFeatureUsers.map((userRow) => {
-                                                                const checked = featureAccessHasEffectiveUser(featureAccessModalConfig, feature.key, userRow);
-                                                                const locked = isDefaultFeatureAccessUser(userRow);
+                                                                const checked = featureAccessHasUser(featureAccessModalConfig, feature.key, userRow);
+                                                                const locked = false;
                                                                 return (
                                                                     <button
                                                                         type="button"

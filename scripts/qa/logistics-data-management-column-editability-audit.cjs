@@ -39,7 +39,8 @@ const visibleFieldBlock = between(api, 'function dataManagementUserVisibleField'
 const specialDetailBlock = between(api, 'lease_special_summary: {', 'insurance_rights_summary:');
 const specReaderBlock = between(api, 'async function listLeaseSpaceSpecsForLeaseSpaces', 'async function listSpecialTermsForLeaseSpaces');
 const insuranceReaderBlock = between(api, 'async function listInsuranceRightsForLeaseSpaces', 'async function listTenantsByIds');
-const trancheDetailBlock = between(api, 'const trancheDetail = {', 'return stripUndefined({');
+const beneficiaryDetailBlock = between(api, 'const beneficiaryDetail = {', 'const loanDetail = {');
+const loanDetailBlock = between(api, 'const loanDetail = {', 'return stripUndefined({');
 const forbiddenSpecialStatusFields = [
   'current_start_date',
   'current_end_date',
@@ -83,6 +84,7 @@ report.checks.push(
   check('main_table_uses_header_help', has(ui, '<DataManagementHeaderHelp help={dataManagementColumnHelp(column)}')),
   check('fullscreen_table_uses_header_help', has(ui, 'key={`fullscreen-${key}`}') && has(ui, '<DataManagementHeaderHelp help={dataManagementColumnHelp(column)}')),
   check('detail_table_uses_header_help', has(ui, 'key={`detail-head-${key}`}') && has(ui, '<DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>')),
+  check('column_resize_handles_connected', has(ui, 'beginColumnResize(event, column') && has(ui, 'cursor-col-resize') && has(ui, '컬럼 너비 조절')),
   check('yn_columns_supported', has(ui, "type === 'yn'") && has(api, "type: 'yn'")),
   check('load_error_keeps_cached_data', has(ui, 'fallbackCached?.data') && has(ui, 'USER_FACING_LOAD_ERROR_TEXT')),
   check('blocking_error_requires_empty_data', has(ui, 'blockingViewsError') && has(ui, 'blockingRowsError')),
@@ -102,14 +104,15 @@ report.checks.push(
       && !specialDetailBlock.includes('rentHistoryDetailRows'),
   ),
   check('required_spec_rows_are_read_back', specReaderBlock.includes("['space_spec', 'required_spec']")),
+  check('required_spec_row_add_recomputes_unit_and_numeric_value', has(api, "attributeType === 'required_spec' ? dataManagementRequiredSpecMeta(label) : null") && has(api, "value_numeric: requiredSpecMeta?.inputKind === 'number' ? numericOrNull(rawValue) : undefined") && has(api, 'unit_label: safeText(firstDefined(requiredSpecMeta?.unit, values.unit_label))')),
   check('insurance_right_rows_are_read_back', insuranceReaderBlock.includes("eq('attribute_type', 'insurance_right')") && api.includes('insuranceAttributeRows')),
-  check('tranche_detail_uses_sections_without_duplicate_top_rows', trancheDetailBlock.includes("layout: 'fund_overview'") && trancheDetailBlock.includes('rows: []') && trancheDetailBlock.includes('sections: [')),
+  check('tranche_detail_uses_sections_without_duplicate_top_rows', [beneficiaryDetailBlock, loanDetailBlock].every((block) => block.includes("layout: 'fund_overview'") && block.includes('rows: []') && block.includes('sections: ['))),
   check('asset_disposition_status_uses_three_korean_labels', has(api, "return '매각'") && has(api, "return '리뷰 필요'") && has(api, "return '정상'") && has(api, "target_field: 'review_status'")),
   check('sold_assets_filtered_from_investment_index', has(api, 'asset_status,disposition_status,review_status,status') && has(api, '.filter(isDashboardVisibleAsset)') && has(api, 'visibleAssetIds')),
   check('view_field_batch_submit_supported', has(api, 'async function callDataManagementSubmitViewFieldBatch') && has(api, "edit_mode: 'view_field_batch'")),
   check('special_terms_split_into_numbered_rows', has(api, 'function dataManagementSpecialTermItems') && has(api, 'specialTermItems.map') && has(api, "detail_kind: 'lease_special_term_item'")),
   check('special_terms_detail_rebuilds_full_field', has(api, 'function dataManagementJoinSpecialTermItems') && has(api, "reason_code: 'data_management_special_terms_update'")),
-  check('special_terms_add_delete_routes_to_lease_field', has(api, "data_management_special_terms_row_add") && has(api, "data_management_special_terms_row_delete") && has(ui, "targetTable === 'public.ll_leases' && targetField === 'special_terms'")),
+  check('special_terms_add_delete_routes_to_lease_field', has(api, "data_management_special_terms_row_add") && has(api, "data_management_special_terms_row_delete") && has(api, "internal_table: 'public.ll_leases'") && has(api, "field_name: 'special_terms'") && has(ui, 'markDetailRowDelete') && has(ui, 'undoDetailRowDelete')),
   check('monthly_rent_main_and_detail_share_source', has(api, "{ field_key: 'current_monthly_rent_total'") && has(api, "['current_monthly_rent_total', '월임대료 총액', space.current_monthly_rent_total, 'public.ll_lease_spaces', leaseSpaceId, 'current_monthly_rent_total'") && has(api, "['current_monthly_mf_total', '월관리비 총액', space.current_monthly_mf_total, 'public.ll_lease_spaces', leaseSpaceId, 'current_monthly_mf_total'")),
   check(
     'internal_operational_fields_hidden_from_public_fields',

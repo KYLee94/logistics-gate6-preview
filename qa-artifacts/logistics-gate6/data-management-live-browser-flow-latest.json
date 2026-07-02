@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-07-01T09:42:49.556Z",
+  "generated_at": "2026-07-02T06:37:18.439Z",
   "mode": "data_management_live_browser_flow",
   "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
   "auth_source": "password_grant",
@@ -170,10 +170,10 @@
     "submit_responses": [],
     "edge_failures": []
   },
-  "screenshot": "qa-artifacts/logistics-gate6/data-management-live-browser-flow-20260701-094248.png",
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-live-browser-flow-20260702-063717.png",
   "header_help_audit": {
-    "header_count": 47,
-    "help_count": 47,
+    "header_count": 46,
+    "help_count": 46,
     "tooltip_count": 0,
     "missing_help": []
   },
@@ -181,8 +181,8 @@
     {
       "route": "asset-data",
       "label": "자산 데이터",
-      "header_count": 20,
-      "help_count": 20,
+      "header_count": 19,
+      "help_count": 19,
       "tooltip_count": 0,
       "tooltip_visible": true,
       "load_error_visible": false,
@@ -191,8 +191,8 @@
     {
       "route": "investment-data",
       "label": "투자 데이터",
-      "header_count": 15,
-      "help_count": 15,
+      "header_count": 14,
+      "help_count": 14,
       "tooltip_count": 0,
       "tooltip_visible": true,
       "load_error_visible": false,
@@ -201,8 +201,8 @@
     {
       "route": "lease-contracts",
       "label": "임대차계약 데이터",
-      "header_count": 47,
-      "help_count": 47,
+      "header_count": 46,
+      "help_count": 46,
       "tooltip_count": 0,
       "tooltip_visible": true,
       "load_error_visible": false,
@@ -211,9 +211,9 @@
     {
       "route": "managers",
       "label": "담당자 데이터",
-      "header_count": 9,
-      "help_count": 9,
-      "tooltip_count": 1,
+      "header_count": 8,
+      "help_count": 8,
+      "tooltip_count": 0,
       "tooltip_visible": true,
       "load_error_visible": false,
       "internal_token_visible": false

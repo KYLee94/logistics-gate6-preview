@@ -121,6 +121,7 @@ const WORK_PLATFORM_QUICK_TAB_OPTIONS = [
   { key: 'dm-lease', label: '임대차계약 데이터', path: pathFor('data-management/lease-contracts') },
   { key: 'dm-managers', label: '담당자 데이터', path: pathFor('data-management/managers') },
   { key: 'dm-quality', label: '데이터 품질', path: pathFor('data-management/data-quality') },
+  { key: 'dm-approval', label: '승인 대기', path: pathFor('data-management/approval') },
   { key: 'pdf-report', label: 'PDF 보고서', path: pathFor('pdf-report') },
 ];
 const WORK_PLATFORM_QUICK_TAB_MAP = new Map(WORK_PLATFORM_QUICK_TAB_OPTIONS.map((item) => [item.key, item]));
@@ -133,6 +134,7 @@ const ASSET_PROJECT_DETAIL_CACHE = new Map();
 const ASSET_FUND_OVERVIEW_CACHE = new Map();
 const ASSET_BUILDING_REGISTER_CACHE = new Map();
 const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
+const CORE_ONLY_TOOL_ALLOWED_EMAILS = new Set(['kylee@igisam.com', 'jk.jeon@igisam.com', 'sjlee@igisam.com']);
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_KEYS = {
   aiChat: 'ai_chat',
@@ -4241,6 +4243,12 @@ function canViewDataQuality(memberInfo, permission) {
     || featurePermissions.data_quality === true;
 }
 
+function canUseCoreOnlyLogisticsTools(memberInfo, permission) {
+  const name = String(memberInfo?.staff_name || memberInfo?.name || permission?.name || '').trim();
+  const email = normalizeIdentity(memberInfo?.email || permission?.email || '').toLowerCase();
+  return DATA_QUALITY_ALLOWED_NAMES.has(name) || CORE_ONLY_TOOL_ALLOWED_EMAILS.has(email);
+}
+
 function readLogisticsFeatureAccessConfig() {
   if (typeof window === 'undefined') return {};
   try {
@@ -4321,8 +4329,20 @@ function canViewAdvancedLogisticsTools(memberInfo, permission) {
     || canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataQuality);
 }
 
+function isSoldOrArchivedLogisticsAsset(row = {}) {
+  const name = [row.assetName, row.asset_name, row.projectName, row.project_name, row.relatedAsset, row.related_asset]
+    .map((item) => String(item || '').replace(/\s+/gu, ''))
+    .join(' ');
+  const status = [row.assetStatus, row.asset_status, row.dispositionStatus, row.disposition_status, row.reviewStatus, row.review_status, row.status]
+    .map((item) => String(item || ''))
+    .join(' ');
+  return ['안성성은', '성은지구', '성은물류센터'].some((term) => name.includes(term))
+    || /매각|sold|disposed|archived/iu.test(status);
+}
+
 function buildMainWeeklyTasks(report, permission) {
-  const rows = [...(report.newProjects || []), ...(report.managementProjects || [])];
+  const rows = [...(report.newProjects || []), ...(report.managementProjects || [])]
+    .filter((row) => !isSoldOrArchivedLogisticsAsset(row));
   return rows.slice(0, 6).map((row, index) => {
     const meta = inferMainTaskMeta(row, index);
     const assetName = cleanDisplay(row.assetName || row.projectName, '');
@@ -5347,6 +5367,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     'lease-contracts': 'lease',
     managers: 'managers',
     'data-quality': 'quality',
+    approval: 'approval',
   })[dataManagementRoute] || 'lease';
   const navigateMarketData = (route) => {
     const nextPath = `${LOGISTICS_INTERNAL_BASE}/market-data/${route || 'overview'}`;
@@ -5357,7 +5378,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
   const weeklyTasks = useMemo(() => buildMainWeeklyTasks(weeklyReportData, permission), [permission]);
   const canRegisterTask = Boolean(permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.update);
-  const canUseAiChat = featureAccess.aiChat;
+  const canUseAiChat = featureAccess.aiChat && canUseCoreOnlyLogisticsTools(memberInfo, permission);
   const aiInputRef = useRef(null);
   const aiInputOverlayRef = useRef(null);
   const [aiMentionActiveIndex, setAiMentionActiveIndex] = useState(0);
@@ -13499,7 +13520,7 @@ function DataQualityDashboard() {
               ['대상', qualityTargetLabel(editTarget)],
               ['항목', qualityFieldLabel(editTarget.field)],
               ['문제로 본 이유', qualityReasonLabel(editTarget.reason)],
-              ['권한 상태', canEdit ? '수정 요청 가능' : '수정 권한 없음'],
+              ['권한 상태', canEdit ? '권한 있음' : '수정 권한 없음'],
               ['처리 방식', '수정 검토 기록을 남기고, 서버가 로그인 권한과 담당 자산 권한을 다시 확인합니다.'],
             ]} compact />
             <div className="rounded-[14px] border border-[#333333] bg-[#1F1F1E]">

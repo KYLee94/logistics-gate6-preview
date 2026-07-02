@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-07-02T02:01:49.528Z",
+  "generated_at": "2026-07-02T06:55:23.656Z",
   "mode": "data_management_column_editability_audit",
   "checks": [
     {
@@ -21,6 +21,10 @@
     },
     {
       "name": "detail_table_uses_header_help",
+      "pass": true
+    },
+    {
+      "name": "column_resize_handles_connected",
       "pass": true
     },
     {
@@ -58,6 +62,10 @@
     },
     {
       "name": "required_spec_rows_are_read_back",
+      "pass": true
+    },
+    {
+      "name": "required_spec_row_add_recomputes_unit_and_numeric_value",
       "pass": true
     },
     {

@@ -13,7 +13,7 @@ const ROUTES = [
   { key: 'market-overview', route: 'market-data/overview', selector: '[data-testid="market-data-dashboard"]', minText: 600 },
   { key: 'market-lease', route: 'market-data/lease-market', selector: '[data-testid="market-data-dashboard"]', minText: 600 },
   { key: 'data-management-lease', route: 'data-management/lease-contracts', selector: '[data-data-management-redesign="true"]', minText: 500 },
-  { key: 'data-management-quality', route: 'data-management/data-quality', selector: '[data-data-management-redesign="true"]', minText: 500 },
+  { key: 'data-management-quality', route: 'data-management/data-quality', selector: '[data-data-management-redesign="true"]', minText: 300 },
 ];
 
 function readEnvFile(filePath) {

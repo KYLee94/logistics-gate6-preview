@@ -421,6 +421,17 @@ const DATA_MANAGEMENT_TAB_CONFIGS = {
     allowedWorkflows: ['data_quality'],
     searchPlaceholder: '영역, 자산명, 상태, 검증 메모 검색',
   },
+  approval: {
+    key: 'approval',
+    title: '승인 대기',
+    description: '데이터 변경 요청을 승인하거나 반려하고 반영 상태를 확인합니다.',
+    spaceKey: 'system',
+    defaultWorkflow: 'ops-approval',
+    defaultViewKey: 'edit_requests',
+    showBundle: false,
+    allowedWorkflows: ['ops-approval'],
+    searchPlaceholder: '요청 대상, 필드, 요청자 검색',
+  },
 };
 function dataManagementViewMeta(viewKey) {
   return DATA_MANAGEMENT_VIEW_META[text(viewKey, '')] || {};
@@ -1243,7 +1254,19 @@ function sourceDomainLabel(domain) {
 
 async function invoke(action, payload = {}) {
   const { data, error } = await invokeDashboardApi(action, payload);
-  if (error) throw error;
+  if (error) {
+    const context = error.context;
+    if (context && typeof context.json === 'function') {
+      try {
+        const body = await context.clone().json();
+        const message = body?.message || body?.error || body?.details?.message;
+        if (message) throw new Error(message);
+      } catch (bodyError) {
+        if (bodyError?.message && !/body stream already read|unexpected end/i.test(bodyError.message)) throw bodyError;
+      }
+    }
+    throw error;
+  }
   if (data?.ok === false) throw new Error(data.message || data.error || `${action} failed`);
   return data?.data || data || {};
 }
@@ -7487,6 +7510,105 @@ export function AssetSpecDashboard() {
 
 const MANAGEMENT_ALL_OPTION = '전체';
 
+function DataManagementApprovalDashboard() {
+  const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 120, row_limit: 20 }, []);
+  const [selectedRequestId, setSelectedRequestId] = useState('');
+  const [actionStatus, setActionStatus] = useState(null);
+  const editRequests = safeArray(data?.edit_requests);
+  const pendingRequests = editRequests.filter((row) => row.status === 'submitted' || row.write_status === 'approval_required');
+  const selectedRequest = editRequests.find((row) => text(row.id) === selectedRequestId) || pendingRequests[0] || editRequests[0] || null;
+  const requestRows = pendingRequests.length ? pendingRequests : editRequests;
+  const reviewRequest = async (action, row = selectedRequest) => {
+    if (!row?.id) {
+      setActionStatus({ type: 'error', message: '처리할 승인 요청을 선택해 주세요.' });
+      return;
+    }
+    const actionLabel = action === 'approve' ? '승인' : '반려';
+    setActionStatus({ type: 'pending', message: `${actionLabel} 처리 중입니다.` });
+    try {
+      await invokeEdgeDataWithTimeout(action === 'approve' ? 'edits/approve' : 'edits/reject', {
+        id: row.id,
+        approval_note: action === 'approve' ? 'Data Management 승인' : undefined,
+        rejection_note: action === 'reject' ? 'Data Management 반려' : undefined,
+      });
+      setActionStatus({ type: 'success', message: `${actionLabel} 처리가 완료됐습니다. 최신 이력을 다시 읽었습니다.` });
+      reload({}, { force: true });
+    } catch (reviewError) {
+      setActionStatus({ type: 'error', message: reviewError.message || `${actionLabel} 처리에 실패했습니다.` });
+    }
+  };
+
+  return (
+    <div className="data-management-font-scope w-full max-w-none mx-auto space-y-4 px-8 pt-8 pb-14" data-data-management-approval-dashboard="true">
+      <ModuleHeader
+        eyebrow="데이터 관리"
+        title="승인 대기"
+        right={loading ? (
+          <MarketDataLoadingBadge loading progress={76} hasCachedData={Boolean(editRequests.length)} label="데이터 로딩" testId="data-management-approval-loading-progress" />
+        ) : (
+          <div className="rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 py-2 text-right text-[12px] leading-5 text-[#A1A1AA]">
+            <div>{`승인 대기 ${formatNumber(pendingRequests.length)}건`}</div>
+          </div>
+        )}
+      />
+      {error ? (
+        <div className="rounded-[12px] border border-[#5A2A2A] bg-[#2A1717] px-4 py-3 text-[13px] text-[#FFB4A9]">{text(error)}</div>
+      ) : null}
+      <section className={`${CARD} overflow-hidden`}>
+        <div className="flex items-center justify-between gap-3 border-b border-[#333333] px-4 py-3">
+          <div>
+            <div className="text-[13px] font-bold text-white">변경 요청 목록</div>
+            <div className="mt-1 text-[12px] text-[#A1A1AA]">데이터 관리에서 저장한 승인 요청을 검토하고 승인 또는 반려합니다.</div>
+          </div>
+          <button type="button" onClick={() => reload({}, { force: true })} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]">다시 읽기</button>
+        </div>
+        <div className="custom-scrollbar max-h-[55vh] overflow-auto">
+          <table className="w-full min-w-[1120px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
+            <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#A1A1AA]">
+              <tr>
+                {['요청 대상', '필드', '변경 전', '변경 후', '상태', '요청일', '처리'].map((header) => (
+                  <th key={`approval-head-${header}`} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#303033]">
+              {requestRows.length ? requestRows.map((row) => {
+                const selected = text(row.id) === text(selectedRequest?.id);
+                const isPending = row.status === 'submitted' || row.write_status === 'approval_required';
+                return (
+                  <tr key={`approval-row-${row.id}`} onClick={() => setSelectedRequestId(text(row.id))} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
+                    <td className="sticky left-0 z-10 max-w-[360px] border-r border-[#242426] bg-inherit px-3 py-2 font-semibold" title={text(row.target_name)}>{text(row.target_name, '-')}</td>
+                    <td className="border-r border-[#242426] px-3 py-2">{text(row.field_name || row.reason_code, '-')}</td>
+                    <td className="border-r border-[#242426] px-3 py-2 text-[#C7C7CC]">{formatDisplayValue(row.before_value, row.field_name)}</td>
+                    <td className="border-r border-[#242426] px-3 py-2 font-semibold text-[#B5E48C]">{formatDisplayValue(row.requested_value, row.field_name)}</td>
+                    <td className="border-r border-[#242426] px-3 py-2">{text(row.write_status || row.status, '-')}</td>
+                    <td className="border-r border-[#242426] px-3 py-2">{formatDateTime(row.created_at)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex gap-2">
+                        <button type="button" onClick={(event) => { event.stopPropagation(); reviewRequest('approve', row); }} disabled={!isPending || actionStatus?.type === 'pending'} className="h-8 rounded-[7px] bg-white px-3 text-[12px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-35">승인</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); reviewRequest('reject', row); }} disabled={!isPending || actionStatus?.type === 'pending'} className="h-8 rounded-[7px] border border-[#5A2A2A] px-3 text-[12px] font-bold text-[#FFB4A9] disabled:cursor-not-allowed disabled:opacity-35">반려</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }) : (
+                <tr>
+                  <td colSpan={7} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">승인 대기 또는 변경 이력이 없습니다.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {actionStatus ? (
+        <div className={`rounded-[10px] border px-3 py-2 text-[12px] leading-5 ${actionStatus.type === 'error' ? 'border-[#5A2A2A] bg-[#2A1717] text-[#FFB4A9]' : actionStatus.type === 'success' ? 'border-[#2F4C2F] bg-[#172A17] text-[#B5E48C]' : 'border-[#333333] bg-[#171717] text-[#A1A1AA]'}`}>
+          {actionStatus.message}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function DataManagementDashboardLegacy() {
   const [tab, setTab] = useState('lease');
   const [selectedRowId, setSelectedRowId] = useState('');
@@ -8318,7 +8440,9 @@ function DataManagementDashboardLegacy() {
                         <tr key={`modal-${row.row_key}`} onClick={() => setSelectedRowKey(row.row_key)} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
                           <td className="sticky left-0 z-20 w-[340px] border-r border-[#303033] bg-inherit px-3 py-2 align-top">
                             <button type="button" className="block max-w-[310px] truncate text-left font-semibold text-white" title={text(row.row_label)}>{text(row.row_label, '-')}</button>
-                            <div className="mt-1 text-[11px] text-[#86868B]">{row.editable ? '수정 요청 가능' : text(row.read_only_reason || (row.meta || {}).read_only_reason || '읽기 전용')}</div>
+                            {row.editable === false ? (
+                              <div className="mt-1 text-[11px] text-[#86868B]">{text(row.read_only_reason || (row.meta || {}).read_only_reason || '읽기 전용')}</div>
+                            ) : null}
                           </td>
                           {visibleColumns.map((column) => {
                             const key = text(column.field_key || column.field);
@@ -8418,6 +8542,11 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const [detailReason, setDetailReason] = useState('');
   const [detailSubmitStatus, setDetailSubmitStatus] = useState(null);
   const [bundleSearchFocused, setBundleSearchFocused] = useState(false);
+  const [rowAddModalOpen, setRowAddModalOpen] = useState(false);
+  const [rowAddDraft, setRowAddDraft] = useState({});
+  const [rowAddReason, setRowAddReason] = useState('');
+  const [rowAddStatus, setRowAddStatus] = useState(null);
+  const [columnWidths, setColumnWidths] = useState({});
   const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews } = useEdgeData('data-management/views', {}, []);
   const views = safeArray(viewCatalog?.views);
   const bundles = safeArray(viewCatalog?.fund_asset_bundles);
@@ -8562,8 +8691,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     'equity_amount_krw',
     'loan_amount_krw',
     'total_capital_krw',
-    'equity_parties',
-    'loan_lenders',
     'effective_date',
     'period_start',
     'period_end',
@@ -8592,10 +8719,13 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   }, [rows]);
   const scopedColumns = useMemo(() => orderedColumns.filter((column) => {
     const key = text(column.field_key || column.field);
+    if (activeTabConfig.key === 'investment' && ['equity_parties', 'loan_lenders', 'tranche_details', 'rate_maturity_summary', 'investment_structure', 'investor_lender_summary'].includes(key)) {
+      return false;
+    }
     if (!rows.length) return true;
     if (column.sticky || column.editable === true || priorityColumnOrder.has(key)) return true;
     return nonEmptyColumnKeys.has(key);
-  }), [orderedColumns, rows.length, nonEmptyColumnKeys, priorityColumnOrder]);
+  }), [orderedColumns, rows.length, nonEmptyColumnKeys, priorityColumnOrder, activeTabConfig.key]);
   const visibleColumns = useMemo(() => (
     scopedColumns
   ), [scopedColumns, showAllFields]);
@@ -8603,10 +8733,43 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     const columnWidth = visibleColumns.reduce((sum, column) => sum + Number(column.width || 170), 0);
     return Math.max(1180, columnWidth);
   }, [visibleColumns]);
+  const columnWidthFor = (column, fallback = 170) => {
+    const key = text(column.field_key || column.field || column.label);
+    return Number(columnWidths[key] || column.width || fallback);
+  };
+  const columnStyle = (column, fallback = 170) => ({
+    minWidth: columnWidthFor(column, fallback),
+    width: columnWidthFor(column, fallback),
+    resize: 'horizontal',
+    overflow: 'hidden',
+  });
+  const beginColumnResize = (event, column, fallback = 170) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const key = text(column.field_key || column.field || column.label);
+    if (!key) return;
+    const startX = event.clientX;
+    const startWidth = columnWidthFor(column, fallback);
+    const onMove = (moveEvent) => {
+      const nextWidth = Math.max(90, Math.min(720, startWidth + moveEvent.clientX - startX));
+      setColumnWidths((current) => ({ ...current, [key]: nextWidth }));
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+  const stickyColumnClass = (index, selected = false, changed = false, header = false) => (
+    index === 0
+      ? `sticky left-0 ${header ? 'z-40 bg-[#1F1F1E]' : selected ? 'z-20 bg-[#243044]' : changed ? 'z-20 bg-[#1E2A1B]' : 'z-20 bg-[#171717]'} shadow-[8px_0_12px_rgba(0,0,0,0.22)]`
+      : ''
+  );
   const bundleSuggestions = useMemo(() => {
     const query = normalizeSearch(search);
     if (!activeTabConfig.showBundle || !query) return [];
-    return bundles
+    const bundleMatches = bundles
       .filter((bundle) => normalizeSearch([
         bundle.selection_label,
         bundle.asset?.asset_name,
@@ -8614,9 +8777,42 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         bundle.fund?.fund_name,
         bundle.fund?.fund_code,
       ].map((item) => text(item)).join(' ')).includes(query))
-      .slice(0, 8);
-  }, [activeTabConfig.showBundle, bundles, search]);
+      .slice(0, 8)
+      .map((bundle) => ({ ...bundle, suggestion_type: 'bundle' }));
+    if (activeTabConfig.key !== 'managers') return bundleMatches;
+    const suggestionRows = safeArray(currentRowsData?.rows);
+    const rowMatches = suggestionRows
+      .map((row) => {
+        const values = row?.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+        const label = text(values.manager_name || values.staff_name || values.assignee_name || values.asset_manager_name || values.igis_manager || values.asset_name || row.row_label, '');
+        const email = text(values.manager_email || values.staff_email || values.assignee_email || values.email || '');
+        const haystack = normalizeSearch([label, email, values.asset_name, values.fund_name, row.row_label].map((item) => text(item)).join(' '));
+        if (!label || !haystack.includes(query)) return null;
+        return {
+          suggestion_type: 'manager',
+          suggestion_key: `manager:${label}:${email}:${text(values.asset_name || '')}`,
+          bundle_key: '',
+          selection_label: label,
+          suggestion_label: label,
+          suggestion_subtitle: [email, values.asset_name, values.fund_name].map((item) => text(item, '')).filter(Boolean).join(' · '),
+          manager_label: label,
+          manager_email: email,
+          asset: { asset_name: text(values.asset_name || '') },
+          fund: { fund_name: text(values.fund_name || '') },
+        };
+      })
+      .filter(Boolean)
+      .slice(0, Math.max(0, 8 - bundleMatches.length));
+    return [...bundleMatches, ...rowMatches].slice(0, 8);
+  }, [activeTabConfig.showBundle, activeTabConfig.key, bundles, currentRowsData, search]);
   const applyBundleSuggestion = (bundle) => {
+    if (bundle?.suggestion_type === 'manager') {
+      setSearch(text(bundle.manager_label || bundle.manager_email || bundle.selection_label || ''));
+      setPage(1);
+      setSelectedRowKey('');
+      setBundleSearchFocused(false);
+      return;
+    }
     const nextKey = text(bundle?.bundle_key);
     if (!nextKey) return;
     setBundleKey(nextKey);
@@ -8624,6 +8820,15 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     setPage(1);
     setSelectedRowKey('');
     setBundleSearchFocused(false);
+  };
+  const openRowAddModal = () => {
+    setRowAddDraft({});
+    setRowAddReason('');
+    setRowAddStatus(null);
+    setRowAddModalOpen(true);
+  };
+  const updateRowAddDraft = (fieldKey, value) => {
+    setRowAddDraft((current) => ({ ...current, [fieldKey]: value }));
   };
   const resetBundleSelection = () => {
     setBundleKey(MANAGEMENT_ALL_OPTION);
@@ -8648,6 +8853,10 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const pagination = currentRowsData?.pagination || {};
   const selectedRow = rows.find((row) => row.row_key === selectedRowKey) || rows[0] || null;
   const editableColumns = scopedColumns.filter((column) => column.editable === true);
+  const rowAddColumns = useMemo(() => editableColumns.filter((column) => {
+    const key = text(column.field_key || column.field);
+    return key && !['fund_names', 'operating_cost_total_krw', 'total_capital_krw'].includes(key);
+  }), [editableColumns]);
   const selectedColumn = scopedColumns.find((column) => column.field_key === selectedField || column.field === selectedField)
     || editableColumns[0]
     || scopedColumns[0]
@@ -8683,24 +8892,30 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     : '';
   const dataManagementEditKey = (rowKey, fieldKey) => `${rowKey}::${fieldKey}`;
   const pendingEditList = useMemo(() => Object.values(pendingEdits), [pendingEdits]);
+  const rowEditValueForField = (row, fieldKey, fallback = '') => {
+    const editValues = row?.edit_values && typeof row.edit_values === 'object' ? row.edit_values : {};
+    if (Object.prototype.hasOwnProperty.call(editValues, fieldKey)) return text(editValues[fieldKey], '');
+    const displayValues = row?.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+    return text(displayValues[fieldKey], fallback);
+  };
   const getCellEditValue = (row, column) => {
     const key = text(column.field_key || column.field);
     const editId = dataManagementEditKey(row.row_key, key);
     if (pendingEdits[editId]) return text(pendingEdits[editId].requested_value, '');
-    const displayValues = row?.display_values && typeof row.display_values === 'object' ? row.display_values : {};
-    return text(displayValues[key], '');
+    return rowEditValueForField(row, key, '');
   };
   const queueCellEdit = (row, column, nextValue) => {
     const fieldKey = text(column.field_key || column.field);
     if (!row?.row_key || !fieldKey || column.editable !== true || row.editable === false) return;
     const displayValues = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+    const beforeRaw = rowEditValueForField(row, fieldKey, '');
     const beforeDisplay = text(displayValues[fieldKey], '');
     const editId = dataManagementEditKey(row.row_key, fieldKey);
     setSelectedRowKey(row.row_key);
     setSelectedField(fieldKey);
     setPendingEdits((current) => {
       const next = { ...current };
-      if (text(nextValue, '') === beforeDisplay) {
+      if (text(nextValue, '') === beforeRaw) {
         delete next[editId];
         return next;
       }
@@ -8711,6 +8926,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         field_key: fieldKey,
         field_label: text(column.label || fieldKey),
         field_group: text(column.group, ''),
+        before_value: beforeRaw,
         before_display: beforeDisplay,
         requested_value: text(nextValue, ''),
         revision_hash: row.revision_hash,
@@ -8724,6 +8940,35 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     setPendingEdits({});
     setApprovalReason('');
     setBulkSubmitStatus(null);
+  };
+  const submitRowAdd = async () => {
+    const values = Object.fromEntries(Object.entries(rowAddDraft).filter(([, value]) => text(value, '').trim()));
+    if (!Object.keys(values).length) {
+      setRowAddStatus({ type: 'error', message: '추가할 값을 1개 이상 입력해 주세요.' });
+      return;
+    }
+    if (!rowAddReason.trim()) {
+      setRowAddStatus({ type: 'error', message: '승인자가 이해할 수 있는 추가 사유를 입력해 주세요.' });
+      return;
+    }
+    setRowAddStatus({ type: 'pending', message: '신규 데이터 추가 승인 요청을 저장하는 중입니다.' });
+    try {
+      await invoke('data-management/submit-edit', {
+        edit_mode: 'row_add',
+        view_key: effectiveViewKey,
+        workflow_key: activeWorkflow,
+        bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+        values,
+        reason: rowAddReason,
+      });
+      setRowAddStatus({ type: 'success', message: '신규 데이터 추가 승인 요청이 저장됐습니다.' });
+      setRowAddDraft({});
+      setRowAddReason('');
+      reloadRows({}, { force: true });
+      reloadViews({}, { force: true });
+    } catch (error) {
+      setRowAddStatus({ type: 'error', message: error.message || '신규 데이터 추가 승인 요청 저장에 실패했습니다.' });
+    }
   };
   const dataManagementDetailEditKey = (rowKey, fieldKey) => `${rowKey}::${fieldKey}`;
   const openCellDetail = (row, column, detail) => {
@@ -8817,6 +9062,22 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     }));
   };
   const isDetailRowDeleted = (sectionKey, rowKey) => safeArray(detailDeletedRows[sectionKey || 'detail']).some((item) => item.row_key === rowKey);
+  const loanTypeOptions = ['담보', '브릿지', 'PF', '기타'];
+  const isLoanTypeDetailColumn = (column) => {
+    const key = text(column?.field_key || column?.field || '').toLowerCase();
+    const label = text(column?.label || '');
+    return key === 'loan_type' || key.includes('loan_type') || label === '대출유형';
+  };
+  const loanTypeSelectValue = (value) => {
+    const current = text(value, '').trim();
+    if (!current) return '';
+    return loanTypeOptions.includes(current) ? current : '기타';
+  };
+  const loanTypeCustomValue = (value) => {
+    const current = text(value, '').trim();
+    if (!current || loanTypeOptions.includes(current)) return '';
+    return current;
+  };
   const detailNewRowValues = (row, columns) => Object.fromEntries(safeArray(columns)
     .filter((column) => column.editable === true)
     .map((column) => {
@@ -8894,7 +9155,13 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   };
   const renderDetailEditorTable = (rows, columns, emptyState = '상세 행이 없습니다.', sectionKey = 'detail') => {
     const normalizedSectionKey = sectionKey || 'detail';
+    const detailColumnKey = text(detailModal?.columnKey || '');
+    const hideDetailUnitColumn = detailColumnKey === 'required_specs_summary'
+      || /required|spec|요구|스펙/iu.test(`${detailColumnKey} ${normalizedSectionKey}`);
     const hiddenDetailColumnKeys = new Set(['row_label', 'detail_row', 'row_management', 'review_note', 'review_status', 'basis']);
+    if (hideDetailUnitColumn) {
+      ['unit', 'unit_label', 'attribute_unit', 'measurement_unit'].forEach((key) => hiddenDetailColumnKeys.add(key));
+    }
     const detailColumnWidth = (column) => {
       const key = text(column.field_key || column.field);
       const label = text(column.label);
@@ -8936,13 +9203,19 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           <table className="w-full border-separate text-left text-[12px]" style={{ borderSpacing: 0, minWidth: tableMinWidth }}>
             <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#A1A1AA]">
               <tr>
-                {visibleDetailColumns.map((column) => {
+                {visibleDetailColumns.map((column, columnIndex) => {
                   const key = text(column.field_key || column.field);
                   return (
-                    <th key={`detail-head-${key}`} title={dataManagementColumnHelp(column)} style={{ minWidth: column.width || 160, width: column.width || 160 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                    <th key={`detail-head-${key}`} title={dataManagementColumnHelp(column)} style={columnStyle(column, 160)} className={`relative border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold ${stickyColumnClass(columnIndex, false, false, true)}`}>
                       <DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>
                         {text(column.label)}
                       </DataManagementHeaderHelp>
+                      <span
+                        role="separator"
+                        aria-label={`${text(column.label)} 컬럼 너비 조절`}
+                        className="absolute bottom-0 right-0 top-0 w-2 cursor-col-resize touch-none hover:bg-[#5A5A5A]"
+                        onMouseDown={(event) => beginColumnResize(event, column, 160)}
+                      />
                     </th>
                   );
                 })}
@@ -8954,13 +9227,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 const rowDeleted = isDetailRowDeleted(normalizedSectionKey, row.row_key);
                 const rowMeta = row.meta && typeof row.meta === 'object' ? row.meta : {};
                 const editTargets = rowMeta.edit_targets && typeof rowMeta.edit_targets === 'object' ? rowMeta.edit_targets : {};
-                  const rowDeleteSupported = row.editable !== false && (row.is_new_detail_row || row.delete_supported === true || Object.values(editTargets).some((target) => {
-                  const targetTable = text(target?.target_table);
-                  const targetField = text(target?.target_field);
-                  return targetTable === 'public.ll_fund_capital_tranches'
-                    || targetTable === 'public.ll_lease_attributes'
-                    || (targetTable === 'public.ll_leases' && targetField === 'special_terms');
-                }));
                 return (
                   <tr key={`detail-row-${row.row_key}`} className={`bg-[#171717] text-[#E5E5E5] hover:bg-[#1F1F1F] ${rowDeleted ? 'opacity-50' : ''}`}>
                     {visibleDetailColumns.map((column, columnIndex) => {
@@ -8969,31 +9235,75 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                       const cellChanged = Boolean(detailDrafts[editId]);
                       const canEditCell = column.editable === true && row.editable !== false && !rowDeleted;
                       const cellValue = getDetailCellValue(row, column);
+                      const inputKinds = rowMeta.input_kinds && typeof rowMeta.input_kinds === 'object' ? rowMeta.input_kinds : {};
+                      const isNumberDetailInput = text(inputKinds[key]) === 'number';
+                      const rowHelpText = text(rowMeta.help_text);
+                      const cellHelpText = [rowHelpText, dataManagementColumnHelp(column)].filter(Boolean).join('\n');
                       return (
-                        <td key={`detail-cell-${row.row_key}-${key}`} className={`border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B]' : ''}`}>
-                          {columnIndex === 0 ? (
-                            <div className="mb-1 flex flex-wrap items-center gap-2">
-                              <span className="text-[11px] font-semibold text-[#B5E48C]">{row.is_new_detail_row ? '신규 행' : row.editable === false ? text(row.read_only_reason, '읽기 전용') : '수정 요청 가능'}</span>
-                              {rowDeleteSupported ? (
-                                rowDeleted ? (
-                                  <button type="button" onClick={() => undoDetailRowDelete(normalizedSectionKey, row.row_key)} className="h-6 rounded-[6px] border border-[#3A3A3C] px-2 text-[11px] font-semibold text-white hover:border-[#8E8E93]">삭제 취소</button>
-                                ) : (
-                                  <button type="button" onClick={() => markDetailRowDelete(normalizedSectionKey, row)} className="h-6 rounded-[6px] border border-[#5A2A2A] px-2 text-[11px] font-semibold text-[#FFB4A9] hover:border-[#FFB4A9]">삭제 요청</button>
-                                )
-                              ) : null}
-                            </div>
-                          ) : null}
-                          {canEditCell ? (
-                            <input
-                              value={cellValue}
-                              onChange={(event) => queueDetailEdit(row, column, event.target.value)}
-                              className={`h-8 w-full rounded-[7px] border px-2 text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-[#2A2A2A] bg-[#111111] text-[#E5E5E5] focus:border-[#8E8E93]'}`}
-                              title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
-                              data-data-management-detail-inline-edit="true"
-                            />
-                          ) : (
-                            <div className="max-w-[320px] truncate text-[#C7C7CC]" title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}>{formatDisplayValue(values[key], key)}</div>
-                          )}
+                        <td key={`detail-cell-${row.row_key}-${key}`} style={columnStyle(column, 160)} className={`border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B]' : ''} ${stickyColumnClass(columnIndex, false, cellChanged)}`}>
+                          <div className="relative">
+                            {columnIndex === 0 && (row.delete_supported || row.is_new_detail_row) ? (
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  if (rowDeleted) {
+                                    undoDetailRowDelete(normalizedSectionKey, row.row_key);
+                                  } else {
+                                    markDetailRowDelete(normalizedSectionKey, row);
+                                  }
+                                }}
+                                className="absolute right-0 top-0 flex h-6 w-6 items-center justify-center rounded-[6px] border border-[#3A3A3C] text-[12px] font-bold text-[#C7C7CC] hover:border-[#8E8E93] hover:text-white"
+                                title={rowDeleted ? '행 삭제 취소' : '행 삭제'}
+                                aria-label={rowDeleted ? '행 삭제 취소' : '행 삭제'}
+                              >
+                                {rowDeleted ? '↺' : '×'}
+                              </button>
+                            ) : null}
+                            {canEditCell ? (
+                              isLoanTypeDetailColumn(column) ? (
+                                <div className={`space-y-2 ${columnIndex === 0 && (row.delete_supported || row.is_new_detail_row) ? 'pr-8' : ''}`}>
+                                <select
+                                  value={loanTypeSelectValue(cellValue)}
+                                  onChange={(event) => {
+                                    const nextType = event.target.value;
+                                    queueDetailEdit(row, column, nextType === '기타' ? '기타' : nextType);
+                                  }}
+                                  className={`h-8 w-full rounded-[7px] border px-2 text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-[#2A2A2A] bg-[#111111] text-[#E5E5E5] focus:border-[#8E8E93]'}`}
+                                  title={`${cellHelpText}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                                  data-data-management-detail-inline-edit="true"
+                                >
+                                  <option value="">선택</option>
+                                  {loanTypeOptions.map((option) => (
+                                    <option key={`loan-type-${option}`} value={option}>{option}</option>
+                                  ))}
+                                </select>
+                                {loanTypeSelectValue(cellValue) === '기타' ? (
+                                  <input
+                                    value={loanTypeCustomValue(cellValue)}
+                                    onChange={(event) => queueDetailEdit(row, column, event.target.value)}
+                                    className={`h-8 w-full rounded-[7px] border px-2 text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-[#2A2A2A] bg-[#111111] text-[#E5E5E5] focus:border-[#8E8E93]'}`}
+                                    placeholder="기타 대출유형 직접 입력"
+                                    title={`${cellHelpText}\n기타 선택 시 직접 입력합니다.`}
+                                    data-data-management-detail-inline-edit="true"
+                                  />
+                                ) : null}
+                                </div>
+                              ) : (
+                                <input
+                                type={isNumberDetailInput ? 'number' : 'text'}
+                                inputMode={isNumberDetailInput ? 'decimal' : undefined}
+                                value={cellValue}
+                                onChange={(event) => queueDetailEdit(row, column, event.target.value)}
+                                className={`h-8 w-full rounded-[7px] border px-2 text-[12px] font-semibold outline-none ${columnIndex === 0 && (row.delete_supported || row.is_new_detail_row) ? 'pr-8' : ''} ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-[#2A2A2A] bg-[#111111] text-[#E5E5E5] focus:border-[#8E8E93]'}`}
+                                title={`${cellHelpText}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                                data-data-management-detail-inline-edit="true"
+                              />
+                              )
+                            ) : (
+                              <div className={`max-w-[320px] truncate text-[#C7C7CC] ${columnIndex === 0 && (row.delete_supported || row.is_new_detail_row) ? 'pr-8' : ''}`} title={`${cellHelpText}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}>{formatDisplayValue(values[key], key)}</div>
+                            )}
+                          </div>
                         </td>
                       );
                     })}
@@ -9043,6 +9353,10 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     setDetailDeletedRows({});
     setDetailReason('');
     setDetailSubmitStatus(null);
+    setRowAddModalOpen(false);
+    setRowAddDraft({});
+    setRowAddReason('');
+    setRowAddStatus(null);
     clearPendingEdits();
   }, [activeTabConfig.key]);
 
@@ -9175,7 +9489,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     }
     setBulkSubmitStatus({ type: 'pending', message: `${formatNumber(pendingEditList.length)}개 변경값을 승인 요청으로 저장하는 중입니다.` });
     try {
-      await invoke('data-management/submit-edit', {
+      const result = await invokeEdgeDataWithTimeout('data-management/submit-edit', {
         edit_mode: 'view_field_batch',
         view_key: effectiveViewKey,
         bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
@@ -9184,14 +9498,15 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           view_key: edit.view_key || effectiveViewKey,
           row_key: edit.row_key,
           field_key: edit.field_key,
+          before_value: edit.before_value,
           requested_value: edit.requested_value,
           revision_hash: edit.revision_hash,
           bundle_key: edit.bundle_key || (bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : ''),
         })),
       });
-      setBulkSubmitStatus({ type: 'success', message: '승인 요청이 저장되었습니다. 최신 값을 다시 읽어옵니다.' });
+      const savedCount = Number(result?.changes || pendingEditList.length || 0);
+      setBulkSubmitStatus({ type: 'success', message: `승인 요청이 완료됐습니다. 승인 대기 탭에서 ${formatNumber(savedCount)}건의 처리 상태를 확인할 수 있습니다.` });
       clearPendingEdits();
-      setApprovalModalOpen(false);
       reloadRows({}, { force: true });
       reloadViews({}, { force: true });
     } catch (submitError) {
@@ -9203,6 +9518,8 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     reloadViews({}, { force: true });
     reloadRows({}, { force: true });
   };
+
+  if (activeTabConfig.key === 'approval') return <DataManagementApprovalDashboard />;
 
   const currentRowCount = Number(pagination.total_estimate || rows.length || 0);
 
@@ -9228,7 +9545,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       />
 
       <section className={`${CARD} p-4`}>
-        <div className="grid grid-cols-1 items-end gap-3 xl:grid-cols-[minmax(260px,360px)_minmax(280px,1fr)_auto]" data-data-management-domain-nav="true">
+        <div className="grid grid-cols-1 items-end gap-3 xl:grid-cols-[minmax(230px,320px)_minmax(260px,1fr)_144px_144px_144px]" data-data-management-domain-nav="true">
           <label className={`text-[12px] font-semibold text-[#A1A1AA] ${!showWorkflowSelector ? 'hidden' : ''}`}>
             관리 영역
             <select
@@ -9292,7 +9609,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
               <div className="absolute left-0 right-0 top-[66px] z-50 overflow-hidden rounded-[10px] border border-[#3A3A3C] bg-[#1F1F1E] shadow-[0_18px_50px_rgba(0,0,0,0.45)]" data-data-management-search-suggestions="true">
                 {bundleSuggestions.map((bundle) => (
                   <button
-                    key={`bundle-suggest-${bundle.bundle_key}`}
+                    key={`bundle-suggest-${bundle.suggestion_key || bundle.bundle_key || bundle.selection_label}`}
                     type="button"
                     onMouseDown={(event) => {
                       event.preventDefault();
@@ -9300,20 +9617,23 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                     }}
                     className="block w-full border-b border-[#2A2A2A] px-3 py-2 text-left text-[12px] text-white last:border-b-0 hover:bg-[#2A2A29]"
                   >
-                    <span className="block truncate font-semibold">{text(bundle.asset?.asset_name || bundle.selection_label, '자산')}</span>
-                    <span className="mt-0.5 block truncate text-[#A1A1AA]">{text(bundle.fund?.fund_name || bundle.selection_label, '연결 펀드')}</span>
+                    <span className="block truncate font-semibold">{text(bundle.suggestion_label || bundle.asset?.asset_name || bundle.selection_label, '추천 항목')}</span>
+                    <span className="mt-0.5 block truncate text-[#A1A1AA]">{text(bundle.suggestion_subtitle || bundle.fund?.fund_name || bundle.selection_label, '관련 데이터')}</span>
                   </button>
                 ))}
               </div>
             ) : null}
           </label>
           {activeTabConfig.showBundle ? (
-            <button type="button" onClick={resetBundleSelection} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93]">
+            <button type="button" onClick={resetBundleSelection} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93]">
               전체 자산 보기
             </button>
           ) : null}
-          <button type="button" onClick={() => setEditModalOpen(true)} disabled={!rows.length} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93] disabled:opacity-35">
+          <button type="button" onClick={() => setEditModalOpen(true)} disabled={!rows.length} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93] disabled:opacity-35">
             전체화면으로 편집
+          </button>
+          <button type="button" onClick={openRowAddModal} disabled={!rowAddColumns.length} className="h-10 w-full rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:bg-[#2A2A29] disabled:text-[#6E6E73]">
+            행 추가
           </button>
         </div>
       </section>
@@ -9362,17 +9682,23 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                     ))}
                   </tr>
                   <tr>
-                    {visibleColumns.map((column) => {
+                    {visibleColumns.map((column, columnIndex) => {
                       const key = text(column.field_key || column.field);
                       const activeSort = sort.key === key;
                       return (
-                        <th key={key} title={dataManagementColumnHelp(column)} style={{ minWidth: column.width || 170, width: column.width || 170 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                        <th key={key} title={dataManagementColumnHelp(column)} style={columnStyle(column)} className={`relative border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold ${stickyColumnClass(columnIndex, false, false, true)}`}>
                           <button type="button" onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
                             <DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>
                               {text(column.label)}
                             </DataManagementHeaderHelp>
                             <span className="text-[10px] text-[#86868B]">{activeSort ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
                           </button>
+                          <span
+                            role="separator"
+                            aria-label={`${text(column.label)} 컬럼 너비 조절`}
+                            className="absolute bottom-0 right-0 top-0 w-2 cursor-col-resize touch-none hover:bg-[#5A5A5A]"
+                            onMouseDown={(event) => beginColumnResize(event, column)}
+                          />
                         </th>
                       );
                     })}
@@ -9384,7 +9710,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                     const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
                     return (
                       <tr key={row.row_key} onClick={() => setSelectedRowKey(row.row_key)} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
-                        {visibleColumns.map((column) => {
+                        {visibleColumns.map((column, columnIndex) => {
                           const key = text(column.field_key || column.field);
                           const editId = dataManagementEditKey(row.row_key, key);
                           const cellPending = pendingEdits[editId];
@@ -9394,7 +9720,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                           const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details : {};
                           const cellDetail = cellDetails[key] && typeof cellDetails[key] === 'object' ? cellDetails[key] : null;
                           return (
-                            <td key={`${row.row_key}-${key}`} className={`max-w-[320px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''}`}>
+                            <td key={`${row.row_key}-${key}`} style={columnStyle(column)} className={`max-w-[360px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''} ${stickyColumnClass(columnIndex, selected, cellChanged)}`}>
                               {cellDetail ? (
                                 <button
                                   type="button"
@@ -9556,17 +9882,23 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 <table className="w-full border-separate text-left text-[12px]" style={{ borderSpacing: 0, minWidth: dataManagementTableMinWidth }}>
                   <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
                     <tr>
-                      {visibleColumns.map((column) => {
+                      {visibleColumns.map((column, columnIndex) => {
                         const key = text(column.field_key || column.field);
                         const activeSort = sort.key === key;
                         return (
-                          <th key={`fullscreen-${key}`} title={dataManagementColumnHelp(column)} style={{ minWidth: column.width || 170, width: column.width || 170 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
+                          <th key={`fullscreen-${key}`} title={dataManagementColumnHelp(column)} style={columnStyle(column)} className={`relative border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold ${stickyColumnClass(columnIndex, false, false, true)}`}>
                             <button type="button" onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
                               <DataManagementHeaderHelp help={dataManagementColumnHelp(column)}>
                                 {text(column.label)}
                               </DataManagementHeaderHelp>
                               <span className="text-[10px] text-[#86868B]">{activeSort ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
                             </button>
+                            <span
+                              role="separator"
+                              aria-label={`${text(column.label)} 컬럼 너비 조절`}
+                              className="absolute bottom-0 right-0 top-0 w-2 cursor-col-resize touch-none hover:bg-[#5A5A5A]"
+                              onMouseDown={(event) => beginColumnResize(event, column)}
+                            />
                           </th>
                         );
                       })}
@@ -9578,7 +9910,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                       const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
                       return (
                         <tr key={`fullscreen-${row.row_key}`} onClick={() => setSelectedRowKey(row.row_key)} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
-                          {visibleColumns.map((column) => {
+                          {visibleColumns.map((column, columnIndex) => {
                             const key = text(column.field_key || column.field);
                             const editId = dataManagementEditKey(row.row_key, key);
                             const cellPending = pendingEdits[editId];
@@ -9588,7 +9920,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                             const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details : {};
                             const cellDetail = cellDetails[key] && typeof cellDetails[key] === 'object' ? cellDetails[key] : null;
                             return (
-                              <td key={`fullscreen-${row.row_key}-${key}`} className={`max-w-[320px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''}`}>
+                              <td key={`fullscreen-${row.row_key}-${key}`} style={columnStyle(column)} className={`max-w-[360px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''} ${stickyColumnClass(columnIndex, selected, cellChanged)}`}>
                                 {cellDetail ? (
                                   <button
                                     type="button"
@@ -9682,6 +10014,86 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             </button>
             {submitStatus ? <div className={`mt-3 text-[12px] leading-5 ${submitStatus.type === 'error' ? 'text-[#FF9F9F]' : submitStatus.type === 'success' ? 'text-[#B5E48C]' : 'text-[#A1A1AA]'}`}>{submitStatus.message}</div> : null}
           </aside>
+        </div>
+      </Modal>
+      <Modal
+        title={rowAddModalOpen ? '신규 데이터 추가' : ''}
+        onClose={() => setRowAddModalOpen(false)}
+        width="max-w-[calc(100vw-48px)]"
+        fullscreen
+      >
+        <div className="grid h-full min-h-0 grid-cols-1 gap-4" data-data-management-row-add="true">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <div className="text-[12px] font-semibold text-[#86868B]">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label, '데이터')}</div>
+              <h3 className="mt-1 text-[22px] font-bold text-white">신규 데이터 추가</h3>
+              <div className="mt-2 text-[12px] leading-5 text-[#A1A1AA]">표에 없는 신규 자산, 투자, 임대차계약, 담당자 데이터를 입력하고 승인 요청으로 저장합니다.</div>
+            </div>
+            <div className="rounded-[8px] border border-[#333333] px-3 py-2 text-[12px] font-semibold text-white">
+              입력 {formatNumber(Object.values(rowAddDraft).filter((value) => text(value, '').trim()).length)}건
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-[12px] border border-[#333333]">
+            <div className="custom-scrollbar max-h-[calc(100vh-275px)] min-h-[420px] overflow-auto">
+              <table className="w-full border-separate text-left text-[12px]" style={{ borderSpacing: 0, minWidth: 980 }}>
+                <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
+                  <tr>
+                    <th className="sticky left-0 z-40 w-[260px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">항목</th>
+                    <th className="w-[180px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">구분</th>
+                    <th className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">입력값</th>
+                    <th className="w-[360px] border-b border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">설명</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#303033]">
+                  {rowAddColumns.length ? rowAddColumns.map((column) => {
+                    const key = text(column.field_key || column.field);
+                    return (
+                      <tr key={`row-add-${key}`} className="bg-[#171717] text-[#E5E5E5]">
+                        <td className="sticky left-0 z-20 border-r border-[#242426] bg-[#171717] px-3 py-2 font-semibold">{text(column.label || key)}</td>
+                        <td className="border-r border-[#242426] px-3 py-2 text-[#A1A1AA]">{text(column.group, '-')}</td>
+                        <td className="border-r border-[#242426] px-3 py-2">
+                          <input
+                            value={text(rowAddDraft[key], '')}
+                            onChange={(event) => updateRowAddDraft(key, event.target.value)}
+                            className="h-9 w-full rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 text-[12px] font-semibold text-white outline-none focus:border-[#8E8E93]"
+                            placeholder="신규 값 입력"
+                            title={dataManagementColumnHelp(column)}
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-[#A1A1AA]">{dataManagementColumnHelp(column)}</td>
+                      </tr>
+                    );
+                  }) : (
+                    <tr>
+                      <td colSpan={4} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">이 화면에서 추가할 수 있는 입력 항목이 없습니다.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+            <label className="block text-[12px] font-semibold text-[#A1A1AA]">
+              추가 사유
+              <input
+                value={rowAddReason}
+                onChange={(event) => setRowAddReason(event.target.value)}
+                className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]"
+                placeholder="승인자가 이해할 수 있는 신규 데이터 추가 사유"
+              />
+            </label>
+            <div className="flex items-end gap-2">
+              <button type="button" onClick={() => setRowAddModalOpen(false)} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93]">닫기</button>
+              <button type="button" onClick={submitRowAdd} disabled={rowAddStatus?.type === 'pending'} className="h-10 rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-40">
+                추가 승인 요청 저장
+              </button>
+            </div>
+          </div>
+          {rowAddStatus ? (
+            <div className={`rounded-[10px] border px-3 py-2 text-[12px] leading-5 ${rowAddStatus.type === 'error' ? 'border-[#5A2A2A] bg-[#2A1717] text-[#FFB4A9]' : rowAddStatus.type === 'success' ? 'border-[#2F4C2F] bg-[#172A17] text-[#B5E48C]' : 'border-[#333333] bg-[#171717] text-[#A1A1AA]'}`}>
+              {rowAddStatus.message}
+            </div>
+          ) : null}
         </div>
       </Modal>
       <Modal
