@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-07-02T08:48:02.229Z",
+  "generated_at": "2026-07-02T10:02:57.634Z",
   "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
   "auth_source": "password_grant",
   "checks": {
@@ -39,7 +39,7 @@
     "subtabs_no_internal_tokens": true
   },
   "errors": [],
-  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260702-084801.png",
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260702-100256.png",
   "grid_metrics": {
     "igis_initial": {
       "headerButtons": 36,
@@ -73,9 +73,9 @@
     },
     "subtab_quality": {
       "headerButtons": 7,
-      "rowButtons": 42,
+      "rowButtons": 266,
       "hasLoadingText": false,
-      "hasZeroState": true
+      "hasZeroState": false
     }
   },
   "views_contract": {
@@ -677,7 +677,8 @@
       "rows": 57,
       "sorting_headers": 15,
       "not_loading": true,
-      "no_internal_tokens": true
+      "no_internal_tokens": true,
+      "internal_token_match": null
     },
     "investment": {
       "route": "data-management/investment-data",
@@ -685,7 +686,8 @@
       "rows": 68,
       "sorting_headers": 9,
       "not_loading": true,
-      "no_internal_tokens": true
+      "no_internal_tokens": true,
+      "internal_token_match": null
     },
     "lease": {
       "route": "data-management/lease-contracts",
@@ -693,7 +695,8 @@
       "rows": 718,
       "sorting_headers": 36,
       "not_loading": true,
-      "no_internal_tokens": true
+      "no_internal_tokens": true,
+      "internal_token_match": null
     },
     "managers": {
       "route": "data-management/managers",
@@ -701,15 +704,17 @@
       "rows": 38,
       "sorting_headers": 5,
       "not_loading": true,
-      "no_internal_tokens": true
+      "no_internal_tokens": true,
+      "internal_token_match": null
     },
     "quality": {
       "route": "data-management/data-quality",
       "grid_visible": true,
-      "rows": 42,
+      "rows": 266,
       "sorting_headers": 7,
       "not_loading": true,
-      "no_internal_tokens": true
+      "no_internal_tokens": true,
+      "internal_token_match": null
     }
   }
 }

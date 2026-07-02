@@ -3165,7 +3165,7 @@ async function buildRuntimeQualityFindings(ctx: Context, limit: number) {
         targetName: assetName,
         fieldName: 'asset_name',
         reasonCode: 'asset_name_missing',
-        action: '자산 마스터의 자산명을 입력해야 화면과 계약 데이터가 안정적으로 연결됩니다.',
+        action: '자산명을 입력해야 화면과 계약 데이터가 안정적으로 연결됩니다.',
         sourceTable: 'public.ll_assets',
         entityId: assetId,
         assetName,
@@ -3243,7 +3243,7 @@ async function buildRuntimeQualityFindings(ctx: Context, limit: number) {
         targetName,
         fieldName: currentValues.rent === null ? 'current_monthly_rent_total' : 'current_monthly_mf_total',
         reasonCode: 'current_rent_missing',
-        action: '현재 계약 원장의 월 임대료와 월 관리비를 모두 입력해야 운영 지표가 완성됩니다.',
+        action: '현재 계약값의 월 임대료와 월 관리비를 모두 입력해야 운영 지표가 완성됩니다.',
         sourceTable: 'public.ll_lease_spaces',
         entityId: leaseSpaceId,
         assetName,
@@ -3295,7 +3295,7 @@ async function buildRuntimeQualityFindings(ctx: Context, limit: number) {
           targetName,
           fieldName: 'monthly_rent_total',
           reasonCode: 'current_vs_latest_history_mismatch',
-          action: '현재 계약 원장의 월 임대료/관리비와 최신 임대료 변경 이력이 다릅니다. 현재값 보정인지 새 변경 이력인지 구분해 반영해야 합니다.',
+          action: '현재 계약값의 월 임대료/관리비와 최신 임대료 변경 이력이 다릅니다. 현재값 보정인지 새 변경 이력인지 구분해 반영해야 합니다.',
           sourceTable: 'public.ll_rent_history',
           entityId: leaseSpaceId,
           assetName,
@@ -8225,11 +8225,41 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
       if (key.includes('tenant')) return '임차인 데이터';
       return '데이터 품질';
     };
+    const businessTargetLabel = (value: unknown, fallback: string) => {
+      const label = safeText(value).trim();
+      if (!label) return fallback;
+      if (/^tenant_(?:brn|name)_[a-z0-9]+$/iu.test(label)) return fallback;
+      if (/^asset_[a-z0-9]+$/iu.test(label)) return fallback;
+      if (/^runtime_[a-z0-9_:-]+$/iu.test(label)) return fallback;
+      return label;
+    };
+    const fieldLabel = (fieldName: unknown) => {
+      const key = safeText(fieldName).toLowerCase();
+      const labels: Record<string, string> = {
+        asset_name: '자산명',
+        gross_floor_area_sqm: '연면적',
+        lease_space_id: '임대구역 연결',
+        leased_area_sqm: '임대면적',
+        current_monthly_rent_total: '월 임대료',
+        current_monthly_mf_total: '월 관리비',
+        monthly_rent_total: '월 임대료',
+        monthly_mf_total: '월 관리비',
+        effective_date: '기준일자',
+        is_latest: '최신 이력 표시',
+        current_end_date: '현재 계약만기일',
+        business_registration_no: '사업자번호',
+      };
+      return labels[key] || safeText(fieldName).replace(/_/gu, ' ');
+    };
     const runtimeRowsSource = runtimeFindings.map((finding, index) => {
-      const targetName = safeText(firstDefined(finding.target_name, finding.targetName, finding.entity_id, finding.id));
-      const fieldName = safeText(firstDefined(finding.field_name, finding.fieldName, finding.reason_code, finding.reasonCode));
+      const domain = domainLabel(firstDefined(finding.target_type, finding.targetType, finding.entity_type));
+      const targetName = businessTargetLabel(
+        firstDefined(finding.target_name, finding.targetName, finding.asset_name, finding.assetName, finding.tenant_name, finding.tenantName),
+        `${domain} 확인 필요`,
+      );
+      const fieldName = fieldLabel(firstDefined(finding.field_name, finding.fieldName, finding.reason_code, finding.reasonCode));
       return {
-        domain_label: domainLabel(firstDefined(finding.target_type, finding.targetType, finding.entity_type)),
+        domain_label: domain,
         check_item: [targetName, fieldName].filter(Boolean).join(' · ') || `품질 진단 ${index + 1}`,
         status_label: severityLabel(finding.severity),
         issue_count: 1,
@@ -8311,7 +8341,7 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
       source_count: rowCount('ll_assets'),
       expected_count: DATA_MANAGEMENT_EXPECTED_ASSET_COUNT,
       readback_at: readbackAt,
-      owner_label: 'Data/API',
+      owner_label: '자동 진단',
       note: '자산 데이터 기본 범위가 운영 데이터 기준과 맞는지 확인합니다.',
     },
     {
@@ -8322,7 +8352,7 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
       source_count: rowCount('ll_funds'),
       expected_count: DATA_MANAGEMENT_EXPECTED_FUND_COUNT,
       readback_at: readbackAt,
-      owner_label: 'Data/API',
+      owner_label: '자동 진단',
       note: `자산-펀드 연결 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_fund_asset_links'))}건, tranche ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_fund_capital_tranches'))}건을 함께 확인합니다.`,
     },
     {
@@ -8333,7 +8363,7 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
       source_count: rowCount('ll_lease_spaces'),
       expected_count: null,
       readback_at: readbackAt,
-      owner_label: 'Data/API',
+      owner_label: '자동 진단',
       note: `계약 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_leases'))}건, 임대공간 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_lease_spaces'))}건, 히스토리 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_rent_history'))}건 기준입니다.`,
     },
     {
@@ -8344,7 +8374,7 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
       source_count: rowCount('ll_lease_attributes'),
       expected_count: null,
       readback_at: readbackAt,
-      owner_label: 'Data/API',
+      owner_label: '자동 진단',
       note: '요구 스펙, 특약, 보험·권리 등 임대차 부속 속성의 적재 여부를 확인합니다.',
     },
     {
@@ -8355,7 +8385,7 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
       source_count: rowCount('ll_asset_specs') + rowCount('ll_asset_operating_costs'),
       expected_count: null,
       readback_at: readbackAt,
-      owner_label: 'Data/API',
+      owner_label: '자동 진단',
       note: `자산 스펙 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_asset_specs'))}건, 운영비용 ${new Intl.NumberFormat('ko-KR').format(rowCount('ll_asset_operating_costs'))}건입니다.`,
     },
     {

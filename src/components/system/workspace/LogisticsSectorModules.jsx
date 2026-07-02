@@ -461,7 +461,7 @@ const DATA_MANAGEMENT_FIELD_HELP = {
   spec_summary: '주요 스펙은 여러 스펙 항목의 요약입니다. 상세 항목은 스펙 상세 또는 자산 스펙 입력 화면에서 관리합니다.',
   operating_cost_period: '운영비용 기준기간입니다. 운영비용 행을 추가하거나 해당 기간의 비용 행에서 관리합니다.',
   operating_cost_total_krw: '운영비용 합계는 PM, FM, 보험료, Utility, 기타 비용을 합산한 값입니다.',
-  review_status: '검토 상태는 승인 요청, 품질 점검, readback 결과로 관리되는 상태값입니다.',
+  review_status: '검토 상태는 승인 요청, 품질 점검, 반영 확인 결과로 관리되는 상태값입니다.',
   review_note: '검토 메모는 승인/반려 또는 품질 점검 과정에서 남기는 기록입니다.',
   tenant_master_name: '임차인명입니다. 임대차계약 데이터에서는 직접 수정 요청할 수 있고, 이력 화면에서는 조회용으로 표시됩니다.',
   is_latest: '최신 여부는 기준일자 기준으로 자동 판정됩니다.',

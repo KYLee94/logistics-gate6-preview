@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-07-02T06:37:18.439Z",
+  "generated_at": "2026-07-02T10:04:08.199Z",
   "mode": "data_management_live_browser_flow",
   "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
   "auth_source": "password_grant",
@@ -45,12 +45,9 @@
       },
       {
         "status": 200,
-        "ok": true,
-        "view_count": 6,
-        "bundle_count": 19,
-        "asset_count": 19,
-        "fund_count": 17,
-        "contains_404_pair": true
+        "view_count": 0,
+        "bundle_count": 0,
+        "contains_404_pair": false
       },
       {
         "status": 200,
@@ -104,7 +101,7 @@
         "ok": true,
         "view_key": "lease_general_excel",
         "field_count": 37,
-        "row_count": 72,
+        "row_count": 63,
         "pagination_total": null
       },
       {
@@ -119,7 +116,7 @@
         "status": 200,
         "ok": true,
         "view_key": "investment_integrated",
-        "field_count": 11,
+        "field_count": 9,
         "row_count": 17,
         "pagination_total": null
       },
@@ -128,7 +125,7 @@
         "ok": true,
         "view_key": "lease_general_excel",
         "field_count": 37,
-        "row_count": 72,
+        "row_count": 63,
         "pagination_total": null
       },
       {
@@ -144,7 +141,7 @@
         "ok": true,
         "view_key": "lease_general_excel",
         "field_count": 37,
-        "row_count": 72,
+        "row_count": 63,
         "pagination_total": null
       },
       {
@@ -152,7 +149,7 @@
         "ok": true,
         "view_key": "lease_general_excel",
         "field_count": 37,
-        "row_count": 8,
+        "row_count": 4,
         "pagination_total": null
       },
       {
@@ -160,7 +157,7 @@
         "ok": true,
         "view_key": "lease_general_excel",
         "field_count": 37,
-        "row_count": 72,
+        "row_count": 63,
         "pagination_total": null
       }
     ],
@@ -170,7 +167,7 @@
     "submit_responses": [],
     "edge_failures": []
   },
-  "screenshot": "qa-artifacts/logistics-gate6/data-management-live-browser-flow-20260702-063717.png",
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-live-browser-flow-20260702-100406.png",
   "header_help_audit": {
     "header_count": 46,
     "help_count": 46,
@@ -191,9 +188,9 @@
     {
       "route": "investment-data",
       "label": "투자 데이터",
-      "header_count": 14,
-      "help_count": 14,
-      "tooltip_count": 0,
+      "header_count": 11,
+      "help_count": 11,
+      "tooltip_count": 1,
       "tooltip_visible": true,
       "load_error_visible": false,
       "internal_token_visible": false

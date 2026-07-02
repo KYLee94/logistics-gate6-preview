@@ -462,13 +462,15 @@ async function main() {
       });
       const metrics = await waitForGridSettled(page, report, `subtab_${key}`);
       const tabBody = await page.locator('body').innerText({ timeout: 10000 });
+      const subtabInternalMatch = internalTokenMatch(tabBody);
       report.subtab_checks[key] = {
         route,
         grid_visible: await page.locator('[data-data-management-grid="true"]').isVisible({ timeout: 5000 }).catch(() => false),
         rows: metrics.rowButtons,
         sorting_headers: metrics.headerButtons,
         not_loading: !metrics.hasLoadingText,
-        no_internal_tokens: !internalTokenMatch(tabBody),
+        no_internal_tokens: !subtabInternalMatch,
+        internal_token_match: subtabInternalMatch,
       };
     }
     report.checks.subtabs_visible = Object.keys(report.subtab_checks).length === subTabs.length;

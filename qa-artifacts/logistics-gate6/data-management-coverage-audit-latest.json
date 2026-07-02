@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-29T04:16:22.232Z",
+  "generated_at": "2026-07-02T10:04:45.377Z",
   "auth_source": "password_grant",
   "checks": {
     "edge_coverage_ok": true,
@@ -39,10 +39,10 @@
     },
     "totals": {
       "table_count": 67,
-      "counted_table_count": 67,
+      "counted_table_count": 66,
       "missing_relation_count": 0,
       "unconnected_table_count": 0,
-      "total_row_count": 267260
+      "total_row_count": 73219
     },
     "catalog_coverage": {
       "mode": "catalog_v1_schema_metadata_plus_code_fallback",
@@ -151,7 +151,7 @@
       ],
       "table_count": 3,
       "existing_table_count": 3,
-      "row_count": 446,
+      "row_count": 450,
       "missing_tables": [],
       "write_modes": [
         "feature_access_workflow",
@@ -170,9 +170,11 @@
         "operating_costs"
       ],
       "table_count": 10,
-      "existing_table_count": 10,
-      "row_count": 209766,
-      "missing_tables": [],
+      "existing_table_count": 9,
+      "row_count": 13109,
+      "missing_tables": [
+        "ll_source_cells"
+      ],
       "write_modes": [
         "source_row_review",
         "readback_or_system_workflow"
@@ -184,7 +186,7 @@
       "source_domains": [],
       "table_count": 7,
       "existing_table_count": 7,
-      "row_count": 42477,
+      "row_count": 45066,
       "missing_tables": [],
       "write_modes": [
         "readback_or_system_workflow",
@@ -197,7 +199,7 @@
       "source_domains": [],
       "table_count": 16,
       "existing_table_count": 16,
-      "row_count": 203,
+      "row_count": 225,
       "missing_tables": [],
       "write_modes": [
         "readback_or_system_workflow",
@@ -210,7 +212,7 @@
       "source_domains": [],
       "table_count": 5,
       "existing_table_count": 5,
-      "row_count": 913,
+      "row_count": 914,
       "missing_tables": [],
       "write_modes": [
         "readback_or_system_workflow"
@@ -335,7 +337,7 @@
       "table_name": "ll_audit_events",
       "ui_domain_key": "approval_audit",
       "ui_domain_label": "승인/감사",
-      "row_count": 41537,
+      "row_count": 44122,
       "exists": true,
       "write_mode": "approval_auto_write",
       "metadata_domain_group": "Permission / Audit",
@@ -356,7 +358,7 @@
       "table_name": "ll_cache_entries",
       "ui_domain_key": "cache",
       "ui_domain_label": "캐시/스냅샷",
-      "row_count": 855,
+      "row_count": 856,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "metadata_domain_group": "Cache / Snapshot",
@@ -410,7 +412,7 @@
       "table_name": "ll_edit_requests",
       "ui_domain_key": "approval_audit",
       "ui_domain_label": "승인/감사",
-      "row_count": 216,
+      "row_count": 220,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "metadata_domain_group": "Permission / Audit",
@@ -587,7 +589,7 @@
       "table_name": "ll_login_history",
       "ui_domain_key": "permission",
       "ui_domain_label": "권한/사용자",
-      "row_count": 144,
+      "row_count": 148,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "metadata_domain_group": "Permission / Audit",
@@ -656,7 +658,7 @@
       "table_name": "ll_news_items",
       "ui_domain_key": "work_platform",
       "ui_domain_label": "업무 플랫폼",
-      "row_count": 95,
+      "row_count": 115,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "metadata_domain_group": "Work Platform",
@@ -668,7 +670,7 @@
       "table_name": "ll_news_runs",
       "ui_domain_key": "work_platform",
       "ui_domain_label": "업무 플랫폼",
-      "row_count": 13,
+      "row_count": 15,
       "exists": true,
       "write_mode": "readback_or_system_workflow",
       "connected_to_data_management": true
@@ -788,8 +790,9 @@
       "table_name": "ll_source_cells",
       "ui_domain_key": "source",
       "ui_domain_label": "원천/업로드",
-      "row_count": 196657,
-      "exists": true,
+      "row_count": 0,
+      "exists": false,
+      "count_error": "{\"message\":\"\"}",
       "write_mode": "source_row_review",
       "metadata_domain_group": "Raw Source",
       "metadata_role_category": "delete_prohibited",
@@ -1257,7 +1260,7 @@
       {
         "table_name": "ll_audit_events",
         "exists": true,
-        "row_count": 41538,
+        "row_count": 44130,
         "error": ""
       },
       {
@@ -1269,7 +1272,7 @@
       {
         "table_name": "ll_cache_entries",
         "exists": true,
-        "row_count": 855,
+        "row_count": 856,
         "error": ""
       },
       {
@@ -1299,7 +1302,7 @@
       {
         "table_name": "ll_edit_requests",
         "exists": true,
-        "row_count": 216,
+        "row_count": 220,
         "error": ""
       },
       {
@@ -1389,7 +1392,7 @@
       {
         "table_name": "ll_login_history",
         "exists": true,
-        "row_count": 144,
+        "row_count": 148,
         "error": ""
       },
       {
@@ -1425,13 +1428,13 @@
       {
         "table_name": "ll_news_items",
         "exists": true,
-        "row_count": 95,
+        "row_count": 115,
         "error": ""
       },
       {
         "table_name": "ll_news_runs",
         "exists": true,
-        "row_count": 13,
+        "row_count": 15,
         "error": ""
       },
       {
@@ -1496,9 +1499,9 @@
       },
       {
         "table_name": "ll_source_cells",
-        "exists": true,
-        "row_count": 196657,
-        "error": ""
+        "exists": false,
+        "row_count": 0,
+        "error": "{\"message\":\"\"}"
       },
       {
         "table_name": "ll_source_columns",
@@ -1718,18 +1721,16 @@
           "field": "approval_date",
           "label": "Approval Date",
           "type": "date",
-          "editable": false,
-          "sensitive": false,
-          "read_only_reason": "approval policy does not allow automatic write for this field"
+          "editable": true,
+          "sensitive": false
         },
         {
           "field_key": "first_configured_at",
           "field": "first_configured_at",
           "label": "First Configured At",
           "type": "date",
-          "editable": false,
-          "sensitive": false,
-          "read_only_reason": "approval policy does not allow automatic write for this field"
+          "editable": true,
+          "sensitive": false
         },
         {
           "field_key": "gross_floor_area_sqm",
@@ -1744,54 +1745,48 @@
           "field": "land_area_sqm",
           "label": "Land Area Sqm",
           "type": "number",
-          "editable": false,
-          "sensitive": false,
-          "read_only_reason": "approval policy does not allow automatic write for this field"
+          "editable": true,
+          "sensitive": false
         },
         {
           "field_key": "floor_count",
           "field": "floor_count",
           "label": "Floor Count",
           "type": "number",
-          "editable": false,
-          "sensitive": false,
-          "read_only_reason": "approval policy does not allow automatic write for this field"
+          "editable": true,
+          "sensitive": false
         },
         {
           "field_key": "current_manager_name",
           "field": "current_manager_name",
           "label": "Current Manager Name",
           "type": "text",
-          "editable": false,
-          "sensitive": false,
-          "read_only_reason": "approval policy does not allow automatic write for this field"
+          "editable": true,
+          "sensitive": false
         },
         {
           "field_key": "current_manager_team",
           "field": "current_manager_team",
           "label": "Current Manager Team",
           "type": "text",
-          "editable": false,
-          "sensitive": false,
-          "read_only_reason": "approval policy does not allow automatic write for this field"
+          "editable": true,
+          "sensitive": false
         },
         {
           "field_key": "current_manager_email",
           "field": "current_manager_email",
           "label": "Current Manager Email",
           "type": "text",
-          "editable": false,
-          "sensitive": false,
-          "read_only_reason": "approval policy does not allow automatic write for this field"
+          "editable": true,
+          "sensitive": false
         },
         {
           "field_key": "review_status",
           "field": "review_status",
           "label": "검토 상태",
           "type": "text",
-          "editable": false,
-          "sensitive": false,
-          "read_only_reason": "approval policy does not allow automatic write for this field"
+          "editable": true,
+          "sensitive": false
         },
         {
           "field_key": "review_note",
@@ -1803,7 +1798,7 @@
           "read_only_reason": "approval policy does not allow automatic write for this field"
         }
       ],
-      "editable_field_count": 6,
+      "editable_field_count": 14,
       "metadata_domain_group": "Core Normalized",
       "metadata_role_category": "keep"
     },

@@ -28,6 +28,8 @@ const VOLATILE_ROW_COUNT_TABLES = new Set([
   'll_cache_entries',
   'll_external_api_cache',
   'll_login_history',
+  'll_edit_requests',
+  'll_data_change_audit_logs',
 ]);
 
 const DB_CATALOG_SQL = `
