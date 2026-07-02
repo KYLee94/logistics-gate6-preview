@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-26T04:37:10.105Z",
+  "generated_at": "2026-07-02T16:14:03.126Z",
   "repo": {
     "root": "C:\\tmp\\IGIS-Fund-Production-DP",
     "live_url": "https://kylee94.github.io/logistics-gate6-preview/"
@@ -42,7 +42,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "data-loading-idle-latest.json",
@@ -52,7 +52,7 @@
         {
           "artifact": "auth-permission-matrix-latest.json",
           "ok": true,
-          "generated_at": "2026-06-18T10:12:13.851Z"
+          "generated_at": "2026-06-29T04:18:20.970Z"
         }
       ],
       "status": "complete"
@@ -89,12 +89,12 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "access-modal-refresh-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T01:37:09.316Z"
+          "generated_at": "2026-06-29T04:18:24.055Z"
         },
         {
           "artifact": "login-history-browser-smoke-latest.json",
@@ -104,7 +104,7 @@
         {
           "artifact": "logout-browser-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T02:51:37.597Z"
+          "generated_at": "2026-07-02T16:02:31.622Z"
         }
       ],
       "status": "complete"
@@ -139,12 +139,12 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "work-platform-browser-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-18T10:08:28.027Z"
+          "generated_at": "2026-07-02T07:00:38.319Z"
         }
       ],
       "status": "complete"
@@ -183,7 +183,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "sector-tabs-browser-smoke-latest.json",
@@ -234,7 +234,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "sector-tabs-browser-smoke-latest.json",
@@ -291,12 +291,12 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "market-data-browser-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-25T08:43:11.953Z"
+          "generated_at": "2026-07-02T16:04:58.419Z"
         },
         {
           "artifact": "market-data-view-payload-audit-latest.json",
@@ -365,27 +365,27 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "data-management-browser-readback-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T03:24:36.735Z"
+          "generated_at": "2026-07-02T10:02:57.634Z"
         },
         {
           "artifact": "data-management-live-browser-flow-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T03:27:11.451Z"
+          "generated_at": "2026-07-02T10:04:08.199Z"
         },
         {
           "artifact": "data-management-release-gate-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T03:13:14.030Z"
+          "generated_at": "2026-07-02T15:58:39.439Z"
         },
         {
           "artifact": "data-management-coverage-audit-latest.json",
           "ok": true,
-          "generated_at": "2026-06-25T09:27:13.586Z"
+          "generated_at": "2026-07-02T10:04:45.377Z"
         }
       ],
       "status": "complete"
@@ -438,12 +438,12 @@
         {
           "artifact": "data-management-release-gate-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T03:13:14.030Z"
+          "generated_at": "2026-07-02T15:58:39.439Z"
         },
         {
           "artifact": "data-management-browser-readback-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T03:24:36.735Z"
+          "generated_at": "2026-07-02T10:02:57.634Z"
         }
       ],
       "status": "complete"
@@ -480,7 +480,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "sector-tabs-browser-smoke-latest.json",
@@ -525,7 +525,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "sector-tabs-browser-smoke-latest.json",
@@ -568,7 +568,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "sector-tabs-browser-smoke-latest.json",
@@ -610,7 +610,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "investment-index-browser-smoke-latest.json",
@@ -652,7 +652,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "asset-spec-browser-smoke-latest.json",
@@ -698,7 +698,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "sector-tabs-browser-smoke-latest.json",
@@ -742,7 +742,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "sector-tabs-browser-smoke-latest.json",
@@ -756,7 +756,7 @@
       "id": "data-quality",
       "axis": "detailed-screen-coverage",
       "screen": "Data Quality",
-      "route": "/data-quality",
+      "route": "/data-management/data-quality",
       "components": [
         "quality summary",
         "issue table",
@@ -785,7 +785,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "sector-tabs-browser-smoke-latest.json",
@@ -828,7 +828,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         }
       ],
       "status": "complete"
@@ -861,7 +861,7 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         }
       ],
       "status": "complete"
@@ -938,12 +938,12 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "market-data-browser-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-25T08:43:11.953Z"
+          "generated_at": "2026-07-02T16:04:58.419Z"
         },
         {
           "artifact": "market-data-view-payload-audit-latest.json",
@@ -984,12 +984,12 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "market-data-browser-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-25T08:43:11.953Z"
+          "generated_at": "2026-07-02T16:04:58.419Z"
         },
         {
           "artifact": "live-market-map-naver-region-flow-latest.json",
@@ -1032,12 +1032,12 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "market-data-browser-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-25T08:43:11.953Z"
+          "generated_at": "2026-07-02T16:04:58.419Z"
         },
         {
           "artifact": "live-market-map-naver-region-flow-latest.json",
@@ -1084,12 +1084,12 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "market-data-browser-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-25T08:43:11.953Z"
+          "generated_at": "2026-07-02T16:04:58.419Z"
         },
         {
           "artifact": "live-market-map-naver-region-flow-latest.json",
@@ -1102,12 +1102,13 @@
     {
       "id": "market-source-update",
       "axis": "detailed-screen-coverage",
-      "screen": "Source Update",
+      "screen": "업데이트",
       "route": "/market-data/source-update",
       "components": [
         "source coverage",
         "raw/normalized counts",
-        "dry-run flow"
+        "dry-run flow",
+        "Excel upload preservation"
       ],
       "interactions": [
         "source readback",
@@ -1129,12 +1130,12 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "market-data-browser-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-25T08:43:11.953Z"
+          "generated_at": "2026-07-02T16:04:58.419Z"
         },
         {
           "artifact": "market-data-readback-smoke-latest.json",
@@ -1145,13 +1146,14 @@
       "status": "complete"
     },
     {
-      "id": "data-management-igis",
+      "id": "data-management-asset",
       "axis": "detailed-screen-coverage",
-      "screen": "Data Management - IGIS Data",
-      "route": "/data-management",
+      "screen": "Data Management - 자산 데이터",
+      "route": "/data-management/asset-data",
       "components": [
-        "asset/fund bundle",
-        "business views",
+        "asset overview",
+        "specs",
+        "operating costs",
         "edit basket"
       ],
       "interactions": [
@@ -1176,35 +1178,123 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "data-management-browser-readback-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T03:24:36.735Z"
+          "generated_at": "2026-07-02T10:02:57.634Z"
         },
         {
           "artifact": "data-management-live-browser-flow-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T03:27:11.451Z"
+          "generated_at": "2026-07-02T10:04:08.199Z"
         }
       ],
       "status": "complete"
     },
     {
-      "id": "data-management-market",
+      "id": "data-management-investment",
       "axis": "detailed-screen-coverage",
-      "screen": "Data Management - Market Data",
-      "route": "/data-management",
+      "screen": "Data Management - 투자 데이터",
+      "route": "/data-management/investment-data",
       "components": [
-        "market source views",
-        "readback-only/source review"
+        "funds",
+        "fund-asset links",
+        "equity/loan tranches",
+        "edit basket"
+      ],
+      "interactions": [
+        "view switch",
+        "field edit",
+        "preview",
+        "submit",
+        "readback"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-07-02T07:14:46.134Z"
+        },
+        {
+          "artifact": "data-management-browser-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-07-02T10:02:57.634Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "data-management-lease",
+      "axis": "detailed-screen-coverage",
+      "screen": "Data Management - 임대차계약 데이터",
+      "route": "/data-management/lease-contracts",
+      "components": [
+        "leases",
+        "lease spaces",
+        "rent history",
+        "required specs",
+        "edit basket"
+      ],
+      "interactions": [
+        "view switch",
+        "field edit",
+        "preview",
+        "submit",
+        "readback"
+      ],
+      "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
+      "acceptance": [
+        "renders without blank/stuck state",
+        "all buttons and controls have observable effect",
+        "tables/charts/modals/maps meet component standards when present"
+      ],
+      "requiredEvidence": [
+        "live screenshot/video",
+        "button/control interaction log",
+        "API/UI/readback parity where applicable"
+      ],
+      "evidence": [
+        {
+          "artifact": "full-app-loading-stability-latest.json",
+          "ok": true,
+          "generated_at": "2026-07-02T07:14:46.134Z"
+        },
+        {
+          "artifact": "data-management-browser-readback-smoke-latest.json",
+          "ok": true,
+          "generated_at": "2026-07-02T10:02:57.634Z"
+        }
+      ],
+      "status": "complete"
+    },
+    {
+      "id": "data-management-managers",
+      "axis": "detailed-screen-coverage",
+      "screen": "Data Management - 담당자 데이터",
+      "route": "/data-management/managers",
+      "components": [
+        "asset managers",
+        "fund managers",
+        "user-readable columns"
       ],
       "interactions": [
         "view switch",
         "filter",
         "table sort",
-        "source review request"
+        "readback"
       ],
       "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
       "acceptance": [
@@ -1221,28 +1311,32 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "data-management-browser-readback-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T03:24:36.735Z"
+          "generated_at": "2026-07-02T10:02:57.634Z"
         }
       ],
       "status": "complete"
     },
     {
-      "id": "data-management-system",
+      "id": "data-management-quality",
       "axis": "detailed-screen-coverage",
-      "screen": "Data Management - System Data",
-      "route": "/data-management",
+      "screen": "Data Management - Data Quality",
+      "route": "/data-management/data-quality",
       "components": [
-        "permission/login/audit/cache/edit requests"
+        "quality findings",
+        "validation status",
+        "approval flow"
       ],
       "interactions": [
-        "readback",
-        "approve/reject",
-        "permission block"
+        "filter",
+        "row click",
+        "edit preview",
+        "submit",
+        "readback"
       ],
       "dataContract": "This surface requires live UI behavior evidence, API/readback evidence when data-backed, and denylist checks for internal terms.",
       "acceptance": [
@@ -1259,12 +1353,12 @@
         {
           "artifact": "full-app-loading-stability-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T04:30:45.624Z"
+          "generated_at": "2026-07-02T07:14:46.134Z"
         },
         {
           "artifact": "data-management-browser-readback-smoke-latest.json",
           "ok": true,
-          "generated_at": "2026-06-26T03:24:36.735Z"
+          "generated_at": "2026-07-02T10:02:57.634Z"
         }
       ],
       "status": "complete"
@@ -1406,8 +1500,22 @@
       "findings": []
     },
     {
+      "name": "data-management-column-editability-audit-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-management-column-editability-audit-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
       "name": "data-management-coverage-audit-latest.json",
       "artifact": "qa-artifacts/logistics-gate6/data-management-coverage-audit-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
+      "name": "data-management-field-coverage-contract-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/data-management-field-coverage-contract-latest.json",
       "status": "usable",
       "severity": "ok",
       "findings": []
@@ -1574,6 +1682,13 @@
       "findings": []
     },
     {
+      "name": "market-data-slicer-contract-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-data-slicer-contract-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
       "name": "market-data-temperature-semantics-audit-latest.json",
       "artifact": "qa-artifacts/logistics-gate6/market-data-temperature-semantics-audit-latest.json",
       "status": "usable",
@@ -1602,6 +1717,13 @@
       "findings": []
     },
     {
+      "name": "market-map-flicker-scale-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/market-map-flicker-scale-latest.json",
+      "status": "usable",
+      "severity": "ok",
+      "findings": []
+    },
+    {
       "name": "market-map-pinpoint-latest.json",
       "artifact": "qa-artifacts/logistics-gate6/market-map-pinpoint-latest.json",
       "status": "usable",
@@ -1609,8 +1731,8 @@
       "findings": []
     },
     {
-      "name": "market-stat-source-rows-repair-latest.json",
-      "artifact": "qa-artifacts/logistics-gate6/market-stat-source-rows-repair-latest.json",
+      "name": "navigation-korean-title-smoke-latest.json",
+      "artifact": "qa-artifacts/logistics-gate6/navigation-korean-title-smoke-latest.json",
       "status": "usable",
       "severity": "ok",
       "findings": []
@@ -1618,13 +1740,6 @@
     {
       "name": "news-api-smoke-latest.json",
       "artifact": "qa-artifacts/logistics-gate6/news-api-smoke-latest.json",
-      "status": "usable",
-      "severity": "ok",
-      "findings": []
-    },
-    {
-      "name": "news-edge-restore-20260617-latest.json",
-      "artifact": "qa-artifacts/logistics-gate6/news-edge-restore-20260617-latest.json",
       "status": "usable",
       "severity": "ok",
       "findings": []
@@ -1806,7 +1921,7 @@
       "id": "fixed-wait",
       "severity": "major",
       "file": "scripts/qa/logistics-data-loading-idle.cjs",
-      "line": 308,
+      "line": 309,
       "problem": "fixed wait can hide async races",
       "excerpt": "await page.waitForTimeout(idleMs);"
     },
@@ -1963,18 +2078,10 @@
       "excerpt": "await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: {} }) });"
     },
     {
-      "id": "fixed-wait",
-      "severity": "major",
-      "file": "scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
-      "line": 314,
-      "problem": "fixed wait can hide async races",
-      "excerpt": "await page.waitForTimeout(350);"
-    },
-    {
       "id": "service-worker-blocked",
       "severity": "minor",
       "file": "scripts/qa/logistics-data-management-browser-readback-smoke.cjs",
-      "line": 227,
+      "line": 291,
       "problem": "blocking service workers may miss production cache behavior",
       "excerpt": "const context = await browser.newContext({ viewport: { width: 1600, height: 1100 }, serviceWorkers: 'block' });"
     },
@@ -2150,7 +2257,15 @@
       "id": "fixed-wait",
       "severity": "major",
       "file": "scripts/qa/logistics-market-data-browser-smoke.cjs",
-      "line": 556,
+      "line": 162,
+      "problem": "fixed wait can hide async races",
+      "excerpt": "await page.waitForTimeout(250);"
+    },
+    {
+      "id": "fixed-wait",
+      "severity": "major",
+      "file": "scripts/qa/logistics-market-data-browser-smoke.cjs",
+      "line": 635,
       "problem": "fixed wait can hide async races",
       "excerpt": "await page.waitForTimeout(150);"
     },
@@ -2158,7 +2273,7 @@
       "id": "fixed-wait",
       "severity": "major",
       "file": "scripts/qa/logistics-market-data-browser-smoke.cjs",
-      "line": 616,
+      "line": 695,
       "problem": "fixed wait can hide async races",
       "excerpt": "await page.waitForTimeout(150);"
     },
@@ -2166,7 +2281,7 @@
       "id": "fixed-wait",
       "severity": "major",
       "file": "scripts/qa/logistics-market-data-browser-smoke.cjs",
-      "line": 654,
+      "line": 733,
       "problem": "fixed wait can hide async races",
       "excerpt": "await page.waitForTimeout(150);"
     },
@@ -2174,7 +2289,7 @@
       "id": "service-worker-blocked",
       "severity": "minor",
       "file": "scripts/qa/logistics-market-data-browser-smoke.cjs",
-      "line": 348,
+      "line": 426,
       "problem": "blocking service workers may miss production cache behavior",
       "excerpt": "const context = await browser.newContext({ viewport: { width: 1440, height: 1100 }, serviceWorkers: 'block' });"
     },
@@ -2230,18 +2345,18 @@
   "ui_inventory": {
     "totals": {
       "files_with_interactions": 44,
-      "buttons": 538,
-      "onClicks": 671,
-      "modals": 7,
+      "buttons": 560,
+      "onClicks": 700,
+      "modals": 11,
       "tables": 93,
       "chart_mentions": 12,
-      "data_testids": 41
+      "data_testids": 42
     },
     "by_file": [
       {
         "file": "src/components/system/workspace/WorkspaceLogistics.jsx",
-        "buttons": 141,
-        "onClicks": 166,
+        "buttons": 143,
+        "onClicks": 168,
         "dataTestIds": [
           "logistics-main-search-input",
           "logistics-ai-toast",
@@ -2268,9 +2383,10 @@
       },
       {
         "file": "src/components/system/workspace/LogisticsSectorModules.jsx",
-        "buttons": 76,
-        "onClicks": 81,
+        "buttons": 92,
+        "onClicks": 103,
         "dataTestIds": [
+          "market-modal-backdrop",
           "market-map-expand-button",
           "market-map-panel",
           "market-map-layer-control",
@@ -2283,14 +2399,14 @@
           "lease-statistic-explorer",
           "supply-area-value-explorer"
         ],
-        "modals": 7,
+        "modals": 11,
         "tables": 28,
         "charts": 9
       },
       {
         "file": "src/components/system/IotaLeftNav.jsx",
-        "buttons": 27,
-        "onClicks": 43,
+        "buttons": 31,
+        "onClicks": 48,
         "dataTestIds": [
           "logistics-feature-access-button",
           "logistics-login-history-button",
@@ -2721,6 +2837,7 @@
       "market-map-region-reset",
       "market-map-zoom-in",
       "market-map-zoom-out",
+      "market-modal-backdrop",
       "opendart-refresh",
       "portfolio-map-layer-control",
       "supply-area-value-explorer",
@@ -2730,8 +2847,8 @@
   "coverage_gaps": [],
   "checks": {
     "has_blocking_known_issues": false,
-    "latest_artifacts_all_usable": false,
-    "no_qa_script_risk_patterns": false,
+    "latest_artifacts_have_no_blocking_findings": true,
+    "qa_scripts_have_no_blocking_risk_patterns": true,
     "required_live_evidence_complete": true,
     "all_surfaces_have_live_evidence": true
   }

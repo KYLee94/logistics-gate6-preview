@@ -1155,7 +1155,13 @@ export default function IotaLeftNav({ currentPath = '' }) {
             item.path !== `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`
             || canViewSourceUpdateAndDataQuality
         ));
-        const visibleDataManagementItems = logisticsDataManagementItems;
+        const visibleDataManagementItems = logisticsDataManagementItems.filter((item) => {
+            if (!item.adminOnly) return true;
+            if (isLogisticsAdmin) return true;
+            const featureKey = LOGISTICS_DASHBOARD_FEATURE_BY_PATH[item.path];
+            if (featureKey) return memberHasFeatureAccess(featureAccessData, featureKey, memberInfo);
+            return canViewSourceUpdateAndDataQuality;
+        });
         const visibleStandaloneItems = logisticsStandaloneItems;
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
         const isDashboardActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard`);

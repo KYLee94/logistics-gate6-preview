@@ -1,13 +1,13 @@
 {
   "ok": true,
-  "generated_at": "2026-06-29T06:07:37.807Z",
+  "generated_at": "2026-07-02T16:04:58.419Z",
   "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
   "auth_source": "password_grant",
   "tabs": [
     {
       "key": "overview",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/overview",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-overview-20260629-060732-915Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-overview-20260702-160448-981Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -66,7 +66,7 @@
         "dialog_visible": true,
         "fullscreen_width_ok": true,
         "detail_row_count": 9,
-        "screenshot": "qa-artifacts/logistics-gate6/market-data-supply-period-modal-20260629-060732-915Z.png"
+        "screenshot": "qa-artifacts/logistics-gate6/market-data-supply-period-modal-20260702-160448-981Z.png"
       },
       "supply_legend_focus": {
         "required": true,
@@ -138,7 +138,7 @@
     {
       "key": "lease-market",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/lease-market",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-lease-market-20260629-060732-915Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-lease-market-20260702-160448-981Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -319,7 +319,7 @@
     {
       "key": "supply-pipeline",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/supply-pipeline",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-supply-pipeline-20260629-060732-915Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-supply-pipeline-20260702-160448-981Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -570,7 +570,7 @@
     {
       "key": "transactions",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/transactions",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-transactions-20260629-060732-915Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-transactions-20260702-160448-981Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -700,7 +700,7 @@
         "dialog_visible": true,
         "modal_no_map_attribution": true,
         "detail_row_count": 62,
-        "screenshot": "qa-artifacts/logistics-gate6/market-data-transactions-market-modal-20260629-060732-915Z.png"
+        "screenshot": "qa-artifacts/logistics-gate6/market-data-transactions-market-modal-20260702-160448-981Z.png"
       },
       "transaction_size_explorer": {
         "required": true,
@@ -751,7 +751,7 @@
     {
       "key": "source-update",
       "url": "https://kylee94.github.io/logistics-gate6-preview/market-data/source-update",
-      "screenshot": "qa-artifacts/logistics-gate6/market-data-source-update-20260629-060732-915Z.png",
+      "screenshot": "qa-artifacts/logistics-gate6/market-data-source-update-20260702-160448-981Z.png",
       "api_ok": true,
       "view_present": true,
       "view_has_rows": true,
@@ -871,8 +871,8 @@
         "reset_label": "",
         "portal_visible": false,
         "option_count": 0,
-        "option_click_ok": false,
-        "page_still_visible": false,
+        "option_click_ok": true,
+        "page_still_visible": true,
         "backdrop_count": 0,
         "black_fullscreen_overlay_count": 0,
         "ok": true

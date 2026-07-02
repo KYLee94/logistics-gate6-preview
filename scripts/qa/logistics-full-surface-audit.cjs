@@ -464,7 +464,14 @@ function summarizeArtifact(filePath) {
 
 function inspectLatestArtifacts() {
   const files = fs.readdirSync(OUT_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && /latest\.json$/iu.test(entry.name) && entry.name !== 'full-surface-audit-latest.json')
+    .filter((entry) => (
+      entry.isFile()
+      && /latest\.json$/iu.test(entry.name)
+      && entry.name !== 'full-surface-audit-latest.json'
+      && entry.name !== 'release-artifact-freshness-latest.json'
+      && entry.name !== 'release-env-preflight-latest.json'
+      && entry.name !== 'dangerous-script-audit-latest.json'
+    ))
     .map((entry) => path.join(OUT_DIR, entry.name));
   return files.map(summarizeArtifact).sort((a, b) => {
     const order = { blocking: 0, major: 1, minor: 2, ok: 3 };
@@ -587,7 +594,13 @@ const SURFACE_EVIDENCE = {
     ['market-map-address-precision-audit-latest.json', () => latestArtifactOk('market-map-address-precision-audit-latest.json')],
   ],
   'data-management': [
-    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['data-management'])],
+    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk([
+      'data-management/asset-data',
+      'data-management/investment-data',
+      'data-management/lease-contracts',
+      'data-management/managers',
+      'data-management/data-quality',
+    ])],
     ['data-management-browser-readback-smoke-latest.json', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json')],
     ['data-management-live-browser-flow-latest.json', () => latestArtifactOk('data-management-live-browser-flow-latest.json')],
     ['data-management-release-gate-latest.json', dataManagementReleaseGateOk],
@@ -864,7 +877,14 @@ function main() {
   const blockingCoverageGaps = coverageGaps.filter((item) => item.severity === 'blocking');
   const majorCoverageGaps = coverageGaps.filter((item) => item.severity === 'major');
   const allSurfacesHaveLiveEvidence = surfaceManifest.every((item) => item.status === 'complete');
-  const ok = knownBlockers.length === 0 && blockingCoverageGaps.length === 0 && majorCoverageGaps.length === 0 && allSurfacesHaveLiveEvidence;
+  const latestArtifactsAllUsable = latestArtifacts.every((item) => item.severity !== 'blocking');
+  const noQaScriptRiskPatterns = qaScriptRisks.every((item) => item.severity !== 'blocking');
+  const ok = knownBlockers.length === 0
+    && blockingCoverageGaps.length === 0
+    && majorCoverageGaps.length === 0
+    && allSurfacesHaveLiveEvidence
+    && latestArtifactsAllUsable
+    && noQaScriptRiskPatterns;
   const report = {
     ok,
     generated_at: generatedAt,
@@ -881,8 +901,8 @@ function main() {
     coverage_gaps: coverageGaps,
     checks: {
       has_blocking_known_issues: knownBlockers.some((item) => item.severity === 'blocking'),
-      latest_artifacts_all_usable: latestArtifacts.every((item) => item.severity === 'ok'),
-      no_qa_script_risk_patterns: qaScriptRisks.length === 0,
+      latest_artifacts_have_no_blocking_findings: latestArtifactsAllUsable,
+      qa_scripts_have_no_blocking_risk_patterns: noQaScriptRiskPatterns,
       required_live_evidence_complete: blockingCoverageGaps.length === 0 && majorCoverageGaps.length === 0,
       all_surfaces_have_live_evidence: allSurfacesHaveLiveEvidence,
     },

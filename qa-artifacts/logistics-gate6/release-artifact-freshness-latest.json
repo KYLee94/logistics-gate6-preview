@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "generated_at": "2026-07-02T16:14:05.805Z",
+  "cutoff": "2026-07-01T16:14:05.792Z",
+  "latest_file_count": 11,
+  "checks": [
+    {
+      "file": "qa-artifacts/logistics-gate6/dangerous-script-audit-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T15:51:06.841Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/data-loading-stability-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T07:16:56.233Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T10:02:57.634Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/data-management-column-editability-audit-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T15:54:23.229Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/data-management-live-browser-flow-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T10:04:08.199Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/data-management-release-gate-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T15:58:39.439Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/full-app-loading-stability-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T07:14:46.134Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/logout-browser-smoke-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T16:02:31.622Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/market-data-browser-smoke-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T16:04:58.419Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/release-env-preflight-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T16:14:01.329Z",
+      "stale": false,
+      "false_positive_risk": false
+    },
+    {
+      "file": "qa-artifacts/logistics-gate6/work-platform-browser-smoke-latest.json",
+      "ok": true,
+      "newest_timestamp": "2026-07-02T07:00:38.319Z",
+      "stale": false,
+      "false_positive_risk": false
+    }
+  ]
+}

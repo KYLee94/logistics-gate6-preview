@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-06-26T02:51:37.597Z",
+  "generated_at": "2026-07-02T16:02:31.622Z",
   "url": "https://kylee94.github.io/logistics-gate6-preview/work-platform",
   "auth_source": "password_grant",
   "checks": {
@@ -13,8 +13,8 @@
     "protected_route_blocked_after_logout": true
   },
   "errors": [],
-  "screenshot": "qa-artifacts/logistics-gate6/logout-browser-smoke-20260626-025136.png",
-  "logout_elapsed_ms": 513,
+  "screenshot": "qa-artifacts/logistics-gate6/logout-browser-smoke-20260702-160230.png",
+  "logout_elapsed_ms": 534,
   "final_url": "https://kylee94.github.io/logistics-gate6-preview/auth-setup/",
   "storage_after_logout": {
     "session_token_present": false,

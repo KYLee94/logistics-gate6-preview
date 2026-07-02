@@ -2853,8 +2853,8 @@ function normalizeEditCells(record: Record<string, unknown>) {
       sourceCellId: String(firstDefined(cell.source_cell_id, cell.target_cell_id, record.target_cell_id, '')),
       fieldName,
       operation: String(firstDefined(cell.action, cell.operation, '수정')),
-      beforeValue: firstDefined(cell.before_value, record.before_value),
-      afterValue: firstDefined(cell.after_value, cell.requested_value, record.requested_value),
+      beforeValue: firstPresent(cell.before_value, record.before_value),
+      afterValue: firstPresent(cell.after_value, cell.requested_value, record.requested_value),
       assetId: String(firstDefined(cell.asset_id, cell.assetId, record.target_asset_id, '')),
       assetName: String(firstDefined(cell.asset_name, cell.assetName, record.target_name, '')),
       leaseSpaceId: String(firstDefined(cell.lease_space_id, cell.leaseSpaceId, requestPayload.lease_space_id, '')),
@@ -5303,7 +5303,7 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
     ctx.serviceClient.from('ll_funds').select('*').limit(500),
     ctx.serviceClient.from('ll_fund_asset_links').select('*').limit(1000),
     ctx.serviceClient.from('ll_fund_capital_tranches').select('*').eq('is_active', true).limit(2000),
-    ctx.serviceClient.from('ll_assets').select('*').limit(1000),
+    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,asset_status,disposition_status,review_status,status').limit(1000),
   ]);
   const hardError = [fundsResult, linksResult, tranchesResult, assetsResult].find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return fail(500, 'Failed to read investment index', ctx.origin, { error: hardError.error.message });
@@ -11202,7 +11202,7 @@ function dataManagementTableCellInput(payload: Record<string, unknown>) {
   const primaryKeyField = safeText(payload.primary_key_field || payload.primaryKeyField || dataManagementPrimaryKeyForTable(tableName));
   const targetRowId = safeText(payload.target_record_id || payload.targetRecordId || payload.target_row_id || payload.targetRowId);
   const fieldName = safeText(payload.field_name || payload.fieldName || payload.target_field || payload.targetField);
-  const beforeValue = firstDefined(payload.before_value, payload.beforeValue);
+  const beforeValue = firstPresent(payload.before_value, payload.beforeValue);
   const requestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
   return { targetTable, tableName, primaryKeyField, targetRowId, fieldName, beforeValue, requestedValue };
 }
@@ -12265,10 +12265,11 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
   const targetType = safeText(payload.target_type || payload.targetType || 'source_row');
   const fieldName = safeText(payload.field_name || payload.fieldName);
   const targetRowId = safeText(payload.target_row_id || payload.targetRowId);
-  const beforeValue = safeText(payload.before_value || payload.beforeValue);
-  const requestedValue = safeText(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue));
+  const beforeValue = safeText(firstPresent(payload.before_value, payload.beforeValue));
+  const rawRequestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  const requestedValue = safeText(rawRequestedValue);
   if (!targetType || !fieldName || !targetRowId) return fail(400, 'target_type, target_row_id, and field_name are required', ctx.origin);
-  if (!requestedValue || beforeValue === requestedValue) return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
+  if (rawRequestedValue === undefined || rawRequestedValue === null || beforeValue === requestedValue) return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
   const sourceTable = safeText(payload.source_table || payload.sourceTable || 'public.ll_source_rows');
   if (!sourceTable.startsWith('public.ll_')) return fail(403, 'Source table is not allowed', ctx.origin);
   const requestedTargetTable = safeText(payload.target_table || payload.targetTable);

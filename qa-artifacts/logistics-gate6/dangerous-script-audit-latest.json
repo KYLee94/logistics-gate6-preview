@@ -1,0 +1,238 @@
+{
+  "ok": true,
+  "generated_at": "2026-07-02T16:14:07.426Z",
+  "blocking_count": 0,
+  "review_count": 46,
+  "findings": [
+    {
+      "file": "scripts/ingest/logistics-source-workbook-ingest.cjs",
+      "pattern": "sql-delete",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/ingest/logistics-source-workbook-ingest.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/integrations/logistics-maturity-notifications.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/integrations/logistics-news-daily-ingest.cjs",
+      "pattern": "supabase-delete",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/integrations/logistics-news-daily-ingest.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/integrations/opendart-monthly-ingest.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/ops/logistics-market-rag-preflight.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/ops/logistics-news-restore-20260617.cjs",
+      "pattern": "supabase-delete",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/ops/logistics-news-restore-20260617.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/qa/logistics-auth-password-flow-smoke.cjs",
+      "pattern": "sql-delete",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/qa/logistics-dangerous-script-audit.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/qa/logistics-external-api-smoke.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/qa/logistics-news-restore-readback.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "scripts/qa/logistics-supabase-catalog-inventory.cjs",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/functions/iota-auth-member-sync/index.ts",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/functions/ll-dashboard-api/index.ts",
+      "pattern": "policy-delete",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/functions/ll-dashboard-api/index.ts",
+      "pattern": "supabase-delete",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/functions/ll-dashboard-api/index.ts",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/functions/ll-weekly-doc-ingest/index.ts",
+      "pattern": "supabase-delete",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/functions/ll-weekly-doc-ingest/index.ts",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260513000100_create_ll_weekly_ingest.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260514000100_create_ll_dashboard_api_tables.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260515000100_harden_ll_edit_write_audit.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260518000100_create_ll_dashboard_metric_snapshots.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260519004937_logistics_work_platform_tasks_board_and_history_linkage.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260519020750_drop_work_platform_task_scope.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260519053837_gate6_weekly_project_details_seed.sql",
+      "pattern": "sql-delete",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260521041322_logistics_task_snapshots.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260521130000_gate6_schema_cleanup_phase1.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260521143000_gate6_schema_cleanup_phase2_payload_snapshots.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260521153000_gate6_drop_legacy_cache_tables.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260522030000_gate6_operating_schema_consolidation.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260522030000_gate6_operating_schema_consolidation.sql",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260522052203_gate6_drop_legacy_detail_fund_audit_tables.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260522052203_gate6_drop_legacy_detail_fund_audit_tables.sql",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260522053942_gate6_drop_legacy_work_weekly_tables.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260522053942_gate6_drop_legacy_work_weekly_tables.sql",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260522055041_gate6_drop_legacy_source_manager_backup_tables.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260522055041_gate6_drop_legacy_source_manager_backup_tables.sql",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260601061000_gate6_user_permissions_as_source.sql",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260605000100_gate6_market_rag_tables.sql",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260609030000_gate6_market_semantic_search.sql",
+      "pattern": "service-role",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260611061529_gate6_cleanup_legacy_fund_manager_tables.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260612103000_gate6_rebuild_asset_area_breakdowns_from_excel.sql",
+      "pattern": "sql-delete",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260616090000_gate6_sector_market_data_management.sql",
+      "pattern": "sql-drop",
+      "severity": "review"
+    },
+    {
+      "file": "supabase/migrations/20260616090000_gate6_sector_market_data_management.sql",
+      "pattern": "service-role",
+      "severity": "review"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "generated_at": "2026-07-02T16:14:01.329Z",
+  "checks": [
+    {
+      "name": "VITE_SUPABASE_URL",
+      "ok": true,
+      "detail": "Supabase URL must be the deployed project URL, not the dummy fallback."
+    },
+    {
+      "name": "VITE_SUPABASE_ANON_KEY",
+      "ok": true,
+      "detail": "Anon key must be available before release smoke tests run."
+    },
+    {
+      "name": "build-base-path",
+      "ok": true,
+      "detail": "GitHub Pages build must use /logistics-gate6-preview/ as the base path."
+    },
+    {
+      "name": "deploy-target",
+      "ok": true,
+      "detail": "Deploy script must publish to KYLee94/logistics-gate6-preview."
+    }
+  ]
+}

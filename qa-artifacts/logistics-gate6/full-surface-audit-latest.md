@@ -1,6 +1,6 @@
 # Gate 6 Full Surface Audit Manifest
 
-Generated at: 2026-06-26T04:37:10.105Z
+Generated at: 2026-07-02T16:14:03.126Z
 
 ## Verdict
 
@@ -31,7 +31,7 @@ Complete for the required live URL evidence currently mapped in this audit. Olde
 | asset-spec | detailed-screen-coverage | Asset Spec | /asset-spec | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK asset-spec-browser-smoke-latest.json<br>OK asset-spec-readback-smoke-latest.json | complete |
 | analysis-tools | detailed-screen-coverage | Analysis Tools | /analysis-tools | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK sector-tabs-browser-smoke-latest.json | complete |
 | pivot-table | detailed-screen-coverage | Pivot Table | /pivot-table | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK sector-tabs-browser-smoke-latest.json | complete |
-| data-quality | detailed-screen-coverage | Data Quality | /data-quality | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK sector-tabs-browser-smoke-latest.json | complete |
+| data-quality | detailed-screen-coverage | Data Quality | /data-management/data-quality | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK sector-tabs-browser-smoke-latest.json | complete |
 | pdf-report | detailed-screen-coverage | PDF Report | /pdf-report | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json | complete |
 | contract-data | detailed-screen-coverage | Contract Data | /contract-data | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json | complete |
 | ai-chatbot | detailed-screen-coverage | AI Chatbot | global dock/work platform | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK ai-chatbot-browser-smoke-latest.json<br>OK ai-chatbot-qa-latest.json | complete |
@@ -39,10 +39,12 @@ Complete for the required live URL evidence currently mapped in this audit. Olde
 | market-lease | detailed-screen-coverage | Lease Market | /market-data/lease-market | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK market-data-browser-smoke-latest.json<br>OK live-market-map-naver-region-flow-latest.json | complete |
 | market-supply | detailed-screen-coverage | Supply Pipeline | /market-data/supply-pipeline | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK market-data-browser-smoke-latest.json<br>OK live-market-map-naver-region-flow-latest.json<br>OK supply-period-slicer-flow-latest.json | complete |
 | market-transactions | detailed-screen-coverage | Transactions | /market-data/transactions | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK market-data-browser-smoke-latest.json<br>OK live-market-map-naver-region-flow-latest.json | complete |
-| market-source-update | detailed-screen-coverage | Source Update | /market-data/source-update | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK market-data-browser-smoke-latest.json<br>OK market-data-readback-smoke-latest.json | complete |
-| data-management-igis | detailed-screen-coverage | Data Management - IGIS Data | /data-management | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK data-management-browser-readback-smoke-latest.json<br>OK data-management-live-browser-flow-latest.json | complete |
-| data-management-market | detailed-screen-coverage | Data Management - Market Data | /data-management | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK data-management-browser-readback-smoke-latest.json | complete |
-| data-management-system | detailed-screen-coverage | Data Management - System Data | /data-management | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK data-management-browser-readback-smoke-latest.json | complete |
+| market-source-update | detailed-screen-coverage | 업데이트 | /market-data/source-update | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK market-data-browser-smoke-latest.json<br>OK market-data-readback-smoke-latest.json | complete |
+| data-management-asset | detailed-screen-coverage | Data Management - 자산 데이터 | /data-management/asset-data | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK data-management-browser-readback-smoke-latest.json<br>OK data-management-live-browser-flow-latest.json | complete |
+| data-management-investment | detailed-screen-coverage | Data Management - 투자 데이터 | /data-management/investment-data | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK data-management-browser-readback-smoke-latest.json | complete |
+| data-management-lease | detailed-screen-coverage | Data Management - 임대차계약 데이터 | /data-management/lease-contracts | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK data-management-browser-readback-smoke-latest.json | complete |
+| data-management-managers | detailed-screen-coverage | Data Management - 담당자 데이터 | /data-management/managers | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK data-management-browser-readback-smoke-latest.json | complete |
+| data-management-quality | detailed-screen-coverage | Data Management - Data Quality | /data-management/data-quality | renders without blank/stuck state<br>all buttons and controls have observable effect<br>tables/charts/modals/maps meet component standards when present | OK full-app-loading-stability-latest.json<br>OK data-management-browser-readback-smoke-latest.json | complete |
 
 ## Suspicious Latest Artifacts
 
@@ -74,7 +76,7 @@ Complete for the required live URL evidence currently mapped in this audit. Olde
 | major | network-intercept | scripts/qa/logistics-browser-visible-parity.cjs:288 | network intercept cannot prove live backend behavior |
 | minor | service-worker-blocked | scripts/qa/logistics-browser-visible-parity.cjs:278 | blocking service workers may miss production cache behavior |
 | minor | service-worker-blocked | scripts/qa/logistics-dart-chart-browser-smoke.cjs:131 | blocking service workers may miss production cache behavior |
-| major | fixed-wait | scripts/qa/logistics-data-loading-idle.cjs:308 | fixed wait can hide async races |
+| major | fixed-wait | scripts/qa/logistics-data-loading-idle.cjs:309 | fixed wait can hide async races |
 | major | fake-session | scripts/qa/logistics-data-loading-map-qa-common.cjs:120 | fake session cannot prove live auth behavior |
 | major | fake-session | scripts/qa/logistics-data-loading-map-qa-common.cjs:443 | fake session cannot prove live auth behavior |
 | major | network-intercept | scripts/qa/logistics-data-loading-map-qa-common.cjs:485 | network intercept cannot prove live backend behavior |
@@ -94,8 +96,7 @@ Complete for the required live URL evidence currently mapped in this audit. Olde
 | minor | service-worker-blocked | scripts/qa/logistics-data-loading-map-qa-common.cjs:578 | blocking service workers may miss production cache behavior |
 | major | unconditional-ok | scripts/qa/logistics-data-loading-map-qa-common.cjs:523 | empty ok response can mask unsupported actions |
 | major | unconditional-ok | scripts/qa/logistics-data-loading-map-qa-common.cjs:561 | empty ok response can mask unsupported actions |
-| major | fixed-wait | scripts/qa/logistics-data-management-browser-readback-smoke.cjs:314 | fixed wait can hide async races |
-| minor | service-worker-blocked | scripts/qa/logistics-data-management-browser-readback-smoke.cjs:227 | blocking service workers may miss production cache behavior |
+| minor | service-worker-blocked | scripts/qa/logistics-data-management-browser-readback-smoke.cjs:291 | blocking service workers may miss production cache behavior |
 | minor | service-worker-blocked | scripts/qa/logistics-data-management-live-browser-flow.cjs:102 | blocking service workers may miss production cache behavior |
 | minor | service-worker-blocked | scripts/qa/logistics-data-update-browser-smoke.cjs:216 | blocking service workers may miss production cache behavior |
 | minor | service-worker-blocked | scripts/qa/logistics-external-refresh-buttons-browser-smoke.cjs:103 | blocking service workers may miss production cache behavior |
@@ -117,16 +118,17 @@ Complete for the required live URL evidence currently mapped in this audit. Olde
 | major | network-intercept | scripts/qa/logistics-map-callout-browser-smoke.cjs:155 | network intercept cannot prove live backend behavior |
 | major | network-intercept | scripts/qa/logistics-map-callout-browser-smoke.cjs:162 | network intercept cannot prove live backend behavior |
 | minor | service-worker-blocked | scripts/qa/logistics-map-callout-browser-smoke.cjs:117 | blocking service workers may miss production cache behavior |
+| major | fixed-wait | scripts/qa/logistics-market-data-browser-smoke.cjs:162 | fixed wait can hide async races |
 
 ## UI Inventory Summary
 
 - Files with interactions: 44
-- Buttons: 538
-- onClick handlers: 671
-- Modal references: 7
+- Buttons: 560
+- onClick handlers: 700
+- Modal references: 11
 - Table references: 93
 - Chart references: 12
-- data-testid count: 41
+- data-testid count: 42
 
 ## Required Next Evidence
 

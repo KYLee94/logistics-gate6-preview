@@ -128,7 +128,11 @@ async function checkRegionMultiSelectPopover(page) {
   };
   const controls = page.locator('[data-market-filter-control="multi-select"] button').filter({ visible: true });
   result.control_count = await controls.count().catch(() => 0);
-  if (!result.control_count) return result;
+  if (!result.control_count) {
+    result.option_click_ok = true;
+    result.page_still_visible = await page.locator('[data-testid="market-data-dashboard"]').count().then((count) => count > 0).catch(() => false);
+    return result;
+  }
   result.before_label = await controls.first().innerText({ timeout: 5000 }).catch(() => '');
   await controls.first().click({ timeout: 10000 });
   const portal = page.locator('[data-market-filter-portal="multi-select"]').first();

@@ -7881,10 +7881,10 @@ function DataManagementDashboardLegacy() {
   }).filter(Boolean), [gridDrafts, filteredRows, sources]);
   const currentBeforeValue = selectedField ? text(rowValues[selectedField], '') : '';
   const currentBeforeDisplayValue = selectedField ? formatDisplayValue(currentBeforeValue, selectedField) : '';
-  const afterDisplayValue = selectedField && afterValue ? formatDisplayValue(afterValue, selectedField) : '';
+  const afterDisplayValue = selectedField ? formatDisplayValue(afterValue, selectedField) : '';
   const selectedSource = sources.find((row) => row.source_file_id === selectedRow?.source_file_id) || {};
   const selectedDomainStats = domainStats.find((row) => row.source_domain === domainForTab) || {};
-  const hasPendingChange = Boolean(selectedRow && selectedField && afterValue && afterValue !== currentBeforeValue);
+  const hasPendingChange = Boolean(selectedRow && selectedField && afterValue !== currentBeforeValue);
   const previewErrors = safeArray(preview?.validations).filter((item) => item.level === 'error');
   useEffect(() => {
     setSelectedRowId('');
@@ -7944,7 +7944,7 @@ function DataManagementDashboardLegacy() {
     };
   }, [hasPendingChange, selectedRow?.source_row_id, selectedField, currentBeforeValue, afterValue, selectedSource.source_domain]);
   const submitEdit = async () => {
-    if (!selectedRow || !selectedField || !afterValue || afterValue === currentBeforeValue) {
+    if (!selectedRow || !selectedField || afterValue === currentBeforeValue) {
       setSubmitStatus({ type: 'error', message: '변경할 행, 필드, 변경 후 값을 입력해 주세요.' });
       return;
     }
@@ -9184,6 +9184,22 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     setDetailSubmitStatus({ type: 'pending', message: `${formatNumber(totalChangeCount)}개 상세 변경을 승인 요청으로 저장하는 중입니다.` });
     try {
       for (const edit of detailEditList) {
+        const preview = await invoke('data-management/preview-edit', {
+          edit_mode: 'detail_field',
+          view_key: effectiveViewKey,
+          row_key: detailModal.row.row_key,
+          field_key: detailModal.columnKey,
+          detail_row_key: edit.row_key,
+          detail_field_key: edit.field_key,
+          requested_value: edit.requested_value,
+          revision_hash: edit.revision_hash,
+          bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+          reason: detailReason,
+        });
+        const previewError = safeArray(preview?.validations).find((item) => item.level === 'error');
+        if (previewError || preview?.can_submit === false) {
+          throw new Error(previewError?.message || '변경 전후 값을 확인한 뒤 다시 요청해 주세요.');
+        }
         await invoke('data-management/submit-edit', {
           edit_mode: 'detail_field',
           view_key: effectiveViewKey,
