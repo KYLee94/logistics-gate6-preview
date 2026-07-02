@@ -560,6 +560,7 @@ function dataManagementColumnEditGuide(column) {
 function dataManagementColumnHelp(column) {
   const label = text(column?.label || column?.field_key || column?.field || '컬럼');
   const group = text(column?.group || '');
+  const type = text(column?.type || '').toLowerCase();
   const consistency = dataManagementConsistencyGuide(column?.field_key || column?.field, label);
   const unit = dataManagementColumnUnitGuide(column);
   const editGuide = dataManagementColumnEditGuide(column);
@@ -568,7 +569,9 @@ function dataManagementColumnHelp(column) {
     editGuide,
     consistency ? `검증: ${consistency}` : '',
   ].filter(Boolean);
-  if (!helpLines.length) return '';
+  if (!helpLines.length) {
+    helpLines.push(type === 'text' ? '표시와 검색에 사용하는 텍스트 값입니다.' : '업무 화면에서 확인하는 값입니다.');
+  }
   return [group ? `${group} · ${label}` : label, ...helpLines].join('\n');
 }
 
@@ -829,6 +832,28 @@ function formatManagementCellInputValue(value, column) {
 function normalizeManagementCellInputValue(value, column) {
   if (isWonAmountColumn(column)) return normalizeWonInputValue(value);
   return sanitizeDataManagementDisplayValue(value, '');
+}
+
+function normalizeManagementComparableValue(value) {
+  const normalized = sanitizeDataManagementDisplayValue(value, '').trim();
+  if (!normalized || normalized === '-' || normalized === '–' || normalized === '—') return '';
+  return normalized;
+}
+
+function dataManagementPendingEditChanged(edit) {
+  const requested = normalizeManagementComparableValue(edit?.requested_value);
+  const before = normalizeManagementComparableValue(edit?.before_value);
+  const beforeDisplay = normalizeManagementComparableValue(edit?.before_display);
+  if (!requested && !before && !beforeDisplay) return false;
+  return requested !== before || requested !== beforeDisplay;
+}
+
+function dataManagementSubmitBeforeValue(edit) {
+  const requested = normalizeManagementComparableValue(edit?.requested_value);
+  const before = normalizeManagementComparableValue(edit?.before_value);
+  const beforeDisplay = normalizeManagementComparableValue(edit?.before_display);
+  if (requested && requested === before && beforeDisplay !== requested) return edit?.before_display ?? '';
+  return edit?.before_value;
 }
 
 function formatFieldLabel(field) {
@@ -8899,11 +8924,15 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   }, [visibleColumns]);
   const pagination = currentRowsData?.pagination || {};
   const selectedRow = rows.find((row) => row.row_key === selectedRowKey) || rows[0] || null;
-  const editableColumns = scopedColumns.filter((column) => column.editable === true);
-  const rowAddColumns = useMemo(() => editableColumns.filter((column) => {
-    const key = text(column.field_key || column.field);
-    return key && !['fund_names', 'operating_cost_total_krw', 'total_capital_krw'].includes(key);
-  }), [editableColumns]);
+  const dataQualityReadOnlyView = activeTabConfig.key === 'quality' || effectiveViewKey === 'data_quality_findings';
+  const editableColumns = dataQualityReadOnlyView ? [] : scopedColumns.filter((column) => column.editable === true);
+  const rowAddColumns = useMemo(() => {
+    if (dataQualityReadOnlyView) return [];
+    return orderedColumns.filter((column) => {
+      const key = text(column.field_key || column.field);
+      return key && !['fund_names', 'operating_cost_total_krw', 'total_capital_krw'].includes(key);
+    });
+  }, [orderedColumns, dataQualityReadOnlyView]);
   const selectedColumn = scopedColumns.find((column) => column.field_key === selectedField || column.field === selectedField)
     || editableColumns[0]
     || scopedColumns[0]
@@ -9282,7 +9311,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                       const key = text(column.field_key || column.field);
                       const editId = dataManagementDetailEditKey(row.row_key, key);
                       const cellChanged = Boolean(detailDrafts[editId]);
-                      const canEditCell = column.editable === true && row.editable !== false && !rowDeleted;
+                      const canEditCell = !dataQualityReadOnlyView && column.editable === true && row.editable !== false && !rowDeleted;
                       const cellValue = getDetailCellValue(row, column);
                       const inputKinds = rowMeta.input_kinds && typeof rowMeta.input_kinds === 'object' ? rowMeta.input_kinds : {};
                       const isNumberDetailInput = text(inputKinds[key]) === 'number';
@@ -9529,7 +9558,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   };
 
   const submitPendingEdits = async () => {
-    const changedEdits = pendingEditList.filter((edit) => text(edit.before_value, '') !== text(edit.requested_value, ''));
+    const changedEdits = pendingEditList.filter(dataManagementPendingEditChanged);
     if (!changedEdits.length) {
       setBulkSubmitStatus({ type: 'error', message: '변경된 값이 없습니다.' });
       return;
@@ -9549,7 +9578,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           view_key: edit.view_key || effectiveViewKey,
           row_key: edit.row_key,
           field_key: edit.field_key,
-          before_value: edit.before_value,
+          before_value: dataManagementSubmitBeforeValue(edit),
           requested_value: edit.requested_value,
           revision_hash: edit.revision_hash,
           bundle_key: edit.bundle_key || (bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : ''),
@@ -9694,7 +9723,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           <button type="button" onClick={() => setEditModalOpen(true)} disabled={!rows.length} className="h-10 w-full rounded-[8px] border border-[#3A3A3C] px-4 text-[13px] font-semibold text-white hover:border-[#8E8E93] disabled:opacity-35">
             전체화면으로 편집
           </button>
-          <button type="button" onClick={openRowAddModal} disabled={!rowAddColumns.length} className="h-10 w-full rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:bg-[#2A2A29] disabled:text-[#6E6E73]">
+          <button type="button" onClick={openRowAddModal} disabled={dataQualityReadOnlyView || !rowAddColumns.length} className="h-10 w-full rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:bg-[#2A2A29] disabled:text-[#6E6E73]">
             행 추가
           </button>
         </div>
@@ -9718,7 +9747,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                   setBulkSubmitStatus(null);
                   setApprovalModalOpen(true);
                 }}
-                disabled={!pendingEditList.length}
+                disabled={dataQualityReadOnlyView || !pendingEditList.length}
                 className="h-9 rounded-[8px] border border-[#3A3A3C] bg-white px-3 text-[12px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:bg-[#2A2A29] disabled:text-[#6E6E73]"
                 data-data-management-approval-open="true"
               >
@@ -9776,7 +9805,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                           const key = text(column.field_key || column.field);
                           const editId = dataManagementEditKey(row.row_key, key);
                           const cellPending = pendingEdits[editId];
-                          const canEditCell = column.editable === true && row.editable !== false;
+                          const canEditCell = !dataQualityReadOnlyView && column.editable === true && row.editable !== false;
                           const cellChanged = Boolean(cellPending);
                           const cellValue = getCellEditValue(row, column);
                           const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details : {};
@@ -9976,7 +10005,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                             const key = text(column.field_key || column.field);
                             const editId = dataManagementEditKey(row.row_key, key);
                             const cellPending = pendingEdits[editId];
-                            const canEditCell = column.editable === true && row.editable !== false;
+                            const canEditCell = !dataQualityReadOnlyView && column.editable === true && row.editable !== false;
                             const cellChanged = Boolean(cellPending);
                             const cellValue = getCellEditValue(row, column);
                             const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details : {};

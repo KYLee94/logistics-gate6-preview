@@ -702,6 +702,7 @@ function valuesEqual(a: unknown, b: unknown) {
   const left = normalizeComparableEditValue(a);
   const right = normalizeComparableEditValue(b);
   if (left === right) return true;
+  if (!left || !right) return false;
   const leftNumber = Number(left.replace(/,/gu, ''));
   const rightNumber = Number(right.replace(/,/gu, ''));
   return Number.isFinite(leftNumber) && Number.isFinite(rightNumber) && Math.abs(leftNumber - rightNumber) < 0.000001;
@@ -8208,6 +8209,83 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
   const page = Math.min(Math.max(Number(payload.page || 1), 1), 500);
   const readbackAt = new Date().toISOString();
   const fields = DATA_MANAGEMENT_QUALITY_VIEW_FIELDS;
+  try {
+    const runtimeFindings = await buildRuntimeQualityFindings(ctx, Math.min(Math.max(page * pageSize, 200), 1000));
+    const severityLabel = (severity: unknown) => {
+      const key = safeText(severity).toLowerCase();
+      if (key === 'critical' || key === 'high') return '즉시 확인';
+      if (key === 'warning' || key === 'medium') return '확인 필요';
+      return '참고';
+    };
+    const domainLabel = (targetType: unknown) => {
+      const key = safeText(targetType).toLowerCase();
+      if (key.includes('asset')) return '자산 데이터';
+      if (key.includes('rent')) return '임대료·관리비';
+      if (key.includes('lease')) return '임대차계약 데이터';
+      if (key.includes('tenant')) return '임차인 데이터';
+      return '데이터 품질';
+    };
+    const runtimeRowsSource = runtimeFindings.map((finding, index) => {
+      const targetName = safeText(firstDefined(finding.target_name, finding.targetName, finding.entity_id, finding.id));
+      const fieldName = safeText(firstDefined(finding.field_name, finding.fieldName, finding.reason_code, finding.reasonCode));
+      return {
+        domain_label: domainLabel(firstDefined(finding.target_type, finding.targetType, finding.entity_type)),
+        check_item: [targetName, fieldName].filter(Boolean).join(' · ') || `품질 진단 ${index + 1}`,
+        status_label: severityLabel(finding.severity),
+        issue_count: 1,
+        source_count: null,
+        expected_count: null,
+        readback_at: firstDefined(finding.created_at, finding.updated_at, readbackAt),
+        owner_label: '자동 진단',
+        note: safeText(firstDefined(finding.action, finding.reason_code, finding.reasonCode, '확인이 필요한 데이터입니다.')),
+      };
+    });
+    if (runtimeRowsSource.length > 0) {
+      const searchKey = normalizeKey(payload.search);
+      const filtered = searchKey
+        ? runtimeRowsSource.filter((row) => dataManagementRowHaystackGeneric(row).includes(searchKey))
+        : runtimeRowsSource;
+      const pagedRows = filtered.slice((page - 1) * pageSize, page * pageSize);
+      const rows = await Promise.all(pagedRows.map(async (row, index) => {
+        const rawKey = `${safeText(row.domain_label)}:${safeText(row.check_item)}:${safeText(row.note)}:${index}`;
+        const displayValues = Object.fromEntries(fields.map((field) => {
+          const key = safeText((field as Record<string, unknown>).field_key);
+          return [key, dataManagementFormatViewValue(row[key], field as Record<string, unknown>)];
+        }));
+        return {
+          row_key: await dataManagementOpaqueRowKey(viewKey, rawKey),
+          row_label: [row.domain_label, row.check_item].map((item) => safeText(item)).filter(Boolean).join(' · '),
+          display_values: displayValues,
+          values: displayValues,
+          edit_values: Object.fromEntries(fields.map((field) => {
+            const key = safeText((field as Record<string, unknown>).field_key);
+            return [key, row[key] ?? null];
+          })),
+          lookup_status: { status: safeText(row.status_label) === '참고' ? 'ok' : 'warning', label: safeText(row.status_label) },
+          editable: false,
+          read_only_reason: '데이터 품질 탭은 이상 데이터 확인 전용입니다.',
+          revision_hash: await dataManagementRevisionHash(row),
+          meta: {
+            row_unit: 'quality_finding',
+            capability: 'readback_only',
+          },
+        };
+      }));
+      return {
+        fields,
+        rows,
+        total: filtered.length,
+        page,
+        pageSize,
+        tableName: 'data_management_quality_findings',
+        primaryKey: 'quality_finding',
+      };
+    }
+  } catch (qualityError) {
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/quality/runtime_failed', 500, {
+      error: qualityError instanceof Error ? qualityError.message : 'runtime quality failed',
+    });
+  }
   const counts = await Promise.all([
     countPublicLlTableRows(ctx, 'll_assets'),
     countPublicLlTableRows(ctx, 'll_funds'),
@@ -11339,6 +11417,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
   const cellEdits: Record<string, unknown>[] = [];
   const submitReadbacks: Record<string, unknown>[] = [];
   const labels: string[] = [];
+  let alreadyCurrentCount = 0;
   for (const rawChange of rawChanges) {
     const change = rawChange && typeof rawChange === 'object' ? rawChange : {};
     const mergedPayload = {
@@ -11388,7 +11467,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
     assertRowTemporalWriteAllowed(cell, row);
     const currentValue = row[cell.fieldName];
     const currentRevisionHash = await dataManagementRevisionHash(row);
-    if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue)) {
+    if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue) && !valuesEqual(currentValue, input.requestedValue)) {
       return fail(409, 'Stale value blocked before submit', ctx.origin, { field_name: input.fieldName, current_value: currentValue });
     }
     const requestedRevisionHash = safeText(tablePayload.revision_hash || tablePayload.revisionHash);
@@ -11396,7 +11475,22 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
     if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
       return fail(409, 'Stale row revision blocked before submit', ctx.origin, { field_name: input.fieldName, current_revision_hash: currentRevisionHash });
     }
-    if (valuesEqual(currentValue, input.requestedValue)) continue;
+    if (valuesEqual(currentValue, input.requestedValue)) {
+      if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(input.beforeValue, input.requestedValue)) {
+        alreadyCurrentCount += 1;
+        submitReadbacks.push({
+          target_table: input.targetTable,
+          target_row_id: input.targetRowId,
+          field_name: input.fieldName,
+          submit_readback_value: currentValue,
+          stale_at_submit: false,
+          already_current: true,
+          current_revision_hash: currentRevisionHash,
+        });
+        labels.push(safeText(tablePayload.target_name || tablePayload.targetName || dataManagementRowLabelForTable(input.tableName, row)));
+      }
+      continue;
+    }
     const beforeValue = input.beforeValue === undefined || input.beforeValue === null ? currentValue : input.beforeValue;
     cellEdits.push({
       target_table: input.targetTable,
@@ -11421,6 +11515,15 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
     labels.push(safeText(tablePayload.target_name || tablePayload.targetName || dataManagementRowLabelForTable(input.tableName, row)));
   }
   if (!cellEdits.length) {
+    if (alreadyCurrentCount > 0) {
+      return jsonResponse({ ok: true, data: {
+        status: 'already_current',
+        changes: alreadyCurrentCount,
+        already_current: alreadyCurrentCount,
+        submit_readbacks: submitReadbacks,
+        message: 'Requested values already match the current Supabase values.',
+      } }, 200, ctx.origin);
+    }
     return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
   }
   const firstCell = cellEdits[0];
