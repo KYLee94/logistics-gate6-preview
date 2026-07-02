@@ -89,8 +89,8 @@ async function main() {
   const fundTotal = number(summary.funds?.total_capital_krw);
   const assetConfirmedTotal = number(summary.assets?.total_capital_krw);
   const checks = {
-    fund_count: summary.fund_count === 17 || funds.length === 17,
-    asset_count: summary.asset_count === 19 || assets.length === 19,
+    fund_count: summary.fund_count === 16 || funds.length === 16,
+    asset_count: summary.asset_count === 18 || assets.length === 18,
     tranche_non_empty: tranches.length > 0,
     equity_and_loan_present: tranches.some((row) => row.capital_kind === 'equity') && tranches.some((row) => row.capital_kind === 'loan'),
     display_names_present: funds.every((row) => row.display_name && !/^fund_/iu.test(String(row.display_name))),

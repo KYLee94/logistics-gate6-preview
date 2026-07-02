@@ -25,6 +25,7 @@ export const LOGISTICS_ROUTE_BY_KEY = {
   'data-management/lease-contracts': `${LOGISTICS_INTERNAL_BASE}/data-management/lease-contracts`,
   'data-management/managers': `${LOGISTICS_INTERNAL_BASE}/data-management/managers`,
   'data-management/data-quality': `${LOGISTICS_INTERNAL_BASE}/data-management/data-quality`,
+  'data-management/approval': `${LOGISTICS_INTERNAL_BASE}/data-management/approval`,
   'data-management/market-data': `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`,
   'contract-data': `${LOGISTICS_INTERNAL_BASE}/contract-data`,
   'pdf-report': `${LOGISTICS_INTERNAL_BASE}/pdf-report`,

@@ -612,6 +612,30 @@ html[lang="kr"] .font-light {
     min-width: 0;
 }
 
+.data-management-font-scope [data-data-management-grid="true"] td,
+.data-management-font-scope [data-data-management-fullscreen-editor="true"] td,
+.data-management-font-scope [data-data-management-detail-editor="true"] td,
+.data-management-font-scope [data-data-management-grid="true"] input,
+.data-management-font-scope [data-data-management-fullscreen-editor="true"] input,
+.data-management-font-scope [data-data-management-detail-editor="true"] input,
+.data-management-font-scope [data-data-management-grid="true"] textarea,
+.data-management-font-scope [data-data-management-fullscreen-editor="true"] textarea,
+.data-management-font-scope [data-data-management-detail-editor="true"] textarea {
+    resize: none !important;
+}
+
+.data-management-font-scope [data-data-management-grid="true"] td::-webkit-resizer,
+.data-management-font-scope [data-data-management-fullscreen-editor="true"] td::-webkit-resizer,
+.data-management-font-scope [data-data-management-detail-editor="true"] td::-webkit-resizer,
+.data-management-font-scope [data-data-management-grid="true"] input::-webkit-resizer,
+.data-management-font-scope [data-data-management-fullscreen-editor="true"] input::-webkit-resizer,
+.data-management-font-scope [data-data-management-detail-editor="true"] input::-webkit-resizer,
+.data-management-font-scope [data-data-management-grid="true"] textarea::-webkit-resizer,
+.data-management-font-scope [data-data-management-fullscreen-editor="true"] textarea::-webkit-resizer,
+.data-management-font-scope [data-data-management-detail-editor="true"] textarea::-webkit-resizer {
+    display: none;
+}
+
 [data-market-filter-block="true"] {
     border: 1px solid #333333;
     background: #171717;

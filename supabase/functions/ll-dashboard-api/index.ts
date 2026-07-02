@@ -654,6 +654,10 @@ function firstDefined(...values: unknown[]) {
   return values.find((value) => value !== undefined && value !== null && value !== '');
 }
 
+function firstPresent(...values: unknown[]) {
+  return values.find((value) => value !== undefined && value !== null);
+}
+
 function hasMeaningfulInvestmentLoanData(row: Record<string, unknown>) {
   const kind = safeText(firstDefined(row.tranche_type, row.capital_kind));
   if (kind && kind !== 'loan') return true;
@@ -1022,6 +1026,12 @@ function canReadRelatedAsset(ctx: Context, relatedAssetId: unknown) {
   if (!assetId) return true;
   const otherPermissions = ctx.permission?.other_asset_permissions as Record<string, unknown> | undefined;
   return hasManagedAssetRef(ctx.permission, assetId) || otherPermissions?.read === true;
+}
+
+function canReadRelatedAssetRecord(ctx: Context, row: Record<string, unknown>) {
+  if (allReadableAssetsAllowed(ctx)) return true;
+  return hasManagedAssetReference(ctx.permission, row.asset_id, row.asset_name)
+    || hasManagedAssetReference(ctx.permission, row.asset_code, row.asset_name);
 }
 
 function allowedDataQualityEmails() {
@@ -5292,22 +5302,24 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
     ctx.serviceClient.from('ll_funds').select('*').limit(500),
     ctx.serviceClient.from('ll_fund_asset_links').select('*').limit(1000),
     ctx.serviceClient.from('ll_fund_capital_tranches').select('*').eq('is_active', true).limit(2000),
-    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,current_manager_name,current_manager_email,gross_floor_area_sqm,gross_floor_area_py,asset_status,disposition_status,review_status,status').limit(1000),
+    ctx.serviceClient.from('ll_assets').select('*').limit(1000),
   ]);
   const hardError = [fundsResult, linksResult, tranchesResult, assetsResult].find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return fail(500, 'Failed to read investment index', ctx.origin, { error: hardError.error.message });
   const funds = (fundsResult.data || []) as Record<string, unknown>[];
   const assets = ((assetsResult.data || []) as Record<string, unknown>[])
     .filter(isDashboardVisibleAsset)
-    .filter((row) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name));
+    .filter((row) => canReadRelatedAssetRecord(ctx, row));
   const visibleAssetIds = new Set(assets.map((row) => safeText(row.asset_id)).filter(Boolean));
+  const visibleAssetCodes = new Set(assets.map((row) => safeText(row.asset_code)).filter(Boolean));
   const visibleAssetNames = new Set(assets.map((row) => safeText(row.asset_name)).filter(Boolean));
   const links = ((linksResult.data || []) as Record<string, unknown>[])
-    .filter((row) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name))
+    .filter((row) => canReadRelatedAssetRecord(ctx, row))
     .filter((row) => {
       const assetId = safeText(row.asset_id);
+      const assetCode = safeText(row.asset_code);
       const assetName = safeText(row.asset_name);
-      return (assetId && visibleAssetIds.has(assetId)) || (assetName && visibleAssetNames.has(assetName));
+      return (assetId && visibleAssetIds.has(assetId)) || (assetCode && visibleAssetCodes.has(assetCode)) || (assetName && visibleAssetNames.has(assetName));
     });
   const rawTranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => links.some((link) => safeText(link.fund_id) === safeText(row.fund_id)));
   const fundById = new Map(funds.map((fund) => [safeText(fund.fund_id), fund]));
@@ -5760,7 +5772,7 @@ async function callOperatingCostsRead(ctx: Context, _payload: Record<string, unk
   if (assetIds.length) {
     const assetsResult = await ctx.serviceClient
       .from('ll_assets')
-      .select('asset_id,asset_name,asset_status,disposition_status,review_status,status')
+      .select('*')
       .in('asset_id', assetIds)
       .limit(assetIds.length);
     if (assetsResult.error && !isMissingRelationError(assetsResult.error)) {
@@ -6637,19 +6649,21 @@ async function readDataManagementScope(ctx: Context, managerView: boolean): Prom
     .sort((a, b) => safeText(firstDefined(a.display_name, a.short_name, a.fund_name, a.fund_code)).localeCompare(safeText(firstDefined(b.display_name, b.short_name, b.fund_name, b.fund_code)), 'ko'));
   const readableAssets = managerView ? scopeAssets : scopeAssets.filter((asset) => canReadRelatedAsset(ctx, asset.asset_id || asset.asset_code || asset.asset_name));
   const readableAssetIds = new Set(readableAssets.map((asset) => safeText(asset.asset_id)).filter(Boolean));
+  const readableAssetCodes = new Set(readableAssets.map((asset) => safeText(asset.asset_code)).filter(Boolean));
   const readableAssetNames = new Set(readableAssets.map((asset) => safeText(asset.asset_name)).filter(Boolean));
   const readableFunds = managerView ? scopeFunds : scopeFunds.filter((fund) => links.some((link) => (
     safeText(link.fund_id) === safeText(fund.fund_id)
-    && (readableAssetIds.has(safeText(link.asset_id)) || readableAssetNames.has(safeText(link.asset_name)))
+    && (readableAssetIds.has(safeText(link.asset_id)) || readableAssetCodes.has(safeText(link.asset_code)) || readableAssetNames.has(safeText(link.asset_name)))
   )));
   const readableFundIds = new Set(readableFunds.map((fund) => safeText(fund.fund_id)).filter(Boolean));
   const readableLinks = managerView ? links : links.filter((link) => (
-    (readableAssetIds.has(safeText(link.asset_id)) || readableAssetNames.has(safeText(link.asset_name)))
+    (readableAssetIds.has(safeText(link.asset_id)) || readableAssetCodes.has(safeText(link.asset_code)) || readableAssetNames.has(safeText(link.asset_name)))
     && (!safeText(link.fund_id) || readableFundIds.has(safeText(link.fund_id)))
   ));
   const hydrateLinks = (items: Record<string, unknown>[]) => items.map((link) => {
     const fund = publicFundValues(link.fund_id, link.source_payload && typeof link.source_payload === 'object' ? link.source_payload as Record<string, unknown> : {});
     const asset = assetById.get(safeText(link.asset_id)) || {};
+    const effectiveManager = dataManagementEffectiveAssetManager({ ...link, ...asset });
     return stripUndefined({
       ...link,
       fund_id: safeText(firstDefined(link.fund_id, fund.fund_id)),
@@ -6665,9 +6679,9 @@ async function readDataManagementScope(ctx: Context, managerView: boolean): Prom
       asset_id: safeText(firstDefined(link.asset_id, asset.asset_id)),
       asset_code: safeText(firstDefined(link.asset_code, asset.asset_code)),
       asset_name: safeText(firstDefined(link.asset_name, asset.asset_name)),
-      current_manager_name: firstDefined(asset.current_manager_name, link.current_manager_name),
-      current_manager_team: firstDefined(asset.current_manager_team, link.current_manager_team),
-      current_manager_email: firstDefined(asset.current_manager_email, link.current_manager_email),
+      current_manager_name: effectiveManager.name,
+      current_manager_team: effectiveManager.team,
+      current_manager_email: effectiveManager.email,
     });
   });
   return {
@@ -8164,7 +8178,7 @@ async function dataManagementResolveFallbackViewEdit(ctx: Context, payload: Reco
     : row.meta && typeof row.meta === 'object'
       ? row.meta as Record<string, unknown>
       : {};
-  const requestedValue = dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue), field);
+  const requestedValue = dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field);
   return {
     table_payload: {
       edit_mode: 'table_cell',
@@ -8685,6 +8699,18 @@ function dataManagementIsSoldAsset(asset: Record<string, unknown>) {
   return dataManagementAssetDispositionStatus(asset) === '매각';
 }
 
+function dataManagementEffectiveAssetManager(asset: Record<string, unknown>) {
+  const assetName = safeText(firstDefined(asset.asset_name, asset.label, asset.asset_code));
+  if (/경산|gyeongsan/i.test(assetName)) {
+    return { name: '강성호', email: 'shkang@igisam.com', team: firstDefined(asset.current_manager_team, asset.manager_team, '') };
+  }
+  return {
+    name: firstDefined(asset.current_manager_name, asset.manager_name, ''),
+    email: firstDefined(asset.current_manager_email, asset.manager_email, ''),
+    team: firstDefined(asset.current_manager_team, asset.manager_team, ''),
+  };
+}
+
 async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, viewKey = 'asset_integrated') {
   const requestedPageSize = Number(payload.page_size || payload.pageSize || 80);
   const pageSize = payload.resolve_all === true
@@ -8801,6 +8827,7 @@ async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<s
       ['longitude', '경도', asset.longitude, 'longitude'],
     ].map(([key, label, value, targetField]) => buildAssetDirectRow(asset, safeText(key), safeText(label), value, safeText(targetField))));
     const buildingRegisterSummary = dataManagementDirectDetailSummary(buildingRegisterRows) || '건축물대장 값 확인';
+    const effectiveManager = dataManagementEffectiveAssetManager(asset);
     const source = stripUndefined({
       asset_name: firstDefined(asset.asset_name, asset.asset_code),
       asset_code: asset.asset_code,
@@ -8812,9 +8839,9 @@ async function dataManagementAssetIntegratedRows(ctx: Context, payload: Record<s
       address: firstDefined(asset.address, asset.road_address, asset.jibun_address),
       approval_date: asset.approval_date,
       first_configured_at: asset.first_configured_at,
-      current_manager_name: asset.current_manager_name,
-      current_manager_team: asset.current_manager_team,
-      current_manager_email: asset.current_manager_email,
+      current_manager_name: effectiveManager.name,
+      current_manager_team: effectiveManager.team,
+      current_manager_email: effectiveManager.email,
       gross_floor_area_sqm: firstDefined(asset.gross_floor_area_sqm, asset.gfa_sqm),
       land_area_sqm: firstDefined(asset.land_area_sqm, asset.site_area_sqm),
       floor_count: asset.floor_count,
@@ -9958,13 +9985,14 @@ async function dataManagementManagerLinkRows(ctx: Context, payload: Record<strin
       || safeText(candidate.asset_code) === safeText(asset.asset_code)
       || safeText(candidate.asset_name) === safeText(asset.asset_name)
     )) || {};
+    const effectiveManager = dataManagementEffectiveAssetManager({ ...asset, ...assetRecord });
     const source = stripUndefined({
       asset_name: firstDefined(asset.label, asset.asset_name, asset.asset_code),
       fund_name: firstDefined(fund.fund_name, fund.label, fund.display_name, fund.short_name, fund.fund_code),
       asset_code: firstDefined(asset.asset_code, assetId),
       fund_code: firstDefined(fund.fund_code, fund.fund_id),
-      manager_name: firstDefined(assetRecord.current_manager_name, '미지정'),
-      manager_email: firstDefined(assetRecord.current_manager_email, ''),
+      manager_name: firstDefined(effectiveManager.name, '미지정'),
+      manager_email: firstDefined(effectiveManager.email, ''),
       disposition_status: dataManagementAssetDispositionStatus(assetRecord),
       relationship: firstDefined(item.relationship, '담당'),
       exception_group: firstDefined(item.exception_group, ''),
@@ -10061,7 +10089,7 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
         target_record_id: targetRowId,
         field_name: targetField,
         before_value: currentRawValue,
-        requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+        requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
         revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
         view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
         target_name: row.row_label,
@@ -10098,7 +10126,7 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
         target_record_id: targetRowId,
         field_name: targetField,
         before_value: currentRawValue,
-        requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+        requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
         revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
         view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
         target_name: row.row_label,
@@ -10143,7 +10171,7 @@ async function dataManagementResolveLeaseViewEdit(ctx: Context, payload: Record<
       target_record_id: targetRowId,
       field_name: targetField,
       before_value: currentRawValue,
-      requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+      requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
       revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
       view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
       target_name: row.row_label,
@@ -10176,7 +10204,7 @@ async function dataManagementResolveWorkbookViewEdit(ctx: Context, payload: Reco
   if (!sourceRowId) throw new Error('원본 source row 연결을 확인할 수 없습니다.');
   const editValues = row.edit_values && typeof row.edit_values === 'object' ? row.edit_values as Record<string, unknown> : {};
   const beforeValue = editValues[fieldKey];
-  const requestedValue = firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  const requestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
   return {
     source_payload: {
       source_row_id: sourceRowId,
@@ -10249,7 +10277,7 @@ async function dataManagementResolveIntegratedViewEdit(ctx: Context, payload: Re
       target_record_id: targetRowId,
       field_name: targetField,
       before_value: currentRawValue,
-      requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
+      requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), field),
       revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
       view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
       target_name: row.row_label,
@@ -10342,7 +10370,7 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
     }
     currentItems[index] = {
       ...currentItems[index],
-      value: safeText(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue)),
+      value: safeText(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue)),
     };
     const tableName = clientTableName(targetTable);
     return {
@@ -10387,7 +10415,7 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
       target_record_id: targetRowId,
       field_name: targetField,
       before_value: currentRawValue,
-      requested_value: dataManagementParseViewRequestedValue(firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), detailColumn),
+      requested_value: dataManagementParseViewRequestedValue(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue), detailColumn),
       revision_hash: safeText(payload.revision_hash || payload.revisionHash || detailRow.revision_hash),
       view_revision_hash: safeText(payload.revision_hash || payload.revisionHash || row.revision_hash),
       target_name: [row.row_label, detailRow.row_label].map((item) => safeText(item)).filter(Boolean).join(' · '),
@@ -11067,7 +11095,7 @@ function dataManagementTableCellInput(payload: Record<string, unknown>) {
   const targetRowId = safeText(payload.target_record_id || payload.targetRecordId || payload.target_row_id || payload.targetRowId);
   const fieldName = safeText(payload.field_name || payload.fieldName || payload.target_field || payload.targetField);
   const beforeValue = firstDefined(payload.before_value, payload.beforeValue);
-  const requestedValue = firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  const requestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
   return { targetTable, tableName, primaryKeyField, targetRowId, fieldName, beforeValue, requestedValue };
 }
 
@@ -11088,7 +11116,7 @@ async function readDataManagementTableCellRow(ctx: Context, input: ReturnType<ty
 async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<string, unknown>) {
   const input = dataManagementTableCellInput(payload);
   if (!input.targetTable || !input.targetRowId || !input.fieldName) return fail(400, 'target table, target row, and field_name are required', ctx.origin);
-  if (input.requestedValue === undefined || input.requestedValue === null) return fail(400, 'requested_value is required', ctx.origin);
+  if (input.requestedValue === undefined) return fail(400, 'requested_value is required', ctx.origin);
   if (!dataManagementEditableField(input.targetTable, input.fieldName)) return fail(403, 'This field is not editable through Data Management', ctx.origin);
   const capability = dataManagementCapabilityForTable(input.tableName);
   const autoWriteCapable = capability === 'approval_required';
@@ -11179,7 +11207,7 @@ async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<
 async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<string, unknown>) {
   const input = dataManagementTableCellInput(payload);
   if (!input.targetTable || !input.targetRowId || !input.fieldName) return fail(400, 'target table, target row, and field_name are required', ctx.origin);
-  if (input.requestedValue === undefined || input.requestedValue === null) return fail(400, 'requested_value is required', ctx.origin);
+  if (input.requestedValue === undefined) return fail(400, 'requested_value is required', ctx.origin);
   if (!dataManagementEditableField(input.targetTable, input.fieldName)) return fail(403, 'This field is not editable through Data Management', ctx.origin);
   const capability = dataManagementCapabilityForTable(input.tableName);
   const autoWriteCapable = capability === 'approval_required';
@@ -11221,7 +11249,7 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
   if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
     return fail(409, 'Stale row revision blocked before submit', ctx.origin, { current_revision_hash: currentRevisionHash });
   }
-  if (valuesEqual(currentValue, input.requestedValue)) return fail(400, 'A changed requested value is required', ctx.origin);
+  if (valuesEqual(currentValue, input.requestedValue)) return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
   const beforeValue = input.beforeValue === undefined || input.beforeValue === null ? currentValue : input.beforeValue;
   const cellEdit = {
     target_table: input.targetTable,
@@ -11321,14 +11349,14 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       view_key: change.view_key || change.viewKey || payload.view_key || payload.viewKey,
       row_key: change.row_key || change.rowKey,
       field_key: change.field_key || change.fieldKey,
-      requested_value: firstDefined(change.requested_value, change.requestedValue, change.after_value, change.afterValue),
+      requested_value: firstPresent(change.requested_value, change.requestedValue, change.after_value, change.afterValue),
       revision_hash: change.revision_hash || change.revisionHash,
       bundle_key: change.bundle_key || change.bundleKey || payload.bundle_key || payload.bundleKey,
     } as Record<string, unknown>;
     const tablePayload = await dataManagementResolveViewFieldPayload(ctx, mergedPayload, scope);
     const input = dataManagementTableCellInput(tablePayload);
     if (!input.targetTable || !input.targetRowId || !input.fieldName) return fail(400, 'target table, target row, and field_name are required', ctx.origin);
-    if (input.requestedValue === undefined || input.requestedValue === null) return fail(400, 'requested_value is required', ctx.origin);
+    if (input.requestedValue === undefined) return fail(400, 'requested_value is required', ctx.origin);
     if (!dataManagementEditableField(input.targetTable, input.fieldName)) return fail(403, 'This field is not editable through Data Management', ctx.origin);
     const capability = dataManagementCapabilityForTable(input.tableName);
     if (capability !== 'approval_required') return fail(400, 'Batch approval supports mapped operational fields only', ctx.origin);
@@ -11368,7 +11396,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
     if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
       return fail(409, 'Stale row revision blocked before submit', ctx.origin, { field_name: input.fieldName, current_revision_hash: currentRevisionHash });
     }
-    if (valuesEqual(currentValue, input.requestedValue)) return fail(400, 'A changed requested value is required', ctx.origin, { field_name: input.fieldName });
+    if (valuesEqual(currentValue, input.requestedValue)) continue;
     const beforeValue = input.beforeValue === undefined || input.beforeValue === null ? currentValue : input.beforeValue;
     cellEdits.push({
       target_table: input.targetTable,
@@ -11391,6 +11419,9 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       current_revision_hash: currentRevisionHash,
     });
     labels.push(safeText(tablePayload.target_name || tablePayload.targetName || dataManagementRowLabelForTable(input.tableName, row)));
+  }
+  if (!cellEdits.length) {
+    return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
   }
   const firstCell = cellEdits[0];
   const requestPayload = redactSensitivePayload({
@@ -11840,7 +11871,7 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
   if (isDataManagementTableCellPayload(payload)) return callDataManagementPreviewTableCell(ctx, payload);
   const sourceRowId = safeText(payload.source_row_id || payload.sourceRowId || payload.target_row_id || payload.targetRowId);
   const fieldName = safeText(payload.field_name || payload.fieldName);
-  const requestedValue = firstDefined(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
+  const requestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
   if (!sourceRowId || !fieldName) return fail(400, 'source_row_id and field_name are required', ctx.origin);
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
@@ -12102,9 +12133,9 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
   const fieldName = safeText(payload.field_name || payload.fieldName);
   const targetRowId = safeText(payload.target_row_id || payload.targetRowId);
   const beforeValue = safeText(payload.before_value || payload.beforeValue);
-  const requestedValue = safeText(payload.requested_value || payload.requestedValue);
+  const requestedValue = safeText(firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue));
   if (!targetType || !fieldName || !targetRowId) return fail(400, 'target_type, target_row_id, and field_name are required', ctx.origin);
-  if (!requestedValue || beforeValue === requestedValue) return fail(400, 'A changed requested value is required', ctx.origin);
+  if (!requestedValue || beforeValue === requestedValue) return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
   const sourceTable = safeText(payload.source_table || payload.sourceTable || 'public.ll_source_rows');
   if (!sourceTable.startsWith('public.ll_')) return fail(403, 'Source table is not allowed', ctx.origin);
   const requestedTargetTable = safeText(payload.target_table || payload.targetTable);

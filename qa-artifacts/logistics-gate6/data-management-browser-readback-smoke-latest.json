@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-07-02T07:13:34.777Z",
+  "generated_at": "2026-07-02T08:48:02.229Z",
   "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
   "auth_source": "password_grant",
   "checks": {
@@ -39,7 +39,7 @@
     "subtabs_no_internal_tokens": true
   },
   "errors": [],
-  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260702-071333.png",
+  "screenshot": "qa-artifacts/logistics-gate6/data-management-browser-readback-smoke-20260702-084801.png",
   "grid_metrics": {
     "igis_initial": {
       "headerButtons": 36,

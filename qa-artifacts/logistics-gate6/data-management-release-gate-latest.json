@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "generated_at": "2026-07-02T06:56:55.897Z",
+  "generated_at": "2026-07-02T08:48:27.050Z",
   "mode": "data_management_release_gate",
   "auth_source": "password_grant",
   "options": {
@@ -72,7 +72,7 @@
       },
       {
         "column_names": "{id,event_type,action,status_code,requested_by,edit_request_id,target_table,target_row_id,target_cell_id,field_name,before_value,after_value,readback_value,actor_id,approver_id,source_row_id,source_cell_id,approval_status,legacy_table,legacy_id,finding_id,audit_run_id,finding_type,severity,entity_type,entity_id,source_sheet_name,source_row_number,source_column_number,source_header,source_value_text,supabase_value_text,event_status,event_payload,request_payload,metadata,created_at,updated_at}",
-        "exact_rows": 43282,
+        "exact_rows": 43776,
         "primary_key": "{id}",
         "rls_enabled": true,
         "table_name": "ll_audit_events"
@@ -316,7 +316,7 @@
       "counted_table_count": 67,
       "missing_relation_count": 0,
       "unconnected_table_count": 0,
-      "total_row_count": 269031
+      "total_row_count": 269523
     },
     "management_scope": {
       "owner": "IGIS Asset Management",
@@ -445,7 +445,7 @@
         "table_name": "ll_audit_events",
         "ui_domain_key": "approval_audit",
         "ui_domain_label": "승인/감사",
-        "row_count": 43281,
+        "row_count": 43772,
         "exists": true,
         "write_mode": "approval_auto_write",
         "metadata_domain_group": "Permission / Audit",
@@ -697,7 +697,7 @@
         "table_name": "ll_login_history",
         "ui_domain_key": "permission",
         "ui_domain_label": "권한/사용자",
-        "row_count": 146,
+        "row_count": 147,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "metadata_domain_group": "Permission / Audit",
@@ -1771,7 +1771,7 @@
       "view_key": "lease_general_excel",
       "row_key": "dmv_lease_general_excel_c4d3ff37625f36bffe28",
       "field_key": "tenant_master_name",
-      "requested_value": "쿠팡(주) QA-20260702-065635",
+      "requested_value": "쿠팡(주) QA-20260702-084756",
       "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
       "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
     },
@@ -1783,7 +1783,7 @@
       "type": "text"
     },
     "before_value": "쿠팡(주)",
-    "requested_value": "쿠팡(주) QA-20260702-065635",
+    "requested_value": "쿠팡(주) QA-20260702-084756",
     "can_submit": true,
     "auto_write_enabled": true,
     "source_review_required": false,
@@ -1823,12 +1823,12 @@
     "rows_contract": {
       "view_key": "lease_general_excel",
       "field_count": 25,
-      "row_count": 71,
+      "row_count": 62,
       "pagination": {
         "page": 1,
         "page_size": 80,
-        "returned": 72,
-        "total_estimate": 72,
+        "returned": 63,
+        "total_estimate": 63,
         "has_next": false
       }
     },
@@ -1840,7 +1840,7 @@
           "view_key": "lease_general_excel",
           "row_key": "dmv_lease_general_excel_c4d3ff37625f36bffe28",
           "field_key": "tenant_master_name",
-          "requested_value": "쿠팡(주) QA-20260702-065635",
+          "requested_value": "쿠팡(주) QA-20260702-084756",
           "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
           "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
         },
@@ -1852,7 +1852,7 @@
           "type": "text"
         },
         "before_value": "쿠팡(주)",
-        "requested_value": "쿠팡(주) QA-20260702-065635",
+        "requested_value": "쿠팡(주) QA-20260702-084756",
         "can_submit": true,
         "auto_write_enabled": true,
         "source_review_required": false,
@@ -1892,12 +1892,12 @@
         "rows_contract": {
           "view_key": "lease_general_excel",
           "field_count": 25,
-          "row_count": 71,
+          "row_count": 62,
           "pagination": {
             "page": 1,
             "page_size": 80,
-            "returned": 72,
-            "total_estimate": 72,
+            "returned": 63,
+            "total_estimate": 63,
             "has_next": false
           }
         }

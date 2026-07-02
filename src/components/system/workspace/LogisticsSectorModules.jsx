@@ -533,17 +533,16 @@ function dataManagementColumnUnitGuide(column) {
   const type = text(column?.type || '');
   const key = text(column?.field_key || column?.field || '').toLowerCase();
   const label = text(column?.label || '');
-  if (type === 'krw') return '원 단위 금액입니다. 예: 2500000000 또는 25억원';
-  if (type === 'krw_raw') return '원 단위 숫자입니다. 예: 1,000,000,000';
-  if (type === 'krw_per_py') return '평당 월 단가입니다. 예: 36050원 또는 3.6만원';
-  if (type === 'area_sqm') return '면적입니다. ㎡ 또는 평 입력을 허용하고 저장 전 환산 검증합니다.';
-  if (type === 'percent') return '비율입니다. 예: 3% 또는 0.03';
-  if (type === 'months') return '개월 수입니다. 예: 6';
-  if (type === 'date') return '날짜입니다. YYYY-MM-DD 형식으로 입력합니다.';
-  if (type === 'yn') return 'Y/N 값입니다. 해당하면 Y, 해당하지 않거나 비어 있으면 N으로 표시합니다.';
-  if (type === 'number') return '숫자입니다. 컬럼명에 맞는 단위로 입력합니다.';
-  if (/tranche/i.test(key + label)) return 'Tranche 구분값입니다. 여러 행이 있으면 상세 편집에서 행별로 관리합니다.';
-  return '텍스트 값입니다. 계약서, 원장, 담당자 명칭과 동일하게 입력합니다.';
+  if (type === 'krw' || type === 'krw_raw' || isWonAmountColumn(column)) return '원 단위 숫자입니다. 입력 중에는 1,000,000원처럼 보이고, 승인 요청에는 숫자값으로 저장됩니다.';
+  if (type === 'krw_per_py') return '평당 원 단가입니다. 월 임대료 또는 월 관리비를 임대면적으로 나눈 값입니다.';
+  if (type === 'area_sqm') return '면적 단위입니다. 원본 항목 기준 단위와 화면 단위가 다를 수 있어 저장 전 검증합니다.';
+  if (type === 'percent') return '비율입니다. 3%는 3% 또는 0.03처럼 입력할 수 있습니다.';
+  if (type === 'months') return '개월 수입니다.';
+  if (type === 'date') return '날짜입니다. YYYY-MM-DD 형식입니다.';
+  if (type === 'yn') return 'Y/N 값입니다. 해당하면 Y, 해당하지 않으면 N입니다.';
+  if (type === 'number') return '숫자만 입력하는 값입니다.';
+  if (/tranche/i.test(key + label)) return 'Equity 또는 Loan을 구분하는 Tranche입니다. 여러 건은 상세 편집에서 행별로 관리합니다.';
+  return '';
 }
 
 function dataManagementColumnEditGuide(column) {
@@ -552,36 +551,38 @@ function dataManagementColumnEditGuide(column) {
   const customHelp = DATA_MANAGEMENT_FIELD_HELP[key];
   const hasDetailEditor = /equity|loan|tranche|maturity|summary|insurance|required_specs|tenant_info|rent_per_py|mf_per_py|current_monthly|economic_terms|building_register/i.test(`${key} ${label}`)
     && !/^(total_capital_krw)$/i.test(key);
-  if (column?.editable === true) return `수정: 표에서 바로 값을 고친 뒤 승인 요청으로 저장합니다.${customHelp ? ` ${customHelp}` : ''}`;
-  if (hasDetailEditor) return `수정: 셀을 눌러 상세 표에서 행별로 고친 뒤 승인 요청으로 저장합니다.${customHelp ? ` ${customHelp}` : ''}`;
-  return `수정: ${text(column?.read_only_reason || customHelp, '조회 전용입니다. 다른 업무 탭 또는 관리자 직접 수정 대상입니다.')}`;
+  if (customHelp) return customHelp;
+  if (hasDetailEditor) return '셀을 누르면 상세 표에서 행 추가, 수정, 삭제 요청을 할 수 있습니다.';
+  if (column?.editable === false && column?.read_only_reason) return text(column.read_only_reason);
+  return '';
 }
 
 function dataManagementColumnHelp(column) {
   const label = text(column?.label || column?.field_key || column?.field || '컬럼');
   const group = text(column?.group || '');
   const consistency = dataManagementConsistencyGuide(column?.field_key || column?.field, label);
-  return [
-    group ? `${group} · ${label}` : label,
-    `단위: ${dataManagementColumnUnitGuide(column)}`,
-    dataManagementColumnEditGuide(column),
+  const unit = dataManagementColumnUnitGuide(column);
+  const editGuide = dataManagementColumnEditGuide(column);
+  const helpLines = [
+    unit ? `단위: ${unit}` : '',
+    editGuide,
     consistency ? `검증: ${consistency}` : '',
-  ].filter(Boolean).join('\n');
+  ].filter(Boolean);
+  if (!helpLines.length) return '';
+  return [group ? `${group} · ${label}` : label, ...helpLines].join('\n');
 }
 
 function dataManagementGroupHelp(group) {
   const label = text(group?.label || group, '그룹');
-  const columns = safeArray(group?.columns).map((column) => text(column.label || column.field_key || column.field)).filter(Boolean);
-  const defaultHelp = columns.length ? `${columns.slice(0, 8).join(', ')}${columns.length > 8 ? ' 등' : ''} 컬럼을 포함합니다.` : '관련 컬럼 묶음입니다.';
-  return [
-    label,
-    DATA_MANAGEMENT_GROUP_HELP[label] || defaultHelp,
-    columns.length ? `포함 컬럼: ${columns.join(', ')}` : '',
-  ].filter(Boolean).join('\n');
+  const help = DATA_MANAGEMENT_GROUP_HELP[label];
+  return help ? [label, help].join('\n') : '';
 }
 
 function DataManagementHeaderHelp({ help, children, align = 'left', className = '' }) {
   const [tooltipPosition, setTooltipPosition] = useState(null);
+  if (!text(help, '').trim()) {
+    return <span className={`inline-flex min-w-0 max-w-full items-center ${className}`}><span className="min-w-0 truncate">{children}</span></span>;
+  }
   const showTooltip = (event) => {
     const rect = event.currentTarget.getBoundingClientRect();
     const width = 320;
@@ -609,7 +610,7 @@ function DataManagementHeaderHelp({ help, children, align = 'left', className = 
       onBlur={hideTooltip}
     >
       <span className="min-w-0 truncate">{children}</span>
-      <span className="shrink-0 text-[10px] font-bold text-[#86868B]">ⓘ</span>
+      <span className="shrink-0 rounded-full border border-[#4A4A4A] px-1 text-[9px] font-bold leading-4 text-[#A1A1AA]">i</span>
       {tooltipPosition && typeof document !== 'undefined' ? createPortal(
         <div
           className="pointer-events-none fixed max-h-[160px] overflow-hidden whitespace-pre-line rounded-[8px] border border-[#3A3A3C] bg-[#F5F5F7] px-3 py-2 text-left text-[12px] font-semibold leading-5 text-[#1F1F1E] shadow-xl"
@@ -782,6 +783,54 @@ function publicDisplayText(value, fallback = '관리 대상') {
   return hasInternalToken(source) ? fallback : source;
 }
 
+const DATA_MANAGEMENT_STATUS_VALUE_PATTERN = /^(수정\s*요청\s*가능|삭제\s*요청|삭제\s*불가)$/u;
+
+function sanitizeDataManagementDisplayValue(value, fallback = '') {
+  const source = text(value, fallback);
+  if (!source) return fallback;
+  return DATA_MANAGEMENT_STATUS_VALUE_PATTERN.test(source.trim()) ? fallback : source;
+}
+
+function isWonAmountColumn(columnOrKey) {
+  const key = typeof columnOrKey === 'string'
+    ? columnOrKey
+    : text(columnOrKey?.field_key || columnOrKey?.field || columnOrKey?.key || '');
+  const label = typeof columnOrKey === 'string' ? '' : text(columnOrKey?.label || '');
+  const type = typeof columnOrKey === 'string' ? '' : text(columnOrKey?.type || '');
+  const source = `${key} ${label} ${type}`.toLowerCase();
+  return type === 'krw_raw'
+    || type === 'krw'
+    || /monthly_(rent|mf|cost).*total|current_monthly|rent_amount|management_fee|deposit|ti_amount|fo_amount|rf_amount|krw/u.test(source)
+    || /월\s*임대료|월\s*관리비|월\s*임관리비|보증금|임대보증금|금액/u.test(`${key} ${label}`);
+}
+
+function formatWonInputValue(value) {
+  const source = text(value, '').replace(/[^\d.-]/gu, '');
+  if (!source) return '';
+  const numeric = Number(source);
+  if (!Number.isFinite(numeric)) return text(value, '');
+  return `${numeric.toLocaleString('ko-KR', { maximumFractionDigits: 0 })}원`;
+}
+
+function normalizeWonInputValue(value) {
+  const source = text(value, '').replace(/[^\d.-]/gu, '');
+  if (!source) return '';
+  const numeric = Number(source);
+  if (!Number.isFinite(numeric)) return source;
+  return String(Math.round(numeric));
+}
+
+function formatManagementCellInputValue(value, column) {
+  const cleaned = sanitizeDataManagementDisplayValue(value, '');
+  if (isWonAmountColumn(column)) return formatWonInputValue(cleaned);
+  return cleaned;
+}
+
+function normalizeManagementCellInputValue(value, column) {
+  if (isWonAmountColumn(column)) return normalizeWonInputValue(value);
+  return sanitizeDataManagementDisplayValue(value, '');
+}
+
 function formatFieldLabel(field) {
   return fieldDisplayLabel(field);
 }
@@ -791,7 +840,7 @@ function formatDisplayValue(value, field = '') {
   if (hasField && (isInternalFieldName(field) || !isUserVisibleField(field))) return '관리값 숨김';
   if (hasField && isRegionFieldName(field)) return formatRegionLabel(value);
   if (value && typeof value === 'object') return '-';
-  const display = publicDisplayText(value, '-');
+  const display = sanitizeDataManagementDisplayValue(publicDisplayText(value, '-'), '-');
   if (/\?{4,}/u.test(display)) {
     const cleaned = display.replace(/\?{4,}/gu, '').replace(/\s{2,}/gu, ' ').trim();
     return cleaned || '-';
@@ -1525,13 +1574,13 @@ function MarketDataLoadingBadge({
   if (!loading) return null;
   const safeProgress = Math.max(8, Math.min(96, Math.round(progress)));
   return (
-    <div className="min-w-[150px] rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 py-2" data-market-data-loading-progress="true" data-loading-progress="true" data-testid={testId}>
-      <div className="flex items-center justify-between gap-3 text-[11px] font-semibold text-[#C7C7CC]">
+    <div className="min-w-[150px] rounded-[8px] border border-[#2F3A4A] bg-[#151C27] px-3 py-2 shadow-[0_10px_30px_rgba(22,36,64,0.25)]" data-market-data-loading-progress="true" data-loading-progress="true" data-testid={testId}>
+      <div className="flex items-center justify-between gap-3 text-[11px] font-semibold text-[#D7E8FF]">
         <span>{hasCachedData ? refreshLabel : label}</span>
         <span>{safeProgress}%</span>
       </div>
-      <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#333333]">
-        <div className="h-full rounded-full bg-[#9AD7FF] transition-all duration-300" style={{ width: `${safeProgress}%` }} />
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-[#263244]">
+        <div className="h-full rounded-full bg-[#60A5FA] transition-all duration-300" style={{ width: `${safeProgress}%` }} />
       </div>
     </div>
   );
@@ -8740,7 +8789,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const columnStyle = (column, fallback = 170) => ({
     minWidth: columnWidthFor(column, fallback),
     width: columnWidthFor(column, fallback),
-    resize: 'horizontal',
     overflow: 'hidden',
   });
   const beginColumnResize = (event, column, fallback = 170) => {
@@ -8901,21 +8949,22 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const getCellEditValue = (row, column) => {
     const key = text(column.field_key || column.field);
     const editId = dataManagementEditKey(row.row_key, key);
-    if (pendingEdits[editId]) return text(pendingEdits[editId].requested_value, '');
-    return rowEditValueForField(row, key, '');
+    if (pendingEdits[editId]) return sanitizeDataManagementDisplayValue(pendingEdits[editId].requested_value, '');
+    return sanitizeDataManagementDisplayValue(rowEditValueForField(row, key, ''), '');
   };
   const queueCellEdit = (row, column, nextValue) => {
     const fieldKey = text(column.field_key || column.field);
     if (!row?.row_key || !fieldKey || column.editable !== true || row.editable === false) return;
     const displayValues = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
-    const beforeRaw = rowEditValueForField(row, fieldKey, '');
+    const beforeRaw = normalizeManagementCellInputValue(rowEditValueForField(row, fieldKey, ''), column);
     const beforeDisplay = text(displayValues[fieldKey], '');
     const editId = dataManagementEditKey(row.row_key, fieldKey);
+    const normalizedNextValue = normalizeManagementCellInputValue(nextValue, column);
     setSelectedRowKey(row.row_key);
     setSelectedField(fieldKey);
     setPendingEdits((current) => {
       const next = { ...current };
-      if (text(nextValue, '') === beforeRaw) {
+      if (normalizedNextValue === beforeRaw) {
         delete next[editId];
         return next;
       }
@@ -8928,7 +8977,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         field_group: text(column.group, ''),
         before_value: beforeRaw,
         before_display: beforeDisplay,
-        requested_value: text(nextValue, ''),
+        requested_value: normalizedNextValue,
         revision_hash: row.revision_hash,
         bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
         view_key: effectiveViewKey,
@@ -8936,10 +8985,10 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       return next;
     });
   };
-  const clearPendingEdits = () => {
+  const clearPendingEdits = ({ preserveStatus = false } = {}) => {
     setPendingEdits({});
     setApprovalReason('');
-    setBulkSubmitStatus(null);
+    if (!preserveStatus) setBulkSubmitStatus(null);
   };
   const submitRowAdd = async () => {
     const values = Object.fromEntries(Object.entries(rowAddDraft).filter(([, value]) => text(value, '').trim()));
@@ -8992,19 +9041,20 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const getDetailCellValue = (row, column) => {
     const key = text(column.field_key || column.field);
     const editId = dataManagementDetailEditKey(row.row_key, key);
-    if (detailDrafts[editId]) return text(detailDrafts[editId].requested_value, '');
+    if (detailDrafts[editId]) return sanitizeDataManagementDisplayValue(detailDrafts[editId].requested_value, '');
     const values = row?.display_values && typeof row.display_values === 'object' ? row.display_values : {};
-    return text(values[key], '');
+    return sanitizeDataManagementDisplayValue(values[key], '');
   };
   const queueDetailEdit = (row, column, nextValue) => {
     const fieldKey = text(column.field_key || column.field);
     if (!row?.row_key || !fieldKey || column.editable !== true || row.editable === false) return;
     const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
-    const beforeDisplay = text(values[fieldKey], '');
+    const beforeDisplay = normalizeManagementCellInputValue(values[fieldKey], column);
     const editId = dataManagementDetailEditKey(row.row_key, fieldKey);
+    const normalizedNextValue = normalizeManagementCellInputValue(nextValue, column);
     setDetailDrafts((current) => {
       const next = { ...current };
-      if (text(nextValue, '') === beforeDisplay) {
+      if (normalizedNextValue === beforeDisplay) {
         delete next[editId];
         return next;
       }
@@ -9015,7 +9065,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         field_key: fieldKey,
         field_label: text(column.label || fieldKey),
         before_display: beforeDisplay,
-        requested_value: text(nextValue, ''),
+        requested_value: normalizedNextValue,
         revision_hash: row.revision_hash,
       };
       return next;
@@ -9293,7 +9343,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                 <input
                                 type={isNumberDetailInput ? 'number' : 'text'}
                                 inputMode={isNumberDetailInput ? 'decimal' : undefined}
-                                value={cellValue}
+                                value={formatManagementCellInputValue(cellValue, column)}
                                 onChange={(event) => queueDetailEdit(row, column, event.target.value)}
                                 className={`h-8 w-full rounded-[7px] border px-2 text-[12px] font-semibold outline-none ${columnIndex === 0 && (row.delete_supported || row.is_new_detail_row) ? 'pr-8' : ''} ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-[#2A2A2A] bg-[#111111] text-[#E5E5E5] focus:border-[#8E8E93]'}`}
                                 title={`${cellHelpText}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
@@ -9460,12 +9510,13 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     }
     setSubmitStatus({ type: 'pending', message: '승인 요청을 저장하는 중입니다.' });
     try {
+      const normalizedDraftValue = normalizeManagementCellInputValue(draftValue, selectedColumn);
       await invoke('data-management/submit-edit', {
         edit_mode: 'view_field',
         view_key: effectiveViewKey,
         row_key: selectedRow.row_key,
         field_key: selectedFieldKey,
-        requested_value: draftValue,
+        requested_value: normalizedDraftValue,
         revision_hash: selectedRow.revision_hash,
         bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
         reason,
@@ -9479,7 +9530,8 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   };
 
   const submitPendingEdits = async () => {
-    if (!pendingEditList.length) {
+    const changedEdits = pendingEditList.filter((edit) => text(edit.before_value, '') !== text(edit.requested_value, ''));
+    if (!changedEdits.length) {
       setBulkSubmitStatus({ type: 'error', message: '변경된 값이 없습니다.' });
       return;
     }
@@ -9487,14 +9539,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       setBulkSubmitStatus({ type: 'error', message: '승인자가 이해할 수 있는 변경 사유를 입력해 주세요.' });
       return;
     }
-    setBulkSubmitStatus({ type: 'pending', message: `${formatNumber(pendingEditList.length)}개 변경값을 승인 요청으로 저장하는 중입니다.` });
+    setBulkSubmitStatus({ type: 'pending', message: `${formatNumber(changedEdits.length)}개 변경값을 승인 요청으로 저장하는 중입니다.` });
     try {
       const result = await invokeEdgeDataWithTimeout('data-management/submit-edit', {
         edit_mode: 'view_field_batch',
         view_key: effectiveViewKey,
         bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
         reason: approvalReason,
-        changes: pendingEditList.map((edit) => ({
+        changes: changedEdits.map((edit) => ({
           view_key: edit.view_key || effectiveViewKey,
           row_key: edit.row_key,
           field_key: edit.field_key,
@@ -9504,9 +9556,9 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           bundle_key: edit.bundle_key || (bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : ''),
         })),
       });
-      const savedCount = Number(result?.changes || pendingEditList.length || 0);
+      const savedCount = Number(result?.changes || changedEdits.length || 0);
       setBulkSubmitStatus({ type: 'success', message: `승인 요청이 완료됐습니다. 승인 대기 탭에서 ${formatNumber(savedCount)}건의 처리 상태를 확인할 수 있습니다.` });
-      clearPendingEdits();
+      clearPendingEdits({ preserveStatus: true });
       reloadRows({}, { force: true });
       reloadViews({}, { force: true });
     } catch (submitError) {
@@ -9599,7 +9651,18 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             검색
             <input
               value={search}
-              onChange={(event) => { setSearch(event.target.value); setPage(1); setBundleSearchFocused(true); }}
+              onChange={(event) => {
+                const nextSearch = event.target.value;
+                setSearch(nextSearch);
+                setPage(1);
+                setSelectedRowKey('');
+                if (!nextSearch.trim()) {
+                  setBundleKey(MANAGEMENT_ALL_OPTION);
+                  setBundleSearchFocused(false);
+                  return;
+                }
+                setBundleSearchFocused(true);
+              }}
               onFocus={() => setBundleSearchFocused(true)}
               onBlur={() => window.setTimeout(() => setBundleSearchFocused(false), 140)}
               className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[13px] text-white outline-none focus:border-[#8E8E93]"
@@ -9737,7 +9800,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                 </button>
                               ) : canEditCell ? (
                                 <input
-                                  value={cellValue}
+                                  value={formatManagementCellInputValue(cellValue, column)}
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     setSelectedRowKey(row.row_key);
@@ -9937,7 +10000,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                   </button>
                                 ) : canEditCell ? (
                                   <input
-                                    value={cellValue}
+                                    value={formatManagementCellInputValue(cellValue, column)}
                                     onClick={(event) => {
                                       event.stopPropagation();
                                       setSelectedRowKey(row.row_key);
