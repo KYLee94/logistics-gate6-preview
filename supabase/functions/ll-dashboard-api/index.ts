@@ -7127,6 +7127,7 @@ function dataManagementRowLabelFieldsForTable(tableName: unknown) {
 
 function dataManagementFieldLabel(fieldName: unknown) {
   const field = safeText(fieldName);
+  if (!field || ['undefined', 'null', 'nan'].includes(field.toLowerCase())) return '';
   const labels: Record<string, string> = {
     asset_id: '자산 ID',
     asset_code: '자산코드',
@@ -12013,15 +12014,19 @@ function editRequestStatusLabel(row: Record<string, unknown>) {
 }
 
 function editRequestChangeItems(row: Record<string, unknown>) {
-  return normalizeEditCells(row).map((cell, index) => stripUndefined({
-    index: index + 1,
-    target_name: safeText(firstDefined(cell.assetName, row.target_name)),
-    field_name: cell.fieldName,
-    field_label: dataManagementFieldLabel(cell.sourceHeader || cell.fieldName),
-    before_value: cell.beforeValue,
-    requested_value: cell.afterValue,
-    source_header: cell.sourceHeader || undefined,
-  })) as Record<string, unknown>[];
+  return normalizeEditCells(row).map((cell, index) => {
+    const sourceHeaderLabel = dataManagementFieldLabel(cell.sourceHeader);
+    const fieldNameLabel = dataManagementFieldLabel(cell.fieldName);
+    return stripUndefined({
+      index: index + 1,
+      target_name: safeText(firstDefined(cell.assetName, row.target_name)),
+      field_name: cell.fieldName,
+      field_label: firstDefined(sourceHeaderLabel, fieldNameLabel, safeText(cell.fieldName)),
+      before_value: cell.beforeValue,
+      requested_value: cell.afterValue,
+      source_header: sourceHeaderLabel ? cell.sourceHeader : undefined,
+    });
+  }) as Record<string, unknown>[];
 }
 
 function decorateEditRequestRow(row: Record<string, unknown>) {

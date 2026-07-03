@@ -7702,7 +7702,7 @@ function DataManagementApprovalDashboard() {
         id: requestId,
         approval_note: action === 'approve' ? 'Data Management 승인' : undefined,
         rejection_note: action === 'reject' ? 'Data Management 반려' : undefined,
-      }, 120000, { forceSessionRefresh: true, retryNetwork: false, retryTimeout: false });
+      }, 15000, { forceSessionRefresh: false, retryNetwork: false, retryTimeout: false });
       await reload({}, { force: true });
       setDetailRequest(null);
       setActionStatus({ type: 'success', message: `${actionLabel} 처리가 완료됐습니다. 저장값을 다시 확인했습니다.` });
@@ -7760,7 +7760,12 @@ function DataManagementApprovalDashboard() {
                 return (
                   <tr
                     key={`approval-row-${requestId || text(row.target_name)}`}
+                    data-testid="data-management-approval-row"
                     onClick={() => {
+                      setSelectedRequestId(requestId);
+                      setDetailRequest(row);
+                    }}
+                    onDoubleClick={() => {
                       setSelectedRequestId(requestId);
                       setDetailRequest(row);
                     }}
@@ -7798,7 +7803,7 @@ function DataManagementApprovalDashboard() {
       ) : null}
       {detailRequest ? (
         <Modal title="변경 요청 상세" onClose={() => setDetailRequest(null)} width="max-w-[calc(100vw-32px)]" fullscreen>
-          <div className="space-y-4 p-4 text-[12px] text-[#E5E5E5]">
+          <div className="space-y-4 p-4 text-[12px] text-[#E5E5E5]" data-data-management-approval-detail="true">
             <div className="grid gap-3 md:grid-cols-3">
               <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E8E93]">요청 대상</div>

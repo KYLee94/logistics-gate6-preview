@@ -38,6 +38,11 @@ function argsValue(name, fallback = '') {
   return index === -1 ? fallback : (process.argv[index + 1] || fallback);
 }
 
+function boolArg(name, fallback = false) {
+  const value = argsValue(name, fallback ? 'true' : 'false');
+  return /^(1|true|yes)$/iu.test(String(value));
+}
+
 function timestampForFile() {
   return new Date().toISOString().replace(/[-:]/gu, '').replace(/\..+$/u, '').replace('T', '-');
 }
@@ -360,6 +365,7 @@ async function main() {
     await refreshedModal.screenshot({ path: modalScreenshot });
     await refreshedModal.getByTestId('logistics-feature-access-close').click();
 
+    if (boolArg('include-chat', false)) {
     const chatOpenButton = page.getByTestId('logistics-ai-dock-open');
     if (await chatOpenButton.count()) {
       await chatOpenButton.click();
@@ -381,6 +387,8 @@ async function main() {
     } else {
       report.checks.chat_dock_absence_does_not_block_access_ui = true;
       report.warnings.push('AI chat dock button was not rendered in this access UI auth context; chatbot quality is covered by qa:ai-chatbot.');
+    }
+
     }
 
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;

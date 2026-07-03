@@ -56,6 +56,7 @@
     "qa:data-management:release-gate": "node scripts/qa/logistics-data-management-release-gate.cjs",
     "qa:data-management:submit-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --allow-submit",
     "qa:data-management:approved-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --require-written-history",
+    "qa:data-management:approval-live": "node scripts/qa/logistics-approval-pending-live-smoke.cjs",
     "qa:data-management:live-browser": "node scripts/qa/logistics-data-management-live-browser-flow.cjs",
     "qa:data-management:full": "npm run qa:data-management:coverage && npm run qa:data-management:release-gate && npm run qa:data-management:browser-readback && npm run qa:data-management:live-browser && npm run qa:auth-permission-matrix && npm run qa:access-ui:refresh-stability",
     "qa:investment-index:readback": "node scripts/qa/logistics-investment-index-readback-smoke.cjs",
