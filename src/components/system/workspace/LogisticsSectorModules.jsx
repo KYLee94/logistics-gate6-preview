@@ -834,6 +834,55 @@ function normalizeManagementCellInputValue(value, column) {
   return sanitizeDataManagementDisplayValue(value, '');
 }
 
+const DATA_MANAGEMENT_YN_FIELD_KEYS = new Set([
+  'is_preleased',
+  'is_3pl',
+  'is_single_tenant',
+  'sublease_yn',
+  'is_subleased',
+  'office_use_yn',
+  'prelease_yn',
+  'third_party_logistics_yn',
+  'single_tenant_yn',
+]);
+const DATA_MANAGEMENT_PURPOSE_OPTIONS = ['상온', '저온', '사무실'];
+const DATA_MANAGEMENT_ASSET_STATUS_OPTIONS = ['정상', '매각', '리뷰 필요'];
+
+function dataManagementColumnKey(column) {
+  return text(column?.field_key || column?.field || column?.target_field || '');
+}
+
+function dataManagementSelectOptions(column) {
+  const key = dataManagementColumnKey(column);
+  const label = text(column?.label || '');
+  const type = text(column?.type || '');
+  if (type === 'yn' || DATA_MANAGEMENT_YN_FIELD_KEYS.has(key)) return ['Y', 'N'];
+  if (key === 'temperature_type') return DATA_MANAGEMENT_PURPOSE_OPTIONS;
+  if (key === 'disposition_status' || (key === 'review_status' && /자산 상태|매각|아카이브/iu.test(label))) {
+    return DATA_MANAGEMENT_ASSET_STATUS_OPTIONS;
+  }
+  return [];
+}
+
+function dataManagementSelectValue(value, column) {
+  const key = dataManagementColumnKey(column);
+  const options = dataManagementSelectOptions(column);
+  const raw = sanitizeDataManagementDisplayValue(value, '').trim();
+  if (!options.length) return raw;
+  if (options[0] === 'Y') {
+    return /^(true|1|y|yes|예|Y)$/iu.test(raw) ? 'Y' : 'N';
+  }
+  if (key === 'temperature_type') {
+    if (/office|사무|사무실/iu.test(raw)) return '사무실';
+    if (/cold|저온|냉장|냉동/iu.test(raw)) return '저온';
+    if (/dry|상온|일반/iu.test(raw)) return '상온';
+    return options.includes(raw) ? raw : '';
+  }
+  if (/매각|sold|disposed|archived/iu.test(raw)) return '매각';
+  if (/리뷰|검토|review/iu.test(raw)) return '리뷰 필요';
+  return raw && options.includes(raw) ? raw : '정상';
+}
+
 function normalizeManagementComparableValue(value) {
   const normalized = sanitizeDataManagementDisplayValue(value, '').trim();
   if (!normalized || normalized === '-' || normalized === '–' || normalized === '—') return '';
@@ -845,14 +894,10 @@ function dataManagementPendingEditChanged(edit) {
   const before = normalizeManagementComparableValue(edit?.before_value);
   const beforeDisplay = normalizeManagementComparableValue(edit?.before_display);
   if (!requested && !before && !beforeDisplay) return false;
-  return requested !== before || requested !== beforeDisplay;
+  return requested !== before;
 }
 
 function dataManagementSubmitBeforeValue(edit) {
-  const requested = normalizeManagementComparableValue(edit?.requested_value);
-  const before = normalizeManagementComparableValue(edit?.before_value);
-  const beforeDisplay = normalizeManagementComparableValue(edit?.before_display);
-  if (requested && requested === before && beforeDisplay !== requested) return edit?.before_display ?? '';
   return edit?.before_value;
 }
 
@@ -7589,10 +7634,12 @@ function DataManagementApprovalDashboard() {
   const [actionStatus, setActionStatus] = useState(null);
   const editRequests = safeArray(data?.edit_requests);
   const pendingRequests = editRequests.filter((row) => row.status === 'submitted' || row.write_status === 'approval_required');
-  const selectedRequest = editRequests.find((row) => text(row.id) === selectedRequestId) || pendingRequests[0] || editRequests[0] || null;
+  const requestIdFor = (row) => text(row?.request_id || row?.id || row?.edit_request_id || row?.requestId || '');
+  const selectedRequest = editRequests.find((row) => requestIdFor(row) === selectedRequestId) || pendingRequests[0] || editRequests[0] || null;
   const requestRows = pendingRequests.length ? pendingRequests : editRequests;
   const reviewRequest = async (action, row = selectedRequest) => {
-    if (!row?.id) {
+    const requestId = requestIdFor(row);
+    if (!requestId) {
       setActionStatus({ type: 'error', message: '처리할 승인 요청을 선택해 주세요.' });
       return;
     }
@@ -7600,7 +7647,7 @@ function DataManagementApprovalDashboard() {
     setActionStatus({ type: 'pending', message: `${actionLabel} 처리 중입니다.` });
     try {
       await invokeEdgeDataWithTimeout(action === 'approve' ? 'edits/approve' : 'edits/reject', {
-        id: row.id,
+        id: requestId,
         approval_note: action === 'approve' ? 'Data Management 승인' : undefined,
         rejection_note: action === 'reject' ? 'Data Management 반려' : undefined,
       });
@@ -7646,10 +7693,11 @@ function DataManagementApprovalDashboard() {
             </thead>
             <tbody className="divide-y divide-[#303033]">
               {requestRows.length ? requestRows.map((row) => {
-                const selected = text(row.id) === text(selectedRequest?.id);
+                const requestId = requestIdFor(row);
+                const selected = requestId === requestIdFor(selectedRequest);
                 const isPending = row.status === 'submitted' || row.write_status === 'approval_required';
                 return (
-                  <tr key={`approval-row-${row.id}`} onClick={() => setSelectedRequestId(text(row.id))} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
+                  <tr key={`approval-row-${requestId || text(row.target_name)}`} onClick={() => setSelectedRequestId(requestId)} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
                     <td className="sticky left-0 z-10 max-w-[360px] border-r border-[#242426] bg-inherit px-3 py-2 font-semibold" title={text(row.target_name)}>{text(row.target_name, '-')}</td>
                     <td className="border-r border-[#242426] px-3 py-2">{text(row.field_name || row.reason_code, '-')}</td>
                     <td className="border-r border-[#242426] px-3 py-2 text-[#C7C7CC]">{formatDisplayValue(row.before_value, row.field_name)}</td>
@@ -9085,7 +9133,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     const normalizedNextValue = normalizeManagementCellInputValue(nextValue, column);
     setDetailDrafts((current) => {
       const next = { ...current };
-      if (normalizedNextValue === beforeRaw || normalizedNextValue === beforeDisplay) {
+      if (normalizedNextValue === beforeRaw) {
         delete next[editId];
         return next;
       }
@@ -9339,6 +9387,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                       const isNumberDetailInput = text(inputKinds[key]) === 'number';
                       const rowHelpText = text(rowMeta.help_text);
                       const cellHelpText = [rowHelpText, dataManagementColumnHelp(column)].filter(Boolean).join('\n');
+                      const selectOptions = dataManagementSelectOptions(column);
                       return (
                         <td key={`detail-cell-${row.row_key}-${key}`} style={columnStyle(column, 160)} className={`border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B]' : ''} ${stickyColumnClass(columnIndex, false, cellChanged)}`}>
                           <div className="relative">
@@ -9389,6 +9438,18 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                   />
                                 ) : null}
                                 </div>
+                              ) : selectOptions.length ? (
+                                <select
+                                  value={dataManagementSelectValue(cellValue, column)}
+                                  onChange={(event) => queueDetailEdit(row, column, event.target.value)}
+                                  className={`h-8 w-full rounded-[7px] border px-2 text-[12px] font-semibold outline-none ${columnIndex === 0 && (row.delete_supported || row.is_new_detail_row) ? 'pr-8' : ''} ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-[#2A2A2A] bg-[#111111] text-[#E5E5E5] focus:border-[#8E8E93]'}`}
+                                  title={`${cellHelpText}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                                  data-data-management-detail-inline-edit="true"
+                                >
+                                  {selectOptions.map((option) => (
+                                    <option key={`detail-select-${key}-${option}`} value={option}>{option}</option>
+                                  ))}
+                                </select>
                               ) : (
                                 <input
                                 type={isNumberDetailInput ? 'number' : 'text'}
@@ -9832,6 +9893,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                           const cellValue = getCellEditValue(row, column);
                           const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details : {};
                           const cellDetail = cellDetails[key] && typeof cellDetails[key] === 'object' ? cellDetails[key] : null;
+                          const selectOptions = dataManagementSelectOptions(column);
                           return (
                             <td key={`${row.row_key}-${key}`} style={columnStyle(column)} className={`max-w-[360px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''} ${stickyColumnClass(columnIndex, selected, cellChanged)}`}>
                               {cellDetail ? (
@@ -9849,18 +9911,37 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                   <span className="shrink-0 text-[11px] text-[#B5E48C]">상세 편집</span>
                                 </button>
                               ) : canEditCell ? (
-                                <input
-                                  value={formatManagementCellInputValue(cellValue, column)}
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setSelectedRowKey(row.row_key);
-                                    setSelectedField(key);
-                                  }}
-                                  onChange={(event) => queueCellEdit(row, column, event.target.value)}
-                                  className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
-                                  title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
-                                  data-data-management-inline-edit="true"
-                                />
+                                selectOptions.length ? (
+                                  <select
+                                    value={dataManagementSelectValue(cellValue, column)}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedRowKey(row.row_key);
+                                      setSelectedField(key);
+                                    }}
+                                    onChange={(event) => queueCellEdit(row, column, event.target.value)}
+                                    className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
+                                    title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                                    data-data-management-inline-edit="true"
+                                  >
+                                    {selectOptions.map((option) => (
+                                      <option key={`cell-select-${row.row_key}-${key}-${option}`} value={option}>{option}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    value={formatManagementCellInputValue(cellValue, column)}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setSelectedRowKey(row.row_key);
+                                      setSelectedField(key);
+                                    }}
+                                    onChange={(event) => queueCellEdit(row, column, event.target.value)}
+                                    className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
+                                    title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                                    data-data-management-inline-edit="true"
+                                  />
+                                )
                               ) : (
                                 <button
                                   type="button"
@@ -10032,6 +10113,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                             const cellValue = getCellEditValue(row, column);
                             const cellDetails = row.cell_details && typeof row.cell_details === 'object' ? row.cell_details : {};
                             const cellDetail = cellDetails[key] && typeof cellDetails[key] === 'object' ? cellDetails[key] : null;
+                            const selectOptions = dataManagementSelectOptions(column);
                             return (
                               <td key={`fullscreen-${row.row_key}-${key}`} style={columnStyle(column)} className={`max-w-[360px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''} ${stickyColumnClass(columnIndex, selected, cellChanged)}`}>
                                 {cellDetail ? (
@@ -10049,18 +10131,37 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                                     <span className="shrink-0 text-[11px] text-[#B5E48C]">상세 편집</span>
                                   </button>
                                 ) : canEditCell ? (
-                                  <input
-                                    value={formatManagementCellInputValue(cellValue, column)}
-                                    onClick={(event) => {
-                                      event.stopPropagation();
-                                      setSelectedRowKey(row.row_key);
-                                      setSelectedField(key);
-                                    }}
-                                    onChange={(event) => queueCellEdit(row, column, event.target.value)}
-                                    className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
-                                    title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
-                                    data-data-management-inline-edit="true"
-                                  />
+                                  selectOptions.length ? (
+                                    <select
+                                      value={dataManagementSelectValue(cellValue, column)}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setSelectedRowKey(row.row_key);
+                                        setSelectedField(key);
+                                      }}
+                                      onChange={(event) => queueCellEdit(row, column, event.target.value)}
+                                      className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
+                                      title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                                      data-data-management-inline-edit="true"
+                                    >
+                                      {selectOptions.map((option) => (
+                                        <option key={`fullscreen-cell-select-${row.row_key}-${key}-${option}`} value={option}>{option}</option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    <input
+                                      value={formatManagementCellInputValue(cellValue, column)}
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        setSelectedRowKey(row.row_key);
+                                        setSelectedField(key);
+                                      }}
+                                      onChange={(event) => queueCellEdit(row, column, event.target.value)}
+                                      className={`h-8 w-full rounded-[7px] border px-2 text-left text-[12px] font-semibold outline-none ${cellChanged ? 'border-[#B5E48C] bg-[#13200F] text-white' : 'border-transparent bg-transparent text-[#E5E5E5] hover:border-[#3A3A3C] hover:bg-[#111111] focus:border-[#8E8E93] focus:bg-[#111111]'}`}
+                                      title={`${dataManagementColumnHelp(column)}\n현재 값: ${formatDisplayValue(values[key], key) || '-'}`}
+                                      data-data-management-inline-edit="true"
+                                    />
+                                  )
                                 ) : (
                                   <button
                                     type="button"

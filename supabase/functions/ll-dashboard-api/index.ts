@@ -808,6 +808,24 @@ function coerceValue(nextValue: unknown, currentValue: unknown) {
   return nextValue;
 }
 
+function coerceDataManagementEditValue(cell: NormalizedEditCell, nextValue: unknown, currentValue: unknown) {
+  const fieldName = safeText(cell.fieldName);
+  if (['is_preleased', 'is_3pl', 'is_single_tenant', 'sublease_yn', 'is_subleased', 'office_use_yn', 'prelease_yn', 'third_party_logistics_yn', 'single_tenant_yn'].includes(fieldName)) {
+    const normalized = safeText(nextValue).trim();
+    return nextValue === true || /^(true|1|y|yes|예)$/iu.test(normalized);
+  }
+  if (fieldName === 'temperature_type') {
+    return dataManagementLeasePurposeLabel(nextValue) || null;
+  }
+  if (fieldName === 'review_status' && safeText(cell.targetTable) === 'public.ll_assets') {
+    const status = safeText(nextValue).trim();
+    if (/매각|sold|disposed|archived/iu.test(status)) return '매각';
+    if (/리뷰|검토|review/iu.test(status)) return '리뷰 필요';
+    return '정상';
+  }
+  return coerceValue(nextValue, currentValue);
+}
+
 function checkRateLimit(userId: string, action: string, limit = 30, windowMs = 60_000) {
   const key = `${userId}:${action}`;
   const now = Date.now();
@@ -1182,7 +1200,7 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
   const config = normalizeFeatureAccessConfig(payload.config || payload);
   const { data: permissionRows, error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
-    .select('email,staff_name,organization,image_url,logistics_role,feature_permissions,account_status');
+    .select('user_id,email,staff_name,organization,image_url,logistics_role,feature_permissions,account_status');
   if (permissionError) return fail(500, 'Failed to read logistics permissions', ctx.origin);
 
   const desiredByFeature = new Map<string, Set<string>>();
@@ -1200,7 +1218,6 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
   });
 
   const allPermissionRows = (permissionRows || []) as Record<string, unknown>[];
-  const activeRows = allPermissionRows.filter(isActivePermission);
   const existingEmails = new Set(allPermissionRows.map((row) => normalizeAuthEmail(row.email)).filter(Boolean));
   for (const [email, user] of desiredUsersByEmail.entries()) {
     if (!email || existingEmails.has(email)) continue;
@@ -1231,7 +1248,9 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
     existingEmails.add(email);
   }
 
-  for (const row of activeRows) {
+  for (const row of allPermissionRows) {
+    const rowEmail = normalizeAuthEmail(row.email);
+    if (!isActivePermission(row) && !desiredUsersByEmail.has(rowEmail)) continue;
     const userKeys = featureUserKeys(compactFeatureAccessUser({
       email: row.email,
       staff_name: firstDefined(row.staff_name, staffNameForEmail(row.email)),
@@ -1243,10 +1262,15 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
     LOGISTICS_FEATURE_KEYS.forEach((key) => {
       nextFeatures[key] = userKeys.some((item) => desiredByFeature.get(key)?.has(item));
     });
-    const { error: updateError } = await ctx.serviceClient
+    let updateQuery = ctx.serviceClient
       .from('ll_user_permissions')
-      .update({ feature_permissions: nextFeatures, updated_at: new Date().toISOString() })
-      .eq('email', row.email);
+      .update(stripUndefined({
+        feature_permissions: nextFeatures,
+        account_status: desiredUsersByEmail.has(rowEmail) ? 'active' : undefined,
+        updated_at: new Date().toISOString(),
+      }));
+    updateQuery = safeText(row.user_id) ? updateQuery.eq('user_id', row.user_id) : updateQuery.eq('email', row.email);
+    const { error: updateError } = await updateQuery;
     if (updateError) return fail(500, 'Failed to save feature permissions', ctx.origin);
   }
 
@@ -3934,7 +3958,7 @@ async function applyContractData(ctx: Context, payload: Record<string, unknown>)
         error.detail = { cell: publicEditCell(cell), readback: beforeReadback };
         throw error;
       }
-      const coerced = coerceValue(cell.afterValue, beforeReadback);
+      const coerced = coerceDataManagementEditValue(cell, cell.afterValue, beforeReadback);
       await writeTargetCell(ctx.serviceClient, cell, coerced);
       appliedDirect.push({ cell, previousValue: beforeReadback });
       const afterReadback = await readTargetCell(ctx, cell);
@@ -6285,7 +6309,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'space_label', label: '임대구역', group: '면적·임차구역', type: 'text', editable: false, width: 150, default_hidden: true, read_only_reason: '임대구역은 층과 세부구역을 조합한 표시값입니다. 기본 표에서는 층/세부구역을 직접 관리합니다.' },
   { field_key: 'floor_label', label: '층', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'floor_label', width: 90 },
   { field_key: 'detail_area_label', label: '세부구역', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'detail_area_label', width: 130 },
-  { field_key: 'temperature_type', label: '상/저온', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
+  { field_key: 'temperature_type', label: '용도', group: '기본정보', type: 'select', options: ['상온', '저온', '사무실'], editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
   { field_key: 'is_preleased', label: '선임차 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_preleased', width: 120, default_hidden: true },
   { field_key: 'is_3pl', label: '3PL 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_3pl', width: 110, default_hidden: true },
   { field_key: 'goods_type', label: '취급 상품 유형', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'goods_type', width: 150, default_hidden: true },
@@ -6293,7 +6317,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'contract_status', label: '계약상태', group: '계약상태', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
   { field_key: 'leased_area_sqm', label: '임대면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
   { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130 },
-  { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_ratio', width: 110 },
+  { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', editable: false, width: 110, read_only_reason: '임대면적과 전용면적 기준으로 자동 계산됩니다.' },
   { field_key: 'first_contract_date', label: '최초 계약일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_contract_date', width: 130, default_hidden: true },
   { field_key: 'first_start_date', label: '최초 계약개시일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_start_date', width: 140, default_hidden: true },
   { field_key: 'first_end_date', label: '최초 계약만기일', group: '계약 일정', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_end_date', width: 140, default_hidden: true },
@@ -6334,7 +6358,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS_V2 = [
   { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
   { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'tenant_master_name', width: 170 },
   { field_key: 'business_registration_no', label: '임차인 사업자번호', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'business_registration_no', width: 150, default_hidden: true },
-  { field_key: 'temperature_type', label: '상/저온', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
+  { field_key: 'temperature_type', label: '용도', group: '기본정보', type: 'select', options: ['상온', '저온', '사무실'], editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
   { field_key: 'contract_status', label: '계약상태', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
   { field_key: 'is_preleased', label: '선임차 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_preleased', width: 120, default_hidden: true },
   { field_key: 'is_3pl', label: '3PL 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_3pl', width: 110, default_hidden: true },
@@ -6346,7 +6370,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS_V2 = [
   { field_key: 'space_label', label: '임대구역', group: '면적·임차구역', type: 'text', editable: false, width: 160, default_hidden: true, read_only_reason: '층과 세부구역을 합쳐 보여주는 표시값입니다. 실제 수정은 층 또는 세부구역 컬럼에서 진행합니다.' },
   { field_key: 'leased_area_sqm', label: '임대면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'leased_area_sqm', width: 130 },
   { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적·임차구역', type: 'area_sqm', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_area_sqm', width: 130 },
-  { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'exclusive_ratio', width: 110 },
+  { field_key: 'exclusive_ratio', label: '전용률', group: '면적·임차구역', type: 'percent', editable: false, width: 110, read_only_reason: '임대면적과 전용면적 기준으로 자동 계산됩니다.' },
   { field_key: 'first_contract_date', label: '최초 계약일', group: '계약 일정 · 최초', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_contract_date', width: 130, default_hidden: true },
   { field_key: 'first_start_date', label: '최초 계약개시일', group: '계약 일정 · 최초', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_start_date', width: 140, default_hidden: true },
   { field_key: 'first_end_date', label: '최초 계약만기일', group: '계약 일정 · 최초', type: 'date', editable: true, target_table: 'public.ll_leases', target_field: 'first_end_date', width: 140, default_hidden: true },
@@ -6378,7 +6402,7 @@ const DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS = [
   { field_key: 'change_reason', label: '임대료 변동 원인', group: '시점', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'change_reason', width: 180 },
   { field_key: 'floor_label', label: '층', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'floor_label', width: 90, default_hidden: true },
   { field_key: 'detail_area_label', label: '세부구역', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'detail_area_label', width: 120, default_hidden: true },
-  { field_key: 'temperature_type', label: '상/저온', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'temperature_type', width: 110 },
+  { field_key: 'temperature_type', label: '용도', group: '임대공간', type: 'select', options: ['상온', '저온', '사무실'], editable: true, target_table: 'public.ll_rent_history', target_field: 'temperature_type', width: 110 },
   { field_key: 'leased_area_sqm', label: '임대면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_rent_history', target_field: 'leased_area_sqm', width: 130 },
   { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_rent_history', target_field: 'exclusive_area_sqm', width: 130, default_hidden: true },
   { field_key: 'monthly_rent_total', label: '월 임대료 총액', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_rent_history', target_field: 'monthly_rent_total', width: 150 },
@@ -6394,7 +6418,7 @@ const DATA_MANAGEMENT_LEASE_SPACE_SPEC_BASE_FIELDS = [
   { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 170 },
   { field_key: 'space_label', label: '임대구역', group: '임대공간', type: 'text', editable: false, width: 160 },
   { field_key: 'floor_label', label: '층/세부구역', group: '임대공간', type: 'text', editable: false, width: 130 },
-  { field_key: 'temperature_type', label: '상/저온', group: '임대공간', type: 'text', editable: false, width: 100 },
+  { field_key: 'temperature_type', label: '용도', group: '임대공간', type: 'select', options: ['상온', '저온', '사무실'], editable: false, width: 100 },
   { field_key: 'leased_area_sqm', label: '임대면적', group: '임대공간', type: 'area_sqm', editable: false, width: 130 },
   { field_key: 'exclusive_ratio', label: '전용률', group: '임대공간', type: 'percent', editable: false, width: 100 },
 ];
@@ -6466,7 +6490,7 @@ const DATA_MANAGEMENT_MANAGER_LINK_VIEW_FIELDS_V2 = [
   { field_key: 'fund_name', label: '펀드명', group: '자산·펀드', type: 'text', editable: false, sticky: true, width: 260 },
   { field_key: 'manager_name', label: '이지스 담당자', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_name', width: 160 },
   { field_key: 'manager_email', label: '담당자 이메일', group: '담당자', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'current_manager_email', width: 220 },
-  { field_key: 'disposition_status', label: '자산 상태', group: '매각·아카이브', type: 'text', editable: true, target_table: 'public.ll_assets', target_field: 'review_status', width: 140 },
+  { field_key: 'disposition_status', label: '자산 상태', group: '매각·아카이브', type: 'select', options: ['정상', '매각', '리뷰 필요'], editable: true, target_table: 'public.ll_assets', target_field: 'review_status', width: 140 },
 ];
 
 const DATA_MANAGEMENT_ASSET_INTEGRATED_VIEW_FIELDS_V2 = [
@@ -7947,6 +7971,22 @@ function dataManagementYearsBetween(startValue: unknown, endValue: unknown) {
   return Math.round(((endTime - startTime) / (1000 * 60 * 60 * 24 * 365.25)) * 10) / 10;
 }
 
+function dataManagementLeasePurposeLabel(value: unknown) {
+  const raw = safeText(value).trim();
+  if (!raw) return '';
+  if (/office|사무|사무실/i.test(raw)) return '사무실';
+  if (/cold|저온|냉장|냉동/i.test(raw)) return '저온';
+  if (/dry|상온|일반/i.test(raw)) return '상온';
+  return raw;
+}
+
+function dataManagementExclusiveRatioValue(leasedArea: unknown, exclusiveArea: unknown, fallback: unknown) {
+  const leased = dataManagementNumberOrNull(leasedArea);
+  const exclusive = dataManagementNumberOrNull(exclusiveArea);
+  if (leased !== null && leased > 0 && exclusive !== null) return exclusive / leased;
+  return fallback;
+}
+
 function dataManagementNumericDiffTooLarge(a: number | null, b: number | null, tolerance: number) {
   return a !== null && b !== null && Math.abs(a - b) > tolerance;
 }
@@ -7985,10 +8025,18 @@ function dataManagementConsistencyWarningsForTableCell(input: ReturnType<typeof 
 }
 
 function dataManagementFormatViewValue(value: unknown, field: Record<string, unknown>) {
-  if (value === null || value === undefined || value === '') return '';
   const type = safeText(field.type);
-  const numeric = dataManagementNumberOrNull(value);
+  const fieldKey = safeText(field.field_key || field.field || field.target_field);
   if (type === 'yn') return ['true', '1', 'y', 'yes', 'Y', 'TRUE'].includes(safeText(value)) || value === true ? 'Y' : 'N';
+  if (fieldKey === 'temperature_type') return dataManagementLeasePurposeLabel(value);
+  if (fieldKey === 'disposition_status') {
+    const status = safeText(value).trim();
+    if (/매각|sold|disposed|archived/i.test(status)) return '매각';
+    if (/리뷰|검토|review/i.test(status)) return '리뷰 필요';
+    return '정상';
+  }
+  if (value === null || value === undefined || value === '') return '';
+  const numeric = dataManagementNumberOrNull(value);
   if (type === 'krw_raw' && numeric !== null) return new Intl.NumberFormat('ko-KR', { maximumFractionDigits: 0 }).format(numeric);
   if (type === 'krw' && numeric !== null) return formatKoreanCompactWon(numeric);
   if (type === 'krw_per_py' && numeric !== null) return formatKoreanWon(numeric);
@@ -8483,6 +8531,8 @@ function dataManagementParseViewRequestedValue(value: unknown, field: Record<str
   const type = safeText(field.type);
   const fieldKey = safeText(firstDefined(field.field_key, field.field, field.target_field));
   const labelKey = dataManagementLabelKey(firstDefined(field.label, field.group));
+  if (type === 'yn') return ['true', '1', 'y', 'yes'].includes(safeText(value).trim().toLowerCase()) || safeText(value).trim().toUpperCase() === 'Y';
+  if (fieldKey === 'temperature_type') return dataManagementLeasePurposeLabel(value) || null;
   if (fieldKey === 'disposition_status' || (fieldKey === 'review_status' && /자산상태|매각|아카이브/iu.test(labelKey))) {
     const status = safeText(value).trim();
     if (/매각|sold|disposed|archived/i.test(status)) return '매각';
@@ -8657,7 +8707,7 @@ function dataManagementLeaseBusinessSource(space: Record<string, unknown>, busin
     temperature_type: space.temperature_type,
     leased_area_sqm: firstDefined(space.leased_area_sqm, lease.leased_area_sqm),
     exclusive_area_sqm: firstDefined(space.exclusive_area_sqm, lease.exclusive_area_sqm),
-    exclusive_ratio: firstDefined(space.exclusive_ratio, lease.exclusive_ratio),
+    exclusive_ratio: dataManagementExclusiveRatioValue(firstDefined(space.leased_area_sqm, lease.leased_area_sqm), firstDefined(space.exclusive_area_sqm, lease.exclusive_area_sqm), firstDefined(space.exclusive_ratio, lease.exclusive_ratio)),
     contract_status: firstDefined(space.contract_status, lease.lease_status, lease.contract_status),
     current_start_date: firstDefined(lease.current_start_date, space.current_start_date),
     current_end_date: firstDefined(lease.current_end_date, space.current_end_date),
@@ -9632,7 +9682,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
       extension_count: lease.extension_count,
       leased_area_sqm: firstDefined(space.leased_area_sqm, lease.leased_area_sqm),
       exclusive_area_sqm: firstDefined(space.exclusive_area_sqm, lease.exclusive_area_sqm),
-      exclusive_ratio: firstDefined(space.exclusive_ratio, lease.exclusive_ratio),
+      exclusive_ratio: dataManagementExclusiveRatioValue(firstDefined(space.leased_area_sqm, lease.leased_area_sqm), firstDefined(space.exclusive_area_sqm, lease.exclusive_area_sqm), firstDefined(space.exclusive_ratio, lease.exclusive_ratio)),
       current_monthly_rent_total: space.current_monthly_rent_total,
       current_monthly_mf_total: space.current_monthly_mf_total,
       current_monthly_cost_total: space.current_monthly_cost_total,
@@ -10547,8 +10597,9 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
     };
   }
   const detailEditValues = detailRow.edit_values && typeof detailRow.edit_values === 'object' ? detailRow.edit_values as Record<string, unknown> : {};
-  const detailDisplayValues = detailRow.display_values && typeof detailRow.display_values === 'object' ? detailRow.display_values as Record<string, unknown> : {};
-  const currentRawValue = detailEditValues[detailFieldKey] ?? detailDisplayValues[detailFieldKey] ?? null;
+  const currentRawValue = Object.prototype.hasOwnProperty.call(detailEditValues, detailFieldKey)
+    ? detailEditValues[detailFieldKey]
+    : null;
   const tableName = clientTableName(targetTable);
   return {
     table_payload: {
@@ -14761,7 +14812,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
         return fail(409, 'Stale value blocked before write', ctx.origin, { cell, readback: beforeReadback });
       }
 
-      const coerced = coerceValue(cell.afterValue, beforeReadback);
+      const coerced = coerceDataManagementEditValue(cell, cell.afterValue, beforeReadback);
       await writeTargetCell(ctx.serviceClient, cell, coerced);
       applied.push({ cell, previousValue: beforeReadback });
       const afterReadback = await readTargetCell(ctx, cell);

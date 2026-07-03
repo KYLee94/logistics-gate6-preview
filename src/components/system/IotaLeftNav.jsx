@@ -1021,7 +1021,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
             const normalized = normalizeFeatureAccessConfig({ ...nextConfig, updatedAt: new Date().toISOString() });
             const { data, error } = await invokeWithTimeout('feature-access/update', { config: normalized }, 25000, true, { forceSessionRefresh: true });
             if (error || data?.ok === false) throw new Error(data?.message || error?.message || '기능 권한 저장 실패');
-            const saved = normalizeFeatureAccessConfig(data?.data || normalized);
+            const readback = await invokeWithTimeout('feature-access/get', {}, 25000, true, { forceSessionRefresh: true });
+            if (readback?.error || readback?.data?.ok === false) {
+                throw new Error(readback?.data?.message || readback?.error?.message || 'Feature permission readback failed');
+            }
+            const saved = normalizeFeatureAccessConfig(readback?.data?.data || data?.data || normalized);
             setFeatureAccessData(saved);
             setFeatureAccessDraft(saved);
             setFeatureAccessDirty(false);
