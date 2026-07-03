@@ -1140,11 +1140,12 @@ function featureAccessUserMatches(ctx: Context, row: Record<string, unknown>) {
 }
 
 async function readFeatureAccessConfig(ctx: Context) {
-  const { data: permissionRows } = await ctx.serviceClient
+  const { data: permissionRows, error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
     .select('email,staff_name,organization,image_url,logistics_role,feature_permissions,account_status')
     .order('organization', { ascending: true })
     .order('staff_name', { ascending: true });
+  if (permissionError) throw new Error(`Failed to read logistics permissions: ${permissionError.message}`);
   const rows = ((permissionRows || []) as Record<string, unknown>[]).filter(isActivePermission);
   if (rows.length) {
     const features: Record<string, unknown> = {};
@@ -1219,6 +1220,8 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
 
   const allPermissionRows = (permissionRows || []) as Record<string, unknown>[];
   const existingEmails = new Set(allPermissionRows.map((row) => normalizeAuthEmail(row.email)).filter(Boolean));
+  let createdCount = 0;
+  let changedCount = 0;
   for (const [email, user] of desiredUsersByEmail.entries()) {
     if (!email || existingEmails.has(email)) continue;
     const userKeys = featureUserKeys(user);
@@ -1245,6 +1248,7 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
         updated_at: new Date().toISOString(),
       }), { onConflict: 'email' });
     if (upsertError) return fail(500, 'Failed to create feature permission user', ctx.origin);
+    createdCount += 1;
     existingEmails.add(email);
   }
 
@@ -1262,6 +1266,10 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
     LOGISTICS_FEATURE_KEYS.forEach((key) => {
       nextFeatures[key] = userKeys.some((item) => desiredByFeature.get(key)?.has(item));
     });
+    const currentFeatures = (row.feature_permissions as Record<string, unknown> || {});
+    const featureChanged = [...LOGISTICS_FEATURE_KEYS].some((key) => Boolean(currentFeatures[key]) !== Boolean(nextFeatures[key]));
+    const accountStatusChanged = desiredUsersByEmail.has(rowEmail) && safeText(row.account_status) !== 'active';
+    if (!featureChanged && !accountStatusChanged) continue;
     let updateQuery = ctx.serviceClient
       .from('ll_user_permissions')
       .update(stripUndefined({
@@ -1272,11 +1280,12 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
     updateQuery = safeText(row.user_id) ? updateQuery.eq('user_id', row.user_id) : updateQuery.eq('email', row.email);
     const { error: updateError } = await updateQuery;
     if (updateError) return fail(500, 'Failed to save feature permissions', ctx.origin);
+    changedCount += 1;
   }
 
   const saved = await readFeatureAccessConfig(ctx);
   await audit(ctx.serviceClient, ctx.user.id, 'feature-access/update', 200, { features: Object.keys(config.features as Record<string, unknown>) });
-  return jsonResponse({ ok: true, data: saved }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: saved, meta: { created_count: createdCount, changed_count: changedCount } }, 200, ctx.origin);
 }
 
 function marketDocumentRow(input: Record<string, unknown>, userId: string) {
@@ -3551,14 +3560,20 @@ async function listEditRequests(ctx: Context, payload: Record<string, unknown>) 
     .select('id, source_table, finding_id, target_type, target_name, target_row_id, target_cell_id, field_name, reason_code, before_value, requested_value, readback_value, request_payload, status, requested_by, approved_by, approved_at, approval_note, rejected_by, rejected_at, rejection_note, write_status, write_error, write_result, created_at, updated_at')
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (status !== 'all') query = query.eq('status', status);
+  if (status !== 'all') {
+    if (status === 'submitted' || status === 'approval_required' || status === 'pending') {
+      query = query.or('status.eq.submitted,status.eq.approval_required,write_status.eq.approval_required');
+    } else {
+      query = query.eq('status', status);
+    }
+  }
   const { data, error } = await query;
   if (error) return fail(500, 'Failed to list edit requests', ctx.origin);
   const rows = (data || []).filter((row: Record<string, unknown>) => (
     canUseQuality
     || row.requested_by === ctx.user.id
     || canReadEditRequestRow(ctx, row)
-  ));
+  )).map((row: Record<string, unknown>) => decorateEditRequestRow(row));
   await audit(ctx.serviceClient, ctx.user.id, 'edits/list', 200, { status, limit, returned: rows.length });
   return jsonResponse({ ok: true, data: rows }, 200, ctx.origin);
 }
@@ -4163,8 +4178,9 @@ async function listLogisticsNotifications(ctx: Context, payload: Record<string, 
     .slice(0, limit);
   const editRequests = rows
     .filter((row) => safeText(row.target_type) !== 'lease_contract_event')
-    .filter((row) => safeText(row.status) === 'submitted')
+    .filter((row) => isEditRequestPendingStatus(row.status, row.write_status))
     .filter((row) => canUseQuality || row.requested_by === ctx.user.id || canReadEditRequestRow(ctx, row))
+    .map((row) => decorateEditRequestRow(row))
     .slice(0, limit);
   const canonicalNotifications = await listCanonicalNotifications(ctx, limit);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/list', 200, {
@@ -6309,7 +6325,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS = [
   { field_key: 'space_label', label: '임대구역', group: '면적·임차구역', type: 'text', editable: false, width: 150, default_hidden: true, read_only_reason: '임대구역은 층과 세부구역을 조합한 표시값입니다. 기본 표에서는 층/세부구역을 직접 관리합니다.' },
   { field_key: 'floor_label', label: '층', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'floor_label', width: 90 },
   { field_key: 'detail_area_label', label: '세부구역', group: '면적·임차구역', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'detail_area_label', width: 130 },
-  { field_key: 'temperature_type', label: '용도', group: '기본정보', type: 'select', options: ['상온', '저온', '사무실'], editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
+  { field_key: 'temperature_type', label: '용도', group: '기본정보', type: 'select', options: ['상온', '저온', '복합', '사무실'], editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
   { field_key: 'is_preleased', label: '선임차 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_preleased', width: 120, default_hidden: true },
   { field_key: 'is_3pl', label: '3PL 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_3pl', width: 110, default_hidden: true },
   { field_key: 'goods_type', label: '취급 상품 유형', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'goods_type', width: 150, default_hidden: true },
@@ -6358,7 +6374,7 @@ const DATA_MANAGEMENT_LEASE_VIEW_FIELDS_V2 = [
   { field_key: 'fund_name', label: '펀드명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 220 },
   { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'tenant_master_name', width: 170 },
   { field_key: 'business_registration_no', label: '임차인 사업자번호', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_tenants', target_field: 'business_registration_no', width: 150, default_hidden: true },
-  { field_key: 'temperature_type', label: '용도', group: '기본정보', type: 'select', options: ['상온', '저온', '사무실'], editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
+  { field_key: 'temperature_type', label: '용도', group: '기본정보', type: 'select', options: ['상온', '저온', '복합', '사무실'], editable: true, target_table: 'public.ll_lease_spaces', target_field: 'temperature_type', width: 110 },
   { field_key: 'contract_status', label: '계약상태', group: '기본정보', type: 'text', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'contract_status', width: 120 },
   { field_key: 'is_preleased', label: '선임차 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_preleased', width: 120, default_hidden: true },
   { field_key: 'is_3pl', label: '3PL 여부', group: '기본정보', type: 'yn', editable: true, target_table: 'public.ll_lease_spaces', target_field: 'is_3pl', width: 110, default_hidden: true },
@@ -6402,7 +6418,7 @@ const DATA_MANAGEMENT_RENT_HISTORY_VIEW_FIELDS = [
   { field_key: 'change_reason', label: '임대료 변동 원인', group: '시점', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'change_reason', width: 180 },
   { field_key: 'floor_label', label: '층', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'floor_label', width: 90, default_hidden: true },
   { field_key: 'detail_area_label', label: '세부구역', group: '임대공간', type: 'text', editable: true, target_table: 'public.ll_rent_history', target_field: 'detail_area_label', width: 120, default_hidden: true },
-  { field_key: 'temperature_type', label: '용도', group: '임대공간', type: 'select', options: ['상온', '저온', '사무실'], editable: true, target_table: 'public.ll_rent_history', target_field: 'temperature_type', width: 110 },
+  { field_key: 'temperature_type', label: '용도', group: '임대공간', type: 'select', options: ['상온', '저온', '복합', '사무실'], editable: true, target_table: 'public.ll_rent_history', target_field: 'temperature_type', width: 110 },
   { field_key: 'leased_area_sqm', label: '임대면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_rent_history', target_field: 'leased_area_sqm', width: 130 },
   { field_key: 'exclusive_area_sqm', label: '전용면적', group: '면적', type: 'area_sqm', editable: true, target_table: 'public.ll_rent_history', target_field: 'exclusive_area_sqm', width: 130, default_hidden: true },
   { field_key: 'monthly_rent_total', label: '월 임대료 총액', group: '경제조건', type: 'krw', editable: true, target_table: 'public.ll_rent_history', target_field: 'monthly_rent_total', width: 150 },
@@ -6418,7 +6434,7 @@ const DATA_MANAGEMENT_LEASE_SPACE_SPEC_BASE_FIELDS = [
   { field_key: 'tenant_master_name', label: '임차인명', group: '기본정보', type: 'text', editable: false, sticky: true, width: 170 },
   { field_key: 'space_label', label: '임대구역', group: '임대공간', type: 'text', editable: false, width: 160 },
   { field_key: 'floor_label', label: '층/세부구역', group: '임대공간', type: 'text', editable: false, width: 130 },
-  { field_key: 'temperature_type', label: '용도', group: '임대공간', type: 'select', options: ['상온', '저온', '사무실'], editable: false, width: 100 },
+  { field_key: 'temperature_type', label: '용도', group: '임대공간', type: 'select', options: ['상온', '저온', '복합', '사무실'], editable: false, width: 100 },
   { field_key: 'leased_area_sqm', label: '임대면적', group: '임대공간', type: 'area_sqm', editable: false, width: 130 },
   { field_key: 'exclusive_ratio', label: '전용률', group: '임대공간', type: 'percent', editable: false, width: 100 },
 ];
@@ -7974,6 +7990,7 @@ function dataManagementYearsBetween(startValue: unknown, endValue: unknown) {
 function dataManagementLeasePurposeLabel(value: unknown) {
   const raw = safeText(value).trim();
   if (!raw) return '';
+  if (/mix|mixed|복합|상온\s*[+/,·&]\s*저온|저온\s*[+/,·&]\s*상온|multi|combined|combo/i.test(raw)) return '복합';
   if (/office|사무|사무실/i.test(raw)) return '사무실';
   if (/cold|저온|냉장|냉동/i.test(raw)) return '저온';
   if (/dry|상온|일반/i.test(raw)) return '상온';
@@ -11533,6 +11550,17 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const scope = scopeResult.scope || dataManagementEmptyScope();
+  const firstRawChange = rawChanges[0] && typeof rawChanges[0] === 'object' ? rawChanges[0] as Record<string, unknown> : {};
+  const requestViewKey = safeText(payload.view_key || payload.viewKey || firstRawChange.view_key || firstRawChange.viewKey);
+  const requestViewDefinition = DATA_MANAGEMENT_VIEW_DEFINITIONS.find((view) => safeText(view.view_key) === requestViewKey);
+  const requestSourceDomain = safeText(
+    payload.source_domain
+    || payload.sourceDomain
+    || firstRawChange.source_domain
+    || firstRawChange.sourceDomain
+    || requestViewDefinition?.source_domain
+    || ''
+  );
   const cellEdits: Record<string, unknown>[] = [];
   const submitReadbacks: Record<string, unknown>[] = [];
   const labels: string[] = [];
@@ -11665,6 +11693,8 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
   const requestPayload = redactSensitivePayload({
     kind: 'data_management_view_field_batch_edit',
     edit_mode: 'view_field_batch',
+    view_key: requestViewKey || null,
+    source_domain: requestSourceDomain || null,
     bundle_key: payload.bundle_key || payload.bundleKey || null,
     reason,
     submit_readbacks: submitReadbacks,
@@ -11825,6 +11855,82 @@ async function callDataManagementCoverage(ctx: Context, payload: Record<string, 
   } }, 200, ctx.origin);
 }
 
+function isEditRequestPendingStatus(statusValue: unknown, writeStatusValue: unknown) {
+  const status = safeText(statusValue);
+  const writeStatus = safeText(writeStatusValue);
+  return status === 'submitted' || status === 'approval_required' || writeStatus === 'approval_required';
+}
+
+function isEditRequestRunningStatus(statusValue: unknown, writeStatusValue: unknown) {
+  const status = safeText(statusValue);
+  const writeStatus = safeText(writeStatusValue);
+  return status === 'approved_write_running' || writeStatus === 'write_running';
+}
+
+function isEditRequestCompletedStatus(statusValue: unknown, writeStatusValue: unknown) {
+  const status = safeText(statusValue);
+  const writeStatus = safeText(writeStatusValue);
+  return status === 'written'
+    || status === 'approved'
+    || status === 'approved_source_review_required'
+    || writeStatus === 'written'
+    || writeStatus === 'readback_confirmed'
+    || writeStatus === 'source_review_required';
+}
+
+function isEditRequestFailedStatus(statusValue: unknown, writeStatusValue: unknown, writeErrorValue: unknown) {
+  const status = safeText(statusValue);
+  const writeStatus = safeText(writeStatusValue);
+  return Boolean(
+    safeText(writeErrorValue)
+    || status === 'stale_blocked'
+    || status === 'readback_failed'
+    || status.includes('failed')
+    || writeStatus.includes('failed')
+  );
+}
+
+function editRequestStatusLabel(row: Record<string, unknown>) {
+  if (isEditRequestPendingStatus(row.status, row.write_status)) return '승인 대기';
+  if (isEditRequestRunningStatus(row.status, row.write_status)) return '승인 처리 중';
+  if (isEditRequestCompletedStatus(row.status, row.write_status)) return '반영 완료';
+  if (safeText(row.status) === 'rejected' || safeText(row.write_status) === 'rejected') return '반려';
+  if (isEditRequestFailedStatus(row.status, row.write_status, row.write_error)) return '반영 실패';
+  return '상태 확인 필요';
+}
+
+function editRequestChangeItems(row: Record<string, unknown>) {
+  return normalizeEditCells(row).map((cell, index) => stripUndefined({
+    index: index + 1,
+    target_name: safeText(firstDefined(cell.assetName, row.target_name)),
+    field_name: cell.fieldName,
+    field_label: dataManagementFieldLabel(cell.sourceHeader || cell.fieldName),
+    before_value: cell.beforeValue,
+    requested_value: cell.afterValue,
+    source_header: cell.sourceHeader || undefined,
+  })) as Record<string, unknown>[];
+}
+
+function decorateEditRequestRow(row: Record<string, unknown>) {
+  const changeItems = editRequestChangeItems(row);
+  const firstChange = changeItems[0] || {};
+  const isMultiple = changeItems.length > 1;
+  return stripUndefined({
+    ...row,
+    field_name: isMultiple ? 'multiple_fields' : firstDefined(firstChange.field_name, row.field_name),
+    field_label: isMultiple ? `${changeItems.length}개 항목` : firstDefined(firstChange.field_label, dataManagementFieldLabel(row.field_name)),
+    before_value: isMultiple ? `${changeItems.length}개 변경 전 값` : firstDefined(firstChange.before_value, row.before_value),
+    requested_value: isMultiple ? `${changeItems.length}개 변경 후 값` : firstDefined(firstChange.requested_value, row.requested_value),
+    change_count: changeItems.length,
+    change_items: changeItems,
+    status_label: editRequestStatusLabel(row),
+    is_pending: isEditRequestPendingStatus(row.status, row.write_status),
+    is_running: isEditRequestRunningStatus(row.status, row.write_status),
+    is_completed: isEditRequestCompletedStatus(row.status, row.write_status),
+    is_failed: isEditRequestFailedStatus(row.status, row.write_status, row.write_error),
+  }) as Record<string, unknown>;
+}
+
 async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
@@ -11921,6 +12027,22 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload as Record<string, unknown> : {};
     const explicit = safeText(payload.source_domain);
     if (explicit) return explicit;
+    const viewKey = safeText(payload.view_key || payload.viewKey);
+    if (viewKey) {
+      const viewDefinition = DATA_MANAGEMENT_VIEW_DEFINITIONS.find((view) => safeText(view.view_key) === viewKey);
+      const viewSourceDomain = safeText(viewDefinition?.source_domain);
+      if (viewSourceDomain) return viewSourceDomain;
+      const viewDomain = safeText(viewDefinition?.domain_key);
+      const domainSourceMap: Record<string, string> = {
+        lease: 'lease_contracts',
+        fund: 'fund_info',
+        asset_spec: 'asset_specs',
+        operating_cost: 'operating_costs',
+        permissions: 'permissions',
+        data_quality: 'data_quality',
+      };
+      if (domainSourceMap[viewDomain]) return domainSourceMap[viewDomain];
+    }
     const targetType = safeText(row.target_type);
     const knownDomain = sourceDomainKeys.find((domain) => targetType.includes(domain));
     return knownDomain || 'unknown';
@@ -11941,28 +12063,40 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     };
     const status = safeText(row.status);
     const writeStatus = safeText(row.write_status);
-    if (status === 'submitted' || writeStatus === 'approval_required') current.pending_edits = Number(current.pending_edits || 0) + 1;
-    if (status === 'approved' || writeStatus === 'written') current.completed_edits = Number(current.completed_edits || 0) + 1;
-    if (status === 'rejected') current.rejected_edits = Number(current.rejected_edits || 0) + 1;
-    if (writeStatus === 'failed' || safeText(row.write_error)) current.failed_edits = Number(current.failed_edits || 0) + 1;
+    if (isEditRequestPendingStatus(status, writeStatus)) current.pending_edits = Number(current.pending_edits || 0) + 1;
+    if (isEditRequestCompletedStatus(status, writeStatus)) current.completed_edits = Number(current.completed_edits || 0) + 1;
+    if (status === 'rejected' || writeStatus === 'rejected') current.rejected_edits = Number(current.rejected_edits || 0) + 1;
+    if (isEditRequestFailedStatus(status, writeStatus, row.write_error)) current.failed_edits = Number(current.failed_edits || 0) + 1;
     const updatedAt = safeText(row.updated_at || row.created_at);
     if (updatedAt && (!current.latest_edit_at || updatedAt > safeText(current.latest_edit_at))) current.latest_edit_at = updatedAt;
     domainStats[domain] = current;
   });
   const editHistory = edits.map((row) => {
     const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload as Record<string, unknown> : {};
+    const changeItems = editRequestChangeItems(row);
+    const firstChange = changeItems[0] || {};
+    const isMultiple = changeItems.length > 1;
     return stripUndefined({
     request_id: row.id,
     source_domain: domainFromEdit(row),
     target_type: row.target_type,
     target_name: row.target_name,
-    field_name: row.field_name,
+    requested_by: row.requested_by,
+    field_name: isMultiple ? 'multiple_fields' : firstDefined(firstChange.field_name, row.field_name),
+    field_label: isMultiple ? `${changeItems.length}개 항목` : firstDefined(firstChange.field_label, dataManagementFieldLabel(row.field_name)),
     reason_code: row.reason_code,
-    before_value: row.before_value,
-    requested_value: row.requested_value,
+    before_value: isMultiple ? `${changeItems.length}개 변경 전 값` : firstDefined(firstChange.before_value, row.before_value),
+    requested_value: isMultiple ? `${changeItems.length}개 변경 후 값` : firstDefined(firstChange.requested_value, row.requested_value),
+    change_count: changeItems.length,
+    change_items: changeItems,
     readback_value: row.readback_value,
     status: row.status,
     write_status: row.write_status,
+    status_label: editRequestStatusLabel(row),
+    is_pending: isEditRequestPendingStatus(row.status, row.write_status),
+    is_running: isEditRequestRunningStatus(row.status, row.write_status),
+    is_completed: isEditRequestCompletedStatus(row.status, row.write_status),
+    is_failed: isEditRequestFailedStatus(row.status, row.write_status, row.write_error),
     write_error: row.write_error,
     write_result: redactSensitivePayload(row.write_result),
     request_payload: {
@@ -11993,6 +12127,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   return jsonResponse({ ok: true, data: {
     access_scope: managerView ? 'manager_full_source' : 'asset_limited',
     can_approve: managerView,
+    current_user_id: ctx.user.id,
     managed_asset_codes: managementScope.readableAssets.map((row) => safeText(firstDefined(row.asset_code, row.asset_name, row.asset_id))).filter(Boolean),
     management_scope: {
       owner: 'IGIS Asset Management',
@@ -14454,6 +14589,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
   if (!jsonValuesEqual(currentReadback, beforeValue)) {
     await ctx.serviceClient.from('ll_edit_requests').update({
       status: 'stale_blocked',
+      write_status: 'failed',
       readback_value: normalizeText(currentReadback),
       write_error: 'stale fund overview value',
       write_result: redactSensitivePayload({ before_value: beforeValue, current_readback: currentReadback }),
@@ -14480,6 +14616,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
     .from('ll_edit_requests')
     .update({
       status: 'approved_write_running',
+      write_status: 'write_running',
       approved_by: ctx.user.id,
       approved_at: startedAt,
       approval_note: payload.approval_note || null,
@@ -14487,7 +14624,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
       updated_at: startedAt,
     })
     .eq('id', id)
-    .eq('status', 'submitted')
+    .or('status.eq.submitted,status.eq.approval_required,write_status.eq.approval_required')
     .select('id, status')
     .maybeSingle();
   if (runningError) return fail(500, 'Failed to mark fund overview request as running', ctx.origin);
@@ -14514,6 +14651,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
       await restoreFundOverviewSnapshot(ctx, fundId, beforeValue);
       await ctx.serviceClient.from('ll_edit_requests').update({
         status: 'readback_failed',
+        write_status: 'failed',
         readback_value: normalizeText(afterReadback),
         write_error: 'fund overview readback mismatch after write',
         write_result: redactSensitivePayload({ requested_value: requestedValue, after_readback: afterReadback }),
@@ -14547,6 +14685,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
     } catch (rollbackError) {
       await ctx.serviceClient.from('ll_edit_requests').update({
         status: 'write_failed_rollback_failed',
+        write_status: 'failed',
         write_error: writeError instanceof Error ? writeError.message : 'unknown write error',
         write_result: redactSensitivePayload({
           rollback_error: rollbackError instanceof Error ? rollbackError.message : 'unknown rollback error',
@@ -14558,6 +14697,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
     }
     await ctx.serviceClient.from('ll_edit_requests').update({
       status: 'write_failed_rolled_back',
+      write_status: 'failed',
       write_error: writeError instanceof Error ? writeError.message : 'unknown write error',
       write_result: redactSensitivePayload({ rolled_back_to: beforeValue }),
       updated_at: new Date().toISOString(),
@@ -14601,6 +14741,7 @@ async function approveDataManagementDetailRowChange(ctx: Context, payload: Recor
     .from('ll_edit_requests')
     .update({
       status: 'approved_write_running',
+      write_status: 'write_running',
       approved_by: ctx.user.id,
       approved_at: startedAt,
       approval_note: payload.approval_note || null,
@@ -14608,7 +14749,7 @@ async function approveDataManagementDetailRowChange(ctx: Context, payload: Recor
       updated_at: startedAt,
     })
     .eq('id', id)
-    .eq('status', 'submitted')
+    .or('status.eq.submitted,status.eq.approval_required,write_status.eq.approval_required')
     .select('id,status')
     .maybeSingle();
   if (runningError) return fail(500, 'Failed to mark detail row request as running', ctx.origin);
@@ -14738,7 +14879,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     .single();
   if (error || !data) return fail(404, 'Edit request not found', ctx.origin);
   if (data.requested_by === ctx.user.id) return fail(403, 'Self approval is not allowed', ctx.origin);
-  if (data.status !== 'submitted') return fail(409, 'Edit request is not in submitted status', ctx.origin);
+  if (!isEditRequestPendingStatus(data.status, data.write_status)) return fail(409, 'Edit request is not in pending approval status', ctx.origin);
 
   const requestPayload = parseJsonValue(data.request_payload, {}) as Record<string, unknown>;
   if (data.target_type === 'fund_overview' || requestPayload.kind === 'fund_overview') {
@@ -14780,6 +14921,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     .from('ll_edit_requests')
     .update({
       status: 'approved_write_running',
+      write_status: 'write_running',
       approved_by: ctx.user.id,
       approved_at: startedAt,
       approval_note: payload.approval_note || null,
@@ -14787,7 +14929,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
       updated_at: startedAt,
     })
     .eq('id', id)
-    .eq('status', 'submitted')
+    .or('status.eq.submitted,status.eq.approval_required,write_status.eq.approval_required')
     .select('id, status')
     .maybeSingle();
   if (runningError) return fail(500, 'Failed to mark edit request as running', ctx.origin);
@@ -14802,6 +14944,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
         await rollbackAppliedEdits(ctx.serviceClient, applied);
         await ctx.serviceClient.from('ll_edit_requests').update({
           status: 'stale_blocked',
+          write_status: 'failed',
           readback_value: normalizeText(beforeReadback),
           write_error: 'stale value',
           write_result: redactSensitivePayload({ stale_cell: cell, before_readback: beforeReadback }),
@@ -14820,6 +14963,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
         await rollbackAppliedEdits(ctx.serviceClient, applied);
         await ctx.serviceClient.from('ll_edit_requests').update({
           status: 'readback_failed',
+          write_status: 'failed',
           readback_value: normalizeText(afterReadback),
           write_error: 'readback mismatch after write',
           write_result: redactSensitivePayload({ failed_cell: cell, after_readback: afterReadback }),
@@ -14842,6 +14986,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     } catch (rollbackError) {
       await ctx.serviceClient.from('ll_edit_requests').update({
         status: 'write_failed_rollback_failed',
+        write_status: 'failed',
         write_error: writeError instanceof Error ? writeError.message : 'unknown write error',
         write_result: redactSensitivePayload({
           applied_count_before_rollback: applied.length,
@@ -14854,6 +14999,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     }
     await ctx.serviceClient.from('ll_edit_requests').update({
       status: 'write_failed_rolled_back',
+      write_status: 'failed',
       write_error: writeError instanceof Error ? writeError.message : 'unknown write error',
       write_result: redactSensitivePayload({ applied_count_before_rollback: applied.length }),
       updated_at: new Date().toISOString(),
@@ -14889,23 +15035,24 @@ async function rejectEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!id) return fail(400, 'id is required', ctx.origin);
   const { data: current, error: currentError } = await ctx.serviceClient
     .from('ll_edit_requests')
-    .select('id, status, requested_by')
+    .select('id, status, write_status, requested_by')
     .eq('id', id)
     .single();
   if (currentError || !current) return fail(404, 'Edit request not found', ctx.origin);
   if (current.requested_by === ctx.user.id) return fail(403, 'Self rejection is not allowed', ctx.origin);
-  if (current.status !== 'submitted') return fail(409, 'Only submitted edit requests can be rejected', ctx.origin);
+  if (!isEditRequestPendingStatus(current.status, (current as Record<string, unknown>).write_status)) return fail(409, 'Only pending edit requests can be rejected', ctx.origin);
   const { data, error } = await ctx.serviceClient
     .from('ll_edit_requests')
     .update({
       status: 'rejected',
+      write_status: 'rejected',
       rejected_by: ctx.user.id,
       rejected_at: new Date().toISOString(),
       rejection_note: payload.rejection_note || null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .eq('status', 'submitted')
+    .or('status.eq.submitted,status.eq.approval_required,write_status.eq.approval_required')
     .select('id, status')
     .single();
   if (error) return fail(500, 'Failed to reject edit request', ctx.origin);

@@ -845,7 +845,7 @@ const DATA_MANAGEMENT_YN_FIELD_KEYS = new Set([
   'third_party_logistics_yn',
   'single_tenant_yn',
 ]);
-const DATA_MANAGEMENT_PURPOSE_OPTIONS = ['상온', '저온', '사무실'];
+const DATA_MANAGEMENT_PURPOSE_OPTIONS = ['상온', '저온', '복합', '사무실'];
 const DATA_MANAGEMENT_ASSET_STATUS_OPTIONS = ['정상', '매각', '리뷰 필요'];
 
 function dataManagementColumnKey(column) {
@@ -873,6 +873,7 @@ function dataManagementSelectValue(value, column) {
     return /^(true|1|y|yes|예|Y)$/iu.test(raw) ? 'Y' : 'N';
   }
   if (key === 'temperature_type') {
+    if (/mix|mixed|복합|상온\s*[+/,·&]\s*저온|저온\s*[+/,·&]\s*상온|multi|combined|combo/iu.test(raw)) return '복합';
     if (/office|사무|사무실/iu.test(raw)) return '사무실';
     if (/cold|저온|냉장|냉동/iu.test(raw)) return '저온';
     if (/dry|상온|일반/iu.test(raw)) return '상온';
@@ -7632,9 +7633,45 @@ function DataManagementApprovalDashboard() {
   const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 120, row_limit: 20 }, []);
   const [selectedRequestId, setSelectedRequestId] = useState('');
   const [actionStatus, setActionStatus] = useState(null);
+  const [rowActionStatus, setRowActionStatus] = useState({});
+  const [detailRequest, setDetailRequest] = useState(null);
   const editRequests = safeArray(data?.edit_requests);
-  const pendingRequests = editRequests.filter((row) => row.status === 'submitted' || row.write_status === 'approval_required');
-  const requestIdFor = (row) => text(row?.request_id || row?.id || row?.edit_request_id || row?.requestId || '');
+  const requestIdFor = (row) => text(row?.request_id || row?.id || row?.edit_request_id || row?.requestId || '', '');
+  const isPendingRequest = (row) => row?.is_pending === true
+    || row?.status === 'submitted'
+    || row?.status === 'approval_required'
+    || row?.write_status === 'approval_required';
+  const changeItemsFor = (row) => {
+    const items = safeArray(row?.change_items);
+    if (items.length) return items;
+    return [{
+      target_name: row?.target_name,
+      field_name: row?.field_name,
+      field_label: row?.field_label || fieldDisplayLabel(row?.field_name),
+      before_value: row?.before_value,
+      requested_value: row?.requested_value,
+    }];
+  };
+  const approvalValue = (value, fieldName) => formatDisplayValue(value, fieldName);
+  const fieldSummaryFor = (row) => {
+    const items = changeItemsFor(row);
+    if (items.length > 1) return `${items.length}개 항목`;
+    return text(items[0]?.field_label || row?.field_label || fieldDisplayLabel(items[0]?.field_name || row?.field_name), '-');
+  };
+  const valueSummaryFor = (row, key) => {
+    const items = changeItemsFor(row);
+    if (items.length > 1) {
+      return items
+        .slice(0, 3)
+        .map((item) => approvalValue(item?.[key], item?.field_name))
+        .filter(Boolean)
+        .join(' / ') + (items.length > 3 ? ' ...' : '');
+    }
+    return approvalValue(items[0]?.[key], items[0]?.field_name);
+  };
+  const statusLabelFor = (row) => text(row?.status_label || (isPendingRequest(row) ? '승인 대기' : row?.write_status || row?.status), '-');
+  const canReviewRequest = (row) => Boolean(data?.can_approve) && isPendingRequest(row) && text(row?.requested_by) !== text(data?.current_user_id);
+  const pendingRequests = editRequests.filter(isPendingRequest);
   const selectedRequest = editRequests.find((row) => requestIdFor(row) === selectedRequestId) || pendingRequests[0] || editRequests[0] || null;
   const requestRows = pendingRequests.length ? pendingRequests : editRequests;
   const reviewRequest = async (action, row = selectedRequest) => {
@@ -7644,6 +7681,7 @@ function DataManagementApprovalDashboard() {
       return;
     }
     const actionLabel = action === 'approve' ? '승인' : '반려';
+    setRowActionStatus((current) => ({ ...current, [requestId]: action }));
     setActionStatus({ type: 'pending', message: `${actionLabel} 처리 중입니다.` });
     try {
       await invokeEdgeDataWithTimeout(action === 'approve' ? 'edits/approve' : 'edits/reject', {
@@ -7651,10 +7689,17 @@ function DataManagementApprovalDashboard() {
         approval_note: action === 'approve' ? 'Data Management 승인' : undefined,
         rejection_note: action === 'reject' ? 'Data Management 반려' : undefined,
       });
-      setActionStatus({ type: 'success', message: `${actionLabel} 처리가 완료됐습니다. 최신 이력을 다시 읽었습니다.` });
-      reload({}, { force: true });
+      await reload({}, { force: true });
+      setDetailRequest(null);
+      setActionStatus({ type: 'success', message: `${actionLabel} 처리가 완료됐습니다. 저장값을 다시 확인했습니다.` });
     } catch (reviewError) {
       setActionStatus({ type: 'error', message: reviewError.message || `${actionLabel} 처리에 실패했습니다.` });
+    } finally {
+      setRowActionStatus((current) => {
+        const next = { ...current };
+        delete next[requestId];
+        return next;
+      });
     }
   };
 
@@ -7686,7 +7731,7 @@ function DataManagementApprovalDashboard() {
           <table className="w-full min-w-[1120px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
             <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#A1A1AA]">
               <tr>
-                {['요청 대상', '필드', '변경 전', '변경 후', '상태', '요청일', '처리'].map((header) => (
+                {['요청 대상', '변경 항목', '변경 전', '변경 후', '상태', '요청일', '처리'].map((header) => (
                   <th key={`approval-head-${header}`} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">{header}</th>
                 ))}
               </tr>
@@ -7695,19 +7740,28 @@ function DataManagementApprovalDashboard() {
               {requestRows.length ? requestRows.map((row) => {
                 const requestId = requestIdFor(row);
                 const selected = requestId === requestIdFor(selectedRequest);
-                const isPending = row.status === 'submitted' || row.write_status === 'approval_required';
+                const isPending = isPendingRequest(row);
+                const rowPending = rowActionStatus[requestId];
+                const canReview = canReviewRequest(row);
                 return (
-                  <tr key={`approval-row-${requestId || text(row.target_name)}`} onClick={() => setSelectedRequestId(requestId)} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
+                  <tr
+                    key={`approval-row-${requestId || text(row.target_name)}`}
+                    onClick={() => setSelectedRequestId(requestId)}
+                    onDoubleClick={() => setDetailRequest(row)}
+                    className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} cursor-pointer text-[#E5E5E5]`}
+                    title="더블클릭하면 변경 상세를 볼 수 있습니다."
+                  >
                     <td className="sticky left-0 z-10 max-w-[360px] border-r border-[#242426] bg-inherit px-3 py-2 font-semibold" title={text(row.target_name)}>{text(row.target_name, '-')}</td>
-                    <td className="border-r border-[#242426] px-3 py-2">{text(row.field_name || row.reason_code, '-')}</td>
-                    <td className="border-r border-[#242426] px-3 py-2 text-[#C7C7CC]">{formatDisplayValue(row.before_value, row.field_name)}</td>
-                    <td className="border-r border-[#242426] px-3 py-2 font-semibold text-[#B5E48C]">{formatDisplayValue(row.requested_value, row.field_name)}</td>
-                    <td className="border-r border-[#242426] px-3 py-2">{text(row.write_status || row.status, '-')}</td>
+                    <td className="border-r border-[#242426] px-3 py-2" title={fieldSummaryFor(row)}>{fieldSummaryFor(row)}</td>
+                    <td className="max-w-[260px] truncate border-r border-[#242426] px-3 py-2 text-[#C7C7CC]" title={valueSummaryFor(row, 'before_value')}>{valueSummaryFor(row, 'before_value') || '-'}</td>
+                    <td className="max-w-[260px] truncate border-r border-[#242426] px-3 py-2 font-semibold text-[#B5E48C]" title={valueSummaryFor(row, 'requested_value')}>{valueSummaryFor(row, 'requested_value') || '-'}</td>
+                    <td className="border-r border-[#242426] px-3 py-2">{statusLabelFor(row)}</td>
                     <td className="border-r border-[#242426] px-3 py-2">{formatDateTime(row.created_at)}</td>
                     <td className="px-3 py-2">
                       <div className="flex gap-2">
-                        <button type="button" onClick={(event) => { event.stopPropagation(); reviewRequest('approve', row); }} disabled={!isPending || actionStatus?.type === 'pending'} className="h-8 rounded-[7px] bg-white px-3 text-[12px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-35">승인</button>
-                        <button type="button" onClick={(event) => { event.stopPropagation(); reviewRequest('reject', row); }} disabled={!isPending || actionStatus?.type === 'pending'} className="h-8 rounded-[7px] border border-[#5A2A2A] px-3 text-[12px] font-bold text-[#FFB4A9] disabled:cursor-not-allowed disabled:opacity-35">반려</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); setDetailRequest(row); }} className="h-8 rounded-[7px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white">상세</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); reviewRequest('approve', row); }} disabled={!canReview || Boolean(rowPending)} className="h-8 rounded-[7px] bg-white px-3 text-[12px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-35">{rowPending === 'approve' ? '처리 중' : '승인'}</button>
+                        <button type="button" onClick={(event) => { event.stopPropagation(); reviewRequest('reject', row); }} disabled={!canReview || Boolean(rowPending)} className="h-8 rounded-[7px] border border-[#5A2A2A] px-3 text-[12px] font-bold text-[#FFB4A9] disabled:cursor-not-allowed disabled:opacity-35">{rowPending === 'reject' ? '처리 중' : '반려'}</button>
                       </div>
                     </td>
                   </tr>
@@ -7725,6 +7779,55 @@ function DataManagementApprovalDashboard() {
         <div className={`rounded-[10px] border px-3 py-2 text-[12px] leading-5 ${actionStatus.type === 'error' ? 'border-[#5A2A2A] bg-[#2A1717] text-[#FFB4A9]' : actionStatus.type === 'success' ? 'border-[#2F4C2F] bg-[#172A17] text-[#B5E48C]' : 'border-[#333333] bg-[#171717] text-[#A1A1AA]'}`}>
           {actionStatus.message}
         </div>
+      ) : null}
+      {detailRequest ? (
+        <Modal title="변경 요청 상세" onClose={() => setDetailRequest(null)} width="max-w-[calc(100vw-32px)]" fullscreen>
+          <div className="space-y-4 p-4 text-[12px] text-[#E5E5E5]">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E8E93]">요청 대상</div>
+                <div className="mt-2 text-[13px] font-bold text-white">{text(detailRequest.target_name, '-')}</div>
+              </div>
+              <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E8E93]">상태</div>
+                <div className="mt-2 text-[13px] font-bold text-white">{statusLabelFor(detailRequest)}</div>
+              </div>
+              <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E8E93]">요청일</div>
+                <div className="mt-2 text-[13px] font-bold text-white">{formatDateTime(detailRequest.created_at)}</div>
+              </div>
+            </div>
+            <div className="custom-scrollbar max-h-[58vh] overflow-auto rounded-[12px] border border-[#333333]">
+              <table className="w-full min-w-[900px] border-separate text-left" style={{ borderSpacing: 0 }}>
+                <thead className="sticky top-0 z-10 bg-[#1F1F1E] text-[#A1A1AA]">
+                  <tr>
+                    {['항목', '변경 전', '변경 후'].map((header) => (
+                      <th key={`approval-detail-${header}`} className="border-b border-r border-[#333333] px-3 py-2 text-[12px] font-semibold">{header}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#303033]">
+                  {changeItemsFor(detailRequest).map((item, index) => (
+                    <tr key={`approval-detail-row-${index}`} className="bg-[#171717]">
+                      <td className="border-r border-[#242426] px-3 py-3 font-semibold text-white">{text(item.field_label || fieldDisplayLabel(item.field_name), '-')}</td>
+                      <td className="border-r border-[#242426] px-3 py-3 text-[#C7C7CC]">{approvalValue(item.before_value, item.field_name) || '-'}</td>
+                      <td className="border-r border-[#242426] px-3 py-3 font-semibold text-[#B5E48C]">{approvalValue(item.requested_value, item.field_name) || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E8E93]">변경 사유</div>
+              <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-[#E5E5E5]">{text(detailRequest.request_payload?.reason || detailRequest.reason_code, '-')}</div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => setDetailRequest(null)} className="h-10 rounded-[8px] border border-[#3A3A3C] px-4 text-[12px] font-semibold text-white">닫기</button>
+              <button type="button" onClick={() => reviewRequest('reject', detailRequest)} disabled={!canReviewRequest(detailRequest) || Boolean(rowActionStatus[requestIdFor(detailRequest)])} className="h-10 rounded-[8px] border border-[#5A2A2A] px-4 text-[12px] font-bold text-[#FFB4A9] disabled:cursor-not-allowed disabled:opacity-35">{rowActionStatus[requestIdFor(detailRequest)] === 'reject' ? '처리 중' : '반려'}</button>
+              <button type="button" onClick={() => reviewRequest('approve', detailRequest)} disabled={!canReviewRequest(detailRequest) || Boolean(rowActionStatus[requestIdFor(detailRequest)])} className="h-10 rounded-[8px] bg-white px-4 text-[12px] font-bold text-[#1F1F1E] disabled:cursor-not-allowed disabled:opacity-35">{rowActionStatus[requestIdFor(detailRequest)] === 'approve' ? '처리 중' : '승인'}</button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );
@@ -8134,8 +8237,8 @@ function DataManagementDashboardLegacy() {
     return sourceRows.filter((row) => sourceDomainForRow(row) === area.domain).length;
   };
   const activeWorkbenchMode = activeWorkbenchArea.group === 'ops' ? 'system' : 'grid';
-  const pendingEditRows = edits.filter((row) => row.status === 'submitted' || row.write_status === 'approval_required');
-  const historyEditRows = edits.filter((row) => !(row.status === 'submitted' || row.write_status === 'approval_required'));
+  const pendingEditRows = edits.filter((row) => row.status === 'submitted' || row.status === 'approval_required' || row.write_status === 'approval_required');
+  const historyEditRows = edits.filter((row) => !(row.status === 'submitted' || row.status === 'approval_required' || row.write_status === 'approval_required'));
   const workbenchApprovalColumns = [
     { key: 'target_name', label: '대상', render: (value, row) => text(value || row.target_type, '-') },
     { key: 'source_domain', label: '영역', render: (value) => sourceDomainLabel(value) },
