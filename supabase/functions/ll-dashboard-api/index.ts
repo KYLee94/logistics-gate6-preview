@@ -1199,6 +1199,86 @@ async function callFeatureAccessGet(ctx: Context) {
 async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unknown>) {
   if (!canManageFeatureAccess(ctx)) return fail(403, 'Feature access management is limited to Planning Center users', ctx.origin);
   const config = normalizeFeatureAccessConfig(payload.config || payload);
+  const rawChanges = Array.isArray(payload.changes) ? payload.changes as Record<string, unknown>[] : [];
+  const changes = rawChanges
+    .map((change) => {
+      const featureKey = safeText(firstDefined(change.featureKey, change.feature_key));
+      const userInput = change.user && typeof change.user === 'object' && !Array.isArray(change.user)
+        ? change.user as Record<string, unknown>
+        : change;
+      return {
+        featureKey,
+        enabled: change.enabled === true || change.enabled === 'true',
+        user: compactFeatureAccessUser(userInput),
+      };
+    })
+    .filter((change) => change.featureKey && (change.user.email || change.user.staff_name));
+  if (changes.length) {
+    let createdCount = 0;
+    let changedCount = 0;
+    for (const change of changes) {
+      if (!LOGISTICS_FEATURE_KEYS.has(change.featureKey)) {
+        return fail(400, 'Unknown feature permission key', ctx.origin, { feature_key: change.featureKey });
+      }
+      const email = normalizeAuthEmail(change.user.email);
+      if (!email) return fail(400, 'Feature permission user email is required', ctx.origin);
+      const { data: existingRows, error: readError } = await ctx.serviceClient
+        .from('ll_user_permissions')
+        .select('user_id,email,staff_name,organization,image_url,logistics_role,feature_permissions,account_status')
+        .ilike('email', email)
+        .limit(1);
+      if (readError) return fail(500, 'Failed to read feature permission user', ctx.origin);
+      const existing = Array.isArray(existingRows) && existingRows.length ? existingRows[0] as Record<string, unknown> : null;
+      if (!existing) {
+        if (!change.enabled) continue;
+        const nextFeatures = allLogisticsFeaturePermissions(false);
+        nextFeatures[change.featureKey] = true;
+        const { error: upsertError } = await ctx.serviceClient
+          .from('ll_user_permissions')
+          .upsert(stripUndefined({
+            user_id: crypto.randomUUID(),
+            email,
+            staff_name: safeText(firstDefined(change.user.staff_name, staffNameForEmail(email))),
+            organization: safeText(firstDefined(change.user.organization, organizationForEmail(email))),
+            image_url: firstDefined(change.user.image_url, logisticsProfileImageUrl(email)),
+            logistics_role: safeText(change.user.logistics_role) || 'Reader',
+            managed_asset_codes: [],
+            managed_asset_permissions: { read: true, create: false, update: false, delete: false },
+            other_asset_permissions: { read: false, create: false, update: false, delete: false },
+            can_ingest_weekly: false,
+            account_status: 'active',
+            feature_permissions: nextFeatures,
+            profile_payload: { source: 'feature_access_delta_update' },
+            updated_at: new Date().toISOString(),
+          }), { onConflict: 'email' });
+        if (upsertError) return fail(500, 'Failed to create feature permission user', ctx.origin);
+        createdCount += 1;
+        continue;
+      }
+      const currentFeatures = existing.feature_permissions as Record<string, unknown> || {};
+      const nextFeatures = { ...currentFeatures, [change.featureKey]: change.enabled };
+      const featureChanged = Boolean(currentFeatures[change.featureKey]) !== change.enabled;
+      const accountStatusChanged = change.enabled && safeText(existing.account_status) !== 'active';
+      if (!featureChanged && !accountStatusChanged) continue;
+      const { data: updatedRows, error: updateError } = await ctx.serviceClient
+        .from('ll_user_permissions')
+        .update(stripUndefined({
+          feature_permissions: nextFeatures,
+          account_status: change.enabled ? 'active' : undefined,
+          updated_at: new Date().toISOString(),
+        }))
+        .eq('user_id', existing.user_id)
+        .select('user_id,email');
+      if (updateError) return fail(500, 'Failed to save feature permissions', ctx.origin);
+      if (!Array.isArray(updatedRows) || updatedRows.length < 1) {
+        return fail(409, 'Feature permission user was not found during save readback', ctx.origin, { email });
+      }
+      changedCount += updatedRows.length;
+    }
+    const saved = await readFeatureAccessConfig(ctx);
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'feature-access/update', 200, { delta: true, changes: changes.length });
+    return jsonResponse({ ok: true, data: saved, meta: { delta: true, created_count: createdCount, changed_count: changedCount } }, 200, ctx.origin);
+  }
   const { data: permissionRows, error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
     .select('user_id,email,staff_name,organization,image_url,logistics_role,feature_permissions,account_status');

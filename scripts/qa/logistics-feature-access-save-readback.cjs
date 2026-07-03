@@ -146,16 +146,29 @@ async function main() {
 
   let restored = false;
   try {
-    await invoke(endpoint, anonKey, origin, auth.token, 'feature-access/update', { config: mutatedConfig });
+    const changedStartedAt = Date.now();
+    await invoke(endpoint, anonKey, origin, auth.token, 'feature-access/update', {
+      config: mutatedConfig,
+      changes: [{ featureKey: mutation.featureKey, user: mutation.user, enabled: mutation.mode === 'add' }],
+    });
+    const changedElapsedMs = Date.now() - changedStartedAt;
     const changed = await invoke(endpoint, anonKey, origin, auth.token, 'feature-access/get', {});
     if (!usersEqual(changed.features?.[mutation.featureKey]?.users || [], mutatedConfig.features?.[mutation.featureKey]?.users || [])) {
       throw new Error('feature-access readback did not match the changed config');
     }
     originalConfig.updatedAt = new Date().toISOString();
-    await invoke(endpoint, anonKey, origin, auth.token, 'feature-access/update', { config: originalConfig });
+    const restoreStartedAt = Date.now();
+    await invoke(endpoint, anonKey, origin, auth.token, 'feature-access/update', {
+      config: originalConfig,
+      changes: [{ featureKey: mutation.featureKey, user: mutation.user, enabled: mutation.mode !== 'add' }],
+    });
+    const restoreElapsedMs = Date.now() - restoreStartedAt;
     const restoredConfig = await invoke(endpoint, anonKey, origin, auth.token, 'feature-access/get', {});
     restored = usersEqual(restoredConfig.features?.[mutation.featureKey]?.users || [], originalConfig.features?.[mutation.featureKey]?.users || []);
     if (!restored) throw new Error('feature-access restore readback did not match the original config');
+    if (changedElapsedMs > 3000 || restoreElapsedMs > 3000) {
+      throw new Error(`feature-access save exceeded 3000ms (change=${changedElapsedMs}ms restore=${restoreElapsedMs}ms)`);
+    }
     const report = {
       ok: true,
       generated_at: new Date().toISOString(),
@@ -165,6 +178,9 @@ async function main() {
       feature_key: mutation.featureKey,
       mutation_mode: mutation.mode,
       user_email: mutation.user.email || '',
+      changed_elapsed_ms: changedElapsedMs,
+      restore_elapsed_ms: restoreElapsedMs,
+      save_under_3s: true,
       changed_readback_match: true,
       restored_readback_match: true,
     };
@@ -176,7 +192,10 @@ async function main() {
     if (!restored) {
       try {
         originalConfig.updatedAt = new Date().toISOString();
-        await invoke(endpoint, anonKey, origin, auth.token, 'feature-access/update', { config: originalConfig });
+        await invoke(endpoint, anonKey, origin, auth.token, 'feature-access/update', {
+          config: originalConfig,
+          changes: [{ featureKey: mutation.featureKey, user: mutation.user, enabled: mutation.mode !== 'add' }],
+        });
       } catch (restoreError) {
         error.restore_error = restoreError.message;
       }

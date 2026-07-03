@@ -367,6 +367,37 @@ const normalizeFeatureAccessConfig = (config = {}) => ({
         return acc;
     }, {}),
 });
+const buildFeatureAccessChanges = (beforeConfig = {}, afterConfig = {}) => {
+    const before = normalizeFeatureAccessConfig(beforeConfig);
+    const after = normalizeFeatureAccessConfig(afterConfig);
+    const changes = [];
+    LOGISTICS_FEATURES.forEach((feature) => {
+        const beforeUsers = new Map();
+        const afterUsers = new Map();
+        (before.features?.[feature.key]?.users || []).forEach((user) => {
+            const row = compactFeatureAccessUserRow(user);
+            const key = featureUserKey(row);
+            if (key) beforeUsers.set(key, row);
+        });
+        (after.features?.[feature.key]?.users || []).forEach((user) => {
+            const row = compactFeatureAccessUserRow(user);
+            const key = featureUserKey(row);
+            if (key) afterUsers.set(key, row);
+        });
+        const keys = new Set([...beforeUsers.keys(), ...afterUsers.keys()]);
+        keys.forEach((key) => {
+            const wasEnabled = beforeUsers.has(key);
+            const enabled = afterUsers.has(key);
+            if (wasEnabled === enabled) return;
+            changes.push({
+                featureKey: feature.key,
+                enabled,
+                user: enabled ? afterUsers.get(key) : beforeUsers.get(key),
+            });
+        });
+    });
+    return changes;
+};
 const featureAccessHasUser = (config, featureKey, user) => {
     const targetKeys = new Set(featureUserKeys(user));
     return Boolean(targetKeys.size && (config.features?.[featureKey]?.users || []).some((row) => (
@@ -1024,8 +1055,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setFeatureAccessError('');
         try {
             const normalized = normalizeFeatureAccessConfig({ ...nextConfig, updatedAt: new Date().toISOString() });
-            const { data, error } = await invokeWithTimeout('feature-access/update', { config: normalized }, 60000, false, {
-                forceSessionRefresh: true,
+            const changes = buildFeatureAccessChanges(featureAccessData, normalized);
+            const { data, error } = await invokeWithTimeout('feature-access/update', { config: normalized, changes }, 10000, false, {
+                forceSessionRefresh: false,
                 retryNetwork: false,
                 retryTimeout: false,
             });
@@ -1044,11 +1076,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
         }
     };
     const saveFeatureAccessDraft = () => {
-        if (featureAccessSaving || featureAccessLoading || !featureAccessDirty) return;
+        if (featureAccessSaving || !featureAccessDirty) return;
         persistFeatureAccessConfig(featureAccessDraft);
     };
     const toggleFeatureAccessUser = (featureKey, userRow) => {
-        if (featureAccessSaving || featureAccessLoading) return;
+        if (featureAccessSaving) return;
         const current = normalizeFeatureAccessConfig(featureAccessDraft || featureAccessData);
         const users = current.features[featureKey]?.users || [];
         const userKeys = new Set(featureUserKeys(userRow));
@@ -1628,10 +1660,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                         data-testid="logistics-feature-access-save"
                                         data-saving={featureAccessSaving ? 'true' : 'false'}
                                         data-dirty={featureAccessDirty ? 'true' : 'false'}
-                                        data-loading={featureAccessLoading ? 'true' : 'false'}
+                                        data-loading={featureAccessLoading && !hasFeatureAccessModalContent ? 'true' : 'false'}
                                         onClick={saveFeatureAccessDraft}
-                                        disabled={featureAccessSaving || featureAccessLoading || !featureAccessDirty}
-                                        className={`rounded-[10px] border px-3 py-2 text-[12px] font-bold transition-colors ${featureAccessSaving || featureAccessLoading || !featureAccessDirty ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : 'border-[#3b82f6] bg-[#3b82f6] text-white hover:bg-[#2563eb]'}`}
+                                        disabled={featureAccessSaving || !featureAccessDirty}
+                                        className={`rounded-[10px] border px-3 py-2 text-[12px] font-bold transition-colors ${featureAccessSaving || !featureAccessDirty ? 'border-[#333333] bg-[#222] text-[#6E6E73]' : 'border-[#3b82f6] bg-[#3b82f6] text-white hover:bg-[#2563eb]'}`}
                                     >
                                         {featureAccessSaving ? '저장 중' : '저장'}
                                     </button>

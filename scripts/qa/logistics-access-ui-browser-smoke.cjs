@@ -323,13 +323,15 @@ async function main() {
     report.checks.permission_toggle_changes_draft = toggledPressed !== beforePressed;
     await page.waitForFunction((button) => button && button.getAttribute('data-dirty') === 'true', await saveButton.elementHandle(), { timeout: 10000 });
     report.checks.permission_save_enabled_after_change = await saveButton.isEnabled();
+    const saveStartedAt = Date.now();
     await saveButton.click();
     await page.waitForFunction((button) => (
       button
-      && button.getAttribute('data-loading') === 'false'
       && button.getAttribute('data-saving') === 'false'
       && button.getAttribute('data-dirty') === 'false'
-    ), await saveButton.elementHandle(), { timeout: 25000 });
+    ), await saveButton.elementHandle(), { timeout: 8000 });
+    report.metrics.permission_save_elapsed_ms = Date.now() - saveStartedAt;
+    report.checks.permission_save_under_3s = report.metrics.permission_save_elapsed_ms <= 3000;
     await refreshFeatureAccessModal();
     await page.waitForFunction(({ selector: rowSelector, expected }) => {
       const row = document.querySelector(rowSelector);
@@ -340,13 +342,15 @@ async function main() {
     const refreshedEditable = page.locator(selector).first();
     await refreshedEditable.click();
     await saveButton.waitFor({ state: 'visible', timeout: 10000 });
+    const restoreStartedAt = Date.now();
     await saveButton.click();
     await page.waitForFunction((button) => (
       button
-      && button.getAttribute('data-loading') === 'false'
       && button.getAttribute('data-saving') === 'false'
       && button.getAttribute('data-dirty') === 'false'
-    ), await saveButton.elementHandle(), { timeout: 25000 });
+    ), await saveButton.elementHandle(), { timeout: 8000 });
+    report.metrics.permission_restore_elapsed_ms = Date.now() - restoreStartedAt;
+    report.checks.permission_restore_under_3s = report.metrics.permission_restore_elapsed_ms <= 3000;
     const refreshedModal = await refreshFeatureAccessModal();
     await page.waitForFunction(({ selector: rowSelector, expected }) => {
       const row = document.querySelector(rowSelector);
