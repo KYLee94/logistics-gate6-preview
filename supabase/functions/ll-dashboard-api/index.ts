@@ -1277,14 +1277,17 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
         account_status: desiredUsersByEmail.has(rowEmail) ? 'active' : undefined,
         updated_at: new Date().toISOString(),
       }));
-    updateQuery = safeText(row.user_id) ? updateQuery.eq('user_id', row.user_id) : updateQuery.eq('email', row.email);
-    const { error: updateError } = await updateQuery;
+    updateQuery = rowEmail ? updateQuery.ilike('email', rowEmail) : updateQuery.eq('user_id', row.user_id);
+    const { data: updatedRows, error: updateError } = await updateQuery.select('user_id,email');
     if (updateError) return fail(500, 'Failed to save feature permissions', ctx.origin);
-    changedCount += 1;
+    if (!Array.isArray(updatedRows) || updatedRows.length < 1) {
+      return fail(409, 'Feature permission user was not found during save readback', ctx.origin, { email: rowEmail || row.user_id });
+    }
+    changedCount += updatedRows.length;
   }
 
   const saved = await readFeatureAccessConfig(ctx);
-  await audit(ctx.serviceClient, ctx.user.id, 'feature-access/update', 200, { features: Object.keys(config.features as Record<string, unknown>) });
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'feature-access/update', 200, { features: Object.keys(config.features as Record<string, unknown>) });
   return jsonResponse({ ok: true, data: saved, meta: { created_count: createdCount, changed_count: changedCount } }, 200, ctx.origin);
 }
 
@@ -2896,7 +2899,7 @@ function parseSupplyStatisticRows(rows: Record<string, unknown>[], columns: Reco
 }
 
 function normalizeEditCells(record: Record<string, unknown>) {
-  const requestPayload = (record.request_payload || {}) as Record<string, unknown>;
+  const requestPayload = parseJsonValue(record.request_payload, {}) as Record<string, unknown>;
   const rawCells = Array.isArray(requestPayload.cell_edits) && requestPayload.cell_edits.length
     ? requestPayload.cell_edits as Record<string, unknown>[]
     : [{
@@ -2926,6 +2929,7 @@ function normalizeEditCells(record: Record<string, unknown>) {
       operation: String(firstDefined(cell.action, cell.operation, '수정')),
       beforeValue: firstPresent(cell.before_value, record.before_value),
       afterValue: firstPresent(cell.after_value, cell.requested_value, record.requested_value),
+      alreadyCurrent: Boolean(firstDefined(cell.already_current, cell.alreadyCurrent, false)),
       assetId: String(firstDefined(cell.asset_id, cell.assetId, record.target_asset_id, '')),
       assetName: String(firstDefined(cell.asset_name, cell.assetName, record.target_name, '')),
       leaseSpaceId: String(firstDefined(cell.lease_space_id, cell.leaseSpaceId, requestPayload.lease_space_id, '')),
@@ -3076,6 +3080,23 @@ async function writeDataChangeAudit(ctx: Context, editRequestId: string, cell: R
     metadata: redactSensitivePayload({ primary_key_field: cell.primaryKeyField, asset_id: cell.assetId || null, asset_name: cell.assetName || null }),
   });
   if (error) throw new Error(`Failed to write data change audit log: ${error.message}`);
+}
+
+async function writeDataChangeAuditBestEffort(ctx: Context, editRequestId: string, cell: ReturnType<typeof normalizeEditCells>[number], beforeValue: unknown, afterValue: unknown, readbackValue: unknown, status: string, actorId?: string) {
+  try {
+    await Promise.race([
+      writeDataChangeAudit(ctx, editRequestId, cell, beforeValue, afterValue, readbackValue, status, actorId),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('data change audit timeout')), 6000)),
+    ]);
+  } catch (error) {
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/audit_best_effort_failed', 202, {
+      edit_request_id: editRequestId,
+      target_table: cell.targetTable,
+      target_row_id: cell.targetRowId,
+      field_name: cell.fieldName,
+      reason: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 function canReadDataQualityRow(ctx: Context, row: Record<string, unknown>) {
@@ -7066,7 +7087,7 @@ function dataManagementFieldLabel(fieldName: unknown) {
     space_label: '공간',
     floor_label: '층',
     detail_area_label: '세부구역',
-    temperature_type: '상/저온',
+    temperature_type: '용도',
     leased_area_sqm: '임대면적',
     exclusive_area_sqm: '전용면적',
     first_contract_date: '최초 계약일',
@@ -11455,6 +11476,7 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
   const currentRevisionHash = await dataManagementRevisionHash(row);
   const currentMatchesRequested = valuesEqual(currentValue, input.requestedValue);
   const clientSawChangedValue = input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(input.beforeValue, input.requestedValue);
+  const alreadyCurrent = currentMatchesRequested && clientSawChangedValue;
   if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue) && !currentMatchesRequested) {
     return fail(409, 'Stale value blocked before submit', ctx.origin, { current_value: currentValue });
   }
@@ -11476,6 +11498,7 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
     asset_name: payload.asset_name || payload.assetName || row.asset_name || row.assetName || null,
     source_row_id: payload.source_row_id || payload.sourceRowId || null,
     source_header: input.fieldName,
+    already_current: alreadyCurrent || undefined,
   };
   const requestPayload = redactSensitivePayload({
     kind: 'data_management_table_cell_edit',
@@ -11492,6 +11515,7 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
       field_name: input.fieldName,
       submit_readback_value: currentValue,
       stale_at_submit: !valuesEqual(currentValue, beforeValue),
+      already_current: alreadyCurrent || undefined,
     }],
     cell_edits: autoWriteCapable ? [cellEdit] : [],
   }) as Record<string, unknown>;
@@ -11867,6 +11891,15 @@ function isEditRequestRunningStatus(statusValue: unknown, writeStatusValue: unkn
   return status === 'approved_write_running' || writeStatus === 'write_running';
 }
 
+function isStaleEditRequestRunning(row: Record<string, unknown>, staleAfterMs = 5 * 60 * 1000) {
+  if (!isEditRequestRunningStatus(row.status, row.write_status)) return false;
+  const startedAt = safeText(firstDefined(row.write_started_at, row.approved_at, row.updated_at));
+  if (!startedAt) return false;
+  const startedMs = Date.parse(startedAt);
+  if (!Number.isFinite(startedMs)) return false;
+  return Date.now() - startedMs > staleAfterMs;
+}
+
 function isEditRequestCompletedStatus(statusValue: unknown, writeStatusValue: unknown) {
   const status = safeText(statusValue);
   const writeStatus = safeText(writeStatusValue);
@@ -11892,7 +11925,7 @@ function isEditRequestFailedStatus(statusValue: unknown, writeStatusValue: unkno
 
 function editRequestStatusLabel(row: Record<string, unknown>) {
   if (isEditRequestPendingStatus(row.status, row.write_status)) return '승인 대기';
-  if (isEditRequestRunningStatus(row.status, row.write_status)) return '승인 처리 중';
+  if (isEditRequestRunningStatus(row.status, row.write_status)) return isStaleEditRequestRunning(row) ? '재처리 가능' : '승인 처리 중';
   if (isEditRequestCompletedStatus(row.status, row.write_status)) return '반영 완료';
   if (safeText(row.status) === 'rejected' || safeText(row.write_status) === 'rejected') return '반려';
   if (isEditRequestFailedStatus(row.status, row.write_status, row.write_error)) return '반영 실패';
@@ -12024,7 +12057,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     return acc;
   }, {});
   const domainFromEdit = (row: Record<string, unknown>) => {
-    const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload as Record<string, unknown> : {};
+    const payload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
     const explicit = safeText(payload.source_domain);
     if (explicit) return explicit;
     const viewKey = safeText(payload.view_key || payload.viewKey);
@@ -12072,7 +12105,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     domainStats[domain] = current;
   });
   const editHistory = edits.map((row) => {
-    const payload = row.request_payload && typeof row.request_payload === 'object' ? row.request_payload as Record<string, unknown> : {};
+    const payload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
     const changeItems = editRequestChangeItems(row);
     const firstChange = changeItems[0] || {};
     const isMultiple = changeItems.length > 1;
@@ -14596,7 +14629,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     await writeFundOverviewAudit(ctx, id, fundId, beforeValue, requestedValue, currentReadback, 'stale_blocked', requesterId);
-    await audit(ctx.serviceClient, ctx.user.id, 'edits/approve/fund_overview/stale_blocked', 409, { id, fund_id: fundId });
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/fund_overview/stale_blocked', 409, { id, fund_id: fundId });
     return fail(409, 'Stale fund overview value blocked before write', ctx.origin);
   }
 
@@ -14677,7 +14710,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
       .single();
     if (finalizeError) throw new Error(`Failed to finalize fund overview edit request: ${finalizeError.message}`);
     await writeFundOverviewAudit(ctx, id, fundId, beforeValue, requestedValue, afterReadback, 'written', requesterId);
-    await audit(ctx.serviceClient, ctx.user.id, 'edits/approve/fund_overview/write', 200, { id, fund_id: fundId });
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/fund_overview/write', 200, { id, fund_id: fundId });
     return jsonResponse({ ok: true, message: 'Fund overview request approved, written, read back, and audited', data: written }, 200, ctx.origin);
   } catch (writeError) {
     try {
@@ -14692,7 +14725,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
         }),
         updated_at: new Date().toISOString(),
       }).eq('id', id);
-      await audit(ctx.serviceClient, ctx.user.id, 'edits/approve/fund_overview/rollback_failed', 500, { id, fund_id: fundId });
+      await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/fund_overview/rollback_failed', 500, { id, fund_id: fundId });
       return fail(500, 'Fund overview write failed and rollback also failed', ctx.origin);
     }
     await ctx.serviceClient.from('ll_edit_requests').update({
@@ -14703,7 +14736,7 @@ async function approveFundOverviewEdit(ctx: Context, payload: Record<string, unk
       updated_at: new Date().toISOString(),
     }).eq('id', id);
     await writeFundOverviewAudit(ctx, id, fundId, beforeValue, requestedValue, beforeValue, 'write_failed_rolled_back', requesterId);
-    await audit(ctx.serviceClient, ctx.user.id, 'edits/approve/fund_overview/write_failed_rolled_back', 500, { id, fund_id: fundId });
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/fund_overview/write_failed_rolled_back', 500, { id, fund_id: fundId });
     return fail(500, 'Fund overview write failed and rollback was attempted', ctx.origin);
   }
 }
@@ -14879,7 +14912,27 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     .single();
   if (error || !data) return fail(404, 'Edit request not found', ctx.origin);
   if (data.requested_by === ctx.user.id) return fail(403, 'Self approval is not allowed', ctx.origin);
-  if (!isEditRequestPendingStatus(data.status, data.write_status)) return fail(409, 'Edit request is not in pending approval status', ctx.origin);
+  if (!isEditRequestPendingStatus(data.status, data.write_status)) {
+    if (isStaleEditRequestRunning(data as Record<string, unknown>)) {
+      const recoveredAt = new Date().toISOString();
+      const { error: recoverError } = await ctx.serviceClient
+        .from('ll_edit_requests')
+        .update({
+          status: 'submitted',
+          write_status: 'approval_required',
+          write_error: null,
+          updated_at: recoveredAt,
+        })
+        .eq('id', id)
+        .or('status.eq.approved_write_running,write_status.eq.write_running');
+      if (recoverError) return fail(500, 'Failed to recover stale edit request', ctx.origin, { error: recoverError.message });
+      data.status = 'submitted';
+      data.write_status = 'approval_required';
+      await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/recover-stale-running', 200, { id });
+    } else {
+      return fail(409, 'Edit request is not in pending approval status', ctx.origin);
+    }
+  }
 
   const requestPayload = parseJsonValue(data.request_payload, {}) as Record<string, unknown>;
   if (data.target_type === 'fund_overview' || requestPayload.kind === 'fund_overview') {
@@ -14941,6 +14994,17 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     for (const cell of cells) {
       const beforeReadback = await readTargetCell(ctx, cell);
       if (!valuesEqual(beforeReadback, cell.beforeValue)) {
+        if (valuesEqual(beforeReadback, cell.afterValue)) {
+          await writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'already_current', requesterId);
+          readbacks.push({
+            target_table: cell.targetTable,
+            target_row_id: cell.targetRowId,
+            field_name: cell.fieldName,
+            readback_value: beforeReadback,
+            already_current: true,
+          });
+          continue;
+        }
         await rollbackAppliedEdits(ctx.serviceClient, applied);
         await ctx.serviceClient.from('ll_edit_requests').update({
           status: 'stale_blocked',
@@ -14950,9 +15014,21 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
           write_result: redactSensitivePayload({ stale_cell: cell, before_readback: beforeReadback }),
           updated_at: new Date().toISOString(),
         }).eq('id', id);
-        await writeDataChangeAudit(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'stale_blocked', requesterId);
-        await audit(ctx.serviceClient, ctx.user.id, 'edits/approve/stale_blocked', 409, { id, cell });
+        await writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'stale_blocked', requesterId);
+        await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/stale_blocked', 409, { id, cell });
         return fail(409, 'Stale value blocked before write', ctx.origin, { cell, readback: beforeReadback });
+      }
+
+      if (valuesEqual(beforeReadback, cell.afterValue)) {
+        await writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'already_current', requesterId);
+        readbacks.push({
+          target_table: cell.targetTable,
+          target_row_id: cell.targetRowId,
+          field_name: cell.fieldName,
+          readback_value: beforeReadback,
+          already_current: true,
+        });
+        continue;
       }
 
       const coerced = coerceDataManagementEditValue(cell, cell.afterValue, beforeReadback);
@@ -14969,10 +15045,10 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
           write_result: redactSensitivePayload({ failed_cell: cell, after_readback: afterReadback }),
           updated_at: new Date().toISOString(),
         }).eq('id', id);
-        await writeDataChangeAudit(ctx, id, cell, beforeReadback, cell.afterValue, afterReadback, 'readback_failed', requesterId);
+        await writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, afterReadback, 'readback_failed', requesterId);
         return fail(500, 'Write readback failed and rollback was attempted', ctx.origin, { cell, readback: afterReadback });
       }
-      await writeDataChangeAudit(ctx, id, cell, beforeReadback, cell.afterValue, afterReadback, 'written', requesterId);
+      await writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, afterReadback, 'written', requesterId);
       readbacks.push({
         target_table: cell.targetTable,
         target_row_id: cell.targetRowId,
@@ -14994,7 +15070,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
         }),
         updated_at: new Date().toISOString(),
       }).eq('id', id);
-      await audit(ctx.serviceClient, ctx.user.id, 'edits/approve/write_failed_rollback_failed', 500, { id });
+      await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/write_failed_rollback_failed', 500, { id });
       return fail(500, 'Write failed and rollback also failed', ctx.origin);
     }
     await ctx.serviceClient.from('ll_edit_requests').update({
@@ -15004,7 +15080,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
       write_result: redactSensitivePayload({ applied_count_before_rollback: applied.length }),
       updated_at: new Date().toISOString(),
     }).eq('id', id);
-    await audit(ctx.serviceClient, ctx.user.id, 'edits/approve/write_failed_rolled_back', 500, { id });
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/write_failed_rolled_back', 500, { id });
     return fail(500, 'Write failed and rollback was attempted', ctx.origin);
   }
 
@@ -15023,7 +15099,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     .select('id, status, readback_value, write_result')
     .single();
   if (updateError) return fail(500, 'Failed to finalize edit request', ctx.origin);
-  await audit(ctx.serviceClient, ctx.user.id, 'edits/approve/write', 200, { id, readbacks });
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/write', 200, { id, readbacks });
   return jsonResponse({ ok: true, message: 'Edit request approved, written, read back, and audited', data: written }, 200, ctx.origin);
 }
 
@@ -15056,7 +15132,7 @@ async function rejectEdit(ctx: Context, payload: Record<string, unknown>) {
     .select('id, status')
     .single();
   if (error) return fail(500, 'Failed to reject edit request', ctx.origin);
-  await audit(ctx.serviceClient, ctx.user.id, 'edits/reject', 200, { id });
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/reject', 200, { id });
   return jsonResponse({ ok: true, message: 'Edit request rejected', data }, 200, ctx.origin);
 }
 

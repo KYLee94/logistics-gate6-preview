@@ -500,7 +500,12 @@ const invokeWithTimeout = async (action, payload = {}, timeoutMs = 12000, retryO
     });
     try {
         return await Promise.race([
-            invokeDashboardApi(action, payload, { forceSessionRefresh: Boolean(options.forceSessionRefresh) }),
+            invokeDashboardApi(action, payload, {
+                forceSessionRefresh: Boolean(options.forceSessionRefresh),
+                timeoutMs,
+                retryNetwork: options.retryNetwork !== false,
+                retryTimeout: options.retryTimeout !== false,
+            }),
             timeout,
         ]);
     } catch (error) {
@@ -1019,7 +1024,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setFeatureAccessError('');
         try {
             const normalized = normalizeFeatureAccessConfig({ ...nextConfig, updatedAt: new Date().toISOString() });
-            const { data, error } = await invokeWithTimeout('feature-access/update', { config: normalized }, 25000, true, { forceSessionRefresh: true });
+            const { data, error } = await invokeWithTimeout('feature-access/update', { config: normalized }, 60000, false, {
+                forceSessionRefresh: true,
+                retryNetwork: false,
+                retryTimeout: false,
+            });
             if (error || data?.ok === false) throw new Error(data?.message || error?.message || '기능 권한 저장 실패');
             const saved = normalizeFeatureAccessConfig(data?.data || normalized);
             setFeatureAccessData(saved);

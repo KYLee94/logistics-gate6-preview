@@ -1,0 +1,21 @@
+{
+  "ok": true,
+  "generated_at": "2026-07-03T06:38:25.292Z",
+  "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
+  "origin": "https://kylee94.github.io",
+  "auth_source": "password_grant",
+  "auth_user_id": "9ca68a02...",
+  "edit_request_id": "5cd6374a-6f3a-46c5-8b37-f6e87a277c13",
+  "asset_id": "asset_a120085001",
+  "asset_name": "경산 쿠팡물류센터",
+  "checks": {
+    "submit": 200,
+    "readback_before": 200,
+    "self_approve_blocked": 403,
+    "requester_swapped_for_qa": true,
+    "approve_write_readback_audit": 200,
+    "readback_after": 200,
+    "final_status": "written",
+    "audit_rows": 1
+  }
+}

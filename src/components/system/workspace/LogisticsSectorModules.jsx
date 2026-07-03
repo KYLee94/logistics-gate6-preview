@@ -249,28 +249,28 @@ const DATA_MANAGEMENT_BUSINESS_GROUPS = [
     description: '계약, 면적, 임대료·관리비, 일정, 보증금·렌트프리·인상, 보험·권리, 요구 스펙, 특약·상태, 임차인 정보를 한 화면 흐름에서 관리합니다.',
     primaryViewKey: 'lease_general_excel',
     viewKeys: ['lease_general_excel', 'lease_rent_history_excel', 'lease_space_specs', 'tenant_master', 'lease_attributes'],
-    labels: ['자산명', '펀드명', '임차인명', '임대구역', '층', '세부구역', '상/저온', '전용률', '현재 계약기간', '월임대료', '월관리비', '평당 월임대료', '평당 월관리비', 'E. NOC', '보증금', 'RF', 'FO', 'TI', '요구 스펙', '특약', '계약상태'],
+    labels: ['자산명', '펀드명', '임차인명', '임대구역', '층', '세부구역', '용도', '전용률', '현재 계약기간', '월임대료', '월관리비', '평당 월임대료', '평당 월관리비', 'E. NOC', '보증금', 'RF', 'FO', 'TI', '요구 스펙', '특약', '계약상태'],
   },
   {
     workflow: 'contract_basic',
     label: '계약 기본정보',
     description: '자산, 펀드, 임차인, 온도구분, 계약상태',
     primaryViewKey: 'lease_general_excel',
-    labels: ['자산명', '펀드명', '임차인명', '임차인 사업자번호', '상/저온', '선임차 여부', '3PL 여부', '취급 상품 유형', '단일 임차인 여부', '계약상태'],
+    labels: ['자산명', '펀드명', '임차인명', '임차인 사업자번호', '용도', '선임차 여부', '3PL 여부', '취급 상품 유형', '단일 임차인 여부', '계약상태'],
   },
   {
     workflow: 'area_space',
     label: '면적·임차구역',
     description: '층, 세부구역, 임대면적, 전용면적, 전용률',
     primaryViewKey: 'lease_general_excel',
-    labels: ['자산명', '펀드명', '임차인명', '임대구역', '층', '세부구역', '상/저온', '전체 연면적', '임대면적', '전용면적', '전용률', '사무실 사용 여부', '전차 여부'],
+    labels: ['자산명', '펀드명', '임차인명', '임대구역', '층', '세부구역', '용도', '전체 연면적', '임대면적', '전용면적', '전용률', '사무실 사용 여부', '전차 여부'],
   },
   {
     workflow: 'rent_fee',
     label: '임대료·관리비',
     description: '기준일자, 변동 원인, 총액, 평당 단가',
     primaryViewKey: 'lease_rent_history_excel',
-    labels: ['자산명', '펀드명', '임차인명', '임대구역', '층', '세부구역', '상/저온', '기준일자', '임대료 변동 원인', '임대면적', '전용면적', '월 임대료 총액', '월 관리비 총액', '평당 월임대료', '평당 월관리비'],
+    labels: ['자산명', '펀드명', '임차인명', '임대구역', '층', '세부구역', '용도', '기준일자', '임대료 변동 원인', '임대면적', '전용면적', '월 임대료 총액', '월 관리비 총액', '평당 월임대료', '평당 월관리비'],
   },
   {
     workflow: 'schedule',
@@ -857,7 +857,7 @@ function dataManagementSelectOptions(column) {
   const label = text(column?.label || '');
   const type = text(column?.type || '');
   if (type === 'yn' || DATA_MANAGEMENT_YN_FIELD_KEYS.has(key)) return ['Y', 'N'];
-  if (key === 'temperature_type') return DATA_MANAGEMENT_PURPOSE_OPTIONS;
+  if (key === 'temperature_type' || label === '용도') return DATA_MANAGEMENT_PURPOSE_OPTIONS;
   if (key === 'disposition_status' || (key === 'review_status' && /자산 상태|매각|아카이브/iu.test(label))) {
     return DATA_MANAGEMENT_ASSET_STATUS_OPTIONS;
   }
@@ -1093,7 +1093,7 @@ const FIELD_LABELS = {
   fund_name: '펀드명',
   display_name: '표시명',
   region: '권역',
-  temperature_type: '상/저온',
+  temperature_type: '용도',
   legal_address: '주소',
   gross_area_py: '연면적(평)',
   leasable_area_py: '임대면적(평)',
@@ -1372,8 +1372,8 @@ function sourceDomainLabel(domain) {
   return SOURCE_DOMAINS.find((item) => item.key === domain)?.label || text(domain);
 }
 
-async function invoke(action, payload = {}) {
-  const { data, error } = await invokeDashboardApi(action, payload);
+async function invoke(action, payload = {}, options = {}) {
+  const { data, error } = await invokeDashboardApi(action, payload, options);
   if (error) {
     const context = error.context;
     if (context && typeof context.json === 'function') {
@@ -1391,20 +1391,20 @@ async function invoke(action, payload = {}) {
   return data?.data || data || {};
 }
 
-function edgeDataTimeoutError(action) {
-  const error = new Error(`${action} timed out after ${EDGE_DATA_REQUEST_TIMEOUT_MS}ms`);
+function edgeDataTimeoutError(action, timeoutMs = EDGE_DATA_REQUEST_TIMEOUT_MS) {
+  const error = new Error(`${action} timed out after ${timeoutMs}ms`);
   error.name = 'EdgeDataTimeoutError';
   error.status = 408;
   return error;
 }
 
-async function invokeEdgeDataWithTimeout(action, payload = {}) {
+async function invokeEdgeDataWithTimeout(action, payload = {}, timeoutMs = EDGE_DATA_REQUEST_TIMEOUT_MS, options = {}) {
   let timeoutId;
   const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = globalThis.setTimeout(() => reject(edgeDataTimeoutError(action)), EDGE_DATA_REQUEST_TIMEOUT_MS);
+    timeoutId = globalThis.setTimeout(() => reject(edgeDataTimeoutError(action, timeoutMs)), timeoutMs);
   });
   try {
-    return await Promise.race([invoke(action, payload), timeoutPromise]);
+    return await Promise.race([invoke(action, payload, { timeoutMs, ...options }), timeoutPromise]);
   } finally {
     globalThis.clearTimeout(timeoutId);
   }
@@ -7644,6 +7644,16 @@ function DataManagementApprovalDashboard() {
   const changeItemsFor = (row) => {
     const items = safeArray(row?.change_items);
     if (items.length) return items;
+    const payloadCells = safeArray(row?.request_payload?.cell_edits);
+    if (payloadCells.length) {
+      return payloadCells.map((cell) => ({
+        target_name: cell?.asset_name || row?.target_name,
+        field_name: cell?.field_name,
+        field_label: fieldDisplayLabel(cell?.source_header || cell?.field_name),
+        before_value: cell?.before_value,
+        requested_value: cell?.after_value ?? cell?.requested_value,
+      }));
+    }
     return [{
       target_name: row?.target_name,
       field_name: row?.field_name,
@@ -7652,7 +7662,11 @@ function DataManagementApprovalDashboard() {
       requested_value: row?.requested_value,
     }];
   };
-  const approvalValue = (value, fieldName) => formatDisplayValue(value, fieldName);
+  const approvalValue = (value, fieldName) => {
+    const raw = text(value, '');
+    if (/^\d+\s+(current|requested)\s+values$/iu.test(raw)) return '상세에서 확인';
+    return formatDisplayValue(value, fieldName);
+  };
   const fieldSummaryFor = (row) => {
     const items = changeItemsFor(row);
     if (items.length > 1) return `${items.length}개 항목`;
@@ -7688,7 +7702,7 @@ function DataManagementApprovalDashboard() {
         id: requestId,
         approval_note: action === 'approve' ? 'Data Management 승인' : undefined,
         rejection_note: action === 'reject' ? 'Data Management 반려' : undefined,
-      });
+      }, 120000, { forceSessionRefresh: true, retryNetwork: false, retryTimeout: false });
       await reload({}, { force: true });
       setDetailRequest(null);
       setActionStatus({ type: 'success', message: `${actionLabel} 처리가 완료됐습니다. 저장값을 다시 확인했습니다.` });
@@ -7746,10 +7760,12 @@ function DataManagementApprovalDashboard() {
                 return (
                   <tr
                     key={`approval-row-${requestId || text(row.target_name)}`}
-                    onClick={() => setSelectedRequestId(requestId)}
-                    onDoubleClick={() => setDetailRequest(row)}
+                    onClick={() => {
+                      setSelectedRequestId(requestId);
+                      setDetailRequest(row);
+                    }}
                     className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} cursor-pointer text-[#E5E5E5]`}
-                    title="더블클릭하면 변경 상세를 볼 수 있습니다."
+                    title="클릭하면 변경 상세를 볼 수 있습니다."
                   >
                     <td className="sticky left-0 z-10 max-w-[360px] border-r border-[#242426] bg-inherit px-3 py-2 font-semibold" title={text(row.target_name)}>{text(row.target_name, '-')}</td>
                     <td className="border-r border-[#242426] px-3 py-2" title={fieldSummaryFor(row)}>{fieldSummaryFor(row)}</td>
@@ -8195,8 +8211,8 @@ function DataManagementDashboardLegacy() {
     setSubmitStatus({ type: 'pending', message: '요청을 처리하는 중입니다.' });
     try {
       if (action === 'readback') await invoke('edits/readback', { id });
-      if (action === 'approve') await invoke('edits/approve', { id, approval_note: 'Data Management 승인' });
-      if (action === 'reject') await invoke('edits/reject', { id, rejection_note: 'Data Management 반려' });
+      if (action === 'approve') await invoke('edits/approve', { id, approval_note: 'Data Management 승인' }, { timeoutMs: 120000, forceSessionRefresh: true, retryNetwork: false, retryTimeout: false });
+      if (action === 'reject') await invoke('edits/reject', { id, rejection_note: 'Data Management 반려' }, { timeoutMs: 120000, forceSessionRefresh: true, retryNetwork: false, retryTimeout: false });
       setSubmitStatus({ type: 'success', message: '요청 처리가 완료되었습니다.' });
       reload({}, { force: true });
     } catch (reviewError) {

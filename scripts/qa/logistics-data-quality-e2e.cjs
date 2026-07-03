@@ -188,13 +188,12 @@ async function main() {
   const selfApprove = await invoke(endpoint, anonKey, origin, auth.token, 'edits/approve', { id: editId, approval_note: 'self approval negative smoke' });
   assertStatus(selfApprove, 403);
 
-  const swapped = runQuery(`
+const swapped = runQuery(`
 with other_user as (
-  select user_id
-  from public.ll_user_permissions
-  where user_id is not null
-    and user_id::text <> ${sqlLiteral(user.id)}
-  order by email
+  select id as user_id
+  from auth.users
+  where id::text <> ${sqlLiteral(user.id)}
+  order by email nulls last, created_at
   limit 1
 )
 update public.ll_edit_requests

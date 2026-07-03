@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "generated_at": "2026-07-03T06:34:50.048Z",
+  "endpoint": "https://qvegpozwrcmspdvjokiz.redacted.supabase.co/functions/v1/ll-dashboard-api",
+  "origin": "https://kylee94.github.io",
+  "auth_source": "password_grant",
+  "feature_key": "ai_chat",
+  "mutation_mode": "add",
+  "user_email": "hkim@igisam.com",
+  "changed_readback_match": true,
+  "restored_readback_match": true
+}

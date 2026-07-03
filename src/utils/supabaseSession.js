@@ -165,36 +165,47 @@ export async function ensureFreshSupabaseSession({ force = false, throwOnFailure
   return refreshPromise;
 }
 
-function shouldRetryDashboardInvoke(error) {
+function shouldRetryDashboardInvoke(error, { retryNetwork = true, retryTimeout = true } = {}) {
   const message = authFailureMessage(error);
-  return isSupabaseAuthFailure(error)
-    || message.includes('failed to fetch')
-    || message.includes('network')
-    || message.includes('timeout')
+  const timeoutLike = message.includes('timeout')
     || message.includes('aborted')
+    || error?.name === 'DashboardInvokeTimeoutError';
+  const networkLike = message.includes('failed to fetch')
+    || message.includes('network')
     || message.includes('load failed');
+  if (timeoutLike && !retryTimeout) return false;
+  if (networkLike && !retryNetwork) return false;
+  return isSupabaseAuthFailure(error)
+    || networkLike
+    || timeoutLike;
 }
 
-export async function invokeDashboardApi(action, payload = {}, { retryAuth = true, forceSessionRefresh = false } = {}) {
+export async function invokeDashboardApi(action, payload = {}, {
+  retryAuth = true,
+  forceSessionRefresh = false,
+  timeoutMs = DASHBOARD_INVOKE_TIMEOUT_MS,
+  retryNetwork = true,
+  retryTimeout = true,
+} = {}) {
   await ensureFreshSupabaseSession({ force: forceSessionRefresh });
   let result;
   try {
     result = await withDashboardInvokeTimeout(action, supabase.functions.invoke('ll-dashboard-api', {
       body: { action, payload },
-    }), DASHBOARD_INVOKE_TIMEOUT_MS);
+    }), timeoutMs);
   } catch (invokeError) {
-    if (!retryAuth || !shouldRetryDashboardInvoke(invokeError)) throw invokeError;
+    if (!retryAuth || !shouldRetryDashboardInvoke(invokeError, { retryNetwork, retryTimeout })) throw invokeError;
     await ensureFreshSupabaseSession({ force: true, throwOnFailure: true });
     return withDashboardInvokeTimeout(action, supabase.functions.invoke('ll-dashboard-api', {
       body: { action, payload },
-    }), DASHBOARD_INVOKE_TIMEOUT_MS);
+    }), timeoutMs);
   }
 
-  if (retryAuth && result?.error && shouldRetryDashboardInvoke(result.error)) {
+  if (retryAuth && result?.error && shouldRetryDashboardInvoke(result.error, { retryNetwork, retryTimeout })) {
     await ensureFreshSupabaseSession({ force: true, throwOnFailure: true });
     result = await withDashboardInvokeTimeout(action, supabase.functions.invoke('ll-dashboard-api', {
       body: { action, payload },
-    }), DASHBOARD_INVOKE_TIMEOUT_MS);
+    }), timeoutMs);
   }
 
   return result;

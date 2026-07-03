@@ -78,6 +78,7 @@
     "qa:logout:browser": "node scripts/qa/logistics-logout-browser-smoke.cjs",
     "qa:access-ui:browser": "node scripts/qa/logistics-access-ui-browser-smoke.cjs",
     "qa:access-ui:refresh-stability": "node scripts/qa/logistics-access-modal-refresh-stability.cjs",
+    "qa:feature-access:save-readback": "node scripts/qa/logistics-feature-access-save-readback.cjs",
     "qa:auth-permission-matrix": "node scripts/qa/logistics-auth-permission-matrix.cjs",
     "ops:backfill-logistics-users": "node scripts/ops/backfill-logistics-user-permissions.cjs",
     "qa:work-platform:browser": "node scripts/qa/logistics-work-platform-browser-smoke.cjs",
