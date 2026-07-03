@@ -1738,8 +1738,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                                                         aria-pressed={checked}
                                                                         key={`${feature.key}-${featureUserKey(userRow)}`}
                                                                         onClick={() => toggleFeatureAccessUser(feature.key, userRow)}
-                                                                        disabled={locked || featureAccessSaving || featureAccessLoading}
-                                                                        className={`flex min-h-11 items-center justify-between gap-3 rounded-[10px] border px-3 py-2 text-left transition-colors ${checked ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#303033] bg-[#151515] text-[#C7C7CC] hover:border-[#4A4A4A]'} ${locked ? 'cursor-default opacity-90' : ''} ${featureAccessLoading && !locked ? 'cursor-wait opacity-60' : ''}`}
+                                                                        disabled={locked || featureAccessSaving || (featureAccessLoading && !hasFeatureAccessModalContent)}
+                                                                        className={`flex min-h-11 items-center justify-between gap-3 rounded-[10px] border px-3 py-2 text-left transition-colors ${checked ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#303033] bg-[#151515] text-[#C7C7CC] hover:border-[#4A4A4A]'} ${locked ? 'cursor-default opacity-90' : ''} ${featureAccessLoading && !hasFeatureAccessModalContent && !locked ? 'cursor-wait opacity-60' : ''}`}
                                                                     >
                                                                         <span className="flex min-w-0 items-center gap-2">
                                                                             <UserAvatar memberInfo={userRow} name={userRow.staff_name} sizeClass="h-7 w-7" textClass="text-[10px]" />
