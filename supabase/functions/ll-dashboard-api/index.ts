@@ -532,8 +532,8 @@ function mergeBootstrapPermission(row: Record<string, unknown> | null, email: un
   const rowRole = safeText(row.logistics_role);
   const bootstrapRole = safeText(bootstrap.logistics_role);
   const mergedFeaturePermissions = {
-    ...((row.feature_permissions && typeof row.feature_permissions === 'object') ? row.feature_permissions as Record<string, unknown> : {}),
     ...((bootstrap.feature_permissions && typeof bootstrap.feature_permissions === 'object') ? bootstrap.feature_permissions as Record<string, unknown> : {}),
+    ...((row.feature_permissions && typeof row.feature_permissions === 'object') ? row.feature_permissions as Record<string, unknown> : {}),
   };
   return {
     ...row,
@@ -918,7 +918,7 @@ function userFeaturePermissions(permission: Record<string, unknown> | null) {
     ? { ...(explicit as Record<string, unknown>) }
     : {};
   if (isDefaultFeatureAccessPermission(permission)) {
-    return { ...base, ...allLogisticsFeaturePermissions(true) };
+    return { ...allLogisticsFeaturePermissions(true), ...base };
   }
   return base;
 }
@@ -1182,28 +1182,66 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
   const config = normalizeFeatureAccessConfig(payload.config || payload);
   const { data: permissionRows, error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
-    .select('email,staff_name,organization,logistics_role,feature_permissions,account_status');
+    .select('email,staff_name,organization,image_url,logistics_role,feature_permissions,account_status');
   if (permissionError) return fail(500, 'Failed to read logistics permissions', ctx.origin);
 
   const desiredByFeature = new Map<string, Set<string>>();
+  const desiredUsersByEmail = new Map<string, Record<string, unknown>>();
   LOGISTICS_FEATURE_KEYS.forEach((key) => {
     const feature = (config.features as Record<string, unknown>)?.[key] as Record<string, unknown> | undefined;
     const users = Array.isArray(feature?.users) ? feature.users as Record<string, unknown>[] : [];
     const keys = new Set<string>();
-    users.forEach((row) => featureUserKeys(compactFeatureAccessUser(row)).forEach((item) => keys.add(item)));
+    users.forEach((row) => {
+      const user = compactFeatureAccessUser(row);
+      featureUserKeys(user).forEach((item) => keys.add(item));
+      if (user.email) desiredUsersByEmail.set(normalizeAuthEmail(user.email), user);
+    });
     desiredByFeature.set(key, keys);
   });
 
-  for (const row of ((permissionRows || []) as Record<string, unknown>[]).filter(isActivePermission)) {
+  const allPermissionRows = (permissionRows || []) as Record<string, unknown>[];
+  const activeRows = allPermissionRows.filter(isActivePermission);
+  const existingEmails = new Set(allPermissionRows.map((row) => normalizeAuthEmail(row.email)).filter(Boolean));
+  for (const [email, user] of desiredUsersByEmail.entries()) {
+    if (!email || existingEmails.has(email)) continue;
+    const userKeys = featureUserKeys(user);
+    const nextFeatures: Record<string, boolean> = {};
+    LOGISTICS_FEATURE_KEYS.forEach((key) => {
+      nextFeatures[key] = userKeys.some((item) => desiredByFeature.get(key)?.has(item));
+    });
+    const { error: upsertError } = await ctx.serviceClient
+      .from('ll_user_permissions')
+      .upsert(stripUndefined({
+        user_id: crypto.randomUUID(),
+        email,
+        staff_name: safeText(firstDefined(user.staff_name, staffNameForEmail(email))),
+        organization: safeText(firstDefined(user.organization, organizationForEmail(email))),
+        image_url: firstDefined(user.image_url, logisticsProfileImageUrl(email)),
+        logistics_role: safeText(user.logistics_role) || 'Reader',
+        managed_asset_codes: [],
+        managed_asset_permissions: { read: true, create: false, update: false, delete: false },
+        other_asset_permissions: { read: false, create: false, update: false, delete: false },
+        can_ingest_weekly: false,
+        account_status: 'active',
+        feature_permissions: nextFeatures,
+        profile_payload: { source: 'feature_access_update' },
+        updated_at: new Date().toISOString(),
+      }), { onConflict: 'email' });
+    if (upsertError) return fail(500, 'Failed to create feature permission user', ctx.origin);
+    existingEmails.add(email);
+  }
+
+  for (const row of activeRows) {
     const userKeys = featureUserKeys(compactFeatureAccessUser({
       email: row.email,
       staff_name: firstDefined(row.staff_name, staffNameForEmail(row.email)),
       organization: row.organization,
+      image_url: row.image_url,
+      logistics_role: row.logistics_role,
     }));
     const nextFeatures = { ...(row.feature_permissions as Record<string, unknown> || {}) };
     LOGISTICS_FEATURE_KEYS.forEach((key) => {
-      nextFeatures[key] = isDefaultFeatureAccessPermission(row)
-        || userKeys.some((item) => desiredByFeature.get(key)?.has(item));
+      nextFeatures[key] = userKeys.some((item) => desiredByFeature.get(key)?.has(item));
     });
     const { error: updateError } = await ctx.serviceClient
       .from('ll_user_permissions')
@@ -9554,8 +9592,6 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
     const tenantDetailRows = await Promise.all([
       ['tenant_master_name', '임차인명', firstDefined(tenant.tenant_master_name, tenant.display_name, tenant.company_name)],
       ['business_registration_no', '사업자번호', tenant.business_registration_no],
-      ['company_name', '회사명', tenant.company_name],
-      ['dart_corp_code', 'DART 코드', tenant.dart_corp_code],
     ].map(([field, label, value]) => buildDirectConditionRow(`${tenantId}:${field}`, safeText(label), value, 'public.ll_tenants', tenantId, safeText(field), tenant)));
     const insuranceSummaryRows = [...dedupedInsuranceRows, ...insuranceAttributeRows];
     const insuranceSummarySeen = new Set<string>();
@@ -9698,7 +9734,7 @@ async function dataManagementLeaseContractRows(ctx: Context, payload: Record<str
         },
         tenant_info_summary: {
           title: '임차인 정보 상세 편집',
-          description: '임차인명, 사업자번호, 회사명, DART 코드를 행별로 수정 요청합니다.',
+          description: '임차인명과 사업자번호를 행별로 수정 요청합니다.',
           columns: conditionDetailColumns.map((field) => dataManagementPublicViewField(field)),
           rows: tenantDetailRows,
           empty_state: '연결된 임차인 정보가 없습니다.',
@@ -11349,7 +11385,9 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
   }
   const currentValue = row[cell.fieldName];
   const currentRevisionHash = await dataManagementRevisionHash(row);
-  if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue)) {
+  const currentMatchesRequested = valuesEqual(currentValue, input.requestedValue);
+  const clientSawChangedValue = input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(input.beforeValue, input.requestedValue);
+  if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue) && !currentMatchesRequested) {
     return fail(409, 'Stale value blocked before submit', ctx.origin, { current_value: currentValue });
   }
   const requestedRevisionHash = safeText(payload.revision_hash || payload.revisionHash);
@@ -11357,7 +11395,7 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
   if (requestedRevisionHash && requestedRevisionHash !== currentRevisionHash && requestedRevisionHash !== requestedViewRevisionHash) {
     return fail(409, 'Stale row revision blocked before submit', ctx.origin, { current_revision_hash: currentRevisionHash });
   }
-  if (valuesEqual(currentValue, input.requestedValue)) return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
+  if (currentMatchesRequested && !clientSawChangedValue) return fail(400, '변경된 값이 없습니다. 표에서 값을 수정한 뒤 다시 요청해 주세요.', ctx.origin);
   const beforeValue = input.beforeValue === undefined || input.beforeValue === null ? currentValue : input.beforeValue;
   const cellEdit = {
     target_table: input.targetTable,
@@ -11450,6 +11488,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
   let alreadyCurrentCount = 0;
   for (const rawChange of rawChanges) {
     const change = rawChange && typeof rawChange === 'object' ? rawChange : {};
+    const clientBeforeValue = firstPresent(change.before_value, change.beforeValue);
     const mergedPayload = {
       ...payload,
       ...change,
@@ -11459,6 +11498,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       row_key: change.row_key || change.rowKey,
       field_key: change.field_key || change.fieldKey,
       requested_value: firstPresent(change.requested_value, change.requestedValue, change.after_value, change.afterValue),
+      client_before_value: clientBeforeValue,
       revision_hash: change.revision_hash || change.revisionHash,
       bundle_key: change.bundle_key || change.bundleKey || payload.bundle_key || payload.bundleKey,
     } as Record<string, unknown>;
@@ -11497,7 +11537,8 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
     assertRowTemporalWriteAllowed(cell, row);
     const currentValue = row[cell.fieldName];
     const currentRevisionHash = await dataManagementRevisionHash(row);
-    if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(currentValue, input.beforeValue) && !valuesEqual(currentValue, input.requestedValue)) {
+    const effectiveBeforeValue = clientBeforeValue !== undefined && clientBeforeValue !== null ? clientBeforeValue : input.beforeValue;
+    if (effectiveBeforeValue !== undefined && effectiveBeforeValue !== null && !valuesEqual(currentValue, effectiveBeforeValue) && !valuesEqual(currentValue, input.requestedValue)) {
       return fail(409, 'Stale value blocked before submit', ctx.origin, { field_name: input.fieldName, current_value: currentValue });
     }
     const requestedRevisionHash = safeText(tablePayload.revision_hash || tablePayload.revisionHash);
@@ -11506,8 +11547,21 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       return fail(409, 'Stale row revision blocked before submit', ctx.origin, { field_name: input.fieldName, current_revision_hash: currentRevisionHash });
     }
     if (valuesEqual(currentValue, input.requestedValue)) {
-      if (input.beforeValue !== undefined && input.beforeValue !== null && !valuesEqual(input.beforeValue, input.requestedValue)) {
+      if (effectiveBeforeValue !== undefined && effectiveBeforeValue !== null && !valuesEqual(effectiveBeforeValue, input.requestedValue)) {
         alreadyCurrentCount += 1;
+        cellEdits.push({
+          target_table: input.targetTable,
+          primary_key_field: input.primaryKeyField,
+          target_row_id: input.targetRowId,
+          field_name: input.fieldName,
+          before_value: effectiveBeforeValue,
+          after_value: input.requestedValue,
+          asset_id: tablePayload.asset_id || tablePayload.assetId || row.asset_id || row.assetId || null,
+          asset_name: tablePayload.asset_name || tablePayload.assetName || row.asset_name || row.assetName || null,
+          source_row_id: tablePayload.source_row_id || tablePayload.sourceRowId || null,
+          source_header: input.fieldName,
+          already_current: true,
+        });
         submitReadbacks.push({
           target_table: input.targetTable,
           target_row_id: input.targetRowId,
@@ -11521,7 +11575,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       }
       continue;
     }
-    const beforeValue = input.beforeValue === undefined || input.beforeValue === null ? currentValue : input.beforeValue;
+    const beforeValue = effectiveBeforeValue === undefined || effectiveBeforeValue === null ? currentValue : effectiveBeforeValue;
     cellEdits.push({
       target_table: input.targetTable,
       primary_key_field: input.primaryKeyField,

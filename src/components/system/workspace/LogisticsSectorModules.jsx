@@ -456,15 +456,9 @@ function dataManagementColumnMatchesBusinessGroup(column, group) {
 }
 const DATA_MANAGEMENT_FIELD_HELP = {
   fund_names: '연결 펀드는 자산 데이터에서는 조회만 합니다. 자산과 펀드의 연결 변경은 투자 데이터에서 처리합니다.',
-  exclusive_area_sqm: '전용면적은 임대면적과 전용률 검증에 같이 쓰입니다. 임대차계약 데이터의 면적 항목에서 관리합니다.',
-  exclusive_ratio: '전용률은 전용면적을 임대면적으로 나눈 비율입니다. 입력값과 계산값이 다르면 검증 경고가 표시됩니다.',
+  exclusive_area_sqm: '단위: ㎡. 창고, 하역장, 사무실 등 임차인이 실제로 쓰는 전용 면적입니다.',
+  exclusive_ratio: '단위: %. 전용면적을 임대면적으로 나눈 값입니다. 계산값과 다르면 검증이 필요합니다.',
   spec_summary: '주요 스펙은 여러 스펙 항목의 요약입니다. 상세 항목은 스펙 상세 또는 자산 스펙 입력 화면에서 관리합니다.',
-  operating_cost_period: '운영비용 기준기간입니다. 운영비용 행을 추가하거나 해당 기간의 비용 행에서 관리합니다.',
-  operating_cost_total_krw: '운영비용 합계는 PM, FM, 보험료, Utility, 기타 비용을 합산한 값입니다.',
-  review_status: '검토 상태는 승인 요청, 품질 점검, 반영 확인 결과로 관리되는 상태값입니다.',
-  review_note: '검토 메모는 승인/반려 또는 품질 점검 과정에서 남기는 기록입니다.',
-  tenant_master_name: '임차인명입니다. 임대차계약 데이터에서는 직접 수정 요청할 수 있고, 이력 화면에서는 조회용으로 표시됩니다.',
-  is_latest: '최신 여부는 기준일자 기준으로 자동 판정됩니다.',
   asset_code: '자산코드는 자산을 식별하는 코드입니다. 자산 데이터에서 관리합니다.',
   fund_code: '펀드코드는 펀드를 식별하는 코드입니다. 투자 데이터에서 관리합니다.',
   contract_count: '계약 수는 연결된 임대차계약 수를 자동 집계한 값입니다.',
@@ -472,23 +466,41 @@ const DATA_MANAGEMENT_FIELD_HELP = {
   latest_contract_end_date: '최근 계약만기일은 연결 계약의 만기일 중 최신값입니다.',
   equity_parties: '수익자 정보는 여러 행으로 관리됩니다. 셀을 누르면 수익자별 투입금액을 상세 표에서 수정 요청할 수 있습니다.',
   loan_lenders: '대주 정보는 여러 행으로 관리됩니다. 셀을 누르면 대주별 tranche, 인출금액, 금리, 만기를 상세 표에서 수정 요청할 수 있습니다.',
-  current_rent_per_py: '평당 월임대료입니다. 월임대료 총액과 임대면적 기준으로 검증합니다.',
-  current_mf_per_py: '평당 월관리비입니다. 월관리비 총액과 임대면적 기준으로 검증합니다.',
-  economic_terms_summary: '보증금, 월임대료, 월관리비, 월 임관리비, 평당 월임대료, 평당 월관리비, RF, FO, TI, E. NOC, 임대료·관리비 인상 조건을 한 상세 표에서 관리합니다. 단위는 금액 원, RF/FO 개월, 비율 %, E. NOC 원/평입니다.',
-  first_contract_date: '최초 계약을 체결한 날짜입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
-  first_start_date: '최초 계약이 시작된 날짜입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
-  first_end_date: '최초 계약의 만기일입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
+  current_rent_per_py: '단위: 원/평. 월임대료 총액을 임대면적으로 나눈 값입니다.',
+  current_mf_per_py: '단위: 원/평. 월관리비 총액을 임대면적으로 나눈 값입니다.',
+  economic_terms_summary: '보증금, 월임대료, 월관리비, RF, FO, TI, E. NOC를 상세 표에서 관리합니다. 금액은 원, RF/FO는 개월 단위입니다.',
+  first_contract_date: '최초 계약을 체결한 날짜입니다.',
+  first_start_date: '최초 계약이 시작된 날짜입니다.',
+  first_end_date: '최초 계약의 만기일입니다.',
   first_operation_date: '최초 운영이 시작된 날짜입니다. 계약 개시일과 다를 수 있습니다.',
-  current_start_date: '현재 유효한 계약의 개시일입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
-  current_end_date: '현재 유효한 계약의 만기일입니다. 단위는 날짜(YYYY-MM-DD)입니다.',
-  current_contract_period: '현재 계약개시일과 현재 계약만기일로 자동 계산한 기간입니다. 단위는 년입니다.',
-  extension_count: '계약이 연장된 횟수입니다. 단위는 회입니다.',
+  current_start_date: '현재 유효한 계약의 개시일입니다.',
+  current_end_date: '현재 유효한 계약의 만기일입니다.',
+  current_contract_period: '단위: 년. 현재 계약개시일과 현재 계약만기일로 자동 계산합니다.',
+  extension_count: '단위: 회. 계약이 연장된 횟수입니다.',
   required_specs_summary: '하중, 도크, 층고, 전력, 램프, 통로, 조명, 외벽자재 등 임차인이 요구한 스펙을 상세 표에서 항목별로 관리합니다.',
   insurance_rights_summary: '임차인 부담 비용, 중도해지권, 갱신 옵션, 보험 한도, 구상권·대위권 포기 여부, 보험 관련 특수 조건을 상세 표에서 관리합니다.',
   lease_special_summary: '다른 전용 컬럼에 이미 있는 일정, 금액, 보험 조건을 제외한 기타 특수 계약 조건만 관리합니다.',
-  sublease_yn: '전차 여부입니다. 해당하면 Y, 해당하지 않거나 원천값이 없으면 N으로 표시합니다.',
+  is_preleased: 'Y는 선임차, N은 일반 임차입니다.',
+  is_3pl: 'Y는 3PL 사용, N은 화주 직접 사용입니다.',
+  is_single_tenant: 'Y는 단일 임차인 사용, N은 복수 임차인 또는 해당 없음입니다.',
+  sublease_yn: 'Y는 전차 계약 있음, N은 전차 계약 없음입니다.',
   building_register_summary: '건축물대장 API와 자산 기본정보에 저장된 사용승인일, 연면적, 대지면적, 층수, 좌표 값을 상세 표에서 관리합니다.',
   disposition_status: '자산의 운영 상태입니다. 매각으로 표시된 자산은 아카이빙 대상이며 대시보드 표시 대상에서 제외합니다.',
+  leased_area_sqm: '단위: ㎡. 계약서에 적힌 임대면적입니다.',
+  current_monthly_rent_total: '단위: 원. 월 임대료 총액입니다.',
+  current_monthly_mf_total: '단위: 원. 월 관리비 총액입니다.',
+  current_monthly_cost_total: '단위: 원. 월 임대료와 월 관리비를 합친 금액입니다.',
+  deposit_amount: '단위: 원. 임대보증금입니다.',
+  rf_months: '단위: 개월. 계약 기간 중 제공된 Rent Free 총 기간입니다.',
+  fo_months: '단위: 개월. 계약 기간 중 제공된 Fit Out 총 기간입니다.',
+  ti_amount: '단위: 원. 계약 기간 중 제공된 TI 총액입니다.',
+  rent_escalation_rate: '임대료 인상 조건입니다. 고정 %, CPI 연동 등 계약서 표현 그대로 관리합니다.',
+  management_fee_escalation_rate: '관리비 인상 조건입니다. 고정 %, CPI 연동 등 계약서 표현 그대로 관리합니다.',
+  escalation_cycle_months: '단위: 개월. 임대료 또는 관리비 인상 주기입니다.',
+  next_escalation_date: '다음 임대료 또는 관리비 인상 예정일입니다.',
+  tenant_cost_burden: '보험료, 재산세 등 임차인이 부담하는 비용입니다.',
+  early_termination_right: '임차인 요구로 중도해지가 가능한지 관리합니다.',
+  renewal_option: '임차인 요구로 계약 갱신이 가능한지 관리합니다.',
 };
 
 const DATA_MANAGEMENT_GROUP_HELP = {
@@ -508,7 +520,7 @@ const DATA_MANAGEMENT_GROUP_HELP = {
   '특약': '계약 일정, 보증금, RF/FO/TI, 보험·권리와 분리되는 기타 특수 계약 조건입니다.',
   '기타 특약': '일정, 금액, 보험·권리처럼 별도 컬럼으로 관리되는 조건을 제외한 기타 특수 계약 조건입니다.',
   '검토': '검토 상태와 검토 메모입니다. 원천값 자체가 아니라 확인·승인 상태를 나타냅니다.',
-  '임차인 정보': '임차인명, 사업자번호, 회사명 등 임차인 기준 lookup 정보입니다.',
+  '임차인 정보': '임차인명과 사업자번호처럼 계약 표시 기준이 되는 값입니다.',
   '투자 구조': 'Equity, Loan, 합계처럼 투자 구조를 요약한 값입니다. 상세는 수익자·대주 상세 편집에서 관리합니다.',
   '투자자·대주': '수익자와 대주 정보입니다. 셀을 누르면 자산 탭 펀드개요 형식의 상세 표가 열립니다.',
   Tranche: '한 펀드 안에서 투자 또는 대출을 구분하는 행 단위 정보입니다. 상세 편집에서 행 추가, 수정, 삭제를 요청합니다.',
@@ -530,17 +542,8 @@ function dataManagementConsistencyGuide(fieldKey, label) {
 }
 
 function dataManagementColumnUnitGuide(column) {
-  const type = text(column?.type || '');
   const key = text(column?.field_key || column?.field || '').toLowerCase();
   const label = text(column?.label || '');
-  if (type === 'krw' || type === 'krw_raw' || isWonAmountColumn(column)) return '원 단위 숫자입니다. 입력 중에는 1,000,000원처럼 보이고, 승인 요청에는 숫자값으로 저장됩니다.';
-  if (type === 'krw_per_py') return '평당 원 단가입니다. 월 임대료 또는 월 관리비를 임대면적으로 나눈 값입니다.';
-  if (type === 'area_sqm') return '면적 단위입니다. 원본 항목 기준 단위와 화면 단위가 다를 수 있어 저장 전 검증합니다.';
-  if (type === 'percent') return '비율입니다. 3%는 3% 또는 0.03처럼 입력할 수 있습니다.';
-  if (type === 'months') return '개월 수입니다.';
-  if (type === 'date') return '날짜입니다. YYYY-MM-DD 형식입니다.';
-  if (type === 'yn') return 'Y/N 값입니다. 해당하면 Y, 해당하지 않으면 N입니다.';
-  if (type === 'number') return '숫자만 입력하는 값입니다.';
   if (/tranche/i.test(key + label)) return 'Equity 또는 Loan을 구분하는 Tranche입니다. 여러 건은 상세 편집에서 행별로 관리합니다.';
   return '';
 }
@@ -560,7 +563,6 @@ function dataManagementColumnEditGuide(column) {
 function dataManagementColumnHelp(column) {
   const label = text(column?.label || column?.field_key || column?.field || '컬럼');
   const group = text(column?.group || '');
-  const type = text(column?.type || '').toLowerCase();
   const consistency = dataManagementConsistencyGuide(column?.field_key || column?.field, label);
   const unit = dataManagementColumnUnitGuide(column);
   const editGuide = dataManagementColumnEditGuide(column);
@@ -569,9 +571,7 @@ function dataManagementColumnHelp(column) {
     editGuide,
     consistency ? `검증: ${consistency}` : '',
   ].filter(Boolean);
-  if (!helpLines.length) {
-    helpLines.push(type === 'text' ? '표시와 검색에 사용하는 텍스트 값입니다.' : '업무 화면에서 확인하는 값입니다.');
-  }
+  if (!helpLines.length) return '';
   return [group ? `${group} · ${label}` : label, ...helpLines].join('\n');
 }
 
@@ -9077,12 +9077,15 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     const fieldKey = text(column.field_key || column.field);
     if (!row?.row_key || !fieldKey || column.editable !== true || row.editable === false) return;
     const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
+    const editValues = row.edit_values && typeof row.edit_values === 'object' ? row.edit_values : {};
+    const rawBeforeValue = Object.prototype.hasOwnProperty.call(editValues, fieldKey) ? editValues[fieldKey] : values[fieldKey];
+    const beforeRaw = normalizeManagementCellInputValue(rawBeforeValue, column);
     const beforeDisplay = normalizeManagementCellInputValue(values[fieldKey], column);
     const editId = dataManagementDetailEditKey(row.row_key, fieldKey);
     const normalizedNextValue = normalizeManagementCellInputValue(nextValue, column);
     setDetailDrafts((current) => {
       const next = { ...current };
-      if (normalizedNextValue === beforeDisplay) {
+      if (normalizedNextValue === beforeRaw || normalizedNextValue === beforeDisplay) {
         delete next[editId];
         return next;
       }
@@ -9092,6 +9095,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         row_label: text(row.row_label, '상세 행'),
         field_key: fieldKey,
         field_label: text(column.label || fieldKey),
+        before_value: beforeRaw,
         before_display: beforeDisplay,
         requested_value: normalizedNextValue,
         revision_hash: row.revision_hash,
@@ -9191,6 +9195,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           field_key: detailModal.columnKey,
           detail_row_key: edit.row_key,
           detail_field_key: edit.field_key,
+          before_value: dataManagementSubmitBeforeValue(edit),
           requested_value: edit.requested_value,
           revision_hash: edit.revision_hash,
           bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
@@ -9207,6 +9212,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           field_key: detailModal.columnKey,
           detail_row_key: edit.row_key,
           detail_field_key: edit.field_key,
+          before_value: dataManagementSubmitBeforeValue(edit),
           requested_value: edit.requested_value,
           revision_hash: edit.revision_hash,
           bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',

@@ -137,6 +137,7 @@ const LOGISTICS_FEATURES = [
     { key: 'login_history', label: '로그인 이력', description: '권한자 로그인 이력 및 상태 조회' },
     { key: 'building_register_refresh', label: '건축물대장 새로고침', description: '건축물대장 API 재호출 및 Supabase 저장' },
     { key: 'opendart_refresh', label: 'OpenDART 새로고침', description: 'OpenDART API 재호출 및 Supabase 저장' },
+    { key: 'market_research', label: '시장 리서치', description: '시장 리서치 자료 검색 및 AI 답변 근거 조회' },
 ];
 const FEATURE_ACCESS_DEFAULT_USERS = [
     { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
@@ -376,11 +377,9 @@ const isDefaultFeatureAccessUser = (user = {}) => {
     const keys = new Set(featureUserKeys(user));
     return FEATURE_ACCESS_DEFAULT_USERS.some((defaultUser) => featureUserKeys(defaultUser).some((key) => keys.has(key)));
 };
-const featureAccessHasEffectiveUser = (config, featureKey, user) => (
-    isDefaultFeatureAccessUser(user) || featureAccessHasUser(config, featureKey, user)
-);
+const featureAccessHasEffectiveUser = (config, featureKey, user) => featureAccessHasUser(config, featureKey, user);
 const featureAccessGrantedUsers = (config, featureKey, users = []) => {
-    const merged = [...FEATURE_ACCESS_DEFAULT_USERS, ...(config.features?.[featureKey]?.users || [])];
+    const merged = [...(config.features?.[featureKey]?.users || [])];
     return mergeFeatureAccessUsers([
         ...merged,
         ...users.filter((row) => featureAccessHasEffectiveUser(config, featureKey, row)),

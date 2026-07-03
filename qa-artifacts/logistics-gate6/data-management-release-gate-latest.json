@@ -1,12 +1,12 @@
 {
   "ok": true,
-  "generated_at": "2026-07-02T15:58:39.439Z",
+  "generated_at": "2026-07-03T01:26:18.318Z",
   "mode": "data_management_release_gate",
   "auth_source": "password_grant",
   "options": {
     "allow_submit": true,
     "edge_only": false,
-    "require_written_history": true,
+    "require_written_history": false,
     "expected_asset_count": 19,
     "expected_fund_count": 17,
     "expected_pair_needle": "404",
@@ -72,7 +72,7 @@
       },
       {
         "column_names": "{id,event_type,action,status_code,requested_by,edit_request_id,target_table,target_row_id,target_cell_id,field_name,before_value,after_value,readback_value,actor_id,approver_id,source_row_id,source_cell_id,approval_status,legacy_table,legacy_id,finding_id,audit_run_id,finding_type,severity,entity_type,entity_id,source_sheet_name,source_row_number,source_column_number,source_header,source_value_text,supabase_value_text,event_status,event_payload,request_payload,metadata,created_at,updated_at}",
-        "exact_rows": 44186,
+        "exact_rows": 44335,
         "primary_key": "{id}",
         "rls_enabled": true,
         "table_name": "ll_audit_events"
@@ -93,7 +93,7 @@
       },
       {
         "column_names": "{id,source_table,finding_id,target_type,target_name,target_row_id,target_cell_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,requested_by,approved_by,approved_at,approval_note,rejected_by,rejected_at,rejection_note,created_at,updated_at,write_started_at,written_at,write_status,write_error,write_result}",
-        "exact_rows": 223,
+        "exact_rows": 225,
         "primary_key": "{id}",
         "rls_enabled": true,
         "table_name": "ll_edit_requests"
@@ -149,14 +149,14 @@
       },
       {
         "column_names": "{news_item_id,news_run_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,payload,created_at}",
-        "exact_rows": 115,
+        "exact_rows": 125,
         "primary_key": "{news_item_id}",
         "rls_enabled": true,
         "table_name": "ll_news_items"
       },
       {
         "column_names": "{news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,created_at,completed_at}",
-        "exact_rows": 15,
+        "exact_rows": 16,
         "primary_key": "{news_run_id}",
         "rls_enabled": true,
         "table_name": "ll_news_runs"
@@ -316,7 +316,7 @@
       "counted_table_count": 67,
       "missing_relation_count": 0,
       "unconnected_table_count": 0,
-      "total_row_count": 269942
+      "total_row_count": 270105
     },
     "management_scope": {
       "owner": "IGIS Asset Management",
@@ -445,7 +445,7 @@
         "table_name": "ll_audit_events",
         "ui_domain_key": "approval_audit",
         "ui_domain_label": "승인/감사",
-        "row_count": 44185,
+        "row_count": 44334,
         "exists": true,
         "write_mode": "approval_auto_write",
         "metadata_domain_group": "Permission / Audit",
@@ -520,7 +520,7 @@
         "table_name": "ll_edit_requests",
         "ui_domain_key": "approval_audit",
         "ui_domain_label": "승인/감사",
-        "row_count": 223,
+        "row_count": 225,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "metadata_domain_group": "Permission / Audit",
@@ -697,7 +697,7 @@
         "table_name": "ll_login_history",
         "ui_domain_key": "permission",
         "ui_domain_label": "권한/사용자",
-        "row_count": 148,
+        "row_count": 149,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "metadata_domain_group": "Permission / Audit",
@@ -766,7 +766,7 @@
         "table_name": "ll_news_items",
         "ui_domain_key": "work_platform",
         "ui_domain_label": "업무 플랫폼",
-        "row_count": 115,
+        "row_count": 125,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "metadata_domain_group": "Work Platform",
@@ -778,7 +778,7 @@
         "table_name": "ll_news_runs",
         "ui_domain_key": "work_platform",
         "ui_domain_label": "업무 플랫폼",
-        "row_count": 15,
+        "row_count": 16,
         "exists": true,
         "write_mode": "readback_or_system_workflow",
         "connected_to_data_management": true
@@ -1752,7 +1752,7 @@
     "source_rows": 1055,
     "columns": 800,
     "edit_requests": 120,
-    "written_history_count": 104
+    "written_history_count": 102
   },
   "preview_probe": {
     "ok": true,
@@ -1771,7 +1771,7 @@
       "view_key": "lease_general_excel",
       "row_key": "dmv_lease_general_excel_c4d3ff37625f36bffe28",
       "field_key": "tenant_master_name",
-      "requested_value": "쿠팡(주) QA-20260702-155820",
+      "requested_value": "쿠팡(주) QA-20260703-012553",
       "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
       "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
     },
@@ -1783,7 +1783,7 @@
       "type": "text"
     },
     "before_value": "쿠팡(주)",
-    "requested_value": "쿠팡(주) QA-20260702-155820",
+    "requested_value": "쿠팡(주) QA-20260703-012553",
     "can_submit": true,
     "auto_write_enabled": true,
     "source_review_required": false,
@@ -1840,7 +1840,7 @@
           "view_key": "lease_general_excel",
           "row_key": "dmv_lease_general_excel_c4d3ff37625f36bffe28",
           "field_key": "tenant_master_name",
-          "requested_value": "쿠팡(주) QA-20260702-155820",
+          "requested_value": "쿠팡(주) QA-20260703-012553",
           "revision_hash": "sha256:5ec385186af3a360f33a76112262f3d8e89c05eb54b0fa1e3a747a1949f382a7",
           "reason": "QA Data Management view_field preview/readback probe. Approval is not automated by this script."
         },
@@ -1852,7 +1852,7 @@
           "type": "text"
         },
         "before_value": "쿠팡(주)",
-        "requested_value": "쿠팡(주) QA-20260702-155820",
+        "requested_value": "쿠팡(주) QA-20260703-012553",
         "can_submit": true,
         "auto_write_enabled": true,
         "source_review_required": false,
@@ -1906,15 +1906,15 @@
   },
   "view_field_submit_probe": {
     "ok": true,
-    "id": "b81199ea-87ab-4482-99f1-4ca9d888efaf",
+    "id": "ad936da8-d98b-48f4-8ce6-209126c0b762",
     "submit": {
-      "id": "b81199ea-87ab-4482-99f1-4ca9d888efaf",
+      "id": "ad936da8-d98b-48f4-8ce6-209126c0b762",
       "status": "submitted",
       "write_status": "approval_required",
-      "created_at": "2026-07-02T15:58:38.875722+00:00"
+      "created_at": "2026-07-03T01:26:17.714169+00:00"
     },
     "readback": {
-      "id": "b81199ea-87ab-4482-99f1-4ca9d888efaf",
+      "id": "ad936da8-d98b-48f4-8ce6-209126c0b762",
       "status": "submitted",
       "requested_by": "9ca68a02-f7cb-4c9f-bc63-982abc9251a4",
       "readbacks": [
@@ -1924,7 +1924,7 @@
           "target_cell_id": "undefined",
           "field_name": "tenant_master_name",
           "before_value": "쿠팡(주)",
-          "requested_value": "쿠팡(주) QA-20260702-155820",
+          "requested_value": "쿠팡(주) QA-20260703-012553",
           "current_value": "쿠팡(주)",
           "stale": false,
           "source_row_id": "tenant_brn_1208800767",
