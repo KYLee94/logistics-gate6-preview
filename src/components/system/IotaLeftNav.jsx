@@ -250,6 +250,23 @@ const writeCachedNotifications = (rows = []) => {
         // Cache write failure should not block the notification panel.
     }
 };
+const readStoredNotificationIds = (key) => {
+    try {
+        if (typeof localStorage === 'undefined' || !key) return [];
+        const rows = JSON.parse(localStorage.getItem(key) || '[]');
+        return Array.isArray(rows) ? rows.map((item) => String(item || '')).filter(Boolean) : [];
+    } catch {
+        return [];
+    }
+};
+const writeStoredNotificationIds = (key, ids = []) => {
+    try {
+        if (typeof localStorage === 'undefined' || !key) return;
+        localStorage.setItem(key, JSON.stringify([...new Set(ids.map((item) => String(item || '')).filter(Boolean))].slice(-500)));
+    } catch {
+        // Local notification state is a fallback, not a blocker.
+    }
+};
 const compactFeatureAccessUserRow = (user = {}) => {
     const row = user || {};
     const staffName = String(row.staff_name || row.name || '').trim();
@@ -702,6 +719,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const [notificationsError, setNotificationsError] = useState('');
     const [notifications, setNotifications] = useState(() => readCachedNotifications());
     const [readNotificationIds, setReadNotificationIds] = useState([]);
+    const [dismissedNotificationIds, setDismissedNotificationIds] = useState([]);
     const [newPassword, setNewPassword] = useState('');
     const [isCollapsed, setIsCollapsed] = useState(() => {
         const saved = sessionStorage.getItem('iotaLeftNavCollapsed');
@@ -820,6 +838,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const owner = user?.id || user?.email || memberInfo?.email || memberInfo?.staff_name || 'anonymous';
         return `logistics-notifications-read:${owner}`;
     }, [memberInfo?.email, memberInfo?.staff_name, user?.email, user?.id]);
+    const notificationDismissedStorageKey = useMemo(() => {
+        const owner = user?.id || user?.email || memberInfo?.email || memberInfo?.staff_name || 'anonymous';
+        return `logistics-notifications-dismissed:${owner}`;
+    }, [memberInfo?.email, memberInfo?.staff_name, user?.email, user?.id]);
     const unreadNotificationCount = notifications.filter((item) => !readNotificationIds.includes(item.id)).length;
     const toggleLoginCapabilitySort = (key) => {
         setLoginCapabilitySort((current) => ({
@@ -830,7 +852,14 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const persistReadNotificationIds = (updater) => {
         setReadNotificationIds((current) => {
             const next = [...new Set(typeof updater === 'function' ? updater(current) : updater)].slice(-300);
-            localStorage.setItem(notificationStorageKey, JSON.stringify(next));
+            writeStoredNotificationIds(notificationStorageKey, next);
+            return next;
+        });
+    };
+    const persistDismissedNotificationIds = (updater) => {
+        setDismissedNotificationIds((current) => {
+            const next = [...new Set(typeof updater === 'function' ? updater(current) : updater)].slice(-500);
+            writeStoredNotificationIds(notificationDismissedStorageKey, next);
             return next;
         });
     };
@@ -920,7 +949,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 throw new Error('notification timeout');
             }
 
-            const next = sortNotifications(rows).slice(0, 80);
+            const dismissedIds = new Set(readStoredNotificationIds(notificationDismissedStorageKey));
+            const next = sortNotifications(rows).filter((item) => !dismissedIds.has(item.id)).slice(0, 80);
             setNotifications(next);
             writeCachedNotifications(next);
             const serverReadIds = next.filter((item) => item.readAt || item.deliveryStatus === 'read').map((item) => item.id).filter(Boolean);
@@ -928,7 +958,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
             if (markRead) markNotificationsRead(next);
             return next;
         } catch (error) {
-            const fallbackRows = cachedRows.length ? cachedRows : readCachedNotifications();
+            const dismissedIds = new Set(readStoredNotificationIds(notificationDismissedStorageKey));
+            const fallbackRows = (cachedRows.length ? cachedRows : readCachedNotifications())
+                .filter((item) => !dismissedIds.has(item.id));
             if (fallbackRows.length) {
                 setNotifications(fallbackRows);
                 setNotificationsError('새 알림 조회가 늦어져 기존 알림을 표시하고 있습니다. 잠시 후 새로고침을 눌러 주세요.');
@@ -957,36 +989,37 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const next = notifications.filter((row) => row.id !== item.id);
         setNotifications(next);
         writeCachedNotifications(next);
+        persistDismissedNotificationIds((ids) => [...ids, item.id]);
         setReadNotificationIds((ids) => ids.filter((id) => id !== item.id));
         if (item.canonical) {
             try {
-                await invokeWithTimeout('notifications/dismiss', { ids: [item.id] }, 10000);
+                const { data, error } = await invokeWithTimeout('notifications/dismiss', { ids: [item.id] }, 10000);
+                if (error || data?.ok === false) throw new Error(data?.message || error?.message || 'notification dismiss failed');
             } catch {
                 setNotificationsError('알림 삭제 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
             }
         }
     };
     const dismissAllNotifications = async () => {
+        const ids = notifications.map((item) => item.id).filter(Boolean);
         const canonicalIds = notifications.filter((item) => item.canonical).map((item) => item.id);
         setNotifications([]);
         writeCachedNotifications([]);
+        persistDismissedNotificationIds((current) => [...current, ...ids]);
         setReadNotificationIds([]);
         if (canonicalIds.length) {
             try {
-                await invokeWithTimeout('notifications/dismiss', { all: true }, 12000);
+                const { data, error } = await invokeWithTimeout('notifications/dismiss', { all: true }, 12000);
+                if (error || data?.ok === false) throw new Error(data?.message || error?.message || 'notification dismiss all failed');
             } catch {
                 setNotificationsError('전체 알림 삭제 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
             }
         }
     };
     useEffect(() => {
-        try {
-            const saved = JSON.parse(localStorage.getItem(notificationStorageKey) || '[]');
-            setReadNotificationIds(Array.isArray(saved) ? saved : []);
-        } catch {
-            setReadNotificationIds([]);
-        }
-    }, [notificationStorageKey]);
+        setReadNotificationIds(readStoredNotificationIds(notificationStorageKey));
+        setDismissedNotificationIds(readStoredNotificationIds(notificationDismissedStorageKey));
+    }, [notificationStorageKey, notificationDismissedStorageKey]);
     useEffect(() => {
         if (!isLogisticsPath) return;
         loadNotifications({ silent: true });

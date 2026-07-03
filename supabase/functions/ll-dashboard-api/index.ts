@@ -492,6 +492,18 @@ const LOGISTICS_ADMIN_EMAILS = new Set([
   'seunghoon.lee@igisam.com',
   'ethan.lee@igisam.com',
 ]);
+const DATA_MANAGEMENT_APPROVER_EMAILS = new Set([
+  'kylee@igisam.com',
+  'sjlee@igisam.com',
+  'jk.jeon@igisam.com',
+]);
+
+function canApproveDataManagementChanges(ctx: Context) {
+  const authEmail = normalizeAuthEmail(ctx.user?.email);
+  const permissionEmail = normalizeAuthEmail(ctx.permission?.email);
+  return DATA_MANAGEMENT_APPROVER_EMAILS.has(authEmail)
+    || DATA_MANAGEMENT_APPROVER_EMAILS.has(permissionEmail);
+}
 
 function allLogisticsFeaturePermissions(enabled = true) {
   const out: Record<string, boolean> = {};
@@ -5482,7 +5494,7 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
     ctx.serviceClient.from('ll_funds').select('*').limit(500),
     ctx.serviceClient.from('ll_fund_asset_links').select('*').limit(1000),
     ctx.serviceClient.from('ll_fund_capital_tranches').select('*').eq('is_active', true).limit(2000),
-    ctx.serviceClient.from('ll_assets').select('asset_id,asset_code,asset_name,asset_status,disposition_status,review_status,status').limit(1000),
+    ctx.serviceClient.from('ll_assets').select('*').limit(1000),
   ]);
   const hardError = [fundsResult, linksResult, tranchesResult, assetsResult].find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return fail(500, 'Failed to read investment index', ctx.origin, { error: hardError.error.message });
@@ -12244,7 +12256,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   });
   return jsonResponse({ ok: true, data: {
     access_scope: managerView ? 'manager_full_source' : 'asset_limited',
-    can_approve: managerView,
+    can_approve: canApproveDataManagementChanges(ctx),
     current_user_id: ctx.user.id,
     managed_asset_codes: managementScope.readableAssets.map((row) => safeText(firstDefined(row.asset_code, row.asset_name, row.asset_id))).filter(Boolean),
     management_scope: {
@@ -14984,8 +14996,7 @@ async function approveDataManagementDetailRowChange(ctx: Context, payload: Recor
 }
 
 async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Manager')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
+  if (!canApproveDataManagementChanges(ctx)) return fail(403, 'Data Management approval permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/approve', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const id = String(payload.id || '');
   if (!id) return fail(400, 'id is required', ctx.origin);
@@ -14996,7 +15007,6 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     .eq('id', id)
     .single();
   if (error || !data) return fail(404, 'Edit request not found', ctx.origin);
-  if (data.requested_by === ctx.user.id) return fail(403, 'Self approval is not allowed', ctx.origin);
   if (!isEditRequestPendingStatus(data.status, data.write_status)) {
     if (isStaleEditRequestRunning(data as Record<string, unknown>)) {
       const recoveredAt = new Date().toISOString();
@@ -15189,8 +15199,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
 }
 
 async function rejectEdit(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Manager')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
+  if (!canApproveDataManagementChanges(ctx)) return fail(403, 'Data Management approval permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/reject', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const id = String(payload.id || '');
   if (!id) return fail(400, 'id is required', ctx.origin);
@@ -15200,7 +15209,6 @@ async function rejectEdit(ctx: Context, payload: Record<string, unknown>) {
     .eq('id', id)
     .single();
   if (currentError || !current) return fail(404, 'Edit request not found', ctx.origin);
-  if (current.requested_by === ctx.user.id) return fail(403, 'Self rejection is not allowed', ctx.origin);
   if (!isEditRequestPendingStatus(current.status, (current as Record<string, unknown>).write_status)) return fail(409, 'Only pending edit requests can be rejected', ctx.origin);
   const { data, error } = await ctx.serviceClient
     .from('ll_edit_requests')

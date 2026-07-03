@@ -37,7 +37,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-async function createApprovalProbe({ supabaseUrl, anonKey, auth, stamp }) {
+async function createApprovalProbe({ supabaseUrl, anonKey, auth, stamp, selfApprove = false }) {
   const assetRead = await invoke(supabaseUrl, anonKey, auth.token, 'dashboard/asset/read', {});
   const asset = assetRead.data?.asset;
   assert(asset?.asset_id && asset?.asset_name, 'dashboard/asset/read did not return an editable asset.');
@@ -75,6 +75,18 @@ async function createApprovalProbe({ supabaseUrl, anonKey, auth, stamp }) {
   const editId = submitted.data?.id;
   assert(editId, 'edits/submit did not return an edit request id.');
 
+  if (selfApprove) {
+    runLinkedDbQuery(`
+update public.ll_edit_requests
+set request_payload = jsonb_set(coalesce(request_payload, '{}'::jsonb), '{qa_requester_self_approval}', 'true'::jsonb, true),
+    updated_at = now()
+where id = ${sqlLiteral(editId)}
+  and status = 'submitted'
+returning id::text, requested_by::text, status, write_status;
+`, 'approval-pending-live-smoke-self');
+    return { editId, asset, targetName, beforeValue };
+  }
+
   const swapped = runLinkedDbQuery(`
 with other_user as (
   select id as user_id
@@ -99,13 +111,14 @@ returning id::text, requested_by::text, status, write_status;
 
 async function main() {
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
+  const selfApprove = process.argv.includes('--self-approve');
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Missing Supabase URL or anon key.');
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
   const auth = await signIn(supabaseUrl, anonKey);
-  const probe = await createApprovalProbe({ supabaseUrl, anonKey, auth, stamp });
+  const probe = await createApprovalProbe({ supabaseUrl, anonKey, auth, stamp, selfApprove });
   const statusBefore = await invoke(supabaseUrl, anonKey, auth.token, 'data-management/status', { limit: 120, row_limit: 20 });
   const pendingBefore = safeArray(statusBefore.data?.edit_requests).find((row) => text(row.request_id || row.id) === probe.editId);
   assert(pendingBefore, 'Created approval request was not returned by data-management/status.');
@@ -117,6 +130,7 @@ async function main() {
     ok: false,
     generated_at: new Date().toISOString(),
     base_url: baseUrl,
+    mode: selfApprove ? 'self_approval_allowed_approver' : 'non_self_approval',
     edit_request_id: probe.editId,
     target_name: probe.targetName,
     checks: {},
@@ -158,6 +172,8 @@ async function main() {
         && (request.postData() || '').includes('edits/approve');
     }, { timeout: 15000 });
     const approveButton = page.locator('[data-data-management-approval-detail="true"] button').last();
+    report.checks.detail_approve_button_enabled = await approveButton.isEnabled().catch(() => false);
+    assert(report.checks.detail_approve_button_enabled, 'Detail approve button is disabled for the signed-in approver.');
     await approveButton.click();
     const approveResponse = await approveResponsePromise;
     report.metrics.approve_response_ms = Date.now() - approveStarted;

@@ -7684,7 +7684,7 @@ function DataManagementApprovalDashboard() {
     return approvalValue(items[0]?.[key], items[0]?.field_name);
   };
   const statusLabelFor = (row) => text(row?.status_label || (isPendingRequest(row) ? '승인 대기' : row?.write_status || row?.status), '-');
-  const canReviewRequest = (row) => Boolean(data?.can_approve) && isPendingRequest(row) && text(row?.requested_by) !== text(data?.current_user_id);
+  const canReviewRequest = (row) => Boolean(data?.can_approve) && isPendingRequest(row);
   const pendingRequests = editRequests.filter(isPendingRequest);
   const selectedRequest = editRequests.find((row) => requestIdFor(row) === selectedRequestId) || pendingRequests[0] || editRequests[0] || null;
   const requestRows = pendingRequests.length ? pendingRequests : editRequests;
@@ -8274,7 +8274,7 @@ function DataManagementDashboardLegacy() {
       align: 'right',
       render: (_, row) => data?.can_approve ? (
         <div className="flex justify-end gap-2">
-          <button type="button" disabled={row.requested_by === data?.user_id} onClick={(event) => { event.stopPropagation(); reviewEdit('approve', row); }} className="h-7 rounded-[7px] border border-white bg-white px-2 text-[11px] font-bold text-[#1F1F1E] disabled:opacity-35">승인</button>
+          <button type="button" onClick={(event) => { event.stopPropagation(); reviewEdit('approve', row); }} className="h-7 rounded-[7px] border border-white bg-white px-2 text-[11px] font-bold text-[#1F1F1E] disabled:opacity-35">승인</button>
           <button type="button" onClick={(event) => { event.stopPropagation(); reviewEdit('reject', row); }} className="h-7 rounded-[7px] border border-[#3A3A3C] px-2 text-[11px] font-semibold text-[#A1A1AA]">반려</button>
         </div>
       ) : <span className="text-[11px] text-[#86868B]">권한 없음</span>,
