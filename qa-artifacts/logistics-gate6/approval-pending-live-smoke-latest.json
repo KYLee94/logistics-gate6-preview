@@ -1,0 +1,22 @@
+{
+  "ok": true,
+  "generated_at": "2026-07-03T07:41:59.220Z",
+  "base_url": "https://kylee94.github.io/logistics-gate6-preview/",
+  "edit_request_id": "032a0295-d540-4c58-807f-510fb1eb7b51",
+  "target_name": "경산 쿠팡물류센터 QA-20260703-074143",
+  "checks": {
+    "detail_modal_opens_from_row": true,
+    "approve_http_ok": true,
+    "approve_under_3s": true,
+    "status_written_after_approve": true,
+    "no_internal_summary_values": true
+  },
+  "metrics": {
+    "approve_response_ms": 690
+  },
+  "screenshots": {
+    "detail": "qa-artifacts/logistics-gate6/approval-pending-live-smoke-20260703-074143-detail.png",
+    "after": "qa-artifacts/logistics-gate6/approval-pending-live-smoke-20260703-074143-after.png"
+  },
+  "errors": []
+}
