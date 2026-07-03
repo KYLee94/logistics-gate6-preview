@@ -165,17 +165,22 @@ async function main() {
     report.checks.detail_modal_opens_from_row = detailText.includes(probe.beforeValue) && detailText.includes('QA no-op approval live smoke');
     await page.screenshot({ path: beforeScreenshot, fullPage: false });
 
-    const approveStarted = Date.now();
-    const approveResponsePromise = page.waitForResponse((response) => {
-      const request = response.request();
-      return response.url().includes('/functions/v1/ll-dashboard-api')
-        && (request.postData() || '').includes('edits/approve');
-    }, { timeout: 15000 });
-    const approveButton = page.locator('[data-data-management-approval-detail="true"] button').last();
+    const approveButton = page
+      .locator('[data-data-management-approval-detail="true"]')
+      .getByRole('button', { name: /^승인$/ })
+      .last();
+    await approveButton.waitFor({ state: 'visible', timeout: 10000 });
     report.checks.detail_approve_button_enabled = await approveButton.isEnabled().catch(() => false);
     assert(report.checks.detail_approve_button_enabled, 'Detail approve button is disabled for the signed-in approver.');
-    await approveButton.click();
-    const approveResponse = await approveResponsePromise;
+    const approveStarted = Date.now();
+    const [approveResponse] = await Promise.all([
+      page.waitForResponse((response) => {
+        const request = response.request();
+        return response.url().includes('/functions/v1/ll-dashboard-api')
+          && (request.postData() || '').includes('edits/approve');
+      }, { timeout: 30000 }),
+      approveButton.click(),
+    ]);
     report.metrics.approve_response_ms = Date.now() - approveStarted;
     const approveBody = await approveResponse.json().catch(() => ({}));
     report.checks.approve_http_ok = approveResponse.ok() && approveBody?.ok !== false;

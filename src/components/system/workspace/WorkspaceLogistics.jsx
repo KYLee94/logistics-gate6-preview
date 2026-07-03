@@ -4084,12 +4084,6 @@ function WeeklyDashboard() {
 void LegacyWorkspaceLogistics;
 
 const MAIN_PRIORITIES = ['높음', '중간', '낮음'];
-const PLAYGROUND_MODES = [
-  { id: 'sandbox', label: 'Sandbox', title: '샌드박스 결과' },
-  { id: 'explorer', label: 'Explorer', title: '탐색 결과' },
-  { id: 'workspace', label: 'BI Workspace', title: 'BI 워크스페이스 결과' },
-];
-
 const PLAYGROUND_DIMENSIONS = [
   { key: 'assetName', label: '자산' },
   { key: 'fundName', label: '펀드' },
@@ -4122,13 +4116,6 @@ const PLAYGROUND_AGGREGATIONS = [
   { key: 'count', label: '개수' },
   { key: 'max', label: '최대' },
   { key: 'min', label: '최소' },
-];
-
-const PLAYGROUND_SAVED_VIEWS = [
-  { key: 'asset-cost', label: '자산별 월 임관리비', dimension: 'assetName', metric: 'monthlyCostTotal', topN: 15 },
-  { key: 'tenant-cost', label: '임차인별 월 임관리비', dimension: 'tenantMasterName', metric: 'monthlyCostTotal', topN: 15 },
-  { key: 'fund-area', label: '펀드별 임대면적(평)', dimension: 'fundName', metric: 'leasedAreaSqm', topN: 15 },
-  { key: 'review-count', label: '검토 상태별 건수', dimension: 'calculatedReviewStatus', metric: 'count', topN: 10 },
 ];
 
 const WEEKLY_REPORT_LIBRARY = [
@@ -10735,8 +10722,6 @@ function DataPlaygroundDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo);
-  const [mode, setMode] = useState('sandbox');
-  const [sourceBasis, setSourceBasis] = useState('current');
   const [dimension, setDimension] = useState('assetName');
   const [columnDimension, setColumnDimension] = useState('none');
   const [filterDimension, setFilterDimension] = useState('');
@@ -10745,13 +10730,11 @@ function DataPlaygroundDashboard() {
   const [secondaryMetric, setSecondaryMetric] = useState('leasedAreaSqm');
   const [aggregation, setAggregation] = useState('sum');
   const [topN, setTopN] = useState(15);
-  const [excludeBlank, setExcludeBlank] = useState(true);
   const [modal, setModal] = useState(null);
   const sourceRows = useMemo(() => filterAssetsByPermission(dashboardDataset.generalRows, permission), [dashboardDataset.generalRows, permission]);
   const metricDef = metricDefinition(metric);
   const secondaryMetricDef = metricDefinition(secondaryMetric);
-  const activeMode = PLAYGROUND_MODES.find((item) => item.id === mode) || PLAYGROUND_MODES[0];
-  const basisLabel = sourceBasis === 'history' ? 'DB_히스토리 누적 기준' : 'DB_일반 현재값 기준';
+  const excludeBlank = false;
   const filterOptions = useMemo(() => {
     if (!filterDimension) return [];
     const grouped = sourceRows.reduce((acc, row) => {
@@ -10794,31 +10777,6 @@ function DataPlaygroundDashboard() {
     formatCurrency(item.monthlyCostTotal),
     item.currentEndDate || '-',
   ]);
-  const applySavedView = (view) => {
-    setDimension(view.dimension);
-    setMetric(view.metric);
-    setSecondaryMetric(view.secondaryMetric || 'leasedAreaSqm');
-    setTopN(view.topN);
-    setColumnDimension(view.columnDimension || 'none');
-    setFilterDimension(view.filterDimension || '');
-    setFilterValue(view.filterValue || '');
-  };
-  const explorerRows = pivot.filteredRows.slice(0, 80).map((row) => [
-    row.assetName,
-    row.tenantMasterName,
-    row.fundName,
-    row.region,
-    row.goodsType,
-    row.coldStorageType,
-    formatArea(row.grossFloorAreaSqm),
-    formatArea(row.leasedAreaSqm),
-    formatCurrency(row.currentMonthlyRentTotal),
-    formatCurrency(row.currentMonthlyMfTotal),
-    formatCurrency(row.monthlyCostTotal),
-    formatWon(firstDefined(row.eNoc, row.averageENoc, row.currentENoc, row.currentENocPerPy)),
-    row.currentEndDate || '-',
-  ]);
-
   return (
     <div className="space-y-6">
       <LogisticsModal modal={modal} onClose={() => setModal(null)} />
@@ -10828,24 +10786,9 @@ function DataPlaygroundDashboard() {
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader
           eyebrow="PIVOT TABLE"
-          title="Pivot Table"
-          right={<button type="button" onClick={() => setModal({ title: 'Pivot Table 피벗 결과', size: 'wide', headers: tableHeaders, rows: tableRows })} className="h-9 cursor-pointer rounded-[8px] bg-[#30302F] px-3 text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">피벗 결과 크게 보기</button>}
+          title="피벗 테이블"
+          right={<button type="button" onClick={() => setModal({ title: '피벗 결과', size: 'wide', headers: tableHeaders, rows: tableRows })} className="h-9 cursor-pointer rounded-[8px] bg-[#30302F] px-3 text-[13px] font-semibold text-white hover:bg-[#3A3A3A]">피벗 결과 크게 보기</button>}
         />
-        <div className="mb-5 flex flex-wrap items-center gap-2">
-          {PLAYGROUND_MODES.map((item) => (
-            <button key={item.id} type="button" onClick={() => setMode(item.id)} className={`h-9 cursor-pointer rounded-[8px] border px-3 text-[12px] font-semibold ${mode === item.id ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#A1A1AA] hover:text-white'}`}>
-              {item.label}
-            </button>
-          ))}
-          <select value={sourceBasis} onChange={(event) => setSourceBasis(event.target.value)} className="h-9 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-white">
-            <option value="current">DB_일반 현재값</option>
-            <option value="history">DB_히스토리 누적</option>
-          </select>
-          <label className="ml-auto flex h-9 items-center gap-2 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-[#D1D1D6]">
-            <input type="checkbox" checked={excludeBlank} onChange={(event) => setExcludeBlank(event.target.checked)} />
-            빈값 제외
-          </label>
-        </div>
         <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-7">
           <label className="block">
             <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">행 필드</span>
@@ -10901,22 +10844,9 @@ function DataPlaygroundDashboard() {
                 {filterOptions.map((item) => <option key={item.value} value={item.value}>{item.value} · {formatNumber(item.count)}건</option>)}
               </select>
             </label>
-            <div>
-              <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">저장된 보기</span>
-              <div className="flex flex-wrap gap-2">
-                {PLAYGROUND_SAVED_VIEWS.map((view) => <button key={view.key} type="button" onClick={() => applySavedView(view)} className="h-10 cursor-pointer rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-[#A1A1AA] hover:bg-[#30302F] hover:text-white">{view.label}</button>)}
-              </div>
-            </div>
           </div>
-        ) : (
-          <div className="mb-5">
-            <span className="mb-2 block text-[12px] font-semibold text-[#86868B]">저장된 보기</span>
-            <div className="flex flex-wrap gap-2">
-              {PLAYGROUND_SAVED_VIEWS.map((view) => <button key={view.key} type="button" onClick={() => applySavedView(view)} className="h-10 cursor-pointer rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E] px-3 text-[12px] font-semibold text-[#A1A1AA] hover:bg-[#30302F] hover:text-white">{view.label}</button>)}
-            </div>
-          </div>
-        )}
-        <div className="text-[12px] leading-5 text-[#86868B]">{activeMode.title} · {basisLabel} · 행: {rowDimensionLabel} · 열: {columnDimensionLabel} · 값: {aggregationLabel} {metricDef.label} · 보조 값: {secondaryMetricDef.label} · 권한 자산 기준 {formatNumber(pivot.filteredRows.length)}행</div>
+        ) : null}
+        <div className="text-[12px] leading-5 text-[#86868B]">행: {rowDimensionLabel} · 열: {columnDimensionLabel} · 값: {aggregationLabel} {metricDef.label} · 보조 값: {secondaryMetricDef.label} · 권한 자산 기준 {formatNumber(pivot.filteredRows.length)}행</div>
       </section>
       <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
         <SectionHeader eyebrow="PIVOT RESULT" title="피벗 결과 테이블" />
@@ -10980,35 +10910,6 @@ function DataPlaygroundDashboard() {
           ],
         }))} labelKey="label" valueKey="value" valueType={metricDef.type} valueLabel={`${aggregationLabel} ${metricDef.label}`} showXAxisLabels={false} onClick={() => setModal({ title: 'Pivot Table 차트 상세', size: 'wide', headers: tableHeaders, rows: tableRows })} />
       </section>
-      {mode === 'explorer' ? (
-        <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-          <SectionHeader eyebrow="EXPLORER" title="원본 레코드 미리보기" />
-          <DataTable
-            headers={['자산', '임차인', '펀드', '권역', '물류 유형', '저온 유형', '연면적(평)', '임대면적(평)', '월 임대료', '월 관리비', '월 임관리비', 'E.NOC', '만기']}
-            rows={explorerRows}
-            compact
-          />
-        </section>
-      ) : null}
-      {mode === 'workspace' ? (
-        <section className="rounded-[20px] border border-[#333333] bg-[#252524] p-5">
-          <SectionHeader eyebrow="BI WORKSPACE" title="피벗 설정 감사" />
-          <DataTable
-            headers={['항목', '현재 설정']}
-            rows={[
-              ['데이터 기준', basisLabel],
-              ['행 필드', rowDimensionLabel],
-              ['열 필드', columnDimensionLabel],
-              ['값 필드', `${aggregationLabel} ${metricDef.label}`],
-              ['보조 값', `${aggregationLabel} ${secondaryMetricDef.label}`],
-              ['필터', filterDimension ? `${PLAYGROUND_DIMENSIONS.find((item) => item.key === filterDimension)?.label || filterDimension} = ${filterValue || '전체'}` : '전체'],
-              ['표시 행', `Top ${formatNumber(topN)}`],
-              ['권한 반영 행', `${formatNumber(pivot.filteredRows.length)}행`],
-            ]}
-            compact
-          />
-        </section>
-      ) : null}
     </div>
   );
 }

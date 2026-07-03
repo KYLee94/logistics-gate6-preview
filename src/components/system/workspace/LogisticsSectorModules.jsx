@@ -4782,6 +4782,7 @@ function assetSpecValue(row, rowNumber, fallback = '') {
 }
 
 const ASSET_SPEC_COMPARE_SLOT_COUNT = 4;
+const ASSET_SPEC_ALL_TENANT_OPTION = '전체';
 
 function assetSpecComparisonRows(targets, maybeRight) {
   const comparisonTargets = Array.isArray(targets)
@@ -6982,25 +6983,22 @@ export function MarketDataDashboard({ activeTab = 'overview' }) {
 }
 
 export function InvestmentIndexDashboard() {
-  const [mode, setMode] = useState('fund');
   const [showStructureTable, setShowStructureTable] = useState(false);
   const [detailTarget, setDetailTarget] = useState(null);
   const [loanRateTranche, setLoanRateTranche] = useState('전체 평균');
   const { loading, error, data } = useEdgeData('investment-index/read', {}, []);
   const funds = safeArray(data?.funds);
-  const assets = safeArray(data?.assets);
   const tranches = safeArray(data?.tranches);
   const summary = data?.summary || {};
-  const rows = useMemo(() => (mode === 'fund' ? funds : assets)
+  const rows = useMemo(() => funds
     .slice()
     .sort((a, b) => (
       number(b.total_capital_krw) - number(a.total_capital_krw)
-    )), [assets, funds, mode]);
+    )), [funds]);
   const fundBasisTotals = {
     equity: number(summary.funds?.equity_krw) || funds.reduce((sum, row) => sum + number(row.equity_krw), 0),
     loan: number(summary.funds?.loan_krw) || funds.reduce((sum, row) => sum + number(row.loan_krw), 0),
   };
-  const assetBasisReferenceTotal = number(summary.assets?.reference_total_capital_krw);
   const loanMaturityRows = useMemo(() => normalizeLoanTrancheRows(tranches, funds), [funds, tranches]);
   const loanMaturityChartRows = useMemo(() => loanMaturityTimelineRows(loanMaturityRows), [loanMaturityRows]);
   const loanRateBaseRows = useMemo(() => normalizeLoanRateRows(tranches, funds), [funds, tranches]);
@@ -7014,29 +7012,16 @@ export function InvestmentIndexDashboard() {
       ? loanRateBaseRows
       : loanRateBaseRows.filter((row) => text(row.tranche_display) === loanRateTranche)
   ), [loanRateBaseRows, loanRateTranche]);
-  const hasAssetRegion = mode === 'asset' && rows.some((row) => row.region || row.capital_region || row.national_region || row.region_group);
-  const tableColumns = mode === 'fund'
-    ? [
-      { key: 'display_name', label: '펀드명', width: 220, noTruncate: true },
-      { key: 'asset_names', label: '연결 자산', width: 360, noTruncate: true, render: (row) => safeArray(row.asset_names).join(', ') || '-' },
-      { key: 'equity_krw', label: 'Equity', width: 150, align: 'right', render: (row) => formatKrw(row.equity_krw), sortValue: (row) => number(row.equity_krw) },
-      { key: 'loan_krw', label: 'Loan', width: 150, align: 'right', render: (row) => formatKrw(row.loan_krw), sortValue: (row) => number(row.loan_krw) },
-      { key: 'total_capital_krw', label: '합계', width: 150, align: 'right', render: (row) => formatKrw(row.total_capital_krw), sortValue: (row) => number(row.total_capital_krw) },
-      { key: 'loan_ratio', label: 'Loan 비중', width: 120, align: 'right', render: (row) => formatRate(number(row.loan_krw) / Math.max(1, number(row.total_capital_krw))), sortValue: (row) => number(row.loan_krw) / Math.max(1, number(row.total_capital_krw)) },
-      { key: 'equity_tranches', label: 'Equity Tranche', width: 170, render: (row) => trancheSummaryText(investmentDetailRows(row, mode, tranches).filter((item) => !isLoanTranche(item))), sortValue: (row) => investmentDetailRows(row, mode, tranches).filter((item) => !isLoanTranche(item)).length },
-      { key: 'loan_tranches', label: 'Loan Tranche', width: 170, render: (row) => trancheSummaryText(investmentDetailRows(row, mode, tranches).filter(isLoanTranche)), sortValue: (row) => investmentDetailRows(row, mode, tranches).filter(isLoanTranche).length },
-    ]
-    : [
-      { key: 'display_name', label: '자산명', width: 220, noTruncate: true },
-      ...(hasAssetRegion ? [{ key: 'region', label: '권역', width: 150, render: (row) => formatRegionLabel(row.region || row.capital_region || row.national_region || row.region_group), sortValue: (row) => regionValue(row.region || row.capital_region || row.national_region || row.region_group) }] : []),
-      { key: 'fund_names', label: '연결 펀드', width: 300, noTruncate: true, render: (row) => safeArray(row.fund_names).join(', ') || '-' },
-      { key: 'equity_krw', label: 'Equity', width: 145, align: 'right', render: (row) => formatKrw(row.equity_krw), sortValue: (row) => number(row.equity_krw) },
-      { key: 'loan_krw', label: 'Loan', width: 145, align: 'right', render: (row) => formatKrw(row.loan_krw), sortValue: (row) => number(row.loan_krw) },
-      { key: 'total_capital_krw', label: '합계', width: 145, align: 'right', render: (row) => formatKrw(row.total_capital_krw), sortValue: (row) => number(row.total_capital_krw) },
-      { key: 'equity_tranches', label: 'Equity Tranche', width: 170, render: (row) => trancheSummaryText(investmentDetailRows(row, mode, tranches).filter((item) => !isLoanTranche(item))), sortValue: (row) => investmentDetailRows(row, mode, tranches).filter((item) => !isLoanTranche(item)).length },
-      { key: 'loan_tranches', label: 'Loan Tranche', width: 170, render: (row) => trancheSummaryText(investmentDetailRows(row, mode, tranches).filter(isLoanTranche)), sortValue: (row) => investmentDetailRows(row, mode, tranches).filter(isLoanTranche).length },
-      { key: 'current_manager_name', label: '담당자', width: 120, render: (row) => text(row.current_manager_name) },
-    ];
+  const tableColumns = [
+    { key: 'display_name', label: '펀드명', width: 220, noTruncate: true },
+    { key: 'asset_names', label: '연결 자산', width: 420, noTruncate: true, render: (row) => safeArray(row.asset_names).join(', ') || '-' },
+    { key: 'equity_krw', label: 'Equity', width: 150, align: 'right', render: (row) => formatKrw(row.equity_krw), sortValue: (row) => number(row.equity_krw) },
+    { key: 'loan_krw', label: 'Loan', width: 150, align: 'right', render: (row) => formatKrw(row.loan_krw), sortValue: (row) => number(row.loan_krw) },
+    { key: 'total_capital_krw', label: '합계', width: 150, align: 'right', render: (row) => formatKrw(row.total_capital_krw), sortValue: (row) => number(row.total_capital_krw) },
+    { key: 'loan_ratio', label: 'Loan 비중', width: 120, align: 'right', render: (row) => formatRate(number(row.loan_krw) / Math.max(1, number(row.total_capital_krw))), sortValue: (row) => number(row.loan_krw) / Math.max(1, number(row.total_capital_krw)) },
+    { key: 'equity_tranches', label: 'Equity Tranche', width: 170, render: (row) => trancheSummaryText(investmentDetailRows(row, 'fund', tranches).filter((item) => !isLoanTranche(item))), sortValue: (row) => investmentDetailRows(row, 'fund', tranches).filter((item) => !isLoanTranche(item)).length },
+    { key: 'loan_tranches', label: 'Loan Tranche', width: 170, render: (row) => trancheSummaryText(investmentDetailRows(row, 'fund', tranches).filter(isLoanTranche)), sortValue: (row) => investmentDetailRows(row, 'fund', tranches).filter(isLoanTranche).length },
+  ];
   const detailRows = useMemo(() => {
     if (!detailTarget) return [];
     if (detailTarget.type === 'loan-rate-asset') {
@@ -7047,7 +7032,7 @@ export function InvestmentIndexDashboard() {
     }
     if (detailTarget.type === 'loan-maturity-month') return safeArray(detailTarget.row?.details);
     if (detailTarget.type === 'loan-rate' || detailTarget.type === 'loan-maturity') return [detailTarget.row];
-    return investmentDetailRows(detailTarget.row, detailTarget.mode, tranches)
+    return investmentDetailRows(detailTarget.row, 'fund', tranches)
       .map((row) => normalizeInvestmentDetailRow(row, funds));
   }, [detailTarget, funds, loanRateBaseRows, tranches]);
   const detailEquityRows = detailRows.filter((row) => !isLoanTranche(row));
@@ -7063,7 +7048,7 @@ export function InvestmentIndexDashboard() {
         ? `${text(detailTarget.row.label)} 대출 만기`
         : detailTarget.type === 'loan-rate' || detailTarget.type === 'loan-maturity'
           ? `${text(detailTarget.row.fund_display_name)} · ${text(detailTarget.row.asset_display_label)}`
-      : investmentDisplayLabel(detailTarget.row, detailTarget.mode)
+      : investmentDisplayLabel(detailTarget.row, 'fund')
     : '';
   const detailColumns = [
     { key: 'tranche_type_label', label: '구분', width: 130 },
@@ -7077,9 +7062,6 @@ export function InvestmentIndexDashboard() {
   ];
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Tabs tabs={[{ id: 'fund', label: '펀드 기준' }, { id: 'asset', label: '자산 기준' }]} value={mode} onChange={setMode} />
-      </div>
       {error ? <div className="rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
       {loading && !data ? <div className={`${INNER} px-4 py-6 text-center text-[#A1A1AA]`}>투자지표를 불러오는 중입니다.</div> : null}
       <section className="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -7090,14 +7072,14 @@ export function InvestmentIndexDashboard() {
       <section className={`${CARD} p-5`}>
         <ModuleHeader
           eyebrow="CAPITAL STACK"
-          title={mode === 'fund' ? '펀드별 Equity / Loan 구성' : '자산별 Equity / Loan 구성'}
+          title="펀드별 Equity / Loan 구성"
         />
         <StackedCapitalChart
           rows={rows}
           maxRows={Infinity}
-          labelForRow={(row) => investmentDisplayLabel(row, mode)}
-          tooltipForRow={(row, metrics) => investmentTooltip(row, mode, tranches, metrics)}
-          onRowClick={(row) => setDetailTarget({ type: 'structure', mode, row })}
+          labelForRow={(row) => investmentDisplayLabel(row, 'fund')}
+          tooltipForRow={(row, metrics) => investmentTooltip(row, 'fund', tranches, metrics)}
+          onRowClick={(row) => setDetailTarget({ type: 'structure', row })}
         />
         <button
           type="button"
@@ -7110,13 +7092,13 @@ export function InvestmentIndexDashboard() {
         {showStructureTable ? (
           <div className="mt-5">
             <SortableTable
-              minWidth={mode === 'fund' ? 1490 : hasAssetRegion ? 1420 : 1270}
+              minWidth={1490}
               maxHeight={420}
               stickyCount={1}
               defaultSort={{ key: 'total_capital_krw', direction: 'desc' }}
               columns={tableColumns}
               rows={rows}
-              onRowClick={(row) => setDetailTarget({ type: 'structure', mode, row })}
+              onRowClick={(row) => setDetailTarget({ type: 'structure', row })}
             />
           </div>
         ) : null}
@@ -7359,11 +7341,21 @@ export function AssetSpecDashboard() {
   const tenantRowsVersion = tenantRows.map((row) => row.id).join('|');
   const editableAssetsVersion = editableAssets.map((row) => `${row.asset_id}:${row.can_create ? 'c' : ''}${row.can_update ? 'u' : ''}${row.can_delete ? 'd' : ''}`).join('|');
   const tenantNames = useMemo(() => (
-    Array.from(new Set(tenantRows.map((row) => text(row.tenant_name, '')).filter(Boolean)))
-      .sort((a, b) => a.localeCompare(b, 'ko'))
+    [
+      ASSET_SPEC_ALL_TENANT_OPTION,
+      ...Array.from(new Set(tenantRows.map((row) => text(row.tenant_name, '')).filter(Boolean)))
+        .sort((a, b) => a.localeCompare(b, 'ko')),
+    ]
   ), [tenantRowsVersion]);
   const tenantAssetsByName = useMemo(() => {
     const grouped = new Map();
+    grouped.set(ASSET_SPEC_ALL_TENANT_OPTION, rows.map((row) => ({
+      id: `${row.asset_id}:${ASSET_SPEC_ALL_TENANT_OPTION}`,
+      asset_id: row.asset_id,
+      tenant_name: ASSET_SPEC_ALL_TENANT_OPTION,
+      asset_name: row.asset_name,
+      asset_row: row,
+    })));
     tenantRows.forEach((row) => {
       const tenantName = text(row.tenant_name, '');
       if (!tenantName) return;
@@ -7373,7 +7365,7 @@ export function AssetSpecDashboard() {
     });
     grouped.forEach((items) => items.sort((a, b) => text(a.asset_name).localeCompare(text(b.asset_name), 'ko')));
     return grouped;
-  }, [tenantRowsVersion]);
+  }, [rowsVersion, tenantRowsVersion]);
   useEffect(() => {
     if (!rows.length) return;
     setAssetCompareIds((current) => {
@@ -7684,7 +7676,7 @@ function DataManagementApprovalDashboard() {
     return approvalValue(items[0]?.[key], items[0]?.field_name);
   };
   const statusLabelFor = (row) => text(row?.status_label || (isPendingRequest(row) ? '승인 대기' : row?.write_status || row?.status), '-');
-  const canReviewRequest = (row) => Boolean(data?.can_approve) && isPendingRequest(row);
+  const canReviewRequest = (row) => isPendingRequest(row);
   const pendingRequests = editRequests.filter(isPendingRequest);
   const selectedRequest = editRequests.find((row) => requestIdFor(row) === selectedRequestId) || pendingRequests[0] || editRequests[0] || null;
   const requestRows = pendingRequests.length ? pendingRequests : editRequests;
