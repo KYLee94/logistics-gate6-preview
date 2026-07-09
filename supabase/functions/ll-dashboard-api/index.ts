@@ -13008,7 +13008,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
 }
 
 const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v10-strict-window-backfill';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v11-precollected-topic-dedupe';
 const NEWS_MIN_DAILY_ITEMS = 8;
 const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NEWS_HOUR_MS = 60 * 60 * 1000;
@@ -13057,6 +13057,7 @@ const NEWS_MAJOR_COMPANIES = [
   { key: 'cjlogistics', label: 'CJ대한통운', terms: ['CJ대한통운', '대한통운', 'CJ Logistics'] },
   { key: 'hanjin', label: '한진', terms: ['한진'] },
   { key: 'kurly', label: '컬리', terms: ['컬리', 'Kurly'] },
+  { key: 'naver', label: '네이버', terms: ['네이버', 'NAVER'] },
   { key: 'lotte', label: '롯데글로벌로지스', terms: ['롯데글로벌로지스', '롯데택배', '롯데 물류', '롯데'] },
   { key: 'ssg', label: 'SSG', terms: ['SSG', '쓱닷컴', '이마트'] },
   { key: 'lx-pantos', label: 'LX판토스', terms: ['LX판토스', '판토스'] },
@@ -13229,7 +13230,7 @@ function newsScore(item: { title: string; summary: string }) {
 
 function newsTitleTokens(value: unknown) {
   return [...new Set(newsStripHtml(value).toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) || [])]
-    .filter((token) => !['단독', '종합', '속보', '포토', '영상'].includes(token));
+    .filter((token) => !['단독', '종합', '속보', '포토', '영상', '뉴스', '피벗', '인사이트'].includes(token));
 }
 
 function newsTitleSimilarity(left: unknown, right: unknown) {
@@ -13243,6 +13244,13 @@ function newsTitleSimilarity(left: unknown, right: unknown) {
 
 function newsStoryClusterKey(value: unknown) {
   const normalized = newsNormalizeTitle(value);
+  const text = newsStripHtml(value).toLowerCase();
+  const hasAny = (terms: string[]) => terms.some((term) => text.includes(term.toLowerCase()));
+  if (
+    hasAny(['네이버', 'naver'])
+    && hasAny(['물류', '물류센터', '배송', '직배송', '커머스', '거점', '풀필먼트'])
+    && hasAny(['쿠팡', '배민', '투자', '인수', '추격', '맞대결'])
+  ) return 'story:naver-logistics-commerce';
   if (normalized.includes('캠퍼스크루') || (normalized.includes('쿠팡풀필먼트') && normalized.includes('인증'))) return 'story:coupang-campuscrew';
   if (normalized.includes('롱탄') && normalized.includes('물류센터')) return 'story:long-thanh-logistics-center';
   if (normalized.includes('휴머노이드') && normalized.includes('물류센터')) return 'story:humanoid-logistics-center';
@@ -13649,45 +13657,7 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   if (selectedRunKey) runQuery = runQuery.eq('run_key', selectedRunKey);
   const runResult = await runQuery.limit(1).maybeSingle();
   if (runResult.error && !isMissingRelationError(runResult.error)) return fail(500, 'Failed to read logistics news run', ctx.origin, { error: runResult.error.message });
-  let latestRun = runResult.data || null;
-  const runSummary = (latestRun as Record<string, unknown> | null)?.source_summary as Record<string, unknown> | undefined;
-  const todayKey = newsTodayKstDateKey();
-  const isMostRecentDate = !hasDateFilter || selectedDate === todayKey;
-  const requestedRefresh = payload.refresh === true || payload.force_refresh === true || payload.forceRefresh === true;
-  const itemCountHint = Number(firstDefined(runSummary?.item_count, runSummary?.selected_item_count, runSummary?.candidate_count, runSummary?.strict_item_count, 0));
-  const collectorVersionChanged = safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION;
-  const runAllowsOutOfWindowItems = Boolean(runSummary)
-    && (runSummary?.strict_window_only !== true
-      || Boolean(runSummary?.expanded_to_recent_7d)
-      || Number(runSummary?.expanded_recent_days || 0) > 0);
-  const sparseRunNeedsBackfill = hasDateFilter
-    && Boolean(latestRun)
-    && Number.isFinite(itemCountHint)
-    && itemCountHint < NEWS_MIN_DAILY_ITEMS;
-  const shouldCollectMissingRun = hasDateFilter && !latestRun;
-  const shouldRefreshSelectedRun = hasDateFilter
-    && Boolean(latestRun)
-    && (requestedRefresh || collectorVersionChanged || runAllowsOutOfWindowItems || sparseRunNeedsBackfill);
-  const shouldRefreshMostRecentRun = hasDateFilter && isMostRecentDate && shouldRefreshSelectedRun;
-  if (shouldCollectMissingRun || shouldRefreshMostRecentRun || shouldRefreshSelectedRun) {
-    try {
-      const refreshed = await collectAndStoreNewsRun(ctx, selectedDate, limit);
-      latestRun = refreshed.run;
-    } catch (error) {
-      if (!latestRun) {
-        return jsonResponse({ ok: true, data: {
-          status: 'collection_failed',
-          selected_date: selectedDate,
-          latest_run: null,
-          items: [],
-          item_count: 0,
-          empty_message: NEWS_EMPTY_MESSAGE,
-          collection_error: error instanceof Error ? error.message : String(error),
-          generated_at: new Date().toISOString(),
-        } }, 200, ctx.origin);
-      }
-    }
-  }
+  const latestRun = runResult.data || null;
   let itemQuery = ctx.serviceClient
     .from('ll_news_items')
     .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,payload,created_at')
@@ -13707,6 +13677,8 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   })).slice(0, limit);
   return jsonResponse({ ok: true, data: {
     status: latestRun ? safeText((latestRun as Record<string, unknown>).run_status || 'completed') : 'no_run',
+    collection_mode: 'precollected_read_only',
+    collect_on_read: false,
     selected_date: hasDateFilter ? selectedDate : safeText((latestRun as Record<string, unknown> | null)?.run_key).match(/daily-news:(\d{4}-\d{2}-\d{2}):0700KST/u)?.[1] || '',
     latest_run: latestRun,
     items: visibleItems,

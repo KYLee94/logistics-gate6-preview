@@ -6,7 +6,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
 const BING_NEWS_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v10-strict-window-backfill';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v11-precollected-topic-dedupe';
 const MIN_DAILY_NEWS_ITEMS = 8;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
@@ -53,6 +53,7 @@ const MAJOR_COMPANIES = [
   { key: 'cjlogistics', label: 'CJ대한통운', terms: ['CJ대한통운', '대한통운', 'CJ Logistics'] },
   { key: 'hanjin', label: '한진', terms: ['한진'] },
   { key: 'kurly', label: '컬리', terms: ['컬리', 'Kurly'] },
+  { key: 'naver', label: '네이버', terms: ['네이버', 'NAVER'] },
   { key: 'lotte', label: '롯데글로벌로지스', terms: ['롯데글로벌로지스', '롯데택배', '롯데 물류', '롯데'] },
   { key: 'ssg', label: 'SSG', terms: ['SSG', '쓱닷컴', '이마트'] },
   { key: 'lx-pantos', label: 'LX판토스', terms: ['LX판토스', '판토스'] },
@@ -303,7 +304,7 @@ function scoreItem(item) {
 
 function titleTokens(value) {
   return [...new Set(stripHtml(value).toLowerCase().match(/[\p{L}\p{N}]{2,}/gu) || [])]
-    .filter((token) => !['단독', '종합', '속보', '포토', '영상'].includes(token));
+    .filter((token) => !['단독', '종합', '속보', '포토', '영상', '뉴스', '피벗', '인사이트'].includes(token));
 }
 
 function titleSimilarity(left, right) {
@@ -317,6 +318,13 @@ function titleSimilarity(left, right) {
 
 function storyClusterKey(value) {
   const normalized = normalizeTitle(value);
+  const text = stripHtml(value).toLowerCase();
+  const hasAny = (terms) => terms.some((term) => text.includes(String(term).toLowerCase()));
+  if (
+    hasAny(['네이버', 'naver'])
+    && hasAny(['물류', '물류센터', '배송', '직배송', '커머스', '거점', '풀필먼트'])
+    && hasAny(['쿠팡', '배민', '투자', '인수', '추격', '맞대결'])
+  ) return 'story:naver-logistics-commerce';
   if (normalized.includes('캠퍼스크루') || (normalized.includes('쿠팡풀필먼트') && normalized.includes('인증'))) return 'story:coupang-campuscrew';
   if (normalized.includes('롱탄') && normalized.includes('물류센터')) return 'story:long-thanh-logistics-center';
   if (normalized.includes('휴머노이드') && normalized.includes('물류센터')) return 'story:humanoid-logistics-center';

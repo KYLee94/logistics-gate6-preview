@@ -83,11 +83,23 @@ function companyMentions(title) {
     ['cjlogistics', ['cj\uB300\uD55C\uD1B5\uC6B4', '\uB300\uD55C\uD1B5\uC6B4', 'cj logistics']],
     ['hanjin', ['\uD55C\uC9C4']],
     ['kurly', ['\uCEEC\uB9AC', 'kurly']],
+    ['naver', ['\uB124\uC774\uBC84', 'naver']],
     ['lotte', ['\uB86F\uB370\uAE00\uB85C\uBC8C\uB85C\uC9C0\uC2A4', '\uB86F\uB370\uD0DD\uBC30', '\uB86F\uB370 \uBB3C\uB958']],
   ];
   return companies
     .filter(([, terms]) => terms.some((term) => normalized.includes(term.toLowerCase())))
     .map(([key]) => key);
+}
+
+function storyCluster(title) {
+  const normalized = String(title || '').toLowerCase();
+  const hasAny = (terms) => terms.some((term) => normalized.includes(term.toLowerCase()));
+  if (
+    hasAny(['\uB124\uC774\uBC84', 'naver'])
+    && hasAny(['\uBB3C\uB958', '\uBB3C\uB958\uC13C\uD130', '\uBC30\uC1A1', '\uC9C1\uBC30\uC1A1', '\uCEE4\uBA38\uC2A4', '\uAC70\uC810', '\uD480\uD544\uBA3C\uD2B8'])
+    && hasAny(['\uCFE0\uD321', '\uBC30\uBBFC', '\uD22C\uC790', '\uC778\uC218', '\uCD94\uACA9', '\uB9DE\uB300\uACB0'])
+  ) return 'story:naver-logistics-commerce';
+  return '';
 }
 
 async function signIn(supabaseUrl, anonKey) {
@@ -110,6 +122,7 @@ async function signIn(supabaseUrl, anonKey) {
 }
 
 async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = {}) {
+  const startedAt = Date.now();
   const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/functions/v1/ll-dashboard-api`, {
     method: 'POST',
     headers: {
@@ -120,6 +133,7 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = 
     },
     body: JSON.stringify({ action: 'news/list', payload: { limit: 10, date, ...extraPayload } }),
   });
+  const durationMs = Date.now() - startedAt;
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body?.ok === false) throw new Error(`news/list ${date} failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
   const data = body.data || {};
@@ -128,6 +142,11 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = 
   const expected = expectedWindow(date);
   const dedupeKeys = items.map((item) => item.dedupe_key).filter(Boolean);
   const normalizedTitles = items.map((item) => String(item.title || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')).filter(Boolean);
+  const storyClusters = items.map((item) => storyCluster(item.title)).filter(Boolean);
+  const storyClusterCounts = storyClusters.reduce((acc, key) => {
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
   const categoryCounts = items.reduce((acc, item) => {
     const category = item.payload?.category || item.category || 'unknown';
     acc[category] = (acc[category] || 0) + 1;
@@ -136,6 +155,7 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = 
   return {
     date,
     http_status: response.status,
+    duration_ms: durationMs,
     data_status: data.status,
     selected_date: data.selected_date,
     run_key: data.latest_run?.run_key || null,
@@ -164,6 +184,9 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = 
     missing_dedupe_count: items.filter((item) => !item.dedupe_key).length,
     unique_dedupe_count: new Set(dedupeKeys).size,
     unique_title_count: new Set(normalizedTitles).size,
+    duplicate_topic_clusters: Object.entries(storyClusterCounts)
+      .filter(([, count]) => Number(count) > 1)
+      .map(([cluster, count]) => ({ cluster, count })),
     empty_message: data.empty_message,
     source_summary: sourceSummary,
     window_hours: sourceSummary.window_hours,
@@ -199,7 +222,17 @@ async function main() {
   const targets = dates.length ? dates : [today, addDateDays(today, -1)];
   const auth = await signIn(supabaseUrl, anonKey);
   const checks = [];
-  for (const date of targets) checks.push(await invokeNewsList(supabaseUrl, anonKey, auth.token, date));
+  for (const date of targets) {
+    const first = await invokeNewsList(supabaseUrl, anonKey, auth.token, date);
+    const second = await invokeNewsList(supabaseUrl, anonKey, auth.token, date);
+    checks.push({
+      ...second,
+      first_duration_ms: first.duration_ms,
+      first_completed_at: first.completed_at,
+      repeated_read_completed_at_unchanged: first.completed_at === second.completed_at,
+      repeated_read_items_unchanged: JSON.stringify(first.item_keys || []) === JSON.stringify(second.item_keys || []),
+    });
+  }
   const preservation_checks = [];
   for (const date of preserveRefreshDates) {
     const before = await invokeNewsList(supabaseUrl, anonKey, auth.token, date);
@@ -224,6 +257,7 @@ async function main() {
       removed_keys: (before.item_keys || []).filter((key) => !afterKeys.has(key)),
       today_refresh_attempted: true,
       today_refresh_updated: Boolean(todayBefore.completed_at && todayAfter.completed_at && todayBefore.completed_at !== todayAfter.completed_at),
+      today_refresh_preserved: todayBefore.completed_at === todayAfter.completed_at,
       past_run_unchanged: before.run_key === after.run_key
         && before.news_run_id === after.news_run_id
         && before.completed_at === after.completed_at,
@@ -233,7 +267,7 @@ async function main() {
         && after.item_count <= 10
         && todayBefore.completed_at
         && todayAfter.completed_at
-        && todayBefore.completed_at !== todayAfter.completed_at
+        && todayBefore.completed_at === todayAfter.completed_at
         && after.item_count >= before.item_count
         && before.run_key === after.run_key
         && before.news_run_id === after.news_run_id
@@ -253,9 +287,13 @@ async function main() {
       && check.outside_window_items.length === 0
       && check.item_count >= MIN_DAILY_NEWS_ITEMS
       && check.item_count <= 10
+      && check.duration_ms <= 3000
+      && check.repeated_read_completed_at_unchanged === true
+      && check.repeated_read_items_unchanged === true
       && check.missing_dedupe_count === 0
       && check.unique_dedupe_count === check.item_count
       && check.unique_title_count === check.item_count
+      && check.duplicate_topic_clusters.length === 0
       && check.titles_with_important_prefix.length === 0
       && check.titles_with_publisher_suffix.length === 0
       && check.missing_publisher_count === 0

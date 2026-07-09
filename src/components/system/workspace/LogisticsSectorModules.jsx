@@ -4938,7 +4938,7 @@ function DailyLogisticsNewsCardLegacy() {
           </button>
         </div>
         <div className="flex items-center gap-2 md:justify-end">
-          <button type="button" onClick={() => reload(selectedDate === todayKey ? { refresh: true } : {}, { force: true })} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">새로고침</button>
+          <button type="button" onClick={() => reload({}, { force: true })} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">새로고침</button>
           <button type="button" onClick={() => setExpanded((value) => !value)} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
             {expanded ? '접기' : '펼치기'}
           </button>
@@ -5011,7 +5011,7 @@ export function DailyLogisticsNewsCard() {
           <button type="button" aria-label="다음 날짜 뉴스" onClick={() => goDate(1)} disabled={selectedDate >= todayKey} className="grid h-8 w-8 place-items-center rounded-[8px] border border-[#3A3A3C] text-[15px] font-semibold text-[#E5E5E5] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35">›</button>
         </div>
         <div className="flex items-center gap-2 md:justify-end">
-          <button type="button" onClick={() => reload(selectedDate === todayKey ? { refresh: true } : {}, { force: true })} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">새로고침</button>
+          <button type="button" onClick={() => reload({}, { force: true })} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">새로고침</button>
           <button type="button" onClick={() => setExpanded((value) => !value)} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
             {expanded ? '접기' : '펼치기'}
           </button>
