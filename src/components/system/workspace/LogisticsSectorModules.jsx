@@ -2741,6 +2741,11 @@ function MarketMapPanel({
       button.style.setProperty('--market-cluster-shift-y', `${Math.round(shiftY)}px`);
     });
   }, []);
+  const scheduleRegionClusterClamp = useCallback(() => {
+    [0, 80, 180].forEach((delay) => {
+      window.setTimeout(() => window.requestAnimationFrame(clampRegionClusterMarkers), delay);
+    });
+  }, [clampRegionClusterMarkers]);
 
   useEffect(() => {
     openMapItemRef.current = openMapItem;
@@ -3166,7 +3171,7 @@ function MarketMapPanel({
         mapZoomListenerRef.current = window.naver.maps.Event.addListener(map, 'zoom_changed', () => {
           const nextZoom = Number(map.getZoom?.());
           if (Number.isFinite(nextZoom)) setMapZoom(nextZoom);
-          window.requestAnimationFrame(clampRegionClusterMarkers);
+          scheduleRegionClusterClamp();
         });
         markersRef.current = mappableRows.map((item) => {
           const markerOptions = {
@@ -3254,7 +3259,7 @@ function MarketMapPanel({
         [80, 260].forEach((delay) => window.setTimeout(() => {
           if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) {
             refreshNaverMap(map);
-            window.requestAnimationFrame(clampRegionClusterMarkers);
+            scheduleRegionClusterClamp();
           }
         }, delay));
       } catch {
@@ -3266,7 +3271,7 @@ function MarketMapPanel({
       cancelled = true;
       clearNaverHealthMonitor();
     };
-  }, [markerRows, selectedMapRegion, forceOsm, clusterIconHtml, clampRegionClusterMarkers]);
+  }, [markerRows, selectedMapRegion, forceOsm, clusterIconHtml, clampRegionClusterMarkers, scheduleRegionClusterClamp]);
 
   useEffect(() => {
     applyMapDisplayType(mapInstanceRef.current, mapDisplayType);
@@ -3343,8 +3348,7 @@ function MarketMapPanel({
             color: #fff;
             font: inherit;
             line-height: 1;
-            translate: var(--market-cluster-shift-x, 0px) var(--market-cluster-shift-y, 0px);
-            scale: var(--market-cluster-visual-scale, 1);
+            transform: translate(var(--market-cluster-shift-x, 0px), var(--market-cluster-shift-y, 0px)) scale(var(--market-cluster-visual-scale, 1));
             box-shadow: 0 8px 18px rgba(0, 0, 0, 0.30);
             cursor: pointer;
             pointer-events: auto !important;
