@@ -11856,6 +11856,13 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
     kind: 'data_management_view_field_batch_edit',
     edit_mode: 'view_field_batch',
     client_request_id: clientRequestId || null,
+    requester_profile: {
+      user_id: ctx.user.id,
+      email: ctx.permission?.email || ctx.user.email || null,
+      staff_name: firstDefined(ctx.permission?.staff_name, actorName(ctx)),
+      organization: ctx.permission?.organization || null,
+      image_url: ctx.permission?.image_url || null,
+    },
     view_key: requestViewKey || null,
     source_domain: requestSourceDomain || null,
     bundle_key: payload.bundle_key || payload.bundleKey || null,
@@ -12142,6 +12149,35 @@ async function dataManagementRequesterProfiles(ctx: Context, rows: Record<string
       if (userId) profiles.set(userId, compactEditRequesterProfile(row, userId));
     });
   }
+  rows.forEach((row) => {
+    const userId = safeText(row.requested_by);
+    if (!userId || profiles.has(userId)) return;
+    const payload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
+    const snapshot = payload.requester_profile && typeof payload.requester_profile === 'object'
+      ? payload.requester_profile as Record<string, unknown>
+      : {};
+    if (Object.keys(snapshot).length) {
+      profiles.set(userId, compactEditRequesterProfile({ ...snapshot, user_id: userId }, userId));
+    }
+  });
+  const missingAuthIds = requestedIds.filter((userId) => userId && !profiles.has(userId) && userId !== ctx.user.id);
+  await Promise.all(missingAuthIds.slice(0, 80).map(async (userId) => {
+    try {
+      const { data: authData, error: authError } = await ctx.serviceClient.auth.admin.getUserById(userId);
+      if (authError || !authData?.user) return;
+      const metadata = (authData.user.user_metadata || {}) as Record<string, unknown>;
+      const email = normalizeAuthEmail(authData.user.email || metadata.email);
+      profiles.set(userId, compactEditRequesterProfile({
+        user_id: userId,
+        email,
+        staff_name: firstDefined(metadata.staff_name, metadata.name, metadata.full_name, staffNameForEmail(email)),
+        organization: firstDefined(metadata.organization, metadata.department),
+        image_url: firstDefined(metadata.image_url, metadata.avatar_url, metadata.picture),
+      }, userId));
+    } catch (_error) {
+      // Auth lookup is only a display fallback; do not block approval status.
+    }
+  }));
   requestedIds.forEach((userId) => {
     if (profiles.has(userId)) return;
     if (userId === ctx.user.id) {
