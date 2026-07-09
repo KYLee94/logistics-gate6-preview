@@ -13008,9 +13008,8 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
 }
 
 const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v9-relaxed-sparse-backfill';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v10-strict-window-backfill';
 const NEWS_MIN_DAILY_ITEMS = 8;
-const NEWS_EXPANDED_RECENT_DAYS = 14;
 const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NEWS_HOUR_MS = 60 * 60 * 1000;
 const NEWS_RSS_FETCH_TIMEOUT_MS = 7000;
@@ -13304,6 +13303,16 @@ function newsSelectBalancedItems(items: NewsCollectorItem[], limit = 10) {
   for (const item of sorted) {
     if (add(item, false)) return selected;
   }
+  for (const item of sorted) {
+    if (selected.length >= limit) return selected;
+    if (!item || selectedKeys.has(item.dedupe_key)) continue;
+    const category = safeText(item.payload?.category || 'other');
+    const companyKey = newsCompanyKeyForItem(item);
+    selected.push(item);
+    selectedKeys.add(item.dedupe_key);
+    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    if (companyKey) companyCounts[companyKey] = (companyCounts[companyKey] || 0) + 1;
+  }
   return selected;
 }
 
@@ -13430,6 +13439,9 @@ async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days
 
 async function collectNewsRowsForWindowWithExpansion(windowStart: Date, windowEnd: Date, days: number) {
   const strict = await collectNewsRowsForWindow(windowStart, windowEnd, days);
+  let selected = strict;
+  let historicalBackfill = false;
+  let relaxedBackfill = false;
   if (strict.items.length >= NEWS_MIN_DAILY_ITEMS) {
     return {
       ...strict,
@@ -13437,15 +13449,12 @@ async function collectNewsRowsForWindowWithExpansion(windowStart: Date, windowEn
       expandedToRecent7d: false,
       expandedWindowStart: windowStart,
       historicalBackfill: false,
+      relaxedBackfill: false,
+      strictWindowOnly: true,
     };
   }
-  const expandedWindowStart = new Date(windowEnd.getTime() - NEWS_EXPANDED_RECENT_DAYS * 24 * 60 * 60 * 1000);
-  const expanded = await collectNewsRowsForWindow(expandedWindowStart, windowEnd, NEWS_EXPANDED_RECENT_DAYS);
-  const useExpanded = expanded.items.length >= strict.items.length;
-  let selected = useExpanded ? expanded : strict;
-  let historicalBackfill = false;
   if (selected.items.length < NEWS_MIN_DAILY_ITEMS) {
-    const historical = await collectNewsRowsForHistoricalWindow(expandedWindowStart, windowEnd).catch(() => null);
+    const historical = await collectNewsRowsForHistoricalWindow(windowStart, windowEnd).catch(() => null);
     if (historical?.items?.length) {
       const mergedItems = newsSelectBalancedItems([...selected.items, ...historical.items], 10);
       if (mergedItems.length > selected.items.length) {
@@ -13463,9 +13472,9 @@ async function collectNewsRowsForWindowWithExpansion(windowStart: Date, windowEn
     }
   }
   if (selected.items.length < NEWS_MIN_DAILY_ITEMS) {
-    const relaxed = await collectNewsRowsForWindow(expandedWindowStart, windowEnd, NEWS_EXPANDED_RECENT_DAYS, {
+    const relaxed = await collectNewsRowsForWindow(windowStart, windowEnd, days, {
       minimumScore: 1,
-      backfillMode: 'relaxed_sparse_window',
+      backfillMode: 'relaxed_same_window',
     }).catch(() => null);
     if (relaxed?.items?.length) {
       const mergedItems = newsSelectBalancedItems([...selected.items, ...relaxed.items], 10);
@@ -13479,15 +13488,18 @@ async function collectNewsRowsForWindowWithExpansion(windowStart: Date, windowEn
           sourceStats,
           candidateCount: Math.max(Number(selected.candidateCount || 0), 0) + Math.max(Number(relaxed.candidateCount || 0), 0),
         };
+        relaxedBackfill = true;
       }
     }
   }
   return {
     ...selected,
     strictItemCount: strict.items.length,
-    expandedToRecent7d: true,
-    expandedWindowStart,
+    expandedToRecent7d: false,
+    expandedWindowStart: windowStart,
     historicalBackfill,
+    relaxedBackfill,
+    strictWindowOnly: true,
   };
 }
 
@@ -13574,10 +13586,12 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
         strict_window_end: strictWindow.windowEnd.toISOString(),
         strict_item_count: strictItemCount,
         item_count: Math.min(collected.items.length, Math.max(limit, 10)),
-        expanded_to_recent_7d: Boolean((collected as Record<string, unknown>).expandedToRecent7d),
-        expanded_recent_days: NEWS_EXPANDED_RECENT_DAYS,
+        strict_window_only: true,
+        expanded_to_recent_7d: false,
+        expanded_recent_days: 0,
         historical_backfill: Boolean((collected as Record<string, unknown>).historicalBackfill),
-        expanded_window_start: ((collected as Record<string, unknown>).expandedWindowStart as Date | undefined)?.toISOString?.() || null,
+        same_window_relaxed_backfill: Boolean((collected as Record<string, unknown>).relaxedBackfill),
+        expanded_window_start: null,
         strict_24h_window: strictWindow.windowHours === 24,
         candidate_count: collected.candidateCount || collected.items.length,
         selection_policy: {
@@ -13607,9 +13621,7 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
   const staleDedupeKeys = ((existingItems || []) as Array<Record<string, unknown>>)
     .map((item) => safeText(item.dedupe_key))
     .filter((key) => key && !selectedDedupeKeys.has(key));
-  const preserveExistingSparseRun = itemRows.length < NEWS_MIN_DAILY_ITEMS
-    && ((existingItems || []) as Array<Record<string, unknown>>).length >= NEWS_MIN_DAILY_ITEMS;
-  if (!preserveExistingSparseRun && staleDedupeKeys.length) {
+  if (staleDedupeKeys.length) {
     const { error: staleDeleteError } = await ctx.serviceClient
       .from('ll_news_items')
       .delete()
@@ -13643,18 +13655,21 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   const isMostRecentDate = !hasDateFilter || selectedDate === todayKey;
   const requestedRefresh = payload.refresh === true || payload.force_refresh === true || payload.forceRefresh === true;
   const itemCountHint = Number(firstDefined(runSummary?.item_count, runSummary?.selected_item_count, runSummary?.candidate_count, runSummary?.strict_item_count, 0));
+  const collectorVersionChanged = safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION;
+  const runAllowsOutOfWindowItems = Boolean(runSummary)
+    && (runSummary?.strict_window_only !== true
+      || Boolean(runSummary?.expanded_to_recent_7d)
+      || Number(runSummary?.expanded_recent_days || 0) > 0);
   const sparseRunNeedsBackfill = hasDateFilter
     && Boolean(latestRun)
     && Number.isFinite(itemCountHint)
-    && itemCountHint < NEWS_MIN_DAILY_ITEMS
-    && (
-      safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION
-      || Number(runSummary?.expanded_recent_days || 0) < NEWS_EXPANDED_RECENT_DAYS
-      || requestedRefresh
-    );
+    && itemCountHint < NEWS_MIN_DAILY_ITEMS;
   const shouldCollectMissingRun = hasDateFilter && !latestRun;
-  const shouldRefreshMostRecentRun = hasDateFilter && isMostRecentDate && (safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION || requestedRefresh);
-  if (shouldCollectMissingRun || shouldRefreshMostRecentRun || sparseRunNeedsBackfill) {
+  const shouldRefreshSelectedRun = hasDateFilter
+    && Boolean(latestRun)
+    && (requestedRefresh || collectorVersionChanged || runAllowsOutOfWindowItems || sparseRunNeedsBackfill);
+  const shouldRefreshMostRecentRun = hasDateFilter && isMostRecentDate && shouldRefreshSelectedRun;
+  if (shouldCollectMissingRun || shouldRefreshMostRecentRun || shouldRefreshSelectedRun) {
     try {
       const refreshed = await collectAndStoreNewsRun(ctx, selectedDate, limit);
       latestRun = refreshed.run;
@@ -13684,7 +13699,12 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
     if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
     return fail(500, 'Failed to read logistics news', ctx.origin, { error: error.message });
   }
-  const visibleItems = newsRemoveNearDuplicateStories((data || []) as NewsCollectorItem[]).slice(0, limit);
+  const selectedWindow = hasDateFilter ? newsWindowForDate(selectedDate) : null;
+  const visibleItems = newsRemoveNearDuplicateStories(((data || []) as NewsCollectorItem[]).filter((item) => {
+    if (!selectedWindow) return true;
+    const publishedAt = new Date(item.published_at);
+    return !Number.isNaN(publishedAt.getTime()) && publishedAt >= selectedWindow.windowStart && publishedAt <= selectedWindow.windowEnd;
+  })).slice(0, limit);
   return jsonResponse({ ok: true, data: {
     status: latestRun ? safeText((latestRun as Record<string, unknown>).run_status || 'completed') : 'no_run',
     selected_date: hasDateFilter ? selectedDate : safeText((latestRun as Record<string, unknown> | null)?.run_key).match(/daily-news:(\d{4}-\d{2}-\d{2}):0700KST/u)?.[1] || '',

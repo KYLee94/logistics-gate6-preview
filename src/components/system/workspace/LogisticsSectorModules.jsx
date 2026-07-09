@@ -1455,7 +1455,13 @@ function ensureEdgeDataRefreshListeners() {
 
 function edgeCacheKey(action, payload = {}) {
   try {
-    return `${getDashboardCacheScope()}:${action}:${JSON.stringify(payload || {})}`;
+    const cachePayload = { ...(payload || {}) };
+    if (action === 'news/list') {
+      delete cachePayload.refresh;
+      delete cachePayload.force_refresh;
+      delete cachePayload.forceRefresh;
+    }
+    return `${getDashboardCacheScope()}:${action}:${JSON.stringify(cachePayload || {})}`;
   } catch {
     return `${getDashboardCacheScope()}:${action}:unserializable`;
   }
@@ -1503,6 +1509,7 @@ function useEdgeData(action, payload = {}, deps = []) {
   ));
   const stateRef = useRef(state);
   const requestRef = useRef(0);
+  const lastPayloadKeyRef = useRef(payloadKey);
   const mountedRef = useRef(true);
   useEffect(() => {
     stateRef.current = state;
@@ -1513,6 +1520,8 @@ function useEdgeData(action, payload = {}, deps = []) {
     const requestPayload = { ...payload, ...normalizedOverride };
     const requestKey = edgeCacheKey(action, requestPayload);
     if (options.force) EDGE_DATA_INFLIGHT.delete(requestKey);
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
     const cached = EDGE_DATA_CACHE.get(requestKey);
     const cachedAge = cached ? Date.now() - cached.loadedAt : Number.POSITIVE_INFINITY;
     if (!options.force && !Object.keys(normalizedOverride).length && cached && cachedAge < EDGE_DATA_CACHE_TTL_MS) {
@@ -1524,15 +1533,13 @@ function useEdgeData(action, payload = {}, deps = []) {
       }
       return cached.data;
     }
-    const requestId = requestRef.current + 1;
-    requestRef.current = requestId;
     if (cached && mountedRef.current) {
       setState({ loading: false, error: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey });
     } else if (!options.silent && mountedRef.current) {
       setState((current) => ({
         ...current,
         loading: !(current.data && current.sourceKey === requestKey),
-        data: current.sourceKey === requestKey ? current.data : (current.data || null),
+        data: current.sourceKey === requestKey ? current.data : null,
         error: '',
         sourceKey: requestKey,
       }));
@@ -1567,6 +1574,10 @@ function useEdgeData(action, payload = {}, deps = []) {
   };
   useEffect(() => {
     mountedRef.current = true;
+    if (lastPayloadKeyRef.current !== payloadKey) {
+      requestRef.current += 1;
+      lastPayloadKeyRef.current = payloadKey;
+    }
     const cached = EDGE_DATA_CACHE.get(payloadKey);
     if (cached) {
       setState({ loading: false, error: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: payloadKey });
@@ -1576,7 +1587,7 @@ function useEdgeData(action, payload = {}, deps = []) {
       };
     }
     if (stateRef.current.sourceKey !== payloadKey) {
-      setState((current) => ({ loading: true, error: '', data: current.data || null, loadedAt: current.loadedAt || 0, sourceKey: payloadKey }));
+      setState({ loading: true, error: '', data: null, loadedAt: 0, sourceKey: payloadKey });
     }
     reload({}, { silent: stateRef.current.sourceKey === payloadKey && Boolean(stateRef.current.data) });
     return () => {
@@ -4927,7 +4938,7 @@ function DailyLogisticsNewsCardLegacy() {
           </button>
         </div>
         <div className="flex items-center gap-2 md:justify-end">
-          <button type="button" onClick={() => reload(selectedDate === todayKey ? { refresh: true } : {})} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">새로고침</button>
+          <button type="button" onClick={() => reload(selectedDate === todayKey ? { refresh: true } : {}, { force: true })} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">새로고침</button>
           <button type="button" onClick={() => setExpanded((value) => !value)} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
             {expanded ? '접기' : '펼치기'}
           </button>
@@ -5000,7 +5011,7 @@ export function DailyLogisticsNewsCard() {
           <button type="button" aria-label="다음 날짜 뉴스" onClick={() => goDate(1)} disabled={selectedDate >= todayKey} className="grid h-8 w-8 place-items-center rounded-[8px] border border-[#3A3A3C] text-[15px] font-semibold text-[#E5E5E5] hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-35">›</button>
         </div>
         <div className="flex items-center gap-2 md:justify-end">
-          <button type="button" onClick={() => reload(selectedDate === todayKey ? { refresh: true } : {})} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">새로고침</button>
+          <button type="button" onClick={() => reload(selectedDate === todayKey ? { refresh: true } : {}, { force: true })} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">새로고침</button>
           <button type="button" onClick={() => setExpanded((value) => !value)} className="h-8 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-[#E5E5E5] hover:bg-white/5">
             {expanded ? '접기' : '펼치기'}
           </button>

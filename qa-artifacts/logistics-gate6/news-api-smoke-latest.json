@@ -1,111 +1,112 @@
 {
   "ok": true,
-  "generated_at": "2026-07-09T01:49:08.559Z",
+  "generated_at": "2026-07-09T06:02:13.777Z",
   "auth_source": "password_grant",
   "checks": [
     {
-      "date": "2026-07-09",
+      "date": "2026-06-30",
       "http_status": 200,
       "data_status": "completed",
-      "selected_date": "2026-07-09",
-      "run_key": "daily-news:2026-07-09:0700KST",
-      "news_run_id": "0d8b9433-8efe-47e2-8eb6-46faeefff576",
-      "completed_at": "2026-07-09T01:35:09.222+00:00",
+      "selected_date": "2026-06-30",
+      "run_key": "daily-news:2026-06-30:0700KST",
+      "news_run_id": "871b7cb5-4fb9-4303-bdcf-bac79765067f",
+      "completed_at": "2026-07-09T05:51:41.047+00:00",
       "item_count": 10,
       "item_keys": [
-        "url:5a20755d2157805a65b76086d1275b08fa3a28906a344ce84185630b053f3956",
-        "url:527c26f58d55207ec2abc5b53dddbe5a9f02845bbb8feaa9f77180c1ca329b21",
-        "url:c9fb06adc6ec825bbccfb668aa1972deebebf72a2ea3ac6d9323f6c186b1dda6",
-        "url:d960a11eea1cdc33546adb0aaf37f51dabb5170ba6646ed6500defd03a23dffc",
-        "url:bc7e4a73dabef6497868d9a74942311ec97649f83180fd89fb336c1c59f3b886",
-        "url:2569e153760ba5a2feac52b0d55aeb91d20ae19d0975ad260fe64f5d40626664",
-        "url:96827c56ef234127121e6c95aeda65710d8172dce59c62eb8f81c9bf7f5e8927",
-        "url:6f20a968c195e34fb93c70f04c6fb12cf4d91c15145e22f12fd81642d7dd3456",
-        "url:06fe94e6f736e7829c9650b120737774d57219abf22b16cbdebc7fb061d9dbb1",
-        "url:76a5f7a7c204fb797cba53772c00daddcfdc2fb5af4bdcf00acde02cd830b2fc"
+        "url:cd557ccc0faa6055f0da018163f2ac9816df30b4955edada5520369e82f8fc8c",
+        "url:085af26e94207950a8ac9f323ae8c4df95113df96d5575c471a7b15001ac9890",
+        "url:d3aaabbc3f3f740f086f53de4a0796c49346a6e08491fcd4f7205f33d893c6d9",
+        "url:f76afffe8ef05bf7dc56a65eb1e427247a66dacc6a3e0c3bae896de5c8866239",
+        "url:fa3678f4dc341968d64f812630a8467c546a6f9fbb35b1a29507b9278f8404d6",
+        "url:19ae63f8e861ee3adaf3afc2cf9ec11703da4f09cba9604d4fe02a2708339aad",
+        "url:9fa33ae6778e7ab3eaa5ebd88901972f001752a24548164f5d6dda640a8f473f",
+        "url:08ed69899ae2bc13a3cb3225e8b5fa9ff2545656743a7877d5473b8c1c314aaa",
+        "url:6a4f5d7dbbb10aec3e93eb6f840ad374c80ef20f97839b01b8b895e04b95c1c9",
+        "url:dc3a1a34fc47a1432efc5cb940131fcaec72bd6416a43bd3eca85dd3ea01b52d"
       ],
       "items_summary": [
         {
-          "dedupe_key": "url:5a20755d2157805a65b76086d1275b08fa3a28906a344ce84185630b053f3956",
-          "title": "CJ대한통운, AI로 택배 과대포장 잡는다…‘팩체크’ 전국 26개 물류센터 도입",
+          "dedupe_key": "url:cd557ccc0faa6055f0da018163f2ac9816df30b4955edada5520369e82f8fc8c",
+          "title": "조현민 한진 사장, 인지도 낙제점 '택배왕 아일랜드'의 뼈아픈 실패",
+          "publisher": "CEO저널",
+          "published_at": "2026-06-29T12:30:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiZEFVX3lxTE04Tm52cU1SRzBsUGNyOFp0clE4cGptdENEQjhCcGFzN2RBd2dCbEpnQjU5NkhTZjV6a2dHU3V4NklGMjZlODU3OFVKbGdpNXhWU2hJNDNhZW51ZzBfQTVtMlNxMlPSAWhBVV95cUxQX2N1b25jOW5mamR3ekF1UGZmRWROQ2dLckhHZFY4b3BmcUUyVDJKRUVEaF9tempCWnAzREVtNXIybGoxZGpmMVN4YzBZd2ZFMU5aZDgyU2RuRU5SWks1by1qT1AxZl9RTw?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:085af26e94207950a8ac9f323ae8c4df95113df96d5575c471a7b15001ac9890",
+          "title": "CJ대한통운, 개도국 협력 물류혁신방안 모색",
+          "publisher": "콜드체인뉴스",
+          "published_at": "2026-06-29T11:06:21+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiZkFVX3lxTE1CZk95R01hZWxPTjBBWC1oX3dCbVE0WWtoaGNhZzFOb1N5N29mOG1wT21lQUNnbzB6LXp1czIwaWlydlFOMlFyVi1rSnA5T1hGaUhzcHBuZUlPQ0hqa0VWZFNLdUxxZw?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:d3aaabbc3f3f740f086f53de4a0796c49346a6e08491fcd4f7205f33d893c6d9",
+          "title": "‘수수료 삭감 반대’ 춘천 쿠팡 택배노동자 파업",
+          "publisher": "참여와혁신",
+          "published_at": "2026-06-29T09:14:19+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMibkFVX3lxTFBVNlVnOXhocWczbmlXWEYycU1JSU9MNXdwUW1TUm1mUHNOVVZaZmcxbFp2NGN3YjRhd21kbXdWUXpRT2N5VkJjS3lXN28xV19Pa2I1ZDlta3VJeVhwOHpFaE5UWU9XMXAtZmp3U3lR?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:f76afffe8ef05bf7dc56a65eb1e427247a66dacc6a3e0c3bae896de5c8866239",
+          "title": "“근로자 건강 최우선”···쿠팡풀필먼트서비스, 온열질환 예방 위한 현장 점검 나서",
+          "publisher": "이뉴스투데이",
+          "published_at": "2026-06-29T07:00:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMicEFVX3lxTFA1X29RZ3ctcXNnRTBMN1RscHV2NXBfSGtTcFRLNmFWYVJHSlRhcEEtelM2cHhGckUtYVA5Wnp2c1M1NmVPRFFoSFFkbGtvRFhGSXo4bU5BTDZnYk96eUk2a3hBLXA1WnpWMjI4T0RoYkTSAXRBVV95cUxPZXFDXzdpWUxWOS0wakl4bTBBSG8xNTU4TVh4VVJ6Y3gxY1NTaGI3MW5WSHdlNjZLOVlBSmpRWE01RUowMWVfd3B0RU9LT2ZwUzZGN2hIMjlibk9DOGNtMWxjX3FtMXI3TnFReEhjczM1YnBiaQ?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:fa3678f4dc341968d64f812630a8467c546a6f9fbb35b1a29507b9278f8404d6",
+          "title": "한진, 중소 이커머스 셀러 성장 지원 오프라인 행사 진행",
+          "publisher": "데일리한국",
+          "published_at": "2026-06-29T07:00:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMib0FVX3lxTE1nZ2dNcXp6Z3FkTktpeXNQNXg2eGpCX1BDZkptb2JwYTVyZkJrTTh6SGFTQi1BMldUb1lHSkJ4Z0JjcVl0R3JkOVlHV0lzUXd0LVJqM3QyalJCNUZ5eFpNWHBWWE1yY1VlS2ZUU0xxb9IBc0FVX3lxTFBtYXptN0FyckVhVVd3c2lTZlptc2oyaWpaYW5XTFBxTlBzWnl6ajd5MGV0VVJCTGVkV1hnTnUtUjdGOFFzanpfWFItbVA1TDdfWGhKU1Z0UjVtVHBCbVFwMXZxMUpLUWpSSXg0ZlAwaTVfR2c?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:19ae63f8e861ee3adaf3afc2cf9ec11703da4f09cba9604d4fe02a2708339aad",
+          "title": "CJ대한통운 안전체험관, 3년간 1000명 수료… 물류현장 안전망 구축",
+          "publisher": "아시아경제",
+          "published_at": "2026-06-29T07:00:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiYEFVX3lxTE9EQ1JYUUF2TENGSWdzYlRJSk9fcVMzQWl3X0NjV2J4aVE2RnVnckx5WHhRTi1ieGlMVGp5ZFJaNTk4dnBQWnZMaUgwSmJzZlFSdUE4NWJFbmVuRDUtZHd1OA?oc=5",
+          "category": "market_deal"
+        },
+        {
+          "dedupe_key": "url:9fa33ae6778e7ab3eaa5ebd88901972f001752a24548164f5d6dda640a8f473f",
+          "title": "쿠팡풀필먼트서비스, 혹서기 물류센터 온열질환 점검 강화",
+          "publisher": "maniareport.com",
+          "published_at": "2026-06-29T07:00:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMie0FVX3lxTE14SFNXUUVQUEluZGp4V2pyVW1MOGxuYmtWbWZVaEQxNFJjY05OcmJkMWxsYmJoUHpsZ3hwOXA3b1VveFhUN1R4R3Ntb0VfSkpFemROUzVxWVZBX1llRGozVExvVlROdXVCN3dLdUFBOU5ZdU1YQWh2bDVuYw?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:08ed69899ae2bc13a3cb3225e8b5fa9ff2545656743a7877d5473b8c1c314aaa",
+          "title": "SFA, 롯데칠성음료 용인 거점 물류센터 구축 사업 수주",
+          "publisher": "전자신문",
+          "published_at": "2026-06-29T07:00:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiTkFVX3lxTE45Mk1RQ2ZrSXVZaGlJT3BFalhtby1HM3AyWUNVamcyd2RYbGVxcmlLUk8zLUoxaWQtNUdNQmp6N1N4Y0M4NkR2RFc3UHNNUQ?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:6a4f5d7dbbb10aec3e93eb6f840ad374c80ef20f97839b01b8b895e04b95c1c9",
+          "title": "쿠팡풀필먼트서비스, 온열질환 예방 위한 현장점검 강화 “냉방시설 투자로 쾌적한 작업환경 조성”",
+          "publisher": "로컬세계",
+          "published_at": "2026-06-29T02:40:04+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiYEFVX3lxTE9LRUtNZi1fRUVhSld1VTBRaDR3NTVxcWhsS2p4U2NIWUhJZGRDTXdRdko5YV9TRWthWDFyaUllLVRWQXRQZ0xSamRIVXpaWGtTVjE4R2ZnTERhNUIyUzZiatIBWEFVX3lxTE4wUEU1aVcyOU9oeE9vT204SnN6UDdCY0tsSTVYTWlMUHpNajFXUGgtSVdPM0tjUlhRTlliSlRyMEtEbUwxZThDLTA1S3ZBaV9wOGh2UE5sYlM?oc=5",
+          "category": "market_deal"
+        },
+        {
+          "dedupe_key": "url:dc3a1a34fc47a1432efc5cb940131fcaec72bd6416a43bd3eca85dd3ea01b52d",
+          "title": "물류택배업계 '속도 경쟁' 넘어 인프라&#183;컨설팅 강화",
           "publisher": "bing.com",
-          "published_at": "2026-07-08T18:14:00+00:00",
-          "canonical_url": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6a4efac62ab3420d9372d956977882e3&url=https%3A%2F%2Fwww.asiatoday.co.kr%2Fkn%2Fview.php%3Fkey%3D20260709010003345&c=5017586587654334334&mkt=ko-kr",
-          "category": ""
-        },
-        {
-          "dedupe_key": "url:527c26f58d55207ec2abc5b53dddbe5a9f02845bbb8feaa9f77180c1ca329b21",
-          "title": "커머스 힘주는 네이버…물류 직접 투자로 '쿠팡 추격' 속도내나",
-          "publisher": "네이트",
-          "published_at": "2026-07-08T14:29:11+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiU0FVX3lxTFBHcEwyZE1PSENZX19mRTBKLUtGYVBvbXUyMG9OelNfZEdDbkp5MnJqdC15Q1hnVDBfV3Q2c284U2VlamdNX3VEd2laQTlPQUtPeG5Z?oc=5",
-          "category": ""
-        },
-        {
-          "dedupe_key": "url:c9fb06adc6ec825bbccfb668aa1972deebebf72a2ea3ac6d9323f6c186b1dda6",
-          "title": "‘도로 없는 물류창고’ 허가 파문…광주시, 불법 특혜 의혹에 핵심 공무원 줄줄이 ‘잠적·퇴직’",
-          "publisher": "인천일보",
-          "published_at": "2026-07-08T13:08:59+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMicEFVX3lxTFBmUmRjcC1WbkFTVURqQXNVTmhxRmRma0F6QWhFcFNmWUc3c1paejFkYUV4SzlobzVvMnItM1VBS2p0ZTRCUHZ0VlVJSm5wZ19PaWh4REJFd1R3a2dSVmlTaHNFNk5ueVptT2xMcHRQMkU?oc=5",
-          "category": ""
-        },
-        {
-          "dedupe_key": "url:d960a11eea1cdc33546adb0aaf37f51dabb5170ba6646ed6500defd03a23dffc",
-          "title": "한진칼우 투자분석 2026. 07. 08",
-          "publisher": "주달",
-          "published_at": "2026-07-08T09:49:57+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMic0FVX3lxTE92aUxwdWVMSUotSDhoOGZLbm9KbUM5cFg3cVVVRGFSM1dsSWpuMkdoNFJzbGo2eFcydlQ1eVkyejFsRVl4VFN1YVFEUW1FLUl5eXptMzViT253dWRfUGNuaFBRMk9mNjRlN2VSdXVQU3hVMEE?oc=5",
-          "category": ""
-        },
-        {
-          "dedupe_key": "url:bc7e4a73dabef6497868d9a74942311ec97649f83180fd89fb336c1c59f3b886",
-          "title": "배송 전쟁 속 물류센터 짓는 네이버…쿠팡과 맞대결",
-          "publisher": "서울경제TV",
-          "published_at": "2026-07-08T09:03:00+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiZEFVX3lxTE1zSUl3OTJVRVpiMmF0MUFTaWJTMjBQZHRTdHhBQ2swQ19Nem92QnJRbl9YMzBRdy15RkdnZ19yWTdJQjhxRVZoTldqS2JzYmQtMVNmeVJ5YzhCUzVqUFQtREVOUzM?oc=5",
-          "category": ""
-        },
-        {
-          "dedupe_key": "url:2569e153760ba5a2feac52b0d55aeb91d20ae19d0975ad260fe64f5d40626664",
-          "title": "SSG닷컴, 주문 후 2시간 내 상품 받아보는 ‘당일 배송’ 시범 운영",
-          "publisher": "더퍼블릭",
-          "published_at": "2026-07-08T07:33:53+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMia0FVX3lxTE4zcmVhdUxjeUJqRFNlcUZOcUJqMmpuM2ozOUx3a2JRVXR6czVjdk5sNXg0Vlo5bEtYMEhoaGxWS3ZTbWpsbVUxVkhqbndXZ0NhNmFQOFJ1bHl1bHN5bTFNTnVpem5tLXlCY0Vn0gFvQVVfeXFMTk0tV3NEcjNWSkZLN2d1elJkMnhwYnNoM2ZSN0hOOEdEV2lkeE5pV1BBWW40U1oxakZJSlM5c3dKMV9NT3JOUjU0X2RnVUpvRGk3Rzh5YTBrNG1WQmpUa1h6a2VURDI2Q3dDZUFscXpR?oc=5",
-          "category": ""
-        },
-        {
-          "dedupe_key": "url:96827c56ef234127121e6c95aeda65710d8172dce59c62eb8f81c9bf7f5e8927",
-          "title": "[피벗 인사이트] 네이버, 배민 인수 검토·직배송 물류 거점 확보?…새 성장동력 '만지작'",
-          "publisher": "데일리팝",
-          "published_at": "2026-07-08T07:32:00+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiakFVX3lxTE1JcEZqUWZDZmdJbE9iWDI0M1VXMmFBV3ZaMzBlNThULXFPYnV5TV9WbWVJWmhpOXBWSzZkcU9BNktKWXUwNk1iMTZsdVV1M0pVbzdzMTdyU2tBYU5ldV9tdGZ3Z3l5UUotbFE?oc=5",
-          "category": ""
-        },
-        {
-          "dedupe_key": "url:6f20a968c195e34fb93c70f04c6fb12cf4d91c15145e22f12fd81642d7dd3456",
-          "title": "보안 투자 늘리는 택배·물류업계…CJ대한통운만 '역성장'",
-          "publisher": "1코노미뉴스",
-          "published_at": "2026-07-08T06:24:39+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMicEFVX3lxTE1jYUhGbnlQbDhjWm0xQklZYktfWEVMQ0dhRTVsd050ektWZ0RBSHM2QlIycTRkS0tXMTdsVFQtazZZc0pfQzhsWC1FbjExMjdua2hHbTBYUnJqOFhVcGticVNjc3JOdTM3UHVlOGhYY2s?oc=5",
-          "category": ""
-        },
-        {
-          "dedupe_key": "url:06fe94e6f736e7829c9650b120737774d57219abf22b16cbdebc7fb061d9dbb1",
-          "title": "알스퀘어, 엠플러스자산운용 물류센터 5개 동 통합 관리 맡는다",
-          "publisher": "물류신문",
-          "published_at": "2026-07-08T05:08:33+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMia0FVX3lxTFBWLWdkYVhVRmdCZUtaMFhuNHBvd2ZnaC1fZ185LWJROV9RR19lTnRoclhQQjI4UERJU1NrcU1ybmxBN0JTbGpla1o3Nk1xdTRkMHFMa2Q4WlVmUDR6eGJRdXBmTk1rTlp5bWdN?oc=5",
-          "category": ""
-        },
-        {
-          "dedupe_key": "url:76a5f7a7c204fb797cba53772c00daddcfdc2fb5af4bdcf00acde02cd830b2fc",
-          "title": "AI 데이터센터 붐, 물류창고까지 확산…임대료 상승 견인",
-          "publisher": "더구루",
-          "published_at": "2026-07-08T04:31:33+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiY0FVX3lxTE1aaVpOZUZzZnJCRGxkbl95dG0zVHVQTTFaSU10OEp5WDIwQ3ZRM0l0OTRWMkhiZnctNGxsUlFDUzJwNks1VnMwbGtIV0t2Ml94ak4tR0lIb3hkYnFVWC1RLVprSQ?oc=5",
-          "category": ""
+          "published_at": "2026-06-28T22:59:00+00:00",
+          "canonical_url": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6a4f36e06c304e77830457248b807bce&url=https%3A%2F%2Fwww.inews24.com%2Fview%2F1980657&c=13022168828607838899&mkt=ko-kr",
+          "category": "major_company"
         }
       ],
+      "outside_window_items": [],
       "missing_dedupe_count": 0,
       "unique_dedupe_count": 10,
       "unique_title_count": 10,
@@ -149,10 +150,11 @@
         "query_count": 29,
         "source_stats": {
           "bing_news_rss": 58,
-          "google_news_rss": 184
+          "google_news_rss": 221,
+          "google_news_rss_backfill": 179
         },
         "window_hours": 24,
-        "candidate_count": 21,
+        "candidate_count": 17,
         "selection_policy": {
           "limit": 10,
           "category_targets": {
@@ -164,122 +166,129 @@
           "max_items_per_company": 2,
           "max_major_company_only_items": 5
         },
-        "collector_version": "google-bing-rss-v7-sparse-date-backfill",
+        "collector_version": "google-bing-rss-v10-strict-window-backfill",
         "strict_24h_window": true,
-        "strict_item_count": 10,
-        "strict_window_end": "2026-07-08T22:00:00.000Z",
-        "strict_window_start": "2026-07-07T22:00:00.000Z",
+        "strict_item_count": 1,
+        "strict_window_end": "2026-06-29T22:00:00.000Z",
+        "strict_window_only": true,
+        "historical_backfill": true,
+        "strict_window_start": "2026-06-28T22:00:00.000Z",
+        "expanded_recent_days": 0,
         "expanded_to_recent_7d": false,
-        "expanded_window_start": "2026-07-07T22:00:00.000Z"
+        "expanded_window_start": null,
+        "same_window_relaxed_backfill": false
       },
       "window_hours": 24,
       "strict_24h_window": true,
+      "strict_window_only": true,
       "expanded_to_recent_7d": false,
+      "expanded_recent_days": 0,
       "titles_with_important_prefix": [],
       "titles_with_publisher_suffix": [],
       "missing_publisher_count": 0,
       "company_mention_counts": {
+        "hanjin": 2,
         "cjlogistics": 2,
-        "coupang": 2,
-        "hanjin": 1
+        "coupang": 4
       },
       "category_counts": {
-        "unknown": 10
+        "major_company": 8,
+        "market_deal": 2
       }
     },
     {
-      "date": "2026-07-08",
+      "date": "2026-07-06",
       "http_status": 200,
       "data_status": "completed",
-      "selected_date": "2026-07-08",
-      "run_key": "daily-news:2026-07-08:0700KST",
-      "news_run_id": "a413dc33-220f-4956-9dd4-5b76357ba89b",
-      "completed_at": "2026-07-09T01:35:32.686+00:00",
+      "selected_date": "2026-07-06",
+      "run_key": "daily-news:2026-07-06:0700KST",
+      "news_run_id": "a83c8223-e54f-449b-93d9-187676a19062",
+      "completed_at": "2026-07-09T05:45:39.043+00:00",
       "item_count": 10,
       "item_keys": [
-        "url:84684c916d6aa8ddc28f9a00f9e32f46d6ad8f3126644be98cd87a74e38f6341",
-        "url:65fda4e9290bc95e6401ee50633e5d6b772c7f3ac607212b0ec10a3496a8a3d9",
-        "url:fa3dfbb4961dd9ecab70ca29e0818640956fcae5053bd7b1922c3678b0c556f5",
-        "url:6850ed29a9e8fc4c27d2da6362c10a2b3c9ced41f4ae31649f527f591d1a7ac2",
-        "url:d5a004664e0a4ccd7290461cb4d4922e9bfa37bbd97a98dd5280146d9cabfd74",
-        "url:59d1d91d517ed7e3113f63c10a5aaf3e060252f91e0e879bd1f8c79c78a9da4b",
-        "url:e67289ca1fb8efe9c254b312bda09e8baed513e51b1b65487abfe9306331b7cb",
-        "url:4b34430f163d54152cf1da8aded3325fb60ef6a793aa57ba46fd84db2c75e444",
-        "url:ed6c790d8bf4c7b3eace071ba9d7b577f4d8eae069b5490c8073af79afe0c787",
+        "url:9a5944158527d6cd118678bf8fba975245250722fc156941802a6cf363cd5be8",
+        "url:fed18281156b35f9a865f32b8daaa85180166f3c55600f37fbadd4353789da5d",
+        "url:3fbdd509258a152be205ccdee8ca65167c8618c21dd043e5250be81e28a08e13",
+        "url:7e1791232d85e6cf7246532cd0d4f99a02cb1053b8962aaecaada4eead5e7de1",
+        "url:f47cb944551400b264707767652927454a71c8083f836318d706c405d851d80c",
+        "url:ac0973b180818f7f740a5c48eb0d2179f888fc5cccab143823e5e96ed9a78a4e",
+        "url:2c73a0a46bf6eabae91b44013e97f9aa826cd52bf90caa9d1827b9abf88c4449",
+        "url:1b74ca443682be5f90740eff6a3a106c35c1d0b20c1e2f992e0c17c14d2d60bd",
+        "url:1627912bd19b5ac31b6ea343977166a6d85a5cd876e1d8dfd33c67f988c14ef8",
         "url:b4f10b32ed0b8dbcb2b11ba039a67074fb323662519bf540aae2f8bd61afa265"
       ],
       "items_summary": [
         {
-          "dedupe_key": "url:84684c916d6aa8ddc28f9a00f9e32f46d6ad8f3126644be98cd87a74e38f6341",
-          "title": "물류센터시장, ‘공급과잉’서 ‘선별 투자’ 국면 전환",
-          "publisher": "콜드체인뉴스",
-          "published_at": "2026-07-07T08:38:38+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiZkFVX3lxTE00YTBCdHVJdGlfYkVFaC0tMUJxWW04Rmxpb05vSWlSVlBPMV82UW9xNi1mVWJMVnFIWkg2eDB2SmtnYTRSdnVpSk5YenpaMV9CQUFHTkdIQy0zYnE0RVFVX3dpTzMtUQ?oc=5",
-          "category": ""
+          "dedupe_key": "url:9a5944158527d6cd118678bf8fba975245250722fc156941802a6cf363cd5be8",
+          "title": "中 위닛, 북미 제3자물류 업체에 모듈식 풀필먼트 플랫폼 공급",
+          "publisher": "로봇신문",
+          "published_at": "2026-07-05T11:12:19+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMibEFVX3lxTE1EV1dMdi1Ra1prbXQ3ODZ3aWpTeXhWVUNidGZUSFR0N1c0VDRZb2VBZ2FUR1ZpQUVCNm4wV08wSjhXT1ZIajRIMUE3R0hlelhJdkFyS202bDI5V2tOMXVrYXBob2l5N2I1RUp5RQ?oc=5",
+          "category": "supply_development"
         },
         {
-          "dedupe_key": "url:65fda4e9290bc95e6401ee50633e5d6b772c7f3ac607212b0ec10a3496a8a3d9",
-          "title": "쿠팡풀필먼트서비스, 혹서기 현장점검 강화",
-          "publisher": "콜드체인뉴스",
-          "published_at": "2026-07-07T07:33:13+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiZkFVX3lxTFB3U0p3U252WUdSYlNfTWd3TlIxRm5GM3Axak9wRDdSeHFGdkhOS0VhVVkwWk82NWQyZXExZksyXy1IUUZ5Y3hPd3U4Nzd4QlRuYjFsekZjak11aXI0X1R3cnlkNjFtQQ?oc=5",
-          "category": ""
+          "dedupe_key": "url:fed18281156b35f9a865f32b8daaa85180166f3c55600f37fbadd4353789da5d",
+          "title": "인천공항, 바이오 물류시장 공략… 유럽 의약품 콜드체인 역량 강화",
+          "publisher": "경인일보",
+          "published_at": "2026-07-05T09:56:20+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiUkFVX3lxTFBsVEw2eXFZcHhLbXZhR3NURDd3V2FlUW5iT0NDdVZJbGxHanpWS0ZWUHBUd2UwTDlXMFR2RWV4WGl6dkJXT3NvSmpkTGxuMTlWSWc?oc=5",
+          "category": "market_deal"
         },
         {
-          "dedupe_key": "url:fa3dfbb4961dd9ecab70ca29e0818640956fcae5053bd7b1922c3678b0c556f5",
-          "title": "미국 발 뻗는 컬리…해외서도 '샛별배송' 판 깐다",
-          "publisher": "미디어펜",
-          "published_at": "2026-07-07T07:18:14+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiVEFVX3lxTE9qUjRHS0VTRVNfWVRuVjk3VW1rSHBRS0dsSGJYRzBYZVZubzFIR294cGpBdXAwTDJTdlFTUFVmZVR6dkZnRVE3TmtJRElGaTIxUjl3NtIBWEFVX3lxTE1jS1RkSzluX2tVYXZOUmFLMzFPT0RSakpZcG1QZk82N284WlROcUhpR3VpbVJoWTlXVzBkc0ZXR09uMHpQLS1CMVZDYm4yb3FkV002UzZEdnI?oc=5",
-          "category": ""
+          "dedupe_key": "url:3fbdd509258a152be205ccdee8ca65167c8618c21dd043e5250be81e28a08e13",
+          "title": "‘새벽배송 못 끊어, 결국 다시 쿠팡’···정보 유출 사태 전보다 이용자 더 늘었다",
+          "publisher": "경향신문",
+          "published_at": "2026-07-05T02:26:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiWkFVX3lxTE9hYXYxcFVoSnd5Y2VFaEViZ1NjUXlTTjVvN0l0M1JvU0FDb0dJUEhEZEk5VUM2Nng4RWdjT1NnUnFFLUNVUHk2eDFRNU9aem9BbnhWS2ZlRXBRUdIBX0FVX3lxTE14Nng1MG1kdzZ0YmZJV0pqZ19JU0ZkY1NzcWNDWUwxalFYekRuMERxTzYzWkZQUjJjSmRRZEVwRElVdzVfamJ4RmR4NTN2em5ocHdsV0IySmIxNHZTRHFJ?oc=5",
+          "category": "major_company"
         },
         {
-          "dedupe_key": "url:6850ed29a9e8fc4c27d2da6362c10a2b3c9ced41f4ae31649f527f591d1a7ac2",
-          "title": "쿠팡發 배송 전쟁 속 네이버도 물류센터 짓나…\"직배송 확정 아냐\"",
-          "publisher": "뉴시스",
-          "published_at": "2026-07-07T00:52:10+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiYEFVX3lxTE9MVmgwenEyY2hVVWJvMzM4azM3QUhwTGkxdFNLWUhJSExLeU9iMk5jZnpaaWI0alUyWVdZVWhvZ0EzR2FHT1BTZkJDZHdSRTBtYV95U3EyUzV4UVctaWRpOdIBeEFVX3lxTE9SMVdGaERqdW9Oa0w1QTlESmMtV0hpbWR1RWtlcUxtZWZjMDBfZmdGMnBMTkc2NjZCSDZsRk9Bd0kwaVkwWTJqOUlwUlZFOVBfeGxVTTd4aVdWQm0xOXN1TG5EQldvclg0alZlNjN2a3NXTGZNdlp2Ng?oc=5",
-          "category": ""
+          "dedupe_key": "url:7e1791232d85e6cf7246532cd0d4f99a02cb1053b8962aaecaada4eead5e7de1",
+          "title": "한진 투자분석 2026. 07. 04",
+          "publisher": "주달",
+          "published_at": "2026-07-04T10:54:58+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMic0FVX3lxTFBncWZvdXgtdjMwVU9OS21FMFktNE1IWHhNNlk1dTJ3MEpvbFBxUFZacTZLOFdrdGp0Mk0tYmVIUmN1UWp4NzJCSlJnNk5GS1ZUQWNpQUdHZjhoN2RQM1ZhMzZrVVQ0RXhWU1BkVlpEXzM2VlU?oc=5",
+          "category": "market_deal"
         },
         {
-          "dedupe_key": "url:d5a004664e0a4ccd7290461cb4d4922e9bfa37bbd97a98dd5280146d9cabfd74",
-          "title": "[PF부실] 경기도 물류센터·상가형 수요 부진…공실률 높아 구조조정 지연",
-          "publisher": "글로벌이코노믹",
-          "published_at": "2026-07-06T09:00:00+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMihAFBVV95cUxPNzFtRVAxUzFVVW5JZzQ5cnUtWFZJX0ZrcGozakNiV0JhWlVxTWtvdWc0OWU2Y25BbFBLYnBSS3BzcVFqLUZ4cXg4WjRGVHVvX0tGX0tUVlhiWmgzemhFSkNoMlZYM3lyVlRrcC1xSU9vUGMtMXdyd1JBaFVSdFNOTFN6MVk?oc=5",
-          "category": ""
+          "dedupe_key": "url:f47cb944551400b264707767652927454a71c8083f836318d706c405d851d80c",
+          "title": "컬리의 진짜 흑자는 미국 창고에서 시작된다",
+          "publisher": "토요경제",
+          "published_at": "2026-07-03T23:25:08+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiYEFVX3lxTE84eGlER0c3YjgwUHpwSll1YUltczBRX0V3M2hZYjhfTkhUNjJ4VElTZTZlRllZd2k0V29ETHFtT1JoSDdHcS1KU01XV1lQZ1E1d0VQVzR2bThheXZlcU5HUdIBb0FVX3lxTFBSU3VBQ01TWjJCdV9Id3BFdnRycFI0WTZyN01CcElWR2lrOHctbjJmMmhweUVBMlhyNzNtbmxwNUloZ0dRSF9BakpUSHhGUUNMLUl3NVhwbWkwcGRiS2YwZ2loSEN2T3NpN3Jvcm15NA?oc=5",
+          "category": "major_company"
         },
         {
-          "dedupe_key": "url:59d1d91d517ed7e3113f63c10a5aaf3e060252f91e0e879bd1f8c79c78a9da4b",
-          "title": "제주 물류비 낮출 공동 거점 생겼다… 스마트공동물류센터 준공",
-          "publisher": "MSN",
-          "published_at": "2026-07-06T07:35:47+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMikwNBVV95cUxPTzFsN0VFOEVHdTliZVZMZWRsTEFnR2tiYS1hblRZblRHMHo2Q295LVk4Z3VJbThnU2UyNS1rX29hdzRsOXgtUUNrNmZadzJKcnBxcVRnem0yNEw1NzJCc0ptN3J0REJWOURHbVc3YmhfcTZXSk4yQUdRN1IwX1RKU2lndndDYVlvTVhyMXRLempxbkdWRzZjT20yek50NkRiTlRuQ3FFZkZDbFdlZmpZYnpNZlMzNmt1aTNPdGhMdnl5TW0yYkN2TXZPZDZZQnYzcGpCNEROclBwOF9pc25MV3otcEd6SGx0MlFYdy1CV3BFbHdhOGJFSXcwQzZFMVV1akRPS1NDY1o5SGxEU3ZMSFpiNUE2TmtsMHVnLUdtdVVRa1FuNC1hc0wzREpsRkxrYmlmQTRtNlBXQWw4aUMyUnJiLV9RV0dfOV9vOExlSUs4YUFJWnVESUdzaUt5WFR5OGxHOWZFM2RjT1NjQkFQNENCZ0Q4Xy1FaHkxQ211REpvbGhOcmdobGpDY1ZCTThyalZ3?oc=5",
-          "category": ""
+          "dedupe_key": "url:ac0973b180818f7f740a5c48eb0d2179f888fc5cccab143823e5e96ed9a78a4e",
+          "title": "[아키타입(Archetype) 사자성어 경영학](77)고진감래(苦盡甘來)-투자 회수기(J-Curve)를 견디는 힘",
+          "publisher": "논객닷컴",
+          "published_at": "2026-07-03T22:48:49+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiZ0FVX3lxTE5EMk9UZDVrS3NUdXhXNkoyQ2YtMDEtUGo4Y0dBVGtTQ0FnMnBhV3RwdldfVGY2N2IxODg5NGxnUXVIQ20wUUM3U2dIeWtQRUdBVlVKN2lvcFpEMF9QdzUzX2p2Ql9EQU0?oc=5",
+          "category": "market_deal"
         },
         {
-          "dedupe_key": "url:e67289ca1fb8efe9c254b312bda09e8baed513e51b1b65487abfe9306331b7cb",
-          "title": "[택배 & Now] 조현민 한진 사장, 'ICSB 세계총회' 기조연설 등",
-          "publisher": "네이트",
-          "published_at": "2026-07-06T07:03:00+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMiU0FVX3lxTFB3RHRtVDk3Z3dyWXpwVzNZTkpOSzMzbGpnejk5RUtyUG1xbUVYUW5hQTdjZHplVXFiUnUweTF6cDljMHJTUW5Lc3B0OW5OdDZTTVNF?oc=5",
-          "category": ""
+          "dedupe_key": "url:2c73a0a46bf6eabae91b44013e97f9aa826cd52bf90caa9d1827b9abf88c4449",
+          "title": "쿠팡풀필먼트서비스, 전국 단위 ‘채용 페스타’ 개최",
+          "publisher": "금융경제신문",
+          "published_at": "2026-07-03T15:13:26+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMibEFVX3lxTE9BSzM5MzVzaUZEU1MxV29EajlmMVBraWtHcTdWVnBBdUFuN0x6M1JCU2xYWjVnQkg2dTY3a2FlVndBZ29HakpUMVM5dV9HTnFSS0NtaHpfZVpNOTlTWWFSWXliS2pHTU5SM1VUUdIBb0FVX3lxTE84UDZTZjhucjlldUlXZ2IyZDhyRDJkSTNMd3lEdEFyc1NJTVowTE9hOXU5TFR1NzFUYmZXWFJTMTlabFlfMjEtbGlVLXFNMFU3ZF9BQkI1MXRCdjRyN2J4WGNqSlAxUXo4dkZyY2ROVQ?oc=5",
+          "category": "major_company"
         },
         {
-          "dedupe_key": "url:4b34430f163d54152cf1da8aded3325fb60ef6a793aa57ba46fd84db2c75e444",
-          "title": "CJ대한통운, 글로벌 ESG 기준 맞춘 지속가능경영보고서 발간",
-          "publisher": "물류신문",
-          "published_at": "2026-07-06T06:02:07+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMia0FVX3lxTE4xNDdWMjlERVQ4dEl4b0x3MzdsRVhtWDBDZjFWSTYtbDlUZmp5R0RKYTVfYjd6YnlfQkNwM0pkbDhSdXBLRlJJZi1hQzZuOFhrSzZTWUp1MzU4T1pFbnltRnFra21iOVJnRlRR?oc=5",
-          "category": ""
+          "dedupe_key": "url:1b74ca443682be5f90740eff6a3a106c35c1d0b20c1e2f992e0c17c14d2d60bd",
+          "title": "리비아오로보틱스 · LX판토스와 물류 자동화 기술 협력 위한 업무협약 체결",
+          "publisher": "산업일보",
+          "published_at": "2026-07-03T07:27:01+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiREFVX3lxTE1ob3l3bEdaSHpNX0xvc2FxOE1aVnRzSnhMSGQyMHd0TE5IUE0xajRlcjBhc0Zxd19nVVNMN3dDZ2hDWWhK?oc=5",
+          "category": "major_company"
         },
         {
-          "dedupe_key": "url:ed6c790d8bf4c7b3eace071ba9d7b577f4d8eae069b5490c8073af79afe0c787",
-          "title": "거래액 9배·최대 실적…컬리, IPO 대신 ′유통 공룡′ 노린다",
-          "publisher": "메가경제",
-          "published_at": "2026-07-06T02:12:12+00:00",
-          "canonical_url": "https://news.google.com/rss/articles/CBMidEFVX3lxTE1NX0M3bl9yU2RoUFdyYWpyZFdsNm5seUMxZWNIVHQtbmYxU0swVTJnV1poS1ZhN3JSOEpka0lMOFZOamI3eFhobi1qZ0FzT19VMFZhN1ozMzJNeWtNN2lJX0c0RTJPSzJ0cjhVTjZOS0lobUYx0gFyQVVfeXFMTWhGRjZtQW1fY1FjVW5QTjNHbFI4czBXVjEyTVdQNk9GMjdlaWVuMUxCaHFaaHlTWFJVWjR3Zmdaa3ZhU2RUVm1MUkJ3czQ4N0JsZW85RDgyR1RpYkRLZ3pIdUQtZHZaZjNHemEwaVdYMTNn?oc=5",
-          "category": ""
+          "dedupe_key": "url:1627912bd19b5ac31b6ea343977166a6d85a5cd876e1d8dfd33c67f988c14ef8",
+          "title": "허서홍號 GS리테일 비용 절감 칼바람…GS25 국제택배도 축소",
+          "publisher": "1코노미뉴스",
+          "published_at": "2026-07-03T02:31:52+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMicEFVX3lxTE5UcUdid1B1VHUwYkRQTHBYVURlVDRSS1NreTUwU0tQdUc1QUlkd2pQNHlSWWt1dmxHS0NveHJiZEM0eGRtN0gtV0pCdVZ1TzlBcjVyRVljRTF1bFB1aG1saGJkci1uZE1zMy1DcnI3Rk0?oc=5",
+          "category": "major_company"
         },
         {
           "dedupe_key": "url:b4f10b32ed0b8dbcb2b11ba039a67074fb323662519bf540aae2f8bd61afa265",
@@ -287,9 +296,10 @@
           "publisher": "네이버 프리미엄콘텐츠",
           "published_at": "2026-07-02T23:00:00+00:00",
           "canonical_url": "https://news.google.com/rss/articles/CBMifkFVX3lxTFBqaW1RckIybXVBNGgxVnRXWnluTWpzWV9kVjZhOF9ocGVhcWI2bDMxc2dMcWdkN0hyUm9mZ0hIR1dPZVZ2NUJHLWtjY1IxcWtjd2FvR3puT2NKMTZlUjFGaEc0R1pFS2JzSlYwUkFycVpQbTVacXJZbERweVpmZw?oc=5",
-          "category": ""
+          "category": "market_deal"
         }
       ],
+      "outside_window_items": [],
       "missing_dedupe_count": 0,
       "unique_dedupe_count": 10,
       "unique_title_count": 10,
@@ -333,10 +343,11 @@
         "query_count": 29,
         "source_stats": {
           "bing_news_rss": 57,
-          "google_news_rss": 514
+          "google_news_rss": 411,
+          "google_news_rss_backfill": 230
         },
-        "window_hours": 24,
-        "candidate_count": 70,
+        "window_hours": 72,
+        "candidate_count": 14,
         "selection_policy": {
           "limit": 10,
           "category_targets": {
@@ -348,28 +359,231 @@
           "max_items_per_company": 2,
           "max_major_company_only_items": 5
         },
-        "collector_version": "google-bing-rss-v7-sparse-date-backfill",
-        "strict_24h_window": true,
-        "strict_item_count": 1,
-        "strict_window_end": "2026-07-07T22:00:00.000Z",
-        "strict_window_start": "2026-07-06T22:00:00.000Z",
-        "expanded_to_recent_7d": true,
-        "expanded_window_start": "2026-06-30T22:00:00.000Z"
+        "collector_version": "google-bing-rss-v10-strict-window-backfill",
+        "strict_24h_window": false,
+        "strict_item_count": 10,
+        "strict_window_end": "2026-07-05T22:00:00.000Z",
+        "strict_window_only": true,
+        "historical_backfill": true,
+        "strict_window_start": "2026-07-02T22:00:00.000Z",
+        "expanded_recent_days": 0,
+        "expanded_to_recent_7d": false,
+        "expanded_window_start": null,
+        "same_window_relaxed_backfill": false
       },
-      "window_hours": 24,
-      "strict_24h_window": true,
-      "expanded_to_recent_7d": true,
+      "window_hours": 72,
+      "strict_24h_window": false,
+      "strict_window_only": true,
+      "expanded_to_recent_7d": false,
+      "expanded_recent_days": 0,
       "titles_with_important_prefix": [],
       "titles_with_publisher_suffix": [],
       "missing_publisher_count": 0,
       "company_mention_counts": {
         "coupang": 2,
-        "kurly": 2,
         "hanjin": 1,
-        "cjlogistics": 2
+        "kurly": 1,
+        "cjlogistics": 1
       },
       "category_counts": {
-        "unknown": 10
+        "supply_development": 1,
+        "market_deal": 4,
+        "major_company": 5
+      }
+    },
+    {
+      "date": "2026-07-07",
+      "http_status": 200,
+      "data_status": "completed",
+      "selected_date": "2026-07-07",
+      "run_key": "daily-news:2026-07-07:0700KST",
+      "news_run_id": "9bc31b55-3f44-4e24-9dee-73ea20fbc7c7",
+      "completed_at": "2026-07-09T05:45:57.974+00:00",
+      "item_count": 10,
+      "item_keys": [
+        "url:c9b7da28655cf4b0cc03b865d51795be64f65c116f21556919fadd3ac21d6425",
+        "url:1c5c00e64bda2e3662ef6defc26142ec690dd9a31cf002861b88ed17fac52fc5",
+        "url:d5a004664e0a4ccd7290461cb4d4922e9bfa37bbd97a98dd5280146d9cabfd74",
+        "url:be3988acd7ec22d1a7564523473101df70f5d0c9d2658e1717e439a42185fb98",
+        "url:905780b6564964b8796c614d07e68a1b9480a35a60a2e3f479dabfe6415ea272",
+        "url:0f8da702a186b354913932384ddc536b5503de3232d6a84c4197719cbac59c5b",
+        "url:59d1d91d517ed7e3113f63c10a5aaf3e060252f91e0e879bd1f8c79c78a9da4b",
+        "url:e67289ca1fb8efe9c254b312bda09e8baed513e51b1b65487abfe9306331b7cb",
+        "url:ed6c790d8bf4c7b3eace071ba9d7b577f4d8eae069b5490c8073af79afe0c787",
+        "url:33607677c0d81fb8d0c80cd087a4b78a8a7691d4f52f5a94f811ef2249cf42e1"
+      ],
+      "items_summary": [
+        {
+          "dedupe_key": "url:c9b7da28655cf4b0cc03b865d51795be64f65c116f21556919fadd3ac21d6425",
+          "title": "CJ대한통운, ‘2025 지속가능경영보고서’ 발간",
+          "publisher": "콜드체인뉴스",
+          "published_at": "2026-07-06T11:28:54+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiZkFVX3lxTFBvNHJIOXZuNlFkRktnbkR4ckJZMTVKWmNqS3JkRzlETTV2bl9QWVZPbTRqRk40bGMyTjZWODJnMUMxa2pPenNmMHV1aDZEbkdLUnNLWl8wa2N6cnV4Q1RmRHkwT2hydw?oc=5",
+          "category": "market_deal"
+        },
+        {
+          "dedupe_key": "url:1c5c00e64bda2e3662ef6defc26142ec690dd9a31cf002861b88ed17fac52fc5",
+          "title": "파스토로보틱스, Pre-IPO 1차투자 유치완료",
+          "publisher": "콜드체인뉴스",
+          "published_at": "2026-07-06T11:28:53+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiZkFVX3lxTE92Y0pFdVZ5Y19acmN4RWthWjFfU3hiWUdtSC0wMjlGN3JjY0o1YmFDXzU0V1l4aXhMYUo0S1RSQ2pmb1pOSENnMEt1NG5xYkFfNGo3SG5QaFZ2ckRkSFprQW9fMlpmdw?oc=5",
+          "category": "market_deal"
+        },
+        {
+          "dedupe_key": "url:d5a004664e0a4ccd7290461cb4d4922e9bfa37bbd97a98dd5280146d9cabfd74",
+          "title": "[PF부실] 경기도 물류센터·상가형 수요 부진…공실률 높아 구조조정 지연",
+          "publisher": "글로벌이코노믹",
+          "published_at": "2026-07-06T09:00:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMihAFBVV95cUxPNzFtRVAxUzFVVW5JZzQ5cnUtWFZJX0ZrcGozakNiV0JhWlVxTWtvdWc0OWU2Y25BbFBLYnBSS3BzcVFqLUZ4cXg4WjRGVHVvX0tGX0tUVlhiWmgzemhFSkNoMlZYM3lyVlRrcC1xSU9vUGMtMXdyd1JBaFVSdFNOTFN6MVk?oc=5",
+          "category": "market_deal"
+        },
+        {
+          "dedupe_key": "url:be3988acd7ec22d1a7564523473101df70f5d0c9d2658e1717e439a42185fb98",
+          "title": "[단독] \"남의 창고로는 쿠팡 못 이겨\"…네이버, 25년 만에 물류 대수술",
+          "publisher": "블루밍비트",
+          "published_at": "2026-07-06T08:52:46+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiUEFVX3lxTE5wYnlCVFNoaFlSVmtsWlNLMkh5OS1aeXV1bjZlWEFLM0V0dDN5OVg0MUktR3VuNDNfd0FvNERHSDlFbVN6UG1Dbjhob1BWLWlq?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:905780b6564964b8796c614d07e68a1b9480a35a60a2e3f479dabfe6415ea272",
+          "title": "25년 만에 직배송 '결단'…쿠팡에 맞선 네이버 '초강수'",
+          "publisher": "한국경제",
+          "published_at": "2026-07-06T08:48:01+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiWkFVX3lxTE0yWF94QW00aWtzdWhzazZvTEJVbkNsdk8zbFhGcnFaZXc5am9UVUpXdGk4WF9EajdianptbFBCQlJ2Z3hxQVdna2FvVC02Z2xzbWpWSjRNTlpTZ9IBVEFVX3lxTE9jNHpNSVE4Q1dERnRMSVRjQTlZVi1MRGV3cldVQ0pQeUxzam91enF5VnUwQTNIUHAxa2NWSnNubXZiakJ6aDBQM0VIOVVKYmpFWW51SA?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:0f8da702a186b354913932384ddc536b5503de3232d6a84c4197719cbac59c5b",
+          "title": "CJ대한통운·베트남 물류기업 제마뎁, 자회사 지분 상호 양수도 완료",
+          "publisher": "파이낸셜뉴스",
+          "published_at": "2026-07-06T07:45:28+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiWkFVX3lxTFA5U0kyTTA4U0ZhT29zU3VlQUVNNkczNFBmc3Frd0lEUjhTT0o3QTRldnduMUJ5S0JfRURIS1VuZ0lpWmlNMWpXQ2VxTjA5alYtWG9TYkJhSkhpdw?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:59d1d91d517ed7e3113f63c10a5aaf3e060252f91e0e879bd1f8c79c78a9da4b",
+          "title": "제주 물류비 낮출 공동 거점 생겼다… 스마트공동물류센터 준공",
+          "publisher": "MSN",
+          "published_at": "2026-07-06T07:35:47+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMikwNBVV95cUxPTzFsN0VFOEVHdTliZVZMZWRsTEFnR2tiYS1hblRZblRHMHo2Q295LVk4Z3VJbThnU2UyNS1rX29hdzRsOXgtUUNrNmZadzJKcnBxcVRnem0yNEw1NzJCc0ptN3J0REJWOURHbVc3YmhfcTZXSk4yQUdRN1IwX1RKU2lndndDYVlvTVhyMXRLempxbkdWRzZjT20yek50NkRiTlRuQ3FFZkZDbFdlZmpZYnpNZlMzNmt1aTNPdGhMdnl5TW0yYkN2TXZPZDZZQnYzcGpCNEROclBwOF9pc25MV3otcEd6SGx0MlFYdy1CV3BFbHdhOGJFSXcwQzZFMVV1akRPS1NDY1o5SGxEU3ZMSFpiNUE2TmtsMHVnLUdtdVVRa1FuNC1hc0wzREpsRkxrYmlmQTRtNlBXQWw4aUMyUnJiLV9RV0dfOV9vOExlSUs4YUFJWnVESUdzaUt5WFR5OGxHOWZFM2RjT1NjQkFQNENCZ0Q4Xy1FaHkxQ211REpvbGhOcmdobGpDY1ZCTThyalZ3?oc=5",
+          "category": "supply_development"
+        },
+        {
+          "dedupe_key": "url:e67289ca1fb8efe9c254b312bda09e8baed513e51b1b65487abfe9306331b7cb",
+          "title": "[택배 & Now] 조현민 한진 사장, 'ICSB 세계총회' 기조연설 등",
+          "publisher": "네이트",
+          "published_at": "2026-07-06T07:03:00+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMiU0FVX3lxTFB3RHRtVDk3Z3dyWXpwVzNZTkpOSzMzbGpnejk5RUtyUG1xbUVYUW5hQTdjZHplVXFiUnUweTF6cDljMHJTUW5Lc3B0OW5OdDZTTVNF?oc=5",
+          "category": "major_company"
+        },
+        {
+          "dedupe_key": "url:ed6c790d8bf4c7b3eace071ba9d7b577f4d8eae069b5490c8073af79afe0c787",
+          "title": "거래액 9배·최대 실적…컬리, IPO 대신 ′유통 공룡′ 노린다",
+          "publisher": "메가경제",
+          "published_at": "2026-07-06T02:12:12+00:00",
+          "canonical_url": "https://news.google.com/rss/articles/CBMidEFVX3lxTE1NX0M3bl9yU2RoUFdyYWpyZFdsNm5seUMxZWNIVHQtbmYxU0swVTJnV1poS1ZhN3JSOEpka0lMOFZOamI3eFhobi1qZ0FzT19VMFZhN1ozMzJNeWtNN2lJX0c0RTJPSzJ0cjhVTjZOS0lobUYx0gFyQVVfeXFMTWhGRjZtQW1fY1FjVW5QTjNHbFI4czBXVjEyTVdQNk9GMjdlaWVuMUxCaHFaaHlTWFJVWjR3Zmdaa3ZhU2RUVm1MUkJ3czQ4N0JsZW85RDgyR1RpYkRLZ3pIdUQtZHZaZjNHemEwaVdYMTNn?oc=5",
+          "category": "market_deal"
+        },
+        {
+          "dedupe_key": "url:33607677c0d81fb8d0c80cd087a4b78a8a7691d4f52f5a94f811ef2249cf42e1",
+          "title": "“제주에서도 반나절만에 받는다”…올리브영, 물류센터 열고 ‘오늘드림’ 확대",
+          "publisher": "bing.com",
+          "published_at": "2026-07-05T22:49:35+00:00",
+          "canonical_url": "http://www.bing.com/news/apiclick.aspx?ref=FexRss&aid=&tid=6a4f358576cb4d7bb76e3aa06820467a&url=https%3A%2F%2Fwww.msn.com%2Fko-kr%2F%25EA%25B8%25B0%25EC%2588%25A0%2F%25EC%259D%25BC%25EB%25B0%2598%2F%25EC%25A0%259C%25EC%25A3%25BC%25EC%2597%2590%25EC%2584%259C%25EB%258F%2584-%25EB%25B0%2598%25EB%2582%2598%25EC%25A0%2588%25EB%25A7%258C%25EC%2597%2590-%25EB%25B0%259B%25EB%258A%2594%25EB%258B%25A4-%25EC%2598%25AC%25EB%25A6%25AC%25EB%25B8%258C%25EC%2598%2581-%25EB%25AC%25BC%25EB%25A5%2598%25EC%2584%25BC%25ED%2584%25B0-%25EC%2597%25B4%25EA%25B3%25A0-%25EC%2598%25A4%25EB%258A%2598%25EB%2593%259C%25EB%25A6%25BC-%25ED%2599%2595%25EB%258C%2580%2Far-AA27igLn&c=3892668887487971401&mkt=ko-kr",
+          "category": "market_deal"
+        }
+      ],
+      "outside_window_items": [],
+      "missing_dedupe_count": 0,
+      "unique_dedupe_count": 10,
+      "unique_title_count": 10,
+      "empty_message": "수집된 뉴스가 없습니다.",
+      "source_summary": {
+        "primary": "google_news_rss",
+        "queries": [
+          "\"물류센터\" \"임대료\" OR \"물류센터\" \"공실\" OR \"물류센터\" \"임대차\"",
+          "\"물류센터\" \"렌트프리\" OR \"물류센터\" \"NOC\" OR \"물류창고\" \"임대\"",
+          "\"물류센터\" \"매매\" OR \"물류센터\" \"거래\" OR \"물류센터\" \"선매입\"",
+          "\"물류센터\" \"매각\" OR \"물류센터\" \"자산운용\" OR \"물류센터\" \"캡레이트\"",
+          "\"물류부동산\" \"리포트\" OR \"물류센터\" \"시장 리포트\" OR \"물류센터\" \"전망\"",
+          "\"물류센터\" \"공급\" OR \"물류센터\" \"개발\" OR \"물류센터\" \"준공\"",
+          "\"저온물류센터\" OR \"콜드체인\" \"물류센터\" OR \"풀필먼트센터\"",
+          "\"물류창고\" \"임대\" OR \"물류창고\" \"매매\" OR \"물류창고\" \"공실\"",
+          "\"물류센터\"",
+          "\"물류창고\"",
+          "\"물류부동산\"",
+          "\"풀필먼트센터\" OR \"풀필먼트 서비스\"",
+          "\"택배\" \"물류\" \"센터\"",
+          "\"저온물류\" OR \"콜드체인\"",
+          "쿠팡 물류센터 OR 쿠팡 풀필먼트 OR 쿠팡 물류",
+          "CJ대한통운 물류센터 OR CJ대한통운 택배 OR CJ대한통운 물류",
+          "한진 물류센터 OR 한진 택배 OR 한진 물류",
+          "컬리 물류센터 OR 컬리 배송 OR 컬리 물류",
+          "롯데글로벌로지스 OR 롯데 물류센터 OR 롯데택배",
+          "현대글로비스 물류 OR 현대글로비스 물류센터",
+          "LX판토스 물류 OR 판토스 물류센터",
+          "DHL 물류 OR DHL 물류센터",
+          "로젠택배 물류 OR 로젠 물류센터",
+          "GS리테일 물류 OR BGF 물류 OR 우체국 물류",
+          "\"물류센터\" \"거래면적\" OR \"물류센터\" \"평당가\" OR \"물류센터\" \"매입\"",
+          "\"물류센터\" \"공급예정\" OR \"물류센터\" \"인허가\" OR \"물류센터\" \"착공\"",
+          "\"물류센터\" \"임대시장\" OR \"물류센터\" \"공실률\" OR \"물류센터\" \"렌트프리\"",
+          "\"물류센터\" \"캡레이트\" OR \"물류부동산\" \"투자\" OR \"물류부동산\" \"거래\"",
+          "쿠팡 CJ대한통운 한진 컬리 롯데글로벌로지스 물류 배송 택배 투자 실적"
+        ],
+        "fallback": "bing_news_rss",
+        "item_count": 10,
+        "empty_state": false,
+        "query_count": 29,
+        "source_stats": {
+          "bing_news_rss": 58,
+          "google_news_rss": 225,
+          "google_news_rss_backfill": 239
+        },
+        "window_hours": 24,
+        "candidate_count": 21,
+        "selection_policy": {
+          "limit": 10,
+          "category_targets": {
+            "market_deal": 4,
+            "lease_market": 2,
+            "major_company": 4,
+            "supply_development": 2
+          },
+          "max_items_per_company": 2,
+          "max_major_company_only_items": 5
+        },
+        "collector_version": "google-bing-rss-v10-strict-window-backfill",
+        "strict_24h_window": true,
+        "strict_item_count": 1,
+        "strict_window_end": "2026-07-06T22:00:00.000Z",
+        "strict_window_only": true,
+        "historical_backfill": true,
+        "strict_window_start": "2026-07-05T22:00:00.000Z",
+        "expanded_recent_days": 0,
+        "expanded_to_recent_7d": false,
+        "expanded_window_start": null,
+        "same_window_relaxed_backfill": false
+      },
+      "window_hours": 24,
+      "strict_24h_window": true,
+      "strict_window_only": true,
+      "expanded_to_recent_7d": false,
+      "expanded_recent_days": 0,
+      "titles_with_important_prefix": [],
+      "titles_with_publisher_suffix": [],
+      "missing_publisher_count": 0,
+      "company_mention_counts": {
+        "cjlogistics": 2,
+        "coupang": 2,
+        "hanjin": 1,
+        "kurly": 1
+      },
+      "category_counts": {
+        "market_deal": 5,
+        "major_company": 4,
+        "supply_development": 1
       }
     }
   ],

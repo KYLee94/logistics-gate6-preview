@@ -64,6 +64,18 @@ function expectedWindowHours(dateText) {
   return date.getUTCDay() === 1 ? 72 : 24;
 }
 
+function expectedWindow(dateText) {
+  const match = String(dateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/u);
+  if (!match) {
+    const end = new Date();
+    return { start: new Date(end.getTime() - 24 * 60 * 60 * 1000), end, hours: 24 };
+  }
+  const end = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), -2, 0, 0));
+  const hours = expectedWindowHours(dateText);
+  const start = new Date(end.getTime() - hours * 60 * 60 * 1000);
+  return { start, end, hours };
+}
+
 function companyMentions(title) {
   const normalized = String(title || '').toLowerCase();
   const companies = [
@@ -113,6 +125,7 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = 
   const data = body.data || {};
   const items = Array.isArray(data.items) ? data.items : [];
   const sourceSummary = data.latest_run?.source_summary || {};
+  const expected = expectedWindow(date);
   const dedupeKeys = items.map((item) => item.dedupe_key).filter(Boolean);
   const normalizedTitles = items.map((item) => String(item.title || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '')).filter(Boolean);
   const categoryCounts = items.reduce((acc, item) => {
@@ -138,6 +151,16 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = 
       canonical_url: item.canonical_url || item.original_url || '',
       category: item.payload?.category || item.category || '',
     })),
+    outside_window_items: items
+      .filter((item) => {
+        const publishedAt = new Date(item.published_at);
+        return Number.isNaN(publishedAt.getTime()) || publishedAt < expected.start || publishedAt > expected.end;
+      })
+      .map((item) => ({
+        title: item.title || '',
+        publisher: item.publisher || '',
+        published_at: item.published_at || null,
+      })),
     missing_dedupe_count: items.filter((item) => !item.dedupe_key).length,
     unique_dedupe_count: new Set(dedupeKeys).size,
     unique_title_count: new Set(normalizedTitles).size,
@@ -145,7 +168,9 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = 
     source_summary: sourceSummary,
     window_hours: sourceSummary.window_hours,
     strict_24h_window: sourceSummary.strict_24h_window,
+    strict_window_only: sourceSummary.strict_window_only,
     expanded_to_recent_7d: sourceSummary.expanded_to_recent_7d,
+    expanded_recent_days: sourceSummary.expanded_recent_days,
     titles_with_important_prefix: items
       .filter((item) => /^\s*(?:\[\uC911\uC694\]|\uC911\uC694[:\uFF1A-])/iu.test(String(item.title || '')))
       .map((item) => item.title),
@@ -222,6 +247,10 @@ async function main() {
       && check.empty_message === EMPTY_MESSAGE
       && check.window_hours === expectedWindowHours(check.date)
       && check.strict_24h_window === (expectedWindowHours(check.date) === 24)
+      && check.strict_window_only === true
+      && check.expanded_to_recent_7d !== true
+      && Number(check.expanded_recent_days || 0) === 0
+      && check.outside_window_items.length === 0
       && check.item_count >= MIN_DAILY_NEWS_ITEMS
       && check.item_count <= 10
       && check.missing_dedupe_count === 0
@@ -230,7 +259,10 @@ async function main() {
       && check.titles_with_important_prefix.length === 0
       && check.titles_with_publisher_suffix.length === 0
       && check.missing_publisher_count === 0
-      && Math.max(0, ...Object.values(check.company_mention_counts || {})) <= 2)
+      && (
+        Number(check.source_summary?.strict_item_count || 0) < MIN_DAILY_NEWS_ITEMS
+        || Math.max(0, ...Object.values(check.company_mention_counts || {})) <= 2
+      ))
       && preservation_checks.every((check) => check.ok),
     generated_at: new Date().toISOString(),
     auth_source: auth.source,

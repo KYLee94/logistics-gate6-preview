@@ -6,9 +6,8 @@ const { createClient } = require('@supabase/supabase-js');
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
 const BING_NEWS_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v9-relaxed-sparse-backfill';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v10-strict-window-backfill';
 const MIN_DAILY_NEWS_ITEMS = 8;
-const EXPANDED_RECENT_DAYS = 14;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -137,7 +136,7 @@ function parseBasisKst(value) {
 function currentSevenAmBasisKst() {
   const now = new Date();
   const kst = new Date(now.getTime() + KST_OFFSET_MS);
-  const todaySeven = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), 22, 0, 0));
+  const todaySeven = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), -2, 0, 0));
   return now.getTime() < todaySeven.getTime() ? new Date(todaySeven.getTime() - 24 * HOUR_MS) : todaySeven;
 }
 
@@ -189,6 +188,21 @@ async function fetchGoogleNewsRss(query) {
   });
   if (!response.ok) return [];
   return parseRssItems(await response.text());
+}
+
+async function fetchGoogleNewsRssForDateRange(query, windowStart, windowEnd) {
+  const startKey = windowStart.toISOString().slice(0, 10);
+  const endKey = new Date(windowEnd.getTime() + 24 * HOUR_MS).toISOString().slice(0, 10);
+  const url = new URL(GOOGLE_NEWS_RSS_URL);
+  url.searchParams.set('q', `${query} after:${startKey} before:${endKey}`);
+  url.searchParams.set('hl', 'ko');
+  url.searchParams.set('gl', 'KR');
+  url.searchParams.set('ceid', 'KR:ko');
+  const response = await fetch(url, {
+    headers: { 'user-agent': 'logistics-gate6-news-collector/2.0' },
+  });
+  if (!response.ok) return [];
+  return parseRssItems(await response.text()).map((item) => ({ ...item, source_name: 'google_news_rss_backfill' }));
 }
 
 async function fetchBingNewsRss(query) {
@@ -362,6 +376,16 @@ function selectBalancedNews(items, limit = 10) {
   for (const item of sorted) {
     if (add(item, false)) return selected;
   }
+  for (const item of sorted) {
+    if (selected.length >= limit) return selected;
+    if (!item || selectedKeys.has(item.dedupe_key)) continue;
+    const category = item.payload?.category || 'other';
+    const companyKey = companyKeyForItem(item);
+    selected.push(item);
+    selectedKeys.add(item.dedupe_key);
+    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+    if (companyKey) companyCounts[companyKey] = (companyCounts[companyKey] || 0) + 1;
+  }
   return selected;
 }
 
@@ -435,10 +459,68 @@ async function collectNews(windowStart, windowEnd, options = {}) {
   return items;
 }
 
+async function collectHistoricalNews(windowStart, windowEnd) {
+  const seen = new Map();
+  const sourceStats = {};
+  for (const query of SEARCH_QUERIES) {
+    let rows = [];
+    try {
+      rows = await fetchGoogleNewsRssForDateRange(query, windowStart, windowEnd);
+    } catch {
+      rows = [];
+    }
+    for (const item of rows) {
+      sourceStats[item.source_name || 'rss'] = (sourceStats[item.source_name || 'rss'] || 0) + 1;
+      const publishedAt = new Date(item.pubDate);
+      if (Number.isNaN(publishedAt.getTime())) continue;
+      if (publishedAt < windowStart || publishedAt > windowEnd) continue;
+      const publisher = inferPublisher(item);
+      const title = cleanNewsTitle(item.title, publisher);
+      const summary = stripHtml(item.description).slice(0, 500);
+      const canonical = canonicalUrl(item.originallink || item.link);
+      const titleHash = hash(normalizeTitle(title));
+      const dedupeKey = canonical ? `url:${hash(canonical)}` : `title:${titleHash}`;
+      const fallbackDedupeKey = `publisher-title-time:${hash(`${publisher}:${titleHash}:${publishedAt.toISOString().slice(0, 13)}`)}`;
+      const scored = scoreItem({ title, summary });
+      if (scored.score < 2) continue;
+      const next = {
+        dedupe_key: dedupeKey,
+        canonical_url: canonical,
+        original_url: item.link || canonical,
+        title,
+        publisher,
+        published_at: publishedAt.toISOString(),
+        summary,
+        importance_score: scored.score,
+        matched_keywords: scored.matched,
+        source_name: item.source_name || 'google_news_rss_backfill',
+        payload: {
+          query,
+          raw_pub_date: item.pubDate,
+          fallback_dedupe_key: fallbackDedupeKey,
+          category: scored.category,
+          company_key: scored.company?.key || '',
+          company_label: scored.company?.label || '',
+          backfill_mode: 'historical_same_window',
+        },
+      };
+      const current = seen.get(dedupeKey) || seen.get(fallbackDedupeKey);
+      if (!current || Number(next.importance_score) > Number(current.importance_score)) {
+        seen.set(dedupeKey, next);
+        seen.set(fallbackDedupeKey, next);
+      }
+    }
+  }
+  const candidates = [...new Map([...seen.values()].map((item) => [item.dedupe_key, item])).values()];
+  const items = selectBalancedNews(candidates, 10);
+  items.sourceStats = sourceStats;
+  items.candidateCount = candidates.length;
+  return items;
+}
+
 async function collectDailyNewsWithExpansion(windowStart, windowEnd, windowHours) {
   const strictItems = await collectNews(windowStart, windowEnd);
-  const shouldExpand = strictItems.length < MIN_DAILY_NEWS_ITEMS;
-  if (!shouldExpand) {
+  if (strictItems.length >= MIN_DAILY_NEWS_ITEMS) {
     return {
       items: strictItems,
       strictItemCount: strictItems.length,
@@ -446,17 +528,33 @@ async function collectDailyNewsWithExpansion(windowStart, windowEnd, windowHours
       expandedWindowStart: windowStart,
       sourceStats: strictItems.sourceStats || {},
       candidateCount: strictItems.candidateCount || strictItems.length,
+      historicalBackfill: false,
+      relaxedBackfill: false,
+      strictWindowOnly: true,
     };
   }
-  const expandedWindowStart = new Date(windowEnd.getTime() - EXPANDED_RECENT_DAYS * 24 * HOUR_MS);
-  const expandedItems = await collectNews(expandedWindowStart, windowEnd);
-  let items = expandedItems.length >= strictItems.length ? expandedItems : strictItems;
-  let sourceStats = expandedItems.sourceStats || strictItems.sourceStats || {};
-  let candidateCount = expandedItems.candidateCount || strictItems.candidateCount || expandedItems.length || strictItems.length;
+  let items = strictItems;
+  let sourceStats = strictItems.sourceStats || {};
+  let candidateCount = strictItems.candidateCount || strictItems.length;
+  let historicalBackfill = false;
+  let relaxedBackfill = false;
   if (items.length < MIN_DAILY_NEWS_ITEMS) {
-    const relaxedItems = await collectNews(expandedWindowStart, windowEnd, {
+    const historicalItems = await collectHistoricalNews(windowStart, windowEnd);
+    const mergedItems = selectBalancedNews([...items, ...historicalItems], 10);
+    if (mergedItems.length > items.length) {
+      items = mergedItems;
+      sourceStats = { ...sourceStats };
+      for (const [key, value] of Object.entries(historicalItems.sourceStats || {})) {
+        sourceStats[key] = (sourceStats[key] || 0) + Number(value || 0);
+      }
+      candidateCount += Number(historicalItems.candidateCount || 0);
+      historicalBackfill = true;
+    }
+  }
+  if (items.length < MIN_DAILY_NEWS_ITEMS) {
+    const relaxedItems = await collectNews(windowStart, windowEnd, {
       minimumScore: 1,
-      backfillMode: 'relaxed_sparse_window',
+      backfillMode: 'relaxed_same_window',
     });
     const mergedItems = selectBalancedNews([...items, ...relaxedItems], 10);
     if (mergedItems.length > items.length) {
@@ -466,15 +564,19 @@ async function collectDailyNewsWithExpansion(windowStart, windowEnd, windowHours
         sourceStats[key] = (sourceStats[key] || 0) + Number(value || 0);
       }
       candidateCount += Number(relaxedItems.candidateCount || 0);
+      relaxedBackfill = true;
     }
   }
   return {
     items,
     strictItemCount: strictItems.length,
-    expandedToRecent7d: true,
-    expandedWindowStart,
+    expandedToRecent7d: false,
+    expandedWindowStart: windowStart,
     sourceStats,
     candidateCount,
+    historicalBackfill,
+    relaxedBackfill,
+    strictWindowOnly: true,
   };
 }
 
@@ -509,8 +611,11 @@ async function publish(run, items) {
       strict_window_end: run.windowEnd.toISOString(),
       strict_item_count: run.strictItemCount,
       item_count: items.length,
-      expanded_to_recent_7d: run.expandedToRecent7d === true,
-      expanded_recent_days: EXPANDED_RECENT_DAYS,
+      strict_window_only: true,
+      expanded_to_recent_7d: false,
+      expanded_recent_days: 0,
+      historical_backfill: run.historicalBackfill === true,
+      same_window_relaxed_backfill: run.relaxedBackfill === true,
       strict_24h_window: run.windowHours === 24,
       candidate_count: run.candidateCount || items.length,
       selection_policy: {
@@ -519,7 +624,7 @@ async function publish(run, items) {
         max_items_per_company: MAX_ITEMS_PER_COMPANY,
         max_major_company_only_items: MAX_MAJOR_COMPANY_ONLY_ITEMS,
       },
-      expanded_window_start: run.expandedWindowStart?.toISOString?.() || null,
+      expanded_window_start: null,
       source_stats: run.sourceStats || {},
       empty_state: items.length === 0,
     },
@@ -542,9 +647,7 @@ async function publish(run, items) {
   const staleDedupeKeys = (existingItems.data || [])
     .map((item) => item.dedupe_key)
     .filter((key) => key && !selectedDedupeKeys.has(key));
-  const preserveExistingSparseRun = itemRows.length < MIN_DAILY_NEWS_ITEMS
-    && (existingItems.data || []).length >= MIN_DAILY_NEWS_ITEMS;
-  if (!preserveExistingSparseRun && staleDedupeKeys.length) {
+  if (staleDedupeKeys.length) {
     const staleDelete = await supabase
       .from('ll_news_items')
       .delete()
@@ -589,13 +692,15 @@ async function publishFailure(run, error) {
 async function main() {
   const { windowStart, windowEnd, windowHours } = parseWindow();
   const runKey = `daily-news:${kstDateKey(windowEnd)}:0700KST`;
-  const run = { run_key: runKey, windowStart, windowEnd, windowHours, strictWindowStart: windowStart, strictItemCount: 0, expandedToRecent7d: false, sourceStats: {}, candidateCount: 0 };
+  const run = { run_key: runKey, windowStart, windowEnd, windowHours, strictWindowStart: windowStart, strictItemCount: 0, expandedToRecent7d: false, historicalBackfill: false, relaxedBackfill: false, sourceStats: {}, candidateCount: 0 };
   try {
     const collected = await collectDailyNewsWithExpansion(windowStart, windowEnd, windowHours);
     const items = collected.items;
     run.strictItemCount = collected.strictItemCount;
     run.expandedToRecent7d = collected.expandedToRecent7d;
     run.expandedWindowStart = collected.expandedWindowStart;
+    run.historicalBackfill = collected.historicalBackfill === true;
+    run.relaxedBackfill = collected.relaxedBackfill === true;
     run.sourceStats = collected.sourceStats || {};
     run.candidateCount = collected.candidateCount || items.length;
     const output = {

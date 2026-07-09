@@ -30,6 +30,7 @@
     "qa:maturity-notifications:dry-run": "node scripts/integrations/logistics-maturity-notifications.cjs --dry-run",
     "qa:news:daily:dry-run": "node scripts/integrations/logistics-news-daily-ingest.cjs --dry-run",
     "qa:news:api": "node scripts/qa/logistics-news-api-smoke.cjs",
+    "qa:news:browser": "node scripts/qa/logistics-news-browser-smoke.cjs",
     "ops:news:restore-20260617": "node scripts/ops/logistics-news-restore-20260617.cjs",
     "ops:news:edge-restore-20260617": "node scripts/ops/logistics-news-edge-restore-20260617.cjs",
     "qa:news:restore-20260617": "node scripts/qa/logistics-news-restore-readback.cjs",
