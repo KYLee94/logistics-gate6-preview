@@ -6806,7 +6806,7 @@ function dataManagementDerivedFundShortName(...values: unknown[]) {
 
 async function readDataManagementScope(ctx: Context, managerView: boolean): Promise<{ scope?: DataManagementScope; error?: string }> {
   const [fundsResult, linksResult, assetsResult] = await Promise.all([
-    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,legal_form,investment_sector,fund_type,investment_strategy,initial_setup_date,maturity_date,setup_date,status,review_status,review_note').limit(500),
+    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,legal_form,investment_sector,fund_type,investment_strategy,initial_setup_date,maturity_date,setup_date,status,review_status').limit(500),
     ctx.serviceClient.from('ll_fund_asset_links').select('id,fund_id,asset_id,asset_code,asset_name,link_type,source_type,source_name,source_payload').limit(1000),
     ctx.serviceClient.from('ll_assets').select('*').limit(1000),
   ]);
@@ -9257,17 +9257,22 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
     fundIds.length
       ? ctx.serviceClient.from('ll_fund_capital_tranches').select('*').eq('is_active', true).limit(5000)
       : Promise.resolve({ data: [], error: null }),
-    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,fund_type,investment_strategy,legal_form,initial_setup_date,maturity_date,setup_date,status,review_status,review_note').limit(500),
+    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,fund_type,investment_strategy,legal_form,initial_setup_date,maturity_date,setup_date,status,review_status').limit(500),
   ]);
   if (tranchesResult.error && !isMissingRelationError(tranchesResult.error)) throw new Error(tranchesResult.error.message);
   if (liveFundsResult.error && !isMissingRelationError(liveFundsResult.error)) throw new Error(liveFundsResult.error.message);
   const tranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => hasMeaningfulInvestmentLoanData(row));
-  const liveFundsById = new Map(((liveFundsResult.data || []) as Record<string, unknown>[])
-    .map((fund) => [safeText(fund.fund_id), fund])
-    .filter(([fundId]) => Boolean(fundId)) as [string, Record<string, unknown>][]);
-  const liveFundsByCode = new Map(((liveFundsResult.data || []) as Record<string, unknown>[])
-    .map((fund) => [safeText(fund.fund_code), fund])
-    .filter(([fundCode]) => Boolean(fundCode)) as [string, Record<string, unknown>][]);
+  const liveFundsById = new Map<string, Record<string, unknown>>();
+  const liveFundsByCode = new Map<string, Record<string, unknown>>();
+  ((liveFundsResult.data || []) as Record<string, unknown>[]).forEach((fund) => {
+    const fundId = safeText(fund.fund_id);
+    const fundCode = safeText(fund.fund_code);
+    const idCode = fundId.replace(/^fund[_-]?/u, '');
+    uniqueStrings([fundId, idCode, fundCode ? `fund_${fundCode}` : ''], 8)
+      .forEach((key) => liveFundsById.set(key, fund));
+    uniqueStrings([fundCode, idCode, fundId], 8)
+      .forEach((key) => liveFundsByCode.set(key, fund));
+  });
   const trancheKind = (row: Record<string, unknown>) => safeText(row.tranche_type) === 'loan' ? 'loan' : 'equity';
   const investmentGroups = [...readableLinks.reduce((map, link) => {
     const groupKey = safeText(link.fund_id)
@@ -9289,8 +9294,17 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
   const tranchesForGroup = (group: { key: string; links: Record<string, unknown>[] }) => {
     const firstLink = group.links[0] || {};
     const fundId = safeText(firstLink.fund_id);
-    const fundCode = safeText(firstDefined(firstLink.fund_code, (scopeFundsById.get(fundId) || {}).fund_code));
-    const resolvedFund = liveFundsById.get(fundId) || liveFundsByCode.get(fundCode) || scopeFundsById.get(fundId) || {};
+    const scopeFund = scopeFundsById.get(fundId) || {};
+    const fundCode = safeText(firstDefined(firstLink.fund_code, scopeFund.fund_code, fundId.replace(/^fund[_-]?/u, '')));
+    const fundCandidates = uniqueStrings([
+      fundId,
+      fundCode,
+      fundId ? `fund_${fundId.replace(/^fund[_-]?/u, '')}` : '',
+      fundCode ? `fund_${fundCode.replace(/^fund[_-]?/u, '')}` : '',
+      safeText(scopeFund.fund_id),
+      safeText(scopeFund.fund_code),
+    ], 12);
+    const resolvedFund = fundCandidates.map((key) => liveFundsById.get(key) || liveFundsByCode.get(key)).find(Boolean) || scopeFund || {};
     const resolvedFundId = safeText(firstDefined(resolvedFund.fund_id, fundId));
     const assetIds = new Set(group.links.map((link) => safeText(link.asset_id)).filter(Boolean));
     return tranches.filter((row) => {
@@ -9418,22 +9432,40 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
     const assetNames = uniqueStrings(group.links.map((link) => safeText(firstDefined(link.asset_name, link.asset_code))).filter(Boolean), 50);
     const fundId = safeText(firstLink.fund_id);
     const scopeFund = scopeFundsById.get(fundId) || {};
-    const fundCode = safeText(firstDefined(firstLink.fund_code, scopeFund.fund_code));
-    const fund = liveFundsById.get(fundId) || liveFundsByCode.get(fundCode) || scopeFund || {};
+    const fundCode = safeText(firstDefined(firstLink.fund_code, scopeFund.fund_code, fundId.replace(/^fund[_-]?/u, '')));
+    const fundCandidates = uniqueStrings([
+      fundId,
+      fundCode,
+      fundId ? `fund_${fundId.replace(/^fund[_-]?/u, '')}` : '',
+      fundCode ? `fund_${fundCode.replace(/^fund[_-]?/u, '')}` : '',
+      safeText(scopeFund.fund_id),
+      safeText(scopeFund.fund_code),
+    ], 12);
+    const fund = fundCandidates.map((key) => liveFundsById.get(key) || liveFundsByCode.get(key)).find(Boolean) || scopeFund || {};
     const resolvedFundId = safeText(firstDefined(fund.fund_id, fundId));
+    let currentFund = fund;
+    if (resolvedFundId) {
+      const { data: latestFund, error: latestFundError } = await ctx.serviceClient
+        .from('ll_funds')
+        .select('fund_id,fund_code,fund_name,short_name,fund_type,investment_strategy,legal_form,initial_setup_date,maturity_date,setup_date,status,review_status')
+        .eq('fund_id', resolvedFundId)
+        .maybeSingle();
+      if (latestFundError && !isMissingRelationError(latestFundError)) throw new Error(latestFundError.message);
+      if (latestFund) currentFund = { ...fund, ...(latestFund as Record<string, unknown>) };
+    }
     const assetIds = uniqueStrings(group.links.map((link) => safeText(link.asset_id)).filter(Boolean), 50);
     const source = stripUndefined({
       asset_name: assetNames.join(' / '),
-      fund_name: firstDefined(fund.fund_name, firstLink.fund_name, firstLink.fund_display_name, fund.fund_code, firstLink.fund_code),
-      fund_code: firstDefined(fund.fund_code, firstLink.fund_code),
+      fund_name: firstDefined(currentFund.fund_name, firstLink.fund_name, firstLink.fund_display_name, currentFund.fund_code, firstLink.fund_code),
+      fund_code: firstDefined(currentFund.fund_code, firstLink.fund_code),
       fund_short_name: firstDefined(
-        fund.short_name,
+        currentFund.short_name,
         firstLink.short_name,
         firstLink.fund_short_name,
-        dataManagementDerivedFundShortName(fund.fund_name, firstLink.fund_name, firstLink.fund_display_name),
+        dataManagementDerivedFundShortName(currentFund.fund_name, firstLink.fund_name, firstLink.fund_display_name),
       ),
-      fund_type: firstDefined(fund.fund_type, firstLink.fund_type),
-      investment_strategy: firstDefined(fund.investment_strategy, firstLink.investment_strategy),
+      fund_type: firstDefined(currentFund.fund_type, firstLink.fund_type),
+      investment_strategy: firstDefined(currentFund.investment_strategy, firstLink.investment_strategy),
       equity_amount_krw: equity,
       loan_amount_krw: loan,
       total_capital_krw: equity + loan,
@@ -9511,7 +9543,10 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
         link_ids: group.links.map((link) => safeText(link.id)).filter(Boolean),
         asset_id: assetIds.length === 1 ? assetIds[0] : undefined,
         asset_ids: assetIds,
-        fund_id: fundId,
+        fund_id: resolvedFundId || fundId,
+        source_fund_id: fundId,
+        resolved_fund_id: resolvedFundId || undefined,
+        fund_code: fundCode || undefined,
         tranche_count: linkTranches.length,
       },
     });
@@ -10618,7 +10653,7 @@ async function dataManagementResolveIntegratedViewEdit(ctx: Context, payload: Re
     : targetTable === 'public.ll_asset_operating_costs'
       ? safeText(rowMeta.operating_cost_id)
       : targetTable === 'public.ll_funds'
-        ? safeText(rowMeta.fund_id)
+        ? safeText(firstDefined(rowMeta.resolved_fund_id, rowMeta.fund_id))
         : targetTable === 'public.ll_fund_asset_links'
           ? safeText(rowMeta.link_id)
           : '';
@@ -11722,9 +11757,18 @@ async function dataManagementResolveViewFieldPayload(ctx: Context, payload: Reco
 }
 
 async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Record<string, unknown>) {
-  const rawChanges = Array.isArray(payload.changes) ? payload.changes as Record<string, unknown>[] : [];
-  const reason = safeText(payload.reason || payload.change_reason || payload.changeReason);
-  const clientRequestId = safeText(payload.client_request_id || payload.clientRequestId);
+  const nestedRequestPayload = payload.request_payload && typeof payload.request_payload === 'object' && !Array.isArray(payload.request_payload)
+    ? payload.request_payload as Record<string, unknown>
+    : {};
+  const rawChanges = Array.isArray(payload.changes)
+    ? payload.changes as Record<string, unknown>[]
+    : Array.isArray(payload.cell_edits)
+      ? payload.cell_edits as Record<string, unknown>[]
+      : Array.isArray(nestedRequestPayload.cell_edits)
+        ? nestedRequestPayload.cell_edits as Record<string, unknown>[]
+        : [];
+  const reason = safeText(payload.reason || payload.change_reason || payload.changeReason || nestedRequestPayload.reason || nestedRequestPayload.change_reason || nestedRequestPayload.changeReason);
+  const clientRequestId = safeText(payload.client_request_id || payload.clientRequestId || nestedRequestPayload.client_request_id || nestedRequestPayload.clientRequestId);
   if (!rawChanges.length) return fail(400, 'changes are required', ctx.origin);
   if (!reason) return fail(400, 'change reason is required', ctx.origin);
   if (rawChanges.length > 50) return fail(400, 'Too many changes in one approval request', ctx.origin);
@@ -13519,7 +13563,9 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
   const staleDedupeKeys = ((existingItems || []) as Array<Record<string, unknown>>)
     .map((item) => safeText(item.dedupe_key))
     .filter((key) => key && !selectedDedupeKeys.has(key));
-  if (staleDedupeKeys.length) {
+  const preserveExistingSparseRun = itemRows.length < NEWS_MIN_DAILY_ITEMS
+    && ((existingItems || []) as Array<Record<string, unknown>>).length >= NEWS_MIN_DAILY_ITEMS;
+  if (!preserveExistingSparseRun && staleDedupeKeys.length) {
     const { error: staleDeleteError } = await ctx.serviceClient
       .from('ll_news_items')
       .delete()
@@ -13582,7 +13628,7 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   }
   let itemQuery = ctx.serviceClient
     .from('ll_news_items')
-    .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,created_at')
+    .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,payload,created_at')
     .order('published_at', { ascending: false, nullsFirst: false })
     .limit(Math.min(Math.max(limit * 3, limit), 30));
   if (latestRun?.news_run_id) itemQuery = itemQuery.eq('news_run_id', latestRun.news_run_id);

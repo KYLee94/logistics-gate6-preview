@@ -521,7 +521,9 @@ async function publish(run, items) {
   const staleDedupeKeys = (existingItems.data || [])
     .map((item) => item.dedupe_key)
     .filter((key) => key && !selectedDedupeKeys.has(key));
-  if (staleDedupeKeys.length) {
+  const preserveExistingSparseRun = itemRows.length < MIN_DAILY_NEWS_ITEMS
+    && (existingItems.data || []).length >= MIN_DAILY_NEWS_ITEMS;
+  if (!preserveExistingSparseRun && staleDedupeKeys.length) {
     const staleDelete = await supabase
       .from('ll_news_items')
       .delete()
