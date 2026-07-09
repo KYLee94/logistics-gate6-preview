@@ -6,9 +6,9 @@ const { createClient } = require('@supabase/supabase-js');
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
 const BING_NEWS_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v7-sparse-date-backfill';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v9-relaxed-sparse-backfill';
 const MIN_DAILY_NEWS_ITEMS = 8;
-const EXPANDED_RECENT_DAYS = 7;
+const EXPANDED_RECENT_DAYS = 14;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -365,7 +365,8 @@ function selectBalancedNews(items, limit = 10) {
   return selected;
 }
 
-async function collectNews(windowStart, windowEnd) {
+async function collectNews(windowStart, windowEnd, options = {}) {
+  const minimumScore = Math.max(1, Number(options.minimumScore || 2));
   const seen = new Map();
   const sourceStats = {};
   for (const query of SEARCH_QUERIES) {
@@ -398,7 +399,7 @@ async function collectNews(windowStart, windowEnd) {
       const dedupeKey = canonical ? `url:${hash(canonical)}` : `title:${titleHash}`;
       const fallbackDedupeKey = `publisher-title-time:${hash(`${publisher}:${titleHash}:${publishedAt.toISOString().slice(0, 13)}`)}`;
       const scored = scoreItem({ title, summary });
-      if (scored.score < 2) continue;
+      if (scored.score < minimumScore) continue;
       const next = {
         dedupe_key: dedupeKey,
         canonical_url: canonical,
@@ -417,6 +418,7 @@ async function collectNews(windowStart, windowEnd) {
           category: scored.category,
           company_key: scored.company?.key || '',
           company_label: scored.company?.label || '',
+          backfill_mode: options.backfillMode || '',
         },
       };
       const current = seen.get(dedupeKey) || seen.get(fallbackDedupeKey);
@@ -435,7 +437,7 @@ async function collectNews(windowStart, windowEnd) {
 
 async function collectDailyNewsWithExpansion(windowStart, windowEnd, windowHours) {
   const strictItems = await collectNews(windowStart, windowEnd);
-  const shouldExpand = windowHours === 24 && strictItems.length < MIN_DAILY_NEWS_ITEMS;
+  const shouldExpand = strictItems.length < MIN_DAILY_NEWS_ITEMS;
   if (!shouldExpand) {
     return {
       items: strictItems,
@@ -448,13 +450,31 @@ async function collectDailyNewsWithExpansion(windowStart, windowEnd, windowHours
   }
   const expandedWindowStart = new Date(windowEnd.getTime() - EXPANDED_RECENT_DAYS * 24 * HOUR_MS);
   const expandedItems = await collectNews(expandedWindowStart, windowEnd);
+  let items = expandedItems.length >= strictItems.length ? expandedItems : strictItems;
+  let sourceStats = expandedItems.sourceStats || strictItems.sourceStats || {};
+  let candidateCount = expandedItems.candidateCount || strictItems.candidateCount || expandedItems.length || strictItems.length;
+  if (items.length < MIN_DAILY_NEWS_ITEMS) {
+    const relaxedItems = await collectNews(expandedWindowStart, windowEnd, {
+      minimumScore: 1,
+      backfillMode: 'relaxed_sparse_window',
+    });
+    const mergedItems = selectBalancedNews([...items, ...relaxedItems], 10);
+    if (mergedItems.length > items.length) {
+      items = mergedItems;
+      sourceStats = { ...sourceStats };
+      for (const [key, value] of Object.entries(relaxedItems.sourceStats || {})) {
+        sourceStats[key] = (sourceStats[key] || 0) + Number(value || 0);
+      }
+      candidateCount += Number(relaxedItems.candidateCount || 0);
+    }
+  }
   return {
-    items: expandedItems.length >= strictItems.length ? expandedItems : strictItems,
+    items,
     strictItemCount: strictItems.length,
     expandedToRecent7d: true,
     expandedWindowStart,
-    sourceStats: expandedItems.sourceStats || strictItems.sourceStats || {},
-    candidateCount: expandedItems.candidateCount || strictItems.candidateCount || expandedItems.length || strictItems.length,
+    sourceStats,
+    candidateCount,
   };
 }
 
@@ -490,6 +510,7 @@ async function publish(run, items) {
       strict_item_count: run.strictItemCount,
       item_count: items.length,
       expanded_to_recent_7d: run.expandedToRecent7d === true,
+      expanded_recent_days: EXPANDED_RECENT_DAYS,
       strict_24h_window: run.windowHours === 24,
       candidate_count: run.candidateCount || items.length,
       selection_policy: {

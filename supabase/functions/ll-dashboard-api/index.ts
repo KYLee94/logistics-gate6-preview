@@ -13008,9 +13008,9 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
 }
 
 const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v7-sparse-date-backfill';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v9-relaxed-sparse-backfill';
 const NEWS_MIN_DAILY_ITEMS = 8;
-const NEWS_EXPANDED_RECENT_DAYS = 7;
+const NEWS_EXPANDED_RECENT_DAYS = 14;
 const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const NEWS_HOUR_MS = 60 * 60 * 1000;
 const NEWS_RSS_FETCH_TIMEOUT_MS = 7000;
@@ -13367,7 +13367,8 @@ async function fetchBingNewsRows(query: string) {
   return newsParseRssItems(await fetchNewsRss(url), 'bing_news_rss', query);
 }
 
-async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days: number) {
+async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days: number, options: { minimumScore?: number; backfillMode?: string } = {}) {
+  const minimumScore = Math.max(1, Number(options.minimumScore || 2));
   const seen = new Map<string, NewsCollectorItem>();
   const sourceStats: Record<string, number> = {};
   for (let index = 0; index < NEWS_SEARCH_QUERIES.length; index += NEWS_RSS_QUERY_BATCH_SIZE) {
@@ -13390,7 +13391,7 @@ async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days
       const dedupeKey = urlHash ? `url:${urlHash}` : `title:${titleHash}`;
       const fallbackDedupeKey = `publisher-title-time:${await sha256Text(`${publisher}:${titleHash}:${publishedAt.toISOString().slice(0, 13)}`)}`;
       const scored = newsScore({ title, summary });
-      if (scored.score < 2) continue;
+      if (scored.score < minimumScore) continue;
       const next: NewsCollectorItem = {
         dedupe_key: dedupeKey,
         canonical_url: canonical,
@@ -13409,6 +13410,7 @@ async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days
           category: scored.category,
           company_key: scored.company?.key || '',
           company_label: scored.company?.label || '',
+          backfill_mode: options.backfillMode || '',
         },
       };
       const current = seen.get(dedupeKey) || seen.get(fallbackDedupeKey);
@@ -13428,22 +13430,64 @@ async function collectNewsRowsForWindow(windowStart: Date, windowEnd: Date, days
 
 async function collectNewsRowsForWindowWithExpansion(windowStart: Date, windowEnd: Date, days: number) {
   const strict = await collectNewsRowsForWindow(windowStart, windowEnd, days);
-  if (days !== 1 || strict.items.length >= NEWS_MIN_DAILY_ITEMS) {
+  if (strict.items.length >= NEWS_MIN_DAILY_ITEMS) {
     return {
       ...strict,
       strictItemCount: strict.items.length,
       expandedToRecent7d: false,
       expandedWindowStart: windowStart,
+      historicalBackfill: false,
     };
   }
   const expandedWindowStart = new Date(windowEnd.getTime() - NEWS_EXPANDED_RECENT_DAYS * 24 * 60 * 60 * 1000);
   const expanded = await collectNewsRowsForWindow(expandedWindowStart, windowEnd, NEWS_EXPANDED_RECENT_DAYS);
   const useExpanded = expanded.items.length >= strict.items.length;
+  let selected = useExpanded ? expanded : strict;
+  let historicalBackfill = false;
+  if (selected.items.length < NEWS_MIN_DAILY_ITEMS) {
+    const historical = await collectNewsRowsForHistoricalWindow(expandedWindowStart, windowEnd).catch(() => null);
+    if (historical?.items?.length) {
+      const mergedItems = newsSelectBalancedItems([...selected.items, ...historical.items], 10);
+      if (mergedItems.length > selected.items.length) {
+        const sourceStats: Record<string, number> = { ...(selected.sourceStats || {}) };
+        for (const [key, value] of Object.entries(historical.sourceStats || {})) {
+          sourceStats[key] = (sourceStats[key] || 0) + Number(value || 0);
+        }
+        selected = {
+          items: mergedItems,
+          sourceStats,
+          candidateCount: Math.max(Number(selected.candidateCount || 0), 0) + Math.max(Number(historical.candidateCount || 0), 0),
+        };
+        historicalBackfill = true;
+      }
+    }
+  }
+  if (selected.items.length < NEWS_MIN_DAILY_ITEMS) {
+    const relaxed = await collectNewsRowsForWindow(expandedWindowStart, windowEnd, NEWS_EXPANDED_RECENT_DAYS, {
+      minimumScore: 1,
+      backfillMode: 'relaxed_sparse_window',
+    }).catch(() => null);
+    if (relaxed?.items?.length) {
+      const mergedItems = newsSelectBalancedItems([...selected.items, ...relaxed.items], 10);
+      if (mergedItems.length > selected.items.length) {
+        const sourceStats: Record<string, number> = { ...(selected.sourceStats || {}) };
+        for (const [key, value] of Object.entries(relaxed.sourceStats || {})) {
+          sourceStats[key] = (sourceStats[key] || 0) + Number(value || 0);
+        }
+        selected = {
+          items: mergedItems,
+          sourceStats,
+          candidateCount: Math.max(Number(selected.candidateCount || 0), 0) + Math.max(Number(relaxed.candidateCount || 0), 0),
+        };
+      }
+    }
+  }
   return {
-    ...(useExpanded ? expanded : strict),
+    ...selected,
     strictItemCount: strict.items.length,
     expandedToRecent7d: true,
     expandedWindowStart,
+    historicalBackfill,
   };
 }
 
@@ -13509,9 +13553,7 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
   const strictWindow = newsWindowForDate(selectedDate);
   const strictDays = Math.ceil(strictWindow.windowHours / 24);
   const isToday = selectedDate === newsTodayKstDateKey();
-  const collected = strictWindow.windowHours === 24
-    ? await collectNewsRowsForWindowWithExpansion(strictWindow.windowStart, strictWindow.windowEnd, strictDays)
-    : await collectNewsRowsForWindow(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
+  const collected = await collectNewsRowsForWindowWithExpansion(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
   const strictItemCount = Number((collected as Record<string, unknown>).strictItemCount || collected.items.length);
   const runKey = `daily-news:${selectedDate}:0700KST`;
   const { data: runRow, error: runError } = await ctx.serviceClient
@@ -13533,6 +13575,8 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
         strict_item_count: strictItemCount,
         item_count: Math.min(collected.items.length, Math.max(limit, 10)),
         expanded_to_recent_7d: Boolean((collected as Record<string, unknown>).expandedToRecent7d),
+        expanded_recent_days: NEWS_EXPANDED_RECENT_DAYS,
+        historical_backfill: Boolean((collected as Record<string, unknown>).historicalBackfill),
         expanded_window_start: ((collected as Record<string, unknown>).expandedWindowStart as Date | undefined)?.toISOString?.() || null,
         strict_24h_window: strictWindow.windowHours === 24,
         candidate_count: collected.candidateCount || collected.items.length,
@@ -13601,10 +13645,13 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   const itemCountHint = Number(firstDefined(runSummary?.item_count, runSummary?.selected_item_count, runSummary?.candidate_count, runSummary?.strict_item_count, 0));
   const sparseRunNeedsBackfill = hasDateFilter
     && Boolean(latestRun)
-    && safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION
     && Number.isFinite(itemCountHint)
-    && itemCountHint > 0
-    && itemCountHint < NEWS_MIN_DAILY_ITEMS;
+    && itemCountHint < NEWS_MIN_DAILY_ITEMS
+    && (
+      safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION
+      || Number(runSummary?.expanded_recent_days || 0) < NEWS_EXPANDED_RECENT_DAYS
+      || requestedRefresh
+    );
   const shouldCollectMissingRun = hasDateFilter && !latestRun;
   const shouldRefreshMostRecentRun = hasDateFilter && isMostRecentDate && (safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION || requestedRefresh);
   if (shouldCollectMissingRun || shouldRefreshMostRecentRun || sparseRunNeedsBackfill) {
