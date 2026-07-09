@@ -3191,6 +3191,14 @@ async function writeDataChangeAuditBestEffort(ctx: Context, editRequestId: strin
   }
 }
 
+async function runBoundedDataChangeAudits(jobs: Array<() => Promise<void>>, timeoutMs = 1200) {
+  if (!jobs.length) return;
+  await Promise.race([
+    Promise.allSettled(jobs.map((job) => job())),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ]);
+}
+
 function canReadDataQualityRow(ctx: Context, row: Record<string, unknown>) {
   if (hasRole(ctx.role, 'Manager')) return true;
   const assetId = firstDefined(row.asset_id, row.target_asset_id, row.related_asset_id, row.asset_code, row.entity_id);
@@ -11660,9 +11668,24 @@ async function dataManagementResolveViewFieldPayload(ctx: Context, payload: Reco
 async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Record<string, unknown>) {
   const rawChanges = Array.isArray(payload.changes) ? payload.changes as Record<string, unknown>[] : [];
   const reason = safeText(payload.reason || payload.change_reason || payload.changeReason);
+  const clientRequestId = safeText(payload.client_request_id || payload.clientRequestId);
   if (!rawChanges.length) return fail(400, 'changes are required', ctx.origin);
   if (!reason) return fail(400, 'change reason is required', ctx.origin);
   if (rawChanges.length > 50) return fail(400, 'Too many changes in one approval request', ctx.origin);
+  if (clientRequestId) {
+    const existing = await findExistingDataManagementClientRequest(ctx, clientRequestId);
+    if (existing) {
+      const decorated = decorateEditRequestRow(existing);
+      return jsonResponse({ ok: true, data: {
+        ...decorated,
+        id: existing.id,
+        request_id: existing.id,
+        changes: Number(decorated.change_count || editRequestChangeItems(existing).length || rawChanges.length),
+        deduped: true,
+        client_request_id: clientRequestId,
+      } }, 200, ctx.origin);
+    }
+  }
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
@@ -11681,6 +11704,9 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
   const cellEdits: Record<string, unknown>[] = [];
   const submitReadbacks: Record<string, unknown>[] = [];
   const labels: string[] = [];
+  const resolvedPayloadCache = new Map<string, Record<string, unknown>>();
+  const targetRowCache = new Map<string, Record<string, unknown>>();
+  const revisionHashCache = new Map<string, string>();
   let alreadyCurrentCount = 0;
   for (const rawChange of rawChanges) {
     const change = rawChange && typeof rawChange === 'object' ? rawChange : {};
@@ -11698,7 +11724,17 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       revision_hash: change.revision_hash || change.revisionHash,
       bundle_key: change.bundle_key || change.bundleKey || payload.bundle_key || payload.bundleKey,
     } as Record<string, unknown>;
-    const tablePayload = await dataManagementResolveViewFieldPayload(ctx, mergedPayload, scope);
+    const resolveCacheKey = [
+      safeText(mergedPayload.view_key || mergedPayload.viewKey),
+      safeText(mergedPayload.bundle_key || mergedPayload.bundleKey),
+      safeText(mergedPayload.row_key || mergedPayload.rowKey),
+      safeText(mergedPayload.field_key || mergedPayload.fieldKey),
+    ].join('|');
+    let tablePayload = resolvedPayloadCache.get(resolveCacheKey);
+    if (!tablePayload) {
+      tablePayload = await dataManagementResolveViewFieldPayload(ctx, mergedPayload, scope);
+      resolvedPayloadCache.set(resolveCacheKey, tablePayload);
+    }
     const input = dataManagementTableCellInput(tablePayload);
     if (!input.targetTable || !input.targetRowId || !input.fieldName) return fail(400, 'target table, target row, and field_name are required', ctx.origin);
     if (input.requestedValue === undefined) return fail(400, 'requested_value is required', ctx.origin);
@@ -11728,11 +11764,20 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
     };
     const validationError = validateEditCell(ctx, cell);
     if (validationError) return fail(400, validationError, ctx.origin);
-    const row = await readTargetRow(ctx.serviceClient, cell);
+    const targetRowCacheKey = `${input.targetTable}|${input.primaryKeyField}|${input.targetRowId}`;
+    let row = targetRowCache.get(targetRowCacheKey);
+    if (!row) {
+      row = await readTargetRow(ctx.serviceClient, cell);
+      targetRowCache.set(targetRowCacheKey, row);
+    }
     if (!await assertTargetRowPermission(ctx, row, cell)) return fail(403, 'Insufficient asset write permission for target row', ctx.origin);
     assertRowTemporalWriteAllowed(cell, row);
     const currentValue = row[cell.fieldName];
-    const currentRevisionHash = await dataManagementRevisionHash(row);
+    let currentRevisionHash = revisionHashCache.get(targetRowCacheKey);
+    if (!currentRevisionHash) {
+      currentRevisionHash = await dataManagementRevisionHash(row);
+      revisionHashCache.set(targetRowCacheKey, currentRevisionHash);
+    }
     const effectiveBeforeValue = clientBeforeValue !== undefined && clientBeforeValue !== null ? clientBeforeValue : input.beforeValue;
     if (effectiveBeforeValue !== undefined && effectiveBeforeValue !== null && !valuesEqual(currentValue, effectiveBeforeValue) && !valuesEqual(currentValue, input.requestedValue)) {
       return fail(409, 'Stale value blocked before submit', ctx.origin, { field_name: input.fieldName, current_value: currentValue });
@@ -11810,6 +11855,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
   const requestPayload = redactSensitivePayload({
     kind: 'data_management_view_field_batch_edit',
     edit_mode: 'view_field_batch',
+    client_request_id: clientRequestId || null,
     view_key: requestViewKey || null,
     source_domain: requestSourceDomain || null,
     bundle_key: payload.bundle_key || payload.bundleKey || null,
@@ -11838,7 +11884,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
     .single();
   if (error) return fail(500, 'Failed to submit data management batch edit request', ctx.origin, { error: error.message });
   await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/submit-edit/view-field-batch', 200, { id: data.id, changes: cellEdits.length });
-  return jsonResponse({ ok: true, data: { ...data, changes: cellEdits.length } }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: { ...data, changes: cellEdits.length, client_request_id: clientRequestId || null } }, 200, ctx.origin);
 }
 
 async function callDataManagementCoverage(ctx: Context, payload: Record<string, unknown>) {
@@ -12061,6 +12107,70 @@ function decorateEditRequestRow(row: Record<string, unknown>) {
   }) as Record<string, unknown>;
 }
 
+function editRequestClientRequestId(row: Record<string, unknown>) {
+  const payload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
+  return safeText(firstDefined(payload.client_request_id, payload.clientRequestId));
+}
+
+function compactEditRequesterProfile(row: Record<string, unknown>, userId = '') {
+  const email = normalizeAuthEmail(row.email);
+  const staffName = safeText(firstDefined(row.staff_name, row.name, staffNameForEmail(email)));
+  const imageUrl = logisticsProfileImageUrl(email, row.image_url);
+  return stripUndefined({
+    user_id: safeText(firstDefined(row.user_id, userId)),
+    email,
+    staff_name: staffName,
+    name: staffName,
+    organization: safeText(row.organization),
+    image_url: imageUrl,
+    avatar_url: imageUrl,
+  }) as Record<string, unknown>;
+}
+
+async function dataManagementRequesterProfiles(ctx: Context, rows: Record<string, unknown>[]) {
+  const requestedIds = uniqueStrings(rows.map((row) => row.requested_by), 240);
+  const profiles = new Map<string, Record<string, unknown>>();
+  if (!requestedIds.length) return profiles;
+  const { data, error } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('user_id,email,staff_name,organization,image_url')
+    .in('user_id', requestedIds)
+    .limit(300);
+  if (!error) {
+    ((data || []) as Record<string, unknown>[]).forEach((row) => {
+      const userId = safeText(row.user_id);
+      if (userId) profiles.set(userId, compactEditRequesterProfile(row, userId));
+    });
+  }
+  requestedIds.forEach((userId) => {
+    if (profiles.has(userId)) return;
+    if (userId === ctx.user.id) {
+      profiles.set(userId, compactEditRequesterProfile({
+        user_id: ctx.user.id,
+        email: ctx.permission?.email || ctx.user.email,
+        staff_name: firstDefined(ctx.permission?.staff_name, actorName(ctx)),
+        organization: ctx.permission?.organization,
+        image_url: ctx.permission?.image_url,
+      }, userId));
+      return;
+    }
+    profiles.set(userId, compactEditRequesterProfile({ user_id: userId, staff_name: '요청자' }, userId));
+  });
+  return profiles;
+}
+
+async function findExistingDataManagementClientRequest(ctx: Context, clientRequestId: string) {
+  if (!clientRequestId) return null;
+  const { data, error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .select('id,source_table,target_type,target_name,target_row_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,write_status,write_error,write_result,requested_by,approved_by,approved_at,rejected_by,rejected_at,created_at,updated_at,written_at')
+    .eq('requested_by', ctx.user.id)
+    .order('created_at', { ascending: false })
+    .limit(80);
+  if (error) return null;
+  return ((data || []) as Record<string, unknown>[]).find((row) => editRequestClientRequestId(row) === clientRequestId) || null;
+}
+
 async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
@@ -12129,6 +12239,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     return dataManagementEditMatchesRefs(row, managedRefs);
   };
   const edits = rawEdits.filter(canSeeEdit);
+  const requesterProfiles = await dataManagementRequesterProfiles(ctx, edits);
   const sourceDomainKeys = dataManagementSourceDomainKeys;
   const domainStats = sources.reduce((acc: Record<string, Record<string, unknown>>, row) => {
     const domain = safeText(row.source_domain) || 'unknown';
@@ -12206,6 +12317,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     const changeItems = editRequestChangeItems(row);
     const firstChange = changeItems[0] || {};
     const isMultiple = changeItems.length > 1;
+    const requesterProfile = requesterProfiles.get(safeText(row.requested_by)) || {};
     return stripUndefined({
     request_id: row.id,
     source_domain: domainFromEdit(row),
@@ -12223,6 +12335,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     status: row.status,
     write_status: row.write_status,
     status_label: editRequestStatusLabel(row),
+    client_request_id: editRequestClientRequestId(row),
     is_pending: isEditRequestPendingStatus(row.status, row.write_status),
     is_running: isEditRequestRunningStatus(row.status, row.write_status),
     is_completed: isEditRequestCompletedStatus(row.status, row.write_status),
@@ -12230,6 +12343,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     write_error: row.write_error,
     write_result: redactSensitivePayload(row.write_result),
     request_payload: {
+      client_request_id: payload.client_request_id,
       source_domain: payload.source_domain,
       sheet_name: payload.sheet_name,
       row_number: payload.row_number,
@@ -12238,6 +12352,10 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
       auto_write_enabled: payload.auto_write_enabled,
       submit_readbacks: payload.submit_readbacks,
     },
+    requester_profile: requesterProfile,
+    requested_by_name: requesterProfile.staff_name || requesterProfile.name,
+    requested_by_email: requesterProfile.email,
+    requested_by_image_url: requesterProfile.image_url || requesterProfile.avatar_url,
     requester_label: row.requested_by === ctx.user.id ? '내 요청' : '요청자',
     approver_label: row.approved_by ? '승인자' : '',
     approved_at: row.approved_at,
@@ -12754,7 +12872,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
 }
 
 const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v6-today-expands-when-sparse';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v7-sparse-date-backfill';
 const NEWS_MIN_DAILY_ITEMS = 8;
 const NEWS_EXPANDED_RECENT_DAYS = 7;
 const NEWS_KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -13255,7 +13373,7 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
   const strictWindow = newsWindowForDate(selectedDate);
   const strictDays = Math.ceil(strictWindow.windowHours / 24);
   const isToday = selectedDate === newsTodayKstDateKey();
-  const collected = isToday
+  const collected = strictWindow.windowHours === 24
     ? await collectNewsRowsForWindowWithExpansion(strictWindow.windowStart, strictWindow.windowEnd, strictDays)
     : await collectNewsRowsForWindow(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
   const strictItemCount = Number((collected as Record<string, unknown>).strictItemCount || collected.items.length);
@@ -13277,6 +13395,7 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
         strict_window_start: strictWindow.windowStart.toISOString(),
         strict_window_end: strictWindow.windowEnd.toISOString(),
         strict_item_count: strictItemCount,
+        item_count: Math.min(collected.items.length, Math.max(limit, 10)),
         expanded_to_recent_7d: Boolean((collected as Record<string, unknown>).expandedToRecent7d),
         expanded_window_start: ((collected as Record<string, unknown>).expandedWindowStart as Date | undefined)?.toISOString?.() || null,
         strict_24h_window: strictWindow.windowHours === 24,
@@ -13341,9 +13460,16 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   const todayKey = newsTodayKstDateKey();
   const isMostRecentDate = !hasDateFilter || selectedDate === todayKey;
   const requestedRefresh = payload.refresh === true || payload.force_refresh === true || payload.forceRefresh === true;
+  const itemCountHint = Number(firstDefined(runSummary?.item_count, runSummary?.selected_item_count, runSummary?.candidate_count, runSummary?.strict_item_count, 0));
+  const sparseRunNeedsBackfill = hasDateFilter
+    && Boolean(latestRun)
+    && safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION
+    && Number.isFinite(itemCountHint)
+    && itemCountHint > 0
+    && itemCountHint < NEWS_MIN_DAILY_ITEMS;
   const shouldCollectMissingRun = hasDateFilter && !latestRun;
   const shouldRefreshMostRecentRun = hasDateFilter && isMostRecentDate && (safeText(runSummary?.collector_version) !== NEWS_COLLECTOR_VERSION || requestedRefresh);
-  if (shouldCollectMissingRun || shouldRefreshMostRecentRun) {
+  if (shouldCollectMissingRun || shouldRefreshMostRecentRun || sparseRunNeedsBackfill) {
     try {
       const refreshed = await collectAndStoreNewsRun(ctx, selectedDate, limit);
       latestRun = refreshed.run;
@@ -15085,12 +15211,38 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
 
   const applied: Array<{ cell: ReturnType<typeof normalizeEditCells>[number]; previousValue: unknown }> = [];
   const readbacks: Record<string, unknown>[] = [];
+  const targetRowCache = new Map<string, Record<string, unknown>>();
+  const auditJobs: Array<() => Promise<void>> = [];
+  const targetRowCacheKey = (cell: ReturnType<typeof normalizeEditCells>[number]) => `${cell.targetTable}|${cell.primaryKeyField}|${cell.targetRowId}`;
+  const readTargetCellCached = async (cell: ReturnType<typeof normalizeEditCells>[number]) => {
+    const cacheKey = targetRowCacheKey(cell);
+    let row = targetRowCache.get(cacheKey);
+    if (!row) {
+      row = await readTargetRow(ctx.serviceClient, cell);
+      if (!await assertTargetRowPermission(ctx, row, cell)) throw new Error('Insufficient asset write permission for target row');
+      assertRowTemporalWriteAllowed(cell, row);
+      targetRowCache.set(cacheKey, row);
+    }
+    return row[cell.fieldName];
+  };
+  const readBackCellAfterWrite = async (cell: ReturnType<typeof normalizeEditCells>[number]) => {
+    const row = await readTargetRow(ctx.serviceClient, cell);
+    targetRowCache.set(targetRowCacheKey(cell), row);
+    return row[cell.fieldName];
+  };
+  const patchCachedCell = (cell: ReturnType<typeof normalizeEditCells>[number], nextValue: unknown) => {
+    const cacheKey = targetRowCacheKey(cell);
+    const row = targetRowCache.get(cacheKey);
+    if (row) {
+      targetRowCache.set(cacheKey, { ...row, [cell.fieldName]: nextValue });
+    }
+  };
   try {
     for (const cell of cells) {
-      const beforeReadback = await readTargetCell(ctx, cell);
+      const beforeReadback = await readTargetCellCached(cell);
       if (!valuesEqual(beforeReadback, cell.beforeValue)) {
         if (valuesEqual(beforeReadback, cell.afterValue)) {
-          await writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'already_current', requesterId);
+          auditJobs.push(() => writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'already_current', requesterId));
           readbacks.push({
             target_table: cell.targetTable,
             target_row_id: cell.targetRowId,
@@ -15115,7 +15267,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
       }
 
       if (valuesEqual(beforeReadback, cell.afterValue)) {
-        await writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'already_current', requesterId);
+        auditJobs.push(() => writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, beforeReadback, 'already_current', requesterId));
         readbacks.push({
           target_table: cell.targetTable,
           target_row_id: cell.targetRowId,
@@ -15129,7 +15281,8 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
       const coerced = coerceDataManagementEditValue(cell, cell.afterValue, beforeReadback);
       await writeTargetCell(ctx.serviceClient, cell, coerced);
       applied.push({ cell, previousValue: beforeReadback });
-      const afterReadback = await readTargetCell(ctx, cell);
+      patchCachedCell(cell, coerced);
+      const afterReadback = await readBackCellAfterWrite(cell);
       if (!valuesEqual(afterReadback, cell.afterValue) && !valuesEqual(afterReadback, coerced)) {
         await rollbackAppliedEdits(ctx.serviceClient, applied);
         await ctx.serviceClient.from('ll_edit_requests').update({
@@ -15143,7 +15296,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
         await writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, afterReadback, 'readback_failed', requesterId);
         return fail(500, 'Write readback failed and rollback was attempted', ctx.origin, { cell, readback: afterReadback });
       }
-      await writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, afterReadback, 'written', requesterId);
+      auditJobs.push(() => writeDataChangeAuditBestEffort(ctx, id, cell, beforeReadback, cell.afterValue, afterReadback, 'written', requesterId));
       readbacks.push({
         target_table: cell.targetTable,
         target_row_id: cell.targetRowId,
@@ -15194,6 +15347,7 @@ async function approveEdit(ctx: Context, payload: Record<string, unknown>) {
     .select('id, status, readback_value, write_result')
     .single();
   if (updateError) return fail(500, 'Failed to finalize edit request', ctx.origin);
+  await runBoundedDataChangeAudits(auditJobs);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'edits/approve/write', 200, { id, readbacks });
   return jsonResponse({ ok: true, message: 'Edit request approved, written, read back, and audited', data: written }, 200, ctx.origin);
 }

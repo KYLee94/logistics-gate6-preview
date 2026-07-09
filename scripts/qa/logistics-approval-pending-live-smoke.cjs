@@ -125,6 +125,9 @@ async function main() {
   const changeItems = safeArray(pendingBefore.change_items);
   assert(changeItems.length === 1, 'Approval status did not include exact change_items.');
   assert(!/undefined|null|multiple_fields|current values|requested values/iu.test(JSON.stringify(changeItems)), 'Approval change_items contain internal or summary-only values.');
+  const requesterName = text(pendingBefore.requested_by_name || pendingBefore.requester_profile?.staff_name || pendingBefore.requester_profile?.name);
+  const requesterEmail = text(pendingBefore.requested_by_email || pendingBefore.requester_profile?.email);
+  assert(requesterName || requesterEmail, 'Approval status did not include a requester profile.');
 
   const report = {
     ok: false,
@@ -159,10 +162,17 @@ async function main() {
     await page.waitForSelector('[data-data-management-approval-dashboard="true"]', { timeout: 60000 });
     const row = page.locator('[data-testid="data-management-approval-row"]').filter({ hasText: `QA-${stamp}` }).first();
     await row.waitFor({ state: 'visible', timeout: 60000 });
+    const rowText = await row.innerText({ timeout: 10000 });
+    report.checks.requester_visible_in_row = Boolean(
+      (requesterName && rowText.includes(requesterName)) || (requesterEmail && rowText.includes(requesterEmail)),
+    );
     await row.dblclick();
     await page.waitForSelector('[data-data-management-approval-detail="true"]', { timeout: 10000 });
     const detailText = await page.locator('[data-data-management-approval-detail="true"]').innerText({ timeout: 10000 });
     report.checks.detail_modal_opens_from_row = detailText.includes(probe.beforeValue) && detailText.includes('QA no-op approval live smoke');
+    report.checks.requester_visible_in_detail = Boolean(
+      (requesterName && detailText.includes(requesterName)) || (requesterEmail && detailText.includes(requesterEmail)),
+    );
     await page.screenshot({ path: beforeScreenshot, fullPage: false });
 
     const approveButton = page

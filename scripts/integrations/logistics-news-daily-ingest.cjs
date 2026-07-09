@@ -6,7 +6,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
 const BING_NEWS_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v6-today-expands-when-sparse';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v7-sparse-date-backfill';
 const MIN_DAILY_NEWS_ITEMS = 8;
 const EXPANDED_RECENT_DAYS = 7;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -488,6 +488,7 @@ async function publish(run, items) {
       strict_window_start: run.strictWindowStart?.toISOString?.() || run.windowStart.toISOString(),
       strict_window_end: run.windowEnd.toISOString(),
       strict_item_count: run.strictItemCount,
+      item_count: items.length,
       expanded_to_recent_7d: run.expandedToRecent7d === true,
       strict_24h_window: run.windowHours === 24,
       candidate_count: run.candidateCount || items.length,

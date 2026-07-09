@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supabaseSession';
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
+import UserAvatar from '../UserAvatar';
 import {
   getNaverMapsClientId,
   loadLeafletSdk,
@@ -7679,7 +7680,24 @@ function DataManagementApprovalDashboard() {
   const canReviewRequest = (row) => isPendingRequest(row);
   const pendingRequests = editRequests.filter(isPendingRequest);
   const selectedRequest = editRequests.find((row) => requestIdFor(row) === selectedRequestId) || pendingRequests[0] || editRequests[0] || null;
-  const requestRows = pendingRequests.length ? pendingRequests : editRequests;
+  const requestRows = pendingRequests;
+  const requesterProfileFor = (row) => {
+    const profile = row?.requester_profile || row?.requested_by_profile || {};
+    const name = text(profile.staff_name || profile.name || row?.requested_by_name || row?.requester_label, '요청자');
+    const email = text(profile.email || row?.requested_by_email, '');
+    const imageUrl = text(profile.image_url || profile.avatar_url || row?.requested_by_image_url, '');
+    return {
+      name,
+      email,
+      memberInfo: {
+        staff_name: name,
+        name,
+        email,
+        image_url: imageUrl,
+        avatar_url: imageUrl,
+      },
+    };
+  };
   const reviewRequest = async (action, row = selectedRequest) => {
     const requestId = requestIdFor(row);
     if (!requestId) {
@@ -7694,7 +7712,7 @@ function DataManagementApprovalDashboard() {
         id: requestId,
         approval_note: action === 'approve' ? 'Data Management 승인' : undefined,
         rejection_note: action === 'reject' ? 'Data Management 반려' : undefined,
-      }, 15000, { forceSessionRefresh: false, retryNetwork: false, retryTimeout: false });
+      }, 30000, { forceSessionRefresh: false, retryNetwork: false, retryTimeout: false });
       await reload({}, { force: true });
       setDetailRequest(null);
       setActionStatus({ type: 'success', message: `${actionLabel} 처리가 완료됐습니다. 저장값을 다시 확인했습니다.` });
@@ -7737,7 +7755,7 @@ function DataManagementApprovalDashboard() {
           <table className="w-full min-w-[1120px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
             <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#A1A1AA]">
               <tr>
-                {['요청 대상', '변경 항목', '변경 전', '변경 후', '상태', '요청일', '처리'].map((header) => (
+                {['요청 대상', '요청자', '변경 항목', '변경 전', '변경 후', '상태', '요청일', '처리'].map((header) => (
                   <th key={`approval-head-${header}`} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">{header}</th>
                 ))}
               </tr>
@@ -7749,6 +7767,7 @@ function DataManagementApprovalDashboard() {
                 const isPending = isPendingRequest(row);
                 const rowPending = rowActionStatus[requestId];
                 const canReview = canReviewRequest(row);
+                const requester = requesterProfileFor(row);
                 return (
                   <tr
                     key={`approval-row-${requestId || text(row.target_name)}`}
@@ -7765,6 +7784,15 @@ function DataManagementApprovalDashboard() {
                     title="클릭하면 변경 상세를 볼 수 있습니다."
                   >
                     <td className="sticky left-0 z-10 max-w-[360px] border-r border-[#242426] bg-inherit px-3 py-2 font-semibold" title={text(row.target_name)}>{text(row.target_name, '-')}</td>
+                    <td className="border-r border-[#242426] px-3 py-2">
+                      <div className="flex min-w-[160px] items-center gap-2">
+                        <UserAvatar memberInfo={requester.memberInfo} name={requester.name} sizeClass="h-7 w-7" textClass="text-[11px]" />
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-white">{requester.name}</div>
+                          {requester.email ? <div className="truncate text-[11px] text-[#8E8E93]">{requester.email}</div> : null}
+                        </div>
+                      </div>
+                    </td>
                     <td className="border-r border-[#242426] px-3 py-2" title={fieldSummaryFor(row)}>{fieldSummaryFor(row)}</td>
                     <td className="max-w-[260px] truncate border-r border-[#242426] px-3 py-2 text-[#C7C7CC]" title={valueSummaryFor(row, 'before_value')}>{valueSummaryFor(row, 'before_value') || '-'}</td>
                     <td className="max-w-[260px] truncate border-r border-[#242426] px-3 py-2 font-semibold text-[#B5E48C]" title={valueSummaryFor(row, 'requested_value')}>{valueSummaryFor(row, 'requested_value') || '-'}</td>
@@ -7781,7 +7809,7 @@ function DataManagementApprovalDashboard() {
                 );
               }) : (
                 <tr>
-                  <td colSpan={7} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">승인 대기 또는 변경 이력이 없습니다.</td>
+                  <td colSpan={8} className="bg-[#171717] px-4 py-10 text-center text-[#A1A1AA]">승인 대기 항목이 없습니다.</td>
                 </tr>
               )}
             </tbody>
@@ -7796,10 +7824,25 @@ function DataManagementApprovalDashboard() {
       {detailRequest ? (
         <Modal title="변경 요청 상세" onClose={() => setDetailRequest(null)} width="max-w-[calc(100vw-32px)]" fullscreen>
           <div className="space-y-4 p-4 text-[12px] text-[#E5E5E5]" data-data-management-approval-detail="true">
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-4">
               <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E8E93]">요청 대상</div>
                 <div className="mt-2 text-[13px] font-bold text-white">{text(detailRequest.target_name, '-')}</div>
+              </div>
+              <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E8E93]">요청자</div>
+                {(() => {
+                  const requester = requesterProfileFor(detailRequest);
+                  return (
+                    <div className="mt-2 flex items-center gap-2">
+                      <UserAvatar memberInfo={requester.memberInfo} name={requester.name} sizeClass="h-8 w-8" textClass="text-[12px]" />
+                      <div className="min-w-0">
+                        <div className="truncate text-[13px] font-bold text-white">{requester.name}</div>
+                        {requester.email ? <div className="truncate text-[11px] text-[#8E8E93]">{requester.email}</div> : null}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               <div className="rounded-[10px] border border-[#333333] bg-[#171717] p-3">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8E8E93]">상태</div>
@@ -9768,8 +9811,10 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     }
     setBulkSubmitStatus({ type: 'pending', message: `${formatNumber(changedEdits.length)}개 변경값을 승인 요청으로 저장하는 중입니다.` });
     try {
+      const clientRequestId = `dm-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
       const result = await invokeEdgeDataWithTimeout('data-management/submit-edit', {
         edit_mode: 'view_field_batch',
+        client_request_id: clientRequestId,
         view_key: effectiveViewKey,
         bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
         reason: approvalReason,
@@ -9782,7 +9827,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           revision_hash: edit.revision_hash,
           bundle_key: edit.bundle_key || (bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : ''),
         })),
-      });
+      }, 20000, { forceSessionRefresh: false, retryNetwork: true, retryTimeout: false });
       const savedCount = Number(result?.changes || changedEdits.length || 0);
       setBulkSubmitStatus({ type: 'success', message: `승인 요청이 완료됐습니다. 승인 대기 탭에서 ${formatNumber(savedCount)}건의 처리 상태를 확인할 수 있습니다.` });
       clearPendingEdits({ preserveStatus: true });

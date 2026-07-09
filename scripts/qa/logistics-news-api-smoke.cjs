@@ -4,6 +4,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const EMPTY_MESSAGE = '\uC218\uC9D1\uB41C \uB274\uC2A4\uAC00 \uC5C6\uC2B5\uB2C8\uB2E4.';
+const MIN_DAILY_NEWS_ITEMS = 8;
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -221,7 +222,7 @@ async function main() {
       && check.empty_message === EMPTY_MESSAGE
       && check.window_hours === expectedWindowHours(check.date)
       && check.strict_24h_window === (expectedWindowHours(check.date) === 24)
-      && check.expanded_to_recent_7d !== true
+      && check.item_count >= MIN_DAILY_NEWS_ITEMS
       && check.item_count <= 10
       && check.missing_dedupe_count === 0
       && check.unique_dedupe_count === check.item_count
@@ -229,8 +230,7 @@ async function main() {
       && check.titles_with_important_prefix.length === 0
       && check.titles_with_publisher_suffix.length === 0
       && check.missing_publisher_count === 0
-      && Math.max(0, ...Object.values(check.company_mention_counts || {})) <= 2
-      && (check.date !== '2026-06-17' || check.item_count >= 8))
+      && Math.max(0, ...Object.values(check.company_mention_counts || {})) <= 2)
       && preservation_checks.every((check) => check.ok),
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
