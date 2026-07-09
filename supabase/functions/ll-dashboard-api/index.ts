@@ -9246,18 +9246,21 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
   if (bundleKey && !bundle) throw new Error('선택한 자산·펀드 묶음을 찾을 수 없습니다.');
   const readableLinks = (scope.readableLinks || []).filter((link) => !bundle || dataManagementRowMatchesBundle(link, bundle));
   const fundIds = uniqueStrings(readableLinks.map((link) => safeText(link.fund_id)).filter(Boolean), 1000);
-  const [tranchesResult, liveFundsResult] = fundIds.length
-    ? await Promise.all([
-      ctx.serviceClient.from('ll_fund_capital_tranches').select('*').in('fund_id', fundIds).eq('is_active', true).limit(5000),
-      ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,fund_type,investment_strategy,legal_form,initial_setup_date,maturity_date,setup_date,status,review_status,review_note').in('fund_id', fundIds).limit(500),
-    ])
-    : [{ data: [], error: null }, { data: [], error: null }];
+  const [tranchesResult, liveFundsResult] = await Promise.all([
+    fundIds.length
+      ? ctx.serviceClient.from('ll_fund_capital_tranches').select('*').eq('is_active', true).limit(5000)
+      : Promise.resolve({ data: [], error: null }),
+    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,fund_type,investment_strategy,legal_form,initial_setup_date,maturity_date,setup_date,status,review_status,review_note').limit(500),
+  ]);
   if (tranchesResult.error && !isMissingRelationError(tranchesResult.error)) throw new Error(tranchesResult.error.message);
   if (liveFundsResult.error && !isMissingRelationError(liveFundsResult.error)) throw new Error(liveFundsResult.error.message);
   const tranches = ((tranchesResult.data || []) as Record<string, unknown>[]).filter((row) => hasMeaningfulInvestmentLoanData(row));
   const liveFundsById = new Map(((liveFundsResult.data || []) as Record<string, unknown>[])
     .map((fund) => [safeText(fund.fund_id), fund])
     .filter(([fundId]) => Boolean(fundId)) as [string, Record<string, unknown>][]);
+  const liveFundsByCode = new Map(((liveFundsResult.data || []) as Record<string, unknown>[])
+    .map((fund) => [safeText(fund.fund_code), fund])
+    .filter(([fundCode]) => Boolean(fundCode)) as [string, Record<string, unknown>][]);
   const trancheKind = (row: Record<string, unknown>) => safeText(row.tranche_type) === 'loan' ? 'loan' : 'equity';
   const investmentGroups = [...readableLinks.reduce((map, link) => {
     const groupKey = safeText(link.fund_id)
@@ -9279,10 +9282,13 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
   const tranchesForGroup = (group: { key: string; links: Record<string, unknown>[] }) => {
     const firstLink = group.links[0] || {};
     const fundId = safeText(firstLink.fund_id);
+    const fundCode = safeText(firstDefined(firstLink.fund_code, (scopeFundsById.get(fundId) || {}).fund_code));
+    const resolvedFund = liveFundsById.get(fundId) || liveFundsByCode.get(fundCode) || scopeFundsById.get(fundId) || {};
+    const resolvedFundId = safeText(firstDefined(resolvedFund.fund_id, fundId));
     const assetIds = new Set(group.links.map((link) => safeText(link.asset_id)).filter(Boolean));
     return tranches.filter((row) => {
       const rowFundId = safeText(row.fund_id);
-      if (fundId && rowFundId !== fundId) return false;
+      if (resolvedFundId && rowFundId !== resolvedFundId && rowFundId !== fundId) return false;
       const trancheAssetId = safeText(row.asset_id);
       return !trancheAssetId || !assetIds.size || assetIds.has(trancheAssetId);
     });
@@ -9404,7 +9410,10 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
     const loan = loanRows.reduce((sum, row) => sum + amount(row), 0);
     const assetNames = uniqueStrings(group.links.map((link) => safeText(firstDefined(link.asset_name, link.asset_code))).filter(Boolean), 50);
     const fundId = safeText(firstLink.fund_id);
-    const fund = liveFundsById.get(fundId) || scopeFundsById.get(fundId) || {};
+    const scopeFund = scopeFundsById.get(fundId) || {};
+    const fundCode = safeText(firstDefined(firstLink.fund_code, scopeFund.fund_code));
+    const fund = liveFundsById.get(fundId) || liveFundsByCode.get(fundCode) || scopeFund || {};
+    const resolvedFundId = safeText(firstDefined(fund.fund_id, fundId));
     const assetIds = uniqueStrings(group.links.map((link) => safeText(link.asset_id)).filter(Boolean), 50);
     const source = stripUndefined({
       asset_name: assetNames.join(' / '),
@@ -9418,7 +9427,7 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       total_capital_krw: equity + loan,
     });
     const groupMeta = stripUndefined({
-      fund_id: fundId,
+      fund_id: resolvedFundId,
       asset_id: assetIds.length === 1 ? assetIds[0] : undefined,
       asset_ids: assetIds,
       fund_name: source.fund_name,
