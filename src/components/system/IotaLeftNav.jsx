@@ -542,27 +542,18 @@ const buildEditRequestNotification = (row = {}) => {
 };
 const sortNotifications = (rows) => [...rows].sort((left, right) => Date.parse(right.createdAt || '') - Date.parse(left.createdAt || ''));
 const invokeWithTimeout = async (action, payload = {}, timeoutMs = 12000, retryOnce = true, options = {}) => {
-    let timeoutId;
-    const timeout = new Promise((_, reject) => {
-        timeoutId = window.setTimeout(() => reject(new Error('응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.')), timeoutMs);
-    });
     try {
-        return await Promise.race([
-            invokeDashboardApi(action, payload, {
-                forceSessionRefresh: Boolean(options.forceSessionRefresh),
-                timeoutMs,
-                retryNetwork: options.retryNetwork !== false,
-                retryTimeout: options.retryTimeout !== false,
-            }),
-            timeout,
-        ]);
+        return await invokeDashboardApi(action, payload, {
+            forceSessionRefresh: Boolean(options.forceSessionRefresh),
+            timeoutMs,
+            retryNetwork: options.retryNetwork !== false,
+            retryTimeout: options.retryTimeout !== false,
+        });
     } catch (error) {
         const message = String(error?.message || '').toLowerCase();
         if (!retryOnce || !/timeout|지연|failed to fetch|network|jwt|token|expired|unauthorized|forbidden/u.test(message)) throw error;
         await new Promise((resolve) => window.setTimeout(resolve, 450));
         return invokeWithTimeout(action, payload, Math.max(timeoutMs, 18000), false, { ...options, forceSessionRefresh: true });
-    } finally {
-        window.clearTimeout(timeoutId);
     }
 };
 const logisticsNavIconClass = 'w-4.5 h-4.5 mr-[10px]';
@@ -866,27 +857,39 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const markNotificationsRead = async (rows = notifications) => {
         const ids = rows.map((item) => item.id).filter(Boolean);
         if (!ids.length) return;
-        persistReadNotificationIds((current) => [...current, ...ids]);
         const canonicalIds = rows.filter((item) => item.canonical).map((item) => item.id).filter(Boolean);
+        const localOnlyIds = rows.filter((item) => !item.canonical).map((item) => item.id).filter(Boolean);
         if (canonicalIds.length) {
             try {
-                await invokeWithTimeout('notifications/mark-read', { ids: canonicalIds }, 10000);
+                const { data, error } = await invokeWithTimeout('notifications/mark-read', { ids: canonicalIds }, 10000, true, { retryTimeout: false });
+                if (error || data?.ok === false || data?.data?.skipped) throw new Error(data?.message || error?.message || 'notification readback failed');
+                persistReadNotificationIds((current) => [...current, ...ids]);
+                window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-mark-read' } }));
             } catch {
+                if (localOnlyIds.length) persistReadNotificationIds((current) => [...current, ...localOnlyIds]);
                 setNotificationsError('읽음 처리 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
             }
+        } else {
+            persistReadNotificationIds((current) => [...current, ...ids]);
         }
     };
     const markAllNotificationsRead = async () => {
         const rows = notifications;
         const ids = rows.map((item) => item.id).filter(Boolean);
         if (!ids.length) return;
-        persistReadNotificationIds((current) => [...current, ...ids]);
         if (rows.some((item) => item.canonical)) {
             try {
-                await invokeWithTimeout('notifications/mark-read', { all: true }, 12000);
+                const { data, error } = await invokeWithTimeout('notifications/mark-read', { all: true }, 12000, true, { retryTimeout: false });
+                if (error || data?.ok === false || data?.data?.skipped) throw new Error(data?.message || error?.message || 'notification readback failed');
+                persistReadNotificationIds((current) => [...current, ...ids]);
+                window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-mark-all-read' } }));
             } catch {
+                const localOnlyIds = rows.filter((item) => !item.canonical).map((item) => item.id).filter(Boolean);
+                if (localOnlyIds.length) persistReadNotificationIds((current) => [...current, ...localOnlyIds]);
                 setNotificationsError('전체 읽음 처리 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
             }
+        } else {
+            persistReadNotificationIds((current) => [...current, ...ids]);
         }
     };
     const handleNotificationNavigate = (item) => {
@@ -957,7 +960,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             if (serverReadIds.length) persistReadNotificationIds((current) => [...current, ...serverReadIds]);
             if (markRead) markNotificationsRead(next);
             return next;
-        } catch (error) {
+        } catch {
             const dismissedIds = new Set(readStoredNotificationIds(notificationDismissedStorageKey));
             const fallbackRows = (cachedRows.length ? cachedRows : readCachedNotifications())
                 .filter((item) => !dismissedIds.has(item.id));
@@ -986,35 +989,49 @@ export default function IotaLeftNav({ currentPath = '' }) {
         }
     };
     const dismissNotification = async (item) => {
+        const previousNotifications = notifications;
+        const previousReadIds = readNotificationIds;
         const next = notifications.filter((row) => row.id !== item.id);
         setNotifications(next);
         writeCachedNotifications(next);
-        persistDismissedNotificationIds((ids) => [...ids, item.id]);
         setReadNotificationIds((ids) => ids.filter((id) => id !== item.id));
         if (item.canonical) {
             try {
-                const { data, error } = await invokeWithTimeout('notifications/dismiss', { ids: [item.id] }, 10000);
-                if (error || data?.ok === false) throw new Error(data?.message || error?.message || 'notification dismiss failed');
+                const { data, error } = await invokeWithTimeout('notifications/dismiss', { ids: [item.id] }, 10000, true, { retryTimeout: false });
+                if (error || data?.ok === false || data?.data?.skipped) throw new Error(data?.message || error?.message || 'notification dismiss failed');
+                window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-dismiss' } }));
             } catch {
+                setNotifications(previousNotifications);
+                writeCachedNotifications(previousNotifications);
+                setReadNotificationIds(previousReadIds);
                 setNotificationsError('알림 삭제 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
+                return;
             }
         }
+        persistDismissedNotificationIds((ids) => [...ids, item.id]);
     };
     const dismissAllNotifications = async () => {
         const ids = notifications.map((item) => item.id).filter(Boolean);
         const canonicalIds = notifications.filter((item) => item.canonical).map((item) => item.id);
+        const previousNotifications = notifications;
+        const previousReadIds = readNotificationIds;
         setNotifications([]);
         writeCachedNotifications([]);
-        persistDismissedNotificationIds((current) => [...current, ...ids]);
         setReadNotificationIds([]);
         if (canonicalIds.length) {
             try {
-                const { data, error } = await invokeWithTimeout('notifications/dismiss', { all: true }, 12000);
-                if (error || data?.ok === false) throw new Error(data?.message || error?.message || 'notification dismiss all failed');
+                const { data, error } = await invokeWithTimeout('notifications/dismiss', { all: true }, 12000, true, { retryTimeout: false });
+                if (error || data?.ok === false || data?.data?.skipped) throw new Error(data?.message || error?.message || 'notification dismiss all failed');
+                window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-dismiss-all' } }));
             } catch {
+                setNotifications(previousNotifications);
+                writeCachedNotifications(previousNotifications);
+                setReadNotificationIds(previousReadIds);
                 setNotificationsError('전체 알림 삭제 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
+                return;
             }
         }
+        persistDismissedNotificationIds((current) => [...current, ...ids]);
     };
     useEffect(() => {
         setReadNotificationIds(readStoredNotificationIds(notificationStorageKey));
@@ -1101,6 +1118,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             setFeatureAccessDirty(false);
             localStorage.setItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY, JSON.stringify(saved));
             window.dispatchEvent(new CustomEvent('logistics-feature-access-updated', { detail: saved }));
+            window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'feature-access-update' } }));
             setFeatureAccessSavedAt(new Date().toISOString());
         } catch (error) {
             setFeatureAccessError(error?.message || '기능 권한 저장 실패');

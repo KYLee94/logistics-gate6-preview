@@ -16,7 +16,7 @@ if (!window.__SUPABASE_CLIENT__) {
 
         // Keep auth requests unbounded so token refresh is not aborted after the tab is idle.
         // Edge Functions can cold-start after idle, so they need a longer request window.
-        if (!isAuthRequest) {
+        if (!isAuthRequest && !options.signal) {
             timeoutId = setTimeout(() => {
                 console.warn(`Supabase fetch timeout exceeded for url: ${requestUrl}`);
                 controller.abort();
@@ -24,7 +24,8 @@ if (!window.__SUPABASE_CLIENT__) {
         }
 
         if (options && options.signal) {
-            options.signal.addEventListener('abort', () => controller.abort());
+            if (options.signal.aborted) controller.abort();
+            else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
         }
 
         return fetch(url, { ...options, signal: controller.signal })

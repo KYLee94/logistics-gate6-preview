@@ -4374,9 +4374,10 @@ async function dismissLogisticsNotifications(ctx: Context, payload: Record<strin
   if (!all) query = query.in('delivery_id', ids);
   const { error, count } = await query.select('delivery_id', { count: 'exact' });
   if (error) {
-    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { dismissed: 0, skipped: 'notifications table missing' } }, 200, ctx.origin);
+    if (isMissingRelationError(error)) return fail(503, 'Notifications storage is not available', ctx.origin, { code: 'notifications_missing_schema' });
     return fail(500, 'Failed to dismiss notifications', ctx.origin, { error: error.message });
   }
+  if (!all && ids.length && !count) return fail(404, 'Notification delivery was not found for this user', ctx.origin);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/dismiss', 200, { all, ids: ids.length, dismissed: count || 0 });
   return jsonResponse({ ok: true, data: { dismissed: count || 0 } }, 200, ctx.origin);
 }
@@ -4397,9 +4398,10 @@ async function markReadLogisticsNotifications(ctx: Context, payload: Record<stri
   if (!all) query = query.in('delivery_id', ids);
   const { error, count } = await query.select('delivery_id', { count: 'exact' });
   if (error) {
-    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { read: 0, skipped: 'notifications table missing' } }, 200, ctx.origin);
+    if (isMissingRelationError(error)) return fail(503, 'Notifications storage is not available', ctx.origin, { code: 'notifications_missing_schema' });
     return fail(500, 'Failed to mark notifications read', ctx.origin, { error: error.message });
   }
+  if (!all && ids.length && !count) return fail(404, 'Notification delivery was not found for this user', ctx.origin);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/mark-read', 200, { all, ids: ids.length, read: count || 0 });
   return jsonResponse({ ok: true, data: { read: count || 0 } }, 200, ctx.origin);
 }
@@ -4705,10 +4707,16 @@ function scrubSectorMarketInternalResponseKeys(value: unknown): unknown {
 }
 
 function sectorMarketDataForView(fullData: Record<string, unknown>, view: SectorMarketReadView | null) {
-  if (!view) return fullData;
   const summary = (fullData.summary && typeof fullData.summary === 'object')
     ? fullData.summary as Record<string, unknown>
     : {};
+  const dataValidated = summary.status === 'ready';
+  const validationStatus = safeText(summary.status || 'unknown');
+  if (!view) return {
+    ...fullData,
+    data_validated: dataValidated,
+    validation_status: validationStatus,
+  };
   const views = (fullData.views && typeof fullData.views === 'object')
     ? fullData.views as Record<string, unknown>
     : {};
@@ -4717,6 +4725,8 @@ function sectorMarketDataForView(fullData: Record<string, unknown>, view: Sector
     : { [view]: views[view] || {} };
   return scrubSectorMarketInternalResponseKeys(stripUndefined({
     summary,
+    data_validated: dataValidated,
+    validation_status: validationStatus,
     readback: summary.readback || {},
     data_quality: summary.data_quality || {},
     data_semantics: summary.data_semantics || {},
@@ -10862,6 +10872,11 @@ async function dataManagementResolveDetailFieldEdit(ctx: Context, payload: Recor
 }
 
 async function callDataManagementSubmitDetailRowChange(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const clientRequestId = dataManagementClientRequestId(payload);
+  if (clientRequestId) {
+    const existing = await findExistingDataManagementClientRequest(ctx, clientRequestId);
+    if (existing) return dataManagementDedupedEditResponse(ctx, existing, clientRequestId);
+  }
   const editMode = safeText(payload.edit_mode || payload.editMode);
   const isDelete = editMode === 'detail_row_delete';
   const viewKey = safeText(payload.view_key || payload.viewKey);
@@ -10946,6 +10961,7 @@ async function callDataManagementSubmitDetailRowChange(ctx: Context, payload: Re
       reason,
       target_type: isDelete ? 'data_management_special_terms_row_delete' : 'data_management_special_terms_row_add',
       reason_code: isDelete ? 'data_management_special_terms_row_delete' : 'data_management_special_terms_row_add',
+      client_request_id: clientRequestId || undefined,
       view_key: viewKey,
       row_key: rowKey,
       field_key: fieldKey,
@@ -10965,6 +10981,7 @@ async function callDataManagementSubmitDetailRowChange(ctx: Context, payload: Re
   const requestPayload = redactSensitivePayload({
     kind: 'data_management_detail_row_change',
     edit_mode: editMode,
+    client_request_id: clientRequestId || null,
     view_key: viewKey,
     row_key: rowKey,
     field_key: fieldKey,
@@ -11001,7 +11018,7 @@ async function callDataManagementSubmitDetailRowChange(ctx: Context, payload: Re
     .single();
   if (error) return fail(500, 'Failed to submit detail row change request', ctx.origin, { error: error.message });
   await auditOptional(ctx.serviceClient, ctx.user.id, `data-management/submit-edit/${editMode}`, 200, { id: data.id, view_key: viewKey });
-  return jsonResponse({ ok: true, data }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: { ...data, client_request_id: clientRequestId || null } }, 200, ctx.origin);
 }
 
 async function callDataManagementViews(ctx: Context, payload: Record<string, unknown>) {
@@ -11630,6 +11647,11 @@ async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<
 }
 
 async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<string, unknown>) {
+  const clientRequestId = dataManagementClientRequestId(payload);
+  if (clientRequestId) {
+    const existing = await findExistingDataManagementClientRequest(ctx, clientRequestId);
+    if (existing) return dataManagementDedupedEditResponse(ctx, existing, clientRequestId);
+  }
   const input = dataManagementTableCellInput(payload);
   if (!input.targetTable || !input.targetRowId || !input.fieldName) return fail(400, 'target table, target row, and field_name are required', ctx.origin);
   if (input.requestedValue === undefined) return fail(400, 'requested_value is required', ctx.origin);
@@ -11695,6 +11717,7 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
   const requestPayload = redactSensitivePayload({
     kind: 'data_management_table_cell_edit',
     edit_mode: 'table_cell',
+    client_request_id: clientRequestId || null,
     table_key: payload.table_key || payload.tableKey || dataManagementTableKey(input.tableName),
     internal_table: input.targetTable,
     bundle_key: payload.bundle_key || payload.bundleKey || null,
@@ -11732,7 +11755,7 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
     .single();
   if (error) return fail(500, 'Failed to submit data management table edit request', ctx.origin, { error: error.message });
   await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/submit-edit/table-cell', 200, { id: data.id, target_table: input.targetTable });
-  return jsonResponse({ ok: true, data }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: { ...data, client_request_id: clientRequestId || null } }, 200, ctx.origin);
 }
 
 async function dataManagementResolveViewFieldPayload(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
@@ -11775,15 +11798,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
   if (clientRequestId) {
     const existing = await findExistingDataManagementClientRequest(ctx, clientRequestId);
     if (existing) {
-      const decorated = decorateEditRequestRow(existing);
-      return jsonResponse({ ok: true, data: {
-        ...decorated,
-        id: existing.id,
-        request_id: existing.id,
-        changes: Number(decorated.change_count || editRequestChangeItems(existing).length || rawChanges.length),
-        deduped: true,
-        client_request_id: clientRequestId,
-      } }, 200, ctx.origin);
+      return dataManagementDedupedEditResponse(ctx, existing, clientRequestId, rawChanges.length);
     }
   }
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
@@ -12307,6 +12322,25 @@ async function findExistingDataManagementClientRequest(ctx: Context, clientReque
   return ((data || []) as Record<string, unknown>[]).find((row) => editRequestClientRequestId(row) === clientRequestId) || null;
 }
 
+function dataManagementClientRequestId(payload: Record<string, unknown>) {
+  const nestedRequestPayload = payload.request_payload && typeof payload.request_payload === 'object' && !Array.isArray(payload.request_payload)
+    ? payload.request_payload as Record<string, unknown>
+    : {};
+  return safeText(payload.client_request_id || payload.clientRequestId || nestedRequestPayload.client_request_id || nestedRequestPayload.clientRequestId);
+}
+
+function dataManagementDedupedEditResponse(ctx: Context, existing: Record<string, unknown>, clientRequestId: string, fallbackChanges = 1) {
+  const decorated = decorateEditRequestRow(existing);
+  return jsonResponse({ ok: true, data: {
+    ...decorated,
+    id: existing.id,
+    request_id: existing.id,
+    changes: Number(decorated.change_count || editRequestChangeItems(existing).length || fallbackChanges),
+    deduped: true,
+    client_request_id: clientRequestId,
+  } }, 200, ctx.origin);
+}
+
 async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
@@ -12763,6 +12797,11 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
 }
 
 async function callDataManagementSubmitRowAdd(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope) {
+  const clientRequestId = dataManagementClientRequestId(payload);
+  if (clientRequestId) {
+    const existing = await findExistingDataManagementClientRequest(ctx, clientRequestId);
+    if (existing) return dataManagementDedupedEditResponse(ctx, existing, clientRequestId);
+  }
   const viewKey = safeText(payload.view_key || payload.viewKey);
   const workflowKey = safeText(payload.workflow_key || payload.workflowKey);
   const bundleKey = safeText(payload.bundle_key || payload.bundleKey);
@@ -12788,6 +12827,7 @@ async function callDataManagementSubmitRowAdd(ctx: Context, payload: Record<stri
   const bundle = bundleKey ? dataManagementBundleByKey(scope, bundleKey) : undefined;
   const requestPayload = redactSensitivePayload({
     kind: 'data_management_row_add',
+    client_request_id: clientRequestId || null,
     view_key: viewKey,
     workflow_key: workflowKey || null,
     bundle_key: bundleKey || null,
@@ -12818,12 +12858,17 @@ async function callDataManagementSubmitRowAdd(ctx: Context, payload: Record<stri
     .single();
   if (error) return fail(500, 'Failed to submit data management row add request', ctx.origin, { error: error.message });
   await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/submit-edit/row-add', 200, { id: data.id, view_key: viewKey });
-  return jsonResponse({ ok: true, data }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: { ...data, client_request_id: clientRequestId || null } }, 200, ctx.origin);
 }
 
 async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/submit-edit', 40)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const clientRequestId = dataManagementClientRequestId(payload);
+  if (clientRequestId) {
+    const existing = await findExistingDataManagementClientRequest(ctx, clientRequestId);
+    if (existing) return dataManagementDedupedEditResponse(ctx, existing, clientRequestId);
+  }
   if (safeText(payload.edit_mode || payload.editMode) === 'row_add') {
     const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
@@ -12842,7 +12887,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     try {
       const resolved = await dataManagementResolveDetailFieldEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
-      return callDataManagementSubmitTableCell(ctx, resolved.table_payload);
+      return callDataManagementSubmitTableCell(ctx, { ...resolved.table_payload, client_request_id: clientRequestId || undefined });
     } catch (error) {
       return fail(400, error instanceof Error ? error.message : 'Data Management 상세 행 수정 대상을 확인하지 못했습니다.', ctx.origin);
     }
@@ -12862,7 +12907,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     if (viewKey === 'asset_integrated' || viewKey === 'investment_integrated') {
       try {
         const resolved = await dataManagementResolveIntegratedViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
-        return callDataManagementSubmitTableCell(ctx, resolved.table_payload);
+        return callDataManagementSubmitTableCell(ctx, { ...resolved.table_payload, client_request_id: clientRequestId || undefined });
       } catch (error) {
         return fail(400, error instanceof Error ? error.message : 'Data Management View edit target could not be resolved', ctx.origin);
       }
@@ -12871,7 +12916,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     if (view && safeText((view as Record<string, unknown>).fallback_table_key)) {
       try {
         const resolved = await dataManagementResolveFallbackViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope(), view as Record<string, unknown>);
-        return callDataManagementSubmitTableCell(ctx, resolved.table_payload);
+        return callDataManagementSubmitTableCell(ctx, { ...resolved.table_payload, client_request_id: clientRequestId || undefined });
       } catch (error) {
         return fail(400, error instanceof Error ? error.message : 'Data Management View edit target could not be resolved', ctx.origin);
       }
@@ -12883,7 +12928,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     }
     const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scopeResult.scope);
     if ('error' in resolved) return resolved.error;
-    return callDataManagementSubmitTableCell(ctx, resolved.table_payload);
+    return callDataManagementSubmitTableCell(ctx, { ...resolved.table_payload, client_request_id: clientRequestId || undefined });
   }
   if (isDataManagementTableCellPayload(payload)) return callDataManagementSubmitTableCell(ctx, payload);
   const targetType = safeText(payload.target_type || payload.targetType || 'source_row');
@@ -12973,6 +13018,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
   }
   const requestPayload = redactSensitivePayload({
     kind: 'data_management_edit_request',
+    client_request_id: clientRequestId || null,
     source_domain: payload.source_domain || payload.sourceDomain || null,
     sheet_name: payload.sheet_name || payload.sheetName || null,
     row_number: payload.row_number || payload.rowNumber || null,
@@ -13004,7 +13050,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     .single();
   if (error) return fail(500, 'Failed to submit data management edit request', ctx.origin, { error: error.message });
   await auditOptional(ctx.serviceClient, ctx.user.id, 'data-management/submit-edit', 200, { id: data.id, target_type: targetType });
-  return jsonResponse({ ok: true, data }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: { ...data, client_request_id: clientRequestId || null } }, 200, ctx.origin);
 }
 
 const NEWS_EMPTY_MESSAGE = '수집된 뉴스가 없습니다.';
@@ -13666,7 +13712,7 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   if (latestRun?.news_run_id) itemQuery = itemQuery.eq('news_run_id', latestRun.news_run_id);
   const { data, error } = await itemQuery;
   if (error) {
-    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
+    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', data_validated: false, validation_status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
     return fail(500, 'Failed to read logistics news', ctx.origin, { error: error.message });
   }
   const selectedWindow = hasDateFilter ? newsWindowForDate(selectedDate) : null;
@@ -13675,8 +13721,12 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
     const publishedAt = new Date(item.published_at);
     return !Number.isNaN(publishedAt.getTime()) && publishedAt >= selectedWindow.windowStart && publishedAt <= selectedWindow.windowEnd;
   })).slice(0, limit);
+  const runStatus = latestRun ? safeText((latestRun as Record<string, unknown>).run_status || 'completed') : 'no_run';
+  const newsDataValidated = Boolean(latestRun && runStatus === 'completed');
   return jsonResponse({ ok: true, data: {
-    status: latestRun ? safeText((latestRun as Record<string, unknown>).run_status || 'completed') : 'no_run',
+    status: runStatus,
+    data_validated: newsDataValidated,
+    validation_status: latestRun ? runStatus : 'no_run',
     collection_mode: 'precollected_read_only',
     collect_on_read: false,
     selected_date: hasDateFilter ? selectedDate : safeText((latestRun as Record<string, unknown> | null)?.run_key).match(/daily-news:(\d{4}-\d{2}-\d{2}):0700KST/u)?.[1] || '',
@@ -24505,11 +24555,12 @@ async function callLogisticsAuthStatus(origin: string, payload: Record<string, u
     auth: { persistSession: false, autoRefreshToken: false },
   });
   const emailCandidates = logisticsAuthEmailCandidates(email);
-  const { data: permissionRows } = await serviceClient
+  const { data: permissionRows, error: permissionError } = await serviceClient
     .from('ll_user_permissions')
     .select('*')
     .in('email', emailCandidates)
     .limit(1);
+  if (permissionError) return fail(500, 'Failed to read logistics permission', origin, { error: permissionError.message });
   const permission = ((permissionRows || [])[0] as Record<string, unknown> | undefined) || bootstrapPermissionForEmail(email) || undefined;
   const authEmail = canonicalPermissionEmail(permission || null, email);
   const allowed = isActivePermission(permission || null);
@@ -24523,6 +24574,7 @@ async function callLogisticsAuthStatus(origin: string, payload: Record<string, u
     authReadOk = false;
     authReadError = safeProviderError(error);
   }
+  if (!authReadOk) return fail(503, 'Failed to inspect auth status', origin, { auth_read_ok: false, auth_read_error: authReadError || null });
   const hasAuthUser = Boolean(authUser);
   const hasConfirmedAuthUser = isConfirmedAuthUser(authUser);
   return jsonResponse({
@@ -24586,10 +24638,11 @@ async function callWeeklyAssetsLatestPreview(origin: string, payload: Record<str
 
 Deno.serve(async (request) => {
   const origin = request.headers.get('origin') || '';
-  if (!isAllowedOrigin(origin)) return fail(403, 'Origin not allowed', origin);
-  if (request.method === 'OPTIONS') return jsonResponse({ ok: true }, 200, origin);
-  if (request.method !== 'POST') return fail(405, 'Method not allowed', origin);
-  if (!assertLlAllowlist()) return fail(500, 'Write allowlist is invalid', origin);
+  try {
+    if (!isAllowedOrigin(origin)) return fail(403, 'Origin not allowed', origin);
+    if (request.method === 'OPTIONS') return jsonResponse({ ok: true }, 200, origin);
+    if (request.method !== 'POST') return fail(405, 'Method not allowed', origin);
+    if (!assertLlAllowlist()) return fail(500, 'Write allowlist is invalid', origin);
 
   let body: Record<string, unknown> = {};
   let formData: FormData | null = null;
@@ -24720,5 +24773,9 @@ Deno.serve(async (request) => {
     await audit(ctx.serviceClient, ctx.user.id, action, 202, payload);
     return jsonResponse({ ok: true, message: `${action} accepted for server-side worker` }, 202, origin);
   }
-  return fail(404, 'Unknown action', origin);
+    return fail(404, 'Unknown action', origin);
+  } catch (error) {
+    const status = Math.min(Math.max(Number((error as { status?: unknown })?.status || 500), 400), 599);
+    return fail(status, 'Dashboard API request failed', origin, { error: safeProviderError(error) });
+  }
 });

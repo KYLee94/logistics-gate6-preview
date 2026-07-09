@@ -133,6 +133,38 @@ const DASHBOARD_READ_REVALIDATE_MS = 90 * 1000;
 const ASSET_PROJECT_DETAIL_CACHE = new Map();
 const ASSET_FUND_OVERVIEW_CACHE = new Map();
 const ASSET_BUILDING_REGISTER_CACHE = new Map();
+let logisticsWorkspaceCacheInvalidationReady = false;
+const WORKSPACE_CACHE_INVALIDATION_SOURCES = new Set([
+  'building-register-refresh',
+  'opendart-refresh',
+  'data-management-submit',
+  'data-management-grid-submit',
+  'data-management-review',
+  'data-management-approval',
+  'data-management-row-add',
+  'data-management-detail-submit',
+  'data-management-view-field-submit',
+  'data-management-batch-submit',
+  'feature-access-update',
+]);
+
+function clearWorkspaceLogisticsCaches() {
+  DASHBOARD_READ_CACHE.clear();
+  DASHBOARD_READ_INFLIGHT.clear();
+  ASSET_PROJECT_DETAIL_CACHE.clear();
+  ASSET_FUND_OVERVIEW_CACHE.clear();
+  ASSET_BUILDING_REGISTER_CACHE.clear();
+}
+
+function ensureWorkspaceLogisticsCacheInvalidationListener() {
+  if (logisticsWorkspaceCacheInvalidationReady || typeof window === 'undefined') return;
+  logisticsWorkspaceCacheInvalidationReady = true;
+  window.addEventListener('logistics-data-refresh', (event) => {
+    const source = String(event?.detail?.source || '');
+    if (!WORKSPACE_CACHE_INVALIDATION_SOURCES.has(source)) return;
+    clearWorkspaceLogisticsCaches();
+  });
+}
 const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
 const CORE_ONLY_TOOL_ALLOWED_EMAILS = new Set(['kylee@igisam.com', 'jk.jeon@igisam.com', 'sjlee@igisam.com']);
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
@@ -349,6 +381,9 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
   const [refreshNonce, setRefreshNonce] = useState(0);
   const effectiveStateRef = useRef(effectiveState);
   useEffect(() => {
+    ensureWorkspaceLogisticsCacheInvalidationListener();
+  }, []);
+  useEffect(() => {
     effectiveStateRef.current = effectiveState;
   }, [effectiveState]);
 
@@ -363,17 +398,12 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       const expectedSummary = JSON.parse(summaryKey || '{}');
       const cached = DASHBOARD_READ_CACHE.get(cacheKey);
       const cacheAgeMs = cached?.checkedAt ? Date.now() - Date.parse(cached.checkedAt) : Number.POSITIVE_INFINITY;
-      if (primaryMode && cached?.payload && cacheAgeMs >= 0 && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS) {
+      if (primaryMode && cached?.payload && cacheAgeMs >= 0 && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS && cacheAgeMs < DASHBOARD_READ_REVALIDATE_MS) {
         setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
-        if (cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS) {
-          window.setTimeout(() => {
-            if (!cancelled) {
-              DASHBOARD_READ_INFLIGHT.delete(cacheKey);
-              setRefreshNonce((value) => value + 1);
-            }
-          }, 0);
-        }
         return;
+      }
+      if (primaryMode && cached?.payload && cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS) {
+        setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
       }
       if (cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS) DASHBOARD_READ_INFLIGHT.delete(cacheKey);
       if (primaryMode) setState((current) => ({
@@ -14744,6 +14774,7 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal,
       setRunning('');
       setProgress(null);
     }
+    window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'building-register-refresh' } }));
     const successCount = rows.filter((row) => row[2] === '새로고침 완료').length;
     const emptyCount = rows.filter((row) => row[2] === '원천 빈 응답').length;
     const skippedCount = rows.filter((row) => row[2] === '파라미터 부족').length;
@@ -14778,7 +14809,7 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal,
           setProgress({ type: 'opendart', done: index + 1, total: openDartTargets.length, label: target.tenantName || '기업 확인 완료' });
           continue;
         }
-        const { data, error } = await invokeDashboardApi('opendart/company', { corp_code: target.corpCode, include_financials: true });
+        const { data, error } = await invokeDashboardApi('opendart/company', { corp_code: target.corpCode, include_financials: true, force_refresh: true }, { retryTimeout: false });
         const forceOutcome = externalRefreshOutcome(data, error);
         let finalData = data;
         let finalOutcome = forceOutcome;
@@ -14810,6 +14841,7 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal,
       setRunning('');
       setProgress(null);
     }
+    window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'opendart-refresh' } }));
     const directSuccessCount = rows.filter((row) => row[2] === '원천 갱신 완료').length;
     const storedSuccessCount = rows.filter((row) => ['새로고침 완료', '저장값 확인', '월간 저장값 확인'].includes(row[3])).length;
     const skippedCount = rows.filter((row) => row[2] === 'corp code 없음').length;
@@ -14999,7 +15031,12 @@ function DashboardShell({ activeModule }) {
 
       <div className="relative min-h-[540px]">
         {visibleModules.filter((item) => mountedIds.has(item.id)).map((item) => (
-          <div key={item.id} className={`transition-opacity duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${selected.id === item.id ? 'relative z-10 block opacity-100' : 'pointer-events-none absolute inset-x-0 top-0 -z-10 opacity-0'}`} aria-hidden={selected.id !== item.id}>
+          <div
+            key={item.id}
+            className={`transition-opacity duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${selected.id === item.id ? 'relative z-10 block opacity-100' : 'pointer-events-none absolute inset-x-0 top-0 -z-10 opacity-0'}`}
+            aria-hidden={selected.id !== item.id}
+            style={selected.id === item.id ? undefined : { contentVisibility: 'hidden', containIntrinsicSize: '540px' }}
+          >
             {renderDashboardModule(item.id)}
           </div>
         ))}

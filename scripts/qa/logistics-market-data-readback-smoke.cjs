@@ -152,6 +152,8 @@ async function main() {
     }));
   const checks = {
     status_ready: summary.status === 'ready',
+    data_validated: data.data_validated === true,
+    validation_status_ready: data.validation_status === 'ready',
     active_source_only: Boolean(summary.source?.active_version && summary.source?.source_file_id),
     source_sheet_count: sourceAudit.sheet_count === 9,
     source_row_count: sourceAudit.source_row_count === 11738,

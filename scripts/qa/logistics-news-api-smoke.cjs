@@ -157,6 +157,8 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = 
     http_status: response.status,
     duration_ms: durationMs,
     data_status: data.status,
+    data_validated: data.data_validated,
+    validation_status: data.validation_status,
     selected_date: data.selected_date,
     run_key: data.latest_run?.run_key || null,
     news_run_id: data.latest_run?.news_run_id || null,
@@ -262,6 +264,10 @@ async function main() {
         && before.news_run_id === after.news_run_id
         && before.completed_at === after.completed_at,
       ok: before.item_count >= 8
+        && before.data_validated === true
+        && after.data_validated === true
+        && before.validation_status === 'completed'
+        && after.validation_status === 'completed'
         && before.item_count <= 10
         && after.item_count >= 8
         && after.item_count <= 10
@@ -278,6 +284,8 @@ async function main() {
   const report = {
     ok: checks.every((check, index) => check.http_status === 200
       && check.selected_date === check.date
+      && check.data_validated === true
+      && check.validation_status === 'completed'
       && check.empty_message === EMPTY_MESSAGE
       && check.window_hours === expectedWindowHours(check.date)
       && check.strict_24h_window === (expectedWindowHours(check.date) === 24)

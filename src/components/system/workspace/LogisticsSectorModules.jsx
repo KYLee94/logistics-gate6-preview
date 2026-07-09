@@ -1400,14 +1400,12 @@ function edgeDataTimeoutError(action, timeoutMs = EDGE_DATA_REQUEST_TIMEOUT_MS) 
 }
 
 async function invokeEdgeDataWithTimeout(action, payload = {}, timeoutMs = EDGE_DATA_REQUEST_TIMEOUT_MS, options = {}) {
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = globalThis.setTimeout(() => reject(edgeDataTimeoutError(action, timeoutMs)), timeoutMs);
-  });
   try {
-    return await Promise.race([invoke(action, payload, { timeoutMs, ...options }), timeoutPromise]);
-  } finally {
-    globalThis.clearTimeout(timeoutId);
+    return await invoke(action, payload, { timeoutMs, ...options });
+  } catch (error) {
+    const message = String(error?.message || error?.name || '').toLowerCase();
+    if (message.includes('timeout') || message.includes('aborted')) throw edgeDataTimeoutError(action, timeoutMs);
+    throw error;
   }
 }
 
@@ -1438,6 +1436,48 @@ const EDGE_DATA_CACHE = new Map();
 const EDGE_DATA_INFLIGHT = new Map();
 const EDGE_DATA_REFRESH_SUBSCRIBERS = new Set();
 let edgeDataRefreshListenersReady = false;
+
+function stableDataManagementStringify(value) {
+  if (Array.isArray(value)) return `[${value.map((item) => stableDataManagementStringify(item)).join(',')}]`;
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableDataManagementStringify(value[key])}`).join(',')}}`;
+  }
+  return JSON.stringify(value ?? null);
+}
+
+function stableDataManagementHash(value) {
+  const input = stableDataManagementStringify(value);
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function createDataManagementClientRequestId(scope = 'dm', signature = null) {
+  if (signature && typeof signature === 'object') return `${scope}-${stableDataManagementHash(signature)}`;
+  return `${scope}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function invalidateEdgeDataCache(predicate) {
+  if (typeof predicate !== 'function') return;
+  [...EDGE_DATA_CACHE.keys()].forEach((key) => {
+    if (predicate(key)) EDGE_DATA_CACHE.delete(key);
+  });
+  [...EDGE_DATA_INFLIGHT.keys()].forEach((key) => {
+    if (predicate(key)) EDGE_DATA_INFLIGHT.delete(key);
+  });
+}
+
+function invalidateDataManagementEdgeCache() {
+  invalidateEdgeDataCache((key) => key.includes(':data-management/'));
+}
+
+function notifyLogisticsDataRefresh(detail = {}) {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail }));
+}
 
 function ensureEdgeDataRefreshListeners() {
   if (edgeDataRefreshListenersReady || typeof window === 'undefined' || typeof document === 'undefined') return;
@@ -1504,8 +1544,8 @@ function useEdgeData(action, payload = {}, deps = []) {
   const cachedState = EDGE_DATA_CACHE.get(payloadKey);
   const [state, setState] = useState(() => (
     cachedState
-      ? { loading: false, error: '', data: cachedState.data, loadedAt: cachedState.loadedAt, sourceKey: payloadKey }
-      : { loading: true, error: '', data: null, loadedAt: 0, sourceKey: payloadKey }
+      ? { loading: false, error: '', refreshError: '', data: cachedState.data, loadedAt: cachedState.loadedAt, sourceKey: payloadKey }
+      : { loading: true, error: '', refreshError: '', data: null, loadedAt: 0, sourceKey: payloadKey }
   ));
   const stateRef = useRef(state);
   const requestRef = useRef(0);
@@ -1525,7 +1565,7 @@ function useEdgeData(action, payload = {}, deps = []) {
     const cached = EDGE_DATA_CACHE.get(requestKey);
     const cachedAge = cached ? Date.now() - cached.loadedAt : Number.POSITIVE_INFINITY;
     if (!options.force && !Object.keys(normalizedOverride).length && cached && cachedAge < EDGE_DATA_CACHE_TTL_MS) {
-      if (mountedRef.current) setState({ loading: false, error: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey });
+      if (mountedRef.current) setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey });
       if (cachedAge >= EDGE_DATA_REVALIDATE_MS && !options.__revalidate) {
         window.setTimeout(() => {
           if (mountedRef.current) reload({}, { silent: true, force: true, __revalidate: true });
@@ -1534,13 +1574,14 @@ function useEdgeData(action, payload = {}, deps = []) {
       return cached.data;
     }
     if (cached && mountedRef.current) {
-      setState({ loading: false, error: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey });
+      setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey });
     } else if (!options.silent && mountedRef.current) {
       setState((current) => ({
         ...current,
         loading: !(current.data && current.sourceKey === requestKey),
         data: current.sourceKey === requestKey ? current.data : null,
         error: '',
+        refreshError: '',
         sourceKey: requestKey,
       }));
     }
@@ -1551,19 +1592,21 @@ function useEdgeData(action, payload = {}, deps = []) {
       if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt });
       else EDGE_DATA_CACHE.delete(requestKey);
       if (mountedRef.current && requestRef.current === requestId) {
-        setState({ loading: false, error: '', data, loadedAt, sourceKey: requestKey });
+        setState({ loading: false, error: '', refreshError: '', data, loadedAt, sourceKey: requestKey });
       }
       return data;
-    } catch {
+    } catch (error) {
       if (!options.__retry) {
         await new Promise((resolve) => window.setTimeout(resolve, 450));
         return reload(normalizedOverride, { ...options, force: true, silent: Boolean(stateRef.current.data), __retry: true });
       }
       const fallbackCached = EDGE_DATA_CACHE.get(requestKey) || EDGE_DATA_CACHE.get(payloadKey);
+      const refreshError = error?.message || USER_FACING_LOAD_ERROR_TEXT;
       if (mountedRef.current && requestRef.current === requestId) {
         setState((current) => ({
           loading: false,
           error: (current.sourceKey === requestKey ? (current.data || fallbackCached?.data) : fallbackCached?.data) ? '' : USER_FACING_LOAD_ERROR_TEXT,
+          refreshError,
           data: current.sourceKey === requestKey ? (current.data || fallbackCached?.data || null) : (fallbackCached?.data || null),
           loadedAt: current.sourceKey === requestKey ? (current.loadedAt || fallbackCached?.loadedAt || 0) : (fallbackCached?.loadedAt || 0),
           sourceKey: requestKey,
@@ -1580,14 +1623,14 @@ function useEdgeData(action, payload = {}, deps = []) {
     }
     const cached = EDGE_DATA_CACHE.get(payloadKey);
     if (cached) {
-      setState({ loading: false, error: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: payloadKey });
+      setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: payloadKey });
       if (Date.now() - cached.loadedAt >= EDGE_DATA_REVALIDATE_MS) reload({}, { silent: true, force: true });
       return () => {
         mountedRef.current = false;
       };
     }
     if (stateRef.current.sourceKey !== payloadKey) {
-      setState({ loading: true, error: '', data: null, loadedAt: 0, sourceKey: payloadKey });
+      setState({ loading: true, error: '', refreshError: '', data: null, loadedAt: 0, sourceKey: payloadKey });
     }
     reload({}, { silent: stateRef.current.sourceKey === payloadKey && Boolean(stateRef.current.data) });
     return () => {
@@ -7724,6 +7767,8 @@ function DataManagementApprovalDashboard() {
         approval_note: action === 'approve' ? 'Data Management 승인' : undefined,
         rejection_note: action === 'reject' ? 'Data Management 반려' : undefined,
       }, 30000, { forceSessionRefresh: false, retryNetwork: false, retryTimeout: false });
+      invalidateDataManagementEdgeCache();
+      notifyLogisticsDataRefresh({ source: 'data-management-approval' });
       await reload({}, { force: true });
       setDetailRequest(null);
       setActionStatus({ type: 'success', message: `${actionLabel} 처리가 완료됐습니다. 저장값을 다시 확인했습니다.` });
@@ -8174,6 +8219,13 @@ function DataManagementDashboardLegacy() {
     try {
       const source = sources.find((row) => row.source_file_id === selectedRow.source_file_id) || {};
       await invoke('data-management/submit-edit', {
+        client_request_id: createDataManagementClientRequestId('dm-source', {
+          row: selectedRow.source_row_id,
+          field: selectedField,
+          before: currentBeforeValue,
+          after: afterValue,
+          target: preview?.target,
+        }),
         source_table: 'public.ll_source_rows',
         source_domain: source.source_domain,
         target_type: `${source.source_domain || 'source'}_edit`,
@@ -8190,9 +8242,11 @@ function DataManagementDashboardLegacy() {
         sheet_name: selectedRow.sheet_name,
         row_number: selectedRow.row_number,
         impact_summary: '수정 대상 데이터 변경 요청입니다. 승인 후 정규 테이블 반영 여부를 검토해야 합니다.',
-      });
+      }, { retryTimeout: false });
+      invalidateDataManagementEdgeCache();
+      notifyLogisticsDataRefresh({ source: 'data-management-submit' });
       setSubmitStatus({ type: 'success', message: '승인 요청이 저장되었습니다. 승인 대기 탭에서 처리 상태를 확인해 주세요.' });
-      reload({}, { force: true });
+      await reload({}, { force: true });
     } catch (submitError) {
       setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 확인에 실패했습니다.' });
     }
@@ -8230,6 +8284,13 @@ function DataManagementDashboardLegacy() {
         const errors = safeArray(previewResult?.validations).filter((item) => item.level === 'error');
         if (errors.length) throw new Error(`${entry.title} · ${fieldDisplayLabel(entry.field)}: ${errors[0].message}`);
         await invoke('data-management/submit-edit', {
+          client_request_id: createDataManagementClientRequestId('dm-grid', {
+            row: entry.row.source_row_id,
+            field: entry.field,
+            before: entry.beforeValue,
+            after: entry.requestedValue,
+            target: previewResult?.target,
+          }),
           source_table: 'public.ll_source_rows',
           source_domain: entry.source.source_domain,
           target_type: `${entry.source.source_domain || 'source'}_edit`,
@@ -8246,12 +8307,14 @@ function DataManagementDashboardLegacy() {
           sheet_name: entry.row.sheet_name,
           row_number: entry.row.row_number,
           impact_summary: 'Data Management 그리드에서 수정한 변경 요청입니다.',
-        });
+        }, { retryTimeout: false });
       }
+      invalidateDataManagementEdgeCache();
+      notifyLogisticsDataRefresh({ source: 'data-management-grid-submit' });
       setGridDrafts({});
       setGridReason('');
       setSubmitStatus({ type: 'success', message: `변경 ${formatNumber(managementDraftEntries.length)}건의 승인 요청이 저장되었습니다.` });
-      reload({}, { force: true });
+      await reload({}, { force: true });
     } catch (submitError) {
       setSubmitStatus({ type: 'error', message: submitError.message || '그리드 변경 승인 요청 확인에 실패했습니다.' });
     }
@@ -8264,8 +8327,10 @@ function DataManagementDashboardLegacy() {
       if (action === 'readback') await invoke('edits/readback', { id });
       if (action === 'approve') await invoke('edits/approve', { id, approval_note: 'Data Management 승인' }, { timeoutMs: 120000, forceSessionRefresh: true, retryNetwork: false, retryTimeout: false });
       if (action === 'reject') await invoke('edits/reject', { id, rejection_note: 'Data Management 반려' }, { timeoutMs: 120000, forceSessionRefresh: true, retryNetwork: false, retryTimeout: false });
+      invalidateDataManagementEdgeCache();
+      notifyLogisticsDataRefresh({ source: 'data-management-review' });
       setSubmitStatus({ type: 'success', message: '요청 처리가 완료되었습니다.' });
-      reload({}, { force: true });
+      await reload({}, { force: true });
     } catch (reviewError) {
       setSubmitStatus({ type: 'error', message: reviewError.message || '요청 처리에 실패했습니다.' });
     }
@@ -9040,11 +9105,20 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     if (!key) return;
     const startX = event.clientX;
     const startWidth = columnWidthFor(column, fallback);
+    let animationFrame = 0;
+    let pendingWidth = startWidth;
     const onMove = (moveEvent) => {
-      const nextWidth = Math.max(90, Math.min(720, startWidth + moveEvent.clientX - startX));
-      setColumnWidths((current) => ({ ...current, [key]: nextWidth }));
+      pendingWidth = Math.max(90, Math.min(720, startWidth + moveEvent.clientX - startX));
+      if (animationFrame) return;
+      animationFrame = window.requestAnimationFrame(() => {
+        animationFrame = 0;
+        setColumnWidths((current) => (current[key] === pendingWidth ? current : { ...current, [key]: pendingWidth }));
+      });
     };
     const onUp = () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      setColumnWidths((current) => (current[key] === pendingWidth ? current : { ...current, [key]: pendingWidth }));
       window.removeEventListener('mousemove', onMove);
       window.removeEventListener('mouseup', onUp);
     };
@@ -9249,18 +9323,26 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     setRowAddStatus({ type: 'pending', message: '신규 데이터 추가 승인 요청을 저장하는 중입니다.' });
     try {
       await invoke('data-management/submit-edit', {
+        client_request_id: createDataManagementClientRequestId('dm-row-add', {
+          view: effectiveViewKey,
+          workflow: activeWorkflow,
+          bundle: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+          values,
+          reason: rowAddReason,
+        }),
         edit_mode: 'row_add',
         view_key: effectiveViewKey,
         workflow_key: activeWorkflow,
         bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
         values,
         reason: rowAddReason,
-      });
+      }, { retryTimeout: false });
+      invalidateDataManagementEdgeCache();
+      notifyLogisticsDataRefresh({ source: 'data-management-row-add' });
       setRowAddStatus({ type: 'success', message: '신규 데이터 추가 승인 요청이 저장됐습니다.' });
       setRowAddDraft({});
       setRowAddReason('');
-      reloadRows({}, { force: true });
-      reloadViews({}, { force: true });
+      await Promise.all([reloadRows({}, { force: true }), reloadViews({}, { force: true })]);
     } catch (error) {
       setRowAddStatus({ type: 'error', message: error.message || '신규 데이터 추가 승인 요청 저장에 실패했습니다.' });
     }
@@ -9424,6 +9506,16 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           throw new Error(previewError?.message || '변경 전후 값을 확인한 뒤 다시 요청해 주세요.');
         }
         await invoke('data-management/submit-edit', {
+          client_request_id: createDataManagementClientRequestId('dm-detail', {
+            view: effectiveViewKey,
+            row: detailModal.row.row_key,
+            field: detailModal.columnKey,
+            detailRow: edit.row_key,
+            detailField: edit.field_key,
+            before: dataManagementSubmitBeforeValue(edit),
+            after: edit.requested_value,
+            revision: edit.revision_hash,
+          }),
           edit_mode: 'detail_field',
           view_key: effectiveViewKey,
           row_key: detailModal.row.row_key,
@@ -9435,10 +9527,18 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           revision_hash: edit.revision_hash,
           bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
           reason: detailReason,
-        });
+        }, { retryTimeout: false });
       }
       for (const { sectionKey, values } of addedRowsWithValues) {
         await invoke('data-management/submit-edit', {
+          client_request_id: createDataManagementClientRequestId('dm-detail-add', {
+            view: effectiveViewKey,
+            row: detailModal.row.row_key,
+            field: detailModal.columnKey,
+            section: sectionKey,
+            values,
+            reason: detailReason,
+          }),
           edit_mode: 'detail_row_add',
           view_key: effectiveViewKey,
           row_key: detailModal.row.row_key,
@@ -9447,10 +9547,18 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           values,
           bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
           reason: detailReason,
-        });
+        }, { retryTimeout: false });
       }
       for (const { sectionKey, row } of detailDeletedList) {
         await invoke('data-management/submit-edit', {
+          client_request_id: createDataManagementClientRequestId('dm-detail-delete', {
+            view: effectiveViewKey,
+            row: detailModal.row.row_key,
+            field: detailModal.columnKey,
+            section: sectionKey,
+            detailRow: row.row_key,
+            reason: detailReason,
+          }),
           edit_mode: 'detail_row_delete',
           view_key: effectiveViewKey,
           row_key: detailModal.row.row_key,
@@ -9459,14 +9567,15 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
           detail_row_key: row.row_key,
           bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
           reason: detailReason,
-        });
+        }, { retryTimeout: false });
       }
+      invalidateDataManagementEdgeCache();
+      notifyLogisticsDataRefresh({ source: 'data-management-detail-submit' });
       setDetailSubmitStatus({ type: 'success', message: '상세 변경값 승인 요청이 저장되었습니다. 최신 값을 다시 읽습니다.' });
       setDetailDrafts({});
       setDetailAddedRows({});
       setDetailDeletedRows({});
-      reloadRows({}, { force: true });
-      reloadViews({}, { force: true });
+      await Promise.all([reloadRows({}, { force: true }), reloadViews({}, { force: true })]);
     } catch (error) {
       setDetailSubmitStatus({ type: 'error', message: error.message || '상세 변경값 승인 요청 확인에 실패했습니다.' });
     }
@@ -9793,6 +9902,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     try {
       const normalizedDraftValue = normalizeManagementCellInputValue(draftValue, selectedColumn);
       await invoke('data-management/submit-edit', {
+        client_request_id: createDataManagementClientRequestId('dm-view-field', {
+          view: effectiveViewKey,
+          row: selectedRow.row_key,
+          field: selectedFieldKey,
+          after: normalizedDraftValue,
+          revision: selectedRow.revision_hash,
+          bundle: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+        }),
         edit_mode: 'view_field',
         view_key: effectiveViewKey,
         row_key: selectedRow.row_key,
@@ -9801,10 +9918,11 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
         revision_hash: selectedRow.revision_hash,
         bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
         reason,
-      });
+      }, { retryTimeout: false });
+      invalidateDataManagementEdgeCache();
+      notifyLogisticsDataRefresh({ source: 'data-management-view-field-submit' });
       setSubmitStatus({ type: 'success', message: '승인 요청이 저장되었습니다. 우측 이력과 승인/감사 영역에서 반영 상태를 확인할 수 있습니다.' });
-      reloadRows({}, { force: true });
-      reloadViews({}, { force: true });
+      await Promise.all([reloadRows({}, { force: true }), reloadViews({}, { force: true })]);
     } catch (submitError) {
       setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 확인에 실패했습니다.' });
     }
@@ -9822,28 +9940,35 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     }
     setBulkSubmitStatus({ type: 'pending', message: `${formatNumber(changedEdits.length)}개 변경값을 승인 요청으로 저장하는 중입니다.` });
     try {
-      const clientRequestId = `dm-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const batchChanges = changedEdits.map((edit) => ({
+        view_key: edit.view_key || effectiveViewKey,
+        row_key: edit.row_key,
+        field_key: edit.field_key,
+        before_value: dataManagementSubmitBeforeValue(edit),
+        requested_value: edit.requested_value,
+        revision_hash: edit.revision_hash,
+        bundle_key: edit.bundle_key || (bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : ''),
+      }));
+      const clientRequestId = createDataManagementClientRequestId('dm-batch', {
+        view: effectiveViewKey,
+        bundle: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
+        reason: approvalReason,
+        changes: batchChanges,
+      });
       const result = await invokeEdgeDataWithTimeout('data-management/submit-edit', {
         edit_mode: 'view_field_batch',
         client_request_id: clientRequestId,
         view_key: effectiveViewKey,
         bundle_key: bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : '',
         reason: approvalReason,
-        changes: changedEdits.map((edit) => ({
-          view_key: edit.view_key || effectiveViewKey,
-          row_key: edit.row_key,
-          field_key: edit.field_key,
-          before_value: dataManagementSubmitBeforeValue(edit),
-          requested_value: edit.requested_value,
-          revision_hash: edit.revision_hash,
-          bundle_key: edit.bundle_key || (bundleKey !== MANAGEMENT_ALL_OPTION ? bundleKey : ''),
-        })),
+        changes: batchChanges,
       }, 20000, { forceSessionRefresh: false, retryNetwork: true, retryTimeout: false });
       const savedCount = Number(result?.changes || changedEdits.length || 0);
+      invalidateDataManagementEdgeCache();
+      notifyLogisticsDataRefresh({ source: 'data-management-batch-submit' });
       setBulkSubmitStatus({ type: 'success', message: `승인 요청이 완료됐습니다. 승인 대기 탭에서 ${formatNumber(savedCount)}건의 처리 상태를 확인할 수 있습니다.` });
       clearPendingEdits({ preserveStatus: true });
-      reloadRows({}, { force: true });
-      reloadViews({}, { force: true });
+      await Promise.all([reloadRows({}, { force: true }), reloadViews({}, { force: true })]);
     } catch (submitError) {
       setBulkSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 확인에 실패했습니다.' });
     }

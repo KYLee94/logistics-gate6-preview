@@ -71,15 +71,25 @@ function authTimeoutError(action, timeoutMs) {
   return error;
 }
 
-async function withDashboardInvokeTimeout(action, promise, timeoutMs) {
+async function withDashboardInvokeTimeout(action, invokeFactory, timeoutMs) {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = globalThis.setTimeout(() => reject(timeoutError(action, timeoutMs)), timeoutMs);
-  });
+  let timedOut = false;
+  if (controller && timeoutMs > 0) {
+    timeoutId = globalThis.setTimeout(() => {
+      timedOut = true;
+      controller.abort(timeoutError(action, timeoutMs));
+    }, timeoutMs);
+  }
   try {
-    return await Promise.race([promise, timeoutPromise]);
+    const result = await invokeFactory(controller?.signal);
+    if (timedOut && !result?.error) throw timeoutError(action, timeoutMs);
+    return result;
+  } catch (error) {
+    if (timedOut) throw timeoutError(action, timeoutMs);
+    throw error;
   } finally {
-    globalThis.clearTimeout(timeoutId);
+    if (timeoutId) globalThis.clearTimeout(timeoutId);
   }
 }
 
@@ -190,21 +200,27 @@ export async function invokeDashboardApi(action, payload = {}, {
   await ensureFreshSupabaseSession({ force: forceSessionRefresh });
   let result;
   try {
-    result = await withDashboardInvokeTimeout(action, supabase.functions.invoke('ll-dashboard-api', {
+    result = await withDashboardInvokeTimeout(action, (signal) => supabase.functions.invoke('ll-dashboard-api', {
       body: { action, payload },
+      signal,
+      timeout: timeoutMs,
     }), timeoutMs);
   } catch (invokeError) {
     if (!retryAuth || !shouldRetryDashboardInvoke(invokeError, { retryNetwork, retryTimeout })) throw invokeError;
     await ensureFreshSupabaseSession({ force: true, throwOnFailure: true });
-    return withDashboardInvokeTimeout(action, supabase.functions.invoke('ll-dashboard-api', {
+    return withDashboardInvokeTimeout(action, (signal) => supabase.functions.invoke('ll-dashboard-api', {
       body: { action, payload },
+      signal,
+      timeout: timeoutMs,
     }), timeoutMs);
   }
 
   if (retryAuth && result?.error && shouldRetryDashboardInvoke(result.error, { retryNetwork, retryTimeout })) {
     await ensureFreshSupabaseSession({ force: true, throwOnFailure: true });
-    result = await withDashboardInvokeTimeout(action, supabase.functions.invoke('ll-dashboard-api', {
+    result = await withDashboardInvokeTimeout(action, (signal) => supabase.functions.invoke('ll-dashboard-api', {
       body: { action, payload },
+      signal,
+      timeout: timeoutMs,
     }), timeoutMs);
   }
 
