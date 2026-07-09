@@ -6799,7 +6799,7 @@ function dataManagementScopeRefs(assets: Record<string, unknown>[], funds: Recor
 
 async function readDataManagementScope(ctx: Context, managerView: boolean): Promise<{ scope?: DataManagementScope; error?: string }> {
   const [fundsResult, linksResult, assetsResult] = await Promise.all([
-    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,display_name,legal_form,investment_sector,fund_type,investment_strategy,initial_setup_date,maturity_date,setup_date,status,review_status,review_note').limit(500),
+    ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,legal_form,investment_sector,fund_type,investment_strategy,initial_setup_date,maturity_date,setup_date,status,review_status,review_note').limit(500),
     ctx.serviceClient.from('ll_fund_asset_links').select('id,fund_id,asset_id,asset_code,asset_name,link_type,source_type,source_name,source_payload').limit(1000),
     ctx.serviceClient.from('ll_assets').select('*').limit(1000),
   ]);
@@ -9265,6 +9265,10 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
     map.set(groupKey, current);
     return map;
   }, new Map<string, { key: string; links: Record<string, unknown>[] }>()).values()];
+  const scopeFundsById = new Map([
+    ...(scope.funds || []),
+    ...(scope.readableFunds || []),
+  ].map((fund) => [safeText(fund.fund_id), fund]).filter(([fundId]) => Boolean(fundId)) as [string, Record<string, unknown>][]);
   const tranchesForGroup = (group: { key: string; links: Record<string, unknown>[] }) => {
     const firstLink = group.links[0] || {};
     const fundId = safeText(firstLink.fund_id);
@@ -9393,14 +9397,15 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
     const loan = loanRows.reduce((sum, row) => sum + amount(row), 0);
     const assetNames = uniqueStrings(group.links.map((link) => safeText(firstDefined(link.asset_name, link.asset_code))).filter(Boolean), 50);
     const fundId = safeText(firstLink.fund_id);
+    const fund = scopeFundsById.get(fundId) || {};
     const assetIds = uniqueStrings(group.links.map((link) => safeText(link.asset_id)).filter(Boolean), 50);
     const source = stripUndefined({
       asset_name: assetNames.join(' / '),
-      fund_name: firstDefined(firstLink.fund_name, firstLink.fund_display_name, firstLink.fund_code),
-      fund_code: firstLink.fund_code,
-      fund_short_name: firstDefined(firstLink.short_name, firstLink.fund_short_name),
-      fund_type: firstLink.fund_type,
-      investment_strategy: firstLink.investment_strategy,
+      fund_name: firstDefined(fund.fund_name, firstLink.fund_name, firstLink.fund_display_name, fund.fund_code, firstLink.fund_code),
+      fund_code: firstDefined(fund.fund_code, firstLink.fund_code),
+      fund_short_name: firstDefined(fund.short_name, firstLink.short_name, firstLink.fund_short_name),
+      fund_type: firstDefined(fund.fund_type, firstLink.fund_type),
+      investment_strategy: firstDefined(fund.investment_strategy, firstLink.investment_strategy),
       equity_amount_krw: equity,
       loan_amount_krw: loan,
       total_capital_krw: equity + loan,
