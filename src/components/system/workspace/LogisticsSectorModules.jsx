@@ -2711,6 +2711,36 @@ function MarketMapPanel({
       </button>
     `;
   }, [clusterLabelParts]);
+  const clampRegionClusterMarkers = useCallback(() => {
+    if (!mapCanvasRef.current) return;
+    const panel = mapCanvasRef.current.closest('[data-testid="market-map-panel"]');
+    if (!panel) return;
+    const buttons = Array.from(panel.querySelectorAll('[data-region-cluster-button="true"]'));
+    if (!buttons.length) return;
+    buttons.forEach((button) => {
+      button.style.setProperty('--market-cluster-shift-x', '0px');
+      button.style.setProperty('--market-cluster-shift-y', '0px');
+    });
+    const panelRect = panel.getBoundingClientRect();
+    const margin = 8;
+    buttons.forEach((button) => {
+      const rect = button.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const shiftX = centerX < panelRect.left + margin
+        ? panelRect.left + margin - centerX
+        : centerX > panelRect.right - margin
+          ? panelRect.right - margin - centerX
+          : 0;
+      const shiftY = centerY < panelRect.top + margin
+        ? panelRect.top + margin - centerY
+        : centerY > panelRect.bottom - margin
+          ? panelRect.bottom - margin - centerY
+          : 0;
+      button.style.setProperty('--market-cluster-shift-x', `${Math.round(shiftX)}px`);
+      button.style.setProperty('--market-cluster-shift-y', `${Math.round(shiftY)}px`);
+    });
+  }, []);
 
   useEffect(() => {
     openMapItemRef.current = openMapItem;
@@ -3136,6 +3166,7 @@ function MarketMapPanel({
         mapZoomListenerRef.current = window.naver.maps.Event.addListener(map, 'zoom_changed', () => {
           const nextZoom = Number(map.getZoom?.());
           if (Number.isFinite(nextZoom)) setMapZoom(nextZoom);
+          window.requestAnimationFrame(clampRegionClusterMarkers);
         });
         markersRef.current = mappableRows.map((item) => {
           const markerOptions = {
@@ -3214,6 +3245,7 @@ function MarketMapPanel({
         }
         refreshNaverMap(map);
         window.requestAnimationFrame(() => {
+          clampRegionClusterMarkers();
           const nextZoom = Number(map.getZoom?.());
           if (!cancelled && Number.isFinite(nextZoom)) setMapZoom(nextZoom);
         });
@@ -3222,6 +3254,7 @@ function MarketMapPanel({
         [80, 260].forEach((delay) => window.setTimeout(() => {
           if (!cancelled && mapProviderRef.current === 'naver' && !forceOsm) {
             refreshNaverMap(map);
+            window.requestAnimationFrame(clampRegionClusterMarkers);
           }
         }, delay));
       } catch {
@@ -3233,7 +3266,7 @@ function MarketMapPanel({
       cancelled = true;
       clearNaverHealthMonitor();
     };
-  }, [markerRows, selectedMapRegion, forceOsm, clusterIconHtml]);
+  }, [markerRows, selectedMapRegion, forceOsm, clusterIconHtml, clampRegionClusterMarkers]);
 
   useEffect(() => {
     applyMapDisplayType(mapInstanceRef.current, mapDisplayType);
@@ -3310,6 +3343,7 @@ function MarketMapPanel({
             color: #fff;
             font: inherit;
             line-height: 1;
+            translate: var(--market-cluster-shift-x, 0px) var(--market-cluster-shift-y, 0px);
             scale: var(--market-cluster-visual-scale, 1);
             box-shadow: 0 8px 18px rgba(0, 0, 0, 0.30);
             cursor: pointer;
