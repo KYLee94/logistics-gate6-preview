@@ -2496,6 +2496,7 @@ function MarketMapPanel({
   };
   const handleMapWheel = (event) => {
     if (!mapInstanceRef.current) return;
+    if (isRegionMode && mapProviderRef.current === 'naver') return;
     if (event.cancelable) {
       event.preventDefault();
     }
@@ -3170,7 +3171,14 @@ function MarketMapPanel({
         clearZoomListener();
         mapZoomListenerRef.current = window.naver.maps.Event.addListener(map, 'zoom_changed', () => {
           const nextZoom = Number(map.getZoom?.());
-          if (Number.isFinite(nextZoom)) setMapZoom(nextZoom);
+          if (selectedMapRegion && Number.isFinite(nextZoom)) {
+            setMapZoom(nextZoom);
+          } else {
+            window.setTimeout(() => {
+              clampRegionClusterMarkers();
+              if (Number.isFinite(nextZoom)) setMapZoom(nextZoom);
+            }, 80);
+          }
           scheduleRegionClusterClamp();
         });
         markersRef.current = mappableRows.map((item) => {
