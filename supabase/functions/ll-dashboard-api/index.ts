@@ -6797,6 +6797,13 @@ function dataManagementScopeRefs(assets: Record<string, unknown>[], funds: Recor
   ], 500).map((item) => normalizeKey(item)).filter(Boolean);
 }
 
+function dataManagementDerivedFundShortName(...values: unknown[]) {
+  const text = values.map((value) => safeText(value)).find(Boolean) || '';
+  const numbered = text.match(/제\s*([0-9]+)\s*호/u);
+  if (numbered?.[1]) return `${numbered[1]}호`;
+  return '';
+}
+
 async function readDataManagementScope(ctx: Context, managerView: boolean): Promise<{ scope?: DataManagementScope; error?: string }> {
   const [fundsResult, linksResult, assetsResult] = await Promise.all([
     ctx.serviceClient.from('ll_funds').select('fund_id,fund_code,fund_name,short_name,legal_form,investment_sector,fund_type,investment_strategy,initial_setup_date,maturity_date,setup_date,status,review_status,review_note').limit(500),
@@ -9419,7 +9426,12 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       asset_name: assetNames.join(' / '),
       fund_name: firstDefined(fund.fund_name, firstLink.fund_name, firstLink.fund_display_name, fund.fund_code, firstLink.fund_code),
       fund_code: firstDefined(fund.fund_code, firstLink.fund_code),
-      fund_short_name: firstDefined(fund.short_name, firstLink.short_name, firstLink.fund_short_name),
+      fund_short_name: firstDefined(
+        fund.short_name,
+        firstLink.short_name,
+        firstLink.fund_short_name,
+        dataManagementDerivedFundShortName(fund.fund_name, firstLink.fund_name, firstLink.fund_display_name),
+      ),
       fund_type: firstDefined(fund.fund_type, firstLink.fund_type),
       investment_strategy: firstDefined(fund.investment_strategy, firstLink.investment_strategy),
       equity_amount_krw: equity,
@@ -9430,6 +9442,7 @@ async function dataManagementInvestmentIntegratedRows(ctx: Context, payload: Rec
       fund_id: resolvedFundId,
       asset_id: assetIds.length === 1 ? assetIds[0] : undefined,
       asset_ids: assetIds,
+      fund_code: source.fund_code,
       fund_name: source.fund_name,
       asset_name: source.asset_name,
     });
@@ -10600,7 +10613,7 @@ async function dataManagementResolveIntegratedViewEdit(ctx: Context, payload: Re
   if (!row) throw new Error('수정 대상 행을 다시 찾지 못했습니다. 데이터를 다시 읽어 주세요.');
   if (row.editable === false) throw new Error(safeText(row.read_only_reason || (row.meta as Record<string, unknown> | undefined)?.read_only_reason || 'This row is read-only in Data Management.'));
   const rowMeta = row.meta && typeof row.meta === 'object' ? row.meta as Record<string, unknown> : {};
-  const targetRowId = targetTable === 'public.ll_assets'
+  let targetRowId = targetTable === 'public.ll_assets'
     ? safeText(rowMeta.asset_id)
     : targetTable === 'public.ll_asset_operating_costs'
       ? safeText(rowMeta.operating_cost_id)
@@ -10609,6 +10622,28 @@ async function dataManagementResolveIntegratedViewEdit(ctx: Context, payload: Re
         : targetTable === 'public.ll_fund_asset_links'
           ? safeText(rowMeta.link_id)
           : '';
+  if (targetTable === 'public.ll_funds') {
+    const displayValues = row.display_values && typeof row.display_values === 'object' ? row.display_values as Record<string, unknown> : {};
+    const fundCode = safeText(firstDefined(rowMeta.fund_code, displayValues.fund_code, targetRowId));
+    const fundName = safeText(firstDefined(rowMeta.fund_name, displayValues.fund_name));
+    let resolvedFundId = '';
+    if (targetRowId) {
+      const { data, error } = await ctx.serviceClient.from('ll_funds').select('fund_id').eq('fund_id', targetRowId).maybeSingle();
+      if (error && !isMissingRelationError(error)) throw new Error(error.message);
+      resolvedFundId = safeText((data as Record<string, unknown> | null)?.fund_id);
+    }
+    if (!resolvedFundId && fundCode) {
+      const { data, error } = await ctx.serviceClient.from('ll_funds').select('fund_id').eq('fund_code', fundCode).maybeSingle();
+      if (error && !isMissingRelationError(error)) throw new Error(error.message);
+      resolvedFundId = safeText((data as Record<string, unknown> | null)?.fund_id);
+    }
+    if (!resolvedFundId && fundName) {
+      const { data, error } = await ctx.serviceClient.from('ll_funds').select('fund_id').eq('fund_name', fundName).maybeSingle();
+      if (error && !isMissingRelationError(error)) throw new Error(error.message);
+      resolvedFundId = safeText((data as Record<string, unknown> | null)?.fund_id);
+    }
+    targetRowId = resolvedFundId || targetRowId;
+  }
   if (!targetRowId) {
     if (targetTable === 'public.ll_asset_operating_costs') {
       throw new Error('이 자산에는 아직 운영비용 행이 없어 기존 값 수정으로 처리할 수 없습니다. 행 추가 workflow가 필요합니다.');
