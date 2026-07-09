@@ -162,7 +162,9 @@ async function invokeNewsList(auth, date) {
 async function setNewsDate(newsSection, date) {
   const dateInput = newsSection.locator('input[type="date"]').first();
   await dateInput.evaluate((input, value) => {
-    input.value = value;
+    const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value');
+    if (descriptor?.set) descriptor.set.call(input, value);
+    else input.value = value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }, date);
@@ -204,6 +206,7 @@ async function main() {
     errors: [],
   };
   let browser;
+  let page;
   try {
     const expectedByDate = {};
     for (const date of targetDates) {
@@ -217,7 +220,7 @@ async function main() {
       sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email }));
       localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
     }, { email: uiEmail, session: browserSession });
-    const page = await context.newPage();
+    page = await context.newPage();
     page.on('pageerror', (error) => report.errors.push(error.message));
     page.on('response', (response) => {
       if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 500) {
@@ -285,6 +288,10 @@ async function main() {
     report.ok = report.errors.length === 0 && report.dates.every((item) => item.ok);
   } catch (error) {
     report.errors.push(error?.message || String(error));
+    if (page) {
+      await page.screenshot({ path: screenshotPath, fullPage: false }).catch(() => null);
+      report.failure_body_excerpt = await page.locator('body').innerText({ timeout: 2000 }).then((text) => text.slice(0, 1200)).catch(() => '');
+    }
   } finally {
     if (browser) await browser.close();
   }
