@@ -13688,6 +13688,31 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   } }, 200, ctx.origin);
 }
 
+async function callNewsCollectRun(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'news/collect-run', 3, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const requestedDate = safeText(firstDefined(payload.date, payload.news_date, payload.selected_date));
+  const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(requestedDate) ? requestedDate : newsTodayKstDateKey();
+  const limit = Math.min(Math.max(Number(payload.limit || 10), 1), 30);
+  try {
+    const collected = await collectAndStoreNewsRun(ctx, selectedDate, limit);
+    return jsonResponse({ ok: true, data: {
+      status: 'collected',
+      selected_date: selectedDate,
+      latest_run: collected.run,
+      item_count: collected.item_count,
+      collection_mode: 'admin_precollect',
+      collect_on_read: false,
+      generated_at: new Date().toISOString(),
+    } }, 200, ctx.origin);
+  } catch (error) {
+    return fail(500, 'Failed to collect logistics news run', ctx.origin, {
+      selected_date: selectedDate,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 async function callNewsRestore20260617(ctx: Context) {
   if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'news/restore-20260617', 6, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
@@ -24642,6 +24667,7 @@ Deno.serve(async (request) => {
   if (action === 'data-management/preview-edit') return callDataManagementPreviewEdit(ctx, payload);
   if (action === 'data-management/submit-edit') return callDataManagementSubmitEdit(ctx, payload);
   if (action === 'news/list') return callNewsList(ctx, payload);
+  if (action === 'news/collect-run') return callNewsCollectRun(ctx, payload);
   if (action === 'news/restore-20260617') return callNewsRestore20260617(ctx);
   if (action === 'lease-events/list') return listLeaseEvents(ctx, payload);
   if (action === 'lease-events/preview') return previewLeaseEvent(ctx, payload);
