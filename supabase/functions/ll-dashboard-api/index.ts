@@ -4372,14 +4372,15 @@ async function dismissLogisticsNotifications(ctx: Context, payload: Record<strin
     .update({ delivery_status: 'dismissed', dismissed_at: new Date().toISOString() })
     .eq('recipient_email', email);
   if (!all) query = query.in('delivery_id', ids);
-  const { error, count } = await query.select('delivery_id', { count: 'exact' });
+  const { data, error, count } = await query.select('delivery_id', { count: 'exact' });
+  const dismissedCount = Number(count ?? (Array.isArray(data) ? data.length : 0));
   if (error) {
     if (isMissingRelationError(error)) return fail(503, 'Notifications storage is not available', ctx.origin, { code: 'notifications_missing_schema' });
     return fail(500, 'Failed to dismiss notifications', ctx.origin, { error: error.message });
   }
-  if (!all && ids.length && !count) return fail(404, 'Notification delivery was not found for this user', ctx.origin);
-  await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/dismiss', 200, { all, ids: ids.length, dismissed: count || 0 });
-  return jsonResponse({ ok: true, data: { dismissed: count || 0 } }, 200, ctx.origin);
+  if (!all && ids.length && !dismissedCount) return fail(404, 'Notification delivery was not found for this user', ctx.origin);
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/dismiss', 200, { all, ids: ids.length, dismissed: dismissedCount });
+  return jsonResponse({ ok: true, data: { dismissed: dismissedCount } }, 200, ctx.origin);
 }
 
 async function markReadLogisticsNotifications(ctx: Context, payload: Record<string, unknown>) {
@@ -4396,14 +4397,15 @@ async function markReadLogisticsNotifications(ctx: Context, payload: Record<stri
     .eq('recipient_email', email)
     .neq('delivery_status', 'dismissed');
   if (!all) query = query.in('delivery_id', ids);
-  const { error, count } = await query.select('delivery_id', { count: 'exact' });
+  const { data, error, count } = await query.select('delivery_id', { count: 'exact' });
+  const readCount = Number(count ?? (Array.isArray(data) ? data.length : 0));
   if (error) {
     if (isMissingRelationError(error)) return fail(503, 'Notifications storage is not available', ctx.origin, { code: 'notifications_missing_schema' });
     return fail(500, 'Failed to mark notifications read', ctx.origin, { error: error.message });
   }
-  if (!all && ids.length && !count) return fail(404, 'Notification delivery was not found for this user', ctx.origin);
-  await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/mark-read', 200, { all, ids: ids.length, read: count || 0 });
-  return jsonResponse({ ok: true, data: { read: count || 0 } }, 200, ctx.origin);
+  if (!all && ids.length && !readCount) return fail(404, 'Notification delivery was not found for this user', ctx.origin);
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/mark-read', 200, { all, ids: ids.length, read: readCount });
+  return jsonResponse({ ok: true, data: { read: readCount } }, 200, ctx.origin);
 }
 
 function marketPayload(row: Record<string, unknown>): Record<string, unknown> {
