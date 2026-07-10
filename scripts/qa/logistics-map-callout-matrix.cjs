@@ -489,6 +489,13 @@ async function prepareSurface(page, baseUrl, provider, viewport, surface) {
   const url = joinUrl(baseUrl, logisticsRoute(surface.route));
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await waitForRouteReady(page, surface.route);
+  if (viewport.width <= 390) {
+    const collapseButton = page.locator('button[title="\uC0AC\uC774\uB4DC\uBC14 \uC811\uAE30"]:visible').first();
+    if (await collapseButton.count()) {
+      await collapseButton.click({ timeout: 10000 });
+      await page.locator('button[title="\uC0AC\uC774\uB4DC\uBC14 \uD3BC\uCE58\uAE30"]:visible').first().waitFor({ state: 'visible', timeout: 10000 });
+    }
+  }
 
   if (surface.kind.startsWith('market')) {
     await assertRuntimeMarketRegistry(page, surface.route);
