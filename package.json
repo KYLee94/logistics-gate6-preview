@@ -57,7 +57,7 @@
     "qa:data-management:column-editability": "node scripts/qa/logistics-data-management-column-editability-audit.cjs",
     "qa:data-management:required-fields-preview": "node scripts/qa/logistics-data-management-required-fields-preview.cjs",
     "qa:data-management:release-gate": "node scripts/qa/logistics-data-management-release-gate.cjs",
-    "qa:data-management:submit-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --allow-submit",
+    "qa:data-management:submit-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --allow-submit --require-written-history",
     "qa:data-management:approved-readback": "node scripts/qa/logistics-data-management-release-gate.cjs --require-written-history",
     "qa:data-management:approval-live": "node scripts/qa/logistics-approval-pending-live-smoke.cjs",
     "qa:data-management:approval-self-live": "node scripts/qa/logistics-approval-pending-live-smoke.cjs --self-approve",
@@ -104,7 +104,7 @@
     "qa:release-env": "node scripts/qa/logistics-release-env-preflight.cjs",
     "qa:release-artifacts:freshness": "node scripts/qa/logistics-release-artifact-freshness.cjs",
     "qa:dangerous-script-audit": "node scripts/qa/logistics-dangerous-script-audit.cjs",
-    "qa:release-gate:strict": "npm run qa:release-env && npm run qa:post-deploy:live-smoke && npm run qa:news:api && npm run qa:news:schedule-live && npm run qa:market-data:readback && npm run qa:full-surface:audit && npm run qa:dangerous-script-audit && npm run qa:release-artifacts:freshness",
+    "qa:release-gate:strict": "npm run qa:release-env && npm run qa:post-deploy:live-smoke && npm run qa:news:api && npm run qa:news:schedule-live && npm run qa:market-data:readback && npm run qa:data-management:submit-readback && npm run qa:full-surface:audit && npm run qa:dangerous-script-audit && npm run qa:release-artifacts:freshness",
     "qa:post-deploy:live-smoke": "node scripts/qa/logistics-post-deploy-live-smoke.cjs",
     "deploy:verified": "npm run deploy && npm run qa:post-deploy:live-smoke"
   },

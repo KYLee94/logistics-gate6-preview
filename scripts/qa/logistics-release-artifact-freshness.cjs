@@ -62,11 +62,15 @@ const checks = latestFiles.map((name) => {
     const newest = timestamps.sort((a, b) => b.ms - a.ms)[0] || null;
     const stale = !newest || newest.ms < cutoffMs;
     const sourceReportOk = json.ok === true;
+    const explicitStatus = String(json.validation_status || json.status || json.mode || '').trim().toLowerCase();
     const falsePositiveRisk = (
       json.checks?.latest_artifacts_all_usable === false
       || json.latest_artifacts_all_usable === false
       || json.skipped === true
-      || /skipped|fallback-only|local-only|mock/iu.test(JSON.stringify(json).slice(0, 20000))
+      || json.fallback_only === true
+      || json.local_only === true
+      || json.mock === true
+      || ['skipped', 'fallback-only', 'local-only', 'mock'].includes(explicitStatus)
     );
     return {
       file: path.relative(ROOT, file).replace(/\\/gu, '/'),
