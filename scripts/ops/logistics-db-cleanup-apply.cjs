@@ -3,6 +3,7 @@ const path = require('node:path');
 
 const {
   PRODUCTION_PROJECT_REF,
+  assertPreflightApplyGate,
   parseArgs,
   readJson,
   readLinkedProjectRef,
@@ -17,7 +18,27 @@ function required(args, key, flag) {
   return args[key];
 }
 
+function assertAllowedApplyArgs(args) {
+  const allowed = new Set([
+    '_',
+    'preManifest',
+    'approvedDelta',
+    'outSql',
+    'apply',
+    'projectRef',
+    'expectedCount',
+    'manifestSha',
+    'environment',
+    'confirmProductionRef',
+    'rehearsalReport',
+    'productionProjectRef',
+  ]);
+  const unsupported = Object.keys(args).filter((key) => !allowed.has(key));
+  if (unsupported.length) throw new Error(`Unsupported apply option(s): ${unsupported.join(', ')}. Manual legacy migration replay is forbidden.`);
+}
+
 function assertApplyGuards(args, manifest, delta) {
+  assertPreflightApplyGate(manifest);
   if (process.env.CI || process.env.GITHUB_ACTIONS) throw new Error('--apply is forbidden in CI and automatic release environments.');
   const projectRef = required(args, 'projectRef', '--project-ref');
   const expectedCount = Number(required(args, 'expectedCount', '--expected-count'));
@@ -33,7 +54,10 @@ function assertApplyGuards(args, manifest, delta) {
   if (environment === 'production') {
     if (args.confirmProductionRef !== projectRef) throw new Error('--confirm-production-ref must exactly match --project-ref for production apply.');
     const rehearsal = readJson(required(args, 'rehearsalReport', '--rehearsal-report'));
-    if (!rehearsal.ok || rehearsal.environment !== 'staging' || rehearsal.production_forbidden !== true) throw new Error('A successful staging rehearsal report is required before production apply.');
+    if (!rehearsal.ok || rehearsal.environment !== 'staging' || rehearsal.production_forbidden !== true
+      || rehearsal.evidence_validated !== true || rehearsal.actual_backup_restore_verified !== true) {
+      throw new Error('A staging rehearsal with verified backup and restore evidence is required before production apply.');
+    }
     if (rehearsal.pre_manifest_sha256 !== manifest.manifest_sha256) throw new Error('Staging rehearsal manifest SHA does not match the pre-manifest.');
   } else if (projectRef === (args.productionProjectRef || PRODUCTION_PROJECT_REF)) {
     throw new Error('A staging apply cannot target the production project ref.');
@@ -43,20 +67,42 @@ function assertApplyGuards(args, manifest, delta) {
 
 function main() {
   const args = parseArgs();
+  assertAllowedApplyArgs(args);
   const manifest = readJson(required(args, 'preManifest', '--pre-manifest'));
   const delta = readJson(required(args, 'approvedDelta', '--approved-delta'));
   const manifestValidation = verifyManifest(manifest);
   if (!manifestValidation.ok) throw new Error(`Pre-manifest validation failed: ${manifestValidation.errors.join('; ')}`);
   const deltaValidation = validateApprovedDelta(delta, manifest);
   if (!deltaValidation.ok) throw new Error(`Approved delta validation failed: ${deltaValidation.errors.join('; ')}`);
+  if (args.apply === true) {
+    const guards = assertApplyGuards(args, manifest, delta);
+    const sql = buildApplySql(manifest, delta);
+    if (args.outSql) {
+      const outputPath = path.resolve(args.outSql);
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, sql, 'utf8');
+    }
+    const rows = runSupabaseDbQuery(sql, { prefix: 'gate6-db-cleanup-apply', timeoutMs: 10 * 60 * 1000 });
+    console.log(JSON.stringify({
+      ok: true,
+      mode: 'apply',
+      apply_executed: true,
+      project_ref: guards.projectRef,
+      environment: guards.environment,
+      manifest_sha256: guards.manifestSha,
+      approved_operation_count: guards.expectedCount,
+      database_result: rows,
+    }, null, 2));
+    return;
+  }
+
   const sql = buildApplySql(manifest, delta);
   if (args.outSql) {
     const outputPath = path.resolve(args.outSql);
     fs.mkdirSync(path.dirname(outputPath), { recursive: true });
     fs.writeFileSync(outputPath, sql, 'utf8');
   }
-
-  if (args.apply !== true) {
+  {
     console.log(JSON.stringify({
       ok: true,
       mode: 'dry_run',
@@ -71,19 +117,6 @@ function main() {
     if (!args.outSql) process.stdout.write(`\n${sql}`);
     return;
   }
-
-  const guards = assertApplyGuards(args, manifest, delta);
-  const rows = runSupabaseDbQuery(sql, { prefix: 'gate6-db-cleanup-apply', timeoutMs: 10 * 60 * 1000 });
-  console.log(JSON.stringify({
-    ok: true,
-    mode: 'apply',
-    apply_executed: true,
-    project_ref: guards.projectRef,
-    environment: guards.environment,
-    manifest_sha256: guards.manifestSha,
-    approved_operation_count: guards.expectedCount,
-    database_result: rows,
-  }, null, 2));
 }
 
 try {

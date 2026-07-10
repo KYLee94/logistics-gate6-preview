@@ -338,18 +338,33 @@ const writeFeatureAccessUsersCache = (rows = []) => {
     }
 };
 const normalizeLoginCapabilityUserRow = (row = {}) => {
-    const hasAuthUser = row.has_auth_user === true;
+    const lastLoginAt = row.last_login_at || row.last_login || row.last_sign_in_at || row.lastLoginAt || null;
+    const hasAuthUser = row.has_auth_user === true || Boolean(lastLoginAt);
     return {
         ...row,
         login_status: hasAuthUser ? (row.login_status || '로그인 가능') : '최초 접속 전',
-        last_sign_in_at: hasAuthUser ? (row.last_sign_in_at || null) : null,
+        last_sign_in_at: lastLoginAt,
     };
 };
-const normalizeLoginHistoryData = (data = {}) => ({
-    rows: Array.isArray(data.rows) ? data.rows.slice(0, 5) : [],
-    users: Array.isArray(data.users) ? data.users.map(normalizeLoginCapabilityUserRow).slice(0, 300) : [],
-    summary: data.summary || null,
-});
+const normalizeLoginHistoryData = (data = {}) => {
+    const users = Array.isArray(data.users)
+        ? data.users
+        : Array.isArray(data.members)
+            ? data.members
+            : Array.isArray(data.login_capabilities)
+                ? data.login_capabilities
+                : [];
+    const rows = Array.isArray(data.rows)
+        ? data.rows
+        : Array.isArray(data.history)
+            ? data.history
+            : [];
+    return {
+        rows: rows.slice(0, 5),
+        users: users.map(normalizeLoginCapabilityUserRow).slice(0, 300),
+        summary: data.summary || (data.last_login ? { last_login: data.last_login } : null),
+    };
+};
 const readLoginHistoryCache = () => {
     try {
         const parsed = JSON.parse(localStorage.getItem(LOGISTICS_LOGIN_HISTORY_CACHE_KEY) || '{}');

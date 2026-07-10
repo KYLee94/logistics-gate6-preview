@@ -7,7 +7,7 @@ type SupabaseClient = ReturnType<typeof createClient>;
 type RateBucket = { resetAt: number; count: number };
 
 const WRITE_TABLE_ALLOWLIST = new Set([
-  'public.ll_weekly_records',
+  'public.ll_work_items',
 ]);
 
 const MAX_WEEKLY_DOC_BYTES = 20 * 1024 * 1024;
@@ -110,7 +110,6 @@ function startOfMondayWeek(date: Date) {
 
 function buildMonthlyWeekRanges(year: number, month: number) {
   const firstDay = new Date(Date.UTC(year, month - 1, 1));
-  const lastDay = new Date(Date.UTC(year, month, 0));
   const ranges: Array<{ week: number; start: string; end: string; key: string; label: string }> = [];
   let start = startOfMondayWeek(firstDay);
   while (start <= new Date(Date.UTC(year, month, 6))) {
@@ -172,24 +171,6 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: s
   }
 }
 
-async function restoreWeeklySnapshot(
-  serviceClient: SupabaseClient,
-  reportId: string,
-  previousReport: Record<string, unknown> | null,
-  previousAssets: Record<string, unknown>[],
-  previousProjects: Record<string, unknown>[],
-) {
-  await serviceClient.from('ll_weekly_records').delete().eq('record_type', 'asset').eq('report_id', reportId);
-  await serviceClient.from('ll_weekly_records').delete().eq('record_type', 'project').eq('report_id', reportId);
-  if (previousReport) {
-    await serviceClient.from('ll_weekly_records').upsert(previousReport, { onConflict: 'id' });
-    if (previousAssets.length) await serviceClient.from('ll_weekly_records').insert(previousAssets);
-    if (previousProjects.length) await serviceClient.from('ll_weekly_records').insert(previousProjects);
-  } else {
-    await serviceClient.from('ll_weekly_records').delete().eq('id', reportId).eq('record_type', 'report');
-  }
-}
-
 function parseWeeklyText(text: string) {
   const lines = text
     .split(/\r?\n/)
@@ -209,7 +190,7 @@ function parseWeeklyText(text: string) {
       row_json: row,
     }));
   const projectRows = rows
-    .filter((row) => /Task|Next|Action|협의|검토|일정|업무|이슈|계획|후속|F\/U/i.test(row.text))
+    .filter((row) => /Task|Next|Action|작업|검토|일정|업무|미팅|계획|후속|F\/U/i.test(row.text))
     .slice(0, 80)
     .map((row) => ({
       project_type: 'weekly',
@@ -228,6 +209,94 @@ function parseWeeklyText(text: string) {
       previewLines: lines.slice(0, 30),
     },
   };
+}
+
+function normalizeKey(value: unknown) {
+  return String(value || '').replace(/\s+/gu, '').toLowerCase();
+}
+
+function stripUndefined<T extends Record<string, unknown>>(value: T) {
+  return Object.fromEntries(Object.entries(value).filter(([, item]) => item !== undefined)) as T;
+}
+
+function shortActorName(email: string, fallback: string) {
+  const localPart = String(email || '').split('@')[0];
+  return localPart || fallback;
+}
+
+function logisticsWeekMeta(year: number, month: number, week: number, weekKey: string, weekRange: string) {
+  return {
+    workspace: 'logistics',
+    weekKey,
+    weekLabel: `${String(year).slice(2)}년 ${month}월 ${week}주차`,
+    weekRange,
+    groupLabel: `${year}년 ${month}월`,
+    basisDate: weekKey.slice(0, 10),
+  };
+}
+
+function matchAssetForLine(text: string, assets: Record<string, unknown>[]) {
+  const normalized = normalizeKey(text);
+  if (!normalized) return null;
+  const matches = assets
+    .map((asset) => ({
+      asset,
+      key: normalizeKey(asset.asset_name),
+    }))
+    .filter((item) => item.key && (normalized.includes(item.key) || item.key.includes(normalized)));
+  if (!matches.length) return null;
+  matches.sort((left, right) => right.key.length - left.key.length);
+  return matches[0].asset;
+}
+
+function buildSnapshotTask(
+  row: Record<string, unknown>,
+  sourceKind: 'weekly_asset' | 'weekly_project',
+  actor: { email: string; name: string },
+  assets: Record<string, unknown>[],
+  nowIso: string,
+) {
+  const rawText = String(row.issue || row.project_name || row.asset_name || '').trim();
+  const matchedAsset = matchAssetForLine(rawText, assets);
+  const relatedAssetId = String(matchedAsset?.asset_id || '').trim();
+  const relatedAssetName = String(matchedAsset?.asset_name || row.asset_name || '').trim();
+  const seedLabel = String(row.project_name || row.asset_name || rawText).trim().slice(0, 120) || 'Task';
+  return stripUndefined({
+    id: crypto.randomUUID(),
+    seed_id: `${sourceKind}:${row.row_json?.lineNumber || '0'}:${seedLabel}`,
+    source: 'weekly_report_seed',
+    seed_source: sourceKind,
+    related_asset: relatedAssetName || undefined,
+    related_asset_id: relatedAssetId || undefined,
+    task_name: seedLabel,
+    company_name: '',
+    status: 'new',
+    due_date: '',
+    priority: sourceKind === 'weekly_asset' ? '중간' : '낮음',
+    next_action: sourceKind === 'weekly_project' ? rawText : '',
+    issue: rawText,
+    notes: '',
+    created_by_name: actor.name,
+    created_by_email: actor.email,
+    created_by_display: `${actor.name}(${actor.email})`,
+    created_at: nowIso,
+    updated_at: nowIso,
+    payload: {
+      source: 'll-weekly-doc-ingest',
+      source_kind: sourceKind,
+      line_number: row.row_json?.lineNumber || null,
+      line_text: rawText,
+    },
+  });
+}
+
+async function listRegisteredAssets(serviceClient: SupabaseClient) {
+  const { data, error } = await serviceClient
+    .from('ll_assets')
+    .select('asset_id,asset_code,asset_name')
+    .limit(1000);
+  if (error) throw error;
+  return (data || []) as Record<string, unknown>[];
 }
 
 Deno.serve(async (request) => {
@@ -297,15 +366,22 @@ Deno.serve(async (request) => {
   const buffer = await file.arrayBuffer();
   if (!hasWordFileSignature(buffer)) return fail(400, 'Word file signature is invalid', origin);
   const sourceSha = await sha256Hex(buffer);
-  const { data: duplicate } = await serviceClient
-    .from('ll_weekly_records')
-    .select('id, source_file_name')
-    .eq('record_type', 'report')
-    .eq('week_key', weekKey)
-    .eq('organization', organization)
-    .eq('source_sha256', sourceSha)
+  const weekMeta = logisticsWeekMeta(year, month, week, weekKey, weekRange);
+  const { data: previousSnapshot, error: previousSnapshotError } = await serviceClient
+    .from('ll_work_items')
+    .select('id,payload')
+    .eq('item_type', 'task_snapshot')
+    .eq('workspace', weekMeta.workspace)
+    .eq('week_key', weekMeta.weekKey)
+    .eq('created_by', userData.user.id)
     .maybeSingle();
-  if (duplicate) return fail(409, 'Duplicate weekly document for this organization and week', origin);
+  if (previousSnapshotError) return fail(500, 'Failed to read previous weekly snapshot', origin);
+  const previousPayload = previousSnapshot?.payload && typeof previousSnapshot.payload === 'object' && !Array.isArray(previousSnapshot.payload)
+    ? previousSnapshot.payload as Record<string, unknown>
+    : {};
+  if (String(previousPayload.source_sha256 || '') === sourceSha) {
+    return fail(409, 'Duplicate weekly document for this user and week', origin);
+  }
 
   let parsed;
   try {
@@ -317,103 +393,66 @@ Deno.serve(async (request) => {
   } catch {
     return fail(422, 'Word parsing failed before any write', origin);
   }
+
   const weekly = parseWeeklyText(parsed.value || '');
   if (!weekly.lines.length) return fail(422, 'Word parsing produced no readable text', origin);
 
-  const { data: previousReport } = await serviceClient
-    .from('ll_weekly_records')
-    .select('*')
-    .eq('record_type', 'report')
-    .eq('week_key', weekKey)
-    .eq('organization', organization)
-    .maybeSingle();
-  const previousReportId = previousReport?.id || null;
-  const [{ data: previousAssets }, { data: previousProjects }] = previousReportId ? await Promise.all([
-    serviceClient.from('ll_weekly_records').select('*').eq('record_type', 'asset').eq('report_id', previousReportId),
-    serviceClient.from('ll_weekly_records').select('*').eq('record_type', 'project').eq('report_id', previousReportId),
-  ]) : [{ data: [] }, { data: [] }];
+  const assets = await listRegisteredAssets(serviceClient);
+  const actorEmail = String(userData.user.email || '').trim().toLowerCase();
+  const actorName = shortActorName(actorEmail, userData.user.id);
+  const nowIso = new Date().toISOString();
+  const snapshotTasks = [
+    ...weekly.assetRows.map((row) => buildSnapshotTask(row, 'weekly_asset', { email: actorEmail, name: actorName }, assets, nowIso)),
+    ...weekly.projectRows.map((row) => buildSnapshotTask(row, 'weekly_project', { email: actorEmail, name: actorName }, assets, nowIso)),
+  ];
 
-  const reportPayload = {
-    record_type: 'report',
-    week_key: weekKey,
-    organization,
-    report_year: year,
-    report_month: month,
-    report_week: week,
-    source_file_name: file.name,
-    source_sha256: sourceSha,
-    source_text: parsed.value || '',
-    report_json: { ...weekly.reportJson, weekRange },
+  const snapshotRow = stripUndefined({
+    item_type: 'task_snapshot',
+    workspace: weekMeta.workspace,
+    week_key: weekMeta.weekKey,
+    week_label: weekMeta.weekLabel,
+    week_range: weekMeta.weekRange,
+    group_label: weekMeta.groupLabel,
+    basis_date: weekMeta.basisDate,
+    title: `${weekMeta.weekLabel} 주간 보고`,
+    description: `${file.name} 파싱 결과 ${snapshotTasks.length}건`,
+    snapshot_data: snapshotTasks,
+    task_count: snapshotTasks.length,
     created_by: userData.user.id,
-    updated_at: new Date().toISOString(),
-  };
-  const { data: report, error: reportError } = previousReportId
-    ? await serviceClient
-      .from('ll_weekly_records')
-      .update(reportPayload)
-      .eq('id', previousReportId)
-      .eq('record_type', 'report')
-      .select('id')
-      .single()
-    : await serviceClient
-      .from('ll_weekly_records')
-      .insert(reportPayload)
-      .select('id')
-      .single();
-  if (reportError || !report) return fail(500, 'Failed to save weekly report', origin);
-
-  try {
-    await serviceClient.from('ll_weekly_records').delete().eq('record_type', 'asset').eq('report_id', report.id);
-    await serviceClient.from('ll_weekly_records').delete().eq('record_type', 'project').eq('report_id', report.id);
-
-    if (weekly.assetRows.length) {
-      const { error } = await serviceClient.from('ll_weekly_records').insert(
-        weekly.assetRows.map((row) => ({ ...row, record_type: 'asset', report_id: report.id })),
-      );
-      if (error) throw error;
-    }
-    if (weekly.projectRows.length) {
-      const { error } = await serviceClient.from('ll_weekly_records').insert(
-        weekly.projectRows.map((row) => ({ ...row, record_type: 'project', report_id: report.id })),
-      );
-      if (error) throw error;
-    }
-  } catch {
-    await restoreWeeklySnapshot(
-      serviceClient,
-      report.id,
-      previousReport || null,
-      previousAssets || [],
-      previousProjects || [],
-    );
-    return fail(500, 'Weekly ingest failed without leaving partial writes', origin);
-  }
-
-  await serviceClient.from('ll_weekly_records').insert({
-    record_type: 'doc_ingest',
-    report_id: report.id,
-    week_key: weekKey,
+    created_by_email: actorEmail,
+    created_by_name: actorName,
     organization,
-    source_file_name: file.name,
-    source_sha256: sourceSha,
-    requested_by: userData.user.id,
-    status: 'parsed',
-    message: 'Weekly Word document parsed and saved',
-    parsed_counts: {
-      lines: weekly.lines.length,
-      assets: weekly.assetRows.length,
-      projects: weekly.projectRows.length,
+    payload: {
+      source: 'll-weekly-doc-ingest',
+      source_file_name: file.name,
+      source_sha256: sourceSha,
+      parser: weekly.reportJson.parser,
+      line_count: weekly.lines.length,
+      asset_count: weekly.assetRows.length,
+      project_count: weekly.projectRows.length,
+      preview_lines: weekly.reportJson.previewLines,
+      report_year: year,
+      report_month: month,
+      report_week: week,
     },
+    updated_at: nowIso,
+    ...(previousSnapshot ? {} : { created_at: nowIso }),
   });
+
+  const { error: snapshotError } = await serviceClient
+    .from('ll_work_items')
+    .upsert(snapshotRow, { onConflict: 'item_type,workspace,week_key,created_by' });
+  if (snapshotError) return fail(500, 'Failed to save weekly snapshot into work platform', origin);
 
   return jsonResponse({
     ok: true,
-    message: 'Weekly Word document parsed and saved',
+    message: 'Weekly Word document parsed and saved into work platform snapshot',
     week_key: weekKey,
     counts: {
       lines: weekly.lines.length,
       assets: weekly.assetRows.length,
       projects: weekly.projectRows.length,
+      snapshot_tasks: snapshotTasks.length,
     },
   }, 200, origin);
 });

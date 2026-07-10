@@ -296,6 +296,40 @@ async function checkSystemModals(page, report) {
   report.modal_checks = modalChecks;
 }
 
+async function checkIdleReturnAndTabSwitch(page, context, baseUrl, stamp, idleMs) {
+  const overview = ROUTES.find((probe) => probe.key === 'market-overview');
+  const lease = ROUTES.find((probe) => probe.key === 'market-lease');
+  if (!overview || !lease) throw new Error('Market tab probes are not configured.');
+
+  await navigateInApp(page, baseUrl, overview.route, `${stamp}-idle-before`);
+  await waitForRouteReady(page, overview);
+  const background = await context.newPage();
+  try {
+    await background.goto('about:blank');
+    await background.bringToFront();
+    await page.waitForTimeout(idleMs);
+
+    const idleReturnStartedAt = Date.now();
+    await page.bringToFront();
+    await waitForRouteReady(page, overview);
+    const idleReturn = await collectRouteState(page, overview, Date.now() - idleReturnStartedAt);
+
+    const tabSwitchStartedAt = Date.now();
+    await navigateInApp(page, baseUrl, lease.route, `${stamp}-tab-return`);
+    await waitForRouteReady(page, lease);
+    const tabSwitch = await collectRouteState(page, lease, Date.now() - tabSwitchStartedAt);
+
+    return {
+      idle_ms: idleMs,
+      idle_return: idleReturn,
+      tab_reswitch: tabSwitch,
+      ok: idleReturn.ok && tabSwitch.ok,
+    };
+  } finally {
+    await background.close().catch(() => {});
+  }
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const stamp = timestampForFile();
@@ -304,6 +338,7 @@ async function main() {
   const screenshotPath = path.join(OUT_DIR, `full-app-loading-stability-${stamp}.png`);
   const baseUrl = argValue('base-url', DEFAULT_BASE_URL);
   const cycles = numberArg('cycles', 50);
+  const idleMs = numberArg('idle-ms', 3000);
   const auth = await signInSession();
   const uiEmail = argValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || auth.email || 'kylee@igisam.com');
   const browserSession = { ...auth.session, user: { ...(auth.session.user || {}), email: uiEmail } };
@@ -315,8 +350,10 @@ async function main() {
     auth_source: auth.source,
     ui_email: uiEmail,
     cycles,
+    idle_ms: idleMs,
     route_count: ROUTES.length,
     routes: [],
+    idle_return: null,
     modal_checks: {},
     errors: [],
     warnings: [],
@@ -382,6 +419,8 @@ async function main() {
       }
     }
 
+    report.idle_return = await checkIdleReturnAndTabSwitch(page, context, baseUrl, stamp, idleMs);
+
     await navigateInApp(page, baseUrl, 'home', `${stamp}-modals`);
     await waitForRouteReady(page, { key: 'home', minText: 600 });
     await checkSystemModals(page, report);
@@ -395,6 +434,7 @@ async function main() {
   const elapsedValues = report.routes.map((row) => row.elapsed_ms).filter((value) => Number.isFinite(value));
   report.summary = {
     failed_routes: report.routes.filter((row) => !row.ok).length,
+    idle_return_ok: report.idle_return?.ok === true,
     failed_modals: Object.values(report.modal_checks || {}).filter((row) => !row.ok).length,
     max_elapsed_ms: elapsedValues.length ? Math.max(...elapsedValues) : null,
     avg_elapsed_ms: elapsedValues.length ? Math.round(elapsedValues.reduce((sum, value) => sum + value, 0) / elapsedValues.length) : null,
@@ -402,6 +442,7 @@ async function main() {
   report.warnings = Array.from(new Set(report.warnings));
   report.ok = report.routes.length >= cycles
     && report.routes.every((row) => row.ok)
+    && report.idle_return?.ok === true
     && Object.values(report.modal_checks || {}).every((row) => row.ok)
     && report.errors.length === 0
     && /^https:\/\/kylee94\.github\.io\/logistics-gate6-preview\/?/iu.test(baseUrl);

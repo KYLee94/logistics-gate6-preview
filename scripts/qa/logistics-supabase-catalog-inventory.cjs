@@ -1,4 +1,5 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const { execSync } = require('child_process');
 
@@ -47,7 +48,7 @@ function parseSupabaseJson(raw) {
 
 function runQuery(sql) {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const sqlFile = path.join(OUT_DIR, `.tmp-supabase-catalog-${process.pid}-${Date.now()}.sql`);
+  const sqlFile = path.join(os.tmpdir(), `.tmp-supabase-catalog-${process.pid}-${Date.now()}.sql`);
   fs.writeFileSync(sqlFile, sql, 'utf8');
   try {
     const quotedSqlFile = `"${sqlFile.replace(/"/gu, '\\"')}"`;

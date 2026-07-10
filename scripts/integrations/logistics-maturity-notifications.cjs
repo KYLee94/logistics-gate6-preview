@@ -180,29 +180,24 @@ function pushNotificationTask(tasks, {
 }
 
 async function upsertNotification(client, notification, recipients, dryRun) {
-  if (dryRun) return { notification, recipients };
+  const inboxRows = recipients.map((recipient) => ({
+    ...notification,
+    dedupe_key: `${notification.dedupe_key}:${lower(recipient.recipient_email)}`,
+    recipient_email: lower(recipient.recipient_email),
+    recipient_name: recipient.recipient_name || null,
+    delivery_status: 'unread',
+    read_at: null,
+    dismissed_at: null,
+    notified_at: new Date().toISOString(),
+    payload: undefined,
+  }));
+  if (dryRun) return { notifications: inboxRows };
   const { data, error } = await client
     .from('ll_notifications')
-    .upsert(notification, { onConflict: 'dedupe_key' })
-    .select('notification_id')
-    .single();
+    .upsert(inboxRows, { onConflict: 'dedupe_key' })
+    .select('notification_id,recipient_email');
   if (error) throw new Error(`notification upsert failed: ${error.message}`);
-  const notificationId = data.notification_id;
-  const deliveries = recipients.map((recipient) => ({
-    notification_id: notificationId,
-    recipient_email: recipient.recipient_email,
-    recipient_name: recipient.recipient_name,
-    delivery_status: 'unread',
-    dismissed_at: null,
-    read_at: null,
-  }));
-  if (deliveries.length) {
-    const deliveryResult = await client
-      .from('ll_notification_deliveries')
-      .upsert(deliveries, { onConflict: 'notification_id,recipient_email' });
-    if (deliveryResult.error) throw new Error(`notification delivery upsert failed: ${deliveryResult.error.message}`);
-  }
-  return { notification_id: notificationId, deliveries: deliveries.length };
+  return { notification_ids: (data || []).map((row) => row.notification_id), deliveries: inboxRows.length };
 }
 
 async function main() {

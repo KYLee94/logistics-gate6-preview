@@ -110,21 +110,19 @@ async function readViaEdge() {
 
 async function readViaServiceRole() {
   const client = supabaseClient();
-  const runResult = await client.from('ll_news_runs')
-    .select('news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at')
-    .eq('run_key', RUN_KEY)
-    .maybeSingle();
-  if (runResult.error) throw new Error(`ll_news_runs read failed: ${runResult.error.message}`);
-  const run = runResult.data || null;
-  const itemResult = run ? await client.from('ll_news_items')
-    .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,created_at,payload')
-    .eq('news_run_id', run.news_run_id)
-    .order('published_at', { ascending: false, nullsFirst: false }) : { data: [], error: null };
+  const itemResult = await client.from('ll_news_items')
+    .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,news_date,ingested_at')
+    .eq('news_date', TARGET_DATE)
+    .order('published_at', { ascending: false, nullsFirst: false });
   if (itemResult.error) throw new Error(`ll_news_items read failed: ${itemResult.error.message}`);
+  const items = itemResult.data || [];
   return {
     readback_source: 'service_role',
-    run,
-    items: itemResult.data || [],
+    run: {
+      run_key: RUN_KEY,
+      completed_at: items[0]?.ingested_at || null,
+    },
+    items,
   };
 }
 

@@ -12,6 +12,9 @@ type Context = {
   origin: string;
 };
 type RateBucket = { resetAt: number; count: number };
+type AiChatInputValidation =
+  | { ok: true; question: string; history: Array<{ role: string; content: string }> }
+  | { ok: false; status: number; message: string };
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
@@ -72,6 +75,14 @@ const SECTOR_MARKET_LEASE_TEMPERATURE_SEGMENT_LABELS = [
   '\uC0C1\uC628(\uBCF5\uD569\uD3EC\uD568)',
   '\uC800\uC628(\uBCF5\uD569\uD3EC\uD568)',
 ] as const;
+const ASSET_FLOOR_PLAN_ALLOWED_MIME_TYPES = new Set(['image/png']);
+const ASSET_FLOOR_PLAN_MAX_BYTES = 25 * 1024 * 1024;
+const ASSET_FLOOR_PLAN_ALLOWED_FLOOR_LABELS = new Set([
+  'B2', 'B1',
+  '1F', '2F', '3F', '4F', '5F', '6F', '7F', '8F', '9F', '10F', '11F', '12F',
+  'ROOF',
+]);
+const ASSET_FLOOR_PLAN_BUCKET_ENV_KEYS = ['LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET', 'ASSET_FLOOR_PLAN_STORAGE_BUCKET'] as const;
 const SECTOR_MARKET_SELECT_COLUMNS: Record<string, string> = {
   ll_sector_market_lease_observations: [
     'report_year',
@@ -286,8 +297,6 @@ function logisticsProfileImageUrl(email: unknown, rawImageUrl?: unknown) {
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_edit_requests',
   'public.ll_work_items',
-  'public.ll_board_posts',
-  'public.ll_weekly_records',
   'public.ll_tenants',
   'public.ll_leases',
   'public.ll_lease_spaces',
@@ -295,19 +304,16 @@ const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_funds',
   'public.ll_fund_capital_tranches',
   'public.ll_lease_attributes',
-  'public.ll_audit_events',
   'public.ll_cache_entries',
 ]);
 
 const EDIT_TARGET_TABLE_ALLOWLIST = new Set([
   'public.ll_assets',
-  'public.ll_audit_events',
   'public.ll_lease_spaces',
   'public.ll_leases',
   'public.ll_lease_attributes',
   'public.ll_rent_history',
   'public.ll_tenants',
-  'public.ll_weekly_records',
   'public.ll_funds',
   'public.ll_fund_capital_tranches',
   'public.ll_asset_specs',
@@ -444,7 +450,6 @@ const PRIMARY_KEY_FIELDS = new Set([
   'asset_spec_file_id',
   'notification_id',
   'delivery_id',
-  'news_run_id',
   'news_item_id',
   'document_id',
   'chunk_id',
@@ -454,7 +459,22 @@ const PRIMARY_KEY_FIELDS = new Set([
 ]);
 
 const rateBuckets = new Map<string, RateBucket>();
+const aiChatInFlightUsers = new Set<string>();
 const MAX_EDIT_CELLS_PER_REQUEST = 500;
+const AI_CHAT_MAX_QUESTION_CHARS = 1_200;
+const AI_CHAT_MAX_HISTORY_ITEMS = 8;
+const AI_CHAT_MAX_HISTORY_ITEM_CHARS = 500;
+const AI_CHAT_MAX_HISTORY_CHARS = 2_400;
+const AI_CHAT_REQUESTS_PER_MINUTE = 30;
+const AI_CHAT_REQUEST_WINDOW_MS = 60_000;
+// Keep signed URLs comfortably ahead of the five-minute dashboard response cache.
+const ASSET_FLOOR_PLAN_URL_TTL_SECONDS = 30 * 60;
+const GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET = Object.freeze({
+  asset_id: 'asset_a120085001',
+  asset_code: 'A120085001',
+  asset_name: '경산 쿠팡물류센터',
+  floor_count: '12F / B2',
+});
 const EXTERNAL_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const OPENDART_MONTHLY_CACHE_TTL_MS = 45 * 24 * 60 * 60 * 1000;
 const FREE_TIER_GOOGLE_AI_MODELS = new Set([
@@ -898,16 +918,13 @@ async function getContext(request: Request, origin: string): Promise<Context> {
 }
 
 async function audit(serviceClient: SupabaseClient, userId: string | null, action: string, status: number, payload: unknown) {
-  const { error } = await serviceClient.from('ll_audit_events').insert({
-    event_type: 'api',
-    action,
-    status_code: status,
-    requested_by: userId,
-    request_payload: stripUndefined(redactSensitivePayload(payload)),
-    legacy_table: 'public.ll_audit_events',
-    event_status: status >= 200 && status < 400 ? 'success' : 'failed',
-  });
-  if (error) throw new Error(`Failed to write API audit log: ${error.message}`);
+  // API request traces are deliberately not persisted. User-visible writes keep their
+  // own readback state in ll_edit_requests and login time in ll_user_permissions.
+  void serviceClient;
+  void userId;
+  void action;
+  void status;
+  void payload;
 }
 
 async function auditOptional(serviceClient: SupabaseClient, userId: string | null, action: string, status: number, payload: unknown) {
@@ -2366,6 +2383,491 @@ async function listRentHistoryForAssets(ctx: Context, assetIds: string[]) {
   return { rows: (data || []) as Record<string, unknown>[], errorResponse: null };
 }
 
+function publicFloorPlanMetadata(value: unknown, depth = 0): unknown {
+  if (depth > 3 || value === null || value === undefined) return undefined;
+  if (typeof value === 'string') return value.slice(0, 500);
+  if (typeof value === 'number' || typeof value === 'boolean') return value;
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, 20)
+      .map((item) => publicFloorPlanMetadata(item, depth + 1))
+      .filter((item) => item !== undefined);
+  }
+  if (typeof value !== 'object') return undefined;
+  const result: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value as Record<string, unknown>).slice(0, 32)) {
+    if (/(?:bucket|storage|path|url|token|signature|secret)/iu.test(key)) continue;
+    const publicValue = publicFloorPlanMetadata(item, depth + 1);
+    if (publicValue !== undefined) result[key.slice(0, 80)] = publicValue;
+  }
+  return result;
+}
+
+function isSafeAssetSpecStorageReference(bucket: string, storagePath: string) {
+  return /^[a-z0-9][a-z0-9-]{2,62}$/u.test(bucket)
+    && storagePath.length > 0
+    && storagePath.length <= 500
+    && !storagePath.startsWith('/')
+    && !storagePath.includes('\\')
+    && !storagePath.split('/').some((part) => !part || part === '.' || part === '..');
+}
+
+function isSafeSignedStorageUrl(value: string) {
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function publicFloorPlanRecord(row: Record<string, unknown>) {
+  return stripUndefined({
+    asset_spec_file_id: safeText(row.asset_spec_file_id),
+    file_type: 'floor_plan',
+    title: safeText(row.title).slice(0, 180),
+    metadata: publicFloorPlanMetadata(row.metadata),
+    created_at: safeText(row.created_at).slice(0, 40),
+  }) as Record<string, unknown>;
+}
+
+function normalizeAssetFloorPlanFloorLabel(value: unknown) {
+  const normalized = safeText(value).replace(/\s+/gu, '').toUpperCase();
+  if (!normalized) return '';
+  if (normalized === 'RF') return 'ROOF';
+  if (/^B\d+$/u.test(normalized)) return normalized;
+  if (/^\d+F$/u.test(normalized)) return normalized;
+  if (normalized === 'ROOF') return 'ROOF';
+  return '';
+}
+
+function normalizeAssetFloorPlanFloorKey(value: unknown) {
+  const floorLabel = normalizeAssetFloorPlanFloorLabel(value);
+  return floorLabel ? floorLabel.toLowerCase() : '';
+}
+
+function safeAssetFloorPlanStoragePath(assetId: string, floorKey: string) {
+  const safeAssetId = assetId.toLowerCase().replace(/[^a-z0-9_-]+/gu, '-').replace(/^-+|-+$/gu, '') || 'asset';
+  const safeFloorKey = floorKey.toLowerCase().replace(/[^a-z0-9_-]+/gu, '-').replace(/^-+|-+$/gu, '') || 'floor';
+  return `asset-spec/floor-plans/${safeAssetId}/${safeFloorKey}.png`;
+}
+
+async function resolveAssetFloorPlanBucket(ctx: Context) {
+  let buckets: Record<string, unknown>[] = [];
+  try {
+    const bucketResult = await ctx.serviceClient.storage.listBuckets();
+    if (bucketResult.error) throw new Error(bucketResult.error.message);
+    buckets = (bucketResult.data || []) as Record<string, unknown>[];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'unknown storage error';
+    throw new Error(`Failed to validate floor plan Storage bucket: ${message}`);
+  }
+
+  const privateBucketNames = new Set(
+    buckets
+      .filter((row) => row.public !== true)
+      .map((row) => safeText(firstDefined(row.id, row.name)).trim())
+      .filter(Boolean),
+  );
+  const envBuckets = [...new Set(
+    ASSET_FLOOR_PLAN_BUCKET_ENV_KEYS
+      .map((key) => safeText(Deno.env.get(key)).trim())
+      .filter(Boolean),
+  )];
+  if (envBuckets.length > 1) {
+    throw new Error('Multiple floor plan bucket env values are configured. Keep exactly one private bucket.');
+  }
+  if (envBuckets.length === 1) {
+    const envBucket = envBuckets[0];
+    if (!privateBucketNames.has(envBucket)) {
+      throw new Error('Configured floor plan bucket was not found as an existing private bucket.');
+    }
+    return envBucket;
+  }
+
+  const { data, error } = await ctx.serviceClient
+    .from('ll_asset_spec_files')
+    .select('storage_bucket')
+    .eq('file_type', 'floor_plan')
+    .limit(200);
+  if (error && !isMissingRelationError(error)) {
+    throw new Error(`Failed to inspect existing floor plan bucket references: ${error.message}`);
+  }
+  const referencedBuckets = [...new Set(
+    ((data || []) as Record<string, unknown>[])
+      .map((row) => safeText(row.storage_bucket).trim())
+      .filter((name) => name && privateBucketNames.has(name)),
+  )];
+  if (referencedBuckets.length === 1) return referencedBuckets[0];
+  if (referencedBuckets.length > 1) {
+    throw new Error('Multiple private floor plan buckets are already referenced. Configure LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET explicitly.');
+  }
+  throw new Error('Floor plan Storage bucket is not configured. Set LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET to an existing private bucket.');
+}
+
+function normalizeFloorCountDisplay(value: unknown) {
+  const compact = safeText(value).toUpperCase().replace(/\s+/gu, '');
+  if (!compact) return '';
+  const parts = [...new Set(compact.split('/').map((item) => item.trim()).filter(Boolean))];
+  if (parts.length === 1 && (/^\d+F$/u.test(parts[0]) || /^B\d+$/u.test(parts[0]))) return parts[0];
+  const ground = parts.find((item) => /^\d+F$/u.test(item)) || '';
+  const basement = parts.find((item) => /^B\d+$/u.test(item)) || '';
+  if (parts.length === 2 && ground && basement) return `${ground} / ${basement}`;
+  return '';
+}
+
+async function callAssetFloorPlanRegister(ctx: Context, formData: FormData | null) {
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!formData) return fail(400, 'Multipart form data is required', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'asset-floor-plans/register', 24, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
+  const payloadEntry = formData.get('payload');
+  const payload = typeof payloadEntry === 'string' && payloadEntry.trim()
+    ? parseJsonValue(payloadEntry, {}) as Record<string, unknown>
+    : {};
+  const file = formData.get('file');
+  if (!(file instanceof File)) return fail(400, 'file is required', ctx.origin);
+
+  const assetId = safeText(firstDefined(payload.asset_id, payload.assetId));
+  if (!assetId) return fail(400, 'asset_id is required', ctx.origin);
+  const { data: asset, error: assetError } = await ctx.serviceClient
+    .from('ll_assets')
+    .select('asset_id,asset_code,asset_name')
+    .eq('asset_id', assetId)
+    .maybeSingle();
+  if (assetError && !isMissingRelationError(assetError)) return fail(500, 'Failed to validate asset for floor plan upload', ctx.origin);
+  if (!asset?.asset_id) return fail(404, 'Asset not found for floor plan upload', ctx.origin);
+  const assetName = safeText(asset.asset_name, assetId);
+  const canCreate = canMutateRelatedAsset(ctx, 'create', assetId, assetName);
+  const canUpdate = canMutateRelatedAsset(ctx, 'update', assetId, assetName);
+  if (!hasRole(ctx.role, 'Admin') && !canWriteRelatedAsset(ctx, assetId, assetName) && !canCreate && !canUpdate) {
+    return fail(403, 'Insufficient asset write permission for floor plan upload', ctx.origin);
+  }
+
+  const requestedBucketName = safeText(firstDefined(payload.storage_bucket, payload.storageBucket)).trim();
+  let bucketName = '';
+  try {
+    bucketName = await resolveAssetFloorPlanBucket(ctx);
+  } catch (error) {
+    return fail(500, error instanceof Error ? error.message : 'Failed to resolve floor plan Storage bucket', ctx.origin);
+  }
+  if (requestedBucketName && requestedBucketName !== bucketName) {
+    return fail(400, 'storage_bucket is resolved by the server and cannot be overridden', ctx.origin);
+  }
+
+  const originalName = safeStorageFileName(file.name || 'floor-plan.png');
+  if (fileExtension(originalName) !== 'png') return fail(400, 'Only PNG floor plans are supported', ctx.origin);
+  const contentType = safeText(file.type || 'image/png').toLowerCase();
+  if (contentType && !ASSET_FLOOR_PLAN_ALLOWED_MIME_TYPES.has(contentType)) return fail(400, 'Only image/png uploads are supported', ctx.origin);
+  if (file.size <= 0) return fail(400, 'Uploaded floor plan is empty', ctx.origin);
+  if (file.size > ASSET_FLOOR_PLAN_MAX_BYTES) return fail(413, 'Uploaded floor plan is too large', ctx.origin);
+
+  const floorLabel = normalizeAssetFloorPlanFloorLabel(firstDefined(payload.floor_label, payload.floorLabel, payload.floor_key, payload.floorKey));
+  if (!ASSET_FLOOR_PLAN_ALLOWED_FLOOR_LABELS.has(floorLabel)) return fail(400, 'floor_label is invalid', ctx.origin);
+  const floorKey = normalizeAssetFloorPlanFloorKey(firstDefined(payload.floor_key, payload.floorKey, floorLabel));
+  if (!floorKey) return fail(400, 'floor_key is invalid', ctx.origin);
+  const title = safeText(payload.title).slice(0, 180);
+  if (!title) return fail(400, 'title is required', ctx.origin);
+
+  const expectedHash = safeText(firstDefined(payload.expected_sha256, payload.expectedSha256)).toLowerCase();
+  if (expectedHash && !/^[a-f0-9]{64}$/u.test(expectedHash)) return fail(400, 'expected_sha256 must be a 64-character hex string', ctx.origin);
+
+  const metadataInput = payload.metadata && typeof payload.metadata === 'object' && !Array.isArray(payload.metadata)
+    ? payload.metadata as Record<string, unknown>
+    : {};
+  const drawingNumber = safeText(firstDefined(metadataInput.drawing_number, metadataInput.drawingNumber, payload.drawing_number, payload.drawingNumber)).slice(0, 80);
+  const drawingName = safeText(firstDefined(metadataInput.drawing_name, metadataInput.drawingName, payload.drawing_name, payload.drawingName)).slice(0, 180);
+  const sourcePage = Number(firstDefined(metadataInput.source_page, metadataInput.sourcePage, payload.source_page, payload.sourcePage));
+  const sourceFileSha = safeText(firstDefined(metadataInput.source_file_sha256, metadataInput.sourceFileSha256, metadataInput.source_pdf_sha256, metadataInput.sourcePdfSha256)).toLowerCase();
+  if (sourcePage && (!Number.isInteger(sourcePage) || sourcePage < 1 || sourcePage > 5000)) return fail(400, 'source_page is invalid', ctx.origin);
+  if (sourceFileSha && !/^[a-f0-9]{64}$/u.test(sourceFileSha)) return fail(400, 'source_file_sha256 must be a 64-character hex string', ctx.origin);
+
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const actualHash = await sha256Bytes(bytes);
+  if (expectedHash && expectedHash !== actualHash) return fail(409, 'Uploaded floor plan hash does not match expected_sha256', ctx.origin);
+
+  const storagePath = safeAssetFloorPlanStoragePath(assetId, floorKey);
+  const fileMetadata = stripUndefined({
+    floor_key: floorKey.toUpperCase(),
+    floor_label: floorLabel,
+    drawing_number: drawingNumber || undefined,
+    drawing_name: drawingName || undefined,
+    source_page: Number.isInteger(sourcePage) && sourcePage > 0 ? sourcePage : undefined,
+    source_file_sha256: sourceFileSha || undefined,
+    upload_file_name: originalName,
+    mime_type: 'image/png',
+    size_bytes: file.size,
+    sha256: actualHash,
+    upload_origin: safeText(firstDefined(payload.upload_origin, payload.uploadOrigin), 'ops_script').slice(0, 80),
+  });
+
+  const { error: uploadError } = await ctx.serviceClient.storage.from(bucketName).upload(storagePath, bytes, {
+    contentType: 'image/png',
+    upsert: true,
+  });
+  if (uploadError) {
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'asset-floor-plans/register', 500, {
+      asset_id: assetId,
+      floor_label: floorLabel,
+      error: uploadError.message,
+    });
+    return fail(500, 'Floor plan upload failed', ctx.origin);
+  }
+
+  const separator = storagePath.lastIndexOf('/');
+  const prefix = separator >= 0 ? storagePath.slice(0, separator) : '';
+  const fileName = separator >= 0 ? storagePath.slice(separator + 1) : storagePath;
+  const listResult = await ctx.serviceClient.storage.from(bucketName).list(prefix, { limit: 100, offset: 0 });
+  if (listResult.error) return fail(500, 'Failed to verify uploaded floor plan', ctx.origin);
+  const uploadedObject = (listResult.data || []).find((item: Record<string, unknown>) => safeText(item.name) === fileName) as Record<string, unknown> | undefined;
+  if (!uploadedObject) return fail(500, 'Uploaded floor plan was not found during verification', ctx.origin);
+  const downloadResult = await ctx.serviceClient.storage.from(bucketName).download(storagePath);
+  if (downloadResult.error || !downloadResult.data) return fail(500, 'Failed to read back uploaded floor plan', ctx.origin);
+  const downloadedBytes = new Uint8Array(await downloadResult.data.arrayBuffer());
+  const downloadedHash = await sha256Bytes(downloadedBytes);
+  const storageVerified = downloadedBytes.byteLength === file.size && downloadedHash === actualHash;
+  if (!storageVerified) return fail(500, 'Uploaded floor plan failed storage readback verification', ctx.origin);
+
+  const writePayload = {
+    asset_id: assetId,
+    file_type: 'floor_plan',
+    title,
+    storage_bucket: bucketName,
+    storage_path: storagePath,
+    metadata: fileMetadata,
+  };
+  const upsertResult = await ctx.serviceClient
+    .from('ll_asset_spec_files')
+    .upsert(writePayload, { onConflict: 'asset_id,file_type,storage_bucket,storage_path' })
+    .select('asset_spec_file_id,asset_id,file_type,title,metadata,created_at,storage_bucket,storage_path')
+    .maybeSingle();
+  if (upsertResult.error) return fail(500, 'Failed to upsert floor plan record', ctx.origin);
+
+  const readbackResult = await ctx.serviceClient
+    .from('ll_asset_spec_files')
+    .select('asset_spec_file_id,asset_id,file_type,title,metadata,created_at,storage_bucket,storage_path')
+    .eq('asset_id', assetId)
+    .eq('file_type', 'floor_plan')
+    .eq('storage_bucket', bucketName)
+    .eq('storage_path', storagePath)
+    .maybeSingle();
+  if (readbackResult.error || !readbackResult.data) return fail(500, 'Failed to read back floor plan record', ctx.origin);
+
+  const readbackRow = readbackResult.data as Record<string, unknown>;
+  const readbackMetadata = readbackRow.metadata && typeof readbackRow.metadata === 'object' && !Array.isArray(readbackRow.metadata)
+    ? readbackRow.metadata as Record<string, unknown>
+    : {};
+  const dbVerified = safeText(readbackRow.asset_id) === assetId
+    && safeText(readbackRow.title) === title
+    && safeText(readbackRow.storage_bucket) === bucketName
+    && safeText(readbackRow.storage_path) === storagePath
+    && safeText(firstDefined(readbackMetadata.floor_label, readbackMetadata.floorLabel)) === floorLabel
+    && safeText(firstDefined(readbackMetadata.sha256, readbackMetadata.file_sha256, readbackMetadata.fileSha256)) === actualHash;
+
+  await audit(ctx.serviceClient, ctx.user.id, 'asset-floor-plans/register', 200, {
+    asset_id: assetId,
+    asset_name: assetName,
+    floor_label: floorLabel,
+    title,
+    storage_bucket: bucketName,
+    storage_path: storagePath,
+    file_sha256: actualHash,
+    size_bytes: file.size,
+    storage_verified: storageVerified,
+    db_verified: dbVerified,
+  });
+  return jsonResponse({
+    ok: true,
+    data: {
+      asset_id: assetId,
+      asset_name: assetName,
+      floor_label: floorLabel,
+      readback_ok: storageVerified && dbVerified,
+      storage_verified: storageVerified,
+      db_verified: dbVerified,
+      file: {
+        content_type: 'image/png',
+        size_bytes: file.size,
+        sha256: actualHash,
+      },
+      record: publicFloorPlanRecord(readbackRow),
+    },
+  }, 200, ctx.origin);
+}
+
+async function listVerifiedFloorPlansForAsset(ctx: Context, assetId: string) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_asset_spec_files')
+    .select('asset_spec_file_id,asset_id,file_type,title,metadata,created_at,storage_bucket,storage_path')
+    .eq('asset_id', assetId)
+    .eq('file_type', 'floor_plan')
+    .order('created_at', { ascending: false })
+    .limit(12);
+  if (error) {
+    return {
+      floorPlans: [] as Record<string, unknown>[],
+      warning: isMissingRelationError(error) ? '' : '도면 메타데이터를 현재 확인하지 못했습니다.',
+    };
+  }
+
+  const rows = (data || []) as Record<string, unknown>[];
+  const publicRows = rows.map(publicFloorPlanRecord);
+  let buckets: Record<string, unknown>[] = [];
+  try {
+    const result = await ctx.serviceClient.storage.listBuckets();
+    if (result.error) return { floorPlans: publicRows, warning: '도면 파일 URL을 현재 확인하지 못했습니다.' };
+    buckets = (result.data || []) as Record<string, unknown>[];
+  } catch {
+    return { floorPlans: publicRows, warning: '도면 파일 URL을 현재 확인하지 못했습니다.' };
+  }
+  const knownBuckets = new Set(buckets.map((bucket) => safeText(firstDefined(bucket.id, bucket.name))).filter(Boolean));
+  const floorPlans = await Promise.all(rows.map(async (row, index) => {
+    const base = publicRows[index];
+    const bucket = safeText(row.storage_bucket);
+    const storagePath = safeText(row.storage_path);
+    if (!knownBuckets.has(bucket) || !isSafeAssetSpecStorageReference(bucket, storagePath)) return base;
+    const separator = storagePath.lastIndexOf('/');
+    const prefix = separator >= 0 ? storagePath.slice(0, separator) : '';
+    const fileName = separator >= 0 ? storagePath.slice(separator + 1) : storagePath;
+    try {
+      const listed = await ctx.serviceClient.storage.from(bucket).list(prefix, { limit: 100, offset: 0 });
+      const exists = !listed.error && Array.isArray(listed.data)
+        && listed.data.some((item: Record<string, unknown>) => safeText(item.name) === fileName);
+      if (!exists) return base;
+      const signed = await ctx.serviceClient.storage.from(bucket).createSignedUrl(storagePath, ASSET_FLOOR_PLAN_URL_TTL_SECONDS);
+      const signedUrl = safeText(signed.data?.signedUrl);
+      if (!signed.error && isSafeSignedStorageUrl(signedUrl)) {
+        return {
+          ...base,
+          url: signedUrl,
+          url_expires_at: new Date(Date.now() + ASSET_FLOOR_PLAN_URL_TTL_SECONDS * 1000).toISOString(),
+        };
+      }
+    } catch {
+      // Keep metadata available while withholding any unverified storage reference.
+    }
+    return base;
+  }));
+  return { floorPlans, warning: '' };
+}
+
+async function callAdminGyeongsanCoupangFloorCountPreview(ctx: Context, payload: Record<string, unknown>) {
+  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'asset-admin/gyeongsan-coupang-floor-count-preview', 12, 60_000)) {
+    return fail(429, 'Rate limit exceeded', ctx.origin);
+  }
+
+  const assetCode = safeText(firstDefined(payload.asset_code, payload.assetCode)).toUpperCase();
+  const assetName = safeText(firstDefined(payload.asset_name, payload.assetName));
+  const expectedCurrentFloorCount = normalizeFloorCountDisplay(firstDefined(
+    payload.expected_current_floor_count,
+    payload.expectedCurrentFloorCount,
+    payload.expected_floor_count,
+    payload.expectedFloorCount,
+  ));
+  const nextFloorCount = normalizeFloorCountDisplay(firstDefined(payload.next_floor_count, payload.nextFloorCount, payload.floor_count, payload.floorCount));
+
+  if (assetCode !== GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_code) {
+    return fail(400, 'asset_code must match the approved Gyeongsan Coupang asset', ctx.origin);
+  }
+  if (normalizeKey(assetName) !== normalizeKey(GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_name)) {
+    return fail(400, 'asset_name must match the approved Gyeongsan Coupang asset', ctx.origin);
+  }
+  if (!expectedCurrentFloorCount) return fail(400, 'expected_current_floor_count is required', ctx.origin);
+  if (nextFloorCount !== GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.floor_count) {
+    return fail(400, 'next_floor_count must be 12F / B2', ctx.origin);
+  }
+
+  const selectColumns = [
+    'asset_id',
+    'asset_code',
+    'asset_name',
+    'floor_count',
+    'address',
+    'latitude',
+    'longitude',
+    'gross_floor_area_sqm',
+    'land_area_sqm',
+    'current_manager_name',
+    'current_manager_team',
+    'source_payload',
+    'review_status',
+  ].join(',');
+  const { data: asset, error } = await ctx.serviceClient
+    .from('ll_assets')
+    .select(selectColumns)
+    .eq('asset_id', GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_id)
+    .maybeSingle();
+  if (error) return fail(500, 'Failed to read Gyeongsan Coupang asset', ctx.origin, { error: error.message });
+  if (!asset) return fail(404, 'Gyeongsan Coupang asset was not found', ctx.origin);
+
+  const currentAssetCode = safeText(asset.asset_code).toUpperCase();
+  const currentAssetName = safeText(asset.asset_name);
+  if (currentAssetCode !== GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_code) {
+    return fail(409, 'Stored asset_code does not match the approved target asset', ctx.origin, { asset_code: currentAssetCode });
+  }
+  if (normalizeKey(currentAssetName) !== normalizeKey(GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_name)) {
+    return fail(409, 'Stored asset_name does not match the approved target asset', ctx.origin, { asset_name: currentAssetName });
+  }
+
+  const currentFloorCount = normalizeFloorCountDisplay(asset.floor_count);
+  const { data: readback, error: readbackError } = await ctx.serviceClient
+    .from('ll_assets')
+    .select(selectColumns)
+    .eq('asset_id', GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_id)
+    .maybeSingle();
+  if (readbackError) return fail(500, 'Failed to read back Gyeongsan Coupang asset', ctx.origin, { error: readbackError.message });
+
+  const readbackFloorCount = normalizeFloorCountDisplay(readback?.floor_count);
+  const expectedMatchesCurrent = currentFloorCount === expectedCurrentFloorCount;
+  const readbackOk = safeText(readback?.asset_id) === safeText(asset.asset_id)
+    && readbackFloorCount === currentFloorCount
+    && safeText(readback?.asset_code).toUpperCase() === currentAssetCode
+    && normalizeKey(readback?.asset_name) === normalizeKey(currentAssetName);
+  if (!expectedMatchesCurrent) {
+    return fail(409, 'expected_current_floor_count does not match the current readback value', ctx.origin, {
+      current_floor_count: currentFloorCount || null,
+      expected_current_floor_count: expectedCurrentFloorCount,
+      readback_ok: readbackOk,
+    });
+  }
+
+  return jsonResponse({
+    ok: true,
+    data: {
+      dry_run: true,
+      write_blocked: true,
+      target_asset: {
+        asset_id: GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_id,
+        asset_code: GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_code,
+        asset_name: GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_name,
+      },
+      current: {
+        asset: pickAssetPublic(asset as Record<string, unknown>),
+        floor_count: currentFloorCount || null,
+      },
+      readback: {
+        asset: readback ? pickAssetPublic(readback as Record<string, unknown>) : null,
+        floor_count: readbackFloorCount || null,
+        readback_ok: readbackOk,
+      },
+      proposed_update: {
+        target_table: 'public.ll_assets',
+        primary_key_field: 'asset_id',
+        target_row_id: GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_id,
+        target_field: 'floor_count',
+        current_value: currentFloorCount || null,
+        next_value: GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.floor_count,
+        would_change: currentFloorCount !== GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.floor_count,
+      },
+      validation: {
+        asset_code_match: assetCode === currentAssetCode,
+        asset_name_match: normalizeKey(assetName) === normalizeKey(currentAssetName),
+        expected_current_floor_count_match: expectedMatchesCurrent,
+        next_floor_count_match: nextFloorCount === GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.floor_count,
+      },
+    },
+  }, 200, ctx.origin);
+}
+
 async function callDashboardHomeRead(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return denyDashboardRead(ctx, 'dashboard/home/read', 403, 'Insufficient logistics permission', 'role_below_reader');
   const basisDate = dashboardBasisDate(payload);
@@ -2491,6 +2993,8 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
   const scope = await dashboardScope(ctx, readableAssets);
   let fundOverview: Record<string, unknown> | null = null;
   const warnings: string[] = [];
+  const floorPlanResult = await listVerifiedFloorPlansForAsset(ctx, assetId);
+  if (floorPlanResult.warning) warnings.push(floorPlanResult.warning);
   try {
     fundOverview = await readFundOverviewPayload(ctx, { asset_id: assetId, asset_name: asset.asset_name });
   } catch (error) {
@@ -2517,6 +3021,7 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
       lease_space_specs: leaseSpaceSpecs.map(pickLeaseSpaceSpecPublic),
       lease_special_terms: specialTerms.map(pickSpecialTermPublic),
       rent_history: rentHistory.map(pickRentHistoryPublic),
+      floor_plans: floorPlanResult.floorPlans,
       summary: {
         gross_floor_area_sqm: grossAreaSqm,
         leased_area_sqm: leasedAreaSqm,
@@ -2539,6 +3044,7 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
       { table: 'public.ll_lease_attributes:space_spec', rows: leaseSpaceSpecs.length },
       { table: 'public.ll_lease_attributes:special_term', rows: specialTerms.length },
       { table: 'public.ll_rent_history', rows: rentHistory.length },
+      { table: 'public.ll_asset_spec_files:floor_plan', rows: floorPlanResult.floorPlans.length },
     ]),
     warnings,
   };
@@ -2552,6 +3058,7 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
     lease_space_specs: leaseSpaceSpecs.length,
     lease_special_terms: specialTerms.length,
     rent_history: rentHistory.length,
+    floor_plans: floorPlanResult.floorPlans.length,
   });
   return jsonResponse(body, 200, ctx.origin);
 }
@@ -3106,16 +3613,9 @@ async function writeTargetCell(client: SupabaseClient, cell: ReturnType<typeof n
 }
 
 async function resolveExistingSourceCellId(client: SupabaseClient, value: unknown) {
-  const sourceCellId = safeText(value);
-  if (!sourceCellId) return null;
-  const { data, error } = await client
-    .from('ll_source_cells')
-    .select('source_cell_id')
-    .eq('source_cell_id', sourceCellId)
-    .limit(1)
-    .maybeSingle();
-  if (error || !data?.source_cell_id) return null;
-  return sourceCellId;
+  void client;
+  void value;
+  return null;
 }
 
 async function rollbackAppliedEdits(client: SupabaseClient, applied: Array<{ cell: ReturnType<typeof normalizeEditCells>[number]; previousValue: unknown }>) {
@@ -3125,28 +3625,20 @@ async function rollbackAppliedEdits(client: SupabaseClient, applied: Array<{ cel
 }
 
 async function writeDataChangeAudit(ctx: Context, editRequestId: string, cell: ReturnType<typeof normalizeEditCells>[number], beforeValue: unknown, afterValue: unknown, readbackValue: unknown, status: string, actorId?: string) {
-  const sourceCellId = await resolveExistingSourceCellId(ctx.serviceClient, cell.sourceCellId);
-  const { error } = await ctx.serviceClient.from('ll_audit_events').insert({
-    event_type: 'data_change',
-    edit_request_id: editRequestId,
-    action: 'data_quality_write',
-    target_table: cell.targetTable,
-    target_row_id: cell.targetRowId,
-    target_cell_id: cell.targetCellId || null,
-    field_name: cell.fieldName,
-    before_value: normalizeText(beforeValue),
-    after_value: normalizeText(afterValue),
-    readback_value: normalizeText(readbackValue),
-    actor_id: actorId || ctx.user.id,
-    approver_id: ctx.user.id,
-    source_row_id: cell.sourceRowId || null,
-    source_cell_id: sourceCellId,
-    approval_status: status,
-    legacy_table: 'public.ll_audit_events',
-    event_status: status,
-    metadata: redactSensitivePayload({ primary_key_field: cell.primaryKeyField, asset_id: cell.assetId || null, asset_name: cell.assetName || null }),
-  });
-  if (error) throw new Error(`Failed to write data change audit log: ${error.message}`);
+  const { error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .update({
+      before_value: normalizeText(beforeValue),
+      requested_value: normalizeText(afterValue),
+      readback_value: normalizeText(readbackValue),
+      approved_by: actorId || ctx.user.id,
+      approved_at: new Date().toISOString(),
+      write_status: status,
+      written_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', editRequestId);
+  if (error) throw new Error(`Failed to save data change readback: ${error.message}`);
 }
 
 async function writeDataChangeAuditBestEffort(ctx: Context, editRequestId: string, cell: ReturnType<typeof normalizeEditCells>[number], beforeValue: unknown, afterValue: unknown, readbackValue: unknown, status: string, actorId?: string) {
@@ -3583,46 +4075,7 @@ async function listQualityFindings(ctx: Context, payload: Record<string, unknown
   if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'quality/findings', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 200), 1), 500);
-  let query = ctx.serviceClient
-    .from('ll_audit_events')
-    .select('id, finding_id, finding_type, severity, entity_type, entity_id, source_sheet_name, source_row_id, source_row_number, source_column_number, source_header, source_value_text, supabase_value_text, event_status, event_payload, created_at, updated_at')
-    .eq('event_type', 'data_quality_finding')
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  if (payload.severity && String(payload.severity) !== 'all') query = query.eq('severity', String(payload.severity));
-  const { data, error } = await query;
-  if (error) return fail(500, 'Failed to list data quality findings', ctx.origin);
-  const auditRows = (data || [])
-    .map((row: Record<string, unknown>) => {
-      const eventPayload = parseJsonValue(row.event_payload, {}) as Record<string, unknown>;
-      return {
-        id: firstDefined(row.finding_id, row.id),
-        finding_id: row.finding_id || null,
-        severity: firstDefined(row.severity, eventPayload.severity, 'warning'),
-        sheet_name: firstDefined(row.source_sheet_name, eventPayload.sheet_name, eventPayload.sheetName, eventPayload.source_sheet),
-        target_type: firstDefined(row.entity_type, eventPayload.target_type, eventPayload.entity_type, 'finding'),
-        target_name: firstDefined(eventPayload.target_name, eventPayload.asset_name, eventPayload.tenant_master_name, eventPayload.row_ref, row.entity_id, row.id),
-        entity_type: row.entity_type || null,
-        entity_id: row.entity_id || null,
-        field_name: firstDefined(row.source_header, eventPayload.field_name, eventPayload.field, eventPayload.column_name, eventPayload.rule_name),
-        reason_code: firstDefined(row.finding_type, eventPayload.reason_code, eventPayload.failure_reason, eventPayload.issue_type, eventPayload.reason, row.event_status),
-        action: firstDefined(eventPayload.suggested_fix, eventPayload.action, eventPayload.message, eventPayload.detail, '원본 값과 정규화 결과 대조 필요'),
-        source_sheet_name: row.source_sheet_name || null,
-        source_row_id: row.source_row_id || null,
-        source_row_number: row.source_row_number || null,
-        source_column_number: row.source_column_number || null,
-        source_value_text: row.source_value_text || null,
-        supabase_value_text: row.supabase_value_text || null,
-        status: row.event_status || null,
-        source_table: 'public.ll_audit_events',
-        table_name: 'll_audit_events',
-        raw_event_id: row.id,
-        event_payload: eventPayload,
-        created_at: row.created_at || null,
-        updated_at: row.updated_at || null,
-      };
-    })
-    .filter((row: Record<string, unknown>) => canReadDataQualityRow(ctx, row));
+  const auditRows: Record<string, unknown>[] = [];
   let runtimeRows: Record<string, unknown>[] = [];
   try {
     runtimeRows = await buildRuntimeQualityFindings(ctx, limit);
@@ -3642,7 +4095,7 @@ async function listQualityFindings(ctx: Context, payload: Record<string, unknown
     audit_returned: auditRows.length,
     returned: rows.length,
   });
-  return jsonResponse({ ok: true, data: rows, mode: 'runtime_rules_plus_audit_log' }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: rows, mode: 'runtime_rules' }, 200, ctx.origin);
 }
 
 async function listEditRequests(ctx: Context, payload: Record<string, unknown>) {
@@ -3712,7 +4165,7 @@ async function readbackEdit(ctx: Context, payload: Record<string, unknown>) {
 async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/submit', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
-  const sourceTable = normalizePublicLlTable(payload.source_table || 'public.ll_audit_events');
+  const sourceTable = normalizePublicLlTable(payload.source_table || 'public.ll_lease_spaces');
   if (!EDIT_TARGET_TABLE_ALLOWLIST.has(sourceTable)) return fail(403, 'Source table is not allowed', ctx.origin);
   const rawRequestPayload = payload.request_payload && typeof payload.request_payload === 'object' && !Array.isArray(payload.request_payload)
     ? payload.request_payload as Record<string, unknown>
@@ -3968,37 +4421,21 @@ async function writeSourceOnlyContractAudit(
   readbackValue: unknown,
   status: string,
 ) {
-  const sourceCellId = await resolveExistingSourceCellId(ctx.serviceClient, cell.sourceCellId);
-  const { error } = await ctx.serviceClient.from('ll_audit_events').insert({
-    event_type: 'data_change',
-    edit_request_id: /^[0-9a-f-]{36}$/iu.test(editRequestId) ? editRequestId : null,
-    action: 'contract_data_source_only_write',
-    target_table: 'public.ll_lease_attributes',
-    target_row_id: safeText(attributeId) || null,
-    target_cell_id: null,
-    field_name: cell.fieldName,
-    before_value: normalizeText(beforeValue),
-    after_value: normalizeText(afterValue),
-    readback_value: normalizeText(readbackValue),
-    actor_id: ctx.user.id,
-    approver_id: ctx.user.id,
-    source_row_id: cell.sourceRowId || null,
-    source_cell_id: sourceCellId,
-    approval_status: status,
-    legacy_table: 'public.ll_audit_events',
-    event_status: status,
-    metadata: redactSensitivePayload({
-      edge_action: 'contract-data/apply',
-      source_only: true,
-      asset_id: cell.assetId || null,
-      asset_name: cell.assetName || null,
-      lease_space_id: cell.leaseSpaceId || null,
-      source_sheet: cell.sourceSheet || null,
-      source_column_letter: cell.sourceColumnLetter || null,
-      source_header: cell.sourceHeader || null,
-    }),
-  });
-  if (error) throw new Error(`Failed to write source-only data change audit log: ${error.message}`);
+  void cell;
+  void attributeId;
+  if (!/^[0-9a-f-]{36}$/iu.test(editRequestId)) return;
+  const { error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .update({
+      before_value: normalizeText(beforeValue),
+      requested_value: normalizeText(afterValue),
+      readback_value: normalizeText(readbackValue),
+      write_status: status,
+      written_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', editRequestId);
+  if (error) throw new Error(`Failed to save contract data readback: ${error.message}`);
 }
 
 async function applyContractData(ctx: Context, payload: Record<string, unknown>) {
@@ -4305,31 +4742,30 @@ async function listCanonicalNotifications(ctx: Context, limit: number) {
   const email = canonicalPermissionEmail(ctx.permission, ctx.user.email);
   if (!email) return [] as Record<string, unknown>[];
   const { data, error } = await ctx.serviceClient
-    .from('ll_notification_deliveries')
-    .select('delivery_id,delivery_status,read_at,dismissed_at,created_at,recipient_email,notification:ll_notifications(notification_id,notification_type,title,body,due_date,lead_days,asset_id,fund_id,payload,created_at)')
+    .from('ll_notifications')
+    .select('notification_id,notification_type,title,body,due_date,lead_days,asset_id,fund_id,recipient_email,delivery_status,read_at,dismissed_at,notified_at')
     .eq('recipient_email', email)
     .neq('delivery_status', 'dismissed')
-    .order('created_at', { ascending: false })
+    .order('notified_at', { ascending: false })
     .limit(limit);
   if (error) {
     if (isMissingRelationError(error)) return [];
     throw new Error(`canonical notifications read failed: ${error.message}`);
   }
   return ((data || []) as Record<string, unknown>[]).map((row) => {
-    const notification = (row.notification && typeof row.notification === 'object' ? row.notification : {}) as Record<string, unknown>;
     return {
-      id: safeText(row.delivery_id),
-      notification_id: safeText(notification.notification_id),
-      type: safeText(notification.notification_type),
-      tag: safeText(notification.notification_type) === 'loan_maturity' ? 'Loan Maturity' : safeText(notification.notification_type) === 'lease_maturity' ? 'Lease Maturity' : 'Notification',
-      title: safeText(notification.title),
-      body: safeText(notification.body),
-      due_date: safeText(notification.due_date),
-      lead_days: Number(notification.lead_days || 0),
+      id: safeText(row.notification_id),
+      notification_id: safeText(row.notification_id),
+      type: safeText(row.notification_type),
+      tag: safeText(row.notification_type) === 'loan_maturity' ? 'Loan Maturity' : safeText(row.notification_type) === 'lease_maturity' ? 'Lease Maturity' : 'Notification',
+      title: safeText(row.title),
+      body: safeText(row.body),
+      due_date: safeText(row.due_date),
+      lead_days: Number(row.lead_days || 0),
       delivery_status: safeText(row.delivery_status),
       read_at: safeText(row.read_at),
-      created_at: safeText(notification.created_at || row.created_at),
-      payload: notification.payload || {},
+      created_at: safeText(row.notified_at),
+      payload: {},
     };
   });
 }
@@ -4341,19 +4777,19 @@ async function dismissLogisticsNotifications(ctx: Context, payload: Record<strin
   if (!email) return fail(400, 'Missing user email', ctx.origin);
   const all = payload.all === true;
   const ids = Array.isArray(payload.ids) ? payload.ids.map((item) => safeText(item)).filter(Boolean).slice(0, 120) : [];
-  if (!all && !ids.length) return fail(400, 'Missing notification delivery ids', ctx.origin);
+  if (!all && !ids.length) return fail(400, 'Missing notification ids', ctx.origin);
   let query = ctx.serviceClient
-    .from('ll_notification_deliveries')
+    .from('ll_notifications')
     .update({ delivery_status: 'dismissed', dismissed_at: new Date().toISOString() })
     .eq('recipient_email', email);
-  if (!all) query = query.in('delivery_id', ids);
-  const { data, error, count } = await query.select('delivery_id', { count: 'exact' });
+  if (!all) query = query.in('notification_id', ids);
+  const { data, error, count } = await query.select('notification_id', { count: 'exact' });
   const dismissedCount = Number(count ?? (Array.isArray(data) ? data.length : 0));
   if (error) {
     if (isMissingRelationError(error)) return fail(503, 'Notifications storage is not available', ctx.origin, { code: 'notifications_missing_schema' });
     return fail(500, 'Failed to dismiss notifications', ctx.origin, { error: error.message });
   }
-  if (!all && ids.length && !dismissedCount) return fail(404, 'Notification delivery was not found for this user', ctx.origin);
+  if (!all && ids.length && !dismissedCount) return fail(404, 'Notification was not found for this user', ctx.origin);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/dismiss', 200, { all, ids: ids.length, dismissed: dismissedCount });
   return jsonResponse({ ok: true, data: { dismissed: dismissedCount } }, 200, ctx.origin);
 }
@@ -4365,20 +4801,20 @@ async function markReadLogisticsNotifications(ctx: Context, payload: Record<stri
   if (!email) return fail(400, 'Missing user email', ctx.origin);
   const all = payload.all === true;
   const ids = Array.isArray(payload.ids) ? payload.ids.map((item) => safeText(item)).filter(Boolean).slice(0, 120) : [];
-  if (!all && !ids.length) return fail(400, 'Missing notification delivery ids', ctx.origin);
+  if (!all && !ids.length) return fail(400, 'Missing notification ids', ctx.origin);
   let query = ctx.serviceClient
-    .from('ll_notification_deliveries')
+    .from('ll_notifications')
     .update({ delivery_status: 'read', read_at: new Date().toISOString() })
     .eq('recipient_email', email)
     .neq('delivery_status', 'dismissed');
-  if (!all) query = query.in('delivery_id', ids);
-  const { data, error, count } = await query.select('delivery_id', { count: 'exact' });
+  if (!all) query = query.in('notification_id', ids);
+  const { data, error, count } = await query.select('notification_id', { count: 'exact' });
   const readCount = Number(count ?? (Array.isArray(data) ? data.length : 0));
   if (error) {
     if (isMissingRelationError(error)) return fail(503, 'Notifications storage is not available', ctx.origin, { code: 'notifications_missing_schema' });
     return fail(500, 'Failed to mark notifications read', ctx.origin, { error: error.message });
   }
-  if (!all && ids.length && !readCount) return fail(404, 'Notification delivery was not found for this user', ctx.origin);
+  if (!all && ids.length && !readCount) return fail(404, 'Notification was not found for this user', ctx.origin);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/mark-read', 200, { all, ids: ids.length, read: readCount });
   return jsonResponse({ ok: true, data: { read: readCount } }, 200, ctx.origin);
 }
@@ -6038,24 +6474,10 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
     tables: ['ll_user_permissions', 'll_staff_profiles', 'll_login_history'],
   },
   {
-    key: 'source',
-    label: '원천/업로드',
-    sourceDomains: DATA_MANAGEMENT_SOURCE_DOMAIN_KEYS,
-    tables: [
-      'll_source_files',
-      'll_source_sheets',
-      'll_source_columns',
-      'll_source_rows',
-      'll_source_cells',
-      'll_source_runs',
-      'll_source_field_registry',
-    ],
-  },
-  {
     key: 'approval_audit',
     label: '승인/감사',
     sourceDomains: [],
-    tables: ['ll_edit_requests', 'll_audit_events', 'll_schema_metadata'],
+    tables: ['ll_edit_requests'],
   },
   {
     key: 'work_platform',
@@ -6063,11 +6485,7 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
     sourceDomains: [],
     tables: [
       'll_work_items',
-      'll_board_posts',
-      'll_weekly_records',
       'll_notifications',
-      'll_notification_deliveries',
-      'll_news_runs',
       'll_news_items',
     ],
   },
@@ -6075,7 +6493,7 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
     key: 'cache',
     label: '캐시/스냅샷',
     sourceDomains: [],
-    tables: ['ll_cache_entries', 'll_payload_snapshots'],
+    tables: ['ll_cache_entries'],
   },
 ];
 const DATA_MANAGEMENT_FALLBACK_TABLES = uniqueStrings(DATA_MANAGEMENT_COVERAGE_DOMAINS.flatMap((domain) => domain.tables), 200);
@@ -6114,7 +6532,6 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
   ll_sector_market_transaction_cases: '시장 거래 사례',
   ll_sector_market_cap_rate_series: '시장 Cap Rate',
   ll_market_deprecation_backups: '시장 이전 백업',
-  ll_news_runs: '뉴스 수집 실행',
   ll_news_items: '뉴스 항목',
   ll_user_permissions: '사용자 권한',
   ll_staff_profiles: '직원 프로필',
@@ -6130,12 +6547,8 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
   ll_work_items: '업무 항목',
   ll_board_posts: '게시글',
   ll_notifications: '알림',
-  ll_notification_deliveries: '알림 발송 이력',
   ll_edit_requests: '변경 요청',
-  ll_audit_events: '감사 이벤트',
-  ll_schema_metadata: '스키마 메타데이터',
   ll_cache_entries: '캐시 엔트리',
-  ll_payload_snapshots: '응답 페이로드 스냅샷',
 };
 const DATA_MANAGEMENT_WORKSPACES = [
   { key: 'igis', label: '이지스 Data', description: '자산·펀드 묶음을 기준으로 임대차, 금융, 스펙, 운영비용을 수정 요청합니다.' },
@@ -6639,14 +7052,10 @@ const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_asset_specs: 'asset_spec_id',
   ll_asset_spec_files: 'asset_spec_file_id',
   ll_notifications: 'notification_id',
-  ll_notification_deliveries: 'delivery_id',
-  ll_news_runs: 'news_run_id',
   ll_news_items: 'news_item_id',
   ll_market_deprecation_backups: 'backup_id',
-  ll_payload_snapshots: 'snapshot_key',
   ll_staff_profiles: 'staff_id',
   ll_user_permissions: 'user_id',
-  ll_schema_metadata: 'metadata_id',
   ll_login_history: 'id',
 };
 const DATA_MANAGEMENT_ROW_LABEL_FIELDS: Record<string, string[]> = {
@@ -7429,30 +7838,9 @@ function dataManagementRowReadable(ctx: Context, row: Record<string, unknown>, m
 }
 
 async function loadDataManagementCatalog(ctx: Context, scope: DataManagementScope) {
-  const { data, error } = await ctx.serviceClient
-    .from('ll_schema_metadata')
-    .select('object_type,table_schema,table_name,column_name,data_type,is_nullable,domain_group,role_category,description,pk_columns,is_active,updated_at')
-    .eq('table_schema', 'public')
-    .eq('is_active', true)
-    .limit(1600);
-  if (error && !isMissingRelationError(error)) throw new Error(`Failed to read schema metadata: ${error.message}`);
-  const metadataRows = ((data || []) as Record<string, unknown>[]).filter((row) => /^ll_/u.test(safeText(row.table_name)));
-  const tableRows = metadataRows.filter((row) => safeText(row.object_type) === 'table');
-  const columnRows = metadataRows.filter((row) => safeText(row.object_type) === 'column' && safeText(row.column_name));
-  const tableNames = uniqueStrings([
-    ...tableRows.map((row) => safeText(row.table_name)).filter(Boolean),
-    ...DATA_MANAGEMENT_FALLBACK_TABLES,
-  ], 320).sort((a, b) => a.localeCompare(b));
-  const metadataByTable = new Map(tableRows.map((row) => [safeText(row.table_name), row]));
-  const columnsByTable = new Map<string, Record<string, unknown>[]>();
-  columnRows.forEach((row) => {
-    const tableName = safeText(row.table_name);
-    if (!tableName) return;
-    const rows = columnsByTable.get(tableName) || [];
-    rows.push(row);
-    columnsByTable.set(tableName, rows);
-  });
-  const tables = tableNames.map((tableName) => dataManagementTableDefinition(tableName, metadataByTable.get(tableName) || {}, columnsByTable.get(tableName) || []));
+  void ctx;
+  const tableNames = [...DATA_MANAGEMENT_FALLBACK_TABLES].sort((a, b) => a.localeCompare(b));
+  const tables = tableNames.map((tableName) => dataManagementTableDefinition(tableName, {}, []));
   const domains = DATA_MANAGEMENT_COVERAGE_DOMAINS.map((domain) => ({
     domain_key: domain.key,
     key: domain.key,
@@ -7468,7 +7856,7 @@ async function loadDataManagementCatalog(ctx: Context, scope: DataManagementScop
     fund_asset_bundles: dataManagementPublicBundles(scope),
     tables,
     coverage: {
-      mode: 'catalog_v1_schema_metadata_plus_code_fallback',
+      mode: 'canonical_code_registry',
       public_ll_table_count: tableNames.length,
       catalogued_table_count: tables.length,
       editable_table_count: editableTables.length,
@@ -11960,29 +12348,8 @@ async function callDataManagementCoverage(ctx: Context, payload: Record<string, 
     allRefs: [],
     readableRefs: [],
   };
-  const [metadataResult, sourcesResult] = await Promise.all([
-    ctx.serviceClient
-      .from('ll_schema_metadata')
-      .select('table_name,domain_group,role_category,description,is_active,updated_at')
-      .eq('object_type', 'table')
-      .eq('table_schema', 'public')
-      .eq('is_active', true)
-      .limit(240),
-    ctx.serviceClient
-      .from('ll_source_files')
-      .select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,row_counts,validation_summary,created_at,updated_at')
-      .limit(240),
-  ]);
-  if (metadataResult.error && !isMissingRelationError(metadataResult.error)) {
-    return fail(500, 'Failed to read schema metadata', ctx.origin, { error: metadataResult.error.message });
-  }
-  if (sourcesResult.error && !isMissingRelationError(sourcesResult.error)) {
-    return fail(500, 'Failed to read source registry', ctx.origin, { error: sourcesResult.error.message });
-  }
-  const metadataRows = ((metadataResult.data || []) as Record<string, unknown>[])
-    .filter((row) => /^ll_/u.test(safeText(row.table_name)));
-  const metadataTableNames = metadataRows.map((row) => safeText(row.table_name)).filter(Boolean);
-  const tableNames = uniqueStrings([...metadataTableNames, ...DATA_MANAGEMENT_FALLBACK_TABLES], 260).sort((a, b) => a.localeCompare(b));
+  const metadataRows: Record<string, unknown>[] = [];
+  const tableNames = [...DATA_MANAGEMENT_FALLBACK_TABLES].sort((a, b) => a.localeCompare(b));
   const rowCounts = await Promise.all(tableNames.map((tableName) => countPublicLlTableRows(ctx, tableName)));
   const rowCountByTable = new Map(rowCounts.map((row) => [row.table_name, row]));
   const metadataByTable = new Map(metadataRows.map((row) => [safeText(row.table_name), row]));
@@ -12017,8 +12384,7 @@ async function callDataManagementCoverage(ctx: Context, payload: Record<string, 
       write_modes: uniqueStrings(rows.map((row) => row.write_mode), 20),
     };
   });
-  const sources = ((sourcesResult.data || []) as Record<string, unknown>[]);
-  const sourceDomainStats = dataManagementSourceDomainStats(sources);
+  const sourceDomainStats: Record<string, unknown>[] = [];
   const missingRelations = tableCoverage.filter((row) => row.exists === false && row.count_error === 'missing_relation');
   const unconnectedTables = tableCoverage.filter((row) => row.connected_to_data_management === false);
   const unknownSourceDomains = sourceDomainStats
@@ -12030,7 +12396,7 @@ async function callDataManagementCoverage(ctx: Context, payload: Record<string, 
     no_missing_relations: missingRelations.length === 0,
     no_unconnected_tables: unconnectedTables.length === 0,
     source_domains_known: unknownSourceDomains.length === 0,
-    core_tables_counted: ['ll_assets', 'll_funds', 'll_source_rows'].every((tableName) => rowCountByTable.get(tableName)?.exists),
+    core_tables_counted: ['ll_assets', 'll_funds', 'll_leases'].every((tableName) => rowCountByTable.get(tableName)?.exists),
     editable_or_reviewable_modes_present: tableCoverage.every((row) => Boolean(row.write_mode)),
   };
   const ok = Object.values(checks).every(Boolean);
@@ -13004,7 +13370,6 @@ const NEWS_RSS_FETCH_TIMEOUT_MS = 7000;
 const NEWS_RSS_QUERY_BATCH_SIZE = 8;
 const NEWS_GOOGLE_RSS_URL = 'https://news.google.com/rss/search';
 const NEWS_BING_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_RUN_SELECT_COLUMNS = 'news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at';
 const NEWS_SEARCH_QUERIES = [
   '"물류센터" "임대료" OR "물류센터" "공실" OR "물류센터" "임대차"',
   '"물류센터" "렌트프리" OR "물류센터" "NOC" OR "물류창고" "임대"',
@@ -13570,189 +13935,100 @@ async function collectNewsRowsForHistoricalWindow(windowStart: Date, windowEnd: 
   };
 }
 
-async function readNewsRunHealth(ctx: Context, runKey: string) {
-  const runResult = await ctx.serviceClient
-    .from('ll_news_runs')
-    .select(NEWS_RUN_SELECT_COLUMNS)
-    .eq('run_key', runKey)
-    .maybeSingle();
-  if (runResult.error) throw new Error(runResult.error.message);
-  const run = (runResult.data as Record<string, unknown> | null) || null;
-  if (!run?.news_run_id) return { run: null, itemCount: 0 };
-  const itemResult = await ctx.serviceClient
-    .from('ll_news_items')
-    .select('news_item_id', { count: 'exact', head: true })
-    .eq('news_run_id', run.news_run_id);
-  if (itemResult.error) throw new Error(itemResult.error.message);
-  return { run, itemCount: Number(itemResult.count || 0) };
+type NewsStorageHealth = {
+  selectedDate: string;
+  itemCount: number;
+  completedAt: string;
+};
+
+function newsRunSummary(health: NewsStorageHealth) {
+  const completed = health.itemCount >= NEWS_MIN_DAILY_ITEMS;
+  const window = newsWindowForDate(health.selectedDate);
+  return {
+    run_key: `daily-news:${health.selectedDate}:0700KST`,
+    run_status: completed ? 'completed' : health.itemCount > 0 ? 'incomplete' : 'no_run',
+    completed_at: completed ? health.completedAt : null,
+    scheduled_for: window.windowEnd.toISOString(),
+    window_start: window.windowStart.toISOString(),
+    window_end: window.windowEnd.toISOString(),
+    source_summary: {
+      collector_version: NEWS_COLLECTOR_VERSION,
+      item_count: health.itemCount,
+      minimum_item_count: NEWS_MIN_DAILY_ITEMS,
+      window_hours: window.windowHours,
+      strict_window_only: true,
+      strict_24h_window: window.windowHours === 24,
+      expanded_to_recent_7d: false,
+      expanded_recent_days: 0,
+    },
+  };
 }
 
-async function markPreparedNewsRunFailed(ctx: Context, newsRunId: string, error: unknown) {
-  const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
+async function readNewsStorageHealth(ctx: Context, selectedDate: string): Promise<NewsStorageHealth> {
   const result = await ctx.serviceClient
-    .from('ll_news_runs')
-    .update({ run_status: 'failed', error_message: message, completed_at: null })
-    .eq('news_run_id', newsRunId)
-    .eq('run_status', 'prepared');
-  return result.error?.message || '';
+    .from('ll_news_items')
+    .select('ingested_at', { count: 'exact' })
+    .eq('news_date', selectedDate)
+    .order('ingested_at', { ascending: false, nullsFirst: false })
+    .limit(1);
+  if (result.error) throw new Error(result.error.message);
+  return {
+    selectedDate,
+    itemCount: Number(result.count || 0),
+    completedAt: safeText((result.data?.[0] as Record<string, unknown> | undefined)?.ingested_at),
+  };
 }
 
 async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10, force = false) {
   const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(dateText) ? dateText : newsDefaultCollectDateKey();
   const strictWindow = newsWindowForDate(selectedDate);
   const strictDays = Math.ceil(strictWindow.windowHours / 24);
-  const runKey = `daily-news:${selectedDate}:0700KST`;
-  const existingHealth = await readNewsRunHealth(ctx, runKey);
-  const existingRunStatus = safeText(existingHealth.run?.run_status);
-  const preserveCompletedRun = existingRunStatus === 'completed';
-  if (!force && preserveCompletedRun && existingHealth.itemCount >= NEWS_MIN_DAILY_ITEMS) {
-    return { run: existingHealth.run, item_count: existingHealth.itemCount, status: 'existing' };
+  const before = await readNewsStorageHealth(ctx, selectedDate);
+  if (!force && before.itemCount >= NEWS_MIN_DAILY_ITEMS) {
+    return { run: newsRunSummary(before), item_count: before.itemCount, status: 'existing' };
   }
 
-  let runRow = existingHealth.run;
-  let preparedRunId = '';
-  if (!preserveCompletedRun) {
-    const preparedResult = await ctx.serviceClient.from('ll_news_runs').upsert({
-      run_key: runKey,
-      scheduled_for: strictWindow.windowEnd.toISOString(),
-      window_start: strictWindow.windowStart.toISOString(),
-      window_end: strictWindow.windowEnd.toISOString(),
-      source_summary: {
-        collector_version: NEWS_COLLECTOR_VERSION,
-        primary: 'google_news_rss',
-        fallback: 'bing_news_rss',
-        queries: NEWS_SEARCH_QUERIES,
-        query_count: NEWS_SEARCH_QUERIES.length,
-        window_hours: strictWindow.windowHours,
-        strict_window_start: strictWindow.windowStart.toISOString(),
-        strict_window_end: strictWindow.windowEnd.toISOString(),
-        strict_item_count: 0,
-        item_count: 0,
-        minimum_item_count: NEWS_MIN_DAILY_ITEMS,
-        collection_state: 'prepared',
-        strict_window_only: true,
-        expanded_to_recent_7d: false,
-        expanded_recent_days: 0,
-        historical_backfill: false,
-        same_window_relaxed_backfill: false,
-        expanded_window_start: null,
-        strict_24h_window: strictWindow.windowHours === 24,
-        candidate_count: 0,
-        selection_policy: {
-          limit: 10,
-          category_targets: NEWS_CATEGORY_TARGETS,
-          max_items_per_company: NEWS_MAX_ITEMS_PER_COMPANY,
-          max_major_company_only_items: NEWS_MAX_MAJOR_COMPANY_ONLY_ITEMS,
-        },
-        source_stats: {},
-        empty_state: false,
-      },
-      run_status: 'prepared',
-      error_message: null,
-      completed_at: null,
-    }, { onConflict: 'run_key' })
-    .select(NEWS_RUN_SELECT_COLUMNS)
-    .single();
-    if (preparedResult.error || !preparedResult.data) {
-      throw new Error(preparedResult.error?.message || 'Failed to prepare news run');
-    }
-    runRow = preparedResult.data as Record<string, unknown>;
-    preparedRunId = safeText(runRow.news_run_id);
+  const collected = await collectNewsRowsForWindowWithExpansion(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
+  const itemRows = collected.items.slice(0, Math.max(limit, 10)).map((item) => ({
+    news_item_id: crypto.randomUUID(),
+    news_date: selectedDate,
+    ingested_at: new Date().toISOString(),
+    dedupe_key: item.dedupe_key,
+    canonical_url: item.canonical_url,
+    original_url: item.original_url,
+    title: item.title,
+    publisher: item.publisher,
+    published_at: item.published_at,
+    summary: item.summary,
+    importance_score: item.importance_score,
+    matched_keywords: item.matched_keywords,
+    source_name: item.source_name,
+  }));
+  if (itemRows.length < NEWS_MIN_DAILY_ITEMS) {
+    throw new NewsRunCollectionError(409, 'Insufficient logistics news items collected', {
+      selected_date: selectedDate,
+      collected_item_count: itemRows.length,
+      minimum_item_count: NEWS_MIN_DAILY_ITEMS,
+      candidate_count: collected.candidateCount || collected.items.length,
+      source_stats: collected.sourceStats,
+      preserved_stored_items: before.itemCount,
+    });
   }
 
-  const newsRunId = safeText(runRow?.news_run_id);
-  if (!newsRunId) throw new Error('News run id is missing');
-  try {
-    const collected = await collectNewsRowsForWindowWithExpansion(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
-    const strictItemCount = Number((collected as Record<string, unknown>).strictItemCount || collected.items.length);
-    const itemRows = collected.items.slice(0, Math.max(limit, 10)).map((item) => ({ news_run_id: newsRunId, ...item }));
-    if (itemRows.length < NEWS_MIN_DAILY_ITEMS) {
-      throw new NewsRunCollectionError(409, 'Insufficient logistics news items collected', {
-        run_key: runKey,
-        collected_item_count: itemRows.length,
-        minimum_item_count: NEWS_MIN_DAILY_ITEMS,
-        candidate_count: collected.candidateCount || collected.items.length,
-        source_stats: collected.sourceStats,
-        preserved_completed_run: preserveCompletedRun,
-      });
-    }
-
-    const itemResult = await ctx.serviceClient.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
-    if (itemResult.error) throw new Error(itemResult.error.message);
-    const readbackResult = await ctx.serviceClient
-      .from('ll_news_items')
-      .select('news_item_id', { count: 'exact', head: true })
-      .eq('news_run_id', newsRunId);
-    if (readbackResult.error) throw new Error(readbackResult.error.message);
-    const readbackCount = Number(readbackResult.count || 0);
-    if (readbackCount < NEWS_MIN_DAILY_ITEMS) {
-      throw new NewsRunCollectionError(502, 'Logistics news item readback is incomplete', {
-        run_key: runKey,
-        collected_item_count: itemRows.length,
-        readback_item_count: readbackCount,
-        minimum_item_count: NEWS_MIN_DAILY_ITEMS,
-        preserved_completed_run: preserveCompletedRun,
-      });
-    }
-
-    const completedAt = new Date().toISOString();
-    const completedResult = await ctx.serviceClient
-      .from('ll_news_runs')
-      .update({
-        scheduled_for: strictWindow.windowEnd.toISOString(),
-        window_start: strictWindow.windowStart.toISOString(),
-        window_end: strictWindow.windowEnd.toISOString(),
-        source_summary: {
-          collector_version: NEWS_COLLECTOR_VERSION,
-          primary: 'google_news_rss',
-          fallback: 'bing_news_rss',
-          queries: NEWS_SEARCH_QUERIES,
-          query_count: NEWS_SEARCH_QUERIES.length,
-          window_hours: strictWindow.windowHours,
-          strict_window_start: strictWindow.windowStart.toISOString(),
-          strict_window_end: strictWindow.windowEnd.toISOString(),
-          strict_item_count: strictItemCount,
-          item_count: readbackCount,
-          selected_item_count: itemRows.length,
-          minimum_item_count: NEWS_MIN_DAILY_ITEMS,
-          collection_state: 'completed',
-          strict_window_only: true,
-          expanded_to_recent_7d: false,
-          expanded_recent_days: 0,
-          historical_backfill: Boolean((collected as Record<string, unknown>).historicalBackfill),
-          same_window_relaxed_backfill: Boolean((collected as Record<string, unknown>).relaxedBackfill),
-          expanded_window_start: null,
-          strict_24h_window: strictWindow.windowHours === 24,
-          candidate_count: collected.candidateCount || collected.items.length,
-          selection_policy: {
-            limit: 10,
-            category_targets: NEWS_CATEGORY_TARGETS,
-            max_items_per_company: NEWS_MAX_ITEMS_PER_COMPANY,
-            max_major_company_only_items: NEWS_MAX_MAJOR_COMPANY_ONLY_ITEMS,
-          },
-          source_stats: collected.sourceStats,
-          empty_state: false,
-        },
-        run_status: 'completed',
-        error_message: null,
-        completed_at: completedAt,
-      })
-      .eq('news_run_id', newsRunId)
-      .select(NEWS_RUN_SELECT_COLUMNS)
-      .single();
-    if (completedResult.error || !completedResult.data) {
-      throw new Error(completedResult.error?.message || 'Failed to complete news run');
-    }
-    return { run: completedResult.data, item_count: readbackCount, status: 'collected' };
-  } catch (error) {
-    if (preparedRunId) {
-      const failureMarkError = await markPreparedNewsRunFailed(ctx, preparedRunId, error);
-      if (failureMarkError && error instanceof NewsRunCollectionError) {
-        error.details.failure_mark_error = failureMarkError;
-      }
-    }
-    throw error;
+  const itemResult = await ctx.serviceClient
+    .from('ll_news_items')
+    .upsert(itemRows, { onConflict: 'news_date,dedupe_key' });
+  if (itemResult.error) throw new Error(itemResult.error.message);
+  const readback = await readNewsStorageHealth(ctx, selectedDate);
+  if (readback.itemCount < NEWS_MIN_DAILY_ITEMS) {
+    throw new NewsRunCollectionError(502, 'Logistics news item readback is incomplete', {
+      selected_date: selectedDate,
+      collected_item_count: itemRows.length,
+      readback_item_count: readback.itemCount,
+      minimum_item_count: NEWS_MIN_DAILY_ITEMS,
+    });
   }
+  return { run: newsRunSummary(readback), item_count: readback.itemCount, status: 'collected' };
 }
 
 async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
@@ -13760,40 +14036,42 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
   const limit = Math.min(Math.max(Number(payload.limit || 10), 1), 30);
   const selectedDate = safeText(firstDefined(payload.date, payload.news_date, payload.selected_date));
   const hasDateFilter = /^\d{4}-\d{2}-\d{2}$/u.test(selectedDate);
-  const selectedRunKey = hasDateFilter ? `daily-news:${selectedDate}:0700KST` : '';
-  let runQuery = ctx.serviceClient
-    .from('ll_news_runs')
-    .select('news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at')
-    .order('scheduled_for', { ascending: false, nullsFirst: false });
-  if (selectedRunKey) runQuery = runQuery.eq('run_key', selectedRunKey);
-  const runResult = await runQuery.limit(1).maybeSingle();
-  if (runResult.error) {
-    if (isMissingRelationError(runResult.error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', data_validated: false, validation_status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
-    return fail(500, 'Failed to read logistics news run', ctx.origin, { error: runResult.error.message });
-  }
-  const latestRun = runResult.data || null;
-  let data: NewsCollectorItem[] = [];
-  if (!(hasDateFilter && !latestRun?.news_run_id)) {
-    let itemQuery = ctx.serviceClient
+  let effectiveDate = hasDateFilter ? selectedDate : '';
+  if (!effectiveDate) {
+    const latestDateResult = await ctx.serviceClient
       .from('ll_news_items')
-      .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,payload,created_at')
-      .order('published_at', { ascending: false, nullsFirst: false })
-      .limit(Math.min(Math.max(limit * 3, limit), 30));
-    if (latestRun?.news_run_id) itemQuery = itemQuery.eq('news_run_id', latestRun.news_run_id);
-    const itemResult = await itemQuery;
-    if (itemResult.error) {
-      if (isMissingRelationError(itemResult.error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', data_validated: false, validation_status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
-      return fail(500, 'Failed to read logistics news', ctx.origin, { error: itemResult.error.message });
+      .select('news_date')
+      .order('news_date', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestDateResult.error) {
+      if (isMissingRelationError(latestDateResult.error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', data_validated: false, validation_status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
+      return fail(500, 'Failed to read logistics news', ctx.origin, { error: latestDateResult.error.message });
     }
-    data = (itemResult.data || []) as NewsCollectorItem[];
+    effectiveDate = safeText((latestDateResult.data as Record<string, unknown> | null)?.news_date);
   }
-  const selectedWindow = hasDateFilter ? newsWindowForDate(selectedDate) : null;
-  const visibleItems = newsRemoveNearDuplicateStories(data.filter((item) => {
-    if (!selectedWindow) return true;
-    const publishedAt = new Date(item.published_at);
-    return !Number.isNaN(publishedAt.getTime()) && publishedAt >= selectedWindow.windowStart && publishedAt <= selectedWindow.windowEnd;
-  })).slice(0, limit);
-  const runStatus = latestRun ? safeText((latestRun as Record<string, unknown>).run_status || 'completed') : 'no_run';
+
+  let data: NewsCollectorItem[] = [];
+  let health: NewsStorageHealth = { selectedDate: effectiveDate, itemCount: 0, completedAt: '' };
+  if (effectiveDate) {
+    try {
+      health = await readNewsStorageHealth(ctx, effectiveDate);
+      const itemResult = await ctx.serviceClient
+        .from('ll_news_items')
+        .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,news_date,ingested_at')
+        .eq('news_date', effectiveDate)
+        .order('published_at', { ascending: false, nullsFirst: false })
+        .limit(Math.min(Math.max(limit * 3, limit), 30));
+      if (itemResult.error) throw itemResult.error;
+      data = (itemResult.data || []) as NewsCollectorItem[];
+    } catch (error) {
+      if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', data_validated: false, validation_status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
+      return fail(500, 'Failed to read logistics news', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+  const visibleItems = newsRemoveNearDuplicateStories(data).slice(0, limit);
+  const latestRun = effectiveDate ? newsRunSummary(health) : null;
+  const runStatus = latestRun ? safeText(latestRun.run_status) : 'no_run';
   const hasMinimumVisibleItems = visibleItems.length >= NEWS_MIN_DAILY_ITEMS;
   const newsDataValidated = Boolean(latestRun && runStatus === 'completed' && hasMinimumVisibleItems);
   const validationStatus = latestRun && runStatus === 'completed' && !hasMinimumVisibleItems ? 'incomplete' : runStatus;
@@ -13803,7 +14081,7 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
     validation_status: validationStatus,
     collection_mode: 'precollected_read_only',
     collect_on_read: false,
-    selected_date: hasDateFilter ? selectedDate : safeText((latestRun as Record<string, unknown> | null)?.run_key).match(/daily-news:(\d{4}-\d{2}-\d{2}):0700KST/u)?.[1] || '',
+    selected_date: hasDateFilter ? selectedDate : effectiveDate,
     latest_run: latestRun,
     items: visibleItems,
     item_count: visibleItems.length,
@@ -13849,45 +14127,39 @@ async function callNewsRestore20260617(ctx: Context) {
   if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'news/restore-20260617', 6, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const targetDate = '2026-06-17';
-  const runKey = `daily-news:${targetDate}:0700KST`;
-  const { data: runRow, error: runError } = await ctx.serviceClient
-    .from('ll_news_runs')
-    .select('news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at')
-    .eq('run_key', runKey)
-    .maybeSingle();
-  if (runError) return fail(500, 'Failed to read logistics news run', ctx.origin, { error: runError.message });
-  if (!runRow?.news_run_id) return fail(404, 'Target logistics news run not found', ctx.origin, { run_key: runKey });
-
   const beforeResult = await ctx.serviceClient
     .from('ll_news_items')
     .select('dedupe_key,title,publisher,published_at,canonical_url')
-    .eq('news_run_id', runRow.news_run_id)
+    .eq('news_date', targetDate)
     .order('published_at', { ascending: false, nullsFirst: false });
   if (beforeResult.error) return fail(500, 'Failed to read logistics news items', ctx.origin, { error: beforeResult.error.message });
 
   const strictWindow = newsWindowForDate(targetDate);
   const collected = await collectNewsRowsForHistoricalWindow(strictWindow.windowStart, strictWindow.windowEnd);
   const itemRows = collected.items.slice(0, 10).map((item) => ({
-    news_run_id: runRow.news_run_id,
-    ...item,
-    payload: {
-      ...item.payload,
-      restoration_run_key: runKey,
-      restoration_generated_at: new Date().toISOString(),
-    },
+    news_item_id: crypto.randomUUID(),
+    news_date: targetDate,
+    ingested_at: new Date().toISOString(),
+    dedupe_key: item.dedupe_key,
+    canonical_url: item.canonical_url,
+    original_url: item.original_url,
+    title: item.title,
+    publisher: item.publisher,
+    published_at: item.published_at,
+    summary: item.summary,
+    importance_score: item.importance_score,
+    matched_keywords: item.matched_keywords,
+    source_name: item.source_name,
   }));
   if (itemRows.length < 8) {
     await auditOptional(ctx.serviceClient, ctx.user.id, 'news/restore-20260617/insufficient_candidates', 409, {
-      run_key: runKey,
       before_count: beforeResult.data?.length || 0,
       candidate_count: collected.candidateCount,
       selected_count: itemRows.length,
       source_stats: collected.sourceStats,
     });
     return jsonResponse({ ok: false, message: 'Insufficient reconstruction candidates', data: {
-      run_key: runKey,
-      news_run_id: runRow.news_run_id,
-      completed_at: runRow.completed_at,
+      selected_date: targetDate,
       before_count: beforeResult.data?.length || 0,
       candidate_count: collected.candidateCount,
       selected_count: itemRows.length,
@@ -13898,29 +14170,25 @@ async function callNewsRestore20260617(ctx: Context) {
 
   const { error: itemError } = await ctx.serviceClient
     .from('ll_news_items')
-    .upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
+    .upsert(itemRows, { onConflict: 'news_date,dedupe_key' });
   if (itemError) return fail(500, 'Failed to restore logistics news items', ctx.origin, { error: itemError.message });
 
   const afterResult = await ctx.serviceClient
     .from('ll_news_items')
     .select('dedupe_key,title,publisher,published_at,canonical_url')
-    .eq('news_run_id', runRow.news_run_id)
+    .eq('news_date', targetDate)
     .order('published_at', { ascending: false, nullsFirst: false });
   if (afterResult.error) return fail(500, 'Failed to read restored logistics news items', ctx.origin, { error: afterResult.error.message });
 
   const beforeKeys = new Set(((beforeResult.data || []) as Record<string, unknown>[]).map((item) => safeText(item.dedupe_key)).filter(Boolean));
   await audit(ctx.serviceClient, ctx.user.id, 'news/restore-20260617', 200, {
-    run_key: runKey,
-    news_run_id: runRow.news_run_id,
-    completed_at: runRow.completed_at,
+    selected_date: targetDate,
     before_count: beforeResult.data?.length || 0,
     after_count: afterResult.data?.length || 0,
     inserted_or_updated: itemRows.length,
   });
   return jsonResponse({ ok: true, data: {
-    run_key: runKey,
-    news_run_id: runRow.news_run_id,
-    completed_at: runRow.completed_at,
+    selected_date: targetDate,
     before_count: beforeResult.data?.length || 0,
     after_count: afterResult.data?.length || 0,
     inserted_or_updated: itemRows.length,
@@ -14286,24 +14554,23 @@ async function writeLeaseEventDataAudit(
   readbackValue: unknown,
   status: string,
 ) {
-  const { error } = await ctx.serviceClient.from('ll_audit_events').insert({
-    event_type: 'data_change',
-    edit_request_id: /^[0-9a-f-]{36}$/iu.test(editRequestId) ? editRequestId : null,
-    action,
-    target_table: table,
-    target_row_id: rowId || null,
-    field_name: fieldName,
-    before_value: normalizeText(beforeValue),
-    after_value: normalizeText(afterValue),
-    readback_value: normalizeText(readbackValue),
-    actor_id: ctx.user.id,
-    approver_id: ctx.user.id,
-    approval_status: status,
-    legacy_table: 'public.ll_audit_events',
-    event_status: status,
-    metadata: redactSensitivePayload({ edge_action: 'lease-events/submit' }),
-  });
-  if (error) throw new Error(`Failed to write lease event audit log: ${error.message}`);
+  void action;
+  void table;
+  void rowId;
+  void fieldName;
+  if (!/^[0-9a-f-]{36}$/iu.test(editRequestId)) return;
+  const { error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .update({
+      before_value: normalizeText(beforeValue),
+      requested_value: normalizeText(afterValue),
+      readback_value: normalizeText(readbackValue),
+      write_status: status,
+      written_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', editRequestId);
+  if (error) throw new Error(`Failed to save lease event readback: ${error.message}`);
 }
 
 async function insertLeaseEventRow(
@@ -15110,27 +15377,21 @@ async function writeFundOverviewAudit(
   status: string,
   actorId: string,
 ) {
-  const { error } = await ctx.serviceClient.from('ll_audit_events').insert({
-    event_type: 'data_change',
-    edit_request_id: editRequestId,
-    action: 'fund_overview_write',
-    target_table: 'public.ll_funds',
-    target_row_id: fundId,
-    target_cell_id: null,
-    field_name: 'fund_overview',
-    before_value: normalizeText(beforeValue),
-    after_value: normalizeText(afterValue),
-    readback_value: normalizeText(readbackValue),
-    actor_id: actorId || null,
-    approver_id: ctx.user.id,
-    source_row_id: null,
-    source_cell_id: null,
-    approval_status: status,
-    legacy_table: 'public.ll_audit_events',
-    event_status: status,
-    metadata: redactSensitivePayload({ edge_action: 'edits/approve', target_type: 'fund_overview' }),
-  });
-  if (error) throw new Error(`Failed to write fund overview audit log: ${error.message}`);
+  void fundId;
+  const { error } = await ctx.serviceClient
+    .from('ll_edit_requests')
+    .update({
+      before_value: normalizeText(beforeValue),
+      requested_value: normalizeText(afterValue),
+      readback_value: normalizeText(readbackValue),
+      approved_by: actorId || ctx.user.id,
+      approved_at: new Date().toISOString(),
+      write_status: status,
+      written_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', editRequestId);
+  if (error) throw new Error(`Failed to save fund overview readback: ${error.message}`);
 }
 
 async function restoreFundOverviewSnapshot(ctx: Context, fundId: string, snapshot: Record<string, unknown>) {
@@ -17111,21 +17372,11 @@ async function replaceFundRows(
 }
 
 async function writeFundAudit(ctx: Context, fundId: string, beforeValue: unknown, afterValue: unknown, readbackValue: unknown) {
-  await ctx.serviceClient.from('ll_audit_events').insert({
-    event_type: 'data_change',
-    action: 'funds/save-by-asset',
-    target_table: 'public.ll_funds',
-    target_row_id: fundId,
-    before_value: JSON.stringify(beforeValue),
-    after_value: JSON.stringify(afterValue),
-    readback_value: JSON.stringify(readbackValue),
-    actor_id: ctx.user.id,
-    approver_id: ctx.user.id,
-    approval_status: 'server_authorized_write',
-    legacy_table: 'public.ll_audit_events',
-    event_status: 'server_authorized_write',
-    metadata: { edge_action: 'funds/save-by-asset' },
-  });
+  void ctx;
+  void fundId;
+  void beforeValue;
+  void afterValue;
+  void readbackValue;
 }
 
 async function saveFundOverviewByAsset(ctx: Context, payload: Record<string, unknown>) {
@@ -17175,22 +17426,6 @@ async function saveFundOverviewByAsset(ctx: Context, payload: Record<string, unk
       .select('id, status')
       .single();
     if (editError) return fail(500, 'Failed to submit fund overview edit request', ctx.origin, editError.message);
-    const { error: apiAuditError } = await ctx.serviceClient.from('ll_audit_events').insert({
-      event_type: 'api',
-      action: 'funds/save-by-asset',
-      status_code: 202,
-      requested_by: ctx.user.id,
-      request_payload: redactSensitivePayload({
-        edit_request_id: editRequest.id,
-        asset_id: assetRef.assetId,
-        fund_id: fundId,
-        beneficiary_rows: beneficiaryRows.length,
-        loan_rows: loanRows.length,
-      }),
-      legacy_table: 'public.ll_audit_events',
-      event_status: 'accepted',
-    });
-    if (apiAuditError) return fail(500, 'Failed to audit fund overview edit request', ctx.origin, apiAuditError.message);
     return jsonResponse({
       ok: true,
       message: 'Fund overview edit request submitted',
@@ -19767,6 +20002,32 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
     has_direct_asset_match: assetRows.length > 0,
     matched_asset_count: assetRows.length,
   });
+}
+
+function validateAiSearchChatPayload(payload: Record<string, unknown>): AiChatInputValidation {
+  const rawQuestion = firstDefined(payload.question, payload.query);
+  if (typeof rawQuestion !== 'string') return { ok: false, status: 400, message: 'question is required' };
+  const question = rawQuestion.trim();
+  if (question.length < 2) return { ok: false, status: 400, message: 'question is required' };
+  if (question.length > AI_CHAT_MAX_QUESTION_CHARS) return { ok: false, status: 413, message: 'question is too large' };
+
+  const rawHistory = payload.history;
+  if (rawHistory === undefined || rawHistory === null) return { ok: true, question, history: [] };
+  if (!Array.isArray(rawHistory)) return { ok: false, status: 400, message: 'history must be an array' };
+  if (rawHistory.length > AI_CHAT_MAX_HISTORY_ITEMS) return { ok: false, status: 413, message: 'history is too large' };
+  let historyChars = 0;
+  const history: Array<{ role: string; content: string }> = [];
+  for (const item of rawHistory) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return { ok: false, status: 400, message: 'history is invalid' };
+    const row = item as Record<string, unknown>;
+    if (typeof row.content !== 'string') return { ok: false, status: 400, message: 'history is invalid' };
+    const content = row.content.trim();
+    if (content.length > AI_CHAT_MAX_HISTORY_ITEM_CHARS) return { ok: false, status: 413, message: 'history is too large' };
+    historyChars += content.length;
+    if (historyChars > AI_CHAT_MAX_HISTORY_CHARS) return { ok: false, status: 413, message: 'history is too large' };
+    if (content) history.push({ role: row.role === 'assistant' ? 'assistant' : 'user', content });
+  }
+  return { ok: true, question, history };
 }
 
 function normalizeAiHistory(value: unknown) {
@@ -22913,33 +23174,25 @@ async function generateGeminiContent(model: string, apiKey: string, prompt: stri
   }, timeoutMs, 1);
 }
 
-async function callGeminiDiagnostics(origin: string, payload: Record<string, unknown> = {}) {
+async function callGeminiDiagnostics(ctx: Context, payload: Record<string, unknown> = {}) {
+  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is limited to selected users', ctx.origin);
   const requestedModel = normalizeText(firstDefined(payload.model, payload.model_override, payload.modelOverride)).trim();
   const model = requestedModel && FREE_TIER_GOOGLE_AI_MODELS.has(requestedModel)
     ? requestedModel
     : resolveFreeTierGoogleAiModel();
   const apiKey = googleAiApiKey();
-  const keyHash = apiKey ? (await sha256Text(apiKey)).slice(0, 12) : '';
   const base = {
     ok: false,
     edge_reached: true,
-    origin: origin || null,
-    origin_allowed: isAllowedOrigin(origin),
-    demo_origin_allowed: origin ? isAiDemoAllowed(origin) : false,
-    model,
-    requested_model: requestedModel || null,
-    requested_model_allowed: requestedModel ? FREE_TIER_GOOGLE_AI_MODELS.has(requestedModel) : null,
-    key_configured: Boolean(apiKey),
-    key_length: apiKey.length,
-    key_hash: keyHash || null,
+    ready: Boolean(apiKey),
+    gemini_ok: false,
   };
   if (!apiKey) {
     return jsonResponse({
       ...base,
-      gemini_ok: false,
-      provider_status: null,
-      message: 'GOOGLE_AI_KEY or GEMINI_API_KEY is not configured in Edge Function secrets.',
-    }, 200, origin);
+      message: 'AI service is temporarily unavailable.',
+    }, 200, ctx.origin);
   }
 
   try {
@@ -22947,52 +23200,54 @@ async function callGeminiDiagnostics(origin: string, payload: Record<string, unk
     const { response, body } = await generateGeminiContent(model, apiKey, prompt, 64, 15_000);
     const responseBody = body as Record<string, unknown>;
     const answer = extractGoogleAiText(responseBody);
-    const providerMessage = providerMessageFromBody(responseBody);
+    const geminiOk = response.ok && Boolean(answer);
     return jsonResponse({
       ...base,
-      ok: response.ok,
-      gemini_ok: response.ok,
-      provider_status: response.status,
-      provider_message: providerMessage || undefined,
-      answer_preview: answer ? answer.slice(0, 160) : undefined,
-    }, 200, origin);
+      ok: geminiOk,
+      ready: geminiOk,
+      gemini_ok: geminiOk,
+    }, 200, ctx.origin);
   } catch (error) {
     return jsonResponse({
       ...base,
-      gemini_ok: false,
-      provider_status: 502,
-      provider_error: safeProviderError(error),
-    }, 200, origin);
+      message: 'AI service is temporarily unavailable.',
+    }, 200, ctx.origin);
   }
 }
 
-async function callAiProviderDiagnostics(origin: string) {
+async function callAiProviderDiagnostics(ctx: Context) {
+  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is limited to selected users', ctx.origin);
   const groqKey = groqApiKey();
   const googleKey = googleAiApiKey();
   const base = {
     ok: false,
     edge_reached: true,
-    origin: origin || null,
-    origin_allowed: isAllowedOrigin(origin),
-    demo_origin_allowed: origin ? isAiDemoAllowed(origin) : false,
-    preferred_provider: groqKey ? 'groq' : 'gemini',
-    groq_configured: Boolean(groqKey),
-    groq_key_hash: groqKey ? (await sha256Text(groqKey)).slice(0, 12) : null,
-    gemini_configured: Boolean(googleKey),
-    gemini_key_hash: googleKey ? (await sha256Text(googleKey)).slice(0, 12) : null,
+    ready: Boolean(groqKey || googleKey),
+    gemini_ok: false,
   };
+  if (!base.ready) {
+    return jsonResponse({
+      ...base,
+      message: 'AI service is temporarily unavailable.',
+    }, 200, ctx.origin);
+  }
   const prompt = '한국어로 정확히 "AI diagnostics OK"라고만 답하세요.';
-  const result = await callPreferredAiProvider(prompt, 64, 15_000);
-  return jsonResponse({
-    ...base,
-    ok: result.ok,
-    provider: result.provider,
-    model: result.model,
-    provider_ok: result.ok,
-    provider_status: result.status,
-    provider_message: result.providerMessage || undefined,
-    answer_preview: result.answer ? result.answer.slice(0, 160) : undefined,
-  }, 200, origin);
+  try {
+    const result = await callPreferredAiProvider(prompt, 64, 15_000);
+    return jsonResponse({
+      ...base,
+      ok: result.ok,
+      ready: result.ok,
+      gemini_ok: result.ok,
+      ...(result.ok ? {} : { message: 'AI service is temporarily unavailable.' }),
+    }, 200, ctx.origin);
+  } catch {
+    return jsonResponse({
+      ...base,
+      message: 'AI service is temporarily unavailable.',
+    }, 200, ctx.origin);
+  }
 }
 
 async function callAiGeneralChatResponse(
@@ -23035,12 +23290,32 @@ async function callAiGeneralChatResponse(
 
 async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (!checkRateLimit(ctx.user.id, 'ai/search-chat', 30, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
-  const question = String(payload.question || payload.query || '').trim();
-  if (question.length < 2) return fail(400, 'question is required', ctx.origin);
-  if (!groqApiKey() && !googleAiApiKey()) return fail(503, 'AI provider key is not configured', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is limited to selected users', ctx.origin);
+  const input = validateAiSearchChatPayload(payload);
+  if (!input.ok) return fail(input.status, input.message, ctx.origin);
+  if (!checkRateLimit(ctx.user.id, 'ai/search-chat', AI_CHAT_REQUESTS_PER_MINUTE, AI_CHAT_REQUEST_WINDOW_MS)) return fail(429, 'Too many AI chat requests', ctx.origin);
+  if (aiChatInFlightUsers.has(ctx.user.id)) return fail(429, 'An AI chat request is already in progress', ctx.origin);
+  aiChatInFlightUsers.add(ctx.user.id);
+  try {
+    return await callGoogleAiSearchChatAuthorized(ctx, payload, input.question, input.history);
+  } catch (error) {
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'ai/search-chat/unhandled-error', 502, {
+      error: safeProviderError(error),
+    });
+    return publicAiAnswerResponse('AI 응답을 안전하게 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.', ctx.origin);
+  } finally {
+    aiChatInFlightUsers.delete(ctx.user.id);
+  }
+}
+
+async function callGoogleAiSearchChatAuthorized(
+  ctx: Context,
+  payload: Record<string, unknown>,
+  question: string,
+  history: Array<{ role: string; content: string }>,
+) {
+  if (!groqApiKey() && !googleAiApiKey()) return fail(503, 'AI service is temporarily unavailable', ctx.origin);
   const basisDate = dashboardBasisDate(payload);
-  const history = normalizeAiHistory(payload.history);
   const modelOverride = safeGoogleModelOverrideFromPayload(ctx, payload);
   const answerScope = normalizeText(firstDefined(payload.answer_scope, payload.answerScope, payload.scope)).toLowerCase();
   const operationalOnlyScope = ['operational', 'igis', 'igis_operational', 'asset', 'portfolio'].includes(answerScope);
@@ -23890,50 +24165,17 @@ async function recordLogisticsLoginHistory(ctx: Context, payload: Record<string,
   if (requestedEmail && !allowedEmails.has(requestedEmail)) {
     return fail(403, 'Login history email scope denied', ctx.origin);
   }
-  const organization = String(ctx.permission?.organization || '').trim();
-  const staffName = staffNameForEmail(permissionEmail);
-  const source = shortClientText(payload.source || 'web_app', 40) || 'web_app';
-  const eventPayload = stripUndefined({
-    email: permissionEmail,
-    auth_email: normalizeAuthEmail(ctx.user.email || permissionEmail),
-    staff_name: staffName,
-    organization,
-    logistics_role: ctx.role || ctx.permission?.logistics_role || 'Reader',
-    source,
-    client_timezone: shortClientText(payload.client_timezone, 80),
-    user_agent: shortClientText(payload.user_agent, 180),
-  });
-  const { error } = await ctx.serviceClient.from('ll_audit_events').insert({
-    event_type: 'auth_login',
-    action: 'auth/login',
-    status_code: 200,
-    requested_by: ctx.user.id,
-    actor_id: ctx.user.id,
-    request_payload: eventPayload,
-    event_payload: eventPayload,
-    legacy_table: 'public.ll_audit_events',
-    event_status: 'success',
-  });
-  if (error) return fail(500, 'Failed to write login history', ctx.origin);
-  await ctx.serviceClient
+  const { error } = await ctx.serviceClient
     .from('ll_user_permissions')
     .update({ last_login_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('email', permissionEmail);
+  if (error) return fail(500, 'Failed to update login status', ctx.origin);
   return jsonResponse({ ok: true, stored: true }, 200, ctx.origin);
 }
 
 async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, unknown>) {
   if (!await canUseServerFeature(ctx, 'login_history')) return fail(403, 'Login history permission is limited to selected users', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 5), 1), 300);
-  const providerReadLimit = Math.min(Math.max(limit * 20, 100), 900);
-  const { data: rawRows, error: historyError } = await ctx.serviceClient
-    .from('ll_audit_events')
-    .select('created_at,event_type,action,status_code,event_status,event_payload,request_payload')
-    .eq('event_type', 'auth_login')
-    .order('created_at', { ascending: false })
-    .limit(providerReadLimit);
-  if (historyError) return fail(500, 'Failed to read login history', ctx.origin);
-
   const { data: permissionRows, error: permissionError } = await ctx.serviceClient
     .from('ll_user_permissions')
     .select('email,staff_name,organization,image_url,logistics_role,account_status,feature_permissions,last_login_at,updated_at')
@@ -23955,13 +24197,22 @@ async function listLogisticsLoginHistory(ctx: Context, payload: Record<string, u
     if (email && isActivePermission(row)) permissionByEmail.set(email, row);
   });
 
-  const rows = ((rawRows || []) as Record<string, unknown>[])
-    .filter((row) => !isTestLoginPayload({
-      ...(row.event_payload as Record<string, unknown> || {}),
-      ...(row.request_payload as Record<string, unknown> || {}),
-    }))
+  const rows = ((permissionRows || []) as Record<string, unknown>[])
+    .filter((row) => isActivePermission(row) && safeText(row.last_login_at))
+    .sort((left, right) => safeText(right.last_login_at).localeCompare(safeText(left.last_login_at)))
     .slice(0, limit)
-    .map((row) => publicLoginHistoryRow(row, permissionByEmail));
+    .map((row) => publicLoginHistoryRow({
+      created_at: row.last_login_at,
+      status_code: 200,
+      event_status: 'success',
+      event_payload: {
+        email: canonicalPermissionEmail(row),
+        staff_name: row.staff_name,
+        organization: row.organization,
+        logistics_role: row.logistics_role,
+        source: 'web_app',
+      },
+    }, permissionByEmail));
   const users = loginCapabilityRows((permissionRows || []) as Record<string, unknown>[], authUsers);
 
   await audit(ctx.serviceClient, ctx.user.id, 'auth/login-history/list', 200, {
@@ -24325,8 +24576,6 @@ Deno.serve(async (request): Promise<Response> => {
   const payload = (body.payload || {}) as Record<string, unknown>;
 
   if (action === 'naver/maps-config') return callNaverMapsConfig(origin);
-  if (action === 'ai/provider-diagnostics') return callAiProviderDiagnostics(origin);
-  if (action === 'ai/gemini-diagnostics') return callGeminiDiagnostics(origin, payload);
   if (action === 'ai/search-chat-demo') return callGoogleAiSearchChatDemo(origin, payload);
   if (action === 'auth/first-login/setup') return callLogisticsFirstLoginSetup(origin, payload);
   if (action === 'auth/password-reset/access-code') return callLogisticsPasswordResetWithAccessCode(origin, payload);
@@ -24342,6 +24591,8 @@ Deno.serve(async (request): Promise<Response> => {
   }
 
   if (action === 'health') return jsonResponse({ ok: true, role: ctx.role }, 200, origin);
+  if (action === 'ai/provider-diagnostics') return callAiProviderDiagnostics(ctx);
+  if (action === 'ai/gemini-diagnostics') return callGeminiDiagnostics(ctx, payload);
   if (action === 'auth/me') return callAuthMe(ctx);
   if (action === 'auth/users/list') return callAuthUsersList(ctx);
   if (action === 'auth/users/upsert' || action === 'auth/user-permissions/update') return callAuthUserPermissionsUpdate(ctx, payload);
@@ -24366,6 +24617,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'investment-index/cleanup-empty-loans') return callInvestmentIndexCleanupEmptyLoans(ctx, payload);
   if (action === 'asset-spec/read') return callAssetSpecRead(ctx, payload);
   if (action === 'asset-spec/save') return callAssetSpecSave(ctx, payload);
+  if (action === 'asset-admin/gyeongsan-coupang-floor-count-preview') return callAdminGyeongsanCoupangFloorCountPreview(ctx, payload);
   if (action === 'operating-costs/read') return callOperatingCostsRead(ctx, payload);
   if (action === 'data-management/catalog') return callDataManagementCatalog(ctx, payload);
   if (action === 'data-management/rows') return callDataManagementRows(ctx, payload);
@@ -24418,6 +24670,7 @@ Deno.serve(async (request): Promise<Response> => {
     return homeResponse;
   }
   if (action === 'ai/search-chat') return callGoogleAiSearchChat(ctx, payload);
+  if (action === 'asset-floor-plans/register') return callAssetFloorPlanRegister(ctx, formData);
   if (action === 'market-docs/upload') return callMarketDocsUpload(ctx, formData);
   if (action === 'market-docs/ingest') return callMarketDocsIngest(ctx, payload);
   if (action === 'market-docs/embed') return callMarketDocsEmbed(ctx, payload);

@@ -221,15 +221,14 @@ select
   er.field_name,
   er.readback_value,
   er.write_result,
-  count(al.id)::int as audit_rows
+  case when coalesce(er.write_result, '{}'::jsonb) <> '{}'::jsonb then 1 else 0 end as write_readback_present
 from public.ll_edit_requests er
-left join public.ll_audit_events al on al.edit_request_id = er.id and al.event_type in ('data_change', 'fund_overview_write')
 where er.id = ${sqlLiteral(editId)}
 group by er.id, er.status, er.write_status, er.target_row_id, er.field_name, er.readback_value, er.write_result;
 `);
   const final = finalRows[0];
   if (!final || final.status !== 'written') throw new Error(`Edit request was not written: ${JSON.stringify(final)}`);
-  if (Number(final.audit_rows || 0) < 1) throw new Error('Data change audit log was not written.');
+  if (Number(final.write_readback_present || 0) < 1) throw new Error('Data change write readback was not recorded.');
 
   const output = {
     ok: true,
@@ -246,10 +245,10 @@ group by er.id, er.status, er.write_status, er.target_row_id, er.field_name, er.
       readback_before: readbackBefore.status,
       self_approve_blocked: selfApprove.status,
       requester_swapped_for_qa: swapped.length === 1,
-      approve_write_readback_audit: approved.status,
+      approve_write_readback: approved.status,
       readback_after: readbackAfter.status,
       final_status: final.status,
-      audit_rows: Number(final.audit_rows || 0),
+      write_readback_present: Number(final.write_readback_present || 0),
     },
   };
   fs.mkdirSync(OUT_DIR, { recursive: true });

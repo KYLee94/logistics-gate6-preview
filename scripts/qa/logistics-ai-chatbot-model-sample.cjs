@@ -5,6 +5,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const EDGE_FUNCTION = 'll-dashboard-api';
 const DEFAULT_ORIGIN = 'https://kylee94.github.io';
+const AI_DIAGNOSTICS_PUBLIC_KEYS = new Set(['ok', 'edge_reached', 'ready', 'gemini_ok', 'message']);
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -44,6 +45,15 @@ function currentKstMonthEndDate() {
   const now = new Date();
   const kst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
   return new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+}
+
+function assertGptTerraSourceContract() {
+  const edgePath = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'index.ts');
+  const edgeSource = fs.readFileSync(edgePath, 'utf8');
+  if (!edgeSource.includes('gpt-5.6-terra')) {
+    throw new Error('Edge source does not declare gpt-5.6-terra as an allowed QA model. Live model QA is blocked to avoid invoking another provider.');
+  }
+  return { edge_source: path.relative(ROOT, edgePath).replace(/\\/gu, '/'), model: 'gpt-5.6-terra' };
 }
 
 async function signInForAccessToken(supabaseUrl, anonKey, email, password) {
@@ -88,6 +98,23 @@ async function invoke(endpoint, anonKey, origin, token, action, payload) {
     body = { raw: text.slice(0, 500) };
   }
   return { action, status: response.status, ok: response.ok, body };
+}
+
+function aiDiagnosticsContractFailures(result) {
+  const failures = [];
+  if (result.status !== 200) return [`expected 200, got ${result.status}`];
+  const body = result.body;
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return ['response body is not an object'];
+  const unexpectedKeys = Object.keys(body).filter((key) => !AI_DIAGNOSTICS_PUBLIC_KEYS.has(key));
+  if (unexpectedKeys.length) failures.push(`unexpected response keys: ${unexpectedKeys.join(', ')}`);
+  if (body.edge_reached !== true) failures.push('edge_reached is not true');
+  if (typeof body.ok !== 'boolean') failures.push('ok is not boolean');
+  if (typeof body.ready !== 'boolean') failures.push('ready is not boolean');
+  if (typeof body.gemini_ok !== 'boolean') failures.push('gemini_ok is not boolean');
+  if (typeof body.message === 'string' && /key|hash|provider|model|origin|status|error/iu.test(body.message)) {
+    failures.push('message exposes diagnostics detail');
+  }
+  return failures;
 }
 
 function seedRandom(seed) {
@@ -185,10 +212,14 @@ async function main() {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const origin = argValue('origin', DEFAULT_ORIGIN);
-  const model = argValue('model', 'gemini-2.0-flash');
-  if (model === 'gemini-3.1-flash-lite') {
-    throw new Error('QA must not call gemini-3.1-flash-lite. Use gemini-2.0-flash for tests; 3.1 Flash-Lite is reserved for deployed human use.');
+  const model = argValue('model', 'gpt-5.6-terra');
+  const sourceContractOnly = process.argv.includes('--source-contract');
+  if (model !== 'gpt-5.6-terra') throw new Error('Model QA only permits gpt-5.6-terra.');
+  if (sourceContractOnly) {
+    console.log(JSON.stringify({ ok: true, mode: 'source-contract', network_used: false, ...assertGptTerraSourceContract() }, null, 2));
+    return;
   }
+  assertGptTerraSourceContract();
   const sampleRate = Number(argValue('sample-rate', '0.1')) || 0.1;
   const seed = Number(argValue('seed', '20260602')) || 20260602;
   const basisDate = argValue('basis-date', envValue('LOGISTICS_BASIS_DATE') || currentKstMonthEndDate());
@@ -204,14 +235,50 @@ async function main() {
     seed,
     basis_date: basisDate,
     auth_source: auth.source,
+    provider_diagnostics: null,
     diagnostics: null,
     status: 'started',
     checks: [],
     failures: [],
   };
 
+  const providerDiagnostics = await invoke(endpoint, anonKey, origin, auth.token, 'ai/provider-diagnostics', { source: 'model-sample-qa' });
+  artifact.provider_diagnostics = providerDiagnostics.body;
+  const providerDiagnosticsFailures = aiDiagnosticsContractFailures(providerDiagnostics);
+  if (providerDiagnosticsFailures.length) {
+    artifact.status = 'provider_diagnostics_contract_failed';
+    artifact.failures.push({
+      id: 'provider_diagnostics_contract',
+      status: providerDiagnostics.status,
+      answer: null,
+      error: providerDiagnosticsFailures.join('; '),
+    });
+    const outPath = path.join(OUT_DIR, `ai-chatbot-model-sample-${timestampForFile()}.json`);
+    fs.writeFileSync(outPath, JSON.stringify(artifact, null, 2));
+    fs.writeFileSync(path.join(OUT_DIR, 'ai-chatbot-model-sample-latest.json'), JSON.stringify(artifact, null, 2));
+    console.log(JSON.stringify({ ok: false, status: artifact.status, model, artifact: outPath }, null, 2));
+    process.exitCode = 1;
+    return;
+  }
+
   const diagnostics = await invoke(endpoint, anonKey, origin, auth.token, 'ai/gemini-diagnostics', { model });
   artifact.diagnostics = diagnostics.body;
+  const diagnosticsFailures = aiDiagnosticsContractFailures(diagnostics);
+  if (diagnosticsFailures.length) {
+    artifact.status = 'diagnostics_contract_failed';
+    artifact.failures.push({
+      id: 'gemini_diagnostics_contract',
+      status: diagnostics.status,
+      answer: null,
+      error: diagnosticsFailures.join('; '),
+    });
+    const outPath = path.join(OUT_DIR, `ai-chatbot-model-sample-${timestampForFile()}.json`);
+    fs.writeFileSync(outPath, JSON.stringify(artifact, null, 2));
+    fs.writeFileSync(path.join(OUT_DIR, 'ai-chatbot-model-sample-latest.json'), JSON.stringify(artifact, null, 2));
+    console.log(JSON.stringify({ ok: false, status: artifact.status, model, artifact: outPath }, null, 2));
+    process.exitCode = 1;
+    return;
+  }
   if (diagnostics.status !== 200 || diagnostics.body?.gemini_ok !== true) {
     artifact.status = 'model_unavailable';
     const outPath = path.join(OUT_DIR, `ai-chatbot-model-sample-${timestampForFile()}.json`);

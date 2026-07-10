@@ -4,15 +4,16 @@ import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseC
 import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supabaseSession';
 import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import * as XLSX from 'xlsx';
 import weeklyReportData from './logisticsWeeklyReportData.json';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
 import homeData from './logisticsHomeData.json';
 import rawAssetOptionsData from './logisticsAssetOptionsData.json';
+import assetSearchIndexData from './logisticsAssetSearchIndex.json';
 import companyOptionsData from './logisticsCompanyOptionsData.json';
 import sectorData from './logisticsSectorData.json';
 import logisticsPermissionData from './logisticsPermissionData.json';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
+import { normalizeStackingFloorLabel, normalizeStackingFloorLabelFromRow } from './stackingFloorNormalizer';
 import {
   AssetSpecDashboard,
   DailyLogisticsNewsCard,
@@ -42,37 +43,95 @@ import { avatarCandidates } from '../avatarUtils';
 
 const MotionDiv = motion.div;
 
-const assetPayloadModules = import.meta.glob('./logisticsAssetData/*.json', { eager: true });
-const ASSET_PAYLOADS = Object.fromEntries(Object.values(assetPayloadModules)
-  .map((module) => module.default)
-  .filter(Boolean)
-  .map((payload) => [payload.overview?.assetId || payload.meta?.selection?.assetId, payload]));
-const assetOptionsData = rawAssetOptionsData.map((option) => {
-  const overview = ASSET_PAYLOADS[option.assetId]?.overview;
-  if (!overview) return option;
-  return {
-    ...option,
-    assetName: option.assetName || overview.assetName,
-    fundName: firstDefined(option.fundName, overview.fundName),
-    uniqueTenantCount: firstDefined(overview.uniqueTenantCount, overview.tenantCount, option.uniqueTenantCount),
-    averageENoc: firstDefined(overview.averageENoc, option.averageENoc),
-    vacancyRate: firstDefined(overview.vacancyRate, option.vacancyRate),
-    monthlyCostTotal: firstDefined(overview.monthlyCostTotal, option.monthlyCostTotal),
-  };
-});
-const companyPayloadModules = import.meta.glob('./logisticsCompanyData/*.json', { eager: true });
-const getModuleStem = (modulePath) => modulePath.split('/').pop()?.replace(/\.json$/u, '');
-const COMPANY_PAYLOADS = Object.fromEntries(Object.entries(companyPayloadModules)
-  .map(([modulePath, module]) => {
-    const payload = module.default;
-    const tenantId = payload?.meta?.selection?.tenantId
-      || payload?.filters?.selectedTenantId
-      || payload?.profile?.tenantId
-      || getModuleStem(modulePath);
+const assetPayloadModules = import.meta.glob('./logisticsAssetData/*.json');
+const companyPayloadModules = import.meta.glob('./logisticsCompanyData/*.json');
+const ASSET_PAYLOADS = Object.create(null);
+const COMPANY_PAYLOADS = Object.create(null);
+const STATIC_PAYLOAD_INFLIGHT = new Map();
+let xlsxModulePromise = null;
+const assetOptionsData = rawAssetOptionsData;
 
-    return payload && tenantId ? [tenantId, payload] : null;
-  })
-  .filter(Boolean));
+function loadStaticPayload(modules, cache, directory, kind, id) {
+  const normalizedId = String(id || '').trim();
+  if (!normalizedId) return Promise.resolve(null);
+  if (cache[normalizedId]) return Promise.resolve(cache[normalizedId]);
+
+  const inflightKey = `${kind}:${normalizedId}`;
+  const existing = STATIC_PAYLOAD_INFLIGHT.get(inflightKey);
+  if (existing) return existing;
+
+  const loader = modules[`./${directory}/${normalizedId}.json`];
+  if (!loader) return Promise.resolve(null);
+
+  let request;
+  request = loader().then((module) => {
+    const payload = module?.default || module || null;
+    if (!payload) return null;
+    const payloadId = kind === 'asset'
+      ? firstDefined(payload.overview?.assetId, payload.meta?.selection?.assetId, normalizedId)
+      : firstDefined(payload.meta?.selection?.tenantId, payload.filters?.selectedTenantId, payload.profile?.tenantId, normalizedId);
+    cache[String(payloadId || normalizedId)] = payload;
+    cache[normalizedId] = payload;
+    return payload;
+  }).finally(() => {
+    if (STATIC_PAYLOAD_INFLIGHT.get(inflightKey) === request) STATIC_PAYLOAD_INFLIGHT.delete(inflightKey);
+  });
+  STATIC_PAYLOAD_INFLIGHT.set(inflightKey, request);
+  return request;
+}
+
+function loadAssetPayload(assetId) {
+  return loadStaticPayload(assetPayloadModules, ASSET_PAYLOADS, 'logisticsAssetData', 'asset', assetId);
+}
+
+function loadCompanyPayload(tenantId) {
+  return loadStaticPayload(companyPayloadModules, COMPANY_PAYLOADS, 'logisticsCompanyData', 'company', tenantId);
+}
+
+function useLazyStaticPayload(loader, cache, id, enabled = true) {
+  const normalizedId = String(id || '').trim();
+  const [state, setState] = useState(() => ({
+    id: normalizedId,
+    payload: normalizedId ? cache[normalizedId] || null : null,
+    loading: false,
+    error: null,
+  }));
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!enabled || !normalizedId) {
+      setState({ id: normalizedId, payload: null, loading: false, error: null });
+      return undefined;
+    }
+    const cached = cache[normalizedId] || null;
+    setState({ id: normalizedId, payload: cached, loading: !cached, error: null });
+    loader(normalizedId).then((payload) => {
+      if (!cancelled) setState({ id: normalizedId, payload, loading: false, error: null });
+    }).catch((error) => {
+      if (!cancelled) setState({ id: normalizedId, payload: cached, loading: false, error });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cache, enabled, loader, normalizedId]);
+
+  return state;
+}
+
+function useLazyAssetPayload(assetId, enabled = true) {
+  return useLazyStaticPayload(loadAssetPayload, ASSET_PAYLOADS, assetId, enabled);
+}
+
+function useLazyCompanyPayload(tenantId, enabled = true) {
+  return useLazyStaticPayload(loadCompanyPayload, COMPANY_PAYLOADS, tenantId, enabled);
+}
+
+function loadXlsxModule() {
+  if (!xlsxModulePromise) {
+    xlsxModulePromise = import('xlsx').then((module) => module.default || module);
+  }
+  return xlsxModulePromise;
+}
 
 const MODULES = [
   { id: 'home', label: '대시보드 홈', source: '대시보드 홈' },
@@ -158,6 +217,9 @@ const WORKSPACE_CACHE_INVALIDATION_SOURCES = new Set([
 
 function clearWorkspaceLogisticsCaches() {
   DASHBOARD_READ_CACHE.clear();
+  DASHBOARD_READ_INFLIGHT.forEach((entry) => {
+    entry.superseded = true;
+  });
   DASHBOARD_READ_INFLIGHT.clear();
   ASSET_PROJECT_DETAIL_CACHE.clear();
   ASSET_FUND_OVERVIEW_CACHE.clear();
@@ -390,6 +452,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
   ), [cacheKey, cachedForCurrentRequest, state]);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const effectiveStateRef = useRef(effectiveState);
+  const requestOwnerRef = useRef(0);
   useEffect(() => {
     ensureWorkspaceLogisticsCacheInvalidationListener();
   }, []);
@@ -398,11 +461,14 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
   }, [effectiveState]);
 
   useEffect(() => {
+    const requestOwner = requestOwnerRef.current + 1;
+    requestOwnerRef.current = requestOwner;
     if (!enabled || mode === 'off') {
       setState({ cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' });
       return undefined;
     }
     let cancelled = false;
+    const ownsRequest = () => !cancelled && requestOwnerRef.current === requestOwner;
     const runDashboardRead = async () => {
       const requestPayload = JSON.parse(payloadKey || '{}');
       const expectedSummary = JSON.parse(summaryKey || '{}');
@@ -415,7 +481,11 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       if (primaryMode && cached?.payload && cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS) {
         setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
       }
-      if (cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS) DASHBOARD_READ_INFLIGHT.delete(cacheKey);
+      if (cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS) {
+        const staleInflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
+        if (staleInflight) staleInflight.superseded = true;
+        DASHBOARD_READ_INFLIGHT.delete(cacheKey);
+      }
       if (primaryMode) setState((current) => ({
         cacheKey,
         status: 'loading',
@@ -427,10 +497,17 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       try {
         let inflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
         if (!inflight) {
-          inflight = invokeDashboardApi(action, requestPayload).finally(() => DASHBOARD_READ_INFLIGHT.delete(cacheKey));
+          inflight = { requestId: `${Date.now()}:${Math.random()}`, superseded: false, promise: null };
+          inflight.promise = invokeDashboardApi(action, requestPayload).finally(() => {
+            if (DASHBOARD_READ_INFLIGHT.get(cacheKey) === inflight) DASHBOARD_READ_INFLIGHT.delete(cacheKey);
+          });
           DASHBOARD_READ_INFLIGHT.set(cacheKey, inflight);
         }
-        const { data, error } = await inflight;
+        const { data, error } = await inflight.promise;
+        if (inflight.superseded) {
+          if (ownsRequest()) setRefreshNonce((value) => value + 1);
+          return;
+        }
         if (error) throw error;
         const expectedBasisDate = String(firstDefined(requestPayload.basis_date, requestPayload.basisDate, '') || '');
         const invalidReason = dashboardReadInvalidReason(data, expectedBasisDate);
@@ -448,7 +525,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
             message,
             checked_at: new Date().toISOString(),
           };
-          if (!cancelled) {
+          if (ownsRequest()) {
             storeDashboardShadowDiff(report);
             setState((current) => ({
               cacheKey,
@@ -485,7 +562,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
           warnings: data.warnings || adapted.warnings || [],
           checked_at: new Date().toISOString(),
         };
-        if (!cancelled) {
+        if (ownsRequest()) {
           storeDashboardShadowDiff(report);
           DASHBOARD_READ_CACHE.set(cacheKey, { payload: adapted.payload, raw: data, checkedAt: report.checked_at });
           setState({
@@ -511,7 +588,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
           message,
           checked_at: new Date().toISOString(),
         };
-        if (!cancelled) {
+        if (ownsRequest()) {
           storeDashboardShadowDiff(report);
           setState((current) => ({
             cacheKey,
@@ -541,6 +618,8 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
         ? Date.now() - Date.parse(cached.checkedAt) > DASHBOARD_READ_REVALIDATE_MS
         : true;
       if (current?.status === 'blocked' || !current?.payload || stale) {
+        const inflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
+        if (inflight) inflight.superseded = true;
         DASHBOARD_READ_INFLIGHT.delete(cacheKey);
         setRefreshNonce((value) => value + 1);
       }
@@ -1108,6 +1187,9 @@ function assetPayloadFromDashboardRead(response, fallbackPayload = {}) {
   const monthlyCostTotal = firstDefined(summary.current_monthly_cost_total, fallbackNormalized.overview?.monthlyCostTotal);
   const tenantGroups = buildTenantContractGroups(rows);
   const detailAreaBreakdown = areaBreakdownFromDashboardDetails(readData.lease_space_area_breakdowns || []);
+  const floorplans = Array.isArray(readData.floor_plans)
+    ? readData.floor_plans
+    : (fallbackPayload.floorplans || fallbackPayload.overview?.floorplans || []);
   return {
     payload: {
       ...fallbackPayload,
@@ -1132,8 +1214,10 @@ function assetPayloadFromDashboardRead(response, fallbackPayload = {}) {
         monthlyCostTotal,
         uniqueTenantCount: tenantGroups.length,
         averageENoc: calculateWeightedENoc(rows, fallbackNormalized.overview?.averageENoc),
+        floorplans,
       },
       rows,
+      floorplans,
       areaBreakdown: {
         ...(fallbackPayload.areaBreakdown || {}),
         ...detailAreaBreakdown,
@@ -1838,9 +1922,12 @@ function companyStaticPayloadFor(candidate = {}) {
   if (tenantId && COMPANY_PAYLOADS[tenantId]) return COMPANY_PAYLOADS[tenantId];
   const nameKey = normalizeAssetNameKey(candidate.tenantMasterName || candidate.companyName || candidate.tenantName);
   if (!nameKey) return {};
-  return Object.values(COMPANY_PAYLOADS).find((payload) => (
-    normalizeAssetNameKey(payload.profile?.tenantMasterName || payload.profile?.company?.tenantMasterName) === nameKey
-  )) || {};
+  const option = companyOptionsData.find((item) => normalizeAssetNameKey(item.tenantMasterName || item.companyName) === nameKey);
+  return (option && COMPANY_PAYLOADS[option.tenantId])
+    || Object.values(COMPANY_PAYLOADS).find((payload) => (
+      normalizeAssetNameKey(payload.profile?.tenantMasterName || payload.profile?.company?.tenantMasterName) === nameKey
+    ))
+    || {};
 }
 
 function buildOpenDartRefreshTargets(companyOptions = [], generalRows = []) {
@@ -1904,6 +1991,8 @@ function findAssetPayload(assetId, assetName) {
   if (assetId && ASSET_PAYLOADS[assetId]) return ASSET_PAYLOADS[assetId];
   const normalizedName = String(assetName || '').replace(/\s+/gu, '');
   if (!normalizedName) return null;
+  const option = findAssetOption(assetId, assetName);
+  if (option?.assetId && ASSET_PAYLOADS[option.assetId]) return ASSET_PAYLOADS[option.assetId];
   return Object.values(ASSET_PAYLOADS).find((payload) => {
     const payloadName = String(payload?.overview?.assetName || payload?.meta?.selection?.assetName || '').replace(/\s+/gu, '');
     return payloadName === normalizedName;
@@ -2702,6 +2791,8 @@ function splitProjectEtcRows(value) {
 
 function findAssetPayloadByName(assetName) {
   const key = normalizeAssetNameKey(assetName);
+  const option = assetOptionsData.find((item) => normalizeAssetNameKey(item.assetName) === key);
+  if (option?.assetId && ASSET_PAYLOADS[option.assetId]) return ASSET_PAYLOADS[option.assetId];
   return Object.values(ASSET_PAYLOADS).find((payload) => normalizeAssetNameKey(payload?.overview?.assetName) === key) || null;
 }
 
@@ -4794,25 +4885,8 @@ function normalizeSearchText(value) {
 }
 
 function buildAssetSearchText(asset) {
-  const payload = findAssetPayload(asset.assetId, asset.assetName) || {};
-  const overview = payload.overview || {};
-  const rows = [
-    ...(payload.normalizedRows || []),
-    ...(payload.leaseSpaces || []),
-    ...(payload.contracts || []),
-    ...(payload.monthlyCostByTenant || []),
-  ];
-  const tenantNames = rows.map((row) => firstDefined(row.tenantMasterName, row.tenantName, row.companyName, row.rawTenantName)).filter(Boolean);
-  const rowTextValue = rows.slice(0, 80).map((row) => [
-    row.tenantMasterName,
-    row.tenantName,
-    row.companyName,
-    row.assetName,
-    row.spaceLabel,
-    row.floorLabel,
-    row.detailAreaLabel,
-    row.coldStorageType,
-  ].filter(Boolean).join(' ')).join(' ');
+  const indexEntry = assetSearchIndexData.assets?.[asset.assetId];
+  if (indexEntry?.searchText) return indexEntry.searchText;
   return [
     asset.assetName,
     asset.assetId,
@@ -4820,28 +4894,16 @@ function buildAssetSearchText(asset) {
     asset.fundName,
     asset.address,
     asset.standardizedAddress,
-    overview.assetName,
-    overview.fundName,
-    overview.standardizedAddress,
-    ...tenantNames,
-    rowTextValue,
   ].filter(Boolean).join(' ');
 }
 
 function buildTenantSearchText(tenant) {
-  const payload = COMPANY_PAYLOADS[tenant.tenantId] || {};
-  const profile = payload.profile || {};
-  const leasedAssets = payload.leasedAssets || payload.leases || [];
-  const assetNames = leasedAssets.map((row) => firstDefined(row.assetName, row.asset_name)).filter(Boolean);
   return [
     tenant.tenantMasterName,
     tenant.tenantId,
     tenant.businessRegistrationNo,
-    profile.tenantMasterName,
-    profile.companyName,
-    profile.businessRegistrationNo,
-    ...assetNames,
-    leasedAssets.slice(0, 80).map((row) => Object.values(row).filter((value) => typeof value !== 'object').join(' ')).join(' '),
+    tenant.companyName,
+    tenant.dartCorpCode,
   ].filter(Boolean).join(' ');
 }
 
@@ -4883,9 +4945,11 @@ function buildLogisticsSearchResults(query, permission) {
 }
 
 function DashboardSearchPreview({ result }) {
+  const assetPayloadState = useLazyAssetPayload(result?.type === 'asset' ? result.id : '', result?.type === 'asset');
+  const companyPayloadState = useLazyCompanyPayload(result?.type === 'tenant' ? result.id : '', result?.type === 'tenant');
   if (!result) return null;
   if (result.type === 'asset') {
-    const payload = findAssetPayload(result.id, result.label);
+    const payload = assetPayloadState.payload || findAssetPayload(result.id, result.label);
     const asset = normalizeAssetPayload(payload || {});
     const overview = asset.overview || {};
     const rows = asset.normalizedRows || [];
@@ -4944,7 +5008,7 @@ function DashboardSearchPreview({ result }) {
     );
   }
 
-  const payload = COMPANY_PAYLOADS[result.id];
+  const payload = companyPayloadState.payload || COMPANY_PAYLOADS[result.id];
   const company = normalizeCompanyPayload(payload || {});
   const profile = company.profile || {};
   const leasedAssets = company.normalizedLeasedAssets || [];
@@ -9006,7 +9070,7 @@ function sortExpiryRows(rows = []) {
 function buildStackingFloorsFromRows(rows = [], fallbackFloors = []) {
   const grouped = new Map();
   (rows || []).forEach((row) => {
-    const floorLabel = cleanDisplay(row.floorLabel || String(row.spaceLabel || '').split(/\s+/u)[0], '');
+    const floorLabel = normalizeStackingFloorLabelFromRow(row);
     if (!floorLabel) return;
     const leasedAreaSqm = Number(row.leasedAreaSqm || 0);
     const key = floorLabel.toUpperCase();
@@ -9032,6 +9096,8 @@ function buildStackingFloorsFromRows(rows = [], fallbackFloors = []) {
     }));
   }
   return (fallbackFloors || []).map((floor) => {
+    const floorLabel = normalizeStackingFloorLabel(floor.floorLabel);
+    if (!floorLabel) return null;
     const floorArea = Number(floor.leasedAreaSqm || 0);
     const tenants = (floor.tenants || []).map((tenant, index, tenantRows) => (
       typeof tenant === 'string'
@@ -9049,8 +9115,8 @@ function buildStackingFloorsFromRows(rows = [], fallbackFloors = []) {
             share: firstDefined(tenant.share, tenantRows.length ? 1 / tenantRows.length : 1),
           }
     ));
-    return { ...floor, tenants };
-  });
+    return { ...floor, floorLabel, tenants };
+  }).filter(Boolean);
 }
 
 function buildExpiryRowsFromRows(rows = []) {
@@ -10052,6 +10118,7 @@ function CompanyDashboard() {
   const [companyAssetSummarySortConfig, setCompanyAssetSummarySortConfig] = useState({ index: 1, direction: 'desc' });
   const [leasedAssetSortConfig, setLeasedAssetSortConfig] = useState({ index: 0, direction: 'asc' });
   const [leasedAssetDetailsOpen, setLeasedAssetDetailsOpen] = useState(false);
+  const staticCompanyPayloadState = useLazyCompanyPayload(selectedTenantId, Boolean(selectedTenantId));
   useEffect(() => {
     if (!readableCompanyOptions.length) return;
     if (readableCompanyOptions.some((item) => item.tenantId === selectedTenantId)) return;
@@ -10062,7 +10129,16 @@ function CompanyDashboard() {
     setDartApiStatus(null);
     setDartApiSummary(null);
   }, [readableCompanyOptions, selectedTenantId]);
-  const staticRawPayload = COMPANY_PAYLOADS[selectedTenantId] || COMPANY_PAYLOADS[defaultTenantId] || Object.values(COMPANY_PAYLOADS)[0];
+  const selectedCompanyOption = useMemo(() => (
+    readableCompanyOptions.find((company) => company.tenantId === selectedTenantId)
+      || companyOptionsData.find((company) => company.tenantId === selectedTenantId)
+      || {}
+  ), [readableCompanyOptions, selectedTenantId]);
+  const staticRawPayload = useMemo(() => (
+    staticCompanyPayloadState.payload
+      || COMPANY_PAYLOADS[selectedTenantId]
+      || { profile: selectedCompanyOption, leasedAssets: [] }
+  ), [selectedCompanyOption, selectedTenantId, staticCompanyPayloadState.payload]);
   const staticCompany = useMemo(() => normalizeCompanyPayload(staticRawPayload || {}), [staticRawPayload]);
   const staticCompanyAssets = staticCompany.normalizedLeasedAssets || [];
   const staticCompanySummary = {
@@ -11686,28 +11762,28 @@ function normalizeRemoteQualityFinding(row, index) {
   return {
     id: row.id || row.finding_id || `remote-${index}`,
     severity: String(row.severity || row.level || row.status || 'warning').toLowerCase(),
-    sheetName: row.sheet_name || row.sheetName || row.source_sheet || row.table_name || row.target_table || 'll_audit_events',
-    targetType: row.target_type || row.entity_type || row.table_name || 'finding',
+    sheetName: row.sheet_name || row.sheetName || row.source_sheet || row.source_kind || row.origin || 'quality_finding',
+    targetType: row.target_type || row.entity_type || row.target_kind || 'finding',
     target: targetName,
     assetName,
     tenantName,
     field: row.field_name || row.field || row.column_name || row.rule_name || '-',
     reason: row.reason_code || row.failure_reason || row.issue_type || row.reason || row.status || 'unknown',
     action: row.suggested_fix || row.action || row.message || row.detail || '원본 값과 정규화 결과 대조 필요',
-    sourceTable: row.source_table || row.sourceTable || 'public.ll_audit_events',
+    sourceTable: row.source_table || row.sourceTable || '',
+    sourceKind: row.source_kind || row.sourceKind || row.origin || 'quality_finding',
     raw: { ...row, event_payload: eventPayload },
   };
 }
 
 function inferQualityTargetTable(finding) {
   const source = String(finding?.sourceTable || finding?.raw?.target_table || finding?.raw?.table_name || finding?.sheetName || '');
-  if (/history|히스토리|rent/i.test(source)) return 'public.ll_rent_history';
-  if (/company|기업/i.test(source)) return 'public.ll_tenants';
-  if (/asset|자산/i.test(source)) return 'public.ll_assets';
-  if (/weekly/i.test(source)) return 'public.ll_weekly_records';
-  if (source === 'public.ll_companies') return 'public.ll_tenants';
-  if (source === 'public.ll_leasing_contracts') return 'public.ll_lease_spaces';
-  return source.startsWith('public.ll_') ? source : 'public.ll_lease_spaces';
+  if (/history|히스토리|rent/i.test(source)) return 'rent_history';
+  if (/company|기업/i.test(source)) return 'tenant';
+  if (/asset|자산/i.test(source)) return 'asset';
+  if (/weekly/i.test(source)) return 'weekly_asset';
+  if (/contract|lease|임대차/i.test(source)) return 'lease_space';
+  return finding?.targetType || 'lease_space';
 }
 
 function buildDataQualityEditGridRows(finding) {
@@ -11838,7 +11914,7 @@ const QUALITY_TARGET_TYPE_LABELS = {
   finding: '점검 항목',
   home_kpi: '홈 집계값',
   lease_space: '계약 구역',
-  ll_audit_events: '점검 기록',
+  quality_finding: '점검 기록',
   ll_assets: '자산',
   ll_tenants: '임차인/회사',
   rent_history: '임대료 변경 이력',
@@ -11848,29 +11924,26 @@ const QUALITY_TARGET_TYPE_LABELS = {
 };
 
 const QUALITY_SOURCE_LABELS = {
-  ll_audit_events: '무결성 점검 기록',
-  ll_assets: '자산 정보',
-  ll_tenants: '임차인 정보',
-  ll_companies: '임차인 정보',
-  ll_rent_history: '임대료 변경 이력',
-  ll_lease_spaces: '계약 구역',
-  ll_leases: '임대차계약',
-  ll_leasing_contracts: '임대차계약',
-  ll_weekly_records: '주간 자산 기록',
-  ll_payload_snapshots: '대시보드 스냅샷',
-  ll_source_rows: '원천 보관 행',
+  quality_finding: '무결성 점검 기록',
+  asset: '자산 정보',
+  tenant: '임차인 정보',
+  rent_history: '임대료 변경 이력',
+  lease_space: '계약 구역',
+  weekly_asset: '주간 자산 기록',
+  dashboard_snapshot: '대시보드 스냅샷',
+  source_record: '원천 보관 행',
 };
 
 function qualitySourceLabel(value, fallback = '-') {
   const text = cleanDisplay(value, fallback);
   if (!text || text === fallback) return fallback;
   const lower = text.toLowerCase();
-  if (/supabase\s+ll_.*readback/iu.test(text)) return '서버 저장값 재확인';
-  if (/payload_snapshots|snapshot/iu.test(text)) return '대시보드 스냅샷';
-  const tableMatch = lower.match(/(?:public\.)?(ll_[a-z_]+)/iu);
-  if (tableMatch?.[1]) return QUALITY_SOURCE_LABELS[tableMatch[1]] || '운영 데이터';
-  if (/source[_\s-]*row|source[_\s-]*cell/iu.test(text)) return text.replace(/source[_\s-]*row/giu, '원천 행').replace(/source[_\s-]*cell/giu, '원천 셀');
+  if (QUALITY_SOURCE_LABELS[lower]) return QUALITY_SOURCE_LABELS[lower];
+  if (/readback/iu.test(text)) return '서버 저장값 재확인';
+  if (/snapshot/iu.test(text)) return '대시보드 스냅샷';
+  if (/source[_\s-]*(row|cell)/iu.test(text)) return '원천 데이터';
   if (/payload/iu.test(text)) return '저장 스냅샷';
+  if (/(?:public\.)?ll_[a-z_]+/iu.test(text)) return '운영 데이터';
   return text;
 }
 
@@ -12817,7 +12890,8 @@ function buildQualityExcelRows(assetId, permission, findings, sourceRowsOverride
   return [...dataRows, ...findingRows];
 }
 
-function writeQualityWorkbook(rows, fileName) {
+async function writeQualityWorkbook(rows, fileName) {
+  const XLSX = await loadXlsxModule();
   const worksheet = XLSX.utils.json_to_sheet(rows, { header: QUALITY_EXCEL_COLUMNS });
   const widthByColumn = {
     행위: 8,
@@ -12853,6 +12927,7 @@ function writeQualityWorkbook(rows, fileName) {
 }
 
 async function readQualityWorkbook(file) {
+  const XLSX = await loadXlsxModule();
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: false });
   if (workbook.SheetNames.length !== 1) throw new Error('수정 Excel 파일은 반드시 한 시트만 포함해야 합니다.');
@@ -12945,7 +13020,7 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
   ), [assetOptions, permission]);
   const canUseQualityExcel = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete);
 
-  const downloadQualityWorkbook = () => {
+  const downloadQualityWorkbook = async () => {
     const rows = buildQualityExcelRows(qualityAssetId, permission, qualityFindings, sourceRows);
     if (!rows.length) {
       setExcelStatus({ type: 'error', message: '선택한 자산 범위에서 다운로드할 수정 대상 데이터가 없습니다.' });
@@ -12954,8 +13029,13 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
     const assetName = qualityAssetId === 'all'
       ? '담당자산전체'
       : (qualityAssetOptions.find((asset) => asset.assetId === qualityAssetId)?.assetName || qualityAssetId);
-    writeQualityWorkbook(rows, `물류_원본데이터수정_${safeFileNameText(assetName)}_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    setExcelStatus({ type: 'success', message: `${assetName} 기준 ${formatNumber(rows.length)}개 항목 수정 파일을 다운로드했습니다.` });
+    setExcelStatus({ type: 'pending', message: 'Excel 파일을 준비하고 있습니다.' });
+    try {
+      await writeQualityWorkbook(rows, `물류_원본데이터수정_${safeFileNameText(assetName)}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      setExcelStatus({ type: 'success', message: `${assetName} 기준 ${formatNumber(rows.length)}개 항목 수정 파일을 다운로드했습니다.` });
+    } catch (error) {
+      setExcelStatus({ type: 'error', message: error?.message || 'Excel 파일을 만들지 못했습니다.' });
+    }
   };
 
   const importQualityWorkbook = async (event) => {
@@ -13012,7 +13092,7 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
         : (qualityAssetOptions.find((asset) => asset.assetId === qualityAssetId)?.assetName || qualityAssetId);
       const uploadAt = new Date().toISOString();
       const { data, error } = await invokeDashboardApi('edits/submit', {
-            source_table: 'public.ll_audit_events',
+            source_kind: 'quality_finding',
             finding_id: null,
             target_type: 'excel_batch',
             target_name: `${assetName} · 원본 데이터 수정`,
@@ -13031,7 +13111,7 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
               acceptedRows: editableRows.length,
               blockedRows: blockedRows.length,
               selectedQualityAssetId: qualityAssetId,
-              permission_source: 'Supabase ll_user_permissions',
+              permission_source: 'access_control',
               cell_edits: cellEdits,
             },
       });
@@ -13209,7 +13289,8 @@ function DataQualityDashboard() {
     setEditSubmitStatus({ type: 'pending', message: '수정 요청 저장 중' });
     try {
       const { data, error } = await invokeDashboardApi('edits/submit', {
-            source_table: editTarget.sourceTable || 'public.ll_audit_events',
+            source_kind: editTarget.sourceKind || 'quality_finding',
+            source_table: editTarget.sourceTable || undefined,
             finding_id: editTarget.id || null,
             target_type: editTarget.targetType,
             target_name: editTarget.target,
@@ -13231,7 +13312,7 @@ function DataQualityDashboard() {
             request_payload: {
               finding: editTarget.raw || editTarget,
               cell_edits: changedEditRows,
-              permission_source: 'Supabase ll_user_permissions',
+              permission_source: 'access_control',
               notification: {
                 type: 'data_quality_owner_request',
                 target_label: qualityTargetLabel(editTarget),
@@ -13518,6 +13599,7 @@ function AssetDashboard() {
   const [modal, setModal] = useState(null);
   const [buildingRegisterSummary, setBuildingRegisterSummary] = useState(null);
   const [rosterSortConfig, setRosterSortConfig] = useState({ index: 1, direction: 'desc' });
+  const staticAssetPayloadState = useLazyAssetPayload(selectedAssetId, Boolean(selectedAssetId));
   useEffect(() => {
     if (!readableAssetOptions.length) return;
     if (readableAssetOptions.some((asset) => asset.assetId === selectedAssetId)) return;
@@ -13527,7 +13609,16 @@ function AssetDashboard() {
     setSelectedAssetId(nextAssetId);
     setBuildingRegisterSummary(null);
   }, [readableAssetOptions, selectedAssetId]);
-  const staticRawPayload = ASSET_PAYLOADS[selectedAssetId] || ASSET_PAYLOADS[defaultAssetId] || Object.values(ASSET_PAYLOADS)[0];
+  const selectedAssetOption = useMemo(() => (
+    readableAssetOptions.find((asset) => asset.assetId === selectedAssetId)
+      || assetOptionsData.find((asset) => asset.assetId === selectedAssetId)
+      || {}
+  ), [readableAssetOptions, selectedAssetId]);
+  const staticRawPayload = useMemo(() => (
+    staticAssetPayloadState.payload
+      || ASSET_PAYLOADS[selectedAssetId]
+      || { overview: selectedAssetOption, rows: [] }
+  ), [selectedAssetId, selectedAssetOption, staticAssetPayloadState.payload]);
   const staticAsset = useMemo(() => normalizeAssetPayload(staticRawPayload || {}), [staticRawPayload]);
   const assetReadAdapter = useMemo(() => (
     (response) => assetPayloadFromDashboardRead(response, staticRawPayload)
@@ -14136,9 +14227,10 @@ function PdfReportBuilder() {
   const unselectedComponentOptions = useMemo(() => componentOptions.filter((option) => !activeComponentIds.includes(option.id)), [activeComponentIds, componentOptions]);
   const orderedComponentOptions = useMemo(() => [...selectedComponentOptions, ...unselectedComponentOptions], [selectedComponentOptions, unselectedComponentOptions]);
   const selectedAsset = readableAssets.find((asset) => asset.assetId === selectedAssetId) || readableAssets[0] || {};
-  const staticAssetPayload = useMemo(() => (
-    findAssetPayload(selectedAsset.assetId, selectedAsset.assetName)
-  ), [selectedAsset.assetId, selectedAsset.assetName]);
+  const staticAssetPayloadState = useLazyAssetPayload(selectedAsset.assetId, Boolean(selectedAsset.assetId));
+  const staticAssetPayload = staticAssetPayloadState.payload
+    || findAssetPayload(selectedAsset.assetId, selectedAsset.assetName)
+    || { overview: selectedAsset, rows: [] };
   const pdfAssetReadAdapter = useMemo(() => (
     (response) => assetPayloadFromDashboardRead(response, findAssetPayload(selectedAsset.assetId, selectedAsset.assetName))
   ), [selectedAsset.assetId, selectedAsset.assetName]);

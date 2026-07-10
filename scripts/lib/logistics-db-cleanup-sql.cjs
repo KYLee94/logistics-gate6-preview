@@ -44,6 +44,11 @@ relations as (
     end as object_kind,
     c.relkind in ('r', 'p', 'v', 'm', 'f') as data_bearing,
     pg_get_userbyid(c.relowner) as object_owner,
+    case when c.relkind = 'v' then coalesce((
+      select option_value::boolean
+      from pg_options_to_table(c.reloptions)
+      where option_name = 'security_invoker'
+    ), false) else false end as security_invoker,
     c.relrowsecurity as rls_enabled,
     c.relforcerowsecurity as rls_forced,
     case when c.relkind in ('r', 'p', 'm') then pg_relation_size(c.oid) else 0 end::text as relation_size_bytes,
@@ -256,6 +261,26 @@ missing_primary_keys as (
       where con.conrelid = r.oid and con.contype = 'p'
     )
 ),
+missing_pk_indexes as (
+  select
+    n.nspname as schema_name,
+    rel.relname as object_name,
+    con.conname as constraint_name
+  from pg_constraint con
+  join pg_class rel on rel.oid = con.conrelid
+  join pg_namespace n on n.oid = rel.relnamespace
+  where con.contype = 'p'
+    and n.nspname = 'public'
+    and rel.relname like 'll\_%' escape '\'
+    and not exists (
+      select 1
+      from pg_index ix
+      where ix.indexrelid = con.conindid
+        and ix.indisprimary
+        and ix.indisvalid
+        and ix.indisready
+    )
+),
 foreign_keys as (
   select
     con.oid,
@@ -414,6 +439,7 @@ select jsonb_build_object(
   'grants', (select coalesce(jsonb_agg(to_jsonb(g) order by g.schema_name, g.object_name, g.grantee, g.privilege_type), '[]'::jsonb) from grants_catalog g),
   'dependencies', (select coalesce(jsonb_agg(to_jsonb(d) order by d.dependent_object, d.referenced_object, d.dependency_type), '[]'::jsonb) from dependencies_catalog d),
   'missing_primary_keys', (select coalesce(jsonb_agg(to_jsonb(m) order by m.schema_name, m.object_name), '[]'::jsonb) from missing_primary_keys m),
+  'missing_pk_indexes', (select coalesce(jsonb_agg(to_jsonb(m) order by m.schema_name, m.object_name, m.constraint_name), '[]'::jsonb) from missing_pk_indexes m),
   'missing_fk_indexes', (select coalesce(jsonb_agg(to_jsonb(m) order by m.schema_name, m.object_name, m.constraint_name), '[]'::jsonb) from missing_fk_indexes m),
   'table_usage', (select coalesce(jsonb_agg(to_jsonb(u) order by u.schema_name, u.object_name), '[]'::jsonb) from table_usage u),
   'index_usage', (select coalesce(jsonb_agg(to_jsonb(u) order by u.schema_name, u.object_name, u.index_name), '[]'::jsonb) from index_usage u),

@@ -23,7 +23,6 @@ const EXPECTED_PAIR_NEEDLE = envValue('QA_DM_EXPECTED_PAIR_NEEDLE') || argsValue
 const MIN_LL_TABLES = Number(envValue('QA_DM_MIN_LL_TABLES') || 25);
 const PREVIEW_ATTEMPT_LIMIT = Number(envValue('QA_DM_PREVIEW_ATTEMPT_LIMIT') || 30);
 const VOLATILE_ROW_COUNT_TABLES = new Set([
-  'll_audit_events',
   'll_api_audit_logs',
   'll_cache_entries',
   'll_external_api_cache',

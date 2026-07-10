@@ -9,6 +9,11 @@ const ARTIFACT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'db-clea
 const PRODUCTION_PROJECT_REF = 'qvegpozwrcmspdvjokiz';
 const MANIFEST_SCHEMA_VERSION = 'gate6-db-cleanup-manifest/v1';
 const DELTA_SCHEMA_VERSION = 'gate6-db-cleanup-approved-delta/v1';
+const REHEARSAL_EVIDENCE_SCHEMA_VERSION = 'gate6-db-cleanup-rehearsal-evidence/v1';
+const PROTECTED_HOLD_RELATIONS = new Set([
+  'public.ll_source_rows',
+  'public.ll_source_review_logs',
+]);
 const REMOTE_BASELINE_RELATIONS = new Map([
   ['ll_assets', { kind: 'table', source: 'remote_baseline' }],
   ['ll_tenants', { kind: 'table', source: 'remote_baseline' }],
@@ -47,6 +52,10 @@ function attachManifestSha(manifest) {
   return next;
 }
 
+function isExplicitApprovedManifest(manifest) {
+  return manifest?.safety_gate?.explicit_approved_manifest === true;
+}
+
 function verifyManifest(manifest) {
   const errors = [];
   if (!manifest || typeof manifest !== 'object') return { ok: false, errors: ['manifest must be an object'] };
@@ -55,6 +64,8 @@ function verifyManifest(manifest) {
   if (!manifest.provenance?.project_ref) errors.push('manifest project_ref is required');
   if (manifest.snapshot?.transaction_isolation !== 'repeatable read') errors.push('manifest was not captured with repeatable read');
   if (!['on', 'true'].includes(String(manifest.snapshot?.transaction_read_only || '').toLowerCase())) errors.push('manifest was not captured read-only');
+  if (manifest?.safety_gate?.decision !== 'hold') errors.push('manifest safety gate must remain hold');
+  if (manifest?.safety_gate?.explicit_approved_manifest_required !== true) errors.push('manifest must require an explicit approved manifest for DROP');
   const expected = attachManifestSha(manifest).manifest_sha256;
   if (!/^[a-f0-9]{64}$/u.test(String(manifest.manifest_sha256 || ''))) errors.push('manifest SHA-256 is missing or invalid');
   else if (manifest.manifest_sha256 !== expected) errors.push('manifest SHA-256 does not match canonical content');
@@ -103,6 +114,20 @@ function readMigrationFiles(root = ROOT) {
 function localMigrationHead(files = readMigrationFiles()) {
   const versions = files.map((file) => file.name.match(/^(\d+)/u)?.[1]).filter(Boolean).sort();
   return versions.at(-1) || '';
+}
+
+function migrationVersionsFromFiles(files) {
+  return files
+    .map((file) => file.name.match(/^(\d+)/u)?.[1])
+    .filter(Boolean)
+    .sort();
+}
+
+function migrationVersionsFromRows(rows) {
+  return asArray(rows)
+    .map((row) => stringValue(row?.version))
+    .filter(Boolean)
+    .sort();
 }
 
 function localGitSha(root = ROOT) {
@@ -222,6 +247,10 @@ function stringValue(value) {
   return String(value);
 }
 
+function protectedHoldReason(qualifiedName) {
+  return PROTECTED_HOLD_RELATIONS.has(qualifiedName) ? 'archive_review_hold' : 'operational_hold';
+}
+
 function sortRows(rows, fields) {
   return [...rows].sort((left, right) => {
     for (const field of fields) {
@@ -265,7 +294,9 @@ function buildObjectInventory(snapshot) {
     const objectIndexUsage = sortRows(rowsForObject(indexUsage, relation), ['index_name']);
     const structure = {
       object_kind: relation.object_kind,
+      relkind: relation.relkind || null,
       object_owner: relation.object_owner,
+      security_invoker: Boolean(relation.security_invoker),
       rls_enabled: relation.rls_enabled,
       rls_forced: relation.rls_forced,
       definition_sql: relation.definition_sql || null,
@@ -277,16 +308,20 @@ function buildObjectInventory(snapshot) {
       dependencies: objectDependencies,
     };
     const relationStat = stats.get(qualifiedName) || {};
+    const holdReason = protectedHoldReason(qualifiedName);
     return {
       schema_name: relation.schema_name,
       object_name: relation.object_name,
       qualified_name: qualifiedName,
       object_kind: relation.object_kind,
+      relkind: relation.relkind || null,
       object_owner: relation.object_owner,
+      security_invoker: Boolean(relation.security_invoker),
       rls_enabled: Boolean(relation.rls_enabled),
       rls_forced: Boolean(relation.rls_forced),
       relation_size_bytes: stringValue(relation.relation_size_bytes),
       total_size_bytes: stringValue(relation.total_size_bytes),
+      estimated_row_count: stringValue(relationStat.estimated_row_count),
       exact_count: stringValue(relationStat.exact_count),
       canonical_json_sha256: relationStat.canonical_json_sha256 || null,
       structure_sha256: sha256Text(canonicalStringify(structure)),
@@ -302,6 +337,10 @@ function buildObjectInventory(snapshot) {
       usage,
       index_usage: objectIndexUsage,
       object_comment: relation.object_comment || null,
+      decision: 'hold',
+      hold_reason: holdReason,
+      explicit_approved_manifest_required: true,
+      preflight_drop_eligible: false,
     };
   }).sort((left, right) => left.qualified_name.localeCompare(right.qualified_name));
 }
@@ -310,6 +349,7 @@ function compareExpectedObjects(objects, expectedRelations) {
   const actual = new Map(objects.map((object) => [object.object_name, object]));
   const missingExpectedObjects = [];
   const typeMismatches = [];
+  const relkindMismatches = [];
   const expectedDroppedPresent = [];
   const unexpectedObjects = [];
   for (const [name, expected] of expectedRelations.active) {
@@ -320,7 +360,15 @@ function compareExpectedObjects(objects, expectedRelations) {
     }
     const compatibleTable = expected.kind === 'table' && ['table', 'partitioned_table'].includes(found.object_kind);
     if (!compatibleTable && found.object_kind !== expected.kind) {
-      typeMismatches.push({ object_name: name, expected_kind: expected.kind, actual_kind: found.object_kind });
+      const mismatch = {
+        object_name: name,
+        expected_kind: expected.kind,
+        actual_kind: found.object_kind,
+        expected_relkind: expectedRelkindForObjectKind(expected.kind),
+        actual_relkind: found.relkind || null,
+      };
+      typeMismatches.push(mismatch);
+      relkindMismatches.push(mismatch);
     }
   }
   for (const [name, expected] of expectedRelations.dropped) {
@@ -335,15 +383,25 @@ function compareExpectedObjects(objects, expectedRelations) {
     missing_expected_objects: missingExpectedObjects,
     unexpected_objects: unexpectedObjects,
     type_mismatches: typeMismatches,
+    relkind_mismatches: relkindMismatches,
     expected_dropped_present: expectedDroppedPresent,
   };
 }
 
+function expectedRelkindForObjectKind(objectKind) {
+  return {
+    table: 'r',
+    partitioned_table: 'p',
+    view: 'v',
+    materialized_view: 'm',
+    foreign_table: 'f',
+  }[objectKind] || null;
+}
+
 function buildStorageInventory(snapshot) {
   const buckets = sortRows(asArray(snapshot.storage_buckets), ['id']);
-  const objects = sortRows(asArray(snapshot.storage_objects), ['bucket_id', 'name', 'id']);
   const policies = sortRows(asArray(snapshot.storage_policies), ['tablename', 'policyname']);
-  const inventory = { buckets, objects, policies };
+  const inventory = { buckets, objects: [], policies };
   return { ...inventory, storage_manifest_sha256: sha256Text(canonicalStringify(inventory)) };
 }
 
@@ -351,7 +409,6 @@ function buildPreflightManifest(snapshot, options = {}) {
   if (!snapshot || typeof snapshot !== 'object') throw new Error('Database snapshot is missing.');
   if (snapshot.transaction_isolation !== 'repeatable read') throw new Error(`Unexpected transaction isolation: ${snapshot.transaction_isolation}`);
   if (!['on', 'true'].includes(String(snapshot.transaction_read_only || '').toLowerCase())) throw new Error('Database snapshot was not read-only.');
-  if (snapshot.pgcrypto_digest_available !== true) throw new Error('pgcrypto digest(bytea,text) is required for SHA-256 checksums.');
   const projectRef = options.projectRef || readLinkedProjectRef(options.root || ROOT);
   if (!projectRef) throw new Error('Linked Supabase project ref was not found.');
   const migrationFiles = options.migrationFiles || readMigrationFiles(options.root || ROOT);
@@ -360,10 +417,20 @@ function buildPreflightManifest(snapshot, options = {}) {
   const expectedDiagnostics = compareExpectedObjects(objects, expectedRelations);
   const localHead = options.localMigrationHead || localMigrationHead(migrationFiles);
   const databaseHead = stringValue(snapshot.database_migration_head) || '';
+  const localMigrationVersions = migrationVersionsFromFiles(migrationFiles);
+  const databaseMigrationVersions = migrationVersionsFromRows(snapshot.database_migrations);
+  const migrationHeadMismatch = localHead !== databaseHead;
+  const migrationCatalogMismatch = canonicalStringify(localMigrationVersions) !== canonicalStringify(databaseMigrationVersions);
+  const protectedHoldObjects = objects
+    .filter((object) => PROTECTED_HOLD_RELATIONS.has(object.qualified_name))
+    .map((object) => object.qualified_name);
   const diagnostics = {
-    migration_mismatch: localHead !== databaseHead,
+    migration_mismatch: migrationHeadMismatch || migrationCatalogMismatch,
+    migration_head_mismatch: migrationHeadMismatch,
+    migration_catalog_mismatch: migrationCatalogMismatch,
     ...expectedDiagnostics,
     missing_primary_keys: asArray(snapshot.missing_primary_keys),
+    missing_pk_indexes: asArray(snapshot.missing_pk_indexes),
     missing_fk_indexes: asArray(snapshot.missing_fk_indexes),
     pg_stat_statements_available: Boolean(snapshot.pg_stat_statements_available),
     pgcrypto_digest_available: Boolean(snapshot.pgcrypto_digest_available),
@@ -378,9 +445,11 @@ function buildPreflightManifest(snapshot, options = {}) {
       git_sha: options.gitSha || localGitSha(options.root || ROOT),
       local_migration_head: localHead,
       database_migration_head: databaseHead,
+      local_migration_versions_sha256: sha256Text(canonicalStringify(localMigrationVersions)),
+      database_migration_versions_sha256: sha256Text(canonicalStringify(databaseMigrationVersions)),
       collection_command: 'npx --yes supabase db query --linked --file <temporary-read-only-sql> -o json',
       collector: 'scripts/qa/logistics-db-cleanup-preflight.cjs',
-      collector_version: 1,
+      collector_version: 2,
     },
     snapshot: {
       captured_at: snapshot.captured_at,
@@ -399,6 +468,18 @@ function buildPreflightManifest(snapshot, options = {}) {
       publications: asArray(snapshot.publications),
     },
     diagnostics,
+    safety_gate: {
+      decision: 'hold',
+      explicit_approved_manifest_required: true,
+      explicit_approved_manifest: Boolean(options.explicitApprovedManifest),
+      automatic_drop_allowed: false,
+      protected_hold_objects: protectedHoldObjects,
+      blockers: [
+        'Preflight is catalog-only and never authorizes DROP by itself.',
+        'DROP remains forbidden unless a separate explicit approved manifest is supplied.',
+        'Archive-review protected objects remain hold: public.ll_source_rows, public.ll_source_review_logs.',
+      ],
+    },
   });
 }
 
@@ -430,10 +511,55 @@ function objectMap(manifest) {
   return new Map((manifest.objects || []).map((object) => [object.qualified_name, object]));
 }
 
+function viewRollbackMetadata(object) {
+  return {
+    security_invoker: Boolean(object?.security_invoker),
+    owner: object?.object_owner || null,
+    grants: object?.grants || [],
+    dependencies: object?.dependencies || [],
+  };
+}
+
+function validatePreflightDiagnostics(manifest) {
+  const blockers = [];
+  const diagnostics = manifest?.diagnostics;
+  if (!diagnostics || typeof diagnostics !== 'object' || Array.isArray(diagnostics)) {
+    return { ok: false, blockers: ['preflight diagnostics are missing or invalid'] };
+  }
+  if (manifest?.safety_gate?.decision !== 'hold') blockers.push('preflight safety gate must remain hold');
+  if (manifest?.safety_gate?.explicit_approved_manifest_required !== true) blockers.push('preflight must require an explicit approved manifest for DROP');
+  if (!isExplicitApprovedManifest(manifest)) blockers.push('explicit approved manifest is required before any DROP can run');
+  for (const key of ['migration_mismatch', 'migration_head_mismatch', 'migration_catalog_mismatch']) {
+    if (typeof diagnostics[key] !== 'boolean') blockers.push(`preflight diagnostic ${key} is missing or invalid`);
+    else if (diagnostics[key]) blockers.push(`preflight diagnostic ${key} blocks apply`);
+  }
+  const arrayDiagnostics = [
+    ['missing_expected_objects', 'expected relation is missing'],
+    ['type_mismatches', 'relation type mismatch'],
+    ['relkind_mismatches', 'relation relkind mismatch'],
+    ['expected_dropped_present', 'migration-dropped relation is still present'],
+    ['missing_primary_keys', 'primary key is missing'],
+    ['missing_pk_indexes', 'primary key index is missing or invalid'],
+    ['missing_fk_indexes', 'foreign key index is missing or invalid'],
+  ];
+  for (const [key, label] of arrayDiagnostics) {
+    if (!Array.isArray(diagnostics[key])) blockers.push(`preflight diagnostic ${key} is missing or invalid`);
+    else if (diagnostics[key].length > 0) blockers.push(`preflight diagnostic ${label} blocks apply (${diagnostics[key].length})`);
+  }
+  return { ok: blockers.length === 0, blockers };
+}
+
+function assertPreflightApplyGate(manifest) {
+  const result = validatePreflightDiagnostics(manifest);
+  if (!result.ok) throw new Error(`Preflight diagnostics gate failed: ${result.blockers.join('; ')}`);
+  return result;
+}
+
 function validateApprovedDelta(delta, preManifest) {
   const errors = [];
   const manifestValidation = verifyManifest(preManifest);
   if (!manifestValidation.ok) errors.push(...manifestValidation.errors.map((error) => `pre-manifest: ${error}`));
+  if (!isExplicitApprovedManifest(preManifest)) errors.push('pre-manifest must be an explicit approved manifest before DROP is allowed');
   if (!delta || typeof delta !== 'object') return { ok: false, errors: ['approved delta must be an object'] };
   if (delta.schema_version !== DELTA_SCHEMA_VERSION) errors.push(`unsupported approved delta schema: ${delta.schema_version}`);
   if (delta.project_ref !== preManifest?.provenance?.project_ref) errors.push('approved delta project_ref does not match pre-manifest');
@@ -453,10 +579,25 @@ function validateApprovedDelta(delta, preManifest) {
       continue;
     }
     if (operation.object_kind !== current.object_kind) errors.push(`object kind mismatch for ${operation.qualified_name}`);
+    if (current.decision !== 'hold') errors.push(`pre-manifest object decision must remain hold for ${operation.qualified_name}`);
+    if (current.explicit_approved_manifest_required !== true) errors.push(`pre-manifest object must require explicit approved manifest for ${operation.qualified_name}`);
+    if (current.hold_reason === 'archive_review_hold') errors.push(`archive-review protected object cannot be dropped: ${operation.qualified_name}`);
+    if (current.exact_count === null || current.canonical_json_sha256 === null) errors.push(`explicit approved manifest must include exact count and canonical checksum for ${operation.qualified_name}`);
     if (String(operation.expected_exact_count) !== String(current.exact_count)) errors.push(`exact count mismatch for ${operation.qualified_name}`);
     if (operation.expected_canonical_json_sha256 !== current.canonical_json_sha256) errors.push(`canonical checksum mismatch for ${operation.qualified_name}`);
     if (operation.expected_structure_sha256 !== current.structure_sha256) errors.push(`structure checksum mismatch for ${operation.qualified_name}`);
     if (!operation.rollback || typeof operation.rollback !== 'object') errors.push(`rollback contract is required for ${operation.qualified_name}`);
+    if (['migration_name', 'migration_path', 'migration_sql', 'legacy_migration', 'replay_migration'].some((key) => Object.hasOwn(operation, key))) {
+      errors.push(`manual migration replay is forbidden for ${operation.qualified_name}`);
+    }
+    if (current.object_kind === 'view') {
+      const rollback = operation.rollback || {};
+      if (rollback.strategy !== 'recreate_view') errors.push(`recreate_view rollback strategy is required for ${operation.qualified_name}`);
+      if (!rollback.definition_sql || rollback.definition_sql !== current.definition_sql) errors.push(`view definition rollback does not match manifest for ${operation.qualified_name}`);
+      if (canonicalStringify(rollback.view_metadata) !== canonicalStringify(viewRollbackMetadata(current))) {
+        errors.push(`view metadata rollback does not match manifest for ${operation.qualified_name}`);
+      }
+    }
   }
   return { ok: errors.length === 0, errors, operation_count: operations.length };
 }
@@ -515,6 +656,119 @@ function assertStagingTarget(projectRef, productionProjectRef = PRODUCTION_PROJE
   return true;
 }
 
+function validTimestamp(value) {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value));
+}
+
+function validateRehearsalEvidence(evidence, preManifest, approvedDelta, options = {}) {
+  const blockers = [];
+  if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
+    return { ok: false, blockers: ['backup and restore evidence is required'] };
+  }
+  const projectRef = options.projectRef || approvedDelta?.project_ref;
+  if (evidence.schema_version !== REHEARSAL_EVIDENCE_SCHEMA_VERSION) blockers.push('rehearsal evidence schema version is missing or unsupported');
+  if (evidence.environment !== 'staging') blockers.push('rehearsal evidence must be captured in staging');
+  if (evidence.project_ref !== projectRef) blockers.push('rehearsal evidence project_ref does not match staging target');
+  if (evidence.pre_manifest_sha256 !== preManifest?.manifest_sha256) blockers.push('rehearsal evidence pre-manifest SHA does not match');
+  if (evidence.approved_delta_sha256 !== sha256Text(canonicalStringify(approvedDelta))) blockers.push('rehearsal evidence approved delta SHA does not match');
+  if (!validTimestamp(evidence.backup?.captured_at)) blockers.push('backup evidence captured_at is required');
+  if (!validTimestamp(evidence.restore?.completed_at)) blockers.push('restore evidence completed_at is required');
+  if (validTimestamp(evidence.backup?.captured_at) && validTimestamp(evidence.restore?.completed_at)
+    && Date.parse(evidence.backup.captured_at) > Date.parse(evidence.restore.completed_at)) {
+    blockers.push('backup evidence must precede restore evidence');
+  }
+
+  const artifacts = Array.isArray(evidence.backup?.artifacts) ? evidence.backup.artifacts : [];
+  if (!artifacts.length) blockers.push('backup evidence must include at least one artifact');
+  let verifiedBackupArtifactCount = 0;
+  for (const artifact of artifacts) {
+    if (!['schema', 'data'].includes(artifact?.kind)) {
+      blockers.push('backup artifact kind must be schema or data');
+      continue;
+    }
+    if (typeof artifact?.qualified_name !== 'string' || !/^public\.ll_[a-z0-9_]+$/u.test(artifact.qualified_name)) {
+      blockers.push('backup artifact qualified_name is invalid');
+      continue;
+    }
+    if (typeof artifact?.path !== 'string' || !artifact.path) {
+      blockers.push(`backup artifact path is required for ${artifact.qualified_name}`);
+      continue;
+    }
+    const artifactPath = path.resolve(options.evidenceBaseDir || ROOT, artifact.path);
+    if (!fs.existsSync(artifactPath) || !fs.statSync(artifactPath).isFile()) {
+      blockers.push(`backup artifact is missing: ${artifact.qualified_name}`);
+      continue;
+    }
+    const actualBytes = fs.statSync(artifactPath).size;
+    if (!Number.isInteger(artifact.byte_count) || artifact.byte_count <= 0 || artifact.byte_count !== actualBytes) {
+      blockers.push(`backup artifact byte count does not match: ${artifact.qualified_name}`);
+      continue;
+    }
+    if (!/^[a-f0-9]{64}$/u.test(String(artifact.sha256 || '')) || artifact.sha256 !== sha256File(artifactPath)) {
+      blockers.push(`backup artifact SHA-256 does not match: ${artifact.qualified_name}`);
+      continue;
+    }
+    verifiedBackupArtifactCount += 1;
+  }
+
+  const expectedObjects = objectMap(preManifest || {});
+  for (const operation of approvedDelta?.operations || []) {
+    const requiredKinds = operation.object_kind === 'view' ? ['schema'] : ['schema', 'data'];
+    for (const kind of requiredKinds) {
+      if (!artifacts.some((artifact) => artifact?.qualified_name === operation.qualified_name && artifact?.kind === kind)) {
+        blockers.push(`${kind} backup evidence is required for ${operation.qualified_name}`);
+      }
+    }
+  }
+
+  const restore = evidence.restore || {};
+  if (typeof restore.post_restore_manifest_path !== 'string' || !restore.post_restore_manifest_path) {
+    blockers.push('post-restore manifest path is required');
+  }
+  let postRestoreManifest = null;
+  if (restore.post_restore_manifest_path) {
+    const manifestPath = path.resolve(options.evidenceBaseDir || ROOT, restore.post_restore_manifest_path);
+    if (!fs.existsSync(manifestPath)) blockers.push('post-restore manifest file is missing');
+    else {
+      try {
+        postRestoreManifest = readJson(manifestPath);
+      } catch {
+        blockers.push('post-restore manifest cannot be parsed');
+      }
+    }
+  }
+  if (postRestoreManifest) {
+    const validation = verifyManifest(postRestoreManifest);
+    if (!validation.ok) blockers.push(`post-restore manifest validation failed: ${validation.errors.join('; ')}`);
+    if (postRestoreManifest.manifest_sha256 !== restore.post_restore_manifest_sha256) blockers.push('post-restore manifest SHA does not match evidence');
+    if (postRestoreManifest.provenance?.project_ref !== projectRef) blockers.push('post-restore manifest project_ref does not match staging target');
+    const restoredObjects = objectMap(postRestoreManifest);
+    const restoredNames = Array.isArray(restore.restored_object_names) ? restore.restored_object_names : [];
+    for (const operation of approvedDelta?.operations || []) {
+      const before = expectedObjects.get(operation.qualified_name);
+      const after = restoredObjects.get(operation.qualified_name);
+      if (!restoredNames.includes(operation.qualified_name)) blockers.push(`restore evidence omits ${operation.qualified_name}`);
+      if (!after) {
+        blockers.push(`post-restore manifest is missing ${operation.qualified_name}`);
+        continue;
+      }
+      if (!before || after.object_kind !== before.object_kind || String(after.exact_count) !== String(before.exact_count)
+        || after.canonical_json_sha256 !== before.canonical_json_sha256 || after.structure_sha256 !== before.structure_sha256) {
+        blockers.push(`post-restore manifest does not match preflight object ${operation.qualified_name}`);
+      }
+      if (before?.object_kind === 'view' && canonicalStringify(viewRollbackMetadata(after)) !== canonicalStringify(viewRollbackMetadata(before))) {
+        blockers.push(`post-restore view metadata does not match preflight object ${operation.qualified_name}`);
+      }
+    }
+  }
+  return {
+    ok: blockers.length === 0,
+    blockers,
+    verified_backup_artifact_count: verifiedBackupArtifactCount,
+    post_restore_manifest_sha256: postRestoreManifest?.manifest_sha256 || null,
+  };
+}
+
 function buildRollbackDrillContract(preManifest, approvedDelta, options = {}) {
   const projectRef = options.projectRef || approvedDelta?.project_ref;
   const productionProjectRef = options.productionProjectRef || PRODUCTION_PROJECT_REF;
@@ -522,19 +776,24 @@ function buildRollbackDrillContract(preManifest, approvedDelta, options = {}) {
   assertStagingTarget(projectRef, productionProjectRef);
   const validation = validateApprovedDelta(approvedDelta, preManifest);
   const blockers = [...validation.errors];
+  const evidenceValidation = validateRehearsalEvidence(options.evidence, preManifest, approvedDelta, {
+    projectRef,
+    evidenceBaseDir: options.evidenceBaseDir,
+  });
+  blockers.push(...evidenceValidation.blockers);
   const objects = objectMap(preManifest || {});
   const rollbackSteps = [];
   for (const operation of approvedDelta?.operations || []) {
     const object = objects.get(operation.qualified_name);
     const rollback = operation.rollback || {};
-    if (['view', 'materialized_view'].includes(operation.object_kind)) {
+    if (operation.object_kind === 'view') {
       if (rollback.strategy !== 'recreate_view') blockers.push(`recreate_view rollback strategy is required for ${operation.qualified_name}`);
       if (!rollback.definition_sql || rollback.definition_sql !== object?.definition_sql) blockers.push(`view definition rollback does not match manifest for ${operation.qualified_name}`);
       rollbackSteps.push({
         qualified_name: operation.qualified_name,
         strategy: 'recreate_view',
         definition_sql: rollback.definition_sql || null,
-        restore_grants: object?.grants || [],
+        view_metadata: viewRollbackMetadata(object),
         verify_exact_count: object?.exact_count ?? null,
         verify_canonical_json_sha256: object?.canonical_json_sha256 || null,
       });
@@ -562,7 +821,12 @@ function buildRollbackDrillContract(preManifest, approvedDelta, options = {}) {
     project_ref: projectRef,
     production_project_ref: productionProjectRef,
     production_forbidden: true,
-    dry_run_only: true,
+    mode: 'staging_backup_restore_evidence',
+    dry_run_only: false,
+    evidence_validated: evidenceValidation.ok,
+    actual_backup_restore_verified: evidenceValidation.ok,
+    rehearsal_evidence_sha256: options.evidence ? sha256Text(canonicalStringify(options.evidence)) : null,
+    verified_backup_artifact_count: evidenceValidation.verified_backup_artifact_count,
     pre_manifest_sha256: preManifest?.manifest_sha256 || null,
     approved_operation_count: approvedDelta?.operations?.length || 0,
     rollback_steps: rollbackSteps,
@@ -614,8 +878,10 @@ module.exports = {
   DELTA_SCHEMA_VERSION,
   MANIFEST_SCHEMA_VERSION,
   PRODUCTION_PROJECT_REF,
+  REHEARSAL_EVIDENCE_SCHEMA_VERSION,
   ROOT,
   attachManifestSha,
+  assertPreflightApplyGate,
   assertStagingTarget,
   buildPreflightManifest,
   buildRollbackDrillContract,
@@ -635,7 +901,10 @@ module.exports = {
   runSupabaseDbQuery,
   sha256File,
   sha256Text,
+  protectedHoldReason,
   validateApprovedDelta,
+  validatePreflightDiagnostics,
+  validateRehearsalEvidence,
   verifyManifest,
   writeJson,
 };

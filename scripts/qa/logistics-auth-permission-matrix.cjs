@@ -161,9 +161,8 @@ select jsonb_build_object(
   'admin_feature_gaps', coalesce((select jsonb_agg(jsonb_build_object('email', email, 'feature', key) order by email, key) from admin_feature_gaps), '[]'::jsonb),
   'recent_login_rows', (
     select count(*)
-    from public.ll_audit_events
-    where event_type = 'auth_login'
-      and coalesce(event_status, '') <> 'smoke_rolled_back'
+    from public.ll_user_permissions
+    where last_login_at is not null
   )
 ) as result;
 `;

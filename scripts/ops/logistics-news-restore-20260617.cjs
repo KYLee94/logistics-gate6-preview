@@ -242,18 +242,19 @@ function selectBalanced(items) {
 }
 
 async function readCurrent(client) {
-  const runResult = await client.from('ll_news_runs')
-    .select('news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at')
-    .eq('run_key', RUN_KEY)
-    .maybeSingle();
-  if (runResult.error) throw new Error(`ll_news_runs read failed: ${runResult.error.message}`);
-  const run = runResult.data;
-  const itemResult = run ? await client.from('ll_news_items')
-    .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,created_at,payload')
-    .eq('news_run_id', run.news_run_id)
-    .order('published_at', { ascending: false, nullsFirst: false }) : { data: [], error: null };
+  const itemResult = await client.from('ll_news_items')
+    .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,news_date,ingested_at')
+    .eq('news_date', TARGET_DATE)
+    .order('published_at', { ascending: false, nullsFirst: false });
   if (itemResult.error) throw new Error(`ll_news_items read failed: ${itemResult.error.message}`);
-  return { run, items: itemResult.data || [] };
+  const items = itemResult.data || [];
+  return {
+    run: {
+      run_key: RUN_KEY,
+      completed_at: items[0]?.ingested_at || null,
+    },
+    items,
+  };
 }
 
 async function main() {
@@ -265,7 +266,6 @@ async function main() {
   const itemsFile = argValue('--items-file');
   const client = supabaseClient();
   const before = await readCurrent(client);
-  if (!before.run?.news_run_id) throw new Error(`${RUN_KEY} run is missing.`);
 
   const fileItems = itemsFile && fs.existsSync(itemsFile)
     ? walkJson(JSON.parse(fs.readFileSync(itemsFile, 'utf8'))).map((raw) => itemFromRaw(raw, `items-file:${path.basename(itemsFile)}`)).filter(Boolean)
@@ -277,20 +277,24 @@ async function main() {
   const selected = selectBalanced([...localCandidates, ...rssCandidates]);
   const mode = localCandidates.length >= 8 ? 'artifact_restore' : 'rss_reconstruction';
   const itemRows = selected.map((item) => ({
-    news_item_id: uuidFromHash(`${before.run.news_run_id}:${item.dedupe_key}`),
-    news_run_id: before.run.news_run_id,
-    ...item,
-    payload: {
-      ...item.payload,
-      restoration_mode: mode,
-      restoration_run_key: RUN_KEY,
-      restoration_generated_at: new Date().toISOString(),
-    },
+    news_item_id: uuidFromHash(`${TARGET_DATE}:${item.dedupe_key}`),
+    news_date: TARGET_DATE,
+    ingested_at: new Date().toISOString(),
+    dedupe_key: item.dedupe_key,
+    canonical_url: item.canonical_url,
+    original_url: item.original_url,
+    title: item.title,
+    publisher: item.publisher,
+    published_at: item.published_at,
+    summary: item.summary,
+    importance_score: item.importance_score,
+    matched_keywords: item.matched_keywords,
+    source_name: item.source_name,
   }));
 
   let upsertResult = null;
   if (publish && itemRows.length >= 8) {
-    const result = await client.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
+    const result = await client.from('ll_news_items').upsert(itemRows, { onConflict: 'news_date,dedupe_key' });
     if (result.error) throw new Error(`ll_news_items upsert failed: ${result.error.message}`);
     upsertResult = { inserted_or_updated: itemRows.length };
   }
@@ -306,7 +310,6 @@ async function main() {
       ? '원본 10건 상세 artifact를 찾지 못해 2026-06-17 07:00 KST 직전 24시간 기준으로 재수집 기반 재구성했습니다.'
       : '로컬 백업/export artifact에서 원문 후보를 찾아 복구했습니다.',
     before: {
-      news_run_id: before.run.news_run_id,
       completed_at: before.run.completed_at,
       item_count: before.items.length,
       item_keys: before.items.map((item) => item.dedupe_key),
@@ -327,7 +330,6 @@ async function main() {
     })),
     upsert: upsertResult,
     after: {
-      news_run_id: after.run.news_run_id,
       completed_at: after.run.completed_at,
       item_count: after.items.length,
       item_keys: after.items.map((item) => item.dedupe_key),

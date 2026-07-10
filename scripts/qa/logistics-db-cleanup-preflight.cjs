@@ -4,6 +4,7 @@ const {
   collectPreflight,
   defaultArtifactPath,
   parseArgs,
+  validatePreflightDiagnostics,
   verifyManifest,
   writeJson,
 } = require('../lib/logistics-db-cleanup-core.cjs');
@@ -19,10 +20,11 @@ function main() {
   });
   const validation = verifyManifest(manifest);
   if (!validation.ok) throw new Error(`Generated manifest validation failed: ${validation.errors.join('; ')}`);
+  const diagnosticsGate = validatePreflightDiagnostics(manifest);
   const outputPath = path.resolve(args.out || defaultArtifactPath('preflight'));
   writeJson(outputPath, manifest);
   console.log(JSON.stringify({
-    ok: true,
+    ok: diagnosticsGate.ok,
     mode: 'read_only_repeatable_read',
     output: outputPath,
     project_ref: manifest.provenance.project_ref,
@@ -33,8 +35,10 @@ function main() {
     object_count: manifest.objects.length,
     storage_bucket_count: manifest.storage.buckets.length,
     storage_object_count: manifest.storage.objects.length,
+    diagnostics_gate: diagnosticsGate,
     mismatch: manifest.diagnostics,
   }, null, 2));
+  if (!diagnosticsGate.ok) process.exitCode = 1;
 }
 
 try {

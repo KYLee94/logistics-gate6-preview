@@ -1372,8 +1372,10 @@ async function invokeEdgeDataWithTimeout(action, payload = {}, timeoutMs = EDGE_
 
 function edgeInflightPromise(action, payload, requestKey) {
   const current = EDGE_DATA_INFLIGHT.get(requestKey);
-  if (current && Date.now() - current.startedAt < EDGE_DATA_INFLIGHT_STALE_MS) return current.promise;
-  if (current) EDGE_DATA_INFLIGHT.delete(requestKey);
+  if (current) {
+    if (Date.now() - current.startedAt < EDGE_DATA_INFLIGHT_STALE_MS) return current.promise;
+    EDGE_DATA_INFLIGHT.delete(requestKey);
+  }
   const entry = {
     startedAt: Date.now(),
     promise: invokeEdgeDataWithTimeout(action, payload).finally(() => {
@@ -1388,11 +1390,13 @@ const USER_FACING_LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다. 
 const EDGE_DATA_CACHE_TTL_MS = 10 * 60 * 1000;
 const EDGE_DATA_REVALIDATE_MS = 90 * 1000;
 const EDGE_DATA_REQUEST_TIMEOUT_MS = 45 * 1000;
-const EDGE_DATA_INFLIGHT_STALE_MS = 45 * 1000;
+const EDGE_DATA_INFLIGHT_STALE_MS = EDGE_DATA_REQUEST_TIMEOUT_MS + 5000;
+const EDGE_DATA_ACTIVITY_REFRESH_DEBOUNCE_MS = 250;
 const EDGE_DATA_CACHE = new Map();
 const EDGE_DATA_INFLIGHT = new Map();
 const EDGE_DATA_REFRESH_SUBSCRIBERS = new Set();
 let edgeDataRefreshListenersReady = false;
+let edgeDataActivityRefreshTimer = null;
 
 function stableDataManagementStringify(value) {
   if (Array.isArray(value)) return `[${value.map((item) => stableDataManagementStringify(item)).join(',')}]`;
@@ -1443,11 +1447,19 @@ function ensureEdgeDataRefreshListeners() {
     if (document.visibilityState && document.visibilityState !== 'visible') return;
     EDGE_DATA_REFRESH_SUBSCRIBERS.forEach((callback) => callback());
   };
-  window.addEventListener('focus', notify);
+  const notifyAfterActivity = () => {
+    if (document.visibilityState && document.visibilityState !== 'visible') return;
+    if (edgeDataActivityRefreshTimer !== null) return;
+    edgeDataActivityRefreshTimer = window.setTimeout(() => {
+      edgeDataActivityRefreshTimer = null;
+      notify();
+    }, EDGE_DATA_ACTIVITY_REFRESH_DEBOUNCE_MS);
+  };
+  window.addEventListener('focus', notifyAfterActivity);
   window.addEventListener('online', notify);
   window.addEventListener('popstate', notify);
   window.addEventListener('logistics-data-refresh', notify);
-  document.addEventListener('visibilitychange', notify);
+  document.addEventListener('visibilitychange', notifyAfterActivity);
 }
 
 function edgeCacheKey(action, payload = {}) {
@@ -1486,6 +1498,45 @@ function shouldCacheEdgeData(action, value) {
   return true;
 }
 
+function hasEdgeDataValue(value) {
+  return value !== null && value !== undefined;
+}
+
+function createEdgeDataLoadingTrace({ stage = 'queued', attempt = 0, startedAt = 0, finishedAt = 0, hasData = false } = {}) {
+  const isRetry = stage === 'retrying' || stage === 'refreshing';
+  const isReady = stage === 'ready';
+  const isRetainedFailure = stage === 'failed' && hasData;
+  return {
+    stage,
+    attempt,
+    startedAt,
+    finishedAt,
+    completedSteps: isReady || isRetry || isRetainedFailure ? 1 : 0,
+    totalSteps: isRetry || isRetainedFailure ? 2 : 1,
+  };
+}
+
+function edgeDataLoadingProgress(trace) {
+  const totalSteps = Number(trace?.totalSteps);
+  const completedSteps = Number(trace?.completedSteps);
+  if (!Number.isFinite(totalSteps) || totalSteps <= 0 || !Number.isFinite(completedSteps)) return 0;
+  return Math.max(0, Math.min(100, Math.round((completedSteps / totalSteps) * 100)));
+}
+
+function summarizeEdgeDataLoadingTrace(...traces) {
+  const values = traces.filter((trace) => trace && Number.isFinite(Number(trace.totalSteps)) && Number(trace.totalSteps) > 0);
+  if (!values.length) return createEdgeDataLoadingTrace({ stage: 'ready', attempt: 0, finishedAt: Date.now() });
+  const active = values.find((trace) => trace.stage !== 'ready') || values[0];
+  return {
+    stage: active.stage,
+    attempt: Math.max(...values.map((trace) => Number(trace.attempt) || 0)),
+    startedAt: Math.min(...values.map((trace) => Number(trace.startedAt) || Date.now())),
+    finishedAt: values.every((trace) => trace.finishedAt) ? Math.max(...values.map((trace) => Number(trace.finishedAt) || 0)) : 0,
+    completedSteps: values.reduce((sum, trace) => sum + Math.max(0, Number(trace.completedSteps) || 0), 0),
+    totalSteps: values.reduce((sum, trace) => sum + Math.max(1, Number(trace.totalSteps) || 1), 0),
+  };
+}
+
 export async function primeEdgeData(action, payload = {}) {
   const requestKey = edgeCacheKey(action, payload);
   const cached = EDGE_DATA_CACHE.get(requestKey);
@@ -1503,14 +1554,15 @@ function useEdgeData(action, payload = {}) {
   const cachedState = EDGE_DATA_CACHE.get(payloadKey);
   const [state, setState] = useState(() => (
     cachedState
-      ? { loading: false, error: '', refreshError: '', data: cachedState.data, loadedAt: cachedState.loadedAt, sourceKey: payloadKey }
-      : { loading: true, error: '', refreshError: '', data: null, loadedAt: 0, sourceKey: payloadKey }
+      ? { loading: false, error: '', refreshError: '', data: cachedState.data, loadedAt: cachedState.loadedAt, sourceKey: payloadKey, loadingStage: 'ready', loadingTrace: createEdgeDataLoadingTrace({ stage: 'ready', attempt: 1, startedAt: cachedState.loadedAt, finishedAt: cachedState.loadedAt, hasData: true }) }
+      : { loading: true, error: '', refreshError: '', data: null, loadedAt: 0, sourceKey: payloadKey, loadingStage: 'queued', loadingTrace: createEdgeDataLoadingTrace() }
   ));
   const stateRef = useRef(state);
   const requestRef = useRef(0);
   const lastPayloadKeyRef = useRef(payloadKey);
   const mountedRef = useRef(true);
   const reloadRef = useRef(null);
+  const backgroundRefreshKeyRef = useRef('');
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -1519,13 +1571,14 @@ function useEdgeData(action, payload = {}) {
     const normalizedOverride = payloadOverride?.nativeEvent || payloadOverride?.target ? {} : (payloadOverride || {});
     const requestPayload = { ...payloadRef.current, ...normalizedOverride };
     const requestKey = edgeCacheKey(action, requestPayload);
-    if (options.force) EDGE_DATA_INFLIGHT.delete(requestKey);
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
+    const requestStartedAt = Date.now();
+    const attempt = options.__retry ? 2 : 1;
     const cached = EDGE_DATA_CACHE.get(requestKey);
     const cachedAge = cached ? Date.now() - cached.loadedAt : Number.POSITIVE_INFINITY;
     if (!options.force && !Object.keys(normalizedOverride).length && cached && cachedAge < EDGE_DATA_CACHE_TTL_MS) {
-      if (mountedRef.current) setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey });
+      if (mountedRef.current) setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey, loadingStage: 'ready', loadingTrace: createEdgeDataLoadingTrace({ stage: 'ready', attempt, startedAt: cached.loadedAt, finishedAt: cached.loadedAt, hasData: true }) });
       if (cachedAge >= EDGE_DATA_REVALIDATE_MS && !options.__revalidate) {
         window.setTimeout(() => {
           if (mountedRef.current) reloadRef.current?.({}, { silent: true, force: true, __revalidate: true });
@@ -1534,15 +1587,22 @@ function useEdgeData(action, payload = {}) {
       return cached.data;
     }
     if (cached && mountedRef.current) {
-      setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey });
+      setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey, loadingStage: options.__retry ? 'retrying' : 'refreshing', loadingTrace: createEdgeDataLoadingTrace({ stage: options.__retry ? 'retrying' : 'refreshing', attempt, startedAt: requestStartedAt, hasData: true }) });
     } else if (!options.silent && mountedRef.current) {
       setState((current) => ({
         ...current,
-        loading: !(current.data && current.sourceKey === requestKey),
+        loading: !(hasEdgeDataValue(current.data) && current.sourceKey === requestKey),
         data: current.sourceKey === requestKey ? current.data : null,
         error: '',
         refreshError: '',
         sourceKey: requestKey,
+        loadingStage: options.__retry ? 'retrying' : (hasEdgeDataValue(current.data) && current.sourceKey === requestKey ? 'refreshing' : 'loading'),
+        loadingTrace: createEdgeDataLoadingTrace({
+          stage: options.__retry ? 'retrying' : (hasEdgeDataValue(current.data) && current.sourceKey === requestKey ? 'refreshing' : 'loading'),
+          attempt,
+          startedAt: requestStartedAt,
+          hasData: hasEdgeDataValue(current.data) && current.sourceKey === requestKey,
+        }),
       }));
     }
     try {
@@ -1552,12 +1612,29 @@ function useEdgeData(action, payload = {}) {
       if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt });
       else EDGE_DATA_CACHE.delete(requestKey);
       if (mountedRef.current && requestRef.current === requestId) {
-        setState({ loading: false, error: '', refreshError: '', data, loadedAt, sourceKey: requestKey });
+        setState({ loading: false, error: '', refreshError: '', data, loadedAt, sourceKey: requestKey, loadingStage: 'ready', loadingTrace: createEdgeDataLoadingTrace({ stage: 'ready', attempt, startedAt: requestStartedAt, finishedAt: loadedAt, hasData: hasEdgeDataValue(data) }) });
       }
       return data;
     } catch (error) {
       if (!options.__retry) {
+        if (mountedRef.current && requestRef.current === requestId) {
+          setState((current) => {
+            const retainedData = current.sourceKey === requestKey ? current.data : null;
+            const hasRetainedData = hasEdgeDataValue(retainedData);
+            return {
+              ...current,
+              loading: !hasRetainedData,
+              data: retainedData,
+              error: '',
+              refreshError: '',
+              sourceKey: requestKey,
+              loadingStage: 'retrying',
+              loadingTrace: createEdgeDataLoadingTrace({ stage: 'retrying', attempt: attempt + 1, startedAt: requestStartedAt, hasData: hasRetainedData }),
+            };
+          });
+        }
         await new Promise((resolve) => window.setTimeout(resolve, 450));
+        if (!mountedRef.current || requestRef.current !== requestId) return null;
         return reloadRef.current?.(normalizedOverride, { ...options, force: true, silent: Boolean(stateRef.current.data), __retry: true });
       }
       const fallbackCached = EDGE_DATA_CACHE.get(requestKey) || EDGE_DATA_CACHE.get(payloadKey);
@@ -1570,6 +1647,14 @@ function useEdgeData(action, payload = {}) {
           data: current.sourceKey === requestKey ? (current.data || fallbackCached?.data || null) : (fallbackCached?.data || null),
           loadedAt: current.sourceKey === requestKey ? (current.loadedAt || fallbackCached?.loadedAt || 0) : (fallbackCached?.loadedAt || 0),
           sourceKey: requestKey,
+          loadingStage: 'failed',
+          loadingTrace: createEdgeDataLoadingTrace({
+            stage: 'failed',
+            attempt,
+            startedAt: requestStartedAt,
+            finishedAt: Date.now(),
+            hasData: hasEdgeDataValue(current.sourceKey === requestKey ? (current.data || fallbackCached?.data) : fallbackCached?.data),
+          }),
         }));
       }
       return null;
@@ -1584,14 +1669,14 @@ function useEdgeData(action, payload = {}) {
     }
     const cached = EDGE_DATA_CACHE.get(payloadKey);
     if (cached) {
-      setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: payloadKey });
+      setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: payloadKey, loadingStage: 'ready', loadingTrace: createEdgeDataLoadingTrace({ stage: 'ready', attempt: 1, startedAt: cached.loadedAt, finishedAt: cached.loadedAt, hasData: true }) });
       if (Date.now() - cached.loadedAt >= EDGE_DATA_REVALIDATE_MS) reload({}, { silent: true, force: true });
       return () => {
         mountedRef.current = false;
       };
     }
     if (stateRef.current.sourceKey !== payloadKey) {
-      setState({ loading: true, error: '', refreshError: '', data: null, loadedAt: 0, sourceKey: payloadKey });
+      setState({ loading: true, error: '', refreshError: '', data: null, loadedAt: 0, sourceKey: payloadKey, loadingStage: 'queued', loadingTrace: createEdgeDataLoadingTrace() });
     }
     reload({}, { silent: stateRef.current.sourceKey === payloadKey && Boolean(stateRef.current.data) });
     return () => {
@@ -1604,14 +1689,19 @@ function useEdgeData(action, payload = {}) {
       if (document.visibilityState && document.visibilityState !== 'visible') return;
       const current = stateRef.current;
       const stale = current.loadedAt && Date.now() - current.loadedAt > EDGE_DATA_REVALIDATE_MS;
-      if (current.error || !current.data || stale) reload({}, { silent: Boolean(current.data), force: true });
+      if (!current.error && hasEdgeDataValue(current.data) && !stale) return;
+      if (backgroundRefreshKeyRef.current === payloadKey) return;
+      backgroundRefreshKeyRef.current = payloadKey;
+      Promise.resolve(reload({}, { silent: Boolean(current.data), force: true })).finally(() => {
+        if (backgroundRefreshKeyRef.current === payloadKey) backgroundRefreshKeyRef.current = '';
+      });
     };
     EDGE_DATA_REFRESH_SUBSCRIBERS.add(refreshIfStale);
     return () => {
       EDGE_DATA_REFRESH_SUBSCRIBERS.delete(refreshIfStale);
     };
   }, [payloadKey, reload]);
-  return { ...state, reload };
+  return { ...state, loadingStage: state.loadingStage, loadingTrace: state.loadingTrace, reload };
 }
 
 function ModuleHeader({ eyebrow, title, subtitle = '', right = null, page = false }) {
@@ -1657,11 +1747,13 @@ function MarketDataLoadingBadge({
   label = '데이터 로딩',
   refreshLabel = '데이터 갱신',
   testId = 'market-data-loading-progress',
+  loadingStage = 'queued',
+  loadingTrace = null,
 }) {
   if (!loading) return null;
-  const safeProgress = Math.max(8, Math.min(96, Math.round(progress)));
+  const safeProgress = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
   return (
-    <div className="min-w-[150px] rounded-[8px] border border-[#2F3A4A] bg-[#151C27] px-3 py-2 shadow-[0_10px_30px_rgba(22,36,64,0.25)]" data-market-data-loading-progress="true" data-loading-progress="true" data-testid={testId}>
+    <div className="min-w-[150px] rounded-[8px] border border-[#2F3A4A] bg-[#151C27] px-3 py-2 shadow-[0_10px_30px_rgba(22,36,64,0.25)]" data-market-data-loading-progress="true" data-loading-progress="true" data-loading-stage={loadingStage} data-loading-completed-steps={loadingTrace?.completedSteps} data-loading-total-steps={loadingTrace?.totalSteps} data-testid={testId}>
       <div className="flex items-center justify-between gap-3 text-[11px] font-semibold text-[#D7E8FF]">
         <span>{hasCachedData ? refreshLabel : label}</span>
         <span>{safeProgress}%</span>
@@ -5269,8 +5361,7 @@ function MarketDataDashboardLegacy({ activeTab = 'overview', onNavigate }) {
 function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const currentTab = MARKET_TABS.find((tab) => tab.id === activeTab || tab.route === activeTab)?.id || 'overview';
   const marketReadPayload = useMemo(() => marketReadPayloadFor(currentTab), [currentTab]);
-  const { loading, error, data } = useEdgeData('sector-market/read', marketReadPayload);
-  const [loadingProgress, setLoadingProgress] = useState(loading ? 14 : 100);
+  const { loading, error, data, loadingStage, loadingTrace } = useEdgeData('sector-market/read', marketReadPayload);
   const [modal, setModal] = useState(null);
   const [txnWindow, setTxnWindow] = useState('3y');
   const [txnRegion, setTxnRegion] = useState('전체');
@@ -5379,17 +5470,6 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const readback = summary.readback || {};
   const hasMarketData = Boolean(data && Object.keys(data || {}).length);
   const isInitialMarketLoading = loading && !hasMarketData;
-  useEffect(() => {
-    if (!loading) {
-      setLoadingProgress(100);
-      return undefined;
-    }
-    setLoadingProgress(hasMarketData ? 84 : 24);
-    const timer = window.setInterval(() => {
-      setLoadingProgress((current) => Math.min(98, current + (hasMarketData ? 3 : 5)));
-    }, 320);
-    return () => window.clearInterval(timer);
-  }, [loading, currentTab, hasMarketData]);
   useEffect(() => {
     if (!data || loading) return undefined;
     let cancelled = false;
@@ -6256,7 +6336,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
         eyebrow=""
         title={MARKET_TAB_TITLES[currentTab] || 'Market Data'}
         page
-        right={<MarketDataLoadingBadge loading={loading} progress={loadingProgress} hasCachedData={hasMarketData} />}
+        right={<MarketDataLoadingBadge loading={loading} progress={edgeDataLoadingProgress(loadingTrace)} hasCachedData={hasMarketData} loadingStage={loadingStage} loadingTrace={loadingTrace} />}
       />
       {error ? <div className="mb-4 rounded-[12px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[13px] text-[#FFD479]">{error}</div> : null}
 
@@ -7620,7 +7700,7 @@ export function AssetSpecDashboard() {
 const MANAGEMENT_ALL_OPTION = '전체';
 
 function DataManagementApprovalDashboard() {
-  const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 120, row_limit: 20 });
+  const { loading, error, data, reload, loadingStage, loadingTrace } = useEdgeData('data-management/status', { limit: 120, row_limit: 20 });
   const [selectedRequestId, setSelectedRequestId] = useState('');
   const [actionStatus, setActionStatus] = useState(null);
   const [rowActionStatus, setRowActionStatus] = useState({});
@@ -7732,7 +7812,7 @@ function DataManagementApprovalDashboard() {
         eyebrow="데이터 관리"
         title="승인 대기"
         right={loading ? (
-          <MarketDataLoadingBadge loading progress={76} hasCachedData={Boolean(editRequests.length)} label="데이터 로딩" testId="data-management-approval-loading-progress" />
+          <MarketDataLoadingBadge loading progress={edgeDataLoadingProgress(loadingTrace)} hasCachedData={Boolean(editRequests.length)} label="데이터 로딩" testId="data-management-approval-loading-progress" loadingStage={loadingStage} loadingTrace={loadingTrace} />
         ) : (
           <div className="rounded-[8px] border border-[#333333] bg-[#1F1F1E] px-3 py-2 text-right text-[12px] leading-5 text-[#A1A1AA]">
             <div>{`승인 대기 ${formatNumber(pendingRequests.length)}건`}</div>
@@ -7921,7 +8001,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const [rowAddReason, setRowAddReason] = useState('');
   const [rowAddStatus, setRowAddStatus] = useState(null);
   const [columnWidths, setColumnWidths] = useState({});
-  const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews } = useEdgeData('data-management/views');
+  const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews, loadingTrace: viewsLoadingTrace } = useEdgeData('data-management/views');
   const views = safeArray(viewCatalog?.views);
   const bundles = safeArray(viewCatalog?.fund_asset_bundles);
   const viewsForSpace = useMemo(() => views.filter((view) => view.workspace_key === spaceKey), [views, spaceKey]);
@@ -7991,9 +8071,10 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     page_size: 80,
     sort: sort.key ? [{ key: sort.key, direction: sort.direction }] : [],
   }), [spaceKey, effectiveViewKey, bundleKey, search, page, sort.key, sort.direction, activeTabConfig.showBundle]);
-  const { loading: rowsLoading, error: rowsError, data: rowsData, reload: reloadRows } = useEdgeData('data-management/view-rows', rowsPayload);
+  const { loading: rowsLoading, error: rowsError, data: rowsData, reload: reloadRows, loadingTrace: rowsLoadingTrace } = useEdgeData('data-management/view-rows', rowsPayload);
   const dataManagementLoading = viewsLoading || rowsLoading;
-  const [dataManagementLoadingProgress, setDataManagementLoadingProgress] = useState(dataManagementLoading ? 12 : 100);
+  const dataManagementLoadingTrace = summarizeEdgeDataLoadingTrace(viewsLoadingTrace, rowsLoadingTrace);
+  const dataManagementLoadingProgress = edgeDataLoadingProgress(dataManagementLoadingTrace);
   const rowsDataViewKey = text(rowsData?.view?.view_key || rowsData?.view_key || '');
   const rowsDataMatchesView = Boolean(rowsData && rowsDataViewKey && rowsDataViewKey === effectiveViewKey);
   const rowsDataStaleForView = Boolean(rowsData && rowsDataViewKey && rowsDataViewKey !== effectiveViewKey);
@@ -8771,18 +8852,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   };
 
   useEffect(() => {
-    if (!dataManagementLoading) {
-      setDataManagementLoadingProgress(100);
-      return undefined;
-    }
-    setDataManagementLoadingProgress(hasDataManagementRows ? 84 : 24);
-    const timer = window.setInterval(() => {
-      setDataManagementLoadingProgress((current) => Math.min(98, current + (hasDataManagementRows ? 3 : 5)));
-    }, 320);
-    return () => window.clearInterval(timer);
-  }, [dataManagementLoading, hasDataManagementRows, activeTabConfig.key, effectiveViewKey, rowsPayload]);
-
-  useEffect(() => {
     setSpaceKey(activeTabConfig.spaceKey);
     setBusinessGroupKey(activeTabConfig.defaultWorkflow);
     setViewKey(activeTabConfig.defaultViewKey);
@@ -8995,6 +9064,8 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
             loading={dataManagementLoading}
             progress={dataManagementLoadingProgress}
             hasCachedData={hasDataManagementRows}
+            loadingStage={dataManagementLoadingTrace.stage}
+            loadingTrace={dataManagementLoadingTrace}
             label="데이터 로딩"
             refreshLabel="데이터 갱신"
             testId="data-management-loading-progress"

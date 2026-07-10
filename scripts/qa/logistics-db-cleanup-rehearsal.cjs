@@ -21,24 +21,31 @@ function main() {
   const deltaPath = required(args, 'approvedDelta', '--approved-delta');
   const projectRef = required(args, 'projectRef', '--project-ref');
   const environment = required(args, 'environment', '--environment');
+  const evidencePath = required(args, 'evidence', '--evidence');
   const manifest = readJson(manifestPath);
   const manifestValidation = verifyManifest(manifest);
   if (!manifestValidation.ok) throw new Error(`Manifest validation failed: ${manifestValidation.errors.join('; ')}`);
   const delta = readJson(deltaPath);
+  const evidence = readJson(evidencePath);
   const contract = buildRollbackDrillContract(manifest, delta, {
     environment,
     projectRef,
     productionProjectRef: args.productionProjectRef || PRODUCTION_PROJECT_REF,
+    evidence,
+    evidenceBaseDir: path.dirname(path.resolve(evidencePath)),
   });
   const outputPath = path.resolve(args.out || defaultArtifactPath('rehearsal'));
   writeJson(outputPath, contract);
   console.log(JSON.stringify({
     ok: contract.ok,
-    mode: 'manifest_only_staging_rehearsal',
+    mode: contract.mode,
     output: outputPath,
     project_ref: contract.project_ref,
     production_forbidden: contract.production_forbidden,
     approved_operation_count: contract.approved_operation_count,
+    evidence_validated: contract.evidence_validated,
+    actual_backup_restore_verified: contract.actual_backup_restore_verified,
+    verified_backup_artifact_count: contract.verified_backup_artifact_count,
     blockers: contract.blockers,
   }, null, 2));
   if (!contract.ok) process.exitCode = 1;

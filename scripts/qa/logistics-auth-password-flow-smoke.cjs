@@ -88,13 +88,6 @@ with qa_users as (
 deleted_work_items as (
   delete from public.ll_work_items where created_by in (select id from qa_users) returning 1
 ),
-deleted_audit as (
-  delete from public.ll_audit_events
-  where requested_by in (select id from qa_users)
-     or coalesce(request_payload::text, '') ilike '%' || ${sqlString(email)} || '%'
-     or coalesce(event_payload::text, '') ilike '%' || ${sqlString(email)} || '%'
-  returning 1
-),
 deleted_permissions as (
   delete from public.ll_user_permissions
   where lower(email) = lower(${sqlString(email)}) or coalesce(profile_payload::text, '') ilike '%logistics_auth_password_flow_smoke%'
@@ -105,7 +98,6 @@ deleted_auth as (
 )
 select jsonb_build_object(
   'work_items', (select count(*) from deleted_work_items),
-  'audit_events', (select count(*) from deleted_audit),
   'permissions', (select count(*) from deleted_permissions),
   'auth_users', (select count(*) from deleted_auth)
 ) as cleanup_result;

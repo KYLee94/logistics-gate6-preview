@@ -161,7 +161,6 @@ async function invokeNewsList(supabaseUrl, anonKey, token, date, extraPayload = 
     validation_status: data.validation_status,
     selected_date: data.selected_date,
     run_key: data.latest_run?.run_key || null,
-    news_run_id: data.latest_run?.news_run_id || null,
     completed_at: data.latest_run?.completed_at || null,
     item_count: items.length,
     item_keys: dedupeKeys,
@@ -251,8 +250,6 @@ async function main() {
       after_count: after.item_count,
       before_run_key: before.run_key,
       after_run_key: after.run_key,
-      before_news_run_id: before.news_run_id,
-      after_news_run_id: after.news_run_id,
       before_completed_at: before.completed_at,
       after_completed_at: after.completed_at,
       today_before_completed_at: todayBefore.completed_at,
@@ -262,7 +259,6 @@ async function main() {
       today_refresh_updated: Boolean(todayBefore.completed_at && todayAfter.completed_at && todayBefore.completed_at !== todayAfter.completed_at),
       today_refresh_preserved: todayBefore.completed_at === todayAfter.completed_at,
       past_run_unchanged: before.run_key === after.run_key
-        && before.news_run_id === after.news_run_id
         && before.completed_at === after.completed_at,
       ok: before.item_count >= 8
         && before.data_validated === true
@@ -277,7 +273,6 @@ async function main() {
         && todayBefore.completed_at === todayAfter.completed_at
         && after.item_count >= before.item_count
         && before.run_key === after.run_key
-        && before.news_run_id === after.news_run_id
         && before.completed_at === after.completed_at
         && (before.item_keys || []).every((key) => afterKeys.has(key)),
     });

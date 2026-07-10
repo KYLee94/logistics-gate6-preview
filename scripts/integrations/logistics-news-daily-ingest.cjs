@@ -628,97 +628,79 @@ function supabaseClientFromEnv() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-async function upsertRun(client, runRow) {
-  const result = await client.from('ll_news_runs').upsert(runRow, { onConflict: 'run_key' });
-  if (result.error) throw new Error(`ll_news_runs upsert failed: ${result.error.message}`);
+function newsDateFromRunKey(runKey) {
+  const match = String(runKey || '').match(/^daily-news:(\d{4}-\d{2}-\d{2}):0700KST$/u);
+  return match?.[1] || '';
+}
+
+function storedRunSummary(runKey, itemCount, completedAt = '') {
+  const selectedDate = newsDateFromRunKey(runKey);
+  const completed = Number(itemCount || 0) >= MIN_DAILY_NEWS_ITEMS;
+  return {
+    run_key: runKey,
+    selected_date: selectedDate,
+    run_status: completed ? 'completed' : Number(itemCount || 0) > 0 ? 'incomplete' : 'no_run',
+    completed_at: completed ? completedAt : null,
+    source_summary: {
+      collector_version: NEWS_COLLECTOR_VERSION,
+      item_count: Number(itemCount || 0),
+      minimum_item_count: MIN_DAILY_NEWS_ITEMS,
+      strict_window_only: true,
+    },
+  };
 }
 
 async function readRunHealth(client, runKey) {
-  const runResult = await client
-    .from('ll_news_runs')
-    .select('news_run_id,run_key,run_status,completed_at,source_summary')
-    .eq('run_key', runKey)
-    .maybeSingle();
-  if (runResult.error) throw new Error(`ll_news_runs readback failed: ${runResult.error.message}`);
-  if (!runResult.data?.news_run_id) return { run: null, itemCount: 0 };
+  const selectedDate = newsDateFromRunKey(runKey);
+  if (!selectedDate) return { run: null, itemCount: 0 };
   const itemResult = await client
     .from('ll_news_items')
-    .select('news_item_id', { count: 'exact', head: true })
-    .eq('news_run_id', runResult.data.news_run_id);
-  if (itemResult.error) throw new Error(`ll_news_items count readback failed: ${itemResult.error.message}`);
-  return { run: runResult.data, itemCount: Number(itemResult.count || 0) };
+    .select('ingested_at', { count: 'exact' })
+    .eq('news_date', selectedDate)
+    .order('ingested_at', { ascending: false, nullsFirst: false })
+    .limit(1);
+  if (itemResult.error) throw new Error(`ll_news_items readback failed: ${itemResult.error.message}`);
+  const itemCount = Number(itemResult.count || 0);
+  const completedAt = itemResult.data?.[0]?.ingested_at || '';
+  return { run: storedRunSummary(runKey, itemCount, completedAt), itemCount };
 }
 
 function hasCompletedDailyRun(run, itemCount) {
   return Boolean(run && run.run_status === 'completed' && Number(itemCount || 0) >= MIN_DAILY_NEWS_ITEMS);
 }
 
-function buildRunRow(run, items, status, completedAt = null) {
-  return {
-    news_run_id: uuidFromHash(run.run_key),
-    run_key: run.run_key,
-    scheduled_for: run.windowEnd.toISOString(),
-    window_start: run.windowStart.toISOString(),
-    window_end: run.windowEnd.toISOString(),
-    source_summary: {
-      collector_version: NEWS_COLLECTOR_VERSION,
-      primary: 'google_news_rss',
-      fallback: 'bing_news_rss',
-      queries: SEARCH_QUERIES,
-      query_count: SEARCH_QUERIES.length,
-      window_hours: run.windowHours,
-      strict_window_start: run.strictWindowStart?.toISOString?.() || run.windowStart.toISOString(),
-      strict_window_end: run.windowEnd.toISOString(),
-      strict_item_count: run.strictItemCount,
-      item_count: items.length,
-      strict_window_only: true,
-      expanded_to_recent_7d: false,
-      expanded_recent_days: 0,
-      historical_backfill: run.historicalBackfill === true,
-      same_window_relaxed_backfill: run.relaxedBackfill === true,
-      strict_24h_window: run.windowHours === 24,
-      candidate_count: run.candidateCount || items.length,
-      selection_policy: {
-        limit: 10,
-        category_targets: CATEGORY_TARGETS,
-        max_items_per_company: MAX_ITEMS_PER_COMPANY,
-        max_major_company_only_items: MAX_MAJOR_COMPANY_ONLY_ITEMS,
-      },
-      expanded_window_start: null,
-      source_stats: run.sourceStats || {},
-      empty_state: items.length === 0,
-    },
-    run_status: status,
-    error_message: null,
-    completed_at: completedAt,
-  };
-}
-
 async function publish(client, run, items) {
   if (items.length < MIN_DAILY_NEWS_ITEMS) throw new Error(`Collected only ${items.length} news items; minimum is ${MIN_DAILY_NEWS_ITEMS}.`);
-  const preparedRunRow = buildRunRow(run, items, 'prepared');
-  await upsertRun(client, preparedRunRow);
+  const newsDate = newsDateFromRunKey(run.run_key);
+  if (!newsDate) throw new Error(`Invalid news run key: ${run.run_key}`);
+  const ingestedAt = new Date().toISOString();
   const itemRows = items.map((item) => ({
-    news_item_id: uuidFromHash(`${preparedRunRow.news_run_id}:${item.dedupe_key}`),
-    news_run_id: preparedRunRow.news_run_id,
-    ...item,
+    news_item_id: uuidFromHash(`${newsDate}:${item.dedupe_key}`),
+    news_date: newsDate,
+    ingested_at: ingestedAt,
+    dedupe_key: item.dedupe_key,
+    canonical_url: item.canonical_url,
+    original_url: item.original_url,
+    title: item.title,
+    publisher: item.publisher,
+    published_at: item.published_at,
+    summary: item.summary,
+    importance_score: item.importance_score,
+    matched_keywords: item.matched_keywords,
+    source_name: item.source_name,
   }));
   if (itemRows.length) {
-    const itemResult = await client.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
+    const itemResult = await client.from('ll_news_items').upsert(itemRows, { onConflict: 'news_date,dedupe_key' });
     if (itemResult.error) throw new Error(`ll_news_items upsert failed: ${itemResult.error.message}`);
   }
   const health = await readRunHealth(client, run.run_key);
   if (health.itemCount < MIN_DAILY_NEWS_ITEMS) {
     throw new Error(`News item readback returned ${health.itemCount}; minimum is ${MIN_DAILY_NEWS_ITEMS}.`);
   }
-  const completedRunRow = buildRunRow(run, items, 'completed', new Date().toISOString());
-  completedRunRow.source_summary.item_count = health.itemCount;
-  await upsertRun(client, completedRunRow);
-  const completedHealth = await readRunHealth(client, run.run_key);
-  if (!hasCompletedDailyRun(completedHealth.run, completedHealth.itemCount)) {
+  if (!hasCompletedDailyRun(health.run, health.itemCount)) {
     throw new Error('Completed news run failed final readback validation.');
   }
-  return { run: completedHealth.run, inserted_or_updated: itemRows.length, readback_count: completedHealth.itemCount };
+  return { run: health.run, inserted_or_updated: itemRows.length, readback_count: health.itemCount };
 }
 
 async function publishFailure(client, run, error) {
@@ -727,28 +709,11 @@ async function publishFailure(client, run, error) {
   if (hasCompletedDailyRun(existing.run, existing.itemCount)) {
     return { preserved_completed_run: true, item_count: existing.itemCount };
   }
-  const runRow = {
-    news_run_id: uuidFromHash(run.run_key),
-    run_key: run.run_key,
-    scheduled_for: run.windowEnd.toISOString(),
-    window_start: run.windowStart.toISOString(),
-    window_end: run.windowEnd.toISOString(),
-    source_summary: {
-      collector_version: NEWS_COLLECTOR_VERSION,
-      primary: 'google_news_rss',
-      fallback: 'bing_news_rss',
-      queries: SEARCH_QUERIES,
-      query_count: SEARCH_QUERIES.length,
-      window_hours: run.windowHours,
-      strict_24h_window: run.windowHours === 24,
-      empty_state: false,
-    },
-    run_status: 'failed',
-    error_message: String(error?.message || error).slice(0, 1000),
-    completed_at: new Date().toISOString(),
+  return {
+    preserved_completed_run: false,
+    item_count: existing.itemCount,
+    error: String(error?.message || error).slice(0, 1000),
   };
-  await upsertRun(client, runRow);
-  return runRow;
 }
 
 async function main() {
