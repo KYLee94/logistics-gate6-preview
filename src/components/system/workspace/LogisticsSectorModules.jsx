@@ -4,10 +4,19 @@ import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supab
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
 import UserAvatar from '../UserAvatar';
 import {
+  buildMapCalloutHtml,
+  constrainStaticMapCalloutAnchorStyle,
+  createNaverMapCalloutOptions,
+  escapeMapHtml,
   getNaverMapsClientId,
+  getLeafletMapCalloutOptions,
   loadLeafletSdk,
   loadNaverMapsSdk as loadSharedNaverMapsSdk,
+  MAP_CALLOUT_STYLES,
+  MapCallout,
   MapLayerControl,
+  panLeafletMapForCallout,
+  positionStaticMapCallout,
 } from './LogisticsMapRuntime';
 
 const CARD = 'rounded-[16px] border border-[#333333] bg-[#252524]';
@@ -436,24 +445,6 @@ const DATA_MANAGEMENT_TAB_CONFIGS = {
 };
 function dataManagementViewMeta(viewKey) {
   return DATA_MANAGEMENT_VIEW_META[text(viewKey, '')] || {};
-}
-function dataManagementComparableLabel(value) {
-  return text(value, '').replace(/\s+/gu, '').replace(/[()·/._-]/gu, '').toLowerCase();
-}
-function dataManagementColumnMatchesBusinessGroup(column, group) {
-  if (!group || !Array.isArray(group.labels)) return true;
-  const key = dataManagementComparableLabel(column?.field_key || column?.field);
-  const label = dataManagementComparableLabel(column?.label);
-  const groupLabel = dataManagementComparableLabel(column?.group);
-  return group.labels.some((item) => {
-    const needle = dataManagementComparableLabel(item);
-    return Boolean(needle) && (
-      key.includes(needle)
-      || label.includes(needle)
-      || needle.includes(label)
-      || groupLabel.includes(needle)
-    );
-  });
 }
 const DATA_MANAGEMENT_FIELD_HELP = {
   fund_names: '연결 펀드는 자산 데이터에서는 조회만 합니다. 자산과 펀드의 연결 변경은 투자 데이터에서 처리합니다.',
@@ -903,10 +894,6 @@ function dataManagementSubmitBeforeValue(edit) {
   return edit?.before_value;
 }
 
-function formatFieldLabel(field) {
-  return fieldDisplayLabel(field);
-}
-
 function formatDisplayValue(value, field = '') {
   const hasField = text(field, '') !== '';
   if (hasField && (isInternalFieldName(field) || !isUserVisibleField(field))) return '관리값 숨김';
@@ -918,28 +905,6 @@ function formatDisplayValue(value, field = '') {
     return cleaned || '-';
   }
   return display;
-}
-
-function publicRowValueEntries(row, limit = 5) {
-  const values = row?.row_values && typeof row.row_values === 'object' ? row.row_values : {};
-  return Object.entries(values)
-    .filter(([key, value]) => isUserVisibleField(key) && text(value, '') !== '' && !hasInternalToken(value))
-    .slice(0, limit);
-}
-
-function sourceRowDisplayTitle(row) {
-  const values = row?.row_values && typeof row.row_values === 'object' ? row.row_values : {};
-  const titleKeys = ['물류센터명', '자산명', '센터명', '펀드명', '임차인명', '회사명', '주소', 'asset_name', 'center_name', 'fund_name'];
-  const key = titleKeys.find((item) => text(values[item], '') !== '');
-  return key ? formatDisplayValue(values[key], key) : text(row?.natural_key, '관리 대상');
-}
-
-function sourceRowDisplaySummary(row) {
-  const entries = publicRowValueEntries(row, 3);
-  if (!entries.length) return '표시 가능한 요약값 없음';
-  return entries
-    .map(([key, value]) => `${formatFieldLabel(key)}: ${formatDisplayValue(value, key)}`)
-    .join(' · ');
 }
 
 function number(value) {
@@ -1120,7 +1085,7 @@ function cleanRegionName(value) {
   const cleaned = source
     .replace(/^\((수도권|지방)\)\s*/u, '')
     .replace(/^(수도권|지방)\s*[-·:]?\s*/u, '')
-    .replace(/^\d+\s*[\).\-\s]\s*/u, '')
+    .replace(/^\d+\s*[).\-\s]\s*/u, '')
     .replace(/\s+/gu, ' ')
     .trim();
   if (sequence && Number(sequence[1]) <= 6 && /기타|여타/u.test(cleaned)) return '수도권 기타권';
@@ -1190,7 +1155,7 @@ function regionSelectionValue(values) {
   return withoutAll.length ? withoutAll.join('|') : '전체';
 }
 
-function regionSelectionLabel(value, options = []) {
+function regionSelectionLabel(value) {
   const selected = selectedRegionValues(value).filter((item) => item !== '전체');
   if (!selected.length) return '전체 권역';
   if (selected.length === 1) return regionDisplay(selected[0]);
@@ -1369,10 +1334,6 @@ function cleanNewsTitleForDisplay(title, publisher = '') {
     .trim();
 }
 
-function sourceDomainLabel(domain) {
-  return SOURCE_DOMAINS.find((item) => item.key === domain)?.label || text(domain);
-}
-
 async function invoke(action, payload = {}, options = {}) {
   const { data, error } = await invokeDashboardApi(action, payload, options);
   if (error) {
@@ -1421,10 +1382,6 @@ function edgeInflightPromise(action, payload, requestKey) {
   };
   EDGE_DATA_INFLIGHT.set(requestKey, entry);
   return entry.promise;
-}
-
-function userFacingLoadError() {
-  return '데이터를 불러오지 못했습니다. 권한 또는 반영 상태를 확인해 주세요.';
 }
 
 const USER_FACING_LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다. 탭을 다시 열거나 잠시 후 재시도해 주세요.';
@@ -1539,8 +1496,10 @@ export async function primeEdgeData(action, payload = {}) {
   return data;
 }
 
-function useEdgeData(action, payload = {}, deps = []) {
+function useEdgeData(action, payload = {}) {
   const payloadKey = edgeCacheKey(action, payload);
+  const payloadRef = useRef(payload);
+  payloadRef.current = payload;
   const cachedState = EDGE_DATA_CACHE.get(payloadKey);
   const [state, setState] = useState(() => (
     cachedState
@@ -1551,13 +1510,14 @@ function useEdgeData(action, payload = {}, deps = []) {
   const requestRef = useRef(0);
   const lastPayloadKeyRef = useRef(payloadKey);
   const mountedRef = useRef(true);
+  const reloadRef = useRef(null);
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
 
-  const reload = async (payloadOverride = {}, options = {}) => {
+  const reload = useCallback(async (payloadOverride = {}, options = {}) => {
     const normalizedOverride = payloadOverride?.nativeEvent || payloadOverride?.target ? {} : (payloadOverride || {});
-    const requestPayload = { ...payload, ...normalizedOverride };
+    const requestPayload = { ...payloadRef.current, ...normalizedOverride };
     const requestKey = edgeCacheKey(action, requestPayload);
     if (options.force) EDGE_DATA_INFLIGHT.delete(requestKey);
     const requestId = requestRef.current + 1;
@@ -1568,7 +1528,7 @@ function useEdgeData(action, payload = {}, deps = []) {
       if (mountedRef.current) setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey });
       if (cachedAge >= EDGE_DATA_REVALIDATE_MS && !options.__revalidate) {
         window.setTimeout(() => {
-          if (mountedRef.current) reload({}, { silent: true, force: true, __revalidate: true });
+          if (mountedRef.current) reloadRef.current?.({}, { silent: true, force: true, __revalidate: true });
         }, 0);
       }
       return cached.data;
@@ -1598,7 +1558,7 @@ function useEdgeData(action, payload = {}, deps = []) {
     } catch (error) {
       if (!options.__retry) {
         await new Promise((resolve) => window.setTimeout(resolve, 450));
-        return reload(normalizedOverride, { ...options, force: true, silent: Boolean(stateRef.current.data), __retry: true });
+        return reloadRef.current?.(normalizedOverride, { ...options, force: true, silent: Boolean(stateRef.current.data), __retry: true });
       }
       const fallbackCached = EDGE_DATA_CACHE.get(requestKey) || EDGE_DATA_CACHE.get(payloadKey);
       const refreshError = error?.message || USER_FACING_LOAD_ERROR_TEXT;
@@ -1614,7 +1574,8 @@ function useEdgeData(action, payload = {}, deps = []) {
       }
       return null;
     }
-  };
+  }, [action, payloadKey]);
+  reloadRef.current = reload;
   useEffect(() => {
     mountedRef.current = true;
     if (lastPayloadKeyRef.current !== payloadKey) {
@@ -1636,7 +1597,7 @@ function useEdgeData(action, payload = {}, deps = []) {
     return () => {
       mountedRef.current = false;
     };
-  }, [payloadKey, ...deps]);
+  }, [payloadKey, reload]);
   useEffect(() => {
     ensureEdgeDataRefreshListeners();
     const refreshIfStale = () => {
@@ -1649,7 +1610,7 @@ function useEdgeData(action, payload = {}, deps = []) {
     return () => {
       EDGE_DATA_REFRESH_SUBSCRIBERS.delete(refreshIfStale);
     };
-  }, [payloadKey, ...deps]);
+  }, [payloadKey, reload]);
   return { ...state, reload };
 }
 
@@ -2190,6 +2151,8 @@ function FilterSearchInput({ label, value, onChange, placeholder = '' }) {
 const OSM_TILE_SIZE = 256;
 const OSM_VIEW_WIDTH = 960;
 const OSM_VIEW_HEIGHT = 520;
+const MARKET_MAP_CLUSTER_SIZE = 48;
+const MARKET_MAP_CLUSTER_ANCHOR = Math.round(MARKET_MAP_CLUSTER_SIZE / 2);
 
 function osmWorldPoint(lat, lng, zoom) {
   const safeLat = Math.max(-85.05112878, Math.min(85.05112878, Number(lat)));
@@ -2392,27 +2355,12 @@ function hasNaverMapAuthFailure(container) {
   return NAVER_MAP_AUTH_FAILURE_RE.test(String(container.textContent || ''));
 }
 
-function escapeMapHtml(value) {
-  return String(value ?? '')
-    .replace(/&/gu, '&amp;')
-    .replace(/</gu, '&lt;')
-    .replace(/>/gu, '&gt;')
-    .replace(/"/gu, '&quot;')
-    .replace(/'/gu, '&#39;');
-}
-
-function buildMarketMapCalloutHtml(item, index) {
-  const label = escapeMapHtml(item?.label || item?.regionLabel || `자산 ${index + 1}`);
-  const region = escapeMapHtml(item?.regionLabel || '');
-  const address = escapeMapHtml(item?.address || item?.coordinateAddress || '');
-  return `
-    <div class="logistics-map-callout-wrap logistics-map-callout-wrap--centered">
-      <button type="button" class="logistics-map-callout" data-map-point-callout="true">
-        <strong>${label}</strong>
-        <span>${[region, address].filter(Boolean).join(' · ')}</span>
-      </button>
-    </div>
-  `;
+function marketMapCalloutContent(item, index) {
+  return {
+    title: item?.label || item?.regionLabel || `자산 ${index + 1}`,
+    detail: [item?.regionLabel || '', item?.address || item?.coordinateAddress || ''].filter(Boolean).join(' · '),
+    pointCallout: true,
+  };
 }
 
 function MarketMapPanel({
@@ -2451,8 +2399,10 @@ function MarketMapPanel({
   const clusterScale = isRegionMode
     ? Math.max(0.95, Math.min(1.1, 0.95 + (Number(mapZoom || REGION_OVERVIEW_ZOOM) - REGION_OVERVIEW_ZOOM) * 0.08))
     : 1;
-  const clusterSize = 48;
-  const clusterAnchor = Math.round(clusterSize / 2);
+  const mapZoomRef = useRef(mapZoom);
+  const mapDisplayTypeRef = useRef(mapDisplayType);
+  mapZoomRef.current = mapZoom;
+  mapDisplayTypeRef.current = mapDisplayType;
   const applyMapZoom = (nextZoom, options = {}) => {
     const regionModeForZoom = typeof options.regionMode === 'boolean' ? options.regionMode : isRegionMode;
     const minZoom = regionModeForZoom ? 6 : 9;
@@ -2524,15 +2474,15 @@ function MarketMapPanel({
     const lng = Number(row.longitude ?? row.lng ?? row.x_coord);
     return Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && lng !== 0 ? [lat, lng] : null;
   };
-  const averageLatLng = (rows) => {
-    const coords = rows.map(rowLatLng).filter(Boolean);
-    if (!coords.length) return null;
-    return [
-      coords.reduce((sum, pair) => sum + pair[0], 0) / coords.length,
-      coords.reduce((sum, pair) => sum + pair[1], 0) / coords.length,
-    ];
-  };
   const regionRows = useMemo(() => {
+    const averageLatLng = (groupRows) => {
+      const coords = groupRows.map(rowLatLng).filter(Boolean);
+      if (!coords.length) return null;
+      return [
+        coords.reduce((sum, pair) => sum + pair[0], 0) / coords.length,
+        coords.reduce((sum, pair) => sum + pair[1], 0) / coords.length,
+      ];
+    };
     const grouped = new Map();
     sourceRows.forEach((row) => {
       const region = regionValue(row[regionKey]) || '기타';
@@ -2849,7 +2799,7 @@ function MarketMapPanel({
         });
       });
     return undefined;
-  }, [plotRows, geocodedCoords, geocodeFailures, mapRowLimit]);
+  }, [plotRows, geocodedCoords, geocodeFailures, mapRowLimit, selectedMapRegion]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2979,8 +2929,8 @@ function MarketMapPanel({
               icon: L.divIcon({
                 className: 'market-map-region-cluster-icon',
                 html: clusterIconHtml(item),
-                iconSize: [clusterSize, clusterSize],
-                iconAnchor: [clusterAnchor, clusterAnchor],
+                iconSize: [MARKET_MAP_CLUSTER_SIZE, MARKET_MAP_CLUSTER_SIZE],
+                iconAnchor: [MARKET_MAP_CLUSTER_ANCHOR, MARKET_MAP_CLUSTER_ANCHOR],
               }),
             }
             : {};
@@ -2989,15 +2939,26 @@ function MarketMapPanel({
             zIndexOffset: item.isCluster ? 1000 - item.index : 0,
             ...clusterOptions,
           }).addTo(map);
-          marker.bindTooltip(item.isCluster ? `${item.regionLabel} ${formatNumber(item.count)}` : buildMarketMapCalloutHtml(item, item.index), {
-            direction: 'top',
-            offset: [0, item.isCluster ? -16 : -18],
-            opacity: 1,
-            sticky: false,
-            interactive: !item.isCluster,
-            className: item.isCluster ? 'market-map-region-cluster-tooltip' : 'logistics-map-tooltip',
-          });
+          marker.bindTooltip(
+            item.isCluster
+              ? `${item.regionLabel} ${formatNumber(item.count)}`
+              : buildMapCalloutHtml(marketMapCalloutContent(item, item.index), { provider: 'leaflet' }),
+            item.isCluster
+              ? {
+                direction: 'top',
+                offset: [0, -16],
+                opacity: 1,
+                sticky: false,
+                interactive: false,
+                className: 'market-map-region-cluster-tooltip',
+              }
+              : getLeafletMapCalloutOptions(),
+          );
           if (!item.isCluster) {
+            marker.on('mouseover', () => {
+              panLeafletMapForCallout(map, marker);
+              marker.openTooltip();
+            });
             marker.on('click', () => {
               openMapItemRef.current?.(item);
             });
@@ -3015,7 +2976,7 @@ function MarketMapPanel({
           map.fitBounds(latLngs, { padding: [34, 34], animate: false });
           fittedRegionRef.current = selectedMapRegion;
         } else if (shouldFitSelectedRegion && latLngs.length) {
-          map.setView(latLngs[0], Math.max(10, Math.min(13, mapZoom || 11)), { animate: false });
+          map.setView(latLngs[0], Math.max(10, Math.min(13, mapZoomRef.current || 11)), { animate: false });
           fittedRegionRef.current = selectedMapRegion;
         }
         const zoomListener = () => {
@@ -3160,14 +3121,14 @@ function MarketMapPanel({
         if (!map) {
           map = new window.naver.maps.Map(mapCanvasRef.current, {
             center,
-            zoom: selectedMapRegion ? Math.max(10, mapZoom) : Math.max(6, Math.min(9, mapZoom)),
+            zoom: selectedMapRegion ? Math.max(10, mapZoomRef.current) : Math.max(6, Math.min(9, mapZoomRef.current)),
             minZoom: 6,
             background: '#151515',
           });
         }
         mapInstanceRef.current = map;
         mapProviderRef.current = 'naver';
-        applyMapDisplayType(map, mapDisplayType);
+        applyMapDisplayType(map, mapDisplayTypeRef.current);
         clearZoomListener();
         mapZoomListenerRef.current = window.naver.maps.Event.addListener(map, 'zoom_changed', () => {
           const nextZoom = Number(map.getZoom?.());
@@ -3193,8 +3154,8 @@ function MarketMapPanel({
           if (item.isCluster) {
             markerOptions.icon = {
               content: clusterIconHtml(item),
-              size: new window.naver.maps.Size(clusterSize, clusterSize),
-              anchor: new window.naver.maps.Point(clusterAnchor, clusterAnchor),
+              size: new window.naver.maps.Size(MARKET_MAP_CLUSTER_SIZE, MARKET_MAP_CLUSTER_SIZE),
+              anchor: new window.naver.maps.Point(MARKET_MAP_CLUSTER_ANCHOR, MARKET_MAP_CLUSTER_ANCHOR),
             };
           }
           const marker = new window.naver.maps.Marker(markerOptions);
@@ -3208,15 +3169,10 @@ function MarketMapPanel({
             });
           }
           if (!item.isCluster) {
-            const infoWindow = new window.naver.maps.InfoWindow({
-              content: buildMarketMapCalloutHtml(item, item.index),
-              backgroundColor: 'transparent',
-              borderColor: 'transparent',
-              borderWidth: 0,
-              disableAnchor: true,
-              anchorSize: new window.naver.maps.Size(0, 0),
-              pixelOffset: new window.naver.maps.Point(0, -30),
-            });
+            const infoWindow = new window.naver.maps.InfoWindow(createNaverMapCalloutOptions(
+              window.naver,
+              buildMapCalloutHtml(marketMapCalloutContent(item, item.index), { provider: 'naver' }),
+            ));
             let closeTimer = null;
             window.naver.maps.Event.addListener(marker, 'mouseover', () => {
               if (closeTimer) window.clearTimeout(closeTimer);
@@ -3253,7 +3209,7 @@ function MarketMapPanel({
           }
         } else if (shouldFitSelectedRegion) {
           map.setCenter(center);
-          map.setZoom(Math.max(10, Math.min(13, mapZoom || 11)), false);
+          map.setZoom(Math.max(10, Math.min(13, mapZoomRef.current || 11)), false);
           fittedRegionRef.current = selectedMapRegion;
         }
         refreshNaverMap(map);
@@ -3279,7 +3235,7 @@ function MarketMapPanel({
       cancelled = true;
       clearNaverHealthMonitor();
     };
-  }, [markerRows, selectedMapRegion, forceOsm, clusterIconHtml, clampRegionClusterMarkers, scheduleRegionClusterClamp]);
+  }, [markerRows, selectedMapRegion, forceOsm, isRegionMode, clusterIconHtml, clampRegionClusterMarkers, scheduleRegionClusterClamp]);
 
   useEffect(() => {
     applyMapDisplayType(mapInstanceRef.current, mapDisplayType);
@@ -3321,9 +3277,10 @@ function MarketMapPanel({
         data-map-coordinate-source-count={markerRows.filter((item) => item.coordinateSource).length}
         data-map-excluded-count={excludedCount}
         data-map-zoom={mapZoom}
+        data-map-callout-boundary="true"
         onWheel={handleMapWheel}
         style={{
-          '--market-cluster-size': `${clusterSize}px`,
+          '--market-cluster-size': `${MARKET_MAP_CLUSTER_SIZE}px`,
           '--market-cluster-visual-scale': `${clusterScale}`,
           '--market-cluster-scope-size': `${Math.max(7, Math.round(8.2 * clusterScale))}px`,
           '--market-cluster-region-size': `${Math.max(11, Math.round(12.4 * clusterScale))}px`,
@@ -3409,60 +3366,7 @@ function MarketMapPanel({
           .market-map-region-cluster-tooltip::before {
             display: none !important;
           }
-          .logistics-map-tooltip {
-            border: 0 !important;
-            background: transparent !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-          }
-          .logistics-map-tooltip::before {
-            display: none !important;
-          }
-          .logistics-map-tooltip,
-          .logistics-map-tooltip * {
-            box-sizing: border-box !important;
-          }
-          .logistics-map-callout-wrap {
-            display: block;
-            pointer-events: auto;
-          }
-          .logistics-map-callout-wrap--centered {
-            transform: translateX(-50%);
-          }
-          .logistics-map-callout {
-            display: block;
-            min-width: 220px;
-            max-width: min(320px, calc(100vw - 48px));
-            width: max-content;
-            border: 0;
-            outline: 0;
-            border-radius: 8px;
-            background: #fff;
-            color: #111;
-            padding: 10px 12px;
-            text-align: left;
-            font-size: 12px;
-            line-height: 1.45;
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
-            cursor: pointer;
-            white-space: nowrap;
-          }
-          .logistics-map-callout,
-          .logistics-map-callout * {
-            box-sizing: border-box !important;
-          }
-          .logistics-map-callout strong {
-            display: block;
-            margin-bottom: 4px;
-            color: #111;
-            font-weight: 700;
-            white-space: nowrap;
-          }
-          .logistics-map-callout span {
-            display: block;
-            color: #111;
-            white-space: nowrap;
-          }
+          ${MAP_CALLOUT_STYLES}
         `}</style>
         {mapStatus.status === 'osm' ? (
           <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
@@ -3519,24 +3423,45 @@ function MarketMapPanel({
             <div className="absolute left-3 top-3 rounded-[8px] border border-[#3A3A3C] bg-[#1F1F1E]/90 px-3 py-2 text-[11px] text-[#FFD479]">
               {mapStatus.message}
             </div>
-            {markerRows.map((item) => (
-              <button
-                key={`loading-point-${item.row.row_key || item.row.id || item.index}`}
-                type="button"
-                data-map-point-button={item.isCluster ? undefined : 'true'}
-                data-region-cluster-button={item.isCluster ? 'true' : undefined}
-                data-region-name={item.isCluster ? item.regionLabel : undefined}
-                data-region-point-count={item.isCluster ? item.count : undefined}
-                title={`${item.label} · ${item.regionLabel}`}
-                onClick={() => openMapItem(item)}
-                className={item.isCluster
-                  ? 'market-map-region-cluster-marker absolute z-10 -translate-x-1/2 -translate-y-1/2'
-                  : 'absolute z-10 h-8 w-8 -translate-x-1/2 -translate-y-full rounded-full border border-white bg-[#9AD7FF] text-[11px] font-bold text-[#111] shadow-[0_8px_18px_rgba(0,0,0,0.28)] hover:bg-white'}
-                style={mapPointStyle(item)}
-              >
-                {item.isCluster ? renderClusterLabel(item) : ''}
-              </button>
-            ))}
+            {markerRows.map((item) => {
+              const key = `loading-point-${item.row.row_key || item.row.id || item.index}`;
+              if (item.isCluster) {
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    data-region-cluster-button="true"
+                    data-region-name={item.regionLabel}
+                    data-region-point-count={item.count}
+                    title={`${item.label} · ${item.regionLabel}`}
+                    onClick={() => openMapItem(item)}
+                    className="market-map-region-cluster-marker absolute z-10 -translate-x-1/2 -translate-y-1/2"
+                    style={mapPointStyle(item)}
+                  >
+                    {renderClusterLabel(item)}
+                  </button>
+                );
+              }
+              return (
+                <div
+                  key={key}
+                  className="absolute z-10 h-8 w-8 -translate-x-1/2 -translate-y-full"
+                  style={constrainStaticMapCalloutAnchorStyle(mapPointStyle(item))}
+                  data-map-callout-anchor="true"
+                  onMouseEnter={(event) => positionStaticMapCallout(event.currentTarget)}
+                  onFocusCapture={(event) => positionStaticMapCallout(event.currentTarget)}
+                >
+                  <button
+                    type="button"
+                    data-map-point-button="true"
+                    title={`${item.label} · ${item.regionLabel}`}
+                    onClick={() => openMapItem(item)}
+                    className="h-8 w-8 rounded-full border border-white bg-[#9AD7FF] text-[11px] font-bold text-[#111] shadow-[0_8px_18px_rgba(0,0,0,0.28)] hover:bg-white"
+                  />
+                  <MapCallout {...marketMapCalloutContent(item, item.index)} onClick={() => openMapItem(item)} />
+                </div>
+              );
+            })}
           </>
         ) : null}
         {!sourceRows.length ? <div className="absolute inset-0 grid place-items-center text-[13px] text-[#86868B]">표시할 지도 데이터가 없습니다.</div> : null}
@@ -4970,15 +4895,11 @@ function normalizeAssetSpecEditorRows(rows) {
   });
 }
 
-function domainSources(sources, domain) {
-  return sources.filter((row) => row.source_domain === domain);
-}
-
 function DailyLogisticsNewsCardLegacy() {
   const [expanded, setExpanded] = useState(true);
   const todayKey = dateKey();
   const [selectedDate, setSelectedDate] = useState(todayKey);
-  const { loading, error, data, reload } = useEdgeData('news/list', { limit: 10, date: selectedDate }, [selectedDate]);
+  const { loading, error, data, reload } = useEdgeData('news/list', { limit: 10, date: selectedDate });
   const dataDate = text(data?.selected_date, '');
   const dataMatchesSelection = !dataDate || dataDate === selectedDate;
   const items = dataMatchesSelection ? safeArray(data?.items) : [];
@@ -5066,7 +4987,7 @@ export function DailyLogisticsNewsCard() {
   const [expanded, setExpanded] = useState(true);
   const todayKey = dateKey();
   const [selectedDate, setSelectedDate] = useState(todayKey);
-  const { loading, error, data, reload } = useEdgeData('news/list', { limit: 10, date: selectedDate }, [selectedDate]);
+  const { loading, error, data, reload } = useEdgeData('news/list', { limit: 10, date: selectedDate });
   const dataDate = text(data?.selected_date, '');
   const dataMatchesSelection = !dataDate || dataDate === selectedDate;
   const items = dataMatchesSelection ? safeArray(data?.items).slice(0, 10) : [];
@@ -5137,7 +5058,7 @@ export function DailyLogisticsNewsCard() {
 
 function MarketDataDashboardLegacy({ activeTab = 'overview', onNavigate }) {
   const currentTab = MARKET_TABS.some((tab) => tab.id === activeTab) ? activeTab : 'overview';
-  const { loading, error, data, reload } = useEdgeData('sector-market/read', { limit: 2000 }, []);
+  const { loading, error, data, reload } = useEdgeData('sector-market/read', { limit: 2000 });
   const summary = data?.summary || {};
   const leases = safeArray(data?.leases);
   const supply = safeArray(data?.supply);
@@ -5348,7 +5269,7 @@ function MarketDataDashboardLegacy({ activeTab = 'overview', onNavigate }) {
 function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const currentTab = MARKET_TABS.find((tab) => tab.id === activeTab || tab.route === activeTab)?.id || 'overview';
   const marketReadPayload = useMemo(() => marketReadPayloadFor(currentTab), [currentTab]);
-  const { loading, error, data } = useEdgeData('sector-market/read', marketReadPayload, [currentTab]);
+  const { loading, error, data } = useEdgeData('sector-market/read', marketReadPayload);
   const [loadingProgress, setLoadingProgress] = useState(loading ? 14 : 100);
   const [modal, setModal] = useState(null);
   const [txnWindow, setTxnWindow] = useState('3y');
@@ -5455,7 +5376,6 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   );
   const supplyStatisticRows = normalizedSupplyStatisticRows.length ? normalizedSupplyStatisticRows : overviewSupplyStatisticFallbackRows;
   const sourceAudit = summary.source_audit || {};
-  const expectedCounts = summary.expected_counts || {};
   const readback = summary.readback || {};
   const hasMarketData = Boolean(data && Object.keys(data || {}).length);
   const isInitialMarketLoading = loading && !hasMarketData;
@@ -5561,7 +5481,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   useEffect(() => {
     if (!overviewLeasePeriod && selectedLeaseStatisticPeriod) setOverviewLeasePeriod(selectedLeaseStatisticPeriod);
   }, [overviewLeasePeriod, selectedLeaseStatisticPeriod]);
-  const regions = makeRegionOptions([...leases, ...supply, ...transactions]);
+  const regions = useMemo(() => makeRegionOptions([...leases, ...supply, ...transactions]), [leases, supply, transactions]);
   const temps = ['전체', ...new Set([...leases, ...supply, ...transactions].map((row) => normalizeMarketTemperature(row.temperature_type)).filter((item) => item && item !== '미분류'))].filter(Boolean).slice(0, 10);
   const transactionTypes = ['전체', ...new Set(transactions.map((row) => text(row.transaction_type || row.deal_type, '')).filter(Boolean))].slice(0, 8);
   const yearFrom = (row) => number(row.transaction_year || String(row.transaction_date || row.transaction_period || '').slice(0, 4));
@@ -5617,14 +5537,6 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     { value: 'rent_free_vacancy_10', label: '렌트프리(공실률 10% 이상)' },
     { value: 'vacancy_rate', label: '공실률' },
   ];
-  const leaseMetricValue = (row) => {
-    if (leaseMeasure === 'rent_free_vacancy_10') {
-      const vacancy = number(row.vacancy_rate);
-      const normalized = Math.abs(vacancy) <= 1 ? vacancy * 100 : vacancy;
-      return normalized >= 10 ? number(row.rent_free_months_per_year) : 0;
-    }
-    return row[leaseMeasure];
-  };
   const leaseMetricUnitFor = (metric) => {
     if (metric === 'vacancy_rate') return '';
     if (metric === 'rent_free_months_per_year' || metric === 'rent_free_vacancy_10') return '개월/년';
@@ -5637,22 +5549,30 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   };
   const leaseMetricFormatter = leaseMetricFormatterFor(leaseMeasure);
   const selectedLeaseMeasureLabel = text(leaseMeasureOptions.find((option) => option.value === leaseMeasure)?.label, '선택 지표');
-  const leaseStatisticAvailableSegments = new Set(leaseStatisticRows.map((row) => text(row.segment_label, '')).filter(Boolean));
-  const leaseSegmentOptions = ['복합 전체', '복합 상온', '복합 저온', '상온', '저온', '상온(복합포함)', '저온(복합포함)']
-    .filter((option) => leaseStatisticAvailableSegments.size === 0 || leaseStatisticAvailableSegments.has(option));
+  const leaseStatisticAvailableSegmentKey = [...new Set(leaseStatisticRows.map((row) => text(row.segment_label, '')).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko'))
+    .join('|');
+  const leaseStatisticAvailableSegments = useMemo(
+    () => new Set(leaseStatisticAvailableSegmentKey ? leaseStatisticAvailableSegmentKey.split('|') : []),
+    [leaseStatisticAvailableSegmentKey],
+  );
+  const leaseSegmentOptions = useMemo(() => (
+    ['복합 전체', '복합 상온', '복합 저온', '상온', '저온', '상온(복합포함)', '저온(복합포함)']
+      .filter((option) => leaseStatisticAvailableSegments.size === 0 || leaseStatisticAvailableSegments.has(option))
+  ), [leaseStatisticAvailableSegments]);
   const leaseStatisticRegionOptions = [
     { value: '전체', label: '전체 권역' },
     ...regions.filter((option) => option.value !== '전체'),
   ];
   useEffect(() => {
     if (leaseSegmentOptions.length && !leaseSegmentOptions.includes(leaseSegment)) setLeaseSegment(leaseSegmentOptions[0]);
-  }, [leaseSegment, leaseSegmentOptions.join('|')]);
+  }, [leaseSegment, leaseSegmentOptions]);
   useEffect(() => {
     const selectedRegions = selectedRegionValues(leaseStatisticRegion).filter((region) => region !== '전체');
     if (selectedRegions.some((selected) => !regions.some((option) => regionValue(option.value || option) === selected))) {
       setLeaseStatisticRegion('전체');
     }
-  }, [leaseStatisticRegion, regions.map((option) => option.value || option).join('|')]);
+  }, [leaseStatisticRegion, regions]);
   const leaseStatisticBaseRows = leaseStatisticRows.filter((row) => (
     text(row.period_label) === selectedLeaseStatisticPeriod
     && text(row.metric_key) === leaseMeasure
@@ -5672,15 +5592,6 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const leaseComparisonSegments = (
     leaseComparisonSegmentGroups.find((group) => group.some((segment) => leaseStatisticAvailableSegments.has(segment))) || []
   ).filter((segment) => leaseStatisticAvailableSegments.has(segment));
-  const leaseStatisticComparisonRows = leaseStatisticBaseRows
-    .filter((row) => (leaseComparisonSegments.length ? leaseComparisonSegments.includes(text(row.segment_label)) : true))
-    .map((row) => ({
-      label: regionDisplay(row.region || row.label),
-      region: row.region || row.label,
-      series: text(row.segment_label),
-      value: row.value,
-      metric_label: row.metric_label,
-    }));
   const leaseStatisticChartRows = leaseStatisticDisplayRows.map((row) => ({
     label: regionDisplay(row.region || row.label),
     region: row.region || row.label,
@@ -5758,7 +5669,6 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const overviewLeaseTempOptions = ['전체', ...leaseSegmentOptions.filter((option) => option !== '전체')];
   const overviewLeaseSelectedPeriod = overviewLeasePeriod || selectedLeaseStatisticPeriod;
   const overviewLeaseSelectedMetric = overviewLeaseMetric || 'rent_manwon_per_py';
-  const overviewLeaseMetricLabel = text(leaseMeasureOptions.find((option) => option.value === overviewLeaseSelectedMetric)?.label, '임대료');
   const overviewLeaseRentBaseRows = leaseStatisticRows
     .filter((row) => text(row.period_label) === overviewLeaseSelectedPeriod && text(row.metric_key) === overviewLeaseSelectedMetric && text(row.dimension_type) === 'region' && row.is_average !== true)
     .filter((row) => regionMatches(overviewLeaseRegion, row.region || row.label));
@@ -5952,7 +5862,6 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
     });
     return [...grouped.values()].map((row) => ({ ...row, value: weightFn ? row.weighted / Math.max(1, row.weight) : row.value })).sort((a, b) => number(b.value) - number(a.value));
   }
-  const supplyPeriodRows = aggregateBy(filteredSupplyRows, supplyPeriodLabel, supplyArea).sort((a, b) => String(a.label).localeCompare(String(b.label), 'ko'));
   const transactionMetricCards = [
     { label: '거래면적', value: filteredTransactions.reduce((sum, row) => sum + number(row.area_py), 0), formatter: (value) => `${formatNumber(value, 1)}평`, detail: '필터 적용 합계' },
     { label: '거래건수', value: filteredTransactions.length, formatter: (value) => `${formatNumber(value)}건`, detail: '중복 제거 거래 사례' },
@@ -6011,18 +5920,6 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       };
     })
     .sort((a, b) => Number(a.label) - Number(b.label) || a.series.localeCompare(b.series, 'ko'));
-  const transactionMarketDetailRows = aggregateBy(
-    transactionTrendRows,
-    (row) => `${yearFrom(row)}|${regionDisplay(row.region)}`,
-    (row) => row.transaction_amount_krw,
-  )
-    .map((row) => {
-      const [year, region] = text(row.label).split('|');
-      const source = transactionTrendRows.filter((item) => String(yearFrom(item)) === year && regionDisplay(item.region) === region);
-      const area = source.reduce((sum, item) => sum + number(item.area_py), 0);
-      return { year, region, count: row.count, area, amount: row.value };
-    })
-    .sort((a, b) => Number(a.year) - Number(b.year) || regionValue(a.region).localeCompare(regionValue(b.region), 'ko'));
   const transactionMarketAssetRows = transactionTrendRows
     .map((row) => ({
       ...row,
@@ -6551,7 +6448,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
               splitPeriodAxis
               legendAlign="center"
               height={360}
-              onPointClick={(row) => setModal({
+              onPointClick={() => setModal({
                 title: 'Cap Rate 추이 전체 상세',
                 rows: capRateWideRows,
                 columns: capRateWideColumns,
@@ -6940,7 +6837,7 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
 
 function InvestmentIndexDashboardLegacy() {
   const [mode, setMode] = useState('fund');
-  const { loading, error, data, reload } = useEdgeData('investment-index/read', {}, []);
+  const { loading, error, data, reload } = useEdgeData('investment-index/read');
   const summary = data?.summary || {};
   const funds = safeArray(data?.funds);
   const assets = safeArray(data?.assets);
@@ -7087,7 +6984,7 @@ export function InvestmentIndexDashboard() {
   const [showStructureTable, setShowStructureTable] = useState(false);
   const [detailTarget, setDetailTarget] = useState(null);
   const [loanRateTranche, setLoanRateTranche] = useState('전체 평균');
-  const { loading, error, data } = useEdgeData('investment-index/read', {}, []);
+  const { loading, error, data } = useEdgeData('investment-index/read');
   const funds = safeArray(data?.funds);
   const tranches = safeArray(data?.tranches);
   const summary = data?.summary || {};
@@ -7332,8 +7229,8 @@ export function InvestmentIndexDashboard() {
 }
 
 function AssetSpecDashboardLegacy() {
-  const specRead = useEdgeData('asset-spec/read', {}, []);
-  const costRead = useEdgeData('operating-costs/read', {}, []);
+  const specRead = useEdgeData('asset-spec/read');
+  const costRead = useEdgeData('operating-costs/read');
   const assets = safeArray(specRead.data?.assets);
   const specs = safeArray(specRead.data?.specs);
   const files = safeArray(specRead.data?.files);
@@ -7390,27 +7287,30 @@ function AssetSpecDashboardLegacy() {
 }
 
 export function AssetSpecDashboard() {
-  const specRead = useEdgeData('asset-spec/read', {}, []);
-  const assets = safeArray(specRead.data?.assets);
-  const specs = safeArray(specRead.data?.specs);
-  const files = safeArray(specRead.data?.files);
-  const tenantSummary = safeArray(specRead.data?.tenant_summary);
-  const specsByAsset = new Map(specs.map((row) => [row.asset_id, row]));
-  const filesByAsset = new Map();
-  files.forEach((row) => filesByAsset.set(row.asset_id, (filesByAsset.get(row.asset_id) || 0) + 1));
-  const tenantsByAsset = new Map();
-  tenantSummary.forEach((row) => {
-    const assetRows = tenantsByAsset.get(row.asset_id) || [];
-    assetRows.push(row);
-    tenantsByAsset.set(row.asset_id, assetRows);
-  });
-  const rows = assets.map((asset) => ({
-    ...asset,
-    spec: specsByAsset.get(asset.asset_id) || {},
-    file_count: filesByAsset.get(asset.asset_id) || 0,
-    tenants: tenantsByAsset.get(asset.asset_id) || [],
-  })).sort((a, b) => text(a.asset_name).localeCompare(text(b.asset_name), 'ko'));
-  const editableAssets = rows.filter((row) => row.can_create || row.can_update || row.can_delete);
+  const specRead = useEdgeData('asset-spec/read');
+  const { tenantSummary, rows } = useMemo(() => {
+    const nextAssets = safeArray(specRead.data?.assets);
+    const nextSpecs = safeArray(specRead.data?.specs);
+    const nextFiles = safeArray(specRead.data?.files);
+    const nextTenantSummary = safeArray(specRead.data?.tenant_summary);
+    const specsByAsset = new Map(nextSpecs.map((row) => [row.asset_id, row]));
+    const filesByAsset = new Map();
+    nextFiles.forEach((row) => filesByAsset.set(row.asset_id, (filesByAsset.get(row.asset_id) || 0) + 1));
+    const tenantsByAsset = new Map();
+    nextTenantSummary.forEach((row) => {
+      const assetRows = tenantsByAsset.get(row.asset_id) || [];
+      assetRows.push(row);
+      tenantsByAsset.set(row.asset_id, assetRows);
+    });
+    const nextRows = nextAssets.map((asset) => ({
+      ...asset,
+      spec: specsByAsset.get(asset.asset_id) || {},
+      file_count: filesByAsset.get(asset.asset_id) || 0,
+      tenants: tenantsByAsset.get(asset.asset_id) || [],
+    })).sort((a, b) => text(a.asset_name).localeCompare(text(b.asset_name), 'ko'));
+    return { tenantSummary: nextTenantSummary, rows: nextRows };
+  }, [specRead.data]);
+  const editableAssets = useMemo(() => rows.filter((row) => row.can_create || row.can_update || row.can_delete), [rows]);
   const [assetCompareIds, setAssetCompareIds] = useState(() => Array.from({ length: ASSET_SPEC_COMPARE_SLOT_COUNT }, () => ''));
   const [tenantCompareSelections, setTenantCompareSelections] = useState(() => Array.from(
     { length: ASSET_SPEC_COMPARE_SLOT_COUNT },
@@ -7421,7 +7321,7 @@ export function AssetSpecDashboard() {
   const [editRows, setEditRows] = useState(ASSET_SPEC_DEFAULT_ROWS);
   const [editStatus, setEditStatus] = useState(null);
   const [tableModal, setTableModal] = useState(null);
-  const tenantRows = tenantSummary.map((tenant) => {
+  const tenantRows = useMemo(() => tenantSummary.map((tenant) => {
     const asset = rows.find((row) => row.asset_id === tenant.asset_id) || {};
     return {
       id: `${tenant.asset_id}:${tenant.tenant_name}`,
@@ -7437,17 +7337,14 @@ export function AssetSpecDashboard() {
       ramp_width_m: asset.spec?.ramp_width_m,
       floor_load: [asset.spec?.floor_load_warehouse_kg_sqm, asset.spec?.floor_load_corridor_kg_sqm].filter(Boolean).join(' / '),
     };
-  }).sort((a, b) => text(a.tenant_name).localeCompare(text(b.tenant_name), 'ko') || text(a.asset_name).localeCompare(text(b.asset_name), 'ko'));
-  const rowsVersion = rows.map((row) => `${row.asset_id}:${row.spec?.asset_spec_id || ''}:${row.spec?.updated_at || ''}`).join('|');
-  const tenantRowsVersion = tenantRows.map((row) => row.id).join('|');
-  const editableAssetsVersion = editableAssets.map((row) => `${row.asset_id}:${row.can_create ? 'c' : ''}${row.can_update ? 'u' : ''}${row.can_delete ? 'd' : ''}`).join('|');
+  }).sort((a, b) => text(a.tenant_name).localeCompare(text(b.tenant_name), 'ko') || text(a.asset_name).localeCompare(text(b.asset_name), 'ko')), [rows, tenantSummary]);
   const tenantNames = useMemo(() => (
     [
       ASSET_SPEC_ALL_TENANT_OPTION,
       ...Array.from(new Set(tenantRows.map((row) => text(row.tenant_name, '')).filter(Boolean)))
         .sort((a, b) => a.localeCompare(b, 'ko')),
     ]
-  ), [tenantRowsVersion]);
+  ), [tenantRows]);
   const tenantAssetsByName = useMemo(() => {
     const grouped = new Map();
     grouped.set(ASSET_SPEC_ALL_TENANT_OPTION, rows.map((row) => ({
@@ -7466,7 +7363,7 @@ export function AssetSpecDashboard() {
     });
     grouped.forEach((items) => items.sort((a, b) => text(a.asset_name).localeCompare(text(b.asset_name), 'ko')));
     return grouped;
-  }, [rowsVersion, tenantRowsVersion]);
+  }, [rows, tenantRows]);
   useEffect(() => {
     if (!rows.length) return;
     setAssetCompareIds((current) => {
@@ -7479,7 +7376,7 @@ export function AssetSpecDashboard() {
       });
       return changed ? next : current;
     });
-  }, [rowsVersion]);
+  }, [rows]);
   useEffect(() => {
     if (!tenantRows.length) return;
     setTenantCompareSelections((current) => {
@@ -7503,18 +7400,18 @@ export function AssetSpecDashboard() {
       });
       return changed ? next : current;
     });
-  }, [tenantRowsVersion, tenantNames, tenantAssetsByName]);
+  }, [tenantRows.length, tenantNames, tenantAssetsByName]);
   useEffect(() => {
     if (!editOpen) return;
     const fallbackAssetId = editableAssets[0]?.asset_id || '';
     if (!editableAssets.some((row) => row.asset_id === editAssetId)) setEditAssetId(fallbackAssetId);
-  }, [editableAssetsVersion, editAssetId, editOpen]);
+  }, [editableAssets, editAssetId, editOpen]);
   useEffect(() => {
     if (!editOpen) return;
     const selected = rows.find((row) => row.asset_id === editAssetId);
     setEditRows(normalizeAssetSpecEditorRows(selected ? assetSpecRowsFor(selected) : ASSET_SPEC_DEFAULT_ROWS));
     setEditStatus(null);
-  }, [editAssetId, editOpen, rowsVersion]);
+  }, [editAssetId, editOpen, rows]);
   const assetCompareTargets = assetCompareIds.map((assetId, index) => (
     rows.find((row) => row.asset_id === assetId) || rows[index] || rows[0] || null
   ));
@@ -7723,7 +7620,7 @@ export function AssetSpecDashboard() {
 const MANAGEMENT_ALL_OPTION = '전체';
 
 function DataManagementApprovalDashboard() {
-  const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 120, row_limit: 20 }, []);
+  const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 120, row_limit: 20 });
   const [selectedRequestId, setSelectedRequestId] = useState('');
   const [actionStatus, setActionStatus] = useState(null);
   const [rowActionStatus, setRowActionStatus] = useState({});
@@ -7866,7 +7763,6 @@ function DataManagementApprovalDashboard() {
               {requestRows.length ? requestRows.map((row) => {
                 const requestId = requestIdFor(row);
                 const selected = requestId === requestIdFor(selectedRequest);
-                const isPending = isPendingRequest(row);
                 const rowPending = rowActionStatus[requestId];
                 const canReview = canReviewRequest(row);
                 const requester = requesterProfileFor(row);
@@ -7991,930 +7887,6 @@ function DataManagementApprovalDashboard() {
   );
 }
 
-function DataManagementDashboardLegacy() {
-  const [tab, setTab] = useState('lease');
-  const [selectedRowId, setSelectedRowId] = useState('');
-  const [selectedField, setSelectedField] = useState('');
-  const [afterValue, setAfterValue] = useState('');
-  const [reason, setReason] = useState('');
-  const [selectedEditRequestId, setSelectedEditRequestId] = useState('');
-  const [managementAsset, setManagementAsset] = useState(MANAGEMENT_ALL_OPTION);
-  const [managementFund, setManagementFund] = useState(MANAGEMENT_ALL_OPTION);
-  const [managementSearch, setManagementSearch] = useState('');
-  const [gridDrafts, setGridDrafts] = useState({});
-  const [gridReason, setGridReason] = useState('');
-  const [submitStatus, setSubmitStatus] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  const { loading, error, data, reload } = useEdgeData('data-management/status', { limit: 100, row_limit: 800 }, []);
-  const sources = safeArray(data?.sources);
-  const sourceRows = safeArray(data?.source_rows);
-  const edits = safeArray(data?.edit_requests);
-  const domainStats = safeArray(data?.domain_stats);
-  const tabs = [
-    { id: 'my', label: '이지스 전체' },
-    { id: 'lease', label: '임대차' },
-    { id: 'fund', label: '펀드/금융' },
-    { id: 'permission', label: '권한/사용자' },
-    { id: 'spec', label: '자산 스펙' },
-    { id: 'cost', label: '운영비용' },
-    { id: 'market', label: '시장 Data' },
-    { id: 'approval', label: '승인 대기' },
-    { id: 'history', label: '반영 이력' },
-  ];
-  const domainForTab = {
-    my: '',
-    lease: 'lease_contracts',
-    fund: 'fund_info',
-    market: 'sector_market',
-    permission: 'permissions',
-    spec: 'asset_specs',
-    cost: 'operating_costs',
-  }[tab];
-  const tabForDomain = (domain) => ({
-    lease_contracts: 'lease',
-    fund_info: 'fund',
-    sector_market: 'market',
-    permissions: 'permission',
-    asset_specs: 'spec',
-    operating_costs: 'cost',
-  }[domain] || 'lease');
-  const domainRows = domainForTab
-    ? sourceRows.filter((row) => sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain === domainForTab)
-    : sourceRows.filter((row) => {
-      const domain = sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain;
-      return DATA_MANAGEMENT_DOMAIN_KEYS.has(domain) && domain !== 'sector_market';
-    });
-  const rowOptionValue = (row, keys) => {
-    const values = row?.row_values && typeof row.row_values === 'object' ? row.row_values : {};
-    return text(firstText(...keys.map((key) => values[key])), '');
-  };
-  const assetKeys = ['자산명', '물류센터명', '센터명', '창고명', 'asset_name', 'center_name', 'warehouse_name'];
-  const fundKeys = ['펀드명', 'fund_name', 'display_name'];
-  const managementScope = data?.management_scope || {};
-  const scopeAssets = safeArray(managementScope.assets);
-  const scopeFunds = safeArray(managementScope.funds);
-  const scopeLinks = safeArray(managementScope.readableLinks).length
-    ? safeArray(managementScope.readableLinks)
-    : safeArray(managementScope.links);
-  const normalizeManagementKey = (value) => text(value, '').replace(/\s+/gu, '').toLowerCase();
-  const optionRefs = (row, keys) => keys.map((key) => text(row?.[key], '')).filter(Boolean);
-  const makeScopeOptions = (rows, keys, labelKeys) => {
-    const seen = new Set();
-    return rows.map((row) => {
-      const label = text(firstText(...labelKeys.map((key) => row?.[key])), '');
-      if (!label || seen.has(label)) return null;
-      seen.add(label);
-      return { label, refs: optionRefs(row, keys).map(normalizeManagementKey).filter(Boolean) };
-    }).filter(Boolean);
-  };
-  const scopeAssetOptions = makeScopeOptions(scopeAssets, ['asset_id', 'asset_code', 'asset_name'], ['asset_name', 'asset_code', 'asset_id']);
-  const scopeFundOptions = makeScopeOptions(scopeFunds, ['fund_id', 'fund_code', 'fund_name', 'short_name', 'display_name'], ['display_name', 'short_name', 'fund_name', 'fund_code', 'fund_id']);
-  const scopeRefs = [
-    ...scopeAssetOptions.flatMap((option) => option.refs),
-    ...scopeFundOptions.flatMap((option) => option.refs),
-  ].filter(Boolean);
-  const rowManagementHaystack = (row) => normalizeManagementKey([
-    row?.natural_key,
-    row?.sheet_name,
-    JSON.stringify(row?.row_values || {}),
-    JSON.stringify(row?.normalized_values || {}),
-  ].join(' '));
-  const rowMatchesRefs = (row, refs) => {
-    if (!refs.length) return true;
-    const haystack = rowManagementHaystack(row);
-    return refs.some((ref) => ref && haystack.includes(ref));
-  };
-  const isMarketWorkbench = domainForTab === 'sector_market';
-  const scopedDomainRows = isMarketWorkbench
-    ? domainRows
-    : (scopeRefs.length ? domainRows.filter((row) => rowMatchesRefs(row, scopeRefs)) : domainRows);
-  const rowSearchText = (row) => [
-    text(row.sheet_name, ''),
-    rowOptionValue(row, assetKeys),
-    rowOptionValue(row, fundKeys),
-    sourceRowDisplayTitle(row),
-    sourceRowDisplaySummary(row),
-  ].join(' ').toLowerCase();
-  const managementAssetOptions = [MANAGEMENT_ALL_OPTION, ...scopeAssetOptions.map((option) => option.label).sort((a, b) => a.localeCompare(b, 'ko'))];
-  const selectedAssetRefs = managementAsset === MANAGEMENT_ALL_OPTION
-    ? []
-    : (scopeAssetOptions.find((option) => option.label === managementAsset)?.refs || [normalizeManagementKey(managementAsset)]);
-  const linkMatchesSelectedAsset = (link) => {
-    if (!selectedAssetRefs.length) return true;
-    const linkRefs = optionRefs(link, ['asset_id', 'asset_code', 'asset_name']).map(normalizeManagementKey).filter(Boolean);
-    return linkRefs.some((ref) => selectedAssetRefs.includes(ref));
-  };
-  const linkedFundRefs = [...new Set(scopeLinks
-    .filter(linkMatchesSelectedAsset)
-    .flatMap((link) => optionRefs(link, ['fund_id', 'fund_code', 'fund_name', 'short_name', 'display_name'])))]
-    .map(normalizeManagementKey)
-    .filter(Boolean);
-  const linkedScopeFundOptions = selectedAssetRefs.length && linkedFundRefs.length
-    ? scopeFundOptions.filter((option) => option.refs.some((ref) => linkedFundRefs.includes(ref)))
-    : scopeFundOptions;
-  const managementFundOptions = [MANAGEMENT_ALL_OPTION, ...linkedScopeFundOptions.map((option) => option.label).sort((a, b) => a.localeCompare(b, 'ko'))];
-  const selectedFundRefs = managementFund === MANAGEMENT_ALL_OPTION
-    ? []
-    : (scopeFundOptions.find((option) => option.label === managementFund)?.refs || [normalizeManagementKey(managementFund)]);
-  const isFundLockedByAsset = Boolean(selectedAssetRefs.length && linkedScopeFundOptions.length <= 1);
-  const linkedFundDisplay = selectedAssetRefs.length
-    ? (linkedScopeFundOptions.map((option) => option.label).join(', ') || '연결 펀드 없음')
-    : '전체 펀드';
-  const appliesEntityFilter = !isMarketWorkbench;
-  const filteredRows = scopedDomainRows
-    .filter((row) => !appliesEntityFilter || rowMatchesRefs(row, selectedAssetRefs))
-    .filter((row) => !appliesEntityFilter || rowMatchesRefs(row, selectedFundRefs))
-    .filter((row) => !managementSearch || rowSearchText(row).includes(managementSearch.toLowerCase()));
-  const accessScope = text(data?.access_scope, 'unknown');
-  const managedAssetCodes = safeArray(data?.managed_asset_codes);
-  const scopeAssetCount = Number(managementScope.asset_count || scopeAssets.length || 0);
-  const scopeFundCount = Number(managementScope.fund_count || scopeFunds.length || 0);
-  const scopeReadableAssetCount = Number(managementScope.readable_asset_count || scopeAssets.length || 0);
-  const scopeReadableFundCount = Number(managementScope.readable_fund_count || scopeFunds.length || 0);
-  const scopeLabel = accessScope === 'manager_full_source'
-    ? `이지스자산운용 관리 범위: 자산 ${formatNumber(scopeAssetCount)}개 / 펀드 ${formatNumber(scopeFundCount)}개`
-    : `이지스자산운용 관리 범위 중 내 권한: 자산 ${formatNumber(scopeReadableAssetCount)}개 / 펀드 ${formatNumber(scopeReadableFundCount)}개`;
-  const rowAccessMessage = !sourceRows.length
-    ? (accessScope === 'manager_full_source'
-      ? '아직 조회 가능한 수정 대상 데이터가 없습니다. 업데이트 탭의 active 상태 또는 관리 권한을 확인해 주세요.'
-      : `현재 계정은 담당 자산 범위만 조회할 수 있습니다.${managedAssetCodes.length ? ` 담당 자산: ${managedAssetCodes.join(', ')}` : ' 담당 자산이 배정되지 않았습니다.'}`)
-    : (!filteredRows.length ? '선택한 이지스자산운용 관리 범위에 해당하는 수정 대상 데이터가 없습니다. 다른 업무 탭이나 자산/펀드 필터를 확인해 주세요.' : '');
-  const fallbackGridRows = !filteredRows.length
-    ? (scopedDomainRows.length ? scopedDomainRows.slice(0, 12) : sourceRows.slice(0, 12))
-    : [];
-  const managementGridRows = filteredRows.length ? filteredRows.slice(0, 60) : fallbackGridRows;
-  const gridUsesFallback = !filteredRows.length;
-  const selectedRow = managementGridRows.find((row) => row.source_row_id === selectedRowId) || managementGridRows[0] || null;
-  const rowValues = selectedRow?.row_values && typeof selectedRow.row_values === 'object' ? selectedRow.row_values : {};
-  const editableFields = Object.keys(rowValues).filter(isUserVisibleField).slice(0, 80);
-  const selectedEditRequest = edits.find((row) => (row.request_id || row.id) === selectedEditRequestId) || null;
-  const managementGridFields = useMemo(() => {
-    const fieldCounts = new Map();
-    managementGridRows.slice(0, 200).forEach((row) => {
-      const values = row?.row_values && typeof row.row_values === 'object' ? row.row_values : {};
-      Object.keys(values).filter(isUserVisibleField).forEach((field) => {
-        fieldCounts.set(field, (fieldCounts.get(field) || 0) + 1);
-      });
-    });
-    const priorityPattern = /자산|센터|펀드|임차|계약|면적|임대|관리|보증|주소|규모|gfa|dock|층고|pm|fm|보험|utility|tranche|금리|만기/iu;
-    return [...fieldCounts.entries()]
-      .sort((a, b) => {
-        const priorityDiff = Number(priorityPattern.test(b[0])) - Number(priorityPattern.test(a[0]));
-        if (priorityDiff) return priorityDiff;
-        return b[1] - a[1] || fieldDisplayLabel(a[0]).localeCompare(fieldDisplayLabel(b[0]), 'ko');
-      })
-      .map(([field]) => field)
-      .slice(0, 10);
-  }, [managementGridRows]);
-  const gridCellKey = (rowId, field) => `${rowId}::${field}`;
-  const gridCellBeforeValue = (row, field) => text((row?.row_values && typeof row.row_values === 'object' ? row.row_values : {})[field], '');
-  const managementDraftEntries = useMemo(() => Object.entries(gridDrafts).map(([key, requestedValue]) => {
-    const splitIndex = key.indexOf('::');
-    const sourceRowId = splitIndex === -1 ? '' : key.slice(0, splitIndex);
-    const field = splitIndex === -1 ? '' : key.slice(splitIndex + 2);
-    const row = filteredRows.find((item) => item.source_row_id === sourceRowId);
-    if (!row || !field) return null;
-    const beforeValue = gridCellBeforeValue(row, field);
-    if (text(requestedValue, '') === beforeValue) return null;
-    const source = sources.find((item) => item.source_file_id === row.source_file_id) || {};
-    return {
-      key,
-      row,
-      source,
-      field,
-      beforeValue,
-      requestedValue: text(requestedValue, ''),
-      title: sourceRowDisplayTitle(row),
-    };
-  }).filter(Boolean), [gridDrafts, filteredRows, sources]);
-  const currentBeforeValue = selectedField ? text(rowValues[selectedField], '') : '';
-  const currentBeforeDisplayValue = selectedField ? formatDisplayValue(currentBeforeValue, selectedField) : '';
-  const afterDisplayValue = selectedField ? formatDisplayValue(afterValue, selectedField) : '';
-  const selectedSource = sources.find((row) => row.source_file_id === selectedRow?.source_file_id) || {};
-  const selectedDomainStats = domainStats.find((row) => row.source_domain === domainForTab) || {};
-  const hasPendingChange = Boolean(selectedRow && selectedField && afterValue !== currentBeforeValue);
-  const previewErrors = safeArray(preview?.validations).filter((item) => item.level === 'error');
-  useEffect(() => {
-    setSelectedRowId('');
-    setSelectedField('');
-    setAfterValue('');
-    setReason('');
-    setGridDrafts({});
-    setGridReason('');
-    setSubmitStatus(null);
-    setPreview(null);
-    setSelectedEditRequestId('');
-  }, [tab]);
-  useEffect(() => {
-    if (!managementFundOptions.includes(managementFund)) {
-      setManagementFund(managementFundOptions[1] || MANAGEMENT_ALL_OPTION);
-      return;
-    }
-    if (selectedAssetRefs.length && linkedScopeFundOptions.length === 1 && managementFund !== linkedScopeFundOptions[0].label) {
-      setManagementFund(linkedScopeFundOptions[0].label);
-    }
-  }, [managementAsset, managementFund, managementFundOptions.join('|'), linkedScopeFundOptions.map((option) => option.label).join('|'), selectedAssetRefs.join('|')]);
-  useEffect(() => {
-    if (selectedRowId && !filteredRows.some((row) => row.source_row_id === selectedRowId)) setSelectedRowId('');
-  }, [filteredRows, selectedRowId]);
-  useEffect(() => {
-    if ((!selectedField || !editableFields.includes(selectedField)) && editableFields.length) setSelectedField(editableFields[0]);
-  }, [editableFields.join('|'), selectedField]);
-  useEffect(() => {
-    let active = true;
-    if (!hasPendingChange || !selectedRow || !selectedField) {
-      setPreview(null);
-      setPreviewLoading(false);
-      return () => { active = false; };
-    }
-    setPreviewLoading(true);
-    const timer = window.setTimeout(async () => {
-      try {
-        const result = await invoke('data-management/preview-edit', {
-          source_row_id: selectedRow.source_row_id,
-          field_name: selectedField,
-          before_value: currentBeforeValue,
-          requested_value: afterValue,
-          source_domain: selectedSource.source_domain,
-          sheet_name: selectedRow.sheet_name,
-          row_number: selectedRow.row_number,
-        });
-        if (active) setPreview(result);
-      } catch (previewError) {
-        if (active) setPreview({ validations: [{ level: 'error', code: 'preview_failed', message: previewError.message || '검증에 실패했습니다.' }], can_submit: false });
-      } finally {
-        if (active) setPreviewLoading(false);
-      }
-    }, 350);
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [hasPendingChange, selectedRow?.source_row_id, selectedField, currentBeforeValue, afterValue, selectedSource.source_domain]);
-  const submitEdit = async () => {
-    if (!selectedRow || !selectedField || afterValue === currentBeforeValue) {
-      setSubmitStatus({ type: 'error', message: '변경할 행, 필드, 변경 후 값을 입력해 주세요.' });
-      return;
-    }
-    if (previewErrors.length) {
-      setSubmitStatus({ type: 'error', message: previewErrors[0].message || '검증 오류를 먼저 확인해 주세요.' });
-      return;
-    }
-    setSubmitStatus({ type: 'pending', message: '승인 요청을 저장하는 중입니다.' });
-    try {
-      const source = sources.find((row) => row.source_file_id === selectedRow.source_file_id) || {};
-      await invoke('data-management/submit-edit', {
-        client_request_id: createDataManagementClientRequestId('dm-source', {
-          row: selectedRow.source_row_id,
-          field: selectedField,
-          before: currentBeforeValue,
-          after: afterValue,
-          target: preview?.target,
-        }),
-        source_table: 'public.ll_source_rows',
-        source_domain: source.source_domain,
-        target_type: `${source.source_domain || 'source'}_edit`,
-        target_name: sourceRowDisplayTitle(selectedRow),
-        target_row_id: selectedRow.source_row_id,
-        field_name: selectedField,
-        before_value: currentBeforeValue,
-        requested_value: afterValue,
-        target_table: preview?.target?.target_table,
-        target_field: preview?.target?.target_field,
-        target_record_id: preview?.target?.target_row_id,
-        primary_key_field: preview?.target?.primary_key_field,
-        reason,
-        sheet_name: selectedRow.sheet_name,
-        row_number: selectedRow.row_number,
-        impact_summary: '수정 대상 데이터 변경 요청입니다. 승인 후 정규 테이블 반영 여부를 검토해야 합니다.',
-      }, { retryTimeout: false });
-      invalidateDataManagementEdgeCache();
-      notifyLogisticsDataRefresh({ source: 'data-management-submit' });
-      setSubmitStatus({ type: 'success', message: '승인 요청이 저장되었습니다. 승인 대기 탭에서 처리 상태를 확인해 주세요.' });
-      await reload({}, { force: true });
-    } catch (submitError) {
-      setSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 확인에 실패했습니다.' });
-    }
-  };
-  const setGridCellDraft = (row, field, value) => {
-    const key = gridCellKey(row.source_row_id, field);
-    const beforeValue = gridCellBeforeValue(row, field);
-    setSelectedRowId(row.source_row_id);
-    setSelectedField(field);
-    setAfterValue(value);
-    setGridDrafts((current) => {
-      const next = { ...current };
-      if (text(value, '') === beforeValue) delete next[key];
-      else next[key] = value;
-      return next;
-    });
-  };
-  const submitDraftEdits = async () => {
-    if (!managementDraftEntries.length) {
-      setSubmitStatus({ type: 'error', message: '승인 요청할 변경 셀이 없습니다.' });
-      return;
-    }
-    setSubmitStatus({ type: 'pending', message: `변경 ${formatNumber(managementDraftEntries.length)}건을 검증하고 승인 요청하는 중입니다.` });
-    try {
-      for (const entry of managementDraftEntries) {
-        const previewResult = await invoke('data-management/preview-edit', {
-          source_row_id: entry.row.source_row_id,
-          field_name: entry.field,
-          before_value: entry.beforeValue,
-          requested_value: entry.requestedValue,
-          source_domain: entry.source.source_domain,
-          sheet_name: entry.row.sheet_name,
-          row_number: entry.row.row_number,
-        });
-        const errors = safeArray(previewResult?.validations).filter((item) => item.level === 'error');
-        if (errors.length) throw new Error(`${entry.title} · ${fieldDisplayLabel(entry.field)}: ${errors[0].message}`);
-        await invoke('data-management/submit-edit', {
-          client_request_id: createDataManagementClientRequestId('dm-grid', {
-            row: entry.row.source_row_id,
-            field: entry.field,
-            before: entry.beforeValue,
-            after: entry.requestedValue,
-            target: previewResult?.target,
-          }),
-          source_table: 'public.ll_source_rows',
-          source_domain: entry.source.source_domain,
-          target_type: `${entry.source.source_domain || 'source'}_edit`,
-          target_name: sourceRowDisplayTitle(entry.row),
-          target_row_id: entry.row.source_row_id,
-          field_name: entry.field,
-          before_value: entry.beforeValue,
-          requested_value: entry.requestedValue,
-          target_table: previewResult?.target?.target_table,
-          target_field: previewResult?.target?.target_field,
-          target_record_id: previewResult?.target?.target_row_id,
-          primary_key_field: previewResult?.target?.primary_key_field,
-          reason: gridReason || reason || 'Data Management 그리드 수정',
-          sheet_name: entry.row.sheet_name,
-          row_number: entry.row.row_number,
-          impact_summary: 'Data Management 그리드에서 수정한 변경 요청입니다.',
-        }, { retryTimeout: false });
-      }
-      invalidateDataManagementEdgeCache();
-      notifyLogisticsDataRefresh({ source: 'data-management-grid-submit' });
-      setGridDrafts({});
-      setGridReason('');
-      setSubmitStatus({ type: 'success', message: `변경 ${formatNumber(managementDraftEntries.length)}건의 승인 요청이 저장되었습니다.` });
-      await reload({}, { force: true });
-    } catch (submitError) {
-      setSubmitStatus({ type: 'error', message: submitError.message || '그리드 변경 승인 요청 확인에 실패했습니다.' });
-    }
-  };
-  const reviewEdit = async (action, row) => {
-    const id = row.request_id || row.id;
-    if (!id) return;
-    setSubmitStatus({ type: 'pending', message: '요청을 처리하는 중입니다.' });
-    try {
-      if (action === 'readback') await invoke('edits/readback', { id });
-      if (action === 'approve') await invoke('edits/approve', { id, approval_note: 'Data Management 승인' }, { timeoutMs: 120000, forceSessionRefresh: true, retryNetwork: false, retryTimeout: false });
-      if (action === 'reject') await invoke('edits/reject', { id, rejection_note: 'Data Management 반려' }, { timeoutMs: 120000, forceSessionRefresh: true, retryNetwork: false, retryTimeout: false });
-      invalidateDataManagementEdgeCache();
-      notifyLogisticsDataRefresh({ source: 'data-management-review' });
-      setSubmitStatus({ type: 'success', message: '요청 처리가 완료되었습니다.' });
-      await reload({}, { force: true });
-    } catch (reviewError) {
-      setSubmitStatus({ type: 'error', message: reviewError.message || '요청 처리에 실패했습니다.' });
-    }
-  };
-  const workbenchAreas = [
-    { id: 'my', label: '이지스 전체', domain: '', group: 'igis', detail: '이지스자산운용 19개 자산과 17개 펀드의 대시보드 관리 데이터를 한 번에 확인합니다.' },
-    { id: 'lease', label: '임대차', domain: 'lease_contracts', group: 'igis', detail: '임차인, 계약기간, 면적, 임대료, 관리비, 공실 값을 관리합니다.' },
-    { id: 'fund', label: '펀드/금융', domain: 'fund_info', group: 'igis', detail: '펀드, 수익자, 대주, 트랜치, 금리, 만기 값을 관리합니다.' },
-    { id: 'spec', label: '자산 스펙', domain: 'asset_specs', group: 'igis', detail: '주소, 규모, Dock, 층고, 상저온, 설비 값을 관리합니다.' },
-    { id: 'cost', label: '운영비용', domain: 'operating_costs', group: 'igis', detail: 'PM/FM, 보험료, Utility와 기간별 비용 값을 관리합니다.' },
-    { id: 'permission', label: '권한/사용자', domain: 'permissions', group: 'igis', detail: '사용자, 담당 자산, 기능 권한, 계정 상태를 관리합니다.' },
-    { id: 'market', label: '시장 Data', domain: 'sector_market', group: 'market', detail: '물류 시장 원천의 임대시장, 공급, 거래, Cap Rate 데이터를 자산/펀드 선택 없이 관리합니다.' },
-    { id: 'approval', label: '승인 대기', domain: '', group: 'ops', detail: '요청된 변경을 승인하거나 반려하고 반영 결과를 확인합니다.' },
-    { id: 'history', label: '반영 이력', domain: '', group: 'ops', detail: '승인/반영 결과와 처리 상태를 시간순으로 확인합니다.' },
-  ];
-  const igisWorkbenchAreas = workbenchAreas.filter((area) => area.group === 'igis');
-  const marketWorkbenchAreas = workbenchAreas.filter((area) => area.group === 'market');
-  const systemWorkbenchAreas = workbenchAreas.filter((area) => area.group === 'ops');
-  const activeWorkbenchArea = workbenchAreas.find((area) => area.id === tab) || workbenchAreas[0];
-  const activeSpaceLabel = activeWorkbenchArea.group === 'market'
-    ? '시장 Data'
-    : activeWorkbenchArea.group === 'ops'
-      ? '시스템·운영 Data'
-      : '이지스 Data';
-  const sourceDomainForRow = (row) => sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain || '';
-  const countRowsForArea = (area) => {
-    if (area.id === 'my') {
-      return sourceRows.filter((row) => {
-        const domain = sourceDomainForRow(row);
-        return DATA_MANAGEMENT_DOMAIN_KEYS.has(domain) && domain !== 'sector_market';
-      }).length;
-    }
-    if (area.group === 'ops') {
-      return edits.length;
-    }
-    return sourceRows.filter((row) => sourceDomainForRow(row) === area.domain).length;
-  };
-  const activeWorkbenchMode = activeWorkbenchArea.group === 'ops' ? 'system' : 'grid';
-  const pendingEditRows = edits.filter((row) => row.status === 'submitted' || row.status === 'approval_required' || row.write_status === 'approval_required');
-  const historyEditRows = edits.filter((row) => !(row.status === 'submitted' || row.status === 'approval_required' || row.write_status === 'approval_required'));
-  const workbenchApprovalColumns = [
-    { key: 'target_name', label: '대상', render: (value, row) => text(value || row.target_type, '-') },
-    { key: 'source_domain', label: '영역', render: (value) => sourceDomainLabel(value) },
-    { key: 'field_name', label: '필드', render: (value) => fieldDisplayLabel(value) },
-    { key: 'before_value', label: 'Before', render: (value, row) => formatDisplayValue(value, row.field_name) },
-    { key: 'requested_value', label: 'After', render: (value, row) => formatDisplayValue(value, row.field_name) },
-    { key: 'status', label: '상태', render: (value, row) => text(row.write_status || value, '-') },
-    { key: 'created_at', label: '요청일', render: formatDateTime },
-    {
-      key: 'review_action',
-      label: '처리',
-      align: 'right',
-      render: (_, row) => data?.can_approve ? (
-        <div className="flex justify-end gap-2">
-          <button type="button" onClick={(event) => { event.stopPropagation(); reviewEdit('approve', row); }} className="h-7 rounded-[7px] border border-white bg-white px-2 text-[11px] font-bold text-[#1F1F1E] disabled:opacity-35">승인</button>
-          <button type="button" onClick={(event) => { event.stopPropagation(); reviewEdit('reject', row); }} className="h-7 rounded-[7px] border border-[#3A3A3C] px-2 text-[11px] font-semibold text-[#A1A1AA]">반려</button>
-        </div>
-      ) : <span className="text-[11px] text-[#86868B]">권한 없음</span>,
-    },
-  ];
-  const workbenchHistoryColumns = [
-    { key: 'target_name', label: '대상', render: (value, row) => text(value || row.target_type, '-') },
-    { key: 'source_domain', label: '영역', render: (value) => sourceDomainLabel(value) },
-    { key: 'field_name', label: '필드', render: (value) => fieldDisplayLabel(value) },
-    { key: 'requested_value', label: '요청값', render: (value, row) => formatDisplayValue(value, row.field_name) },
-    { key: 'readback_value', label: '반영 확인값', render: (value, row) => formatDisplayValue(value, row.field_name) },
-    { key: 'status', label: '상태', render: (value, row) => text(row.write_status || value, '-') },
-    { key: 'updated_at', label: '최종 변경', render: formatDateTime },
-  ];
-  const setInspectorAfterValue = (value) => {
-    setAfterValue(value);
-    if (selectedRow && selectedField) setGridCellDraft(selectedRow, selectedField, value);
-  };
-  const workbenchRowMessage = !sourceRows.length
-    ? '관리 가능한 데이터가 아직 로드되지 않았습니다. 데이터 다시 읽기를 눌러 주세요.'
-    : (gridUsesFallback
-      ? '선택한 조건에 맞는 데이터가 없어 대표 행을 읽기 전용으로 보여드립니다. 자산-펀드 묶음 또는 검색 조건을 조정해 주세요.'
-      : '');
-  const workbenchScopeAssetCount = Number(managementScope.asset_count || scopeAssets.length || 0);
-  const workbenchScopeFundCount = Number(managementScope.fund_count || scopeFunds.length || 0);
-  return (
-    <div className="w-full max-w-[1680px] mx-auto px-8 pt-8 pb-14">
-      <ModuleHeader
-        eyebrow="DATA MANAGEMENT"
-        title="데이터 관리"
-        right={<button type="button" onClick={() => reload({}, { force: true })} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[13px] font-semibold text-white hover:bg-white/5">데이터 다시 읽기</button>}
-      />
-
-      <section className={`${CARD} mb-5 p-4`} data-data-management-initial-selector="true">
-        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_460px]">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">현재 공간</div>
-                <div className="mt-1 text-[18px] font-bold text-white">{activeSpaceLabel}</div>
-                <div className="mt-1 text-[12px] text-[#A1A1AA]">{activeWorkbenchArea.detail}</div>
-              </div>
-              <div className="rounded-[10px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[12px] text-[#D1D1D6]">
-                {activeWorkbenchArea.group === 'ops'
-                  ? '시스템·운영 Data는 승인 대기와 반영 이력을 함께 보여줍니다.'
-                  : isMarketWorkbench
-                    ? '시장 Data는 자산/펀드 선택 없이 전용 필터로만 탐색합니다.'
-                    : '이지스 Data는 자산-펀드 묶음으로만 범위를 좁힙니다.'}
-              </div>
-            </div>
-            {isMarketWorkbench ? (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                <div className="rounded-[10px] border border-[#3A3A3C] bg-[#171717] px-3 py-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">시장 Data 범위</div>
-                  <div className="mt-1 text-[12px] font-semibold text-white">자산/펀드 선택 없이 물류 시장 원천 데이터를 관리합니다.</div>
-                </div>
-                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                  통합 검색
-                  <input value={managementSearch} onChange={(event) => setManagementSearch(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="시트명, 원천값, 주소 검색" />
-                </label>
-              </div>
-            ) : activeWorkbenchArea.group === 'ops' ? (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-                <div className="rounded-[10px] border border-[#3A3A3C] bg-[#171717] px-3 py-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">시스템·운영 범위</div>
-                  <div className="mt-1 text-[12px] font-semibold text-white">승인 대기와 반영 이력을 한 화면에서 검토합니다.</div>
-                </div>
-                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                  통합 검색
-                  <input value={managementSearch} onChange={(event) => setManagementSearch(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="대상, 필드, 요청자 검색" />
-                </label>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.9fr)]">
-                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                  자산-펀드 묶음 · 자산
-                  <select value={managementAsset} onChange={(event) => setManagementAsset(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none">
-                    {managementAssetOptions.map((option) => <option key={option} value={option}>{option === MANAGEMENT_ALL_OPTION ? '전체 자산' : option}</option>)}
-                  </select>
-                </label>
-                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                  자산-펀드 묶음 · 연결 펀드
-                  <select value={managementFund} onChange={(event) => setManagementFund(event.target.value)} disabled={isFundLockedByAsset} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none disabled:cursor-not-allowed disabled:opacity-70">
-                    {managementFundOptions.map((option) => <option key={option} value={option}>{option === MANAGEMENT_ALL_OPTION ? '전체 펀드' : option}</option>)}
-                  </select>
-                  <span className="mt-1 block truncate text-[11px] normal-case tracking-normal text-[#86868B]">{managementAsset === MANAGEMENT_ALL_OPTION ? '자산을 선택하면 연결 펀드가 자동으로 좁혀집니다.' : linkedFundDisplay}</span>
-                </label>
-                <label className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                  통합 검색
-                  <input value={managementSearch} onChange={(event) => setManagementSearch(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none" placeholder="자산, 펀드, 임차인, 시트명" />
-                </label>
-              </div>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4" data-data-management-selector-count="true">
-            <MetricCard label="관리 자산" value={formatNumber(workbenchScopeAssetCount)} detail="이지스자산운용" />
-            <MetricCard label="관리 펀드" value={formatNumber(workbenchScopeFundCount)} detail="이지스자산운용" />
-            <MetricCard label="표시 행" value={formatNumber(filteredRows.length)} detail="현재 조건" />
-            <MetricCard label="승인 대기" value={formatNumber(pendingEditRows.length)} detail="검토 필요" />
-          </div>
-        </div>
-        <div className="mt-3 text-[12px] text-[#A1A1AA]" data-data-management-igis-scope="true">
-          이지스자산운용 관리 범위: 자산 {formatNumber(workbenchScopeAssetCount)}개 / 펀드 {formatNumber(workbenchScopeFundCount)}개
-        </div>
-      </section>
-
-      {error ? <div className="mb-5 rounded-[10px] border border-[#5A4420] bg-[#2A2115] px-4 py-3 text-[12px] text-[#FFD479]">{error}</div> : null}
-      {loading && !data ? <div className={`${CARD} mb-5 p-5 text-[13px] text-[#A1A1AA]`}>데이터 관리 워크벤치를 불러오는 중입니다.</div> : null}
-
-      <div className="grid grid-cols-1 gap-5 2xl:grid-cols-[270px_minmax(0,1fr)_360px]">
-        <aside className={`${CARD} p-4`}>
-          <div className="mb-3 text-[13px] font-bold text-white">전체 업무 데이터</div>
-          <div className="space-y-2">
-            {[
-              ['이지스 Data', igisWorkbenchAreas],
-              ['시장 Data', marketWorkbenchAreas],
-              ['시스템·운영 Data', systemWorkbenchAreas],
-            ].map(([groupLabel, areas]) => (
-              <div key={groupLabel} className="space-y-2">
-                <div className="px-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{groupLabel}</div>
-                {areas.map((area) => {
-                  const stats = domainStats.find((row) => row.source_domain === area.domain) || {};
-                  const active = tab === area.id;
-                  return (
-                    <button
-                      key={area.id}
-                      type="button"
-                      onClick={() => setTab(area.id)}
-                      className={`${active ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#D1D1D6] hover:border-[#5A5A5C]'} w-full rounded-[10px] border px-3 py-3 text-left transition`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-[12px] font-bold">{area.label}</span>
-                        <span className="text-[11px] opacity-70">{formatNumber(countRowsForArea(area) || stats.total_rows || 0)}</span>
-                      </div>
-                      <div className="mt-1 line-clamp-2 text-[11px] leading-4 opacity-70">{area.detail}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <button type="button" onClick={() => setTab('approval')} className={`${tab === 'approval' ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#D1D1D6]'} h-9 rounded-[8px] border text-[12px] font-semibold`}>승인 대기</button>
-            <button type="button" onClick={() => setTab('history')} className={`${tab === 'history' ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3A3A3C] text-[#D1D1D6]'} h-9 rounded-[8px] border text-[12px] font-semibold`}>반영 이력</button>
-          </div>
-        </aside>
-
-        <section className={`${CARD} min-w-0 p-4`}>
-          <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="text-[18px] font-bold text-white">{activeWorkbenchMode === 'system' ? '시스템·운영 Data' : activeWorkbenchArea.label}</div>
-              <div className="mt-1 text-[12px] text-[#A1A1AA]">{activeWorkbenchMode === 'grid' ? activeWorkbenchArea.detail : '승인 요청과 실제 반영 결과를 한 화면에서 확인합니다.'}</div>
-            </div>
-            <div className="flex gap-2 text-[11px] text-[#86868B]">
-              <span>{accessScope === 'manager_full_source' ? '전체 관리 권한' : '담당 자산 권한'}</span>
-              <span>·</span>
-              <span>{formatNumber(filteredRows.length)}행</span>
-            </div>
-          </div>
-
-          {activeWorkbenchMode === 'system' ? (
-            <div className="space-y-4">
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="text-[12px] font-semibold text-white">승인 대기</div>
-                  <div className="text-[11px] text-[#86868B]">{formatNumber(pendingEditRows.length)}건</div>
-                </div>
-                <SortableTable
-                  minWidth={1040}
-                  maxHeight={320}
-                  stickyCount={1}
-                  defaultSort={{ key: 'created_at', direction: 'desc' }}
-                  columns={workbenchApprovalColumns}
-                  rows={pendingEditRows}
-                  onRowClick={(row) => setSelectedEditRequestId(row.request_id || row.id || '')}
-                />
-              </div>
-              <div>
-                <div className="mb-2 flex items-center justify-between gap-3">
-                  <div className="text-[12px] font-semibold text-white">반영 이력</div>
-                  <div className="text-[11px] text-[#86868B]">{formatNumber(historyEditRows.length)}건</div>
-                </div>
-                <SortableTable
-                  minWidth={1040}
-                  maxHeight={260}
-                  stickyCount={1}
-                  defaultSort={{ key: 'updated_at', direction: 'desc' }}
-                  columns={workbenchHistoryColumns}
-                  rows={historyEditRows.length ? historyEditRows : edits}
-                  onRowClick={(row) => setSelectedEditRequestId(row.request_id || row.id || '')}
-                />
-              </div>
-            </div>
-          ) : (
-            <div>
-              {workbenchRowMessage ? <div className="mb-3 rounded-[10px] border border-[#3A3A3C] bg-[#1F1F1E] px-4 py-3 text-[12px] text-[#A1A1AA]">{workbenchRowMessage}</div> : null}
-              {managementGridRows.length ? (
-                <div className="custom-scrollbar max-h-[640px] overflow-auto rounded-[10px] border border-[#333333]" data-sortable-table="true" data-data-management-edit-grid="true">
-                  <table className="w-full min-w-[1120px] border-collapse text-left text-[12px]">
-                    <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[11px] uppercase tracking-[0.04em] text-[#A1A1AA]">
-                      <tr>
-                        <th className="sticky left-0 z-30 w-[220px] border-b border-[#333333] bg-[#1F1F1E] px-3 py-3">수정 대상</th>
-                        <th className="w-[130px] border-b border-[#333333] px-3 py-3">영역</th>
-                        {managementGridFields.map((field) => <th key={field} className="min-w-[150px] border-b border-[#333333] px-3 py-3">{fieldDisplayLabel(field)}</th>)}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {managementGridRows.map((row) => {
-                        const domain = sources.find((source) => source.source_file_id === row.source_file_id)?.source_domain;
-                        return (
-                          <tr key={row.source_row_id} className={`${selectedRow?.source_row_id === row.source_row_id ? 'bg-[#242B32]' : 'bg-[#171717]'} border-b border-[#2A2A29] hover:bg-[#222222]`}>
-                            <td className="sticky left-0 z-10 max-w-[220px] bg-inherit px-3 py-3 align-top">
-                              <button type="button" onClick={() => setSelectedRowId(row.source_row_id)} className="block w-full text-left">
-                                <div className="truncate font-bold text-white">{sourceRowDisplayTitle(row)}</div>
-                                <div className="mt-1 truncate text-[11px] text-[#86868B]">{sourceRowDisplaySummary(row)}</div>
-                              </button>
-                            </td>
-                            <td className="px-3 py-3 align-top text-[#D1D1D6]">{sourceDomainLabel(domain)}</td>
-                            {managementGridFields.map((field) => {
-                              const beforeValue = gridCellBeforeValue(row, field);
-                              const key = gridCellKey(row.source_row_id, field);
-                              const draftValue = Object.prototype.hasOwnProperty.call(gridDrafts, key) ? gridDrafts[key] : beforeValue;
-                              const changed = text(draftValue, '') !== beforeValue;
-                              return (
-                                <td key={field} className="min-w-[150px] px-2 py-2 align-top">
-                                  <textarea
-                                    value={text(draftValue, '')}
-                                    readOnly={gridUsesFallback}
-                                    onFocus={() => {
-                                      if (gridUsesFallback) return;
-                                      setSelectedRowId(row.source_row_id);
-                                      setSelectedField(field);
-                                      setAfterValue(text(draftValue, ''));
-                                    }}
-                                    onChange={(event) => {
-                                      if (gridUsesFallback) return;
-                                      setGridCellDraft(row, field, event.target.value);
-                                    }}
-                                    rows={2}
-                                    className={`${gridUsesFallback ? 'cursor-not-allowed border-[#2E2E2E] bg-[#141414] text-[#8A8A8A]' : changed ? 'border-[#9AD7FF] bg-[#182535]' : 'border-transparent bg-transparent'} h-[54px] w-full resize-none rounded-[7px] border px-2 py-1 text-[12px] text-white outline-none focus:border-[#9AD7FF] focus:bg-[#1F1F1E]`}
-                                  />
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : null}
-            </div>
-          )}
-        </section>
-
-        <aside className={`${CARD} p-4`}>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div className="text-[13px] font-bold text-white">{activeWorkbenchMode === 'system' ? '승인·이력 검토' : '검증 및 승인 요청'}</div>
-            <span className="rounded-full border border-[#3A3A3C] px-2 py-1 text-[10px] text-[#A1A1AA]">{activeWorkbenchMode === 'system' ? formatNumber(pendingEditRows.length + historyEditRows.length) + '개 요청' : formatNumber(managementDraftEntries.length) + '개 변경'}</span>
-          </div>
-          <div className="space-y-4">
-            {activeWorkbenchMode === 'system' ? (
-              <>
-                <div className={`${INNER} p-3`}>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">선택된 요청</div>
-                  <div className="mt-2 text-[13px] font-bold text-white">{selectedEditRequest ? text(selectedEditRequest.target_name || selectedEditRequest.target_type, '요청을 선택해 주세요') : '요청을 선택해 주세요'}</div>
-                  <div className="mt-1 text-[11px] text-[#A1A1AA]">
-                    {selectedEditRequest
-                      ? `${sourceDomainLabel(selectedEditRequest.source_domain)} · ${fieldDisplayLabel(selectedEditRequest.field_name)} · ${text(selectedEditRequest.write_status || selectedEditRequest.status, '-')}`
-                      : '행을 클릭하면 요청 상세와 처리 버튼이 표시됩니다.'}
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 gap-3">
-                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                    Before
-                    <textarea readOnly value={selectedEditRequest ? formatDisplayValue(selectedEditRequest.before_value, selectedEditRequest.field_name) : '-'} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-[#A1A1AA] outline-none" />
-                  </label>
-                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                    After
-                    <textarea readOnly value={selectedEditRequest ? formatDisplayValue(selectedEditRequest.requested_value, selectedEditRequest.field_name) : '-'} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-[#A1A1AA] outline-none" />
-                  </label>
-                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                    반영 확인값
-                    <textarea readOnly value={selectedEditRequest ? formatDisplayValue(selectedEditRequest.readback_value, selectedEditRequest.field_name) : '-'} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-[#A1A1AA] outline-none" />
-                  </label>
-                </div>
-                <div className={`${INNER} p-3`}>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">처리</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => selectedEditRequest && reviewEdit('readback', selectedEditRequest)} disabled={!selectedEditRequest} className="h-9 rounded-[8px] border border-[#3A3A3C] text-[12px] font-semibold text-[#D1D1D6] disabled:opacity-40">반영값 재확인</button>
-                    <button type="button" onClick={() => selectedEditRequest && reviewEdit('approve', selectedEditRequest)} disabled={!selectedEditRequest || !data?.can_approve} className="h-9 rounded-[8px] bg-white text-[12px] font-bold text-[#1F1F1E] disabled:opacity-40">승인</button>
-                    <button type="button" onClick={() => selectedEditRequest && reviewEdit('reject', selectedEditRequest)} disabled={!selectedEditRequest || !data?.can_approve} className="h-9 rounded-[8px] border border-[#5A2A2A] text-[12px] font-semibold text-[#FFB4B4] disabled:opacity-40">반려</button>
-                    <button type="button" onClick={() => setSelectedEditRequestId('')} className="h-9 rounded-[8px] border border-[#3A3A3C] text-[12px] font-semibold text-[#D1D1D6]">선택 해제</button>
-                  </div>
-                </div>
-                <div className={`${INNER} p-3`}>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">상태 요약</div>
-                  <div className="text-[12px] text-[#A1A1AA]">
-                    {selectedEditRequest
-                      ? `요청자 ${text(selectedEditRequest.requested_by, '-')} · 생성 ${formatDateTime(selectedEditRequest.created_at)} · 최종 ${formatDateTime(selectedEditRequest.updated_at)}`
-                      : '승인 대기 또는 이력 항목을 클릭해 주세요.'}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className={`${INNER} p-3`}>
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">수정 대상</div>
-                  <div className="mt-2 text-[13px] font-bold text-white">{selectedRow ? sourceRowDisplayTitle(selectedRow) : '행을 선택해 주세요'}</div>
-                  <div className="mt-1 text-[11px] text-[#A1A1AA]">{selectedRow ? sourceDomainLabel(selectedSource.source_domain) + ' · ' + text(selectedRow.sheet_name, '-') : '-'}</div>
-                </div>
-                <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                  수정 필드
-                  <select value={selectedField} onChange={(event) => setSelectedField(event.target.value)} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-[12px] text-white outline-none">
-                    {editableFields.map((field) => <option key={field} value={field}>{fieldDisplayLabel(field)}</option>)}
-                  </select>
-                </label>
-                <div className="grid grid-cols-1 gap-3">
-                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                    Before
-                    <textarea readOnly value={currentBeforeDisplayValue} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#111111] px-3 py-2 text-[12px] text-[#A1A1AA] outline-none" />
-                  </label>
-                  <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                    After
-                    <textarea data-data-management-after-value="true" value={afterValue} onChange={(event) => setInspectorAfterValue(event.target.value)} rows={3} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[12px] text-white outline-none focus:border-[#9AD7FF]" />
-                  </label>
-                </div>
-                <label className="block text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">
-                  변경 사유
-                  <textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={2} className="mt-2 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[12px] text-white outline-none" placeholder="승인자가 이해할 수 있도록 수정 이유를 적어 주세요." />
-                </label>
-                <div className={`${INNER} p-3`}>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">저장 전 검증</div>
-                  {previewLoading ? <div className="text-[12px] text-[#A1A1AA]">검증 중입니다.</div> : null}
-                  {!previewLoading && !preview ? <div className="text-[12px] text-[#86868B]">After 값을 바꾸면 권한, 필수값, 단위, 대상 매핑을 확인합니다.</div> : null}
-                  {safeArray(preview?.validations).map((item) => (
-                    <div key={(item.code || '') + (item.message || '')} className={`${item.level === 'error' ? 'text-[#FF9F9F]' : item.level === 'warning' ? 'text-[#FFD166]' : 'text-[#9AD7FF]'} mt-2 text-[12px] leading-5`}>
-                      {item.message || item.code}
-                    </div>
-                  ))}
-                  {preview?.target ? <div className="mt-2 text-[12px] text-[#A1A1AA]">반영 방식: 승인 후 연결된 업무 테이블에서 다시 확인</div> : null}
-                </div>
-                <button type="button" onClick={submitEdit} disabled={!hasPendingChange || previewErrors.length > 0 || previewLoading} className="h-10 w-full rounded-[8px] bg-white text-[13px] font-bold text-[#1F1F1E] disabled:opacity-40">선택 셀 승인 요청</button>
-                <div className={`${INNER} p-3`}>
-                  <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">변경 바구니</div>
-                  <div className="max-h-[180px] space-y-2 overflow-y-auto">
-                    {managementDraftEntries.length ? managementDraftEntries.slice(0, 12).map((entry) => (
-                      <button key={entry.key} type="button" onClick={() => { setSelectedRowId(entry.row.source_row_id); setSelectedField(entry.field); setAfterValue(entry.requestedValue); }} className="block w-full rounded-[8px] border border-[#333333] px-3 py-2 text-left hover:border-[#5A5A5C]">
-                        <div className="truncate text-[12px] font-semibold text-white">{entry.title}</div>
-                        <div className="truncate text-[11px] text-[#A1A1AA]">{fieldDisplayLabel(entry.field)} · {formatDisplayValue(entry.beforeValue, entry.field)} → {formatDisplayValue(entry.requestedValue, entry.field)}</div>
-                      </button>
-                    )) : <div className="text-[12px] text-[#86868B]">수정한 셀이 여기에 쌓입니다.</div>}
-                  </div>
-                  <textarea value={gridReason} onChange={(event) => setGridReason(event.target.value)} rows={2} className="mt-3 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[12px] text-white outline-none" placeholder="일괄 요청 사유" />
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <button type="button" onClick={() => setGridDrafts({})} className="h-9 rounded-[8px] border border-[#3A3A3C] text-[12px] font-semibold text-[#D1D1D6]">비우기</button>
-                    <button type="button" onClick={submitDraftEdits} disabled={!managementDraftEntries.length} className="h-9 rounded-[8px] bg-[#9AD7FF] text-[12px] font-bold text-[#111111] disabled:opacity-40">일괄 요청</button>
-                  </div>
-                </div>
-              </>
-            )}
-            {submitStatus ? <div className={`${submitStatus.type === 'error' ? 'border-[#5A2A2A] bg-[#2B1717] text-[#FFB4B4]' : submitStatus.type === 'success' ? 'border-[#2F5A3A] bg-[#172B1D] text-[#B5E48C]' : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#D1D1D6]'} rounded-[10px] border px-3 py-2 text-[12px]`}>{submitStatus.message}</div> : null}
-          </div>
-        </aside>
-      </div>
-      <Modal
-        title={editModalOpen ? 'Data Management 전체화면 편집' : ''}
-        onClose={() => setEditModalOpen(false)}
-        width="max-w-[calc(100vw-32px)]"
-        fullscreen
-      >
-        <div className="grid h-full min-h-0 grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="min-w-0">
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">{text(selectedViewMeta.label || selectedView.label, '업무 데이터')}</div>
-                <h3 className="mt-1 text-[20px] font-bold text-white">{selectedRow ? text(selectedRow.row_label, '-') : '행을 선택해 주세요'}</h3>
-              </div>
-              <button type="button" onClick={() => setShowAllFields((current) => !current)} className="h-9 rounded-[8px] border border-[#3A3A3C] px-3 text-[12px] font-semibold text-white hover:border-[#8E8E93]">
-                {showAllFields ? '기본 컬럼 보기' : '전체 컬럼 보기'}
-              </button>
-            </div>
-            <div className="overflow-hidden rounded-[12px] border border-[#333333]">
-              <div className="custom-scrollbar max-h-[calc(100vh-220px)] min-h-[520px] overflow-auto overscroll-contain">
-                <table className="w-full min-w-[1480px] border-separate text-left text-[12px]" style={{ borderSpacing: 0 }}>
-                  <thead className="sticky top-0 z-30 bg-[#1F1F1E] text-[#A1A1AA]">
-                    <tr>
-                      <th className="sticky left-0 z-40 w-[340px] border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">관리 대상</th>
-                      {visibleColumns.map((column) => {
-                        const key = text(column.field_key || column.field);
-                        const activeSort = sort.key === key;
-                        return (
-                          <th key={`modal-${key}`} title={dataManagementColumnHelp(column)} style={{ minWidth: column.width || 150 }} className="border-b border-r border-[#333333] bg-[#1F1F1E] px-3 py-2 font-semibold">
-                            <button type="button" title={dataManagementColumnHelp(column)} onClick={() => changeSort(key)} className="flex w-full items-center justify-between gap-2 text-left">
-                              <span className="truncate" title={text(column.label)}>{text(column.label)}</span>
-                              <span className="text-[10px] text-[#86868B]">{activeSort ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}</span>
-                            </button>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#303033]">
-                    {rows.map((row) => {
-                      const selected = row.row_key === selectedRow?.row_key;
-                      const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
-                      return (
-                        <tr key={`modal-${row.row_key}`} onClick={() => setSelectedRowKey(row.row_key)} className={`${selected ? 'bg-[#243044]' : 'bg-[#171717] hover:bg-[#1F1F1F]'} text-[#E5E5E5]`}>
-                          <td className="sticky left-0 z-20 w-[340px] border-r border-[#303033] bg-inherit px-3 py-2 align-top">
-                            <button type="button" className="block max-w-[310px] truncate text-left font-semibold text-white" title={text(row.row_label)}>{text(row.row_label, '-')}</button>
-                            {row.editable === false ? (
-                              <div className="mt-1 text-[11px] text-[#86868B]">{text(row.read_only_reason || (row.meta || {}).read_only_reason || '읽기 전용')}</div>
-                            ) : null}
-                          </td>
-                          {visibleColumns.map((column) => {
-                            const key = text(column.field_key || column.field);
-                            const cellChanged = selected && key === selectedFieldKey && hasChange;
-                            return (
-                              <td key={`modal-${row.row_key}-${key}`} className={`max-w-[280px] border-r border-[#242426] px-3 py-2 align-top ${cellChanged ? 'bg-[#1E2A1B] text-white' : ''}`}>
-                                <button type="button" onClick={(event) => { event.stopPropagation(); setSelectedRowKey(row.row_key); setSelectedField(key); }} className="block w-full truncate text-left" title={formatDisplayValue(values[key], key)}>
-                                  {formatDisplayValue(values[key], key)}
-                                </button>
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-          <div className={`${INNER} h-fit p-4`}>
-            <div className="text-[12px] font-semibold uppercase tracking-[0.08em] text-[#86868B]">변경 basket</div>
-            <div className="mt-2 text-[16px] font-bold text-white">{selectedRow ? text(selectedRow.row_label, '-') : '행을 선택해 주세요'}</div>
-            {rowReadOnlyReason ? <div className="mt-2 rounded-[8px] border border-[#5A4420] bg-[#2A2115] px-3 py-2 text-[12px] leading-5 text-[#FFD479]">{rowReadOnlyReason}</div> : null}
-            <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
-              수정 필드
-              <select value={selectedFieldKey} onChange={(event) => setSelectedField(event.target.value)} disabled={!editableColumns.length} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none disabled:opacity-50">
-                {editableColumns.length ? editableColumns.map((column) => {
-                  const key = text(column.field_key || column.field);
-                  return <option key={`modal-field-${key}`} value={key}>{text(column.group)} · {text(column.label)}</option>;
-                }) : <option value="">읽기 전용</option>}
-              </select>
-              {selectedFieldConsistencyGuide ? <span className="mt-2 block text-[11px] leading-4 text-[#FFD479]">{selectedFieldConsistencyGuide}</span> : null}
-            </label>
-            <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
-              현재 값
-              <textarea value={beforeDisplayValue} readOnly className="mt-2 h-28 w-full resize-none rounded-[8px] border border-[#333333] bg-[#151515] px-3 py-2 text-[13px] text-[#C7C7CC] outline-none" />
-            </label>
-            <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
-              수정 값
-              <textarea value={draftValue} onChange={(event) => setDraftValue(event.target.value)} disabled={!canEditSelected} className="mt-2 h-28 w-full resize-none rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 py-2 text-[13px] text-white outline-none focus:border-[#8E8E93] disabled:opacity-45" />
-            </label>
-            <label className="mt-4 block text-[12px] font-semibold text-[#A1A1AA]">
-              변경 사유
-              <input value={reason} onChange={(event) => setReason(event.target.value)} disabled={!canEditSelected} className="mt-2 h-10 w-full rounded-[8px] border border-[#3A3A3C] bg-[#171717] px-3 text-white outline-none focus:border-[#8E8E93] disabled:opacity-45" />
-            </label>
-            <div className="mt-4 rounded-[10px] border border-[#333333] bg-[#171717] p-3">
-              <div className="text-[12px] font-semibold text-white">저장 전 검증</div>
-              {previewLoading ? (
-                <div className="mt-2 text-[12px] text-[#A1A1AA]">저장된 현재 값을 다시 확인하는 중입니다.</div>
-              ) : safeArray(preview?.validations).length ? (
-                <div className="mt-2 space-y-1">
-                  {safeArray(preview?.validations).map((item, index) => (
-                    <div key={`modal-validation-${index}`} className={`text-[12px] leading-5 ${item.level === 'error' ? 'text-[#FF9F9F]' : item.level === 'warning' ? 'text-[#FFD479]' : 'text-[#A1A1AA]'}`}>{text(item.message)}</div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-2 text-[12px] text-[#A1A1AA]">{hasChange ? '검증 오류가 없습니다.' : '수정 값을 입력하면 검증합니다.'}</div>
-              )}
-            </div>
-            <button type="button" onClick={submitEdit} disabled={!canEditSelected || !hasChange || previewLoading || safeArray(preview?.validations).some((item) => item.level === 'error')} className="mt-4 h-11 w-full rounded-[8px] bg-white px-4 text-[13px] font-bold text-[#1F1F1E] hover:bg-[#E5E5E5] disabled:cursor-not-allowed disabled:opacity-35">
-              승인 요청 확인
-            </button>
-          </div>
-        </div>
-      </Modal>
-    </div>
-  );
-}
-
 export function DataManagementDashboard({ activeTab = 'lease' }) {
   const activeTabConfig = DATA_MANAGEMENT_TAB_CONFIGS[activeTab] || DATA_MANAGEMENT_TAB_CONFIGS.lease;
   const [spaceKey, setSpaceKey] = useState(activeTabConfig.spaceKey);
@@ -8924,7 +7896,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState({ key: '', direction: 'asc' });
-  const [showAllFields, setShowAllFields] = useState(true);
+  const [, setShowAllFields] = useState(true);
   const [selectedRowKey, setSelectedRowKey] = useState('');
   const [selectedField, setSelectedField] = useState('');
   const [draftValue, setDraftValue] = useState('');
@@ -8949,16 +7921,15 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const [rowAddReason, setRowAddReason] = useState('');
   const [rowAddStatus, setRowAddStatus] = useState(null);
   const [columnWidths, setColumnWidths] = useState({});
-  const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews } = useEdgeData('data-management/views', {}, []);
+  const { loading: viewsLoading, error: viewsError, data: viewCatalog, reload: reloadViews } = useEdgeData('data-management/views');
   const views = safeArray(viewCatalog?.views);
   const bundles = safeArray(viewCatalog?.fund_asset_bundles);
-  const scope = viewCatalog?.management_scope || {};
   const viewsForSpace = useMemo(() => views.filter((view) => view.workspace_key === spaceKey), [views, spaceKey]);
   const tabViewsForSpace = useMemo(() => viewsForSpace.filter((view) => {
     const key = text(view.view_key, '');
     const workflow = dataManagementViewMeta(key).workflow || key;
     return !activeTabConfig.allowedWorkflows?.length || activeTabConfig.allowedWorkflows.includes(workflow);
-  }), [viewsForSpace, activeTabConfig.key]);
+  }), [viewsForSpace, activeTabConfig.allowedWorkflows]);
   const selectedView = tabViewsForSpace.find((view) => view.view_key === viewKey) || tabViewsForSpace[0] || {};
   const effectiveViewKey = text(selectedView.view_key || viewKey || 'lease_general_excel');
   const selectedViewMeta = dataManagementViewMeta(effectiveViewKey);
@@ -9003,7 +7974,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       const bOrder = DATA_MANAGEMENT_WORKFLOW_ORDER.indexOf(b.workflow);
       return (aOrder < 0 ? 999 : aOrder) - (bOrder < 0 ? 999 : bOrder);
     });
-  }, [viewsForSpace, tabViewsForSpace, spaceKey, activeTabConfig.key]);
+  }, [viewsForSpace, tabViewsForSpace, spaceKey, activeTabConfig.allowedWorkflows]);
   const activeWorkflow = spaceKey === 'igis'
     ? (businessGroupKey || 'contract_basic')
     : (selectedViewMeta.workflow || workflowCards.find((card) => card.views.some((view) => view.view_key === effectiveViewKey))?.workflow || '');
@@ -9020,7 +7991,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     page_size: 80,
     sort: sort.key ? [{ key: sort.key, direction: sort.direction }] : [],
   }), [spaceKey, effectiveViewKey, bundleKey, search, page, sort.key, sort.direction, activeTabConfig.showBundle]);
-  const { loading: rowsLoading, error: rowsError, data: rowsData, reload: reloadRows } = useEdgeData('data-management/view-rows', rowsPayload, [rowsPayload]);
+  const { loading: rowsLoading, error: rowsError, data: rowsData, reload: reloadRows } = useEdgeData('data-management/view-rows', rowsPayload);
   const dataManagementLoading = viewsLoading || rowsLoading;
   const [dataManagementLoadingProgress, setDataManagementLoadingProgress] = useState(dataManagementLoading ? 12 : 100);
   const rowsDataViewKey = text(rowsData?.view?.view_key || rowsData?.view_key || '');
@@ -9030,12 +8001,13 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const hasDataManagementRows = Boolean(safeArray(currentRowsData?.rows).length || safeArray(viewCatalog?.views).length);
   const blockingViewsError = Boolean(viewsError && !safeArray(viewCatalog?.views).length);
   const blockingRowsError = Boolean(rowsError && !rowsDataStaleForView && !safeArray(currentRowsData?.rows).length && !safeArray(currentRowsData?.fields).length);
-  const columns = safeArray(currentRowsData?.fields).filter((column) => (
+  const currentFields = currentRowsData?.fields;
+  const columns = useMemo(() => safeArray(currentFields).filter((column) => (
     column
     && !column.sensitive
     && !isInternalFieldName([column.field_key, column.field, column.label, column.group].map((item) => text(item, '')).join(' '))
     && !hasInternalToken([column.field_key, column.field, column.label, column.group].map((item) => text(item, '')).join(' '))
-  ));
+  )), [currentFields]);
   const priorityColumnOrder = useMemo(() => new Map([
     'asset_name',
     'fund_name',
@@ -9108,7 +8080,8 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     if (aRank !== bRank) return aRank - bRank;
     return columns.indexOf(a) - columns.indexOf(b);
   }), [columns, priorityColumnOrder]);
-  const rows = safeArray(currentRowsData?.rows);
+  const currentRows = currentRowsData?.rows;
+  const rows = useMemo(() => safeArray(currentRows), [currentRows]);
   const nonEmptyColumnKeys = useMemo(() => {
     const keys = new Set();
     rows.slice(0, 250).forEach((row) => {
@@ -9128,9 +8101,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     if (column.sticky || column.editable === true || priorityColumnOrder.has(key)) return true;
     return nonEmptyColumnKeys.has(key);
   }), [orderedColumns, rows.length, nonEmptyColumnKeys, priorityColumnOrder, activeTabConfig.key]);
-  const visibleColumns = useMemo(() => (
-    scopedColumns
-  ), [scopedColumns, showAllFields]);
+  const visibleColumns = scopedColumns;
   const dataManagementTableMinWidth = useMemo(() => {
     const columnWidth = visibleColumns.reduce((sum, column) => sum + Number(column.width || 170), 0);
     return Math.max(1180, columnWidth);
@@ -9261,9 +8232,12 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     return groups;
   }, [visibleColumns]);
   const pagination = currentRowsData?.pagination || {};
-  const selectedRow = rows.find((row) => row.row_key === selectedRowKey) || rows[0] || null;
+  const selectedRow = useMemo(() => rows.find((row) => row.row_key === selectedRowKey) || rows[0] || null, [rows, selectedRowKey]);
   const dataQualityReadOnlyView = activeTabConfig.key === 'quality' || effectiveViewKey === 'data_quality_findings';
-  const editableColumns = dataQualityReadOnlyView ? [] : scopedColumns.filter((column) => column.editable === true);
+  const editableColumns = useMemo(
+    () => (dataQualityReadOnlyView ? [] : scopedColumns.filter((column) => column.editable === true)),
+    [dataQualityReadOnlyView, scopedColumns],
+  );
   const rowAddColumns = useMemo(() => {
     if (dataQualityReadOnlyView) return [];
     return orderedColumns.filter((column) => {
@@ -9283,8 +8257,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
   const beforeEditValue = selectedFieldKey ? (selectedEditValues[selectedFieldKey] ?? beforeDisplayValue ?? '') : '';
   const beforeValue = text(beforeEditValue, '');
   const hasChange = Boolean(selectedRow && selectedFieldKey && draftValue !== beforeValue);
-  const selectedRowMeta = selectedRow?.meta && typeof selectedRow.meta === 'object' ? selectedRow.meta : {};
-  const rowReadOnlyReason = text(selectedRow?.read_only_reason || selectedRowMeta.read_only_reason || '');
   const canEditSelected = Boolean(selectedRow?.row_key && selectedColumn.editable === true && selectedRow.editable !== false);
   const selectedFieldConsistencyGuide = dataManagementConsistencyGuide(selectedFieldKey, selectedColumn.label);
   const capabilityLabel = (capability) => ({
@@ -9294,16 +8266,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     readback_only: '읽기 전용',
   }[text(capability)] || '읽기 전용');
   const writeModeLabel = capabilityLabel(currentRowsData?.view?.capability || selectedView.capability);
-  const sourceStatus = currentRowsData?.view?.source_status && typeof currentRowsData.view.source_status === 'object'
-    ? currentRowsData.view.source_status
-    : null;
-  const sourceStatusText = sourceStatus
-    ? (sourceStatus.normalized_data_present
-      ? (sourceStatus.raw_source_present
-        ? '운영 데이터와 원본 Excel 보관본을 함께 확인 중입니다.'
-        : '운영 데이터 기준으로 표시 중입니다.')
-      : '운영 데이터 조회 결과가 0건입니다.')
-    : '';
   const dataManagementEditKey = (rowKey, fieldKey) => `${rowKey}::${fieldKey}`;
   const pendingEditList = useMemo(() => Object.values(pendingEdits), [pendingEdits]);
   const rowEditValueForField = (row, fieldKey, fallback = '') => {
@@ -9699,7 +8661,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
                 const values = row.display_values && typeof row.display_values === 'object' ? row.display_values : {};
                 const rowDeleted = isDetailRowDeleted(normalizedSectionKey, row.row_key);
                 const rowMeta = row.meta && typeof row.meta === 'object' ? row.meta : {};
-                const editTargets = rowMeta.edit_targets && typeof rowMeta.edit_targets === 'object' ? rowMeta.edit_targets : {};
                 return (
                   <tr key={`detail-row-${row.row_key}`} className={`bg-[#171717] text-[#E5E5E5] hover:bg-[#1F1F1F] ${rowDeleted ? 'opacity-50' : ''}`}>
                     {visibleDetailColumns.map((column, columnIndex) => {
@@ -9844,7 +8805,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     setRowAddReason('');
     setRowAddStatus(null);
     clearPendingEdits();
-  }, [activeTabConfig.key]);
+  }, [activeTabConfig]);
 
   useEffect(() => {
     const nextView = tabViewsForSpace.find((view) => view.view_key === activeTabConfig.defaultViewKey)?.view_key
@@ -9856,7 +8817,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
       setSelectedRowKey('');
       clearPendingEdits();
     }
-  }, [tabViewsForSpace.map((view) => view.view_key).join('|'), viewKey, activeTabConfig.defaultViewKey]);
+  }, [tabViewsForSpace, viewKey, activeTabConfig.defaultViewKey]);
 
   useEffect(() => {
     if (spaceKey !== 'igis') return;
@@ -9873,14 +8834,14 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
 
   useEffect(() => {
     if (selectedRow && selectedRow.row_key !== selectedRowKey) setSelectedRowKey(selectedRow.row_key);
-  }, [selectedRow?.row_key, selectedRowKey]);
+  }, [selectedRow, selectedRowKey]);
 
   useEffect(() => {
     const nextField = editableColumns[0]?.field_key || editableColumns[0]?.field || scopedColumns[0]?.field_key || scopedColumns[0]?.field || '';
     if (nextField && !scopedColumns.some((column) => column.field_key === selectedField || column.field === selectedField)) {
       setSelectedField(nextField);
     }
-  }, [scopedColumns.map((column) => column.field_key || column.field).join('|'), selectedField, editableColumns.length]);
+  }, [scopedColumns, selectedField, editableColumns]);
 
   useEffect(() => {
     setDraftValue(beforeValue);
@@ -10018,11 +8979,6 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
     } catch (submitError) {
       setBulkSubmitStatus({ type: 'error', message: submitError.message || '승인 요청 확인에 실패했습니다.' });
     }
-  };
-
-  const reloadAll = () => {
-    reloadViews({}, { force: true });
-    reloadRows({}, { force: true });
   };
 
   if (activeTabConfig.key === 'approval') return <DataManagementApprovalDashboard />;
@@ -10783,7 +9739,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
 }
 
 export function HomeOperatingCostSummary() {
-  const { data, error, loading } = useEdgeData('operating-costs/read', {}, []);
+  const { data, error, loading } = useEdgeData('operating-costs/read');
   const rows = safeArray(data?.rows);
   const summary = data?.summary || {};
   const latestRows = rows.slice(0, 12);

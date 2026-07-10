@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../../utils/supabaseClient';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
 
@@ -19,7 +19,7 @@ export default function WorkspaceIpr() {
 
     const [expandedTaskId, setExpandedTaskId] = useState(null);
 
-    const getCurrentWeekInfo = () => {
+    const getCurrentWeekInfo = useCallback(() => {
         const today = new Date();
         const year = today.getFullYear();
         const month = today.getMonth() + 1;
@@ -36,9 +36,9 @@ export default function WorkspaceIpr() {
         const weekId = `ipr-${year}-${month}-${week}`;
         
         return { weekLabel, weekId };
-    };
+    }, []);
 
-    const autoSaveSnapshot = async (currentTasks) => {
+    const autoSaveSnapshot = useCallback(async (currentTasks) => {
         if (!currentTasks || currentTasks.length === 0) return;
         const { weekLabel, weekId } = getCurrentWeekInfo();
         
@@ -66,7 +66,7 @@ export default function WorkspaceIpr() {
                         created_at: new Date().toISOString()
                     }]);
             }
-        } catch (e) {
+        } catch {
             const localSnapshots = JSON.parse(localStorage.getItem('iota_weekly_snapshots') || '[]');
             const index = localSnapshots.findIndex(s => s.week_label === weekLabel && s.workspace === 'ipr');
             if (index >= 0) {
@@ -82,9 +82,9 @@ export default function WorkspaceIpr() {
             }
             localStorage.setItem('iota_weekly_snapshots', JSON.stringify(localSnapshots));
         }
-    };
+    }, [getCurrentWeekInfo]);
 
-    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [tasks]);
+    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [autoSaveSnapshot, tasks]);
 
 
     
@@ -137,7 +137,7 @@ export default function WorkspaceIpr() {
             } else {
                 alert('이해관계자 등록 중 오류가 발생했습니다.');
             }
-        } catch (e) {
+        } catch {
             alert('연결 오류');
         }
     };
@@ -202,7 +202,7 @@ export default function WorkspaceIpr() {
                 }
             }
         }
-    }, [isLoadingTasks, tasks]);
+    }, [autoSaveSnapshot, isLoadingTasks, tasks]);
 
     const handleEditRow = (row) => {
         setEditingTaskId(row.id);
@@ -292,7 +292,7 @@ export default function WorkspaceIpr() {
         try {
             await supabase.from('iota_ipr_tasks').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_ipr_tasks').update({ created_at: prev.created_at }).eq('id', prev.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_ipr_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -312,7 +312,7 @@ export default function WorkspaceIpr() {
         try {
             await supabase.from('iota_ipr_tasks').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_ipr_tasks').update({ created_at: next.created_at }).eq('id', next.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_ipr_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -342,7 +342,6 @@ export default function WorkspaceIpr() {
         return <span dangerouslySetInnerHTML={{ __html: result }} />;
     };
 
-    const [activeTab, setActiveTab] = useState(0);
 
     return (
                 <div className="w-full flex-1 flex flex-col pt-[50px] pb-[100px] max-w-[1200px] mx-auto">
@@ -545,7 +544,7 @@ export default function WorkspaceIpr() {
                     <div className="flex flex-col gap-[8px]">
                         <AnimatePresence>
                             {(projectShowAll ? sortedTasks : sortedTasks.slice(0, 5)).map((row, index) => (
-                            <motion.div 
+                            <Motion.div
                                 layout
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -653,7 +652,7 @@ export default function WorkspaceIpr() {
                                 </div>
                                 )}
                                 </div>
-                            </motion.div>
+                            </Motion.div>
                             ))}
                         </AnimatePresence>
                     </div>

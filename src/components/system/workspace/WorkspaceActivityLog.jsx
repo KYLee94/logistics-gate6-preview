@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
 import { invokeDashboardApi } from '../../../utils/supabaseSession';
 import { useAuth } from '../../../context/AuthContext';
@@ -115,7 +115,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
     const [commentContent, setCommentContent] = useState('');
     const [isSavingComment, setIsSavingComment] = useState(false);
 
-    const toLogisticsBoardLog = (row) => {
+    const toLogisticsBoardLog = useCallback((row) => {
         const writerEmail = cleanStakeholderText(row.created_by_email).toLowerCase();
         const writerName = resolveLogisticsDisplayName(row.created_by_name, writerEmail);
         const comments = Array.isArray(row.comments)
@@ -151,7 +151,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                 ? [{ sh_name: row.stakeholder_name, role_category: row.stakeholder_category }]
                 : [],
         };
-    };
+    }, []);
 
     const handleSavedLog = (row) => {
         if (!row) return;
@@ -184,7 +184,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         });
     };
 
-    const fetchMasterStakeholders = async () => {
+    const fetchMasterStakeholders = useCallback(async () => {
         if (isLogisticsMode) {
             setMasterStakeholders(LOGISTICS_MASTER_STAKEHOLDERS);
             return;
@@ -202,9 +202,9 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
             console.error('Master stakeholder fetch error:', error);
         }
         if (isLogisticsMode) setMasterStakeholders(LOGISTICS_MASTER_STAKEHOLDERS);
-    };
+    }, [isLogisticsMode]);
 
-    const fetchLogs = async () => {
+    const fetchLogs = useCallback(async () => {
         setIsLoading(true);
         try {
             if (isLogisticsMode) {
@@ -227,12 +227,12 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [isLogisticsMode, toLogisticsBoardLog]);
 
     useEffect(() => {
         fetchLogs();
         fetchMasterStakeholders();
-    }, []);
+    }, [fetchLogs, fetchMasterStakeholders]);
 
     const handleDelete = async (logId) => {
         setIsDeleting(true);

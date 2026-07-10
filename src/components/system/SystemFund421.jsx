@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../utils/supabaseClient';
 import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import Fund421DetailCard from './shared/Fund421DetailCard';
@@ -10,7 +10,6 @@ export default function SystemFund421() {
     const [selectedInst, setSelectedInst] = useState(null);
     const [showAllLps, setShowAllLps] = useState(false);
     const [phase421, setPhase421] = useState('new'); // 'current' | 'new'
-    const vehicleId = '421';
     
     const navigateTo = (path) => {
         const base = import.meta.env.BASE_URL;
@@ -105,6 +104,13 @@ export default function SystemFund421() {
         window.addEventListener('refetch-data', handleRefetch);
         
 
+
+        return () => {
+            window.removeEventListener('refetch-data', handleRefetch);
+            controller.abort();
+        };
+    }, []);
+
     const renderDynamicTableBody = () => {
         const activePhase = phase421 === 'new' ? 'new' : '2024.10.ver';
         const data421 = iotaData?.[421]?.[activePhase] || {};
@@ -187,12 +193,6 @@ export default function SystemFund421() {
             </tbody>
         );
     };
-
-        return () => {
-            window.removeEventListener('refetch-data', handleRefetch);
-            controller.abort();
-        };
-    }, []);
 
     const handleInstClick = (instName, tranche, amount) => {
         setSelectedInst({ name: instName, tranche, amount });
@@ -518,12 +518,12 @@ export default function SystemFund421() {
             <AnimatePresence>
                 {selectedInst && (
                     <>
-                        <motion.div 
+                        <Motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             onClick={() => setSelectedInst(null)}
                             className="fixed inset-0 bg-black/60 z-[100]"
                         />
-                        <motion.div
+                        <Motion.div
                             initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
                             className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] bg-[#1c1c1e] border border-[#3c3c3c] rounded-[24px] shadow-2xl z-[101] overflow-hidden"
                         >
@@ -550,7 +550,7 @@ export default function SystemFund421() {
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
                                 </button>
                             </div>
-                        </motion.div>
+                        </Motion.div>
                     </>
                 )}
             </AnimatePresence>

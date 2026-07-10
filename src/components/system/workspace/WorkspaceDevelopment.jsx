@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../../utils/supabaseClient';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
 import { PROJECTS, COSTS, RR, COUNTERPARTIES } from '../../../data/iotaDevelopmentData';
@@ -20,7 +20,7 @@ export default function WorkspaceDevelopment() {
 
     const [expandedTaskId, setExpandedTaskId] = useState(null);
 
-    const getCurrentWeekInfo = () => {
+    const getCurrentWeekInfo = useCallback(() => {
         const today = new Date();
         const year = today.getFullYear();
         const month = today.getMonth() + 1;
@@ -37,9 +37,9 @@ export default function WorkspaceDevelopment() {
         const weekId = `development-${year}-${month}-${week}`;
         
         return { weekLabel, weekId };
-    };
+    }, []);
 
-    const autoSaveSnapshot = async (currentTasks) => {
+    const autoSaveSnapshot = useCallback(async (currentTasks) => {
         if (!currentTasks || currentTasks.length === 0) return;
         const { weekLabel, weekId } = getCurrentWeekInfo();
         
@@ -67,7 +67,7 @@ export default function WorkspaceDevelopment() {
                         created_at: new Date().toISOString()
                     }]);
             }
-        } catch (e) {
+        } catch {
             const localSnapshots = JSON.parse(localStorage.getItem('iota_weekly_snapshots') || '[]');
             const index = localSnapshots.findIndex(s => s.week_label === weekLabel && s.workspace === 'development');
             if (index >= 0) {
@@ -83,9 +83,9 @@ export default function WorkspaceDevelopment() {
             }
             localStorage.setItem('iota_weekly_snapshots', JSON.stringify(localSnapshots));
         }
-    };
+    }, [getCurrentWeekInfo]);
 
-    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [tasks]);
+    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [autoSaveSnapshot, tasks]);
 
 
     
@@ -138,7 +138,7 @@ export default function WorkspaceDevelopment() {
             } else {
                 alert('이해관계자 등록 중 오류가 발생했습니다.');
             }
-        } catch (e) {
+        } catch {
             alert('연결 오류');
         }
     };
@@ -203,7 +203,7 @@ export default function WorkspaceDevelopment() {
                 }
             }
         }
-    }, [isLoadingTasks, tasks]);
+    }, [autoSaveSnapshot, isLoadingTasks, tasks]);
 
     const handleEditRow = (row) => {
         setEditingTaskId(row.id);
@@ -293,7 +293,7 @@ export default function WorkspaceDevelopment() {
         try {
             await supabase.from('iota_development_tasks').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_development_tasks').update({ created_at: prev.created_at }).eq('id', prev.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_development_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -313,7 +313,7 @@ export default function WorkspaceDevelopment() {
         try {
             await supabase.from('iota_development_tasks').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_development_tasks').update({ created_at: next.created_at }).eq('id', next.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_development_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -550,7 +550,7 @@ export default function WorkspaceDevelopment() {
                     <div className="flex flex-col gap-[8px]">
                         <AnimatePresence>
                             {(projectShowAll ? sortedTasks : sortedTasks.slice(0, 5)).map((row, index) => (
-                            <motion.div 
+                            <Motion.div
                                 layout
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -658,7 +658,7 @@ export default function WorkspaceDevelopment() {
                                 </div>
                                 )}
                                 </div>
-                            </motion.div>
+                            </Motion.div>
                             ))}
                         </AnimatePresence>
                     </div>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const VehicleDetailCard = ({ id, vehicleId, title, totalAmountStr, data, toggleContent, onInstClick }) => {
+const VehicleDetailCard = ({ id, vehicleId, title, data, toggleContent, onInstClick }) => {
     const [hoveredBarTranche, setHoveredBarTranche] = useState(null);
     let totalEquity = 0;
     let totalLoan = 0;

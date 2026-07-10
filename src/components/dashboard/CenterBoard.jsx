@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import { useLanguage } from '../../context/LanguageContext';
 
 export default function CenterBoard({ mockData }) {
-    const { lang } = useLanguage();
     const [activeTab, setActiveTab] = useState('ops'); // 'fin', 'ops', 'org', 'time'
     const data = mockData;
 

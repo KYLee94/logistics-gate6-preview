@@ -7,35 +7,38 @@ import PlatformCore from './components/system/PlatformCore';
 import WorkspaceArchive from './components/system/workspace/WorkspaceArchive';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, publicLogisticsPath } from './components/system/workspace/logisticsRoutes';
 
-export default function App() {
-  // BASE_URL: '/' in dev, '/IGIS-Fund-Production-DP/' in GitHub Pages production
-  const BASE = import.meta.env.BASE_URL;
-  const LOGISTICS_WORKSPACE_PATH = LOGISTICS_INTERNAL_BASE;
-  const normalizeGate6Page = (path) => {
-      const normalized = normalizeLogisticsPath(path || LOGISTICS_WORKSPACE_PATH);
-      if (normalized === 'auth-setup') return normalized;
-      if (!normalized.startsWith('platform/iotaseoul')) return LOGISTICS_WORKSPACE_PATH;
-      const isLegacyIotaPage = normalized.startsWith('platform/iotaseoul')
-          && !normalized.startsWith(LOGISTICS_INTERNAL_BASE);
-      return isLegacyIotaPage ? LOGISTICS_WORKSPACE_PATH : normalized;
-  };
-  const getPage = () => {
-      const base = BASE.endsWith('/') ? BASE.slice(0, -1) : BASE;
-      const redirectedPath = new URLSearchParams(window.location.search).get('p');
-      let path = redirectedPath
-          ? redirectedPath.replace(/~and~/g, '&').replace(/^\//, '')
-          : window.location.pathname.replace(base, '').replace(/^\//, '');
-      if (path.endsWith('/')) path = path.slice(0, -1);
-      return normalizeGate6Page(path);
-  };
-  const toUrl = (page) => {
-      const base = BASE.endsWith('/') ? BASE : `${BASE}/`;
-      if (normalizeLogisticsPath(page).startsWith(LOGISTICS_INTERNAL_BASE)) {
-          return `${base}${publicLogisticsPath(page)}`;
-      }
-      return page === 'home' ? base : `${base}${page}`;
-  };
+// BASE_URL: '/' in dev, '/IGIS-Fund-Production-DP/' in GitHub Pages production
+const BASE = import.meta.env.BASE_URL;
+const LOGISTICS_WORKSPACE_PATH = LOGISTICS_INTERNAL_BASE;
 
+const normalizeGate6Page = (path) => {
+    const normalized = normalizeLogisticsPath(path || LOGISTICS_WORKSPACE_PATH);
+    if (normalized === 'auth-setup') return normalized;
+    if (!normalized.startsWith('platform/iotaseoul')) return LOGISTICS_WORKSPACE_PATH;
+    const isLegacyIotaPage = normalized.startsWith('platform/iotaseoul')
+        && !normalized.startsWith(LOGISTICS_INTERNAL_BASE);
+    return isLegacyIotaPage ? LOGISTICS_WORKSPACE_PATH : normalized;
+};
+
+const getPage = () => {
+    const base = BASE.endsWith('/') ? BASE.slice(0, -1) : BASE;
+    const redirectedPath = new URLSearchParams(window.location.search).get('p');
+    let path = redirectedPath
+        ? redirectedPath.replace(/~and~/g, '&').replace(/^\//, '')
+        : window.location.pathname.replace(base, '').replace(/^\//, '');
+    if (path.endsWith('/')) path = path.slice(0, -1);
+    return normalizeGate6Page(path);
+};
+
+const toUrl = (page) => {
+    const base = BASE.endsWith('/') ? BASE : `${BASE}/`;
+    if (normalizeLogisticsPath(page).startsWith(LOGISTICS_INTERNAL_BASE)) {
+        return `${base}${publicLogisticsPath(page)}`;
+    }
+    return page === 'home' ? base : `${base}${page}`;
+};
+
+export default function App() {
   const [currentPage, setCurrentPage] = React.useState(() => getPage());
 
   // Handle URL syncing and global left/right key navigation sequences
@@ -67,12 +70,12 @@ export default function App() {
       };
   }, [currentPage]);
 
-  const navigateTo = (page) => {
+  const navigateTo = React.useCallback((page) => {
       const normalizedPage = normalizeGate6Page(page);
       window.history.pushState(null, '', toUrl(normalizedPage));
       setCurrentPage(normalizedPage);
       window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { path: normalizedPage } }));
-  };
+  }, []);
 
   useAnimations(currentPage);
 
@@ -124,7 +127,7 @@ export default function App() {
           window.sessionStorage.removeItem('logisticsPostLoginPath');
           navigateTo(nextPath);
       }
-  }, [user, loading, currentPage, recoveryMode]);
+  }, [user, loading, currentPage, recoveryMode, navigateTo]);
 
   React.useEffect(() => {
     const applyLanguage = () => {

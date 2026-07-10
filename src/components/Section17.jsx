@@ -16,9 +16,6 @@ export default function Section16({ isActive }) {
         }
     }, [isActive]);
 
-    // 10 Value chains list
-    const vcNodes = ['소싱', '투자', '펀드생성', '개발추진', '파이낸싱', '유저솔루션', '기업마케팅', '개발관리', '준공', '운영'];
-
     return (
         <section className="relative w-full h-full bg-[#f5f5f7] flex flex-col justify-center items-center overflow-hidden">
             

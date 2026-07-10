@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import VirtualMouse from './VirtualMouse';
 
 export default function SystemLogin({ onLogin }) {
@@ -16,7 +16,7 @@ export default function SystemLogin({ onLogin }) {
         return () => clearTimeout(timer);
     }, []);
 
-    const handleScreenClick = () => {
+    const handleScreenClick = useCallback(() => {
         if (hasTriggered || !targetRef.current) return;
         setHasTriggered(true);
 
@@ -48,7 +48,7 @@ export default function SystemLogin({ onLogin }) {
         setTimeout(() => {
             onLogin();
         }, 2400); // 700ms after release to allow fade out
-    };
+    }, [hasTriggered, onLogin]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -58,7 +58,7 @@ export default function SystemLogin({ onLogin }) {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [hasTriggered]);
+    }, [handleScreenClick]);
 
     return (
         <div className={`w-full h-full min-h-screen bg-[#FDFDFD] dark:bg-[#111111] text-[#1D1D1F] dark:text-white flex flex-col font-sans relative cursor-default transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${dissolved ? 'opacity-0 scale-[0.98]' : 'opacity-100 scale-100'}`} onClick={handleScreenClick}>

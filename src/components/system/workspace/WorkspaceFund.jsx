@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
 import { supabase } from '../../../utils/supabaseClient';
 import { fetchWithRetry } from '../../../utils/fetchWithRetry';
@@ -21,7 +21,7 @@ export default function WorkspaceFund() {
 
     const [expandedTaskId, setExpandedTaskId] = useState(null);
 
-    const getCurrentWeekInfo = () => {
+    const getCurrentWeekInfo = useCallback(() => {
         const today = new Date();
         const year = today.getFullYear();
         const month = today.getMonth() + 1;
@@ -38,9 +38,9 @@ export default function WorkspaceFund() {
         const weekId = `fund-${year}-${month}-${week}`;
         
         return { weekLabel, weekId };
-    };
+    }, []);
 
-    const autoSaveSnapshot = async (currentTasks) => {
+    const autoSaveSnapshot = useCallback(async (currentTasks) => {
         if (!currentTasks || currentTasks.length === 0) return;
         const { weekLabel, weekId } = getCurrentWeekInfo();
         
@@ -68,7 +68,7 @@ export default function WorkspaceFund() {
                         created_at: new Date().toISOString()
                     }]);
             }
-        } catch (e) {
+        } catch {
             const localSnapshots = JSON.parse(localStorage.getItem('iota_weekly_snapshots') || '[]');
             const index = localSnapshots.findIndex(s => s.week_label === weekLabel && s.workspace === 'fund');
             if (index >= 0) {
@@ -84,9 +84,9 @@ export default function WorkspaceFund() {
             }
             localStorage.setItem('iota_weekly_snapshots', JSON.stringify(localSnapshots));
         }
-    };
+    }, [getCurrentWeekInfo]);
 
-    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [tasks]);
+    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [autoSaveSnapshot, tasks]);
 
 
     
@@ -139,7 +139,7 @@ export default function WorkspaceFund() {
             } else {
                 alert('이해관계자 등록 중 오류가 발생했습니다.');
             }
-        } catch (e) {
+        } catch {
             alert('연결 오류');
         }
     };
@@ -204,7 +204,7 @@ export default function WorkspaceFund() {
                 }
             }
         }
-    }, [isLoadingTasks, tasks]);
+    }, [autoSaveSnapshot, isLoadingTasks, tasks]);
 
     const handleEditRow = (row) => {
         setEditingTaskId(row.id);
@@ -294,7 +294,7 @@ export default function WorkspaceFund() {
         try {
             await supabase.from('iota_fund_tasks').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_fund_tasks').update({ created_at: prev.created_at }).eq('id', prev.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_fund_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -314,7 +314,7 @@ export default function WorkspaceFund() {
         try {
             await supabase.from('iota_fund_tasks').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_fund_tasks').update({ created_at: next.created_at }).eq('id', next.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_fund_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -330,6 +330,10 @@ export default function WorkspaceFund() {
     const sortedTasks = [...filteredTasks].sort((a, b) => {
         const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
         const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+
+
+        return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+    });
 
     const renderDynamicTableBody = () => {
         const activePhase = phase421 === 'new' ? 'new' : '2024.10.ver';
@@ -414,9 +418,6 @@ export default function WorkspaceFund() {
         );
     };
 
-        return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
-    });
-
     const parseNames = (text) => {
         if (!text) return text;
         const names = ['전기영', '김행단', '이동명', '최선영'];
@@ -430,7 +431,7 @@ export default function WorkspaceFund() {
 
     const [iotaData, setIotaData] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [selectedInst, setSelectedInst] = useState(null);
+    const [, setSelectedInst] = useState(null);
     const [showAllLps, setShowAllLps] = useState(false);
     const [phase421, setPhase421] = useState('new');
 
@@ -542,7 +543,7 @@ export default function WorkspaceFund() {
         return sum;
     };
 
-    const VehicleDetailCard = ({ id, vehicleId, title, totalAmountStr, data, toggleContent }) => {
+    const VehicleDetailCard = ({ id, vehicleId, title, data, toggleContent }) => {
         const [hoveredBarTranche, setHoveredBarTranche] = useState(null);
         let totalEquity = 0;
         let totalLoan = 0;
@@ -1227,7 +1228,7 @@ export default function WorkspaceFund() {
                     <div className="flex flex-col gap-[8px]">
                         <AnimatePresence>
                             {(projectShowAll ? sortedTasks : sortedTasks.slice(0, 5)).map((row, index) => (
-                            <motion.div 
+                            <Motion.div
                                 layout
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -1335,7 +1336,7 @@ export default function WorkspaceFund() {
                                 </div>
                                 )}
                                 </div>
-                            </motion.div>
+                            </Motion.div>
                             ))}
                         </AnimatePresence>
                     </div>

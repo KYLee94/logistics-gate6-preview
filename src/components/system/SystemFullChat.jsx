@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import VirtualMouse from './VirtualMouse';
 
 const linesData = [
@@ -68,7 +68,7 @@ export default function SystemFullChat({ onShowContent }) {
         
     }, [visibleChars, isTypingComplete]);
 
-    const handleScreenClick = () => {
+    const handleScreenClick = useCallback(() => {
         if (isTypingComplete && !hasTriggeredClick) {
             if (!btnRef.current) return;
             setHasTriggeredClick(true);
@@ -96,7 +96,7 @@ export default function SystemFullChat({ onShowContent }) {
                 onShowContent();
             }, 2100);
         }
-    };
+    }, [hasTriggeredClick, isTypingComplete, onShowContent]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -106,7 +106,7 @@ export default function SystemFullChat({ onShowContent }) {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isTypingComplete, hasTriggeredClick]);
+    }, [handleScreenClick]);
 
     let remainingChars = visibleChars;
     const renderContent = [];

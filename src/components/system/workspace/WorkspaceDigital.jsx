@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
 import { useAuth } from '../../../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
 
 const sscScopes = [
@@ -27,7 +27,7 @@ export default function WorkspaceDigital() {
 
     const [expandedTaskId, setExpandedTaskId] = useState(null);
 
-    const getCurrentWeekInfo = () => {
+    const getCurrentWeekInfo = useCallback(() => {
         const today = new Date();
         const year = today.getFullYear();
         const month = today.getMonth() + 1;
@@ -44,9 +44,9 @@ export default function WorkspaceDigital() {
         const weekId = `digital-${year}-${month}-${week}`;
         
         return { weekLabel, weekId };
-    };
+    }, []);
 
-    const autoSaveSnapshot = async (currentTasks) => {
+    const autoSaveSnapshot = useCallback(async (currentTasks) => {
         if (!currentTasks || currentTasks.length === 0) return;
         const { weekLabel, weekId } = getCurrentWeekInfo();
         
@@ -74,7 +74,7 @@ export default function WorkspaceDigital() {
                         created_at: new Date().toISOString()
                     }]);
             }
-        } catch (e) {
+        } catch {
             const localSnapshots = JSON.parse(localStorage.getItem('iota_weekly_snapshots') || '[]');
             const index = localSnapshots.findIndex(s => s.week_label === weekLabel && s.workspace === 'digital');
             if (index >= 0) {
@@ -90,9 +90,9 @@ export default function WorkspaceDigital() {
             }
             localStorage.setItem('iota_weekly_snapshots', JSON.stringify(localSnapshots));
         }
-    };
+    }, [getCurrentWeekInfo]);
 
-    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [tasks]);
+    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [autoSaveSnapshot, tasks]);
 
 
     
@@ -299,7 +299,7 @@ export default function WorkspaceDigital() {
             if (e1) throw e1;
             const { error: e2 } = await supabase.from('iota_digital_tasks').update({ created_at: prev.created_at }).eq('id', prev.id);
             if (e2) throw e2;
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_digital_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -321,7 +321,7 @@ export default function WorkspaceDigital() {
             if (e1) throw e1;
             const { error: e2 } = await supabase.from('iota_digital_tasks').update({ created_at: next.created_at }).eq('id', next.id);
             if (e2) throw e2;
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_digital_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -513,7 +513,7 @@ export default function WorkspaceDigital() {
             </div>
             
             <div className="-mx-[7px] p-[6px] border border-[#333] rounded-[30px] mb-[24px]">
-                <motion.div layout className="w-full flex flex-col gap-[16px]">
+                <Motion.div layout className="w-full flex flex-col gap-[16px]">
                 {isAdding && (
                     <div className="w-full bg-[#272726] border border-[#3c3c3c] rounded-[24px] p-6 flex flex-col gap-4">
                         <div className="flex gap-4">
@@ -591,16 +591,16 @@ export default function WorkspaceDigital() {
                 )}
                 
                 {isLoading ? (
-                    <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-[40px] text-[#86868B]">데이터를 불러오는 중입니다...</motion.div>
+                    <Motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-[40px] text-[#86868B]">데이터를 불러오는 중입니다...</Motion.div>
                 ) : sortedTasks.length === 0 ? (
-                    <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-[60px] text-[#A1A1AA] bg-[#1a1a1a] rounded-[24px] border border-[#333]">
+                    <Motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-center py-[60px] text-[#A1A1AA] bg-[#1a1a1a] rounded-[24px] border border-[#333]">
                         {selectedTheme ? '해당 주제로 등록된 테스크가 없습니다.' : '등록된 테스크가 없습니다.'}
-                    </motion.div>
+                    </Motion.div>
                 ) : (
                     <div className="flex flex-col gap-[8px]">
                         <AnimatePresence>
                             {(projectShowAll ? sortedTasks : sortedTasks.slice(0, 5)).map((row, index) => (
-                            <motion.div 
+                            <Motion.div
                                 layout
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -723,12 +723,12 @@ export default function WorkspaceDigital() {
                                 </div>
                                 )}
                                 </div>
-                            </motion.div>
+                            </Motion.div>
                             ))}
                         </AnimatePresence>
                     </div>
                 )}
-                </motion.div>
+                </Motion.div>
             </div>
 
             <div className="w-full mt-[20px]"></div>

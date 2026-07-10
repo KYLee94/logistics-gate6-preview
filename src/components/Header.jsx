@@ -250,7 +250,6 @@ export default function Header({ onNavigateToNews, onNavigateToHome, onNavigateT
 
         const isTop = targetId === 'top';
         const newUrl = isTop ? window.location.pathname : `#${targetId}`;
-        const currentCheck = isTop ? window.location.pathname : window.location.hash;
 
         if (targetId.startsWith('page-')) {
             const pageIndex = parseInt(targetId.replace('page-', ''), 10) - 1;

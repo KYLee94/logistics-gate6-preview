@@ -12,7 +12,7 @@ const formatAmount = (rawAmt) => {
     return `${formattedUk}억원`;
 };
 
-const Fund421DetailCard = ({ id, vehicleId, title, totalAmountStr, data, toggleContent, onInstClick }) => {
+const Fund421DetailCard = ({ id, title, data, toggleContent, onInstClick }) => {
     const [hoveredBarTranche, setHoveredBarTranche] = useState(null);
     let totalEquity = 0;
     let totalLoan = 0;

@@ -75,22 +75,6 @@ const setupLogisticsFirstLogin = async ({ email, authEmail, password, accessCode
         return { ok: false, error: '서버 연결에 실패했습니다.' };
     }
 };
-const buildAuthRedirectUrl = (path = 'auth-setup') => {
-    const normalizedPath = String(path || '').replace(/^\/+/, '');
-    const configuredBase = import.meta.env.VITE_LOGISTICS_AUTH_REDIRECT_BASE_URL;
-    const host = typeof window !== 'undefined' ? window.location.host : '';
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    const isLocalOrigin = /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/i.test(host);
-    const isLocalConfiguredBase = /https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?/i.test(String(configuredBase || ''));
-    const runtimeBase = isLocalOrigin
-        ? LOGISTICS_PRODUCTION_AUTH_BASE_URL
-        : `${origin}${import.meta.env.BASE_URL || '/'}`;
-    const base = !configuredBase || isLocalConfiguredBase
-        ? (runtimeBase || LOGISTICS_PRODUCTION_AUTH_BASE_URL)
-        : configuredBase;
-    const normalizedBase = base.endsWith('/') ? base : `${base}/`;
-    return new URL(normalizedPath, normalizedBase).toString();
-};
 const buildPasswordRecoveryRedirectUrl = () => LOGISTICS_PASSWORD_RECOVERY_REDIRECT_URL;
 const clearPasswordRecoveryUrl = () => {
     try {

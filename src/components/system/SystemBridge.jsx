@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import VirtualMouse from './VirtualMouse';
+
+const FULL_TEXT = "올해 이지스 리얼에셋 부문에서 가장 큰 실물 사업이 뭐야? 연면적 기준으로.";
 
 export default function SystemBridge({ onTypingComplete }) {
     const arrowRef = useRef(null);
     const [typedText, setTypedText] = useState('');
-    const fullText = "올해 이지스 리얼에셋 부문에서 가장 큰 실물 사업이 뭐야? 연면적 기준으로.";
     const [step, setStep] = useState(0); 
     // step 0: init
     // step 1: typing
@@ -19,13 +20,13 @@ export default function SystemBridge({ onTypingComplete }) {
     const [mousePos, setMousePos] = useState({ top: '80%', left: '120%', transform: 'scale(1)' });
     const [buttonActive, setButtonActive] = useState(false);
 
-    const handleScreenClick = () => {
+    const handleScreenClick = useCallback(() => {
         if (step === 0 && typedText.length === 0) {
             setStep(1);
         } else if (step === 2) {
             setStep(3);
         }
-    };
+    }, [step, typedText]);
 
     useEffect(() => {
         const handleKeyDown = (e) => {
@@ -35,21 +36,21 @@ export default function SystemBridge({ onTypingComplete }) {
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [step, typedText]);
+    }, [handleScreenClick]);
 
     useEffect(() => {
         if (step === 1) {
             let i = 0;
             const interval = setInterval(() => {
-                setTypedText(fullText.slice(0, i + 1));
+                setTypedText(FULL_TEXT.slice(0, i + 1));
                 i++;
-                if (i >= fullText.length) {
+                if (i >= FULL_TEXT.length) {
                     setStep(2);
                 }
             }, 30); // Fast, realistic typing speed
             return () => clearInterval(interval);
         }
-    }, [step, fullText]);
+    }, [step]);
 
     useEffect(() => {
         if (step === 3) {

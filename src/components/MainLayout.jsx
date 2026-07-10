@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Section1 from './Section1';
 import Section2 from './Section2';
 import Section3 from './Section3';
@@ -22,14 +22,16 @@ import Section20 from './Section20';
 import Section21 from './Section21';
 import Section22 from './Section22';
 
+const SLIDES_LENGTH = 22;
+const SLIDE_ANIMATION_TIMES = [1500, 3600, 4200, 2600, 4200, 2500, 3500, 4000, 4500, 3500, 4500, 10000, 7000, 6000, 5500, 4000, 4500, 4000, 3000, 3000, 3000, 3000];
+
 export default function MainLayout() {
-    const slidesLength = 22; // known length
     const [currentSlide, setCurrentSlide] = useState(() => {
         // Initialize from URL hash if available (persistent reload mapping)
         const hash = window.location.hash;
         if (hash && hash.startsWith('#page-')) {
             const pageIndex = parseInt(hash.replace('#page-', ''), 10) - 1;
-            if (!isNaN(pageIndex) && pageIndex >= 0 && pageIndex < slidesLength) {
+            if (!isNaN(pageIndex) && pageIndex >= 0 && pageIndex < SLIDES_LENGTH) {
                 return pageIndex;
             }
         }
@@ -40,28 +42,25 @@ export default function MainLayout() {
 
     const [isActionDone, setIsActionDone] = useState(false);
 
-    // Animation durations mapped closely to each page's visual completion timing
-    const slideAnimationTimes = [1500, 3600, 4200, 2600, 4200, 2500, 3500, 4000, 4500, 3500, 4500, 10000, 7000, 6000, 5500, 4000, 4500, 4000, 3000, 3000, 3000, 3000];
-
     useEffect(() => {
         setIsActionDone(false);
         const timer = setTimeout(() => {
             setIsActionDone(true);
-        }, slideAnimationTimes[currentSlide] || 3000);
+        }, SLIDE_ANIMATION_TIMES[currentSlide] || 3000);
 
         // Subscribing to hash change to support external header menu navigation clicks
         const handleHashChange = () => {
             const hash = window.location.hash;
             if (hash && hash.startsWith('#page-')) {
                 const pageIndex = parseInt(hash.replace('#page-', ''), 10) - 1;
-                if (!isNaN(pageIndex) && pageIndex >= 0 && pageIndex < slidesLength) {
+                if (!isNaN(pageIndex) && pageIndex >= 0 && pageIndex < SLIDES_LENGTH) {
                     setCurrentSlide(pageIndex);
                 }
             }
         };
         
         const handleGoto = (e) => {
-            if (e.detail && typeof e.detail.slideIndex === 'number' && e.detail.slideIndex >= 0 && e.detail.slideIndex < slidesLength) {
+            if (e.detail && typeof e.detail.slideIndex === 'number' && e.detail.slideIndex >= 0 && e.detail.slideIndex < SLIDES_LENGTH) {
                 setCurrentSlide(e.detail.slideIndex);
             }
         };
@@ -74,22 +73,22 @@ export default function MainLayout() {
             window.removeEventListener('hashchange', handleHashChange);
             window.removeEventListener('appSlideGoto', handleGoto);
         };
-    }, [currentSlide, slidesLength]);
+    }, [currentSlide]);
 
-    const nextSlide = () => {
+    const nextSlide = useCallback(() => {
         const event = new CustomEvent('appSlideNext', { cancelable: true });
         window.dispatchEvent(event);
         if (!event.defaultPrevented) {
-            setCurrentSlide(prev => Math.min(prev + 1, slides.length - 1));
+            setCurrentSlide(prev => Math.min(prev + 1, SLIDES_LENGTH - 1));
         }
-    };
-    const prevSlide = () => {
+    }, []);
+    const prevSlide = useCallback(() => {
         const event = new CustomEvent('appSlidePrev', { cancelable: true });
         window.dispatchEvent(event);
         if (!event.defaultPrevented) {
             setCurrentSlide(prev => Math.max(prev - 1, 0));
         }
-    };
+    }, []);
 
     // Sync state changes -> URL Hash
     useEffect(() => {
@@ -102,7 +101,7 @@ export default function MainLayout() {
             const hash = window.location.hash;
             if (hash && hash.startsWith('#page-')) {
                 const pageIndex = parseInt(hash.replace('#page-', ''), 10) - 1;
-                if (!isNaN(pageIndex) && pageIndex >= 0 && pageIndex < slidesLength) {
+                if (!isNaN(pageIndex) && pageIndex >= 0 && pageIndex < SLIDES_LENGTH) {
                     setCurrentSlide(pageIndex);
                 }
             }
@@ -122,7 +121,7 @@ export default function MainLayout() {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [slides.length]);
+    }, [nextSlide, prevSlide]);
 
     // Touch swipe handling
     const [touchStart, setTouchStart] = useState(null);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import { supabase } from '../../../utils/supabaseClient';
 import { fetchWithRetry } from '../../../utils/fetchWithRetry';
 
@@ -43,7 +43,7 @@ const AccordionContent = ({ instName, contactsCache, metaCache, isLast, isMaster
     const meta = metaData?.investment || [];
     const historyMeta = metaData?.history || [];
     return (
-        <motion.div 
+        <Motion.div
             initial={{ height: 0, opacity: 0 }} 
             animate={{ height: 'auto', opacity: 1 }} 
             exit={{ height: 0, opacity: 0 }}
@@ -211,7 +211,7 @@ const AccordionContent = ({ instName, contactsCache, metaCache, isLast, isMaster
                     </>
                 )}
             </div>
-        </motion.div>
+        </Motion.div>
     );
 };
 
@@ -646,7 +646,6 @@ export default function StakeLp() {
     };
 
     const searchResults = getSearchResults();
-    const isSearchResultNonIota = isSearching && searchResults.every(r => !r.isIota);
 
 
 

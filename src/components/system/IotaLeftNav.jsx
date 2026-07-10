@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabaseClient';
 import { invokeDashboardApi } from '../../utils/supabaseSession';
@@ -314,10 +314,6 @@ const mergeFeatureAccessUsers = (rows = []) => {
     });
     return [...new Set([...byKey.values()])];
 };
-const featureUserLabel = (user = {}) => {
-    const row = user || {};
-    return [row.organization, row.staff_name || row.name, row.email].filter(Boolean).join(' · ') || '사용자';
-};
 const readFeatureAccessConfig = () => {
     try {
         const parsed = JSON.parse(localStorage.getItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY) || '{}');
@@ -420,10 +416,6 @@ const featureAccessHasUser = (config, featureKey, user) => {
     return Boolean(targetKeys.size && (config.features?.[featureKey]?.users || []).some((row) => (
         featureUserKeys(row).some((key) => targetKeys.has(key))
     )));
-};
-const isDefaultFeatureAccessUser = (user = {}) => {
-    const keys = new Set(featureUserKeys(user));
-    return FEATURE_ACCESS_DEFAULT_USERS.some((defaultUser) => featureUserKeys(defaultUser).some((key) => keys.has(key)));
 };
 const featureAccessHasEffectiveUser = (config, featureKey, user) => featureAccessHasUser(config, featureKey, user);
 const featureAccessGrantedUsers = (config, featureKey, users = []) => {
@@ -709,8 +701,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [notificationsError, setNotificationsError] = useState('');
     const [notifications, setNotifications] = useState(() => readCachedNotifications());
+    const notificationsRef = useRef(notifications);
     const [readNotificationIds, setReadNotificationIds] = useState([]);
-    const [dismissedNotificationIds, setDismissedNotificationIds] = useState([]);
+    const [, setDismissedNotificationIds] = useState([]);
     const [newPassword, setNewPassword] = useState('');
     const [isCollapsed, setIsCollapsed] = useState(() => {
         const saved = sessionStorage.getItem('iotaLeftNavCollapsed');
@@ -790,7 +783,6 @@ export default function IotaLeftNav({ currentPath = '' }) {
 
     const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
     const isLogisticsPath = normalizedCurrentPath.startsWith(LOGISTICS_INTERNAL_BASE);
-    const memberFeaturePermissions = memberInfo?.feature_permissions || memberInfo?.featurePermissions || memberInfo?.logistics_permission?.feature_permissions || {};
     const memberRole = memberInfo?.logistics_role || memberInfo?.logisticsRole || memberInfo?.role || memberInfo?.logistics_permission?.logistics_role;
     const memberEmail = String(memberInfo?.email || memberInfo?.logistics_permission?.email || user?.email || '').trim().toLowerCase();
     const memberName = memberInfo?.staff_name || memberInfo?.name;
@@ -802,7 +794,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
         || canUseAccessAdminTools;
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
     const recentLoginHistoryRows = loginHistoryRows.slice(0, 5);
-    const loginCapabilityUsers = Array.isArray(loginHistoryData?.users) ? loginHistoryData.users : [];
+    const loginCapabilityUsers = useMemo(() => (
+        Array.isArray(loginHistoryData?.users) ? loginHistoryData.users : []
+    ), [loginHistoryData]);
     const featureAccessModalConfig = featureAccessDraft || featureAccessData;
     const hasFeatureAccessModalContent = Object.values(featureAccessModalConfig.features || {}).some((feature) => Array.isArray(feature?.users) && feature.users.length)
         || featureAccessUsers.length > 0
@@ -833,6 +827,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const owner = user?.id || user?.email || memberInfo?.email || memberInfo?.staff_name || 'anonymous';
         return `logistics-notifications-dismissed:${owner}`;
     }, [memberInfo?.email, memberInfo?.staff_name, user?.email, user?.id]);
+    useEffect(() => {
+        notificationsRef.current = notifications;
+    }, [notifications]);
     const unreadNotificationCount = notifications.filter((item) => !readNotificationIds.includes(item.id)).length;
     const toggleLoginCapabilitySort = (key) => {
         setLoginCapabilitySort((current) => ({
@@ -840,13 +837,13 @@ export default function IotaLeftNav({ currentPath = '' }) {
             direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc',
         }));
     };
-    const persistReadNotificationIds = (updater) => {
+    const persistReadNotificationIds = useCallback((updater) => {
         setReadNotificationIds((current) => {
             const next = [...new Set(typeof updater === 'function' ? updater(current) : updater)].slice(-300);
             writeStoredNotificationIds(notificationStorageKey, next);
             return next;
         });
-    };
+    }, [notificationStorageKey]);
     const persistDismissedNotificationIds = (updater) => {
         setDismissedNotificationIds((current) => {
             const next = [...new Set(typeof updater === 'function' ? updater(current) : updater)].slice(-500);
@@ -854,7 +851,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             return next;
         });
     };
-    const markNotificationsRead = async (rows = notifications) => {
+    const markNotificationsRead = useCallback(async (rows = notificationsRef.current) => {
         const ids = rows.map((item) => item.id).filter(Boolean);
         if (!ids.length) return;
         const canonicalIds = rows.filter((item) => item.canonical).map((item) => item.id).filter(Boolean);
@@ -872,7 +869,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         } else {
             persistReadNotificationIds((current) => [...current, ...ids]);
         }
-    };
+    }, [persistReadNotificationIds]);
     const markAllNotificationsRead = async () => {
         const rows = notifications;
         const ids = rows.map((item) => item.id).filter(Boolean);
@@ -898,8 +895,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setShowNotificationsPanel(false);
         handleNavigation(route);
     };
-    const loadNotifications = async ({ markRead = false, silent = false } = {}) => {
-        const cachedRows = notifications;
+    const loadNotifications = useCallback(async ({ markRead = false, silent = false } = {}) => {
+        const cachedRows = notificationsRef.current;
         if (!silent || !cachedRows.length) setNotificationsLoading(true);
         setNotificationsError('');
         try {
@@ -974,7 +971,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         } finally {
             setNotificationsLoading(false);
         }
-    };
+    }, [markNotificationsRead, notificationDismissedStorageKey, persistReadNotificationIds]);
     const openNotificationsPanel = async (event) => {
         event?.stopPropagation();
         setShowProfileMenu(false);
@@ -1040,7 +1037,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     useEffect(() => {
         if (!isLogisticsPath) return;
         loadNotifications({ silent: true });
-    }, [isLogisticsPath]);
+    }, [isLogisticsPath, loadNotifications]);
     useEffect(() => {
         if (!isLogisticsPath) return;
         let cancelled = false;

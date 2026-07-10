@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../utils/supabaseClient';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 const MOCK_PIPELINES = [
     {"id": "task-pipe-pwc", "channel_name": "PwC삼일회계법인", "related_asset": "이오타서울, 현대차새만금프로젝트", "status": "진행중", "contact_point": "박성진 부대표 메인", "created_at": "2026-05-08T00:00:00Z"},
@@ -19,7 +19,7 @@ const MOCK_LOGS = [
 export default function MarketingPipeline({ memberInfo, masterStakeholders, fetchMasterStakeholders }) {
     const [pipelines, setPipelines] = useState([]);
     const [logs, setLogs] = useState([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [, setIsLoading] = useState(true);
 
     const isAllowedEditor = ['김민지', '고아라', '전기영'].includes(memberInfo?.staff_name);
 
@@ -167,7 +167,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                 await fetchPipelines();
                 await fetchLogs();
             }
-        } catch (e) {
+        } catch {
             if (editingPipelineId) {
                 const localPipes = pipelines.map(p => p.id === editingPipelineId ? { ...p, ...insertData } : p);
                 setPipelines(localPipes);
@@ -215,7 +215,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                 setShowNewStakeholderModal(false);
                 // Removed automatic submitPipeline() here based on user feedback
             }
-        } catch (err) {
+        } catch {
             alert('데이터베이스 연결 오류');
             setShowNewStakeholderModal(false);
         } finally {
@@ -255,7 +255,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
             const { error } = await supabase.from('iota_marketing_pipelines').delete().eq('id', id);
             if (error) throw error;
             await fetchPipelines();
-        } catch (e) {
+        } catch {
             const local = pipelines.filter(p => p.id !== id);
             setPipelines(local);
             localStorage.setItem('iota_marketing_pipelines', JSON.stringify(local));
@@ -282,7 +282,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
         try {
             await supabase.from('iota_marketing_pipelines').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_marketing_pipelines').update({ created_at: prev.created_at }).eq('id', prev.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_marketing_pipelines', JSON.stringify(newPipelines));
         }
     };
@@ -304,7 +304,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
         try {
             await supabase.from('iota_marketing_pipelines').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_marketing_pipelines').update({ created_at: next.created_at }).eq('id', next.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_marketing_pipelines', JSON.stringify(newPipelines));
         }
     };
@@ -324,7 +324,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                     throw error;
                 }
                 await fetchLogs();
-            } catch (e) {
+            } catch {
                 const local = logs.map(l => l.id === editingLogId ? { ...l, ...updateData } : l);
                 setLogs(local);
                 localStorage.setItem('iota_marketing_pipeline_logs', JSON.stringify(local));
@@ -338,7 +338,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                     throw error;
                 }
                 await fetchLogs();
-            } catch (e) {
+            } catch {
                 const local = [...logs, { ...insertData, id: Date.now().toString() }];
                 setLogs(local);
                 localStorage.setItem('iota_marketing_pipeline_logs', JSON.stringify(local));
@@ -355,7 +355,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
             const { error } = await supabase.from('iota_marketing_pipeline_logs').delete().eq('id', id);
             if (error) throw error;
             await fetchLogs();
-        } catch (e) {
+        } catch {
             const local = logs.filter(l => l.id !== id);
             setLogs(local);
             localStorage.setItem('iota_marketing_pipeline_logs', JSON.stringify(local));
@@ -609,7 +609,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                         const isExpanded = expandedPipelineId === pipe.id;
 
                         return (
-                            <motion.div 
+                            <Motion.div
                                 layout
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -661,7 +661,7 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                                 </div>
                             )}
 
-                            <motion.div layout="position" className="flex justify-between items-center gap-8 relative">
+                            <Motion.div layout="position" className="flex justify-between items-center gap-8 relative">
                                 <div className="flex-1 flex gap-8 items-center">
                                     {/* 채널명 (부각) */}
                                     <div className="w-[290px] shrink-0 border-r border-[#444]/50 pr-8">
@@ -712,11 +712,11 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                                         ✕
                                     </button>
                                 )}
-                            </motion.div>
+                            </Motion.div>
 
                             <AnimatePresence initial={false}>
                                 {isExpanded && (
-                                    <motion.div 
+                                    <Motion.div
                                         initial={{ height: 0, opacity: 0 }}
                                         animate={{ height: "auto", opacity: 1 }}
                                         exit={{ height: 0, opacity: 0 }}
@@ -812,10 +812,10 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
                                         )}
                                     </div>
                                 </div>
-                                    </motion.div>
+                                    </Motion.div>
                                 )}
                             </AnimatePresence>
-                            </motion.div>
+                            </Motion.div>
                         );
                     })}
                 </AnimatePresence>

@@ -5,9 +5,6 @@ export function useAnimations(currentPage) {
         const header = document.getElementById("main-header");
         const scrollContainer = document.getElementById("scroll-container");
         const scrollArrow = document.getElementById("scroll-arrow");
-        let lastScrollTop = 0;
-        let scrollHideThreshold = 0;
-
         if (scrollArrow) {
             setTimeout(() => {
                 scrollArrow.classList.remove('opacity-0');
@@ -25,18 +22,12 @@ export function useAnimations(currentPage) {
 
         const handleScroll = () => {
             if (!scrollContainer || !header) return;
-            let st = window.scrollY || document.documentElement.scrollTop;
-
             // Header visibility
             if (window.isNewsPage || window.isLeasePage) {
                 header.style.transform = "translateY(0)";
                 header.style.transitionDuration = "200ms";
-            } else if (window.isNavigating) {
-                lastScrollTop = st;
-                scrollHideThreshold = st + 150;
-            } else {
+            } else if (!window.isNavigating) {
                 header.style.transform = "translateY(0)";
-                lastScrollTop = st;
             }
 
             // Reliable Scroll Tracking for SYBD

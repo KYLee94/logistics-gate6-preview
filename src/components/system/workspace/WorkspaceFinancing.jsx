@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 import WorkspaceActivityLog from './WorkspaceActivityLog';
 import { supabase } from '../../../utils/supabaseClient';
 import { fetchWithRetry } from '../../../utils/fetchWithRetry';
@@ -20,7 +20,7 @@ export default function WorkspaceFinancing() {
 
     const [expandedTaskId, setExpandedTaskId] = useState(null);
 
-    const getCurrentWeekInfo = () => {
+    const getCurrentWeekInfo = useCallback(() => {
         const today = new Date();
         const year = today.getFullYear();
         const month = today.getMonth() + 1;
@@ -37,9 +37,9 @@ export default function WorkspaceFinancing() {
         const weekId = `financing-${year}-${month}-${week}`;
         
         return { weekLabel, weekId };
-    };
+    }, []);
 
-    const autoSaveSnapshot = async (currentTasks) => {
+    const autoSaveSnapshot = useCallback(async (currentTasks) => {
         if (!currentTasks || currentTasks.length === 0) return;
         const { weekLabel, weekId } = getCurrentWeekInfo();
         
@@ -67,7 +67,7 @@ export default function WorkspaceFinancing() {
                         created_at: new Date().toISOString()
                     }]);
             }
-        } catch (e) {
+        } catch {
             const localSnapshots = JSON.parse(localStorage.getItem('iota_weekly_snapshots') || '[]');
             const index = localSnapshots.findIndex(s => s.week_label === weekLabel && s.workspace === 'financing');
             if (index >= 0) {
@@ -83,9 +83,9 @@ export default function WorkspaceFinancing() {
             }
             localStorage.setItem('iota_weekly_snapshots', JSON.stringify(localSnapshots));
         }
-    };
+    }, [getCurrentWeekInfo]);
 
-    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [tasks]);
+    useEffect(() => { if (tasks && tasks.length > 0) autoSaveSnapshot(tasks); }, [autoSaveSnapshot, tasks]);
 
 
     
@@ -138,7 +138,7 @@ export default function WorkspaceFinancing() {
             } else {
                 alert('이해관계자 등록 중 오류가 발생했습니다.');
             }
-        } catch (e) {
+        } catch {
             alert('연결 오류');
         }
     };
@@ -203,7 +203,7 @@ export default function WorkspaceFinancing() {
                 }
             }
         }
-    }, [isLoadingTasks, tasks]);
+    }, [autoSaveSnapshot, isLoadingTasks, tasks]);
 
     const handleEditRow = (row) => {
         setEditingTaskId(row.id);
@@ -293,7 +293,7 @@ export default function WorkspaceFinancing() {
         try {
             await supabase.from('iota_financing_tasks').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_financing_tasks').update({ created_at: prev.created_at }).eq('id', prev.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_financing_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -313,7 +313,7 @@ export default function WorkspaceFinancing() {
         try {
             await supabase.from('iota_financing_tasks').update({ created_at: current.created_at }).eq('id', current.id);
             await supabase.from('iota_financing_tasks').update({ created_at: next.created_at }).eq('id', next.id);
-        } catch (e) {
+        } catch {
             localStorage.setItem('iota_financing_tasks_fallback', JSON.stringify(newTasks));
         }
     };
@@ -346,7 +346,6 @@ export default function WorkspaceFinancing() {
     const [iotaData, setIotaData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [marketNews, setMarketNews] = useState(null);
-    const [selectedLender, setSelectedLender] = useState('전체 대주');
     const [newsLoading, setNewsLoading] = useState(false);
     
     const handleInstClick = () => {};
@@ -528,7 +527,7 @@ export default function WorkspaceFinancing() {
         };
     }, []);
 
-    const VehicleDetailCard = ({ id, vehicleId, title, totalAmountStr, data, toggleContent }) => {
+    const VehicleDetailCard = ({ id, vehicleId, title, data, toggleContent }) => {
         const [hoveredBarTranche, setHoveredBarTranche] = useState(null);
         let totalEquity = 0;
         let totalLoan = 0;
@@ -594,11 +593,6 @@ export default function WorkspaceFinancing() {
             if (trancheName.includes('Tr.D') || trancheName.includes('Tr. D') || trancheName.includes('D종')) return 'bg-[#966171]';
             return 'bg-[#444]';
         };
-
-        const gfa = vehicleId === '427' ? '102,540평' : '36,537평';
-        const officeArea = vehicleId === '427' ? '34,470평' : '15,529평';
-        const retailArea = vehicleId === '427' ? '1,569평' : '1,022평';
-        const hotelArea = vehicleId === '427' ? '5,121평' : '-평';
 
         return (
             <div id={id} className="mb-[38px]">
@@ -1055,7 +1049,7 @@ export default function WorkspaceFinancing() {
                     <div className="flex flex-col gap-[8px]">
                         <AnimatePresence>
                             {(projectShowAll ? sortedTasks : sortedTasks.slice(0, 5)).map((row, index) => (
-                            <motion.div 
+                            <Motion.div
                                 layout
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -1163,7 +1157,7 @@ export default function WorkspaceFinancing() {
                                 </div>
                                 )}
                                 </div>
-                            </motion.div>
+                            </Motion.div>
                             ))}
                         </AnimatePresence>
                     </div>
@@ -1278,8 +1272,6 @@ export default function WorkspaceFinancing() {
                                 const trA = isProjected ? 0 : 80 + Math.random() * 20;
                                 const trB = isProjected ? 0 : 30 + Math.random() * 10;
                                 const trC = isProjected ? 0 : 15 + Math.random() * 5;
-                                const totalH = trA + trB + trC;
-                                
                                 return (
                                     <div key={i} className="flex flex-col items-center gap-[12px] h-full justify-end w-[40px] group">
                                         <div className={`w-full flex flex-col justify-end gap-[1px] ${isProjected ? 'opacity-20' : ''} transition-opacity cursor-crosshair`} style={{height: '220px'}}>

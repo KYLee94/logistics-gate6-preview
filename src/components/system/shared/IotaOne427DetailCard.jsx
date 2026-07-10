@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 const IotaOne427DetailCard = ({ id, vehicleId, title, dbData, navigateTo, externalPhase, setExternalPhase }) => {
     const [hoveredBarTranche, setHoveredBarTranche] = useState(null);
@@ -357,7 +357,7 @@ const IotaOne427DetailCard = ({ id, vehicleId, title, dbData, navigateTo, extern
                 {/* ACCORDION (Added cleanly without changing original surrounding UI) */}
                 <AnimatePresence>
                     {isAccordionOpen && (
-                        <motion.div
+                        <Motion.div
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
@@ -393,7 +393,7 @@ const IotaOne427DetailCard = ({ id, vehicleId, title, dbData, navigateTo, extern
                                     </table>
                                 </div>
                             </div>
-                        </motion.div>
+                        </Motion.div>
                     )}
                 </AnimatePresence>
 

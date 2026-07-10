@@ -11,11 +11,12 @@ export default function UserAvatar({
 }) {
   const label = avatarLabel(memberInfo, name);
   const candidates = useMemo(() => avatarCandidates(memberInfo, label), [memberInfo, label]);
+  const candidatesKey = candidates.join('|');
   const [candidateIndex, setCandidateIndex] = useState(0);
 
   useEffect(() => {
     setCandidateIndex(0);
-  }, [candidates.join('|')]);
+  }, [candidatesKey]);
 
   const src = candidates[candidateIndex] || candidates[candidates.length - 1];
   return (

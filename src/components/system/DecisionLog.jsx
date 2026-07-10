@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../../utils/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion as Motion, AnimatePresence } from 'framer-motion';
 
 const WORKSPACE_CONFIG = [
     { id: 'pm', name: '사업 PM', path: 'platform/iotaseoul/workspace/pm', table: 'iota_pm_tasks', color: 'bg-[#ff9f0a]' },
@@ -18,7 +18,7 @@ export default function DecisionLog() {
     const [logs, setLogs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [expandedLogs, setExpandedLogs] = useState({});
-    const [logsViewMode, setLogsViewMode] = useState('full');
+    const [logsViewMode] = useState('full');
     const [currentPage, setCurrentPage] = useState(1);
     const [logSearchQuery, setLogSearchQuery] = useState('');
     
@@ -26,7 +26,6 @@ export default function DecisionLog() {
     const [focusTasks, setFocusTasks] = useState({});
     const [isLoadingFocus, setIsLoadingFocus] = useState(true);
     const [activeWorkspaceTab, setActiveWorkspaceTab] = useState('pm');
-    const [expandedFocusTaskId, setExpandedFocusTaskId] = useState(null);
     
     // Header Filter states
     const [filterStakeholder, setFilterStakeholder] = useState('');
@@ -39,7 +38,6 @@ export default function DecisionLog() {
     const [logToDelete, setLogToDelete] = useState(null);
     const [commentToDelete, setCommentToDelete] = useState(null); // { logId, commentId }
     const [isDeleting, setIsDeleting] = useState(false);
-    const [showMeetingsInfo, setShowMeetingsInfo] = useState(false);
     const [showMyLogsOnly, setShowMyLogsOnly] = useState(false);
     const [masterStakeholders, setMasterStakeholders] = useState([]);
     const [showAllCrossFunctional, setShowAllCrossFunctional] = useState(false);
@@ -90,14 +88,6 @@ export default function DecisionLog() {
         { meeting: '통합PF (NH투자증권)', period: '격주 (수)', leader: '부문대표(이철승)', attendees: 'NH투자증권', output: '' }
     ];
 
-    const triggers = [
-        { condition: 'UW 범위 외 일정/예산 변경이 식별된 경우', action: 'CFT 운영위 임시 소집' },
-        { condition: '대주단 Covenants 위반 가능성 식별', action: 'LFC 주재 긴급 라운드' },
-        { condition: '핵심 임차인 협상 결렬 또는 LOI 철회', action: 'EMC 주재 임시 LM 회의' },
-        { condition: '규제·인허가·소송 이슈 발생', action: 'CFT 총괄 직속 비상 회의' },
-        { condition: 'LP 임시 출자·임시 분배 요청', action: 'KAM 1파트 주재 펀드 회의' }
-    ];
-
     const formatDateYYMMDD = (dateString) => {
         if (!dateString) return '';
         const d = new Date(dateString);
@@ -107,7 +97,7 @@ export default function DecisionLog() {
         return `${yy}.${mm}.${dd}`;
     };
 
-    const getCellName = (name) => {
+    const getCellName = useCallback((name) => {
         const cells = {
             '전기영': '기획추진', '이시정': '기획추진', '이관용': '기획추진',
             '이철승': 'CFT 총괄', '윤관식': 'CFT 총괄', '정조민': 'CFT 총괄', '우형석': 'CFT 총괄',
@@ -119,7 +109,7 @@ export default function DecisionLog() {
             '김행단': '펀드운용-KAM', '윤용택': 'IPR'
         };
         return cells[name] || '기타';
-    };
+    }, []);
 
     const getLogCell = (log) => {
         if (log.metadata?.workspace_label) {
@@ -135,7 +125,7 @@ export default function DecisionLog() {
         return getCellName(log.writer_name);
     };
 
-    const fetchMasterStakeholders = async () => {
+    const fetchMasterStakeholders = useCallback(async () => {
         try {
             const { data, error } = await supabase.from('iota_stakeholder_master').select('*');
             if (!error && data) {
@@ -144,9 +134,9 @@ export default function DecisionLog() {
         } catch (e) {
             console.error(e);
         }
-    };
+    }, []);
 
-    const fetchLogs = async () => {
+    const fetchLogs = useCallback(async () => {
         setIsLoading(true);
         try {
             const { data, error } = await supabase
@@ -164,7 +154,7 @@ export default function DecisionLog() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [getCellName]);
 
     const hasRestrictedPermissions = (log) => {
         const perms = log.metadata?.permissions;
@@ -231,8 +221,6 @@ export default function DecisionLog() {
             setIsLoadingFocus(true);
             try {
                 const results = {};
-                const priorityWeight = { '높음': 3, '중간': 2, '낮음': 1 };
-                
                 await Promise.all(WORKSPACE_CONFIG.map(async (ws) => {
                     const { data, error } = await supabase
                         .from(ws.table)
@@ -272,7 +260,7 @@ export default function DecisionLog() {
         window.addEventListener('refetch-data', handleRefetch);
         
         return () => window.removeEventListener('refetch-data', handleRefetch);
-    }, []);
+    }, [fetchLogs, fetchMasterStakeholders]);
 
     const toggleExpand = (id) => {
         setExpandedLogs(prev => ({
@@ -424,32 +412,8 @@ export default function DecisionLog() {
     const displayedLogs = searchFilteredLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
 
-    const workspaces = [
-        { id: 'ws1', label: '사업 PM', cell: '사업PM', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg> },
-        { id: 'ws2', label: '파이낸싱-LFC', cell: '파이낸싱-LFC', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
-        { id: 'ws3', label: '개발솔루션-DSC', cell: '개발솔루션-DSC', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" /></svg> },
-        { id: 'ws4', label: '기업마케팅-EMC', cell: '기업마케팅-EMC', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" /></svg> },
-        { id: 'ws5', label: '상품·디지털-SSC', cell: '상품·디지털-SSC', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg> },
-        { id: 'ws6', label: '펀드운용-KAM', cell: '펀드운용-KAM', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
-        { id: 'ws7', label: 'IPR-WG', cell: 'IPR', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg> },
-        { id: 'ws8', label: '기획추진', cell: '기획추진', icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="1.5"></circle><circle cx="12" cy="12" r="6" strokeWidth="1.5"></circle><circle cx="12" cy="12" r="2" strokeWidth="1.5"></circle></svg> }
-    ];
-
-    const activeStatus = ['신규', '검토중', '진행중'];
-    const activeLogs = logs.filter(l => activeStatus.includes(l.metadata?.issue_status || '진행중'));
     const twoWeeksAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     
-    // Group active logs by cell
-    const issuesByWorkspace = workspaces.map(ws => {
-        const cellLogs = activeLogs.filter(l => getLogCell(l) === ws.cell);
-        const totalCount = cellLogs.length;
-        const recentLogs = cellLogs.filter(l => new Date(l.work_date || l.created_at) >= twoWeeksAgo);
-        const recentCount = recentLogs.length;
-        const wsLogs = recentLogs.slice(0, 3);
-        
-        return { ...ws, logs: wsLogs, recentCount, totalCount };
-    });
-
     const today = new Date();
     const days = ['일', '월', '화', '수', '목', '금', '토'];
     const formattedDate = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${days[today.getDay()]})`;
@@ -691,7 +655,7 @@ export default function DecisionLog() {
                                     {/* Expanded Box for Cross Functional */}
                                     <AnimatePresence>
                                         {expandedLogs[log.log_id] && (
-                                            <motion.div 
+                                            <Motion.div
                                                 className="w-full flex overflow-hidden mt-[16px] cursor-auto"
                                                 onClick={(e) => e.stopPropagation()}
                                                 initial={{ height: 0, opacity: 0 }}
@@ -754,7 +718,7 @@ export default function DecisionLog() {
                                                         </div>
                                                     )}
                                                 </div>
-                                            </motion.div>
+                                            </Motion.div>
                                         )}
                                     </AnimatePresence>
                                 </div>
@@ -943,7 +907,7 @@ export default function DecisionLog() {
                         </div>
                     </div>
                 </div>
-                {displayedLogs.map((log, index) => (
+                {displayedLogs.map((log) => (
                     <div key={log.log_id} className="relative w-full px-[20px] py-[16px] flex flex-col group transition-colors hover:bg-white/5 last:rounded-b-[24px] border-b border-[#3c3c3c]">
                         {/* Main Row */}
                         <div 
@@ -1065,7 +1029,7 @@ export default function DecisionLog() {
                         {/* Expanded Box */}
                         <AnimatePresence>
                             {expandedLogs[log.log_id] && (
-                                <motion.div 
+                                <Motion.div
                                     className="w-full flex overflow-hidden"
                                     initial={{ height: 0, opacity: 0, marginTop: 0 }}
                                     animate={{ height: 'auto', opacity: 1, marginTop: 14 }}
@@ -1243,7 +1207,7 @@ export default function DecisionLog() {
                                         )}
                                     </div>
                                 </div>
-                                </motion.div>
+                                </Motion.div>
                             )}
                         </AnimatePresence>
                     </div>

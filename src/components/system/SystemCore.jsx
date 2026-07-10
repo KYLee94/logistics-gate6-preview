@@ -28,7 +28,7 @@ export default function SystemCore({ isPlatform = false, isIotaWorkspaceOverride
         handleLocationChange();
         window.addEventListener('popstate', handleLocationChange);
         return () => window.removeEventListener('popstate', handleLocationChange);
-    }, [isLightMode, toggleTheme]);
+    }, [isIotaWorkspaceOverride, isLightMode, toggleTheme]);
 
     return (
         <div className="w-full h-screen bg-[#1F1F1E] flex overflow-hidden font-sans text-[#E5E5E5] relative border-none">

@@ -24,10 +24,18 @@ import {
   primeEdgeData,
 } from './LogisticsSectorModules';
 import {
+  buildMapCalloutHtml,
+  constrainStaticMapCalloutAnchorStyle,
+  createNaverMapCalloutOptions,
   getNaverMapsClientId as getSharedNaverMapsClientId,
+  getLeafletMapCalloutOptions,
   loadLeafletSdk as loadSharedLeafletSdk,
   loadNaverMapsSdk as loadSharedNaverMapsSdk,
+  MAP_CALLOUT_STYLES,
+  MapCallout,
   MapLayerControl,
+  panLeafletMapForCallout,
+  positionStaticMapCallout,
 } from './LogisticsMapRuntime';
 import infoIconUrl from '../../../assets/i_icon.png';
 import { avatarCandidates } from '../avatarUtils';
@@ -373,11 +381,13 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
   const mode = dashboardReadRuntimeMode();
   const primaryMode = isDashboardReadPrimaryMode(mode);
   const cachedForCurrentRequest = DASHBOARD_READ_CACHE.get(cacheKey);
-  const effectiveState = state.cacheKey === cacheKey
-    ? state
-    : (cachedForCurrentRequest
-      ? { cacheKey, status: 'primary', payload: cachedForCurrentRequest.payload, raw: cachedForCurrentRequest.raw, blocked: false, message: '' }
-      : { cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' });
+  const effectiveState = useMemo(() => (
+    state.cacheKey === cacheKey
+      ? state
+      : (cachedForCurrentRequest
+        ? { cacheKey, status: 'primary', payload: cachedForCurrentRequest.payload, raw: cachedForCurrentRequest.raw, blocked: false, message: '' }
+        : { cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' })
+  ), [cacheKey, cachedForCurrentRequest, state]);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const effectiveStateRef = useRef(effectiveState);
   useEffect(() => {
@@ -2414,7 +2424,7 @@ function SortableHeaderButton({ label, active = false, direction = 'asc', onClic
 }
 
 function PortfolioAssetTable({ rows, onAssetClick = null }) {
-  const headers = [
+  const headers = useMemo(() => [
     { label: 'No.', value: (row) => row.no },
     { label: '자산명', value: (row) => row.assetName },
     { label: '주소(시군구)', value: (row) => row.address },
@@ -2423,7 +2433,7 @@ function PortfolioAssetTable({ rows, onAssetClick = null }) {
     { label: 'E. NOC', value: (row) => row.eNoc, align: 'right' },
     { label: '평당 임대료', value: (row) => row.rentPerPy, align: 'right' },
     { label: 'WALE', value: (row) => row.wale, align: 'right' },
-  ];
+  ], []);
   const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
   const toggleSort = (index) => {
     setSortConfig((current) => ({
@@ -3255,7 +3265,7 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
   const [serverRows, setServerRows] = useState(null);
   const [serverFundRows, setServerFundRows] = useState(null);
   const [fundAccessBlock, setFundAccessBlock] = useState(null);
-  const [fundReadMode, setFundReadMode] = useState('idle');
+  const [, setFundReadMode] = useState('idle');
   const [draftRows, setDraftRows] = useState({ overview: [], investment: [], fundInfo: [], fundBeneficiaries: [], fundLoans: [] });
   const toggleSection = (id) => setOpenSections((current) => ({ ...current, [id]: !current[id] }));
   const project = useMemo(() => findManagementProjectForAsset(assetName), [assetName]);
@@ -3283,9 +3293,9 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
   const effectiveFundInfoRows = useMemo(() => {
     if (fundAccessBlock) return [];
     return serverFundRows?.fundInfo?.length ? serverFundRows.fundInfo : fallbackFundInfoRows;
-  }, [fallbackFundInfoRows, fundAccessBlock, fundReadMode, serverFundRows]);
-  const effectiveBeneficiaryRows = useMemo(() => (fundAccessBlock ? [] : serverFundRows?.beneficiaries || []), [fundAccessBlock, fundReadMode, serverFundRows]);
-  const effectiveLoanRows = useMemo(() => (fundAccessBlock ? [] : serverFundRows?.loans || []), [fundAccessBlock, fundReadMode, serverFundRows]);
+  }, [fallbackFundInfoRows, fundAccessBlock, serverFundRows]);
+  const effectiveBeneficiaryRows = useMemo(() => (fundAccessBlock ? [] : serverFundRows?.beneficiaries || []), [fundAccessBlock, serverFundRows]);
+  const effectiveLoanRows = useMemo(() => (fundAccessBlock ? [] : serverFundRows?.loans || []), [fundAccessBlock, serverFundRows]);
   const assetId = resolveAssetIdByName(assetName);
   const canEditProject = Boolean(permission.role === 'Admin' || (
     assetIdMatchesPermission(assetId, assetName, permission)
@@ -4236,16 +4246,6 @@ function filterAssetsByPermission(rows, permission, nameKey = 'assetName', idKey
   return (rows || []).filter((row) => assetIdMatchesPermission(row?.[idKey], row?.[nameKey] || row?.label, permission));
 }
 
-function logisticsRoleRank(role) {
-  const order = ['Reader', 'Editor', 'Manager', 'Admin', 'System Admin'];
-  const index = order.indexOf(String(role || 'Reader'));
-  return index < 0 ? 0 : index;
-}
-
-function hasLogisticsRole(permission, minimum) {
-  return logisticsRoleRank(permission?.role || permission?.logisticsRole) >= logisticsRoleRank(minimum);
-}
-
 function canViewDataQuality(memberInfo, permission) {
   const name = String(memberInfo?.staff_name || memberInfo?.name || permission?.name || '').trim();
   if (DATA_QUALITY_ALLOWED_NAMES.has(name)) return true;
@@ -4611,37 +4611,6 @@ function mergePermissionFlags(primary = {}, fallback = {}, defaults = {}) {
     key,
     value === true || fallback?.[key] === true || defaults?.[key] === true,
   ]));
-}
-
-function resolveLogisticsPermissionLegacy(memberInfo) {
-  const email = normalizeIdentity(memberInfo?.email || memberInfo?.user_email || memberInfo?.login_id || memberInfo?.id);
-  const name = String(memberInfo?.staff_name || memberInfo?.name || '').trim();
-  const organization = String(memberInfo?.organization || memberInfo?.department || memberInfo?.team_name || '').trim();
-  const users = logisticsPermissionUsers;
-  const matched = users.find((user) => normalizeIdentity(user.email) === email)
-    || users.find((user) => name && user.name === name)
-    || users.find((user) => organization && user.organization === organization);
-  const fallback = {
-    name: name || '로그인 사용자',
-    email: email || '',
-    organization: organization || '조직 미확인',
-    managedAssets: [],
-    managedFunds: [],
-    permissions: {
-      managedAsset: { read: true, create: false, update: false, delete: false },
-      otherAsset: { read: false, create: false, update: false, delete: false },
-    },
-  };
-  const current = matched || fallback;
-  const teamMembers = [];
-  return {
-    ...current,
-    matched: Boolean(matched),
-    teamMembers,
-    managedAssets: current.managedAssets || [],
-    managedFunds: current.managedFunds || [],
-    permissions: current.permissions || fallback.permissions,
-  };
 }
 
 function resolveLogisticsPermission(memberInfo) {
@@ -5328,7 +5297,7 @@ function aiMentionHighlightSegments(text, selections) {
 }
 
 export default function WorkspaceLogistics({ currentPath = '' }) {
-  const { user, memberInfo } = useAuth();
+  const { memberInfo } = useAuth();
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
@@ -5357,6 +5326,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const [marketDocsLoading, setMarketDocsLoading] = useState(false);
   const [marketDocsUploadState, setMarketDocsUploadState] = useState({ type: 'idle', message: '' });
   const [marketDocsFile, setMarketDocsFile] = useState(null);
+  const marketDocsModalOpen = false;
   const [selectedSearchResult, setSelectedSearchResult] = useState(null);
   const [taskRecords, setTaskRecords] = useState([]);
   const [taskEditTarget, setTaskEditTarget] = useState(null);
@@ -5917,12 +5887,6 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     }
   };
 
-  const openMarketDocsModal = () => {
-    setIsMarketDocsModalOpen(true);
-    setMarketDocsUploadState({ type: 'idle', message: '' });
-    refreshMarketDocsStatus();
-  };
-
   const uploadMarketDocsFile = async () => {
     if (!marketDocsFile) {
       setMarketDocsUploadState({ type: 'warning', message: '업로드할 시장자료 파일을 선택해 주세요.' });
@@ -6475,7 +6439,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           {aiToast.message}
         </div>
       ) : null}
-      {false ? (
+      {marketDocsModalOpen ? (
         <MainOverlay title="" eyebrow="" onClose={() => {}}>
           <div className="space-y-5">
             <div className="rounded-[16px] border border-[#333333] bg-[#1F1F1E] p-5">
@@ -7229,15 +7193,6 @@ function escapeHtml(value) {
   }[char]));
 }
 
-function escapeHtmlAttribute(value) {
-  return escapeHtml(value).replace(/`/g, '&#96;');
-}
-
-function buildMapCalloutHtml(point, index, options = {}) {
-  const centeredClass = options.centered ? ' logistics-map-callout-wrap--centered' : '';
-  return `<div class="logistics-map-callout-wrap${centeredClass}"><button type="button" data-map-asset-id="${escapeHtmlAttribute(point.assetId || '')}" data-map-asset-name="${escapeHtmlAttribute(point.assetName || '')}" class="logistics-map-callout"><strong>${escapeHtml(point.assetName || `자산 ${index + 1}`)}</strong><span>${escapeHtml(point.address || '')}</span></button></div>`;
-}
-
 function buildPrintableMapTiles(latitude, longitude, zoom = 13) {
   const lat = Math.max(-85.05112878, Math.min(85.05112878, Number(latitude)));
   const lng = Number(longitude);
@@ -7284,19 +7239,25 @@ function PortfolioMapSchematic({ points, onAssetClick = navigateToAsset }) {
   const xFor = (point) => 7 + ((Number(point.longitude) - minLng) / Math.max(maxLng - minLng, 0.0001)) * 86;
   const yFor = (point) => 7 + ((maxLat - Number(point.latitude)) / Math.max(maxLat - minLat, 0.0001)) * 86;
   return (
-    <div className="relative min-h-[420px] rounded-[14px] border border-[#333333] bg-[#1F1F1E] overflow-hidden">
+    <div className="relative min-h-[420px] rounded-[14px] border border-[#333333] bg-[#1F1F1E] overflow-hidden" data-map-callout-boundary="true">
       <div className="absolute inset-0 opacity-30" style={{ backgroundImage: 'linear-gradient(#3A3A3C 1px, transparent 1px), linear-gradient(90deg, #3A3A3C 1px, transparent 1px)', backgroundSize: '44px 44px' }} />
       {validPoints.map((point, index) => (
         <div
           key={point.assetId || point.assetName}
-          className="absolute -translate-x-1/2 -translate-y-1/2 group"
-          style={{ left: `${xFor(point)}%`, top: `${yFor(point)}%` }}
+          className="absolute h-8 w-8 -translate-x-1/2 -translate-y-1/2"
+          style={constrainStaticMapCalloutAnchorStyle({ left: `${xFor(point)}%`, top: `${yFor(point)}%` })}
+          data-map-callout-anchor="true"
+          onMouseEnter={(event) => positionStaticMapCallout(event.currentTarget)}
+          onFocusCapture={(event) => positionStaticMapCallout(event.currentTarget)}
         >
           <div className="h-8 w-8 rounded-full bg-[#9AD7FF] text-[#111] text-[12px] font-bold flex items-center justify-center shadow-lg shadow-black/30">{index + 1}</div>
-          <button type="button" onClick={() => onAssetClick(point.assetId || point.assetName)} className="absolute left-8 top-1/2 z-10 hidden w-[230px] -translate-y-1/2 rounded-[8px] border border-[#D1D1D6] bg-white p-3 text-left text-[12px] text-[#1F1F1E] shadow-xl group-hover:block">
-            <strong className="mb-1 block text-[#111]">{point.assetName}</strong>
-            {point.address || '-'}
-          </button>
+          <MapCallout
+            title={point.assetName || `자산 ${index + 1}`}
+            detail={point.address || '-'}
+            assetId={point.assetId || ''}
+            assetName={point.assetName || ''}
+            onClick={() => onAssetClick(point.assetId || point.assetName)}
+          />
         </div>
       ))}
     </div>
@@ -7507,10 +7468,18 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
         validPoints.forEach((point, index) => {
           const marker = L.marker([Number(point.latitude), Number(point.longitude)], { title: point.assetName || `자산 ${index + 1}` }).addTo(map);
           marker.bindTooltip(
-            buildMapCalloutHtml(point, index, { centered: true }),
-            { direction: 'top', offset: [0, -18], opacity: 1, sticky: false, interactive: true, className: 'logistics-map-tooltip' },
+            buildMapCalloutHtml({
+              title: point.assetName || `자산 ${index + 1}`,
+              detail: point.address || '',
+              assetId: point.assetId || '',
+              assetName: point.assetName || '',
+            }, { provider: 'leaflet' }),
+            getLeafletMapCalloutOptions(),
           );
-          marker.on('mouseover', () => marker.openTooltip());
+          marker.on('mouseover', () => {
+            panLeafletMapForCallout(map, marker);
+            marker.openTooltip();
+          });
           marker.on('mouseout', () => window.setTimeout(() => marker.closeTooltip(), 650));
           mapRuntimeRef.current.leafletMarkers.set(point.assetId || point.assetName, marker);
         });
@@ -7555,15 +7524,15 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
             map,
             title: point.assetName || `자산 ${index + 1}`,
           });
-          const infoWindow = new naver.maps.InfoWindow({
-            content: buildMapCalloutHtml(point, index, { centered: true }),
-            backgroundColor: 'transparent',
-            borderColor: 'transparent',
-            borderWidth: 0,
-            disableAnchor: true,
-            anchorSize: new naver.maps.Size(0, 0),
-            pixelOffset: new naver.maps.Point(0, -30),
-          });
+          const infoWindow = new naver.maps.InfoWindow(createNaverMapCalloutOptions(
+            naver,
+            buildMapCalloutHtml({
+              title: point.assetName || `자산 ${index + 1}`,
+              detail: point.address || '',
+              assetId: point.assetId || '',
+              assetName: point.assetName || '',
+            }, { provider: 'naver' }),
+          ));
           let closeTimer = null;
           naver.maps.Event.addListener(marker, 'mouseover', () => {
             if (closeTimer) window.clearTimeout(closeTimer);
@@ -7637,62 +7606,7 @@ function PortfolioMapPlot({ points, onAssetClick = navigateToAsset, focusedAsset
         <div className={`absolute left-3 top-3 rounded-full border px-3 py-1 text-[12px] font-semibold ${mode === 'leaflet' || mode === 'naver' ? 'border-[#2E6B45] bg-[#173522] text-[#B5E48C]' : 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'}`}>
           {status}
         </div>
-        <style>{`
-          .logistics-map-tooltip {
-            border: 0 !important;
-            background: transparent !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-          }
-          .logistics-map-tooltip::before {
-            display: none !important;
-          }
-          .logistics-map-tooltip,
-          .logistics-map-tooltip * {
-            box-sizing: border-box !important;
-          }
-          .logistics-map-callout-wrap {
-            display: block;
-            pointer-events: auto;
-          }
-          .logistics-map-callout-wrap--centered {
-            transform: translateX(-50%);
-          }
-          .logistics-map-callout {
-            display: block;
-            min-width: 220px;
-            max-width: min(320px, calc(100vw - 48px));
-            width: max-content;
-            border: 0;
-            outline: 0;
-            border-radius: 8px;
-            background: #fff;
-            color: #111;
-            padding: 10px 12px;
-            text-align: left;
-            font-size: 12px;
-            line-height: 1.45;
-            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
-            cursor: pointer;
-            white-space: nowrap;
-          }
-          .logistics-map-callout,
-          .logistics-map-callout * {
-            box-sizing: border-box !important;
-          }
-          .logistics-map-callout strong {
-            display: block;
-            margin-bottom: 4px;
-            color: #111;
-            font-weight: 700;
-            white-space: nowrap;
-          }
-          .logistics-map-callout span {
-            display: block;
-            color: #111;
-            white-space: nowrap;
-          }
-        `}</style>
+        <style>{MAP_CALLOUT_STYLES}</style>
         <div className="hidden">
           {[
             ['normal', '일반'],
@@ -10120,7 +10034,7 @@ function SectorDashboard() {
 function CompanyDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
-  const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
+  useLogisticsFeatureAccess(memberInfo, permission);
   const canUseExternalApiRefresh = false;
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo);
   const readableCompanyOptions = useMemo(() => (
@@ -11137,7 +11051,10 @@ function ContractDataManagementDashboard() {
   const assetRows = useMemo(() => readableRows.filter((row) => !activeAssetId || row.assetId === activeAssetId), [activeAssetId, readableRows]);
   const sortedAssetRows = useMemo(() => sortContractDataLeaseRows(assetRows), [assetRows]);
   const selectedAsset = readableAssets.find((asset) => asset.assetId === activeAssetId) || {};
-  const selectedLeaseRow = sortedAssetRows.find((row) => row.leaseSpaceId === selectedLeaseSpaceId) || sortedAssetRows[0] || {};
+  const selectedLeaseRow = useMemo(
+    () => sortedAssetRows.find((row) => row.leaseSpaceId === selectedLeaseSpaceId) || sortedAssetRows[0] || {},
+    [selectedLeaseSpaceId, sortedAssetRows],
+  );
   const selectedLeaseRowDraftKey = CONTRACT_DATA_FIELDS.map((field) => (
     `${contractFieldKey(field)}:${excelCellText(contractFieldRawValue(selectedLeaseRow, field))}`
   )).join('|');
@@ -11197,7 +11114,7 @@ function ContractDataManagementDashboard() {
     setFieldEditStatus(null);
     setEventStatus(null);
     setOpenFieldHelpKey('');
-  }, [dataUpdateMode, selectedLeaseRowDraftKey]);
+  }, [dataUpdateMode, selectedLeaseRow, selectedLeaseRowDraftKey]);
 
   const contractRows = sortedAssetRows.map((row) => [
     row.assetName || '-',
@@ -11779,35 +11696,6 @@ function normalizeRemoteQualityFinding(row, index) {
     action: row.suggested_fix || row.action || row.message || row.detail || '원본 값과 정규화 결과 대조 필요',
     sourceTable: row.source_table || row.sourceTable || 'public.ll_audit_events',
     raw: { ...row, event_payload: eventPayload },
-  };
-}
-
-function normalizeRemoteEditRequest(row, index) {
-  const payload = parseJsonObject(row.request_payload);
-  const cells = Array.isArray(payload.cell_edits) ? payload.cell_edits : parseJsonArray(row.requested_value);
-  const displayRequestedValue = cells.length ? `${formatNumber(cells.length)}개 셀 수정` : cleanDisplay(row.requested_value || (cells[0]?.afterValue ?? cells[0]?.after_value ?? ''));
-  return {
-    id: row.id || `edit-${index}`,
-    status: row.status || 'submitted',
-    targetType: row.target_type || payload.finding?.targetType || '-',
-    targetName: row.target_name || payload.finding?.target || '-',
-    fieldName: row.field_name || payload.finding?.field || (cells[0]?.fieldName || cells[0]?.field_name || '-'),
-    reason: row.reason_code || payload.finding?.reason || '-',
-    requestedBy: row.requested_by || '-',
-    requestedAt: row.created_at || row.updated_at || '',
-    beforeValue: row.before_value || (cells[0]?.beforeValue ?? cells[0]?.before_value ?? ''),
-    requestedValue: row.requested_value || (cells[0]?.afterValue ?? cells[0]?.after_value ?? ''),
-    displayRequestedValue,
-    cellCount: cells.length || 1,
-    requestPayload: payload,
-    uploadSource: payload.source || '',
-    uploadFileName: payload.fileName || '',
-    uploaderName: payload.uploaderName || row.requested_by_name || row.requested_by || '-',
-    uploadAssetScope: payload.assetScope || row.target_name || '-',
-    uploadAt: payload.uploadAt || row.created_at || row.updated_at || '',
-    acceptedRows: payload.acceptedRows || cells.length || 0,
-    blockedRows: payload.blockedRows || 0,
-    raw: row,
   };
 }
 
@@ -12810,20 +12698,6 @@ function buildContractDataFieldGroups(fields, selectedRow, fieldDrafts, searchQu
     .filter((group) => group.fields.length > 0);
 }
 
-function contractFieldExampleValue(field) {
-  const name = `${field?.fieldName || ''} ${field?.label || ''} ${field?.sourceHeader || ''}`.toLowerCase();
-  if (name.includes('asset')) return '예: 안성 성은 물류센터';
-  if (name.includes('tenant') || name.includes('company')) return '예: 쿠팡(주)';
-  if (name.includes('business')) return '예: 123-45-67890';
-  if (field?.valueType === 'date' || name.includes('date') || name.includes('start') || name.includes('end')) return '예: 2026-06-30';
-  if (field?.valueType === 'area') return '예: 1,000.00';
-  if (field?.valueType === 'currency') return '예: 10000000';
-  if (field?.valueType === 'won') return '예: 42000';
-  if (field?.valueType === 'percent') return '예: 7.5';
-  if (field?.valueType === 'number') return '예: 10';
-  return '예: 신규 계약 값 입력';
-}
-
 function contractFieldRawValue(row, field) {
   if (!row || !field) return '';
   const snake = contractFieldDbName(field);
@@ -13056,17 +12930,6 @@ function parseJsonObject(value) {
     return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   } catch {
     return {};
-  }
-}
-
-function parseJsonArray(value) {
-  if (Array.isArray(value)) return value;
-  if (!value) return [];
-  try {
-    const parsed = JSON.parse(String(value));
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
   }
 }
 
@@ -13716,7 +13579,7 @@ function AssetDashboard() {
   }, [asset.floorplans, overview.floorCount, overview.floorScale, overview.floorplans, selectedAssetId, stackingFloors]);
   const assetWeightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
   const buildingRegisterSource = rows.find((row) => row.asset?.sigunguCd || row.sigunguCd) || overview;
-  const buildingRegisterPayload = buildBuildingRegisterPayload(buildingRegisterSource);
+  const buildingRegisterPayload = useMemo(() => buildBuildingRegisterPayload(buildingRegisterSource), [buildingRegisterSource]);
   const buildingRegisterCacheKey = isCompleteBuildingRegisterPayload(buildingRegisterPayload)
     ? `${buildingRegisterPayload.sigungu_cd}|${buildingRegisterPayload.bjdong_cd}|${buildingRegisterPayload.plat_gb_cd}|${buildingRegisterPayload.bun}|${buildingRegisterPayload.ji}`
     : '';
@@ -13745,14 +13608,7 @@ function AssetDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [
-    buildingRegisterCacheKey,
-    buildingRegisterPayload.bjdong_cd,
-    buildingRegisterPayload.bun,
-    buildingRegisterPayload.ji,
-    buildingRegisterPayload.plat_gb_cd,
-    buildingRegisterPayload.sigungu_cd,
-  ]);
+  }, [buildingRegisterCacheKey, buildingRegisterPayload]);
   useEffect(() => {
     const assetNameForPrefetch = overview.assetName;
     const cacheKey = selectedAssetId || normalizeAssetNameKey(assetNameForPrefetch);
@@ -14953,6 +14809,8 @@ function DashboardShell({ activeModule }) {
   }[selected?.id] || selected?.label;
   const shouldShowExternalApiRefresh = selected?.id !== 'investment-index' && featureAccess.buildingRegisterRefresh;
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission) && shouldShowExternalApiRefresh);
+  const dashboardDatasetLoadingRef = useRef(dashboardDataset.loading);
+  dashboardDatasetLoadingRef.current = dashboardDataset.loading;
   const [dashboardPageLoading, setDashboardPageLoading] = useState(false);
   const [dashboardLoadingProgress, setDashboardLoadingProgress] = useState(100);
   const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
@@ -14964,7 +14822,7 @@ function DashboardShell({ activeModule }) {
       setDashboardLoadingProgress((current) => Math.min(96, current + 9));
     }, 180);
     const settleTimer = window.setTimeout(() => {
-      if (!dashboardDataset.loading) {
+      if (!dashboardDatasetLoadingRef.current) {
         setDashboardLoadingProgress(100);
         setDashboardPageLoading(false);
       }
