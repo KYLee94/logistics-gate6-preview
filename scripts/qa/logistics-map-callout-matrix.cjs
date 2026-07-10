@@ -32,6 +32,7 @@ const EDGE_TARGETS = [
   { key: 'bottom-left', x: 0.08, y: 0.9 },
   { key: 'bottom-right', x: 0.92, y: 0.9 },
 ];
+const SKIP_EDGE_PROBES = process.argv.includes('--skip-edge-probes');
 
 const TITLES = {
   transactions: '\uAC70\uB798 \uC790\uC0B0 \uC704\uCE58',
@@ -271,7 +272,7 @@ async function waitForCalloutStable(page, rootSelector) {
     const stable = previous && value.every((item, index) => Math.abs(item - previous.value[index]) <= 0.5);
     window[stateKey] = { value, count: stable ? previous.count + 1 : 0 };
     return window[stateKey].count >= 2;
-  }, rootSelector, { timeout: 8000, polling: 100 });
+  }, rootSelector, { timeout: 2000, polling: 100 });
 }
 
 async function measurePin(page, rootSelector, pinKey) {
@@ -397,7 +398,7 @@ async function testPins(page, rootSelector, provider, viewport, surface, scope) 
   }
   const edgeResults = [];
   const edgePin = pins[0];
-  for (const target of EDGE_TARGETS) {
+  for (const target of SKIP_EDGE_PROBES ? [] : EDGE_TARGETS) {
     try {
       const edgePosition = await dragPinToward(page, rootSelector, edgePin.key, target);
       if (!edgePosition.reached) throw new Error(`Pin did not reach the ${target.key} edge probe target.`);
@@ -557,7 +558,7 @@ async function configureContext(context, provider, session, email) {
   }
 }
 
-async function runProvider(browser, baseUrl, provider, auth, registry, stamp, viewports = VIEWPORTS) {
+async function runProvider(browser, baseUrl, provider, auth, registry, stamp, viewports = VIEWPORTS, surfaces = SURFACES) {
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
@@ -575,7 +576,7 @@ async function runProvider(browser, baseUrl, provider, auth, registry, stamp, vi
     const pageErrors = [];
     page.on('pageerror', (error) => pageErrors.push(error.message));
     const surfaceResults = [];
-    for (const surface of SURFACES) surfaceResults.push(await runSurface(page, baseUrl, provider, viewport, surface));
+    for (const surface of surfaces) surfaceResults.push(await runSurface(page, baseUrl, provider, viewport, surface));
     report.viewports.push({
       ...viewport,
       ok: surfaceResults.every((surface) => surface.ok) && pageErrors.length === 0,
@@ -587,8 +588,10 @@ async function runProvider(browser, baseUrl, provider, auth, registry, stamp, vi
   report.ok = registry.ok && report.viewports.every((viewport) => viewport.ok) && report.errors.length === 0;
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const viewportSuffix = viewports.length === 1 ? `-${viewports[0].key}` : '';
-  const outJson = path.join(OUT_DIR, `map-callout-matrix-${provider}${viewportSuffix}-${stamp}.json`);
-  const latestJson = path.join(OUT_DIR, `map-callout-matrix-${provider}${viewportSuffix}-latest.json`);
+  const surfaceSuffix = surfaces.length === 1 ? `-${surfaces[0].id}` : '';
+  const probeSuffix = SKIP_EDGE_PROBES ? '-hover-only' : '';
+  const outJson = path.join(OUT_DIR, `map-callout-matrix-${provider}${viewportSuffix}${surfaceSuffix}${probeSuffix}-${stamp}.json`);
+  const latestJson = path.join(OUT_DIR, `map-callout-matrix-${provider}${viewportSuffix}${surfaceSuffix}${probeSuffix}-latest.json`);
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(latestJson, `${JSON.stringify(report, null, 2)}\n`);
   return { ...report, artifact: path.relative(ROOT, outJson).replace(/\\/gu, '/') };
@@ -609,6 +612,11 @@ async function main() {
     ? VIEWPORTS
     : VIEWPORTS.filter((viewport) => viewport.key === requestedViewport);
   if (!viewports.length) throw new Error(`Unknown viewport: ${requestedViewport}`);
+  const requestedSurface = argsValue('surface', 'all');
+  const surfaces = requestedSurface === 'all'
+    ? SURFACES
+    : SURFACES.filter((surface) => surface.id === requestedSurface);
+  if (!surfaces.length) throw new Error(`Unknown surface: ${requestedSurface}`);
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
@@ -618,7 +626,7 @@ async function main() {
   const stamp = timestampForFile();
   try {
     const reports = [];
-    for (const provider of providers) reports.push(await runProvider(browser, baseUrl, provider, auth, registry, stamp, viewports));
+    for (const provider of providers) reports.push(await runProvider(browser, baseUrl, provider, auth, registry, stamp, viewports, surfaces));
     const ok = reports.every((report) => report.ok);
     console.log(JSON.stringify({ ok, base_url: baseUrl, reports: reports.map((report) => ({ provider: report.provider, ok: report.ok, artifact: report.artifact })) }, null, 2));
     if (!ok) process.exitCode = 1;
