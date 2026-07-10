@@ -32,31 +32,37 @@ if (!Number.isFinite(cutoffMs)) throw new Error(`Invalid --since value: ${sinceA
 const DEFAULT_RELEASE_LATEST_FILES = [
   'release-env-preflight-latest.json',
   'dangerous-script-audit-latest.json',
+  'full-surface-audit-latest.json',
   'full-app-loading-stability-latest.json',
-  'data-loading-stability-latest.json',
   'market-data-browser-smoke-latest.json',
-  'data-management-browser-readback-smoke-latest.json',
   'data-management-live-browser-flow-latest.json',
-  'data-management-release-gate-latest.json',
-  'data-management-column-editability-audit-latest.json',
-  'work-platform-browser-smoke-latest.json',
   'logout-browser-smoke-latest.json',
+  'news-api-smoke-latest.json',
+  'market-data-readback-smoke-latest.json',
 ];
 
 const requiredArg = argValue('files', '');
 const latestFiles = (requiredArg
   ? requiredArg.split(',').map((name) => name.trim()).filter(Boolean)
   : DEFAULT_RELEASE_LATEST_FILES
-).filter((name) => fs.existsSync(path.join(OUT_DIR, name))).sort();
+).sort();
 
 const checks = latestFiles.map((name) => {
   const file = path.join(OUT_DIR, name);
+  if (!fs.existsSync(file)) {
+    return {
+      file: path.relative(ROOT, file).replace(/\\/gu, '/'),
+      ok: false,
+      missing: true,
+    };
+  }
   try {
     const json = JSON.parse(fs.readFileSync(file, 'utf8'));
     const timestamps = walk(json);
     const newest = timestamps.sort((a, b) => b.ms - a.ms)[0] || null;
     const stale = !newest || newest.ms < cutoffMs;
-    const falsePositiveRisk = json.ok === true && (
+    const sourceReportOk = json.ok === true;
+    const falsePositiveRisk = (
       json.checks?.latest_artifacts_all_usable === false
       || json.latest_artifacts_all_usable === false
       || json.skipped === true
@@ -64,7 +70,8 @@ const checks = latestFiles.map((name) => {
     );
     return {
       file: path.relative(ROOT, file).replace(/\\/gu, '/'),
-      ok: !stale && !falsePositiveRisk,
+      ok: sourceReportOk && !stale && !falsePositiveRisk,
+      source_report_ok: sourceReportOk,
       newest_timestamp: newest?.value || null,
       stale,
       false_positive_risk: falsePositiveRisk,
@@ -86,8 +93,13 @@ const report = {
   checks,
 };
 
-fs.mkdirSync(OUT_DIR, { recursive: true });
-const latest = path.join(OUT_DIR, 'release-artifact-freshness-latest.json');
-fs.writeFileSync(latest, `${JSON.stringify(report, null, 2)}\n`);
-console.log(JSON.stringify({ ok: report.ok, artifact: path.relative(ROOT, latest), failed: checks.filter((check) => !check.ok).length }, null, 2));
+const writeArtifact = argValue('write-artifact', 'false') === 'true';
+let artifact = null;
+if (writeArtifact) {
+  fs.mkdirSync(OUT_DIR, { recursive: true });
+  const latest = path.join(OUT_DIR, 'release-artifact-freshness-latest.json');
+  fs.writeFileSync(latest, `${JSON.stringify(report, null, 2)}\n`);
+  artifact = path.relative(ROOT, latest).replace(/\\/gu, '/');
+}
+console.log(JSON.stringify({ ok: report.ok, artifact, failed: checks.filter((check) => !check.ok).length, checks }, null, 2));
 if (!report.ok) process.exitCode = 1;

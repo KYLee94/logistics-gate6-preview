@@ -6,10 +6,12 @@ const { createClient } = require('@supabase/supabase-js');
 
 const GOOGLE_NEWS_RSS_URL = 'https://news.google.com/rss/search';
 const BING_NEWS_RSS_URL = 'https://www.bing.com/news/search';
-const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v11-precollected-topic-dedupe';
+const NEWS_COLLECTOR_VERSION = 'google-bing-rss-v12-resilient-schedule';
 const MIN_DAILY_NEWS_ITEMS = 8;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
+const NEWS_FETCH_TIMEOUT_MS = Math.max(3000, Number(process.env.NEWS_FETCH_TIMEOUT_MS || 10000));
+const NEWS_QUERY_CONCURRENCY = Math.max(1, Math.min(8, Number(process.env.NEWS_QUERY_CONCURRENCY || 5)));
 
 const SEARCH_QUERIES = [
   '"물류센터" "임대료" OR "물류센터" "공실" OR "물류센터" "임대차"',
@@ -134,8 +136,8 @@ function parseBasisKst(value) {
   return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]), Number(match[4]) - 9, Number(match[5])));
 }
 
-function currentSevenAmBasisKst() {
-  const now = new Date();
+function currentSevenAmBasisKst(nowValue = new Date()) {
+  const now = nowValue instanceof Date ? nowValue : new Date(nowValue);
   const kst = new Date(now.getTime() + KST_OFFSET_MS);
   const todaySeven = new Date(Date.UTC(kst.getUTCFullYear(), kst.getUTCMonth(), kst.getUTCDate(), -2, 0, 0));
   return now.getTime() < todaySeven.getTime() ? new Date(todaySeven.getTime() - 24 * HOUR_MS) : todaySeven;
@@ -178,16 +180,42 @@ function parseRssItems(xml) {
     .filter((item) => item.title && item.link);
 }
 
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(new Error(`News RSS request timed out after ${NEWS_FETCH_TIMEOUT_MS}ms`)), NEWS_FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function mapWithConcurrency(values, concurrency, mapper) {
+  const input = Array.from(values || []);
+  const results = new Array(input.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(input.length, Math.max(1, Number(concurrency || 1)));
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < input.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await mapper(input[index], index);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 async function fetchGoogleNewsRss(query) {
   const url = new URL(GOOGLE_NEWS_RSS_URL);
   url.searchParams.set('q', query);
   url.searchParams.set('hl', 'ko');
   url.searchParams.set('gl', 'KR');
   url.searchParams.set('ceid', 'KR:ko');
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: { 'user-agent': 'logistics-gate6-news-collector/1.0' },
   });
-  if (!response.ok) return [];
+  if (!response.ok) throw new Error(`Google News RSS failed (${response.status})`);
   return parseRssItems(await response.text());
 }
 
@@ -199,10 +227,10 @@ async function fetchGoogleNewsRssForDateRange(query, windowStart, windowEnd) {
   url.searchParams.set('hl', 'ko');
   url.searchParams.set('gl', 'KR');
   url.searchParams.set('ceid', 'KR:ko');
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: { 'user-agent': 'logistics-gate6-news-collector/2.0' },
   });
-  if (!response.ok) return [];
+  if (!response.ok) throw new Error(`Google News date-range RSS failed (${response.status})`);
   return parseRssItems(await response.text()).map((item) => ({ ...item, source_name: 'google_news_rss_backfill' }));
 }
 
@@ -212,10 +240,10 @@ async function fetchBingNewsRss(query) {
   url.searchParams.set('format', 'rss');
   url.searchParams.set('setlang', 'ko-KR');
   url.searchParams.set('cc', 'KR');
-  const response = await fetch(url, {
+  const response = await fetchWithTimeout(url, {
     headers: { 'user-agent': 'logistics-gate6-news-collector/2.0' },
   });
-  if (!response.ok) return [];
+  if (!response.ok) throw new Error(`Bing News RSS failed (${response.status})`);
   return parseRssItems(await response.text()).map((item) => ({ ...item, source_name: 'bing_news_rss' }));
 }
 
@@ -401,23 +429,28 @@ async function collectNews(windowStart, windowEnd, options = {}) {
   const minimumScore = Math.max(1, Number(options.minimumScore || 2));
   const seen = new Map();
   const sourceStats = {};
-  for (const query of SEARCH_QUERIES) {
-    let rows = [];
-    try {
-      rows = await fetchGoogleNewsRss(`${query} when:${Math.ceil((windowEnd - windowStart) / (24 * HOUR_MS))}d`);
-    } catch {
-      rows = [];
+  const queryResults = await mapWithConcurrency(SEARCH_QUERIES, NEWS_QUERY_CONCURRENCY, async (query) => {
+    const [googleResult, bingResult] = await Promise.allSettled([
+      fetchGoogleNewsRss(`${query} when:${Math.ceil((windowEnd - windowStart) / (24 * HOUR_MS))}d`),
+      fetchBingNewsRss(query),
+    ]);
+    return {
+      query,
+      rows: [
+        ...(googleResult.status === 'fulfilled' ? googleResult.value : []).map((item) => ({ ...item, source_name: 'google_news_rss' })),
+        ...(bingResult.status === 'fulfilled' ? bingResult.value : []).map((item) => ({ ...item, source_name: item.source_name || 'bing_news_rss' })),
+      ],
+      sourceFailures: [
+        ...(googleResult.status === 'rejected' ? ['google_news_rss'] : []),
+        ...(bingResult.status === 'rejected' ? ['bing_news_rss'] : []),
+      ],
+    };
+  });
+  for (const { query, rows, sourceFailures } of queryResults) {
+    for (const sourceName of sourceFailures) {
+      const failureKey = `${sourceName}_failures`;
+      sourceStats[failureKey] = (sourceStats[failureKey] || 0) + 1;
     }
-    let bingRows = [];
-    try {
-      bingRows = await fetchBingNewsRss(query);
-    } catch {
-      bingRows = [];
-    }
-    rows = [
-      ...rows.map((item) => ({ ...item, source_name: 'google_news_rss' })),
-      ...bingRows.map((item) => ({ ...item, source_name: item.source_name || 'bing_news_rss' })),
-    ];
     for (const item of rows) {
       sourceStats[item.source_name || 'rss'] = (sourceStats[item.source_name || 'rss'] || 0) + 1;
       const publishedAt = new Date(item.pubDate);
@@ -470,13 +503,15 @@ async function collectNews(windowStart, windowEnd, options = {}) {
 async function collectHistoricalNews(windowStart, windowEnd) {
   const seen = new Map();
   const sourceStats = {};
-  for (const query of SEARCH_QUERIES) {
-    let rows = [];
+  const queryResults = await mapWithConcurrency(SEARCH_QUERIES, NEWS_QUERY_CONCURRENCY, async (query) => {
     try {
-      rows = await fetchGoogleNewsRssForDateRange(query, windowStart, windowEnd);
+      return { query, rows: await fetchGoogleNewsRssForDateRange(query, windowStart, windowEnd), failed: false };
     } catch {
-      rows = [];
+      return { query, rows: [], failed: true };
     }
+  });
+  for (const { query, rows, failed } of queryResults) {
+    if (failed) sourceStats.google_news_rss_backfill_failures = (sourceStats.google_news_rss_backfill_failures || 0) + 1;
     for (const item of rows) {
       sourceStats[item.source_name || 'rss'] = (sourceStats[item.source_name || 'rss'] || 0) + 1;
       const publishedAt = new Date(item.pubDate);
@@ -600,9 +635,28 @@ async function upsertRun(client, runRow) {
   if (result.error) throw new Error(`ll_news_runs upsert failed: ${result.error.message}`);
 }
 
-async function publish(run, items) {
-  const supabase = supabaseClientFromEnv();
-  const runRow = {
+async function readRunHealth(client, runKey) {
+  const runResult = await client
+    .from('ll_news_runs')
+    .select('news_run_id,run_key,run_status,completed_at,source_summary')
+    .eq('run_key', runKey)
+    .maybeSingle();
+  if (runResult.error) throw new Error(`ll_news_runs readback failed: ${runResult.error.message}`);
+  if (!runResult.data?.news_run_id) return { run: null, itemCount: 0 };
+  const itemResult = await client
+    .from('ll_news_items')
+    .select('news_item_id', { count: 'exact', head: true })
+    .eq('news_run_id', runResult.data.news_run_id);
+  if (itemResult.error) throw new Error(`ll_news_items count readback failed: ${itemResult.error.message}`);
+  return { run: runResult.data, itemCount: Number(itemResult.count || 0) };
+}
+
+function hasCompletedDailyRun(run, itemCount) {
+  return Boolean(run && run.run_status === 'completed' && Number(itemCount || 0) >= MIN_DAILY_NEWS_ITEMS);
+}
+
+function buildRunRow(run, items, status, completedAt = null) {
+  return {
     news_run_id: uuidFromHash(run.run_key),
     run_key: run.run_key,
     scheduled_for: run.windowEnd.toISOString(),
@@ -636,43 +690,45 @@ async function publish(run, items) {
       source_stats: run.sourceStats || {},
       empty_state: items.length === 0,
     },
-    run_status: 'completed',
+    run_status: status,
     error_message: null,
-    completed_at: new Date().toISOString(),
+    completed_at: completedAt,
   };
-  await upsertRun(supabase, runRow);
-  const itemRows = items.map((item) => ({
-    news_item_id: uuidFromHash(`${runRow.news_run_id}:${item.dedupe_key}`),
-    news_run_id: runRow.news_run_id,
-    ...item,
-  }));
-  const selectedDedupeKeys = new Set(itemRows.map((item) => item.dedupe_key).filter(Boolean));
-  const existingItems = await supabase
-    .from('ll_news_items')
-    .select('dedupe_key')
-    .eq('news_run_id', runRow.news_run_id);
-  if (existingItems.error) throw new Error(`ll_news_items readback failed: ${existingItems.error.message}`);
-  const staleDedupeKeys = (existingItems.data || [])
-    .map((item) => item.dedupe_key)
-    .filter((key) => key && !selectedDedupeKeys.has(key));
-  if (staleDedupeKeys.length) {
-    const staleDelete = await supabase
-      .from('ll_news_items')
-      .delete()
-      .eq('news_run_id', runRow.news_run_id)
-      .in('dedupe_key', staleDedupeKeys);
-    if (staleDelete.error) throw new Error(`ll_news_items stale cleanup failed: ${staleDelete.error.message}`);
-  }
-  if (itemRows.length) {
-    const itemResult = await supabase.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
-    if (itemResult.error) throw new Error(`ll_news_items upsert failed: ${itemResult.error.message}`);
-  }
-  return { run: runRow, inserted_or_updated: itemRows.length };
 }
 
-async function publishFailure(run, error) {
-  if (hasFlag('--dry-run')) return null;
-  const supabase = supabaseClientFromEnv();
+async function publish(client, run, items) {
+  if (items.length < MIN_DAILY_NEWS_ITEMS) throw new Error(`Collected only ${items.length} news items; minimum is ${MIN_DAILY_NEWS_ITEMS}.`);
+  const preparedRunRow = buildRunRow(run, items, 'prepared');
+  await upsertRun(client, preparedRunRow);
+  const itemRows = items.map((item) => ({
+    news_item_id: uuidFromHash(`${preparedRunRow.news_run_id}:${item.dedupe_key}`),
+    news_run_id: preparedRunRow.news_run_id,
+    ...item,
+  }));
+  if (itemRows.length) {
+    const itemResult = await client.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
+    if (itemResult.error) throw new Error(`ll_news_items upsert failed: ${itemResult.error.message}`);
+  }
+  const health = await readRunHealth(client, run.run_key);
+  if (health.itemCount < MIN_DAILY_NEWS_ITEMS) {
+    throw new Error(`News item readback returned ${health.itemCount}; minimum is ${MIN_DAILY_NEWS_ITEMS}.`);
+  }
+  const completedRunRow = buildRunRow(run, items, 'completed', new Date().toISOString());
+  completedRunRow.source_summary.item_count = health.itemCount;
+  await upsertRun(client, completedRunRow);
+  const completedHealth = await readRunHealth(client, run.run_key);
+  if (!hasCompletedDailyRun(completedHealth.run, completedHealth.itemCount)) {
+    throw new Error('Completed news run failed final readback validation.');
+  }
+  return { run: completedHealth.run, inserted_or_updated: itemRows.length, readback_count: completedHealth.itemCount };
+}
+
+async function publishFailure(client, run, error) {
+  if (hasFlag('--dry-run') || !client) return null;
+  const existing = await readRunHealth(client, run.run_key);
+  if (hasCompletedDailyRun(existing.run, existing.itemCount)) {
+    return { preserved_completed_run: true, item_count: existing.itemCount };
+  }
   const runRow = {
     news_run_id: uuidFromHash(run.run_key),
     run_key: run.run_key,
@@ -693,7 +749,7 @@ async function publishFailure(run, error) {
     error_message: String(error?.message || error).slice(0, 1000),
     completed_at: new Date().toISOString(),
   };
-  await upsertRun(supabase, runRow);
+  await upsertRun(client, runRow);
   return runRow;
 }
 
@@ -701,7 +757,25 @@ async function main() {
   const { windowStart, windowEnd, windowHours } = parseWindow();
   const runKey = `daily-news:${kstDateKey(windowEnd)}:0700KST`;
   const run = { run_key: runKey, windowStart, windowEnd, windowHours, strictWindowStart: windowStart, strictItemCount: 0, expandedToRecent7d: false, historicalBackfill: false, relaxedBackfill: false, sourceStats: {}, candidateCount: 0 };
+  let supabase = null;
   try {
+    if (!hasFlag('--dry-run')) {
+      supabase = supabaseClientFromEnv();
+      if (hasFlag('--skip-if-complete')) {
+        const existing = await readRunHealth(supabase, runKey);
+        if (hasCompletedDailyRun(existing.run, existing.itemCount)) {
+          console.log(JSON.stringify({
+            ok: true,
+            skipped: true,
+            reason: 'already_completed',
+            run_key: runKey,
+            item_count: existing.itemCount,
+            completed_at: existing.run.completed_at,
+          }, null, 2));
+          return;
+        }
+      }
+    }
     const collected = await collectDailyNewsWithExpansion(windowStart, windowEnd, windowHours);
     const items = collected.items;
     run.strictItemCount = collected.strictItemCount;
@@ -711,6 +785,9 @@ async function main() {
     run.relaxedBackfill = collected.relaxedBackfill === true;
     run.sourceStats = collected.sourceStats || {};
     run.candidateCount = collected.candidateCount || items.length;
+    if (items.length < MIN_DAILY_NEWS_ITEMS) {
+      throw new Error(`Collected only ${items.length} news items; minimum is ${MIN_DAILY_NEWS_ITEMS}. Existing stored news was preserved.`);
+    }
     const output = {
       ok: true,
       dry_run: hasFlag('--dry-run'),
@@ -729,10 +806,10 @@ async function main() {
       empty_message: items.length ? '' : '수집된 뉴스가 없습니다.',
       items,
     };
-    if (!hasFlag('--dry-run')) output.published = await publish(run, items);
+    if (!hasFlag('--dry-run')) output.published = await publish(supabase, run, items);
     console.log(JSON.stringify(output, null, 2));
   } catch (error) {
-    const failureRun = await publishFailure(run, error).catch((publishError) => ({ publish_error: publishError.message }));
+    const failureRun = await publishFailure(supabase, run, error).catch((publishError) => ({ publish_error: publishError.message }));
     console.error(JSON.stringify({
       ok: false,
       dry_run: hasFlag('--dry-run'),
@@ -747,4 +824,10 @@ async function main() {
   }
 }
 
-main();
+if (require.main === module) main();
+
+module.exports = {
+  currentSevenAmBasisKst,
+  hasCompletedDailyRun,
+  mapWithConcurrency,
+};

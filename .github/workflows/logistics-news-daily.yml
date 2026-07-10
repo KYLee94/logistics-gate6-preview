@@ -3,12 +3,25 @@ name: Logistics daily automation
 on:
   schedule:
     - cron: '0 22 * * *'
+    - cron: '0 23 * * *'
   workflow_dispatch:
+    inputs:
+      basis_kst:
+        description: 'Optional collection basis such as 2026-07-10T07:00'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: logistics-daily-automation
+  cancel-in-progress: false
 
 jobs:
   daily-automation:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,11 +35,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify news automation contract
+        run: npm run test:news:daily
+
       - name: Collect and publish logistics news
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npm run ingest:news:daily
+          NEWS_BASIS_KST: ${{ inputs.basis_kst }}
+        run: |
+          if [ -n "$NEWS_BASIS_KST" ]; then
+            npm run ingest:news:daily -- --skip-if-complete --basis-kst "$NEWS_BASIS_KST"
+          else
+            npm run ingest:news:daily -- --skip-if-complete
+          fi
 
       - name: Generate maturity notifications
         env:

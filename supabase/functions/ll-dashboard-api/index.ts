@@ -13064,6 +13064,7 @@ const NEWS_RSS_FETCH_TIMEOUT_MS = 7000;
 const NEWS_RSS_QUERY_BATCH_SIZE = 8;
 const NEWS_GOOGLE_RSS_URL = 'https://news.google.com/rss/search';
 const NEWS_BING_RSS_URL = 'https://www.bing.com/news/search';
+const NEWS_RUN_SELECT_COLUMNS = 'news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at';
 const NEWS_SEARCH_QUERIES = [
   '"물류센터" "임대료" OR "물류센터" "공실" OR "물류센터" "임대차"',
   '"물류센터" "렌트프리" OR "물류센터" "NOC" OR "물류창고" "임대"',
@@ -13139,6 +13140,18 @@ type NewsCollectorItem = {
   source_name: string;
   payload: Record<string, unknown>;
 };
+
+class NewsRunCollectionError extends Error {
+  status: 409 | 502;
+  details: Record<string, unknown>;
+
+  constructor(status: 409 | 502, message: string, details: Record<string, unknown> = {}) {
+    super(message);
+    this.name = 'NewsRunCollectionError';
+    this.status = status;
+    this.details = details;
+  }
+}
 
 function newsStripHtml(value: unknown) {
   return String(value || '')
@@ -13372,10 +13385,6 @@ function newsSelectBalancedItems(items: NewsCollectorItem[], limit = 10) {
   return selected;
 }
 
-function newsKstDateKey(date: Date) {
-  return new Date(date.getTime() + NEWS_KST_OFFSET_MS).toISOString().slice(0, 10);
-}
-
 function newsWindowForDate(dateText: string) {
   const match = String(dateText || '').match(/^(\d{4})-(\d{2})-(\d{2})$/u);
   if (!match) throw new Error('date must look like YYYY-MM-DD');
@@ -13385,8 +13394,10 @@ function newsWindowForDate(dateText: string) {
   return { windowStart, windowEnd, windowHours };
 }
 
-function newsTodayKstDateKey() {
-  return newsKstDateKey(new Date());
+function newsDefaultCollectDateKey(now = new Date()) {
+  const kstNow = new Date(now.getTime() + NEWS_KST_OFFSET_MS);
+  if (kstNow.getUTCHours() < 7) kstNow.setUTCDate(kstNow.getUTCDate() - 1);
+  return kstNow.toISOString().slice(0, 10);
 }
 
 async function fetchNewsRss(url: URL) {
@@ -13562,9 +13573,12 @@ async function collectNewsRowsForWindowWithExpansion(windowStart: Date, windowEn
 async function collectNewsRowsForHistoricalWindow(windowStart: Date, windowEnd: Date) {
   const seen = new Map<string, NewsCollectorItem>();
   const sourceStats: Record<string, number> = {};
-  for (const query of NEWS_SEARCH_QUERIES) {
-    const rows = await fetchGoogleNewsRowsForDateRange(query, windowStart, windowEnd).catch(() => []);
-    for (const row of rows) {
+  for (let index = 0; index < NEWS_SEARCH_QUERIES.length; index += NEWS_RSS_QUERY_BATCH_SIZE) {
+    const queryBatch = NEWS_SEARCH_QUERIES.slice(index, index + NEWS_RSS_QUERY_BATCH_SIZE);
+    const batchRows = await Promise.all(queryBatch.map(
+      (query) => fetchGoogleNewsRowsForDateRange(query, windowStart, windowEnd).catch(() => []),
+    ));
+    for (const row of batchRows.flat()) {
       sourceStats[String(row.source_name)] = (sourceStats[String(row.source_name)] || 0) + 1;
       const publishedAt = new Date(row.pubDate);
       if (Number.isNaN(publishedAt.getTime())) continue;
@@ -13616,17 +13630,49 @@ async function collectNewsRowsForHistoricalWindow(windowStart: Date, windowEnd: 
   };
 }
 
-async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10) {
-  const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(dateText) ? dateText : newsTodayKstDateKey();
+async function readNewsRunHealth(ctx: Context, runKey: string) {
+  const runResult = await ctx.serviceClient
+    .from('ll_news_runs')
+    .select(NEWS_RUN_SELECT_COLUMNS)
+    .eq('run_key', runKey)
+    .maybeSingle();
+  if (runResult.error) throw new Error(runResult.error.message);
+  const run = (runResult.data as Record<string, unknown> | null) || null;
+  if (!run?.news_run_id) return { run: null, itemCount: 0 };
+  const itemResult = await ctx.serviceClient
+    .from('ll_news_items')
+    .select('news_item_id', { count: 'exact', head: true })
+    .eq('news_run_id', run.news_run_id);
+  if (itemResult.error) throw new Error(itemResult.error.message);
+  return { run, itemCount: Number(itemResult.count || 0) };
+}
+
+async function markPreparedNewsRunFailed(ctx: Context, newsRunId: string, error: unknown) {
+  const message = (error instanceof Error ? error.message : String(error)).slice(0, 1000);
+  const result = await ctx.serviceClient
+    .from('ll_news_runs')
+    .update({ run_status: 'failed', error_message: message, completed_at: null })
+    .eq('news_run_id', newsRunId)
+    .eq('run_status', 'prepared');
+  return result.error?.message || '';
+}
+
+async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10, force = false) {
+  const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(dateText) ? dateText : newsDefaultCollectDateKey();
   const strictWindow = newsWindowForDate(selectedDate);
   const strictDays = Math.ceil(strictWindow.windowHours / 24);
-  const isToday = selectedDate === newsTodayKstDateKey();
-  const collected = await collectNewsRowsForWindowWithExpansion(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
-  const strictItemCount = Number((collected as Record<string, unknown>).strictItemCount || collected.items.length);
   const runKey = `daily-news:${selectedDate}:0700KST`;
-  const { data: runRow, error: runError } = await ctx.serviceClient
-    .from('ll_news_runs')
-    .upsert({
+  const existingHealth = await readNewsRunHealth(ctx, runKey);
+  const existingRunStatus = safeText(existingHealth.run?.run_status);
+  const preserveCompletedRun = existingRunStatus === 'completed';
+  if (!force && preserveCompletedRun && existingHealth.itemCount >= NEWS_MIN_DAILY_ITEMS) {
+    return { run: existingHealth.run, item_count: existingHealth.itemCount, status: 'existing' };
+  }
+
+  let runRow = existingHealth.run;
+  let preparedRunId = '';
+  if (!preserveCompletedRun) {
+    const preparedResult = await ctx.serviceClient.from('ll_news_runs').upsert({
       run_key: runKey,
       scheduled_for: strictWindow.windowEnd.toISOString(),
       window_start: strictWindow.windowStart.toISOString(),
@@ -13640,56 +13686,133 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
         window_hours: strictWindow.windowHours,
         strict_window_start: strictWindow.windowStart.toISOString(),
         strict_window_end: strictWindow.windowEnd.toISOString(),
-        strict_item_count: strictItemCount,
-        item_count: Math.min(collected.items.length, Math.max(limit, 10)),
+        strict_item_count: 0,
+        item_count: 0,
+        minimum_item_count: NEWS_MIN_DAILY_ITEMS,
+        collection_state: 'prepared',
         strict_window_only: true,
         expanded_to_recent_7d: false,
         expanded_recent_days: 0,
-        historical_backfill: Boolean((collected as Record<string, unknown>).historicalBackfill),
-        same_window_relaxed_backfill: Boolean((collected as Record<string, unknown>).relaxedBackfill),
+        historical_backfill: false,
+        same_window_relaxed_backfill: false,
         expanded_window_start: null,
         strict_24h_window: strictWindow.windowHours === 24,
-        candidate_count: collected.candidateCount || collected.items.length,
+        candidate_count: 0,
         selection_policy: {
           limit: 10,
           category_targets: NEWS_CATEGORY_TARGETS,
           max_items_per_company: NEWS_MAX_ITEMS_PER_COMPANY,
           max_major_company_only_items: NEWS_MAX_MAJOR_COMPANY_ONLY_ITEMS,
         },
-        source_stats: collected.sourceStats,
-        empty_state: collected.items.length === 0,
+        source_stats: {},
+        empty_state: false,
       },
-      run_status: 'completed',
+      run_status: 'prepared',
       error_message: null,
-      completed_at: new Date().toISOString(),
+      completed_at: null,
     }, { onConflict: 'run_key' })
-    .select('news_run_id,run_key,scheduled_for,window_start,window_end,source_summary,run_status,error_message,completed_at,created_at')
+    .select(NEWS_RUN_SELECT_COLUMNS)
     .single();
-  if (runError || !runRow) throw new Error(runError?.message || 'Failed to upsert news run');
-  const newsRunId = safeText((runRow as Record<string, unknown>).news_run_id);
-  const itemRows = collected.items.slice(0, Math.max(limit, 10)).map((item) => ({ news_run_id: newsRunId, ...item }));
-  const selectedDedupeKeys = new Set(itemRows.map((item) => safeText(item.dedupe_key)).filter(Boolean));
-  const { data: existingItems, error: existingItemsError } = await ctx.serviceClient
-    .from('ll_news_items')
-    .select('dedupe_key')
-    .eq('news_run_id', newsRunId);
-  if (existingItemsError) throw new Error(existingItemsError.message);
-  const staleDedupeKeys = ((existingItems || []) as Array<Record<string, unknown>>)
-    .map((item) => safeText(item.dedupe_key))
-    .filter((key) => key && !selectedDedupeKeys.has(key));
-  if (staleDedupeKeys.length) {
-    const { error: staleDeleteError } = await ctx.serviceClient
+    if (preparedResult.error || !preparedResult.data) {
+      throw new Error(preparedResult.error?.message || 'Failed to prepare news run');
+    }
+    runRow = preparedResult.data as Record<string, unknown>;
+    preparedRunId = safeText(runRow.news_run_id);
+  }
+
+  const newsRunId = safeText(runRow?.news_run_id);
+  if (!newsRunId) throw new Error('News run id is missing');
+  try {
+    const collected = await collectNewsRowsForWindowWithExpansion(strictWindow.windowStart, strictWindow.windowEnd, strictDays);
+    const strictItemCount = Number((collected as Record<string, unknown>).strictItemCount || collected.items.length);
+    const itemRows = collected.items.slice(0, Math.max(limit, 10)).map((item) => ({ news_run_id: newsRunId, ...item }));
+    if (itemRows.length < NEWS_MIN_DAILY_ITEMS) {
+      throw new NewsRunCollectionError(409, 'Insufficient logistics news items collected', {
+        run_key: runKey,
+        collected_item_count: itemRows.length,
+        minimum_item_count: NEWS_MIN_DAILY_ITEMS,
+        candidate_count: collected.candidateCount || collected.items.length,
+        source_stats: collected.sourceStats,
+        preserved_completed_run: preserveCompletedRun,
+      });
+    }
+
+    const itemResult = await ctx.serviceClient.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
+    if (itemResult.error) throw new Error(itemResult.error.message);
+    const readbackResult = await ctx.serviceClient
       .from('ll_news_items')
-      .delete()
+      .select('news_item_id', { count: 'exact', head: true })
+      .eq('news_run_id', newsRunId);
+    if (readbackResult.error) throw new Error(readbackResult.error.message);
+    const readbackCount = Number(readbackResult.count || 0);
+    if (readbackCount < NEWS_MIN_DAILY_ITEMS) {
+      throw new NewsRunCollectionError(502, 'Logistics news item readback is incomplete', {
+        run_key: runKey,
+        collected_item_count: itemRows.length,
+        readback_item_count: readbackCount,
+        minimum_item_count: NEWS_MIN_DAILY_ITEMS,
+        preserved_completed_run: preserveCompletedRun,
+      });
+    }
+
+    const completedAt = new Date().toISOString();
+    const completedResult = await ctx.serviceClient
+      .from('ll_news_runs')
+      .update({
+        scheduled_for: strictWindow.windowEnd.toISOString(),
+        window_start: strictWindow.windowStart.toISOString(),
+        window_end: strictWindow.windowEnd.toISOString(),
+        source_summary: {
+          collector_version: NEWS_COLLECTOR_VERSION,
+          primary: 'google_news_rss',
+          fallback: 'bing_news_rss',
+          queries: NEWS_SEARCH_QUERIES,
+          query_count: NEWS_SEARCH_QUERIES.length,
+          window_hours: strictWindow.windowHours,
+          strict_window_start: strictWindow.windowStart.toISOString(),
+          strict_window_end: strictWindow.windowEnd.toISOString(),
+          strict_item_count: strictItemCount,
+          item_count: readbackCount,
+          selected_item_count: itemRows.length,
+          minimum_item_count: NEWS_MIN_DAILY_ITEMS,
+          collection_state: 'completed',
+          strict_window_only: true,
+          expanded_to_recent_7d: false,
+          expanded_recent_days: 0,
+          historical_backfill: Boolean((collected as Record<string, unknown>).historicalBackfill),
+          same_window_relaxed_backfill: Boolean((collected as Record<string, unknown>).relaxedBackfill),
+          expanded_window_start: null,
+          strict_24h_window: strictWindow.windowHours === 24,
+          candidate_count: collected.candidateCount || collected.items.length,
+          selection_policy: {
+            limit: 10,
+            category_targets: NEWS_CATEGORY_TARGETS,
+            max_items_per_company: NEWS_MAX_ITEMS_PER_COMPANY,
+            max_major_company_only_items: NEWS_MAX_MAJOR_COMPANY_ONLY_ITEMS,
+          },
+          source_stats: collected.sourceStats,
+          empty_state: false,
+        },
+        run_status: 'completed',
+        error_message: null,
+        completed_at: completedAt,
+      })
       .eq('news_run_id', newsRunId)
-      .in('dedupe_key', staleDedupeKeys);
-    if (staleDeleteError) throw new Error(staleDeleteError.message);
+      .select(NEWS_RUN_SELECT_COLUMNS)
+      .single();
+    if (completedResult.error || !completedResult.data) {
+      throw new Error(completedResult.error?.message || 'Failed to complete news run');
+    }
+    return { run: completedResult.data, item_count: readbackCount, status: 'collected' };
+  } catch (error) {
+    if (preparedRunId) {
+      const failureMarkError = await markPreparedNewsRunFailed(ctx, preparedRunId, error);
+      if (failureMarkError && error instanceof NewsRunCollectionError) {
+        error.details.failure_mark_error = failureMarkError;
+      }
+    }
+    throw error;
   }
-  if (itemRows.length) {
-    const { error: itemError } = await ctx.serviceClient.from('ll_news_items').upsert(itemRows, { onConflict: 'news_run_id,dedupe_key' });
-    if (itemError) throw new Error(itemError.message);
-  }
-  return { run: runRow, item_count: itemRows.length };
 }
 
 async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
@@ -13704,31 +13827,40 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
     .order('scheduled_for', { ascending: false, nullsFirst: false });
   if (selectedRunKey) runQuery = runQuery.eq('run_key', selectedRunKey);
   const runResult = await runQuery.limit(1).maybeSingle();
-  if (runResult.error && !isMissingRelationError(runResult.error)) return fail(500, 'Failed to read logistics news run', ctx.origin, { error: runResult.error.message });
+  if (runResult.error) {
+    if (isMissingRelationError(runResult.error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', data_validated: false, validation_status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
+    return fail(500, 'Failed to read logistics news run', ctx.origin, { error: runResult.error.message });
+  }
   const latestRun = runResult.data || null;
-  let itemQuery = ctx.serviceClient
-    .from('ll_news_items')
-    .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,payload,created_at')
-    .order('published_at', { ascending: false, nullsFirst: false })
-    .limit(Math.min(Math.max(limit * 3, limit), 30));
-  if (latestRun?.news_run_id) itemQuery = itemQuery.eq('news_run_id', latestRun.news_run_id);
-  const { data, error } = await itemQuery;
-  if (error) {
-    if (isMissingRelationError(error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', data_validated: false, validation_status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
-    return fail(500, 'Failed to read logistics news', ctx.origin, { error: error.message });
+  let data: NewsCollectorItem[] = [];
+  if (!(hasDateFilter && !latestRun?.news_run_id)) {
+    let itemQuery = ctx.serviceClient
+      .from('ll_news_items')
+      .select('news_item_id,dedupe_key,canonical_url,original_url,title,publisher,published_at,summary,importance_score,matched_keywords,source_name,payload,created_at')
+      .order('published_at', { ascending: false, nullsFirst: false })
+      .limit(Math.min(Math.max(limit * 3, limit), 30));
+    if (latestRun?.news_run_id) itemQuery = itemQuery.eq('news_run_id', latestRun.news_run_id);
+    const itemResult = await itemQuery;
+    if (itemResult.error) {
+      if (isMissingRelationError(itemResult.error)) return jsonResponse({ ok: true, data: { status: 'missing_schema', data_validated: false, validation_status: 'missing_schema', items: [], empty_message: NEWS_EMPTY_MESSAGE, generated_at: new Date().toISOString() } }, 200, ctx.origin);
+      return fail(500, 'Failed to read logistics news', ctx.origin, { error: itemResult.error.message });
+    }
+    data = (itemResult.data || []) as NewsCollectorItem[];
   }
   const selectedWindow = hasDateFilter ? newsWindowForDate(selectedDate) : null;
-  const visibleItems = newsRemoveNearDuplicateStories(((data || []) as NewsCollectorItem[]).filter((item) => {
+  const visibleItems = newsRemoveNearDuplicateStories(data.filter((item) => {
     if (!selectedWindow) return true;
     const publishedAt = new Date(item.published_at);
     return !Number.isNaN(publishedAt.getTime()) && publishedAt >= selectedWindow.windowStart && publishedAt <= selectedWindow.windowEnd;
   })).slice(0, limit);
   const runStatus = latestRun ? safeText((latestRun as Record<string, unknown>).run_status || 'completed') : 'no_run';
-  const newsDataValidated = Boolean(latestRun && runStatus === 'completed');
+  const hasMinimumVisibleItems = visibleItems.length >= NEWS_MIN_DAILY_ITEMS;
+  const newsDataValidated = Boolean(latestRun && runStatus === 'completed' && hasMinimumVisibleItems);
+  const validationStatus = latestRun && runStatus === 'completed' && !hasMinimumVisibleItems ? 'incomplete' : runStatus;
   return jsonResponse({ ok: true, data: {
     status: runStatus,
     data_validated: newsDataValidated,
-    validation_status: latestRun ? runStatus : 'no_run',
+    validation_status: validationStatus,
     collection_mode: 'precollected_read_only',
     collect_on_read: false,
     selected_date: hasDateFilter ? selectedDate : safeText((latestRun as Record<string, unknown> | null)?.run_key).match(/daily-news:(\d{4}-\d{2}-\d{2}):0700KST/u)?.[1] || '',
@@ -13744,20 +13876,28 @@ async function callNewsCollectRun(ctx: Context, payload: Record<string, unknown>
   if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'news/collect-run', 3, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const requestedDate = safeText(firstDefined(payload.date, payload.news_date, payload.selected_date));
-  const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(requestedDate) ? requestedDate : newsTodayKstDateKey();
+  const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(requestedDate) ? requestedDate : newsDefaultCollectDateKey();
   const limit = Math.min(Math.max(Number(payload.limit || 10), 1), 30);
+  const force = payload.force === true;
   try {
-    const collected = await collectAndStoreNewsRun(ctx, selectedDate, limit);
+    const collected = await collectAndStoreNewsRun(ctx, selectedDate, limit, force);
     return jsonResponse({ ok: true, data: {
-      status: 'collected',
+      status: collected.status,
       selected_date: selectedDate,
       latest_run: collected.run,
       item_count: collected.item_count,
+      force,
       collection_mode: 'admin_precollect',
       collect_on_read: false,
       generated_at: new Date().toISOString(),
     } }, 200, ctx.origin);
   } catch (error) {
+    if (error instanceof NewsRunCollectionError) {
+      return fail(error.status, error.message, ctx.origin, {
+        selected_date: selectedDate,
+        ...error.details,
+      });
+    }
     return fail(500, 'Failed to collect logistics news run', ctx.origin, {
       selected_date: selectedDate,
       error: error instanceof Error ? error.message : String(error),

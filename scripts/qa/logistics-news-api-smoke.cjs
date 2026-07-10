@@ -222,6 +222,7 @@ async function main() {
   const preserveRefreshDates = argsValues('preserve-refresh-date');
   const today = kstDateKey();
   const targets = dates.length ? dates : [today, addDateDays(today, -1)];
+  const noRunDate = argsValues('no-run-date')[0] || '2099-01-01';
   const auth = await signIn(supabaseUrl, anonKey);
   const checks = [];
   for (const date of targets) {
@@ -281,6 +282,19 @@ async function main() {
         && (before.item_keys || []).every((key) => afterKeys.has(key)),
     });
   }
+  const noRunReadback = await invokeNewsList(supabaseUrl, anonKey, auth.token, noRunDate);
+  const no_run_check = {
+    date: noRunDate,
+    status: noRunReadback.data_status,
+    data_validated: noRunReadback.data_validated,
+    validation_status: noRunReadback.validation_status,
+    item_count: noRunReadback.item_count,
+    ok: noRunReadback.http_status === 200
+      && noRunReadback.data_status === 'no_run'
+      && noRunReadback.data_validated === false
+      && noRunReadback.validation_status === 'no_run'
+      && noRunReadback.item_count === 0,
+  };
   const report = {
     ok: checks.every((check, index) => check.http_status === 200
       && check.selected_date === check.date
@@ -309,17 +323,19 @@ async function main() {
         Number(check.source_summary?.strict_item_count || 0) < MIN_DAILY_NEWS_ITEMS
         || Math.max(0, ...Object.values(check.company_mention_counts || {})) <= 2
       ))
-      && preservation_checks.every((check) => check.ok),
+      && preservation_checks.every((check) => check.ok)
+      && no_run_check.ok,
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
     checks,
     preservation_checks,
+    no_run_check,
   };
   const outJson = path.join(OUT_DIR, `news-api-smoke-${timestampForFile()}.json`);
   const latestJson = path.join(OUT_DIR, 'news-api-smoke-latest.json');
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(latestJson, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify({ ok: report.ok, artifact: outJson, checks, preservation_checks }, null, 2));
+  console.log(JSON.stringify({ ok: report.ok, artifact: outJson, checks, preservation_checks, no_run_check }, null, 2));
   if (!report.ok) process.exit(1);
 }
 
