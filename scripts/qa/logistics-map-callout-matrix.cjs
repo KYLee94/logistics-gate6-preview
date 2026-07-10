@@ -217,14 +217,22 @@ async function listPins(page, rootSelector) {
     const candidates = nodes.map((node) => {
       const rect = node.getBoundingClientRect();
       const style = getComputedStyle(node);
+      const hitNode = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
       const label = node.getAttribute('data-map-asset-id')
         || node.getAttribute('data-map-asset-name')
         || node.getAttribute('title')
         || node.getAttribute('aria-label')
         || '';
-      return { node, rect, style, label: label.replace(/\s+/gu, ' ').trim() };
-    }).filter(({ node, rect, style, label }) => (
+      return {
+        node,
+        rect,
+        style,
+        hitTestable: hitNode === node || node.contains(hitNode),
+        label: label.replace(/\s+/gu, ' ').trim(),
+      };
+    }).filter(({ node, rect, style, hitTestable, label }) => (
       label
+      && hitTestable
       && !controls.test(label)
       && !node.closest('[data-region-cluster-button="true"]')
       && !node.querySelector?.('[data-region-cluster-button="true"]')
@@ -300,8 +308,16 @@ async function waitForCalloutStable(page, rootSelector) {
   return box;
 }
 
-async function measurePin(page, rootSelector, pin) {
-  await page.mouse.move(pin.center_x, pin.center_y);
+async function measurePin(page, rootSelector, pin, provider) {
+  const stableLeafletPin = provider === 'osm-fallback'
+    ? page.locator(`${rootSelector} [data-qa-pin-key="${pin.key.replace(/"/gu, '\\"')}"]:visible`).first()
+    : null;
+  if (stableLeafletPin) {
+    await stableLeafletPin.hover({ timeout: 10000, force: true });
+    await stableLeafletPin.dispatchEvent('mouseover');
+  } else {
+    await page.mouse.move(pin.center_x, pin.center_y);
+  }
   const calloutBox = await waitForCalloutStable(page, rootSelector);
   const refreshedPins = await listPins(page, rootSelector);
   const currentPin = refreshedPins.find((candidate) => candidate.label === pin.label) || pin;
@@ -407,7 +423,7 @@ async function testPins(page, rootSelector, provider, viewport, surface, scope) 
   const results = [];
   for (const pin of sampledPins) {
     try {
-      const measured = await measurePin(page, rootSelector, pin);
+      const measured = await measurePin(page, rootSelector, pin, provider);
       if (!measured.geometry.ok) measured.screenshot = await failureScreenshot(page, provider, viewport, surface, `${scope}-${pin.key}`);
       results.push({ ...measured, scope });
     } catch (error) {
@@ -428,7 +444,7 @@ async function testPins(page, rootSelector, provider, viewport, surface, scope) 
       if (!edgePosition.reached) throw new Error(`Pin did not reach the ${target.key} edge probe target.`);
       const refreshedPins = await listPins(page, rootSelector);
       const refreshedPin = refreshedPins.find((pin) => pin.label === edgePin.label) || edgePin;
-      const measured = await measurePin(page, rootSelector, refreshedPin);
+      const measured = await measurePin(page, rootSelector, refreshedPin, provider);
       if (!measured.geometry.ok) measured.screenshot = await failureScreenshot(page, provider, viewport, surface, `edge-${target.key}`);
       edgeResults.push({ ...measured, edge: target.key, edge_position: edgePosition });
     } catch (error) {
