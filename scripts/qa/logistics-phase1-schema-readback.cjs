@@ -21,14 +21,11 @@ select jsonb_build_object(
       and table_name = 'll_notifications'
       and column_name in ('recipient_email', 'delivery_status', 'read_at', 'dismissed_at', 'notified_at')
   ),
-  'notification_unmatched_delivery_rows', (
+  'notification_inbox_rows_missing_state', (
     select count(*)
-    from public.ll_notification_deliveries d
-    left join public.ll_notifications n
-      on n.notification_id = d.notification_id
-     and n.recipient_email = d.recipient_email
-     and n.delivery_status = d.delivery_status
-    where n.notification_id is null
+    from public.ll_notifications
+    where recipient_email is not null
+      and (delivery_status is null or notified_at is null)
   )
 ) as result;
 `, { prefix: 'gate6-phase1-readback', timeoutMs: 120000 });
@@ -38,7 +35,7 @@ const checks = {
   news_columns_ready: Number(result.news_columns || 0) === 2,
   news_rows_backfilled: Number(result.news_missing_collection_fields || 0) === 0,
   notification_columns_ready: Number(result.notification_columns || 0) === 5,
-  notification_rows_backfilled: Number(result.notification_unmatched_delivery_rows || 0) === 0,
+  notification_rows_backfilled: Number(result.notification_inbox_rows_missing_state || 0) === 0,
 };
 
 console.log(JSON.stringify({ ok: Object.values(checks).every(Boolean), checks, result }, null, 2));
