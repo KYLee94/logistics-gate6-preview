@@ -65,12 +65,41 @@ async function invoke(supabaseUrl, anonKey, token, action, payload = {}) {
   return body.data || {};
 }
 
+function executionMode(args = process.argv.slice(2)) {
+  const apply = args.includes('--apply');
+  const explicitDryRun = args.includes('--dry-run');
+  if (apply && explicitDryRun) throw new Error('Choose either --apply or --dry-run, not both.');
+  return { apply, dryRun: !apply };
+}
+
+function runSelfTest() {
+  const defaultMode = executionMode([]);
+  const applyMode = executionMode(['--apply']);
+  let conflictRejected = false;
+  try {
+    executionMode(['--apply', '--dry-run']);
+  } catch {
+    conflictRejected = true;
+  }
+
+  if (!defaultMode.dryRun || defaultMode.apply || applyMode.dryRun || !applyMode.apply || !conflictRejected) {
+    throw new Error('Execution mode self-test failed.');
+  }
+
+  console.log(JSON.stringify({ ok: true, defaultMode, applyMode, conflictRejected }, null, 2));
+}
+
 async function main() {
+  if (process.argv.includes('--self-test')) {
+    runSelfTest();
+    return;
+  }
+
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
-  const dryRun = process.argv.includes('--dry-run');
+  const { dryRun } = executionMode();
   const auth = await signIn(supabaseUrl, anonKey);
   const data = await invoke(supabaseUrl, anonKey, auth.token, 'investment-index/cleanup-empty-loans', { dry_run: dryRun });
   const report = {

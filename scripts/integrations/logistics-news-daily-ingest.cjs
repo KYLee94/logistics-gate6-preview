@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
-
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
