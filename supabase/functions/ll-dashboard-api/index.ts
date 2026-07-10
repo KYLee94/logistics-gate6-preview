@@ -1,7 +1,9 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 type LogisticsRole = 'Reader' | 'Editor' | 'Manager' | 'Admin' | 'System Admin';
-type SupabaseClient = ReturnType<typeof createClient>;
+// The project has no generated Database type yet, so the client schema is dynamic.
+// Keep request and response shapes typed at the function boundary instead.
+type SupabaseClient = any;
 type Context = {
   serviceClient: SupabaseClient;
   user: { id: string; email?: string | null };
@@ -38,7 +40,6 @@ const MARKET_SOURCE_ALLOWED_EXTENSIONS = new Set(['pdf', 'xlsx', 'xls', 'txt']);
 const MARKET_SOURCE_MAX_BYTES = 100 * 1024 * 1024;
 const MARKET_EMBEDDING_MODEL = 'gemini-embedding-001';
 const MARKET_EMBEDDING_DIM = 768;
-const MARKET_SEMANTIC_MATCH_THRESHOLD = 0.24;
 const SECTOR_MARKET_READ_VIEWS = ['overview', 'lease', 'supply', 'transactions', 'source', 'all'] as const;
 const SECTOR_MARKET_READ_VIEW_SET = new Set<string>(SECTOR_MARKET_READ_VIEWS);
 const SECTOR_MARKET_INTERNAL_RESPONSE_KEYS = new Set([
@@ -754,13 +755,15 @@ function redactSensitivePayload(value: unknown, depth = 0): unknown {
   ]));
 }
 
-function stripUndefined(value: unknown, depth = 0): unknown {
-  if (depth > 8) return '[depth-limit]';
-  if (Array.isArray(value)) return value.map((item) => stripUndefined(item, depth + 1));
+function stripUndefined<T extends Record<string, unknown>>(value: T, depth?: number): T & Record<string, unknown>;
+function stripUndefined<T>(value: T, depth?: number): T;
+function stripUndefined<T>(value: T, depth = 0): T {
+  if (depth > 8) return '[depth-limit]' as unknown as T;
+  if (Array.isArray(value)) return value.map((item) => stripUndefined(item, depth + 1)) as unknown as T;
   if (!value || typeof value !== 'object') return value;
   return Object.fromEntries(Object.entries(value as Record<string, unknown>)
     .filter(([, child]) => child !== undefined)
-    .map(([key, child]) => [key, stripUndefined(child, depth + 1)]));
+    .map(([key, child]) => [key, stripUndefined(child, depth + 1)])) as T;
 }
 
 async function sha256Text(value: string) {
@@ -770,7 +773,9 @@ async function sha256Text(value: string) {
 
 async function sha256Bytes(value: Uint8Array | ArrayBuffer) {
   const bytes = value instanceof Uint8Array ? value : new Uint8Array(value);
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', copy.buffer);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
@@ -888,7 +893,7 @@ async function getContext(request: Request, origin: string): Promise<Context> {
   }
 
   const permissionFallback = mergeBootstrapPermission(permission || null, userData.user.email);
-  const role = permissionFallback?.logistics_role || 'Reader';
+  const role = safeText(permissionFallback?.logistics_role, 'Reader');
   return { serviceClient, user: { id: userData.user.id, email: userData.user.email || null }, permission: permissionFallback || null, role, origin };
 }
 
@@ -1383,102 +1388,6 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
   return jsonResponse({ ok: true, data: saved, meta: { created_count: createdCount, changed_count: changedCount } }, 200, ctx.origin);
 }
 
-function marketDocumentRow(input: Record<string, unknown>, userId: string) {
-  return stripUndefined({
-    source_hash: safeText(input.source_hash),
-    file_name: safeText(input.file_name),
-    file_path: safeText(input.file_path),
-    publisher: safeText(input.publisher),
-    report_title: safeText(input.report_title),
-    source_type: safeText(input.source_type || 'pdf'),
-    report_period: safeText(input.report_period),
-    as_of_date: safeText(input.as_of_date) || null,
-    access_level: safeText(input.access_level || 'market_research'),
-    extraction_status: safeText(input.extraction_status || 'ready'),
-    extraction_method: safeText(input.extraction_method),
-    ocr_quality_score: numberValue(input.ocr_quality_score),
-    page_count: numberValue(input.page_count),
-    sheet_count: numberValue(input.sheet_count),
-    row_count: numberValue(input.row_count),
-    storage_bucket: safeText(input.storage_bucket) || undefined,
-    storage_path: safeText(input.storage_path) || undefined,
-    original_size_bytes: numberValue(input.original_size_bytes) ?? undefined,
-    source_preservation_status: safeText(input.source_preservation_status || (input.storage_path ? 'stored' : '')) || undefined,
-    extracted_char_count: numberValue(input.extracted_char_count),
-    extracted_text_hash: safeText(input.extracted_text_hash) || undefined,
-    extracted_text_storage_bucket: safeText(input.extracted_text_storage_bucket) || undefined,
-    extracted_text_storage_path: safeText(input.extracted_text_storage_path) || undefined,
-    metadata: input.metadata && typeof input.metadata === 'object' && !Array.isArray(input.metadata) ? input.metadata : {},
-    created_by: userId,
-    updated_at: new Date().toISOString(),
-  });
-}
-
-function marketChunkRow(input: Record<string, unknown>, documentId: string, sourceHash: string) {
-  const embedding = normalizeMarketEmbedding(input.embedding);
-  return stripUndefined({
-    document_id: documentId,
-    source_hash: sourceHash,
-    chunk_key: safeText(input.chunk_key),
-    chunk_type: safeText(input.chunk_type || 'narrative'),
-    source_locator: input.source_locator && typeof input.source_locator === 'object' && !Array.isArray(input.source_locator) ? input.source_locator : {},
-    page_number: numberValue(input.page_number),
-    sheet_name: safeText(input.sheet_name),
-    row_start: numberValue(input.row_start),
-    row_end: numberValue(input.row_end),
-    content: safeText(input.content),
-    keywords: Array.isArray(input.keywords) ? input.keywords.map(safeText).filter(Boolean).slice(0, 40) : [],
-    extraction_status: safeText(input.extraction_status || 'ready'),
-    ocr_quality_score: numberValue(input.ocr_quality_score),
-    metadata: input.metadata && typeof input.metadata === 'object' && !Array.isArray(input.metadata) ? input.metadata : {},
-    embedding,
-    embedding_model: embedding ? safeText(input.embedding_model || MARKET_EMBEDDING_MODEL) : undefined,
-    embedding_dim: embedding ? MARKET_EMBEDDING_DIM : undefined,
-    embedding_status: embedding ? 'generated' : safeText(input.embedding_status || 'not_generated'),
-    embedding_updated_at: embedding ? new Date().toISOString() : undefined,
-    updated_at: new Date().toISOString(),
-  });
-}
-
-function marketFactRow(input: Record<string, unknown>, documentId: string, sourceHash: string) {
-  const embedding = normalizeMarketEmbedding(input.embedding);
-  return stripUndefined({
-    document_id: documentId,
-    source_hash: sourceHash,
-    fact_key: safeText(input.fact_key),
-    fact_type: safeText(input.fact_type || 'market_metric'),
-    metric_name: safeText(input.metric_name),
-    metric_code: safeText(input.metric_code),
-    period: safeText(input.period),
-    year: numberValue(input.year),
-    quarter: numberValue(input.quarter),
-    region: safeText(input.region),
-    submarket: safeText(input.submarket),
-    asset_name: safeText(input.asset_name),
-    building_name: safeText(input.building_name),
-    address: safeText(input.address),
-    buyer_name: safeText(input.buyer_name),
-    seller_name: safeText(input.seller_name),
-    numeric_value: numberValue(input.numeric_value),
-    numeric_value2: numberValue(input.numeric_value2),
-    unit: safeText(input.unit),
-    amount_krw: numberValue(input.amount_krw),
-    area_py: numberValue(input.area_py),
-    area_sqm: numberValue(input.area_sqm),
-    cap_rate: numberValue(input.cap_rate),
-    fact_text: safeText(input.fact_text),
-    source_locator: input.source_locator && typeof input.source_locator === 'object' && !Array.isArray(input.source_locator) ? input.source_locator : {},
-    data_quality_flags: Array.isArray(input.data_quality_flags) ? input.data_quality_flags : [],
-    payload: input.payload && typeof input.payload === 'object' && !Array.isArray(input.payload) ? input.payload : {},
-    embedding,
-    embedding_model: embedding ? safeText(input.embedding_model || MARKET_EMBEDDING_MODEL) : undefined,
-    embedding_dim: embedding ? MARKET_EMBEDDING_DIM : undefined,
-    embedding_status: embedding ? 'generated' : safeText(input.embedding_status || 'not_generated'),
-    embedding_updated_at: embedding ? new Date().toISOString() : undefined,
-    updated_at: new Date().toISOString(),
-  });
-}
-
 function normalizeMarketEmbedding(value: unknown) {
   const source = Array.isArray(value)
     ? value
@@ -1490,13 +1399,173 @@ function normalizeMarketEmbedding(value: unknown) {
   return embedding.length === MARKET_EMBEDDING_DIM ? embedding : undefined;
 }
 
-async function insertMarketRowsInBatches(ctx: Context, table: string, rows: Record<string, unknown>[], batchSize = 300) {
-  for (let index = 0; index < rows.length; index += batchSize) {
-    const chunk = rows.slice(index, index + batchSize);
-    if (!chunk.length) continue;
-    const { error } = await ctx.serviceClient.from(table).insert(chunk);
-    if (error) throw new Error(`${table} insert failed: ${error.message}`);
+type MarketStorageDocument = {
+  document_id: string;
+  source_hash: string;
+  file_name: string;
+  source_type: string;
+  storage_bucket: string;
+  storage_path: string;
+  original_size_bytes: number | null;
+  extracted_text_storage_bucket: string;
+  extracted_text_storage_path: string;
+  extraction_status: string;
+  source_preservation_status: string;
+  updated_at: string;
+};
+
+let marketStorageManifestCache: { expiresAt: number; documents: MarketStorageDocument[] } = {
+  expiresAt: 0,
+  documents: [],
+};
+
+function invalidateMarketStorageManifest() {
+  marketStorageManifestCache = { expiresAt: 0, documents: [] };
+}
+
+function marketSourceTypeFromName(fileName: string) {
+  const extension = fileExtension(fileName);
+  if (extension === 'pdf' || extension === 'txt') return 'pdf';
+  if (extension === 'xlsx' || extension === 'xls' || extension === 'csv') return 'xlsx';
+  return extension || 'file';
+}
+
+async function listMarketStorageFiles(ctx: Context, prefix = '', depth = 0): Promise<Record<string, unknown>[]> {
+  if (depth > 4) return [];
+  const { data, error } = await ctx.serviceClient.storage.from(MARKET_SOURCE_BUCKET).list(prefix, {
+    limit: 1000,
+    sortBy: { column: 'name', order: 'asc' },
+  });
+  if (error) throw new Error(`Market source storage list failed: ${error.message}`);
+  const files: Record<string, unknown>[] = [];
+  for (const entry of (data || []) as unknown as Record<string, unknown>[]) {
+    const name = safeText(entry.name);
+    if (!name) continue;
+    const path = prefix ? `${prefix}/${name}` : name;
+    const metadata = entry.metadata && typeof entry.metadata === 'object' && !Array.isArray(entry.metadata)
+      ? entry.metadata as Record<string, unknown>
+      : null;
+    if (metadata || entry.id) {
+      files.push({ ...entry, path, metadata: metadata || {} });
+      continue;
+    }
+    files.push(...await listMarketStorageFiles(ctx, path, depth + 1));
   }
+  return files;
+}
+
+async function listMarketStorageDocuments(ctx: Context, force = false): Promise<MarketStorageDocument[]> {
+  if (!force && marketStorageManifestCache.expiresAt > Date.now()) return marketStorageManifestCache.documents;
+  const files = await listMarketStorageFiles(ctx);
+  const byHash = new Map<string, { source?: Record<string, unknown>; extracted?: Record<string, unknown> }>();
+  for (const file of files) {
+    const path = safeText(file.path);
+    const segments = path.split('/').filter(Boolean);
+    if (segments.length < 3) continue;
+    const sourceHash = segments[1];
+    if (!/^[a-f0-9]{64}$/iu.test(sourceHash)) continue;
+    const group = byHash.get(sourceHash) || {};
+    if (segments.at(-1) === 'extracted-text.json') group.extracted = file;
+    else group.source = file;
+    byHash.set(sourceHash, group);
+  }
+  const documents = [...byHash.entries()]
+    .filter(([, group]) => group.source || group.extracted)
+    .map(([sourceHash, group]) => {
+      const sourcePath = safeText(group.source?.path);
+      const extractedPath = safeText(group.extracted?.path);
+      const sourceMetadata = group.source?.metadata && typeof group.source.metadata === 'object'
+        ? group.source.metadata as Record<string, unknown>
+        : {};
+      const fileName = sourcePath.split('/').at(-1) || `${sourceHash.slice(0, 12)}.source`;
+      return {
+        document_id: sourceHash,
+        source_hash: sourceHash,
+        file_name: fileName,
+        source_type: marketSourceTypeFromName(fileName),
+        storage_bucket: MARKET_SOURCE_BUCKET,
+        storage_path: sourcePath,
+        original_size_bytes: numberValue(sourceMetadata.size),
+        extracted_text_storage_bucket: extractedPath ? MARKET_SOURCE_BUCKET : '',
+        extracted_text_storage_path: extractedPath,
+        extraction_status: extractedPath ? 'ready' : 'uploaded_pending_extraction',
+        source_preservation_status: sourcePath ? 'stored' : 'metadata_only',
+        updated_at: safeText(firstDefined(group.source?.updated_at, group.source?.created_at, group.extracted?.updated_at, group.extracted?.created_at)),
+      } satisfies MarketStorageDocument;
+    })
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  marketStorageManifestCache = { expiresAt: Date.now() + 60_000, documents };
+  return documents;
+}
+
+async function readMarketStoragePayload(ctx: Context, document: MarketStorageDocument) {
+  if (!document.extracted_text_storage_path) return null;
+  const { data, error } = await ctx.serviceClient.storage
+    .from(document.extracted_text_storage_bucket || MARKET_SOURCE_BUCKET)
+    .download(document.extracted_text_storage_path);
+  if (error || !data) return null;
+  try {
+    return parseJsonValue(await data.text(), null) as Record<string, unknown> | null;
+  } catch {
+    return null;
+  }
+}
+
+function marketStorageTextChunks(text: string, maxLength = 1400) {
+  const paragraphs = text.split(/\n{2,}/gu).map((item) => item.trim()).filter(Boolean);
+  const chunks: string[] = [];
+  let current = '';
+  for (const paragraph of paragraphs) {
+    if (current && current.length + paragraph.length + 2 > maxLength) {
+      chunks.push(current);
+      current = '';
+    }
+    current = current ? `${current}\n\n${paragraph}` : paragraph;
+  }
+  if (current) chunks.push(current);
+  if (!chunks.length && text.trim()) chunks.push(text.trim().slice(0, maxLength));
+  return chunks.slice(0, 500);
+}
+
+async function loadMarketStorageSearchRows(ctx: Context) {
+  const documents = await listMarketStorageDocuments(ctx);
+  const payloads = await Promise.all(documents.map(async (document) => ({
+    document,
+    payload: await readMarketStoragePayload(ctx, document),
+  })));
+  const facts: Record<string, unknown>[] = [];
+  const chunks: Record<string, unknown>[] = [];
+  for (const { document, payload } of payloads) {
+    if (!payload) continue;
+    const payloadFacts = Array.isArray(payload.facts) ? payload.facts as Record<string, unknown>[] : [];
+    const payloadChunks = Array.isArray(payload.chunks) ? payload.chunks as Record<string, unknown>[] : [];
+    const text = safeText(payload.text || payload.extracted_text);
+    payloadFacts.forEach((row, index) => facts.push({
+      ...row,
+      source_hash: document.source_hash,
+      fact_key: safeText(row.fact_key) || `${document.source_hash}:fact:${index}`,
+      extraction_status: 'ready',
+    }));
+    if (payloadChunks.length) {
+      payloadChunks.forEach((row, index) => chunks.push({
+        ...row,
+        source_hash: document.source_hash,
+        chunk_key: safeText(row.chunk_key) || `${document.source_hash}:chunk:${index}`,
+        content: safeText(row.content),
+        extraction_status: 'ready',
+      }));
+    } else {
+      marketStorageTextChunks(text).forEach((content, index) => chunks.push({
+        source_hash: document.source_hash,
+        chunk_key: `${document.source_hash}:text:${index}`,
+        chunk_type: 'stored_extracted_text',
+        content,
+        extraction_status: 'ready',
+        source_locator: { storage_path: document.extracted_text_storage_path, chunk_index: index },
+      }));
+    }
+  }
+  return { documents, facts, chunks };
 }
 
 async function callMarketDocsUpload(ctx: Context, formData: FormData | null) {
@@ -1531,46 +1600,30 @@ async function callMarketDocsUpload(ctx: Context, formData: FormData | null) {
     await auditOptional(ctx.serviceClient, ctx.user.id, 'market-docs/upload', 500, { file_name: originalName, error: uploadError.message });
     return fail(500, 'Market source file upload failed', ctx.origin, { error: uploadError.message });
   }
-  const sourceType = extension === 'pdf' ? 'pdf' : extension === 'txt' ? 'pdf' : 'xlsx';
-  const { data: existingDoc } = await ctx.serviceClient
-    .from('ll_market_documents')
-    .select('document_id,extraction_status')
-    .eq('source_hash', sourceHash)
-    .maybeSingle();
-  const documentPayload = marketDocumentRow({
+  invalidateMarketStorageManifest();
+  const documents = await listMarketStorageDocuments(ctx, true);
+  const savedDoc = documents.find((document) => document.source_hash === sourceHash) || {
+    document_id: sourceHash,
     source_hash: sourceHash,
     file_name: originalName,
-    file_path: `storage://${MARKET_SOURCE_BUCKET}/${storagePath}`,
-    source_type: sourceType,
+    source_type: marketSourceTypeFromName(originalName),
     storage_bucket: MARKET_SOURCE_BUCKET,
     storage_path: storagePath,
     original_size_bytes: file.size,
+    extracted_text_storage_bucket: '',
+    extracted_text_storage_path: '',
+    extraction_status: 'uploaded_pending_extraction',
     source_preservation_status: 'stored',
-    extraction_status: existingDoc?.extraction_status || 'uploaded_pending_extraction',
-    extraction_method: 'uploaded_source_file',
-    metadata: {
-      uploaded_at: new Date().toISOString(),
-      content_type: file.type || '',
-      original_file_name: originalName,
-      upload_origin: uploadOrigin,
-      source_domain: sourceDomain,
-      processing_note: 'Original file is preserved in private Supabase Storage. Searchable chunks/facts are stored separately after extraction.',
-    },
-  }, ctx.user.id);
-  const { data: savedDoc, error: upsertError } = await ctx.serviceClient
-    .from('ll_market_documents')
-    .upsert(documentPayload, { onConflict: 'source_hash' })
-    .select('document_id,source_hash,file_name,storage_bucket,storage_path,original_size_bytes,source_preservation_status,extraction_status,updated_at')
-    .maybeSingle();
-  if (upsertError || !savedDoc) {
-    return fail(500, 'Market source metadata upsert failed', ctx.origin, { error: upsertError?.message || 'missing document row' });
-  }
+    updated_at: new Date().toISOString(),
+  };
   await audit(ctx.serviceClient, ctx.user.id, 'market-docs/upload', 200, {
-    document_id: savedDoc.document_id,
+    document_id: sourceHash,
     file_name: originalName,
     source_hash: sourceHash,
     storage_path: storagePath,
     original_size_bytes: file.size,
+    upload_origin: uploadOrigin,
+    source_domain: sourceDomain,
   });
   return jsonResponse({
     ok: true,
@@ -1595,7 +1648,6 @@ async function callMarketDocsIngest(ctx: Context, payload: Record<string, unknow
   if (!sourceHash || !safeText(documentInput.file_name)) return fail(400, 'source_hash and file_name are required', ctx.origin);
   const chunksInput = Array.isArray(payload.chunks) ? payload.chunks as Record<string, unknown>[] : [];
   const factsInput = Array.isArray(payload.facts) ? payload.facts as Record<string, unknown>[] : [];
-  const replaceExisting = payload.replace_existing !== false;
   const extractedText = safeText(payload.extracted_text);
   let extractedTextStoragePath = safeText(documentInput.extracted_text_storage_path);
   let extractedTextStorageBucket = safeText(documentInput.extracted_text_storage_bucket);
@@ -1603,10 +1655,13 @@ async function callMarketDocsIngest(ctx: Context, payload: Record<string, unknow
     const extractedTextHash = await sha256Text(extractedText);
     const extractedPayload = JSON.stringify({
       source_hash: sourceHash,
+      document: documentInput,
       extracted_text_hash: extractedTextHash,
       extracted_char_count: extractedText.length,
       extracted_at: new Date().toISOString(),
       text: extractedText,
+      chunks: chunksInput,
+      facts: factsInput,
     });
     extractedTextStorageBucket = MARKET_SOURCE_BUCKET;
     extractedTextStoragePath = `${sourceHash.slice(0, 2)}/${sourceHash}/extracted-text.json`;
@@ -1621,106 +1676,87 @@ async function callMarketDocsIngest(ctx: Context, payload: Record<string, unknow
       return fail(500, 'Market extracted text upload failed', ctx.origin, { error: extractedUploadError.message });
     }
   }
-  const { data: existingDocForPreservation } = await ctx.serviceClient
-    .from('ll_market_documents')
-    .select('storage_bucket,storage_path,original_size_bytes,source_preservation_status,extracted_text_storage_bucket,extracted_text_storage_path')
-    .eq('source_hash', sourceHash)
-    .maybeSingle();
-  const documentRow = marketDocumentRow({
-    ...documentInput,
-    storage_bucket: safeText(documentInput.storage_bucket) || existingDocForPreservation?.storage_bucket,
-    storage_path: safeText(documentInput.storage_path) || existingDocForPreservation?.storage_path,
-    original_size_bytes: numberValue(documentInput.original_size_bytes) ?? existingDocForPreservation?.original_size_bytes,
-    source_preservation_status: safeText(documentInput.source_preservation_status) || existingDocForPreservation?.source_preservation_status,
-    extracted_text_storage_bucket: extractedTextStorageBucket || existingDocForPreservation?.extracted_text_storage_bucket,
-    extracted_text_storage_path: extractedTextStoragePath || existingDocForPreservation?.extracted_text_storage_path,
-  }, ctx.user.id);
-  const { data: savedDoc, error: docError } = await ctx.serviceClient
-    .from('ll_market_documents')
-    .upsert(documentRow, { onConflict: 'source_hash' })
-    .select('document_id,source_hash,file_name')
-    .maybeSingle();
-  if (docError || !savedDoc?.document_id) {
-    return fail(500, 'Market document upsert failed', ctx.origin, { error: docError?.message || 'missing document_id' });
-  }
-  const documentId = safeText(savedDoc.document_id);
-  if (replaceExisting) {
-    const { error: deleteChunksError } = await ctx.serviceClient.from('ll_market_chunks').delete().eq('source_hash', sourceHash);
-    if (deleteChunksError) return fail(500, 'Market chunks cleanup failed', ctx.origin, { error: deleteChunksError.message });
-    const { error: deleteFactsError } = await ctx.serviceClient.from('ll_market_facts').delete().eq('source_hash', sourceHash);
-    if (deleteFactsError) return fail(500, 'Market facts cleanup failed', ctx.origin, { error: deleteFactsError.message });
-  }
-  const chunkRows = chunksInput
-    .map((row) => marketChunkRow(row, documentId, sourceHash))
-    .filter((row) => safeText((row as Record<string, unknown>).chunk_key) && safeText((row as Record<string, unknown>).content)) as Record<string, unknown>[];
-  const factRows = factsInput
-    .map((row) => marketFactRow(row, documentId, sourceHash))
-    .filter((row) => safeText((row as Record<string, unknown>).fact_key)) as Record<string, unknown>[];
-  try {
-    await insertMarketRowsInBatches(ctx, 'll_market_chunks', chunkRows);
-    await insertMarketRowsInBatches(ctx, 'll_market_facts', factRows);
-    await audit(ctx.serviceClient, ctx.user.id, 'market-docs/ingest', 200, {
-      file_name: savedDoc.file_name,
-      source_hash: sourceHash.slice(0, 16),
-      chunks: chunkRows.length,
-      facts: factRows.length,
-      replace_existing: replaceExisting,
+  if (!extractedTextStoragePath) {
+    extractedTextStorageBucket = MARKET_SOURCE_BUCKET;
+    extractedTextStoragePath = `${sourceHash.slice(0, 2)}/${sourceHash}/extracted-text.json`;
+    const extractedPayload = JSON.stringify({
+      source_hash: sourceHash,
+      document: documentInput,
+      extracted_text_hash: '',
+      extracted_char_count: 0,
+      extracted_at: new Date().toISOString(),
+      text: '',
+      chunks: chunksInput,
+      facts: factsInput,
     });
-    return jsonResponse({
-      ok: true,
-      data: {
-        file_name: savedDoc.file_name,
-        document_id: documentId,
-        chunks_written: chunkRows.length,
-        facts_written: factRows.length,
-        replace_existing: replaceExisting,
-      },
-    }, 200, ctx.origin);
-  } catch (error) {
-    await auditOptional(ctx.serviceClient, ctx.user.id, 'market-docs/ingest', 500, { file_name: savedDoc.file_name, error: safeProviderError(error) });
-    return fail(500, 'Market document ingest failed', ctx.origin, { error: safeProviderError(error) });
+    const { error: extractedUploadError } = await ctx.serviceClient.storage
+      .from(MARKET_SOURCE_BUCKET)
+      .upload(extractedTextStoragePath, new TextEncoder().encode(extractedPayload), {
+        contentType: 'application/json',
+        upsert: true,
+      });
+    if (extractedUploadError) {
+      return fail(500, 'Market extracted text upload failed', ctx.origin, { error: extractedUploadError.message });
+    }
   }
+  invalidateMarketStorageManifest();
+  await audit(ctx.serviceClient, ctx.user.id, 'market-docs/ingest', 200, {
+    file_name: safeText(documentInput.file_name),
+    source_hash: sourceHash.slice(0, 16),
+    chunks: chunksInput.length,
+    facts: factsInput.length,
+    storage_bucket: extractedTextStorageBucket,
+    storage_path: extractedTextStoragePath,
+  });
+  return jsonResponse({
+    ok: true,
+    data: {
+      file_name: safeText(documentInput.file_name),
+      document_id: sourceHash,
+      chunks_written: chunksInput.length,
+      facts_written: factsInput.length,
+      replace_existing: payload.replace_existing !== false,
+      retrieval_mode: 'storage_lexical',
+      storage_bucket: extractedTextStorageBucket,
+      storage_path: extractedTextStoragePath,
+    },
+  }, 200, ctx.origin);
+
 }
 
 async function callMarketDocsStatus(ctx: Context) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) return fail(403, 'Market research permission is required', ctx.origin);
-  const [docs, chunks, facts] = await Promise.all([
-    ctx.serviceClient.from('ll_market_documents').select('document_id,source_type,extraction_status', { count: 'exact', head: true }),
-    ctx.serviceClient.from('ll_market_chunks').select('chunk_id', { count: 'exact', head: true }),
-    ctx.serviceClient.from('ll_market_facts').select('fact_id', { count: 'exact', head: true }),
-  ]);
-  if (docs.error || chunks.error || facts.error) return fail(500, 'Market document status read failed', ctx.origin, { error: docs.error?.message || chunks.error?.message || facts.error?.message });
-  const { data: recentDocs, error: recentDocsError } = await ctx.serviceClient
-    .from('ll_market_documents')
-    .select('document_id,file_name,publisher,report_period,as_of_date,source_type,extraction_status,source_preservation_status,original_size_bytes,storage_bucket,storage_path,extracted_text_storage_bucket,extracted_text_storage_path,updated_at')
-    .order('updated_at', { ascending: false })
-    .limit(50);
-  if (recentDocsError) return fail(500, 'Market document list read failed', ctx.origin, { error: recentDocsError.message });
-  const documents = ((recentDocs || []) as Record<string, unknown>[]).map((row) => stripUndefined({
-    document_id: safeText(row.document_id),
-    file_name: safeText(row.file_name),
-    publisher: safeText(row.publisher),
-    report_period: safeText(row.report_period),
-    as_of_date: safeText(row.as_of_date),
-    source_type: safeText(row.source_type),
-    extraction_status: safeText(row.extraction_status),
-    source_preservation_status: safeText(row.source_preservation_status),
-    original_size_bytes: numberValue(row.original_size_bytes),
-    storage_preserved: Boolean(safeText(row.storage_bucket) && safeText(row.storage_path)),
-    extracted_text_preserved: Boolean(safeText(row.extracted_text_storage_bucket) && safeText(row.extracted_text_storage_path)),
-    updated_at: safeText(row.updated_at),
+  const storageRows = await loadMarketStorageSearchRows(ctx);
+  const documents = storageRows.documents.map((row) => stripUndefined({
+    document_id: row.document_id,
+    source_hash: row.source_hash,
+    file_name: row.file_name,
+    source_type: row.source_type,
+    extraction_status: row.extraction_status,
+    source_preservation_status: row.source_preservation_status,
+    original_size_bytes: row.original_size_bytes,
+    storage_bucket: row.storage_bucket,
+    storage_path: row.storage_path,
+    extracted_text_storage_bucket: row.extracted_text_storage_bucket,
+    extracted_text_storage_path: row.extracted_text_storage_path,
+    storage_preserved: Boolean(row.storage_path),
+    extracted_text_preserved: Boolean(row.extracted_text_storage_path),
+    updated_at: row.updated_at,
   }));
   return jsonResponse({
     ok: true,
     data: {
-      documents: docs.count || 0,
-      chunks: chunks.count || 0,
-      facts: facts.count || 0,
+      documents: documents.length,
+      chunks: storageRows.chunks.length,
+      facts: storageRows.facts.length,
       preserved_documents: documents.filter((row) => (row as Record<string, unknown>).storage_preserved).length,
       preserved_extracted_texts: documents.filter((row) => (row as Record<string, unknown>).extracted_text_preserved).length,
-      recent_documents: documents,
+      recent_documents: documents.slice(0, 50),
+      retrieval_mode: 'storage_lexical',
+      retrieval_status: 'storage_lexical_ready',
     },
   }, 200, ctx.origin);
+
 }
 
 async function callMarketDocsSearch(ctx: Context, payload: Record<string, unknown>) {
@@ -1729,8 +1765,22 @@ async function callMarketDocsSearch(ctx: Context, payload: Record<string, unknow
   try {
     const result = await searchMarketMaterials(ctx, question, Math.min(20, Math.max(3, Number(payload.limit || 8) || 8)));
     if (!result.allowed) return fail(403, 'Market research permission is required', ctx.origin);
+    if (!result.retrieval_ok) {
+      const status = result.retrieval_status === 'sector_storage_lexical_failed' ? 502 : 404;
+      await auditOptional(ctx.serviceClient, ctx.user.id, 'market-docs/search', status, {
+        question,
+        retrieval_status: result.retrieval_status,
+        source_status: result.source_status,
+      });
+      return fail(
+        status,
+        status === 502 ? 'Market document search sources are unavailable' : 'No market materials matched the search',
+        ctx.origin,
+        { retrieval_status: result.retrieval_status, source_status: result.source_status },
+      );
+    }
     await auditOptional(ctx.serviceClient, ctx.user.id, 'market-docs/search', 200, { question, evidence_count: result.evidence.length });
-    return jsonResponse({ ok: true, data: { evidence: result.evidence, terms: result.terms, fact_count: result.facts.length, chunk_count: result.chunks.length, retrieval_status: result.retrieval_status } }, 200, ctx.origin);
+    return jsonResponse({ ok: true, data: { evidence: result.evidence, terms: result.terms, fact_count: result.facts.length, chunk_count: result.chunks.length, retrieval_status: result.retrieval_status, source_status: result.source_status } }, 200, ctx.origin);
   } catch (error) {
     const message = safeProviderError(error);
     await auditOptional(ctx.serviceClient, ctx.user.id, 'market-docs/search', 500, { question, error: message });
@@ -1738,96 +1788,21 @@ async function callMarketDocsSearch(ctx: Context, payload: Record<string, unknow
   }
 }
 
-async function updateMarketEmbeddingRows(ctx: Context, table: 'll_market_chunks' | 'll_market_facts', idColumn: 'chunk_id' | 'fact_id', rows: Record<string, unknown>[], textGetter: (row: Record<string, unknown>) => string) {
-  if (!rows.length) return { embedded: 0, failed: 0, status: 'empty' };
-  const title = uniqueStrings(rows.map((row) => normalizeText(firstDefined(row.report_title, row.file_name))), 3).join(' / ');
-  const embeddingResult = await generateMarketDocumentEmbeddings(rows.map(textGetter), title);
-  if (embeddingResult.status !== 'generated') {
-    return { embedded: 0, failed: rows.length, status: embeddingResult.status };
-  }
-  let embedded = 0;
-  let failed = 0;
-  for (let index = 0; index < rows.length; index += 1) {
-    const row = rows[index];
-    const embedding = embeddingResult.embeddings[index];
-    const id = safeText(row[idColumn]);
-    if (!id || !embedding) {
-      failed += 1;
-      continue;
-    }
-    const { error } = await ctx.serviceClient
-      .from(table)
-      .update({
-        embedding,
-        embedding_model: marketEmbeddingModel(),
-        embedding_dim: MARKET_EMBEDDING_DIM,
-        embedding_status: 'generated',
-        embedding_updated_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq(idColumn, id);
-    if (error) failed += 1;
-    else embedded += 1;
-  }
-  return { embedded, failed, status: failed ? 'partial' : 'generated' };
-}
-
-async function callMarketDocsEmbed(ctx: Context, payload: Record<string, unknown>) {
+async function callMarketDocsEmbed(ctx: Context, _payload: Record<string, unknown>) {
   if (!canManageFeatureAccess(ctx)) return fail(403, 'Market embedding generation is limited to Planning Center users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'market-docs/embed', 20, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
-  const limit = Math.min(40, Math.max(1, Number(payload.limit || 24) || 24));
-  const sourceHash = safeText(payload.source_hash);
-  const target = safeText(payload.target || 'both');
-  const shouldChunks = target === 'both' || target === 'chunks';
-  const shouldFacts = target === 'both' || target === 'facts';
-  const chunkSelect = 'chunk_id,source_hash,content,chunk_type,source_locator';
-  const factSelect = 'fact_id,source_hash,fact_type,metric_name,period,region,asset_name,building_name,address,buyer_name,seller_name,fact_text';
-  const output: Record<string, unknown> = {
-    model: marketEmbeddingModel(),
-    dim: MARKET_EMBEDDING_DIM,
-    chunks: { embedded: 0, failed: 0, status: 'skipped' },
-    facts: { embedded: 0, failed: 0, status: 'skipped' },
+  const documents = await listMarketStorageDocuments(ctx);
+  const output = {
+    mode: 'storage_lexical',
+    status: 'not_applicable',
+    embedding_required: false,
+    preserved_documents: documents.filter((row) => Boolean(row.storage_path)).length,
+    searchable_documents: documents.filter((row) => Boolean(row.extracted_text_storage_path)).length,
+    message: 'Market research retrieval uses preserved extracted text with lexical ranking; no relational embedding index is configured.',
   };
-
-  if (shouldChunks) {
-    let query = ctx.serviceClient
-      .from('ll_market_chunks')
-      .select(chunkSelect)
-      .or('embedding_status.is.null,embedding_status.neq.generated')
-      .order('created_at', { ascending: true })
-      .limit(limit);
-    if (sourceHash) query = query.eq('source_hash', sourceHash);
-    const { data, error } = await query;
-    if (error) return fail(500, 'Market chunk embedding read failed', ctx.origin, { error: error.message });
-    output.chunks = await updateMarketEmbeddingRows(ctx, 'll_market_chunks', 'chunk_id', (data || []) as Record<string, unknown>[], (row) => safeText(row.content));
-  }
-
-  if (shouldFacts) {
-    let query = ctx.serviceClient
-      .from('ll_market_facts')
-      .select(factSelect)
-      .or('embedding_status.is.null,embedding_status.neq.generated')
-      .order('created_at', { ascending: true })
-      .limit(limit);
-    if (sourceHash) query = query.eq('source_hash', sourceHash);
-    const { data, error } = await query;
-    if (error) return fail(500, 'Market fact embedding read failed', ctx.origin, { error: error.message });
-    output.facts = await updateMarketEmbeddingRows(ctx, 'll_market_facts', 'fact_id', (data || []) as Record<string, unknown>[], (row) => [
-      row.fact_type,
-      row.metric_name,
-      row.period,
-      row.region,
-      row.asset_name,
-      row.building_name,
-      row.address,
-      row.buyer_name,
-      row.seller_name,
-      row.fact_text,
-    ].map(normalizeText).filter(Boolean).join(' '));
-  }
-
   await auditOptional(ctx.serviceClient, ctx.user.id, 'market-docs/embed', 200, output);
   return jsonResponse({ ok: true, data: output }, 200, ctx.origin);
+
 }
 
 function filterWorkPlatformTaskRows(ctx: Context, rows: Record<string, unknown>[]) {
@@ -2041,7 +2016,7 @@ function selectLatestDashboardRentHistoryRows(rows: Record<string, unknown>[], b
   return [...latestByComponent.values()];
 }
 
-function applyLatestRentHistoryAmountsToLeaseSpaces(leaseSpaces: Record<string, unknown>[], rentHistory: Record<string, unknown>[], basisDate = '') {
+function applyLatestRentHistoryAmountsToLeaseSpaces(leaseSpaces: Record<string, unknown>[], rentHistory: Record<string, unknown>[], basisDate = ''): Record<string, unknown>[] {
   const latestHistoryRows = selectLatestDashboardRentHistoryRows(rentHistory, basisDate);
   const amountByLeaseSpace = new Map<string, { rent: number; mf: number; cost: number }>();
   for (const row of latestHistoryRows) {
@@ -2067,7 +2042,7 @@ function applyLatestRentHistoryAmountsToLeaseSpaces(leaseSpaces: Record<string, 
       current_monthly_cost_total: amount.cost,
       e_noc: leasedAreaPy > 0 ? Math.round((amount.cost / leasedAreaPy) * 100) / 100 : row.e_noc,
       review_status: firstDefined(row.review_status, 'dashboard_latest_history_applied'),
-    });
+    }) as Record<string, unknown>;
   });
 }
 
@@ -2881,7 +2856,7 @@ function marketLeaseTemperatureSegmentSemantics(rows: Record<string, unknown>[],
       ok: null,
     };
   }
-  const expectedSegmentSet = new Set(expectedSegments);
+  const expectedSegmentSet = new Set<string>(expectedSegments);
   const checks = expectedSegments.map((segmentLabel) => {
     const segmentRows = rows.filter((row) => safeText(row.segment_label) === segmentLabel);
     const metricKeys = [...new Set(segmentRows.map((row) => safeText(row.metric_key)).filter(Boolean))].sort();
@@ -4643,7 +4618,7 @@ async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<str
         continue;
       }
       const currentPayload = marketPayload(row);
-      const nextPayload = {
+      const nextPayload: Record<string, unknown> = {
         ...currentPayload,
         generated_address: address,
         generated_address_rule: info.address_rule || `${config.kind}_sheet_address_rule`,
@@ -5054,7 +5029,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const results = [leaseResult, supplyResult, transactionResult, capRateResult];
   const hardError = results.find((result) => result.error && !isMissingRelationError(result.error));
   if (hardError?.error) return fail(500, 'Failed to read sector market data', ctx.origin, { error: hardError.error.message });
-  const leases = ((leaseResult.data || []) as Record<string, unknown>[]).map((row) => {
+  const leases: Record<string, unknown>[] = ((leaseResult.data || []) as Record<string, unknown>[]).map((row) => {
     const addressInfo = marketAddressInfo(row, 'lease');
     return stripUndefined({
       ...row,
@@ -5073,9 +5048,9 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       rent_per_py: row.rent_manwon_per_py,
       management_fee_per_py: row.management_fee_manwon_per_py,
       temperature_type: row.temperature_type || '미분류',
-    });
+    }) as Record<string, unknown>;
   });
-  const supply = ((supplyResult.data || []) as Record<string, unknown>[]).map((row) => {
+  const supply: Record<string, unknown>[] = ((supplyResult.data || []) as Record<string, unknown>[]).map((row) => {
     const addressInfo = marketAddressInfo(row, 'supply');
     return stripUndefined({
       ...row,
@@ -5093,9 +5068,9 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       completion_period: [row.expected_year, row.expected_quarter].filter(Boolean).join(' '),
       area_py: row.gross_area_py,
       temperature_type: row.temperature_type || '미분류',
-    });
+    }) as Record<string, unknown>;
   });
-  const transactions = ((transactionResult.data || []) as Record<string, unknown>[]).map((row) => {
+  const transactions: Record<string, unknown>[] = ((transactionResult.data || []) as Record<string, unknown>[]).map((row) => {
     const addressInfo = marketAddressInfo(row, 'transaction');
     return stripUndefined({
       ...row,
@@ -5115,7 +5090,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       area_py: firstDefined(row.gross_area_py, row.building_area_py, row.land_area_py),
       unit_price_krw_per_py: Number(row.unit_price_thousand_krw_per_py || 0) ? Number(row.unit_price_thousand_krw_per_py) * 1000 : null,
       temperature_type: row.temperature_type || '미분류',
-    });
+    }) as Record<string, unknown>;
   });
   const isReasonableMarketCapRate = (value: unknown) => {
     const parsed = Number(value);
@@ -5201,7 +5176,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     const quarter = safeText(row.expected_quarter || row.completion_quarter);
     return year ? [year, quarter].filter(Boolean).join(' ') : '미정';
   };
-  const publicMarketRow = (row: Record<string, unknown>, index: number, kind: string) => {
+  const publicMarketRow = (row: Record<string, unknown>, index: number, kind: string): Record<string, unknown> => {
     const {
       payload: _payload,
       source_file_id: _sourceFileId,
@@ -5214,7 +5189,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       legal_dong_code: _legalDongCode,
       ...rest
     } = row;
-    return stripUndefined({ row_key: `${kind}-${index + 1}`, ...rest });
+    return stripUndefined({ row_key: `${kind}-${index + 1}`, ...rest }) as Record<string, unknown>;
   };
   const compactMarketRow = (row: Record<string, unknown>) => Object.fromEntries(
     Object.entries(row).filter(([, value]) => value !== undefined && value !== null && safeText(value) !== ''),
@@ -5776,7 +5751,7 @@ async function callAssetSpecRead(ctx: Context, _payload: Record<string, unknown>
       current_manager_email: null,
     }];
   }).filter(([key]) => key) as Array<[string, Record<string, unknown>]>).values()];
-  const publicAssets = assets.map((asset) => ({
+  const publicAssets: Record<string, unknown>[] = assets.map((asset) => ({
     ...asset,
     can_create: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'create', asset.asset_id, asset.asset_name),
     can_update: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'update', asset.asset_id, asset.asset_name),
@@ -5999,7 +5974,7 @@ async function callOperatingCostsRead(ctx: Context, _payload: Record<string, unk
     ...row,
     asset_name: safeText(row.asset_name) || assetNameById.get(safeText(row.asset_id)) || safeText(row.asset_id),
   }));
-  const totals = rows.reduce((acc, row) => {
+  const totals = rows.reduce<{ pm_cost_krw: number; fm_cost_krw: number; insurance_cost_krw: number; utility_cost_krw: number }>((acc, row) => {
     acc.pm_cost_krw += Number(row.pm_cost_krw || 0);
     acc.fm_cost_krw += Number(row.fm_cost_krw || 0);
     acc.insurance_cost_krw += Number(row.insurance_cost_krw || 0);
@@ -6019,13 +5994,9 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
     sourceDomains: ['lease_contracts'],
     tables: [
       'll_assets',
-      'll_asset_managers',
       'll_tenants',
       'll_leases',
       'll_lease_spaces',
-      'll_lease_space_area_breakdowns',
-      'll_lease_space_specs',
-      'll_lease_special_terms',
       'll_rent_history',
       'll_lease_attributes',
     ],
@@ -6034,7 +6005,7 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
     key: 'fund',
     label: '펀드/금융',
     sourceDomains: ['fund_info'],
-    tables: ['ll_funds', 'll_fund_asset_links', 'll_fund_capital_tranches', 'll_fund_loan_tranches', 'll_fund_beneficiary_tranches'],
+    tables: ['ll_funds', 'll_fund_asset_links', 'll_fund_capital_tranches'],
   },
   {
     key: 'market',
@@ -6045,9 +6016,6 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
       'll_sector_market_supply_cases',
       'll_sector_market_transaction_cases',
       'll_sector_market_cap_rate_series',
-      'll_market_documents',
-      'll_market_chunks',
-      'll_market_facts',
       'll_market_deprecation_backups',
     ],
   },
@@ -6080,17 +6048,14 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
       'll_source_rows',
       'll_source_cells',
       'll_source_runs',
-      'll_import_runs',
-      'll_sheet_rows',
       'll_source_field_registry',
-      'll_source_review_logs',
     ],
   },
   {
     key: 'approval_audit',
     label: '승인/감사',
     sourceDomains: [],
-    tables: ['ll_edit_requests', 'll_audit_events', 'll_data_change_audit_logs', 'll_api_audit_logs', 'll_data_quality_findings', 'll_schema_metadata', 'll_migration_row_backups'],
+    tables: ['ll_edit_requests', 'll_audit_events', 'll_schema_metadata'],
   },
   {
     key: 'work_platform',
@@ -6098,17 +6063,8 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
     sourceDomains: [],
     tables: [
       'll_work_items',
-      'll_issues',
       'll_board_posts',
-      'll_weekly_assets',
-      'll_weekly_projects',
       'll_weekly_records',
-      'll_weekly_reports',
-      'll_weekly_doc_ingest_runs',
-      'll_work_platform_tasks',
-      'll_work_platform_task_snapshots',
-      'll_work_platform_board_posts',
-      'll_worklogs',
       'll_notifications',
       'll_notification_deliveries',
       'll_news_runs',
@@ -6119,7 +6075,7 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
     key: 'cache',
     label: '캐시/스냅샷',
     sourceDomains: [],
-    tables: ['ll_cache_entries', 'll_external_api_cache', 'll_dashboard_metric_snapshots', 'll_dashboard_read_snapshots', 'll_payload_snapshots'],
+    tables: ['ll_cache_entries', 'll_payload_snapshots'],
   },
 ];
 const DATA_MANAGEMENT_FALLBACK_TABLES = uniqueStrings(DATA_MANAGEMENT_COVERAGE_DOMAINS.flatMap((domain) => domain.tables), 200);
@@ -6142,20 +6098,14 @@ const DATA_MANAGEMENT_DOMAIN_SPACE: Record<string, string> = {
 };
 const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
   ll_assets: '자산 마스터',
-  ll_asset_managers: '자산 담당 이력',
   ll_tenants: '임차인',
   ll_leases: '임대차 계약',
   ll_lease_spaces: '임대공간',
-  ll_lease_space_area_breakdowns: '임대공간 면적 상세',
-  ll_lease_space_specs: '임대공간 스펙',
-  ll_lease_special_terms: '임대차 특약',
   ll_rent_history: '임대료 이력',
   ll_lease_attributes: '임대차 속성',
   ll_funds: '펀드 마스터',
   ll_fund_asset_links: '펀드-자산 연결',
   ll_fund_capital_tranches: '펀드 금융 트랜치',
-  ll_fund_loan_tranches: '펀드 대출 트랜치',
-  ll_fund_beneficiary_tranches: '펀드 수익자 트랜치',
   ll_asset_specs: '자산 스펙',
   ll_asset_spec_files: '자산 스펙 파일',
   ll_asset_operating_costs: '자산 운영비',
@@ -6163,9 +6113,6 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
   ll_sector_market_supply_cases: '시장 공급 사례',
   ll_sector_market_transaction_cases: '시장 거래 사례',
   ll_sector_market_cap_rate_series: '시장 Cap Rate',
-  ll_market_documents: '시장 문서',
-  ll_market_chunks: '시장 문서 청크',
-  ll_market_facts: '시장 팩트',
   ll_market_deprecation_backups: '시장 이전 백업',
   ll_news_runs: '뉴스 수집 실행',
   ll_news_items: '뉴스 항목',
@@ -6178,35 +6125,16 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
   ll_source_rows: '원천 행',
   ll_source_cells: '원천 셀',
   ll_source_runs: '원천 처리 실행',
-  ll_import_runs: '원천 가져오기 실행',
-  ll_sheet_rows: '원천 시트 행',
   ll_source_field_registry: '원천 필드 레지스트리',
-  ll_source_review_logs: '원천 검수 로그',
-  ll_weekly_assets: '주간 자산',
-  ll_weekly_projects: '주간 프로젝트',
   ll_weekly_records: '주간 기록',
-  ll_weekly_reports: '주간 보고서',
-  ll_weekly_doc_ingest_runs: '주간 문서 수집',
   ll_work_items: '업무 항목',
-  ll_issues: '이슈',
   ll_board_posts: '게시글',
-  ll_work_platform_tasks: '업무 플랫폼 태스크',
-  ll_work_platform_task_snapshots: '업무 플랫폼 태스크 스냅샷',
-  ll_work_platform_board_posts: '업무 플랫폼 게시글',
-  ll_worklogs: '업무 로그',
   ll_notifications: '알림',
   ll_notification_deliveries: '알림 발송 이력',
   ll_edit_requests: '변경 요청',
   ll_audit_events: '감사 이벤트',
-  ll_data_change_audit_logs: '데이터 변경 감사',
-  ll_api_audit_logs: 'API 감사 로그',
-  ll_data_quality_findings: '데이터 품질 지적',
   ll_schema_metadata: '스키마 메타데이터',
-  ll_migration_row_backups: '마이그레이션 백업',
   ll_cache_entries: '캐시 엔트리',
-  ll_external_api_cache: '외부 API 캐시',
-  ll_dashboard_metric_snapshots: '대시보드 지표 스냅샷',
-  ll_dashboard_read_snapshots: '대시보드 조회 스냅샷',
   ll_payload_snapshots: '응답 페이로드 스냅샷',
 };
 const DATA_MANAGEMENT_WORKSPACES = [
@@ -6688,7 +6616,6 @@ const DATA_MANAGEMENT_QUALITY_VIEW_FIELDS = [
 ];
 const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_assets: 'asset_id',
-  ll_asset_managers: 'asset_manager_id',
   ll_tenants: 'tenant_id',
   ll_leases: 'lease_id',
   ll_lease_spaces: 'lease_space_id',
@@ -6703,8 +6630,6 @@ const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_source_columns: 'source_column_id',
   ll_source_rows: 'source_row_id',
   ll_source_runs: 'source_run_id',
-  ll_import_runs: 'import_id',
-  ll_sheet_rows: 'sheet_row_id',
   ll_source_field_registry: 'source_field_id',
   ll_sector_market_lease_observations: 'observation_id',
   ll_sector_market_supply_cases: 'supply_case_id',
@@ -6717,21 +6642,15 @@ const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_notification_deliveries: 'delivery_id',
   ll_news_runs: 'news_run_id',
   ll_news_items: 'news_item_id',
-  ll_market_documents: 'document_id',
-  ll_market_chunks: 'chunk_id',
-  ll_market_facts: 'fact_id',
   ll_market_deprecation_backups: 'backup_id',
   ll_payload_snapshots: 'snapshot_key',
   ll_staff_profiles: 'staff_id',
   ll_user_permissions: 'user_id',
   ll_schema_metadata: 'metadata_id',
   ll_login_history: 'id',
-  ll_data_quality_findings: 'finding_id',
-  ll_issues: 'issue_id',
 };
 const DATA_MANAGEMENT_ROW_LABEL_FIELDS: Record<string, string[]> = {
   ll_assets: ['asset_name', 'asset_code'],
-  ll_asset_managers: ['asset_name', 'manager_name', 'manager_team'],
   ll_funds: ['display_name', 'short_name', 'fund_name', 'fund_code'],
   ll_fund_asset_links: ['fund_id', 'asset_name', 'asset_code'],
   ll_tenants: ['tenant_master_name', 'company_name', 'business_registration_no'],
@@ -6747,9 +6666,7 @@ const DATA_MANAGEMENT_ROW_LABEL_FIELDS: Record<string, string[]> = {
   ll_sector_market_cap_rate_series: ['region', 'report_year', 'report_quarter'],
   ll_news_items: ['title', 'published_at', 'source_name'],
   ll_login_history: ['staff_name', 'email', 'logged_at', 'status'],
-  ll_data_quality_findings: ['finding_type', 'severity', 'source_header', 'status'],
   ll_work_items: ['title', 'asset_name', 'status'],
-  ll_issues: ['title', 'asset_id', 'status', 'severity'],
   ll_board_posts: ['title', 'created_at'],
   ll_weekly_records: ['project_name', 'asset_name', 'fund_name', 'status'],
 };
@@ -6763,6 +6680,16 @@ type DataManagementScope = {
   readableLinks: Record<string, unknown>[];
   allRefs: string[];
   readableRefs: string[];
+};
+
+type DataManagementRowsResult = {
+  fields?: readonly unknown[];
+  rows: Record<string, unknown>[];
+  total: number;
+  page: number;
+  pageSize: number;
+  primaryKey?: string;
+  [key: string]: unknown;
 };
 
 function dataManagementRefValues(row: Record<string, unknown>, keys: string[]) {
@@ -7255,18 +7182,12 @@ function dataManagementFieldLabel(fieldName: unknown) {
 function dataManagementLookupFieldsForTable(tableName: unknown) {
   const normalized = dataManagementNormalizedTableName(tableName);
   const lookupFields: Record<string, string[]> = {
-    ll_asset_managers: ['asset_id', 'asset_code', 'asset_name'],
     ll_leases: ['lease_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label', 'current_start_date', 'current_end_date'],
     ll_lease_spaces: ['lease_space_id', 'lease_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label', 'floor_label', 'detail_area_label', 'temperature_type'],
-    ll_lease_space_area_breakdowns: ['lease_space_id', 'lease_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label'],
-    ll_lease_space_specs: ['lease_space_id', 'lease_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label'],
-    ll_lease_special_terms: ['lease_id', 'lease_space_id', 'asset_id', 'asset_name', 'tenant_id', 'tenant_master_name', 'term_title', 'term_type'],
     ll_rent_history: ['rent_history_id', 'lease_id', 'lease_space_id', 'asset_id', 'asset_code', 'asset_name', 'tenant_id', 'tenant_master_name', 'space_label', 'basis_date'],
     ll_lease_attributes: ['attribute_id', 'lease_id', 'lease_space_id', 'asset_id', 'asset_name', 'tenant_id', 'tenant_master_name', 'attribute_label', 'attribute_key'],
     ll_fund_asset_links: ['fund_id', 'fund_code', 'fund_name', 'asset_id', 'asset_code', 'asset_name'],
     ll_fund_capital_tranches: ['fund_id', 'fund_code', 'fund_name', 'tranche_type', 'tranche', 'party_name'],
-    ll_fund_loan_tranches: ['fund_id', 'fund_code', 'fund_name', 'tranche', 'lender_name', 'party_name'],
-    ll_fund_beneficiary_tranches: ['fund_id', 'fund_code', 'fund_name', 'tranche', 'beneficiary_name', 'party_name'],
     ll_asset_specs: ['asset_id', 'asset_code', 'asset_name', 'address'],
     ll_asset_operating_costs: ['asset_id', 'asset_code', 'asset_name', 'cost_type', 'basis_date'],
   };
@@ -7662,7 +7583,7 @@ function dataManagementSourceDomainStats(sources: Record<string, unknown>[]) {
     if (source.active_version) current.active_version_count = Number(current.active_version_count || 0) + 1;
     const rowCounts = source.row_counts && typeof source.row_counts === 'object' ? source.row_counts as Record<string, unknown> : {};
     current.declared_row_count = Number(current.declared_row_count || 0)
-      + Object.values(rowCounts).reduce((sum, value) => sum + Number(value || 0), 0);
+      + Object.values(rowCounts).reduce<number>((sum, value) => sum + Number(value || 0), 0);
     const updatedAt = safeText(source.updated_at || source.created_at);
     if (updatedAt && updatedAt > safeText(current.latest_source_at)) current.latest_source_at = updatedAt;
     stats.set(domain, current);
@@ -8325,7 +8246,7 @@ async function dataManagementFallbackTableViewRows(ctx: Context, payload: Record
         },
       } }, 200, ctx.origin);
     } catch (error) {
-      return fail(500, 'Data Management 데이터 품질 View를 읽지 못했습니다.', ctx.origin, { error: error instanceof Error ? error.message : String(error) });
+      return fail(500, 'Data Management 데이터 품질 View를 읽지 못했습니다.', ctx.origin, { error: safeProviderError(error) });
     }
   }
   const tableName = dataManagementFallbackTableNameForView(view);
@@ -8411,7 +8332,13 @@ async function dataManagementResolveFallbackViewEdit(ctx: Context, payload: Reco
   const fieldKey = safeText(payload.field_key || payload.fieldKey || payload.field_name || payload.fieldName);
   const tableName = dataManagementFallbackTableNameForView(view);
   if (!rowKey || !fieldKey || !tableName) throw new Error('수정할 행과 필드를 선택해 주세요.');
-  const result = await dataManagementFallbackTableViewRows(ctx, { ...payload, page_size: 5000, resolve_all: true }, scope, view, { includeInternalMeta: true });
+  const result = await dataManagementFallbackTableViewRows(
+    ctx,
+    { ...payload, page_size: 5000, resolve_all: true },
+    scope,
+    view,
+    { includeInternalMeta: true },
+  ) as DataManagementRowsResult & { primaryKey: string };
   const field = (result.fields as Record<string, unknown>[]).find((item) => safeText(item.field_key || item.field) === fieldKey);
   if (!field) throw new Error('업무 View 필드를 찾을 수 없습니다.');
   if (field.editable !== true) throw new Error('이 필드는 Data Management에서 직접 수정 요청할 수 없습니다.');
@@ -8495,7 +8422,7 @@ async function dataManagementQualityFindingRows(ctx: Context, payload: Record<st
       };
       return labels[key] || safeText(fieldName).replace(/_/gu, ' ');
     };
-    const runtimeRowsSource = runtimeFindings.map((finding, index) => {
+    const runtimeRowsSource: Record<string, unknown>[] = runtimeFindings.map((finding, index) => {
       const domain = domainLabel(firstDefined(finding.target_type, finding.targetType, finding.entity_type));
       const targetName = businessTargetLabel(
         firstDefined(finding.target_name, finding.targetName, finding.asset_name, finding.assetName, finding.tenant_name, finding.tenantName),
@@ -10346,7 +10273,7 @@ async function dataManagementTenantMasterRows(ctx: Context, payload: Record<stri
   const fields = DATA_MANAGEMENT_TENANT_MASTER_VIEW_FIELDS;
   const rows = await Promise.all(Array.from(groups.entries()).map(async ([tenantKey, source]) => {
     const relatedAssets = Array.from((source.related_asset_set as Set<string>) || new Set()).filter(Boolean).sort((a, b) => a.localeCompare(b, 'ko')).join(', ');
-    const rowSource = {
+    const rowSource: Record<string, unknown> = {
       ...source,
       related_assets: relatedAssets,
     };
@@ -11164,7 +11091,7 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
   }
   if (DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
     try {
-      const result = viewKey === 'lease_rent_history_excel'
+      const result = (viewKey === 'lease_rent_history_excel'
         ? await dataManagementLeaseRentHistoryRows(ctx, payload, managementScope, viewKey)
         : viewKey === 'lease_space_specs'
           ? await dataManagementLeaseSpaceSpecRows(ctx, payload, managementScope, viewKey)
@@ -11172,7 +11099,7 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
             ? await dataManagementLeaseSpecialStatusRows(ctx, payload, managementScope, viewKey)
             : viewKey === 'tenant_master'
               ? await dataManagementTenantMasterRows(ctx, payload, managementScope, viewKey)
-              : await dataManagementLeaseContractRows(ctx, payload, managementScope, viewKey);
+              : await dataManagementLeaseContractRows(ctx, payload, managementScope, viewKey)) as DataManagementRowsResult;
       const resultFields = Array.isArray(result.fields) ? result.fields : [];
       const fields = (resultFields.length ? resultFields : dataManagementFieldsForViewKey(viewKey))
         .map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
@@ -11217,7 +11144,12 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
   }
   if (safeText((view as Record<string, unknown>).fallback_table_key)) {
     try {
-      const result = await dataManagementFallbackTableViewRows(ctx, payload, managementScope, view as Record<string, unknown>);
+      const result = await dataManagementFallbackTableViewRows(
+        ctx,
+        payload,
+        managementScope,
+        view as Record<string, unknown>,
+      ) as DataManagementRowsResult;
       const fields = (result.fields || []).map((field) => dataManagementPublicViewField(field as Record<string, unknown>));
       const { fallback_table_key: _fallbackTableKey, ...publicView } = view as Record<string, unknown>;
       return jsonResponse({ ok: true, data: {
@@ -11584,7 +11516,7 @@ async function callDataManagementPreviewTableCell(ctx: Context, payload: Record<
     sourceSheet: '',
     sourceColumnLetter: '',
     sourceHeader: input.fieldName,
-  };
+  } as ReturnType<typeof normalizeEditCells>[number];
   const validations: Record<string, unknown>[] = [];
   const validationError = autoWriteCapable ? validateEditCell(ctx, cell) : '';
   if (validationError) validations.push({ level: 'error', code: 'target_validation_failed', message: validationError });
@@ -11680,7 +11612,7 @@ async function callDataManagementSubmitTableCell(ctx: Context, payload: Record<s
     sourceSheet: '',
     sourceColumnLetter: '',
     sourceHeader: input.fieldName,
-  };
+  } as ReturnType<typeof normalizeEditCells>[number];
   const validationError = autoWriteCapable ? validateEditCell(ctx, cell) : '';
   if (validationError) return fail(400, validationError, ctx.origin);
   const row = autoWriteCapable ? await readTargetRow(ctx.serviceClient, cell) : await readDataManagementTableCellRow(ctx, input);
@@ -11878,7 +11810,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       sourceSheet: '',
       sourceColumnLetter: '',
       sourceHeader: input.fieldName,
-    };
+    } as ReturnType<typeof normalizeEditCells>[number];
     const validationError = validateEditCell(ctx, cell);
     if (validationError) return fail(400, validationError, ctx.origin);
     const targetRowCacheKey = `${input.targetTable}|${input.primaryKeyField}|${input.targetRowId}`;
@@ -12069,7 +12001,7 @@ async function callDataManagementCoverage(ctx: Context, payload: Record<string, 
       metadata_domain_group: metadata.domain_group,
       metadata_role_category: metadata.role_category,
       metadata_description: metadata.description,
-      connected_to_data_management: Boolean(domain) || dataManagementCoverageWriteMode(tableName) !== 'approval_review',
+      connected_to_data_management: true,
     });
   });
   const domainCoverage = DATA_MANAGEMENT_COVERAGE_DOMAINS.map((domain) => {
@@ -12430,7 +12362,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     current.version_count = Number(current.version_count || 0) + 1;
     if (row.active_version || !current.active_source) current.active_source = row;
     const rowCounts = row.row_counts && typeof row.row_counts === 'object' ? row.row_counts as Record<string, unknown> : {};
-    current.total_rows = Number(current.total_rows || 0) + Object.values(rowCounts).reduce((sum, value) => sum + Number(value || 0), 0);
+    current.total_rows = Number(current.total_rows || 0) + Object.values(rowCounts).reduce<number>((sum, value) => sum + Number(value || 0), 0);
     const validationSummary = row.validation_summary && typeof row.validation_summary === 'object' ? row.validation_summary as Record<string, unknown> : {};
     if (safeText(validationSummary.status) && safeText(validationSummary.status) !== 'validated') current.warning_count = Number(current.warning_count || 0) + 1;
     acc[domain] = current;
@@ -12616,7 +12548,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   } }, 200, ctx.origin);
 }
 
-async function callDataManagementPreviewEdit(ctx: Context, payload: Record<string, unknown>) {
+async function callDataManagementPreviewEdit(ctx: Context, payload: Record<string, unknown>): Promise<Response> {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/preview-edit', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
   if (safeText(payload.edit_mode || payload.editMode) === 'detail_field') {
@@ -12654,11 +12586,15 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
     }
     const workbookConfig = dataManagementLeaseWorkbookConfig(viewKey);
     if (workbookConfig && !DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
-      const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope, workbookConfig);
+      const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope(), workbookConfig);
       return callDataManagementPreviewEdit(ctx, resolved.source_payload);
     }
-    const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scopeResult.scope);
-    if ('error' in resolved) return resolved.error;
+    const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
+    if ('error' in resolved) {
+      return resolved.error instanceof Response
+        ? resolved.error
+        : fail(500, 'Data Management edit preview failed', ctx.origin);
+    }
     return callDataManagementPreviewTableCell(ctx, resolved.table_payload);
   }
   if (isDataManagementTableCellPayload(payload)) return callDataManagementPreviewTableCell(ctx, payload);
@@ -12747,7 +12683,7 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
       sourceSheet: safeText(sourceRow.sheet_name),
       sourceColumnLetter: '',
       sourceHeader: fieldName,
-    };
+    } as ReturnType<typeof normalizeEditCells>[number];
     const validationError = validateEditCell(ctx, cell);
     if (validationError) {
       validations.push({ level: 'error', code: 'target_validation_failed', message: validationError });
@@ -12863,7 +12799,7 @@ async function callDataManagementSubmitRowAdd(ctx: Context, payload: Record<stri
   return jsonResponse({ ok: true, data: { ...data, client_request_id: clientRequestId || null } }, 200, ctx.origin);
 }
 
-async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string, unknown>) {
+async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string, unknown>): Promise<Response> {
   if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/submit-edit', 40)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const clientRequestId = dataManagementClientRequestId(payload);
@@ -12925,11 +12861,15 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     }
     const workbookConfig = dataManagementLeaseWorkbookConfig(viewKey);
     if (workbookConfig && !DATA_MANAGEMENT_NORMALIZED_LEASE_VIEW_KEYS.has(viewKey)) {
-      const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope, workbookConfig);
+      const resolved = await dataManagementResolveWorkbookViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope(), workbookConfig);
       return callDataManagementSubmitEdit(ctx, resolved.source_payload);
     }
-    const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scopeResult.scope);
-    if ('error' in resolved) return resolved.error;
+    const resolved = await dataManagementResolveLeaseViewEdit(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
+    if ('error' in resolved) {
+      return resolved.error instanceof Response
+        ? resolved.error
+        : fail(500, 'Data Management edit submit failed', ctx.origin);
+    }
     return callDataManagementSubmitTableCell(ctx, { ...resolved.table_payload, client_request_id: clientRequestId || undefined });
   }
   if (isDataManagementTableCellPayload(payload)) return callDataManagementSubmitTableCell(ctx, payload);
@@ -13968,7 +13908,7 @@ async function callNewsRestore20260617(ctx: Context) {
     .order('published_at', { ascending: false, nullsFirst: false });
   if (afterResult.error) return fail(500, 'Failed to read restored logistics news items', ctx.origin, { error: afterResult.error.message });
 
-  const beforeKeys = new Set((beforeResult.data || []).map((item) => safeText((item as Record<string, unknown>).dedupe_key)).filter(Boolean));
+  const beforeKeys = new Set(((beforeResult.data || []) as Record<string, unknown>[]).map((item) => safeText(item.dedupe_key)).filter(Boolean));
   await audit(ctx.serviceClient, ctx.user.id, 'news/restore-20260617', 200, {
     run_key: runKey,
     news_run_id: runRow.news_run_id,
@@ -13985,12 +13925,12 @@ async function callNewsRestore20260617(ctx: Context) {
     after_count: afterResult.data?.length || 0,
     inserted_or_updated: itemRows.length,
     preserved_existing_keys: [...beforeKeys],
-    restored_items: (afterResult.data || []).map((item) => ({
-      dedupe_key: safeText((item as Record<string, unknown>).dedupe_key),
-      title: safeText((item as Record<string, unknown>).title),
-      publisher: safeText((item as Record<string, unknown>).publisher),
-      published_at: safeText((item as Record<string, unknown>).published_at),
-      canonical_url: safeText((item as Record<string, unknown>).canonical_url),
+    restored_items: ((afterResult.data || []) as Record<string, unknown>[]).map((item) => ({
+      dedupe_key: safeText(item.dedupe_key),
+      title: safeText(item.title),
+      publisher: safeText(item.publisher),
+      published_at: safeText(item.published_at),
+      canonical_url: safeText(item.canonical_url),
     })),
     note: '원본 10건 상세 artifact를 찾지 못해 2026-06-17 07:00 KST 직전 24시간 기준으로 재수집 기반 재구성했습니다.',
   } }, 200, ctx.origin);
@@ -16925,7 +16865,7 @@ function activeRowKey(prefix: string, index: number, raw: Record<string, unknown
 function normalizeBeneficiaryTrancheRows(value: unknown) {
   const rows = Array.isArray(value) ? value : [];
   return rows.map((rawRow, index) => {
-    const row = Array.isArray(rawRow)
+    const row: Record<string, unknown> = Array.isArray(rawRow)
       ? { tranche: rawRow[0], beneficiary_name: rawRow[1], committed_amount_krw: rawRow[2] }
       : rawRow && typeof rawRow === 'object'
         ? rawRow as Record<string, unknown>
@@ -16946,7 +16886,7 @@ function normalizeBeneficiaryTrancheRows(value: unknown) {
 function normalizeLoanTrancheRows(value: unknown) {
   const rows = Array.isArray(value) ? value : [];
   return rows.map((rawRow, index) => {
-    const row = Array.isArray(rawRow)
+    const row: Record<string, unknown> = Array.isArray(rawRow)
       ? {
         tranche: rawRow[0],
         lender_name: rawRow[1],
@@ -18353,7 +18293,7 @@ function rowStoredENoc(row: Record<string, unknown>) {
 }
 
 function weightedENoc(rows: Record<string, unknown>[]) {
-  const weighted = rows.reduce((acc, row) => {
+  const weighted = rows.reduce<{ weightedSum: number; areaSum: number; count: number }>((acc, row) => {
     const value = rowENoc(row);
     const area = rowAreaPy(row);
     if (!value || !area || value <= 0 || area <= 0) return acc;
@@ -18435,7 +18375,7 @@ function currentAiModelIdentityAnswer() {
     return `현재 챗봇 답변 생성은 Gemini 모델(${resolveFreeTierGoogleAiModel()})을 우선 사용하고 있습니다.`;
   }
   if (available === 'groq') {
-    return `현재 챗봇 답변 생성은 Groq 모델(${groqModel()})을 우선 사용하고 있습니다.`;
+    return `현재 챗봇 답변 생성은 Groq 모델(${resolveGroqModel()})을 우선 사용하고 있습니다.`;
   }
   return '현재 연결된 AI 모델 정보를 확인할 수 없습니다.';
 }
@@ -18692,7 +18632,7 @@ function rowsForAssets(rows: Record<string, unknown>[], assetRows: Record<string
   });
 }
 
-function enrichRowsWithAssetTenantNames(rows: Record<string, unknown>[], assetRows: Record<string, unknown>[], tenantRows: Record<string, unknown>[]) {
+function enrichRowsWithAssetTenantNames(rows: Record<string, unknown>[], assetRows: Record<string, unknown>[], tenantRows: Record<string, unknown>[]): Record<string, unknown>[] {
   const assetById = new Map(assetRows.flatMap((row) => {
     const assetName = rowAssetName(row);
     return [row.asset_id, row.assetId, row.asset_code, row.assetCode, row.asset_name, row.assetName]
@@ -18714,7 +18654,7 @@ function enrichRowsWithAssetTenantNames(rows: Record<string, unknown>[], assetRo
       ...row,
       asset_name: firstDefined(row.asset_name, row.assetName, assetById.get(assetKey)),
       tenant_master_name: firstDefined(row.tenant_master_name, row.tenantMasterName, row.company_name, row.companyName, tenantById.get(tenantKey)),
-    };
+    } as Record<string, unknown>;
   });
 }
 
@@ -19391,7 +19331,7 @@ function buildAiSupabaseFacts(question: string, context: Record<string, unknown>
   const targetAssetFactsForFocus = targetAssets.slice(0, 8).map((assetRow) => aiAssetFact(assetRow, rowsForAssets(leaseRowsAll, [assetRow])));
   const firstAssetFact = (targetAssetFactsForFocus[0] || {}) as Record<string, unknown>;
   const firstTenantAsset = ((tenantFacts || [])
-    .flatMap((tenant) => ((tenant.assets || []) as Record<string, unknown>[]).map((asset) => ({ tenant_name: tenant.tenant_name, ...asset })))
+    .flatMap((tenant) => ((tenant.assets || []) as Record<string, unknown>[]).map((asset) => ({ tenant_name: tenant.tenant_name, ...asset }) as Record<string, unknown>))
     .find((asset) => asset.asset_name)) as Record<string, unknown> | undefined;
   const tenantMonthlyShares = Array.isArray(firstAssetFact.tenant_monthly_cost_shares) ? firstAssetFact.tenant_monthly_cost_shares as Record<string, unknown>[] : [];
   const assetLargestAreaTenant = firstAssetFact.largest_area_tenant as Record<string, unknown> | undefined;
@@ -21152,7 +21092,7 @@ function buildAiContractScheduleToolFacts(question: string, context: Record<stri
       seen.add(key);
       return fact;
     })
-    .filter((row): row is Record<string, unknown> => Boolean(row));
+    .filter(Boolean) as Record<string, unknown>[];
   if (!contractFacts.length) return null;
   const asksStart = metric === 'contract_start' || /계약\s*시작|입주|start/iu.test(question);
   const asksEnd = metric === 'contract_end' || /만기|종료|expiry|end/iu.test(question);
@@ -21699,311 +21639,28 @@ async function buildMarketTransactionAreaRankAnswer(ctx: Context, question: stri
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) {
     return { denied: true, answer: '', evidence: [] as Record<string, unknown>[] };
   }
-  const sectorAnswer = await buildSectorMarketTransactionAreaRankAnswer(ctx, question);
-  if (sectorAnswer) return sectorAnswer;
-  const years = marketQuestionYears(question).map((year) => Number(year)).filter((year) => Number.isFinite(year));
-  const limit = marketRankLimit(question);
-  let query = ctx.serviceClient
-    .from('ll_market_facts')
-    .select('source_hash,fact_type,metric_name,metric_code,period,year,quarter,region,asset_name,building_name,address,buyer_name,seller_name,numeric_value,unit,amount_krw,area_py,area_sqm,fact_text,source_locator')
-    .eq('fact_type', 'transaction')
-    .not('area_py', 'is', null)
-    .order('area_py', { ascending: false })
-    .limit(years.length === 1 ? 1000 : Math.max(limit, 20));
-  const { data, error } = await query;
-  if (error) throw new Error(`market transaction rank read failed: ${error.message}`);
-  const sortedRows = ((data || []) as Record<string, unknown>[])
-    .filter((row) => numberValue(row.area_py) !== null)
-    .filter((row) => {
-      if (years.length !== 1) return true;
-      const year = String(years[0]);
-      return String(row.year || '') === year
-        || normalizeText(row.period).includes(year)
-        || normalizeText(row.fact_text).includes(year);
-    })
-    .sort((a, b) => Number(b.area_py || 0) - Number(a.area_py || 0));
-  const seenTransactionKeys = new Set<string>();
-  const rows: Record<string, unknown>[] = [];
-  for (const row of sortedRows) {
-    const key = [
-      normalizeText(firstDefined(row.asset_name, row.building_name)).replace(/\s+/gu, ''),
-      Math.round(numberValue(row.area_py) || 0),
-      Math.round(numberValue(row.amount_krw) || 0),
-    ].join('|');
-    if (seenTransactionKeys.has(key)) continue;
-    seenTransactionKeys.add(key);
-    rows.push(row);
-    if (rows.length >= limit) break;
-  }
-  if (!rows.length) return null;
-  const hashes = uniqueStrings(rows.map((row) => row.source_hash), 20).map(String);
-  const { data: docs } = hashes.length
-    ? await ctx.serviceClient
-      .from('ll_market_documents')
-      .select('source_hash,file_name,publisher,report_title,report_period,as_of_date,source_type,extraction_status')
-      .in('source_hash', hashes)
-    : { data: [] as Record<string, unknown>[] };
-  const documentByHash = new Map(((docs || []) as Record<string, unknown>[]).map((row) => [normalizeText(row.source_hash), row]));
-  const periodLabel = years.length === 1 ? `${years[0]}년` : '저장된 거래사례';
-  const lines = rows.map((row, index) => {
-    const name = normalizeText(firstDefined(row.asset_name, row.building_name)) || '이름 없음';
-    const areaPy = numberValue(row.area_py) || 0;
-    const amountKrw = numberValue(row.amount_krw);
-    const unitPrice = numberValue(row.numeric_value);
-    const buyer = normalizeText(row.buyer_name);
-    const seller = normalizeText(row.seller_name);
-    return [
-      `${index + 1}. ${name}: 연면적 ${formatKoreanPy(areaPy)}`,
-      amountKrw ? `거래가격 ${formatKoreanCompactWon(amountKrw)}` : '',
-      unitPrice ? `단가 ${Math.round(unitPrice).toLocaleString('ko-KR')}천원/평` : '',
-      buyer ? `매수자 ${buyer}` : '',
-      seller ? `매도자 ${seller}` : '',
-    ].filter(Boolean).join(', ');
-  });
-  const sourceLabels = uniqueStrings(rows.map((row) => {
-    const evidence = publicMarketEvidence(row, documentByHash);
-    return [evidence.publisher, evidence.title, evidence.period, evidence.locator].map(normalizeText).filter(Boolean).join(' / ');
-  }), 3);
-  const answer = [
-    `${periodLabel} 거래사례 중 연면적 기준 상위 ${rows.length}건은 아래와 같습니다.`,
-    ...lines,
-    sourceLabels.length ? `근거: ${sourceLabels.join('; ')}` : '',
-  ].filter(Boolean).join('\n');
-  return {
-    denied: false,
-    answer,
-    evidence: rows.map((row) => publicMarketEvidence(row, documentByHash)),
-  };
+  return buildSectorMarketTransactionAreaRankAnswer(ctx, question);
 }
 
 async function buildMarketAverageTransactionUnitPriceAnswer(ctx: Context, question: string) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) {
     return { denied: true, answer: '', evidence: [] as Record<string, unknown>[] };
   }
-  const asksAverageUnitPrice = /(평균|average)/iu.test(question)
-    && /(평당가|단가|평당\s*가격|unit\s*price)/iu.test(question)
-    && /(거래|거래사례|시장자료|매매|transaction)/iu.test(question);
-  if (!asksAverageUnitPrice) return null;
-
-  const sectorAnswer = await buildSectorMarketAverageTransactionUnitPriceAnswer(ctx, question);
-  if (sectorAnswer) return sectorAnswer;
-
-  const years = marketQuestionYears(question).map((year) => Number(year)).filter((year) => Number.isFinite(year));
-  const { data, error } = await ctx.serviceClient
-    .from('ll_market_facts')
-    .select('source_hash,fact_type,metric_name,metric_code,period,year,quarter,region,asset_name,building_name,address,buyer_name,seller_name,numeric_value,unit,amount_krw,area_py,area_sqm,fact_text,source_locator')
-    .eq('fact_type', 'transaction')
-    .limit(1800);
-  if (error) throw new Error(`market transaction average unit price read failed: ${error.message}`);
-
-  const seenTransactionKeys = new Set<string>();
-  const rows: Record<string, unknown>[] = [];
-  for (const row of ((data || []) as Record<string, unknown>[])) {
-    const unitPrice = numberValue(row.numeric_value);
-    if (!unitPrice || unitPrice <= 0) continue;
-    if (years.length === 1) {
-      const year = String(years[0]);
-      if (String(row.year || '') !== year
-        && !normalizeText(row.period).includes(year)
-        && !normalizeText(row.fact_text).includes(year)) continue;
-    }
-    const key = [
-      normalizeText(firstDefined(row.asset_name, row.building_name)).replace(/\s+/gu, ''),
-      normalizeText(row.period),
-      Math.round(numberValue(row.area_py) || 0),
-      Math.round(numberValue(row.amount_krw) || 0),
-      Math.round(unitPrice),
-    ].join('|');
-    if (seenTransactionKeys.has(key)) continue;
-    seenTransactionKeys.add(key);
-    rows.push(row);
-  }
-  if (!rows.length) return null;
-
-  const simpleAverage = rows.reduce((sum, row) => sum + (numberValue(row.numeric_value) || 0), 0) / rows.length;
-  const weightedRows = rows.filter((row) => (numberValue(row.area_py) || 0) > 0 && (numberValue(row.amount_krw) || 0) > 0);
-  const totalAreaPy = weightedRows.reduce((sum, row) => sum + (numberValue(row.area_py) || 0), 0);
-  const totalAmountKrw = weightedRows.reduce((sum, row) => sum + (numberValue(row.amount_krw) || 0), 0);
-  const weightedAverage = totalAreaPy > 0 ? totalAmountKrw / totalAreaPy / 1000 : null;
-  const sampleRows = [...rows]
-    .sort((a, b) => (numberValue(b.numeric_value) || 0) - (numberValue(a.numeric_value) || 0))
-    .slice(0, 5);
-  const hashes = uniqueStrings(sampleRows.map((row) => row.source_hash), 20).map(String);
-  const { data: docs } = hashes.length
-    ? await ctx.serviceClient
-      .from('ll_market_documents')
-      .select('source_hash,file_name,publisher,report_title,report_period,as_of_date,source_type,extraction_status')
-      .in('source_hash', hashes)
-    : { data: [] as Record<string, unknown>[] };
-  const documentByHash = new Map(((docs || []) as Record<string, unknown>[]).map((row) => [normalizeText(row.source_hash), row]));
-  const periodLabel = years.length === 1 ? `${years[0]}년 거래사례` : '저장된 거래사례 전체';
-  const sourceLabels = uniqueStrings(sampleRows.map((row) => {
-    const evidence = publicMarketEvidence(row, documentByHash);
-    return [evidence.publisher, evidence.title, evidence.period, evidence.locator].map(normalizeText).filter(Boolean).join(' / ');
-  }), 3);
-  const highExamples = sampleRows.slice(0, 3).map((row) => {
-    const name = normalizeText(firstDefined(row.asset_name, row.building_name)) || '이름 없음';
-    const unitPrice = numberValue(row.numeric_value) || 0;
-    const period = normalizeText(row.period);
-    return `${name}${period ? ` (${period})` : ''} ${Math.round(unitPrice).toLocaleString('ko-KR')}천원/평`;
-  });
-  const answer = [
-    `${periodLabel} 기준 평균 거래 평당가는 거래별 단가 단순평균으로 약 ${Math.round(simpleAverage).toLocaleString('ko-KR')}천원/평입니다.`,
-    weightedAverage ? `참고로 거래금액과 연면적을 합산해 계산한 면적가중 평균 평당가는 약 ${Math.round(weightedAverage).toLocaleString('ko-KR')}천원/평입니다.` : '',
-    `계산에 사용한 거래사례 수는 ${rows.length.toLocaleString('ko-KR')}건입니다.`,
-    highExamples.length ? `상위 단가 예시는 ${highExamples.join(', ')}입니다.` : '',
-    sourceLabels.length ? `근거: ${sourceLabels.join('; ')}` : '',
-  ].filter(Boolean).join('\n');
-  return {
-    denied: false,
-    answer,
-    evidence: sampleRows.map((row) => publicMarketEvidence(row, documentByHash)),
-  };
+  return buildSectorMarketAverageTransactionUnitPriceAnswer(ctx, question);
 }
 
 async function buildMarketTransactionLookupAnswer(ctx: Context, question: string) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) {
     return { denied: true, answer: '', evidence: [] as Record<string, unknown>[] };
   }
-  if (!/(거래|거래사례|매매|매수|매도|거래가격|평당가)/iu.test(question)) return null;
-  const sectorAnswer = await buildSectorMarketTransactionLookupAnswer(ctx, question);
-  if (sectorAnswer) return sectorAnswer;
-  const questionKey = normalizeText(question).replace(/\s+/gu, '').toLowerCase();
-  if (/아레나스/iu.test(question) && !/아레나스/iu.test(question.replace(/양지/giu, ''))) return null;
-  const { data, error } = await ctx.serviceClient
-    .from('ll_market_facts')
-    .select('source_hash,fact_type,metric_name,metric_code,period,year,quarter,region,asset_name,building_name,address,buyer_name,seller_name,numeric_value,unit,amount_krw,area_py,area_sqm,fact_text,source_locator')
-    .eq('fact_type', 'transaction')
-    .limit(1000);
-  if (error) throw new Error(`market transaction lookup read failed: ${error.message}`);
-  const candidates = ((data || []) as Record<string, unknown>[])
-    .map((row) => {
-      const name = normalizeText(firstDefined(row.asset_name, row.building_name));
-      const key = name.replace(/\s+/gu, '').toLowerCase();
-      const compactQuestion = questionKey
-        .replace(/물류센터/gu, '')
-        .replace(/냉동창고/gu, '')
-        .replace(/센터/gu, '');
-      const compactName = key
-        .replace(/물류센터/gu, '')
-        .replace(/냉동창고/gu, '')
-        .replace(/센터/gu, '');
-      let score = 0;
-      if (key && questionKey.includes(key)) score += 100 + key.length;
-      if (compactName && compactQuestion.includes(compactName)) score += 80 + compactName.length;
-      if (name && normalizeText(row.fact_text).replace(/\s+/gu, '').toLowerCase().includes(key) && questionKey.includes(key.slice(0, Math.min(6, key.length)))) score += 30;
-      return { row, name, score };
-    })
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || Number(b.row.year || 0) - Number(a.row.year || 0));
-  if (!candidates.length) return null;
-  const seen = new Set<string>();
-  const rows: Record<string, unknown>[] = [];
-  for (const item of candidates) {
-    const row = item.row;
-    const key = [
-      normalizeText(firstDefined(row.asset_name, row.building_name)).replace(/\s+/gu, ''),
-      Math.round(numberValue(row.area_py) || 0),
-      Math.round(numberValue(row.amount_krw) || 0),
-    ].join('|');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rows.push(row);
-    if (rows.length >= 3) break;
-  }
-  if (!rows.length) return null;
-  const hashes = uniqueStrings(rows.map((row) => row.source_hash), 20).map(String);
-  const { data: docs } = hashes.length
-    ? await ctx.serviceClient
-      .from('ll_market_documents')
-      .select('source_hash,file_name,publisher,report_title,report_period,as_of_date,source_type,extraction_status')
-      .in('source_hash', hashes)
-    : { data: [] as Record<string, unknown>[] };
-  const documentByHash = new Map(((docs || []) as Record<string, unknown>[]).map((row) => [normalizeText(row.source_hash), row]));
-  const lines = rows.map((row, index) => {
-    const name = normalizeText(firstDefined(row.asset_name, row.building_name)) || '이름 없음';
-    const period = normalizeText(row.period);
-    const region = normalizeText(row.region);
-    const areaPy = numberValue(row.area_py);
-    const amountKrw = numberValue(row.amount_krw);
-    const unitPrice = numberValue(row.numeric_value);
-    const buyer = normalizeText(row.buyer_name);
-    const seller = normalizeText(row.seller_name);
-    return [
-      `${index + 1}. ${name}`,
-      period ? `기간 ${period}` : '',
-      region ? `권역 ${region}` : '',
-      areaPy ? `연면적 ${formatKoreanPy(areaPy)}` : '',
-      amountKrw ? `거래가격 ${formatKoreanCompactWon(amountKrw)}` : '',
-      unitPrice ? `단가 ${Math.round(unitPrice).toLocaleString('ko-KR')}천원/평` : '',
-      buyer ? `매수자 ${buyer}` : '',
-      seller ? `매도자 ${seller}` : '',
-    ].filter(Boolean).join(', ');
-  });
-  const sourceLabels = uniqueStrings(rows.map((row) => {
-    const evidence = publicMarketEvidence(row, documentByHash);
-    return [evidence.publisher, evidence.title, evidence.period, evidence.locator].map(normalizeText).filter(Boolean).join(' / ');
-  }), 3);
-  const answer = [
-    `시장자료에서 질문하신 거래사례는 아래처럼 확인됩니다.`,
-    ...lines,
-    sourceLabels.length ? `근거: ${sourceLabels.join('; ')}` : '',
-  ].filter(Boolean).join('\n');
-  return {
-    denied: false,
-    answer,
-    evidence: rows.map((row) => publicMarketEvidence(row, documentByHash)),
-  };
+  return buildSectorMarketTransactionLookupAnswer(ctx, question);
 }
 
 async function buildMarketSourcePolicyAnswer(ctx: Context, question: string) {
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) {
     return { denied: true, answer: '', evidence: [] as Record<string, unknown>[] };
   }
-  const text = normalizeText(question);
-  const asksLatest = /(최신|최근|기준일|기준시점|저장된\s*시장자료\s*중\s*최신)/iu.test(text);
-  const asksPolicy = /(기준시점.*다르|자료마다.*다르|근거가\s*없는\s*숫자|없는\s*숫자|숫자.*근거|출처.*사용|Excel DB.*PDF|PDF.*Excel)/iu.test(text);
-  if (!asksLatest && !asksPolicy) return null;
-  const sectorAnswer = await buildSectorMarketSourcePolicyAnswer(ctx, question);
-  if (sectorAnswer) return sectorAnswer;
-  const { data, error } = await ctx.serviceClient
-    .from('ll_market_documents')
-    .select('file_name,publisher,report_title,report_period,as_of_date,source_type,extraction_status,source_preservation_status')
-    .order('as_of_date', { ascending: false, nullsFirst: false })
-    .limit(12);
-  if (error) throw new Error(`market source policy read failed: ${error.message}`);
-  const docs = ((data || []) as Record<string, unknown>[])
-    .filter((row) => normalizeText(row.file_name) || normalizeText(row.report_title));
-  const latest = docs[0] || {};
-  const latestLabel = [
-    normalizeText(firstDefined(latest.publisher, 'IGIS 내부 시장 DB')),
-    normalizeText(firstDefined(latest.report_title, latest.file_name)),
-    normalizeText(latest.report_period),
-    normalizeText(latest.as_of_date),
-  ].filter(Boolean).join(' / ');
-  const evidence = docs.slice(0, 5).map((row) => stripUndefined({
-    kind: 'market_source',
-    publisher: normalizeText(row.publisher),
-    title: normalizeText(firstDefined(row.report_title, row.file_name)),
-    period: normalizeText(row.report_period),
-    as_of_date: normalizeText(row.as_of_date),
-    locator: normalizeText(row.source_type),
-    label: '시장자료 원천',
-    snippet: [row.publisher, firstDefined(row.report_title, row.file_name), row.report_period, row.as_of_date].map(normalizeText).filter(Boolean).join(' / '),
-    status: normalizeText(row.extraction_status),
-  })) as Record<string, unknown>[];
-  let answer = '';
-  if (asksLatest && !asksPolicy) {
-    answer = `저장된 시장자료 중 기준일 기준으로 가장 최근 자료는 ${latestLabel || '확인 가능한 원천 없음'}입니다. 답변할 때는 이 기준일을 최신 실시간 시장값으로 단정하지 않고, 저장된 리포트 또는 Excel DB의 기준시점으로 표시해야 합니다.`;
-  } else {
-    answer = [
-      `자료마다 기준시점이 다르면 최신성은 기준일이 가장 최근인 자료를 우선 확인하되, 숫자는 같은 원천 안에서 비교해야 합니다.`,
-      `거래가격, 연면적, 공급예정처럼 표로 검증되는 숫자는 Excel DB를 우선하고, 시장 전망이나 리스크 해석은 PDF 리포트 문장을 근거로 씁니다.`,
-      `근거가 없는 숫자는 만들어서 답하지 않고, 저장된 자료에서 확인되지 않는다고 말해야 합니다.`,
-      latestLabel ? `현재 확인되는 최신 기준 자료: ${latestLabel}` : '',
-    ].filter(Boolean).join(' ');
-  }
-  return { denied: false, answer, evidence };
+  return buildSectorMarketSourcePolicyAnswer(ctx, question);
 }
 
 function marketFreshnessNote(question: string, evidence: Record<string, unknown>[]) {
@@ -22022,7 +21679,14 @@ function marketFreshnessNote(question: string, evidence: Record<string, unknown>
   return latest ? `저장된 시장자료에서 우선 확인된 기준 자료는 ${latest}입니다.` : '';
 }
 
-function marketFactsForAi(question: string, searchResult: { facts: Record<string, unknown>[]; chunks: Record<string, unknown>[]; evidence: Record<string, unknown>[] }) {
+function marketFactsForAi(question: string, searchResult: {
+  facts: Record<string, unknown>[];
+  chunks: Record<string, unknown>[];
+  evidence: Record<string, unknown>[];
+  retrieval_ok: boolean;
+  retrieval_status: string;
+  source_status: Record<string, string>;
+}) {
   const factRows = searchResult.facts.slice(0, 8).map((row) => stripUndefined({
     type: normalizeText(row.fact_type),
     label: normalizeText(firstDefined(row.metric_name, row.asset_name, row.building_name, row.region, row.fact_type)),
@@ -22054,7 +21718,10 @@ function marketFactsForAi(question: string, searchResult: { facts: Record<string
   ];
   const requiredMarketFacts = freshnessNote ? [{ label: '자료 기준 확인', value: freshnessNote }] : [];
   return stripUndefined({
-    basis: 'authorized_market_research_materials',
+    basis: searchResult.retrieval_ok ? 'authorized_market_research_materials' : 'market_research_materials_unavailable',
+    retrieval_ok: searchResult.retrieval_ok,
+    retrieval_status: searchResult.retrieval_status,
+    source_status: searchResult.source_status,
     answer_focus: {
       scope: 'market_research',
       market_research_summary: {
@@ -22074,26 +21741,6 @@ function marketFactsForAi(question: string, searchResult: { facts: Record<string
   }) as Record<string, unknown>;
 }
 
-function marketPublisherFilterTerms(publisherKeys: string[]) {
-  const aliases: Record<string, string[]> = {
-    cushman: ['cushman', '쿠시먼', '쿠시먼앤웨이크필드'],
-    savills: ['savills', '세빌스'],
-    rsquare: ['rsquare', 'r square', '알스퀘어'],
-    genstar: ['genstar', '젠스타', '젠스타메이트'],
-  };
-  const readableAliases: Record<string, string[]> = {
-    cushman: ['쿠시먼', '쿠시먼앤드웨이크필드', 'cushman'],
-    savills: ['세빌스', 'savills'],
-    rsquare: ['알스퀘어', 'rsquare', 'r square'],
-    genstar: ['젠스타', '젠스타메이트', 'genstar'],
-  };
-  return uniqueStrings(publisherKeys.flatMap((key) => [
-    ...(aliases[key] || []),
-    ...(readableAliases[key] || []),
-    key,
-  ]).map((item) => item.toLowerCase()), 32);
-}
-
 function dedupeMarketRows(rows: Record<string, unknown>[], limit: number) {
   const seen = new Set<string>();
   const output: Record<string, unknown>[] = [];
@@ -22110,87 +21757,6 @@ function dedupeMarketRows(rows: Record<string, unknown>[], limit: number) {
     output.push(row);
   });
   return output.slice(0, limit);
-}
-
-async function rerankMarketRowsWithGemini(question: string, rows: Record<string, unknown>[], limit: number) {
-  const apiKey = googleAiApiKey();
-  if (!apiKey || rows.length <= limit) return { rows: rows.slice(0, limit), status: apiKey ? 'not_needed' : 'missing_google_key' };
-  const candidates = rows.slice(0, 36).map((row, index) => {
-    const evidence = publicMarketEvidence(row, new Map());
-    return [
-      `[${index}]`,
-      `출처: ${normalizeText(evidence.publisher)} / ${normalizeText(evidence.title)} / ${normalizeText(evidence.period)} / ${normalizeText(evidence.locator)}`,
-      `내용: ${normalizeText(firstDefined(evidence.snippet, row.fact_text, row.content)).slice(0, 380)}`,
-    ].join(' ');
-  }).join('\n');
-  const prompt = [
-    'You are reranking Korean logistics market research evidence for a RAG search step.',
-    'Return only compact JSON. Do not answer the user.',
-    'Pick candidate indices that directly help answer the question. Prefer exact publisher, period, region, metric, transaction, supply, rent, vacancy, cap rate, and source-date matches.',
-    'If the question asks for unavailable freshness, keep candidates that explain the latest available stored sources.',
-    'JSON schema: {"indices":[0,3,5],"reason":"short"}',
-    `Question: ${question}`,
-    `Candidates:\n${candidates}`,
-  ].join('\n\n');
-  try {
-    const { response, body } = await generateGeminiContent('gemini-2.0-flash', apiKey, prompt, 180, 12_000);
-    if (!response.ok) return { rows: rows.slice(0, limit), status: `rerank_http_${response.status}` };
-    const parsed = parseAiToolPlannerJson(extractGoogleAiText(body as Record<string, unknown>));
-    const indices = Array.isArray(parsed?.indices)
-      ? parsed.indices.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item >= 0 && item < rows.length)
-      : [];
-    const selected = indices.map((index) => rows[index]).filter(Boolean);
-    rows.forEach((row) => {
-      if (selected.length >= limit) return;
-      if (!selected.includes(row)) selected.push(row);
-    });
-    return { rows: selected.slice(0, limit), status: indices.length ? 'gemini_rerank_ready' : 'gemini_rerank_empty' };
-  } catch (error) {
-    return { rows: rows.slice(0, limit), status: `rerank_error:${safeProviderError(error).slice(0, 120)}` };
-  }
-}
-
-async function searchMarketMaterialsSemantic(ctx: Context, question: string, limit: number, publisherKeys: string[], years: string[]) {
-  const embeddingResult = await generateMarketQueryEmbedding(question);
-  if (!embeddingResult.embedding) {
-    return {
-      ok: false,
-      status: embeddingResult.status,
-      facts: [] as Record<string, unknown>[],
-      chunks: [] as Record<string, unknown>[],
-      evidence: [] as Record<string, unknown>[],
-    };
-  }
-  const filterPublishers = marketPublisherFilterTerms(publisherKeys);
-  const filterYears = years.map((year) => Number(year)).filter((year) => Number.isFinite(year));
-  const rpcPayload = {
-    query_embedding: embeddingResult.embedding,
-    match_count: Math.max(limit * 3, 18),
-    match_threshold: MARKET_SEMANTIC_MATCH_THRESHOLD,
-    filter_publishers: filterPublishers.length ? filterPublishers : null,
-    filter_years: filterYears.length ? filterYears : null,
-  };
-  const [factResult, chunkResult] = await Promise.all([
-    ctx.serviceClient.rpc('match_ll_market_facts', rpcPayload),
-    ctx.serviceClient.rpc('match_ll_market_chunks', rpcPayload),
-  ]);
-  if (factResult.error || chunkResult.error) {
-    return {
-      ok: false,
-      status: `semantic_rpc_error:${factResult.error?.message || chunkResult.error?.message || 'unknown'}`.slice(0, 180),
-      facts: [] as Record<string, unknown>[],
-      chunks: [] as Record<string, unknown>[],
-      evidence: [] as Record<string, unknown>[],
-    };
-  }
-  const facts = ((factResult.data || []) as Record<string, unknown>[])
-    .map((row) => ({ ...row, score: (numberValue(row.similarity) || 0) * 100 + marketRowRelevanceBoost(question, publicMarketEvidence(row, new Map()), row) }));
-  const chunks = ((chunkResult.data || []) as Record<string, unknown>[])
-    .map((row) => ({ ...row, score: (numberValue(row.similarity) || 0) * 100 + marketRowRelevanceBoost(question, publicMarketEvidence(row, new Map()), row) }));
-  const ranked = dedupeMarketRows([...facts, ...chunks].sort((a, b) => Number(b.score || 0) - Number(a.score || 0)), Math.max(limit, 12));
-  const evidence = balanceMarketPublisherEvidence(ranked, publisherKeys, limit)
-    .map((row) => publicMarketEvidence(row, new Map()));
-  return { ok: true, status: 'semantic_ready', facts, chunks, evidence };
 }
 
 function sectorMarketSearchFact(row: Record<string, unknown>, kind: string) {
@@ -22252,7 +21818,7 @@ async function searchSectorMarketMaterialsLexical(ctx: Context, question: string
     ...((transactionResult.data || []) as Record<string, unknown>[]).map((row) => sectorMarketSearchFact(row, 'transaction')),
     ...((capRateResult.data || []) as Record<string, unknown>[]).map((row) => sectorMarketSearchFact(row, 'cap_rate')),
   ];
-  const scored = candidates
+  const scored: Record<string, unknown>[] = candidates
     .map((row) => {
       const evidence = publicSectorMarketEvidence(row, normalizeText(row.fact_type) || 'sector_market');
       const score = marketTextScore(`${Object.values(row).join(' ')} ${Object.values(evidence).join(' ')}`, terms)
@@ -22261,14 +21827,16 @@ async function searchSectorMarketMaterialsLexical(ctx: Context, question: string
     })
     .filter((row) => Number(row.score || 0) > 0)
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
-  const selected = scored.length ? scored.slice(0, Math.max(limit, 12)) : candidates.slice(0, Math.max(limit, 12));
+  const selected = scored.slice(0, Math.max(limit, 12));
+  const evidence = selected.slice(0, limit)
+    .map((row) => publicSectorMarketEvidence(row, normalizeText(row.fact_type) || 'sector_market'));
   return {
     allowed: true,
     facts: selected,
     chunks: [] as Record<string, unknown>[],
-    evidence: selected.slice(0, limit).map((row) => publicSectorMarketEvidence(row, normalizeText(row.fact_type) || 'sector_market')),
+    evidence,
     terms,
-    status: 'sector_market_ready',
+    status: evidence.length ? 'sector_market_ready' : 'sector_market_empty',
   };
 }
 
@@ -22276,44 +21844,11 @@ async function searchMarketMaterialsLexical(ctx: Context, question: string, limi
   if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) {
     return { allowed: false, facts: [] as Record<string, unknown>[], chunks: [] as Record<string, unknown>[], evidence: [] as Record<string, unknown>[], terms, status: 'permission_denied' };
   }
-  const documentColumns = 'source_hash,file_name,publisher,report_title,report_period,as_of_date,source_type,extraction_status';
-  const chunkColumns = 'source_hash,chunk_type,source_locator,page_number,sheet_name,row_start,row_end,content,extraction_status,ocr_quality_score';
-  const factColumns = [
-    'source_hash',
-    'fact_type',
-    'metric_name',
-    'metric_code',
-    'period',
-    'year',
-    'quarter',
-    'region',
-    'submarket',
-    'asset_name',
-    'building_name',
-    'address',
-    'buyer_name',
-    'seller_name',
-    'numeric_value',
-    'numeric_value2',
-    'unit',
-    'amount_krw',
-    'area_py',
-    'fact_text',
-    'source_locator',
-  ].join(',');
-  const [docsResult, chunksResult, factsResult] = await Promise.all([
-    ctx.serviceClient.from('ll_market_documents').select(documentColumns).limit(300),
-    ctx.serviceClient.from('ll_market_chunks').select(chunkColumns).limit(900),
-    ctx.serviceClient.from('ll_market_facts').select(factColumns).limit(1800),
-  ]);
-  if (docsResult.error) throw new Error(`market documents read failed: ${docsResult.error.message}`);
-  if (chunksResult.error) throw new Error(`market chunks read failed: ${chunksResult.error.message}`);
-  if (factsResult.error) throw new Error(`market facts read failed: ${factsResult.error.message}`);
-  const documents = (docsResult.data || []) as Record<string, unknown>[];
-  const documentByHash = new Map(documents.map((row) => [normalizeText(row.source_hash), row]));
-  const facts = ((factsResult.data || []) as Record<string, unknown>[])
+  const storageRows = await loadMarketStorageSearchRows(ctx);
+  const storageDocumentByHash = new Map(storageRows.documents.map((row) => [row.source_hash, row as unknown as Record<string, unknown>]));
+  const storageFacts = storageRows.facts
     .map((row) => {
-      const publicRow = publicMarketEvidence(row, documentByHash);
+      const publicRow = publicMarketEvidence(row, storageDocumentByHash);
       const score = marketTextScore(`${marketFactText(row)} ${Object.values(publicRow).join(' ')}`, terms)
         + marketRowRelevanceBoost(question, publicRow, row);
       return { ...row, ...publicRow, score };
@@ -22321,9 +21856,9 @@ async function searchMarketMaterialsLexical(ctx: Context, question: string, limi
     .filter((row) => row.score > 0)
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     .slice(0, Math.max(limit, 12));
-  const chunks = ((chunksResult.data || []) as Record<string, unknown>[])
+  const storageChunks = storageRows.chunks
     .map((row) => {
-      const publicRow = publicMarketEvidence(row, documentByHash);
+      const publicRow = publicMarketEvidence(row, storageDocumentByHash);
       const score = marketTextScore(`${row.content || ''} ${Object.values(publicRow).join(' ')}`, terms)
         + marketRowRelevanceBoost(question, publicRow, row);
       return { ...row, ...publicRow, score };
@@ -22331,78 +21866,72 @@ async function searchMarketMaterialsLexical(ctx: Context, question: string, limi
     .filter((row) => row.score > 0)
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
     .slice(0, Math.max(limit, 12));
-  const rankedEvidenceRows = [...facts, ...chunks]
-    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
-    .filter((row) => Number(row.score || 0) > 0);
-  const evidence = balanceMarketPublisherEvidence(rankedEvidenceRows, publisherKeys, limit)
-    .map((row) => publicMarketEvidence(row, documentByHash));
-  return { allowed: true, facts, chunks, evidence, terms, status: 'lexical_ready' };
+  const storageRankedEvidenceRows = [...storageFacts, ...storageChunks]
+    .sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+  const storageEvidence = balanceMarketPublisherEvidence(storageRankedEvidenceRows, publisherKeys, limit)
+    .map((row) => publicMarketEvidence(row, storageDocumentByHash));
+  return {
+    allowed: true,
+    facts: storageFacts,
+    chunks: storageChunks,
+    evidence: storageEvidence,
+    terms,
+    status: storageEvidence.length ? 'storage_lexical_ready' : 'storage_lexical_empty',
+  };
 }
 
 async function searchMarketMaterials(ctx: Context, question: string, limit = 8) {
-  if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) {
-    return { allowed: false, facts: [] as Record<string, unknown>[], chunks: [] as Record<string, unknown>[], evidence: [] as Record<string, unknown>[], terms: [] as string[], retrieval_status: 'permission_denied' };
-  }
-  const terms = expandedMarketSearchTerms(question);
-  const publisherKeys = marketQuestionPublishers(question);
-  const years = marketQuestionYears(question);
   const emptyRows = {
     facts: [] as Record<string, unknown>[],
     chunks: [] as Record<string, unknown>[],
     evidence: [] as Record<string, unknown>[],
   };
-  try {
-    const sector = await searchSectorMarketMaterialsLexical(ctx, question, Math.max(limit, 10), terms);
-    if (sector.evidence.length) {
-      return {
-        allowed: true,
-        facts: sector.facts,
-        chunks: sector.chunks,
-        evidence: sector.evidence,
-        terms,
-        retrieval_status: sector.status,
-      };
-    }
-  } catch (error) {
-    console.warn('sector market search failed, trying legacy market search:', safeProviderError(error).slice(0, 180));
-  }
-  let lexical: Awaited<ReturnType<typeof searchMarketMaterialsLexical>> = { allowed: true, ...emptyRows, terms, status: 'legacy_lexical_skipped' };
-  try {
-    lexical = await searchMarketMaterialsLexical(ctx, question, Math.max(limit, 10), terms, publisherKeys);
-  } catch (error) {
-    lexical = { allowed: true, ...emptyRows, terms, status: `legacy_lexical_unavailable:${safeProviderError(error).slice(0, 140)}` };
-  }
-  let semantic: Awaited<ReturnType<typeof searchMarketMaterialsSemantic>> = { ok: false, status: 'legacy_semantic_skipped', ...emptyRows };
-  try {
-    semantic = await searchMarketMaterialsSemantic(ctx, question, Math.max(limit, 10), publisherKeys, years);
-  } catch (error) {
-    semantic = { ok: false, status: `legacy_semantic_unavailable:${safeProviderError(error).slice(0, 140)}`, ...emptyRows };
-  }
-  if (semantic.ok && semantic.evidence.length) {
-    const facts = dedupeMarketRows([...semantic.facts, ...lexical.facts], Math.max(limit, 12));
-    const chunks = dedupeMarketRows([...semantic.chunks, ...lexical.chunks], Math.max(limit, 12));
-    const evidence = dedupeMarketRows([...semantic.evidence, ...lexical.evidence], limit);
+  if (!hasUserFeaturePermission(ctx.permission, 'market_research') && !canManageFeatureAccess(ctx)) {
     return {
-      allowed: true,
-      facts,
-      chunks,
-      evidence,
-      terms,
-      retrieval_status: 'semantic_hybrid_ready',
+      allowed: false,
+      retrieval_ok: false,
+      ...emptyRows,
+      terms: [] as string[],
+      retrieval_status: 'permission_denied',
+      source_status: { sector: 'permission_denied', storage: 'permission_denied' },
     };
   }
-  const fallbackRows = dedupeMarketRows([...lexical.facts, ...lexical.chunks], Math.max(limit * 3, 18));
-  const reranked = await rerankMarketRowsWithGemini(question, fallbackRows, limit);
-  const rerankedEvidence = reranked.rows.map((row) => publicMarketEvidence(row, new Map()));
+  const terms = expandedMarketSearchTerms(question);
+  const publisherKeys = marketQuestionPublishers(question);
+  const [sectorResult, storageResult] = await Promise.allSettled([
+    searchSectorMarketMaterialsLexical(ctx, question, Math.max(limit, 10), terms),
+    searchMarketMaterialsLexical(ctx, question, Math.max(limit, 10), terms, publisherKeys),
+  ]);
+  if (sectorResult.status === 'rejected') {
+    console.warn('sector market lexical search failed:', safeProviderError(sectorResult.reason).slice(0, 180));
+  }
+  if (storageResult.status === 'rejected') {
+    console.warn('market storage lexical search failed:', safeProviderError(storageResult.reason).slice(0, 180));
+  }
+  const sector = sectorResult.status === 'fulfilled'
+    ? sectorResult.value
+    : { allowed: true, ...emptyRows, terms, status: 'sector_market_failed' };
+  const storage = storageResult.status === 'fulfilled'
+    ? storageResult.value
+    : { allowed: true, ...emptyRows, terms, status: 'storage_lexical_failed' };
+  const facts = dedupeMarketRows([...sector.facts, ...storage.facts], Math.max(limit, 12));
+  const chunks = dedupeMarketRows([...sector.chunks, ...storage.chunks], Math.max(limit, 12));
+  const evidence = dedupeMarketRows([...sector.evidence, ...storage.evidence], limit);
+  const sourceStatus = { sector: sector.status, storage: storage.status };
+  const hasFailure = Object.values(sourceStatus).some((status) => status.endsWith('_failed'));
+  const retrievalOk = evidence.length > 0;
+  const retrievalStatus = retrievalOk
+    ? hasFailure ? 'sector_storage_lexical_partial' : 'sector_storage_lexical_ready'
+    : hasFailure ? 'sector_storage_lexical_failed' : 'sector_storage_lexical_empty';
   return {
     allowed: true,
-    facts: lexical.facts,
-    chunks: lexical.chunks,
-    evidence: rerankedEvidence.length ? rerankedEvidence : lexical.evidence,
+    retrieval_ok: retrievalOk,
+    facts,
+    chunks,
+    evidence,
     terms,
-    retrieval_status: semantic.status
-      ? `lexical_fallback:${semantic.status}:${reranked.status}`
-      : `lexical_fallback:${reranked.status}`,
+    retrieval_status: retrievalStatus,
+    source_status: sourceStatus,
   };
 }
 
@@ -22421,12 +21950,16 @@ async function buildMarketToolFacts(ctx: Context, question: string, plan: Record
       },
       evidence: [] as Record<string, unknown>[],
       denied: true,
+      retrievalOk: false,
+      retrievalStatus: 'permission_denied',
     };
   }
   return {
     facts: marketFactsForAi(question, searchResult),
     evidence: searchResult.evidence,
     denied: false,
+    retrievalOk: searchResult.retrieval_ok,
+    retrievalStatus: searchResult.retrieval_status,
   };
 }
 
@@ -23313,10 +22846,6 @@ function googleAiGenerateContentUrl(model: string) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 }
 
-function googleAiEmbedContentUrl(model: string) {
-  return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:embedContent`;
-}
-
 function googleAiBatchEmbedContentUrl(model: string) {
   return `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:batchEmbedContents`;
 }
@@ -23333,35 +22862,6 @@ function marketEmbeddingInput(text: string, task: 'query' | 'document', title = 
     return `${prefix} ${normalized}`;
   }
   return normalized;
-}
-
-async function generateMarketQueryEmbedding(question: string) {
-  const apiKey = googleAiApiKey();
-  if (!apiKey) return { embedding: null as number[] | null, status: 'missing_google_key' };
-  const model = marketEmbeddingModel();
-  try {
-    const { response, body } = await fetchJsonWithTimeout(googleAiEmbedContentUrl(model), {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
-      body: JSON.stringify(stripUndefined({
-        model: `models/${model}`,
-        content: { parts: [{ text: marketEmbeddingInput(question, 'query') }] },
-        taskType: model === 'gemini-embedding-2' ? undefined : 'QUESTION_ANSWERING',
-        outputDimensionality: MARKET_EMBEDDING_DIM,
-      })),
-    }, 12_000, 1);
-    if (!response.ok) return { embedding: null as number[] | null, status: `embedding_http_${response.status}` };
-    const values = normalizeMarketEmbedding(
-      ((body.embedding as Record<string, unknown> | undefined)?.values)
-      || (((body.embeddings as unknown[] | undefined) || [])[0] as Record<string, unknown> | undefined)?.values,
-    );
-    return values ? { embedding: values, status: 'ready' } : { embedding: null as number[] | null, status: 'embedding_parse_failed' };
-  } catch (error) {
-    return { embedding: null as number[] | null, status: `embedding_error:${safeProviderError(error).slice(0, 120)}` };
-  }
 }
 
 async function generateMarketDocumentEmbeddings(texts: string[], title = '') {
@@ -23672,7 +23172,11 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
       const marketResult = await buildMarketToolFacts(ctx, intentQuestion, toolPlanResult.plan as Record<string, unknown>);
       toolFacts = marketResult.facts;
       publicEvidence = marketResult.evidence;
-      responseMode = marketResult.denied ? 'market_research_permission_required' : 'market_research_grounded';
+      responseMode = marketResult.denied
+        ? 'market_research_permission_required'
+        : marketResult.retrievalOk
+          ? 'market_research_grounded'
+          : 'market_research_unavailable';
     } else {
       toolFacts = buildAiSafeToolFacts(intentQuestion, contextRecord, conversationQuestion, toolPlanResult.plan as Record<string, unknown>);
     }
@@ -23686,6 +23190,16 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
   const supabaseFacts = toolFacts || buildAiSupabaseFacts(intentQuestion, contextRecord, conversationQuestion);
   if (responseMode === 'market_research_permission_required') {
     const answer = '시장자료 리포트와 거래사례 조회는 별도 권한이 필요합니다. 기존 자산, 임차인, 계약 데이터에 대한 질문은 계속 답변드릴 수 있습니다.';
+    return publicAiAnswerResponse(answer, ctx.origin, {
+      safe_fallback_answer: answer,
+      mode: responseMode,
+    });
+  }
+  if (responseMode === 'market_research_unavailable') {
+    const retrievalStatus = normalizeText(supabaseFacts.retrieval_status);
+    const answer = retrievalStatus === 'sector_storage_lexical_failed'
+      ? '\uC2DC\uC7A5\uC790\uB8CC \uAC80\uC0C9\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uC7A0\uC2DC \uD6C4 \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.'
+      : '\uC2B9\uC778\uB41C \uC2DC\uC7A5\uC790\uB8CC\uC5D0\uC11C \uC9C8\uBB38\uACFC \uC77C\uCE58\uD558\uB294 \uADFC\uAC70\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.';
     return publicAiAnswerResponse(answer, ctx.origin, {
       safe_fallback_answer: answer,
       mode: responseMode,
@@ -24057,10 +23571,10 @@ async function findAuthUserByEmail(serviceClient: SupabaseClient, email: string)
     const { data, error } = await serviceClient.auth.admin.listUsers({ page, perPage: 1000 });
     if (error) throw error;
     const users = data?.users || [];
-    const exact = users.find((user) => normalizeAuthEmail(user.email) === email);
+    const exact = (users as Array<{ email?: string | null }>).find((user) => normalizeAuthEmail(user.email) === email);
     if (exact) return exact;
     const matched = aliasEmail
-      ? users.find((user) => normalizeAuthEmail(user.email) === aliasEmail)
+      ? (users as Array<{ email?: string | null }>).find((user) => normalizeAuthEmail(user.email) === aliasEmail)
       : null;
     if (matched) return matched;
     if (users.length < 1000) break;
@@ -24559,7 +24073,7 @@ async function callLogisticsFirstLoginSetup(origin: string, payload: Record<stri
       user_metadata: metadata,
     });
     if (error || !data?.user) return fail(500, 'Failed to complete first login setup', origin, { error: error?.message || 'missing auth user' });
-    savedAuthUser = data.user as Record<string, unknown>;
+    savedAuthUser = data.user as unknown as Record<string, unknown>;
   } else {
     const { data, error } = await serviceClient.auth.admin.createUser({
       email: authEmail,
@@ -24568,7 +24082,7 @@ async function callLogisticsFirstLoginSetup(origin: string, payload: Record<stri
       user_metadata: metadata,
     });
     if (error || !data?.user) return fail(500, 'Failed to create login account', origin, { error: error?.message || 'missing auth user' });
-    savedAuthUser = data.user as Record<string, unknown>;
+    savedAuthUser = data.user as unknown as Record<string, unknown>;
   }
 
   const authUserId = safeText(savedAuthUser?.id);
@@ -24646,7 +24160,7 @@ async function callLogisticsPasswordResetWithAccessCode(origin: string, payload:
       user_metadata: metadata,
     });
     if (error || !data?.user) return fail(500, 'Failed to reset password', origin, { error: error?.message || 'missing auth user' });
-    savedAuthUser = data.user as Record<string, unknown>;
+    savedAuthUser = data.user as unknown as Record<string, unknown>;
   } else {
     const { data, error } = await serviceClient.auth.admin.createUser({
       email: authEmail,
@@ -24655,7 +24169,7 @@ async function callLogisticsPasswordResetWithAccessCode(origin: string, payload:
       user_metadata: metadata,
     });
     if (error || !data?.user) return fail(500, 'Failed to create login account', origin, { error: error?.message || 'missing auth user' });
-    savedAuthUser = data.user as Record<string, unknown>;
+    savedAuthUser = data.user as unknown as Record<string, unknown>;
   }
 
   const authUserId = safeText(savedAuthUser?.id);
@@ -24778,7 +24292,7 @@ async function callWeeklyAssetsLatestPreview(origin: string, payload: Record<str
   return jsonResponse({ ok: true, data: { report_id: report.id, rows } }, 200, origin);
 }
 
-Deno.serve(async (request) => {
+Deno.serve(async (request): Promise<Response> => {
   const origin = request.headers.get('origin') || '';
   try {
     if (!isAllowedOrigin(origin)) return fail(403, 'Origin not allowed', origin);
