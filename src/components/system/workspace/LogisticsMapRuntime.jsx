@@ -36,8 +36,8 @@ export const MAP_CALLOUT_POSITION = Object.freeze({
     panPaddingBottomRight: Object.freeze([170, 56]),
   }),
   naver: Object.freeze({
-    innerCentered: true,
-    pixelOffset: Object.freeze([0, -30]),
+    innerCentered: false,
+    pixelOffset: Object.freeze([0, -18]),
     disableAutoPan: false,
   }),
   static: Object.freeze({

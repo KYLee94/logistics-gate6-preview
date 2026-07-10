@@ -73,12 +73,18 @@ function safeName(value) {
 }
 
 function assessGeometry(container, pin, callout) {
-  const centerDeltaX = Math.abs((callout.left + callout.width / 2) - (pin.left + pin.width / 2));
-  const verticalGap = pin.top - (callout.top + callout.height);
-  const insideContainer = callout.left >= container.left + 8
-    && callout.top >= container.top + 8
-    && callout.left + callout.width <= container.left + container.width - 8
-    && callout.top + callout.height <= container.top + container.height - 8;
+  const containerLeft = container.left ?? container.x;
+  const containerTop = container.top ?? container.y;
+  const pinLeft = pin.left ?? pin.x;
+  const pinTop = pin.top ?? pin.y;
+  const calloutLeft = callout.left ?? callout.x;
+  const calloutTop = callout.top ?? callout.y;
+  const centerDeltaX = Math.abs((calloutLeft + callout.width / 2) - (pinLeft + pin.width / 2));
+  const verticalGap = pinTop - (calloutTop + callout.height);
+  const insideContainer = calloutLeft >= containerLeft + 8
+    && calloutTop >= containerTop + 8
+    && calloutLeft + callout.width <= containerLeft + container.width - 8
+    && calloutTop + callout.height <= containerTop + container.height - 8;
   return {
     center_delta_x: centerDeltaX,
     vertical_gap: verticalGap,
@@ -160,7 +166,7 @@ async function waitForRouteReady(page, expectedRoute) {
 async function marketPanelInventory(page) {
   return page.locator('[data-testid="market-map-panel"]').evaluateAll((nodes) => nodes.map((node, index) => {
     const rect = node.getBoundingClientRect();
-    const header = node.parentElement?.firstElementChild?.textContent || '';
+    const header = node.parentElement?.firstElementChild?.firstElementChild?.textContent || '';
     return {
       index,
       title: header.replace(/\s+/gu, ' ').trim(),
@@ -272,7 +278,7 @@ async function measurePin(page, rootSelector, pinKey) {
   await listPins(page, rootSelector);
   const pin = page.locator(`${rootSelector} [data-qa-pin-key="${pinKey.replace(/"/gu, '\\"')}"]`).first();
   if (!(await pin.count())) throw new Error(`Pin disappeared before hover: ${pinKey}`);
-  await pin.hover({ timeout: 10000 });
+  await pin.hover({ timeout: 10000, force: true });
   await waitForCalloutStable(page, rootSelector);
   await listPins(page, rootSelector);
   const currentPin = page.locator(`${rootSelector} [data-qa-pin-key="${pinKey.replace(/"/gu, '\\"')}"]`).first();
@@ -298,10 +304,12 @@ async function dragPinToward(page, rootSelector, pinKey, target) {
     const rootBox = await page.locator(rootSelector).boundingBox();
     const pinBox = await page.locator(`${rootSelector} [data-qa-pin-key="${pinKey.replace(/"/gu, '\\"')}"]`).first().boundingBox();
     if (!rootBox || !pinBox) throw new Error(`Cannot prepare edge probe for ${pinKey}`);
-    const currentX = pinBox.left + pinBox.width / 2;
-    const currentY = pinBox.top + pinBox.height / 2;
-    const targetX = rootBox.left + rootBox.width * target.x;
-    const targetY = rootBox.top + rootBox.height * target.y;
+    const rootLeft = rootBox.x;
+    const rootTop = rootBox.y;
+    const currentX = pinBox.x + pinBox.width / 2;
+    const currentY = pinBox.y + pinBox.height / 2;
+    const targetX = rootLeft + rootBox.width * target.x;
+    const targetY = rootTop + rootBox.height * target.y;
     const toleranceX = Math.max(8, rootBox.width * 0.025);
     const toleranceY = Math.max(8, rootBox.height * 0.025);
     const errorX = targetX - currentX;
@@ -321,8 +329,8 @@ async function dragPinToward(page, rootSelector, pinKey, target) {
 
     const deltaX = Math.max(-rootBox.width * 0.38, Math.min(rootBox.width * 0.38, errorX));
     const deltaY = Math.max(-rootBox.height * 0.38, Math.min(rootBox.height * 0.38, errorY));
-    const startX = rootBox.left + rootBox.width * 0.5;
-    const startY = rootBox.top + rootBox.height * 0.5;
+    const startX = rootLeft + rootBox.width * 0.5;
+    const startY = rootTop + rootBox.height * 0.5;
     await page.mouse.move(startX, startY);
     await page.mouse.down();
     await page.mouse.move(startX + deltaX, startY + deltaY, { steps: 8 });
@@ -341,10 +349,10 @@ async function dragPinToward(page, rootSelector, pinKey, target) {
     page.locator(`${rootSelector} [data-qa-pin-key="${pinKey.replace(/"/gu, '\\"')}"]`).first().boundingBox(),
   ]);
   if (!rootBox || !pinBox) throw new Error(`Cannot verify edge probe for ${pinKey}`);
-  const pinX = pinBox.left + pinBox.width / 2;
-  const pinY = pinBox.top + pinBox.height / 2;
-  const targetX = rootBox.left + rootBox.width * target.x;
-  const targetY = rootBox.top + rootBox.height * target.y;
+  const pinX = pinBox.x + pinBox.width / 2;
+  const pinY = pinBox.y + pinBox.height / 2;
+  const targetX = rootBox.x + rootBox.width * target.x;
+  const targetY = rootBox.y + rootBox.height * target.y;
   const toleranceX = Math.max(8, rootBox.width * 0.025);
   const toleranceY = Math.max(8, rootBox.height * 0.025);
   return {
@@ -471,6 +479,7 @@ async function prepareSurface(page, baseUrl, provider, viewport, surface) {
       panel = await locateMarketPanel(page, surface.title, true);
     }
     const rootSelector = await tagRoot(panel, safeName(`${provider}-${viewport.key}-${surface.id}`));
+    await page.locator(rootSelector).scrollIntoViewIfNeeded();
     await waitForExpectedProvider(page, rootSelector, provider);
     return { rootSelector, provider: await panel.evaluate(providerFromRoot) };
   }
@@ -478,7 +487,7 @@ async function prepareSurface(page, baseUrl, provider, viewport, surface) {
   if (surface.kind === 'portfolio-modal') {
     const button = page.getByRole('button', { name: surface.openButton }).last();
     await button.waitFor({ state: 'visible', timeout: 60000 });
-    await button.click();
+    await button.evaluate((node) => node.click());
     await page.locator('[role="dialog"]').last().waitFor({ state: 'visible', timeout: 15000 });
   }
   await page.locator('.logistics-map-canvas:visible').last().waitFor({ state: 'visible', timeout: 90000 });
@@ -488,6 +497,7 @@ async function prepareSurface(page, baseUrl, provider, viewport, surface) {
   }
   const root = visibleCanvases.last().locator('xpath=..');
   const rootSelector = await tagRoot(root, safeName(`${provider}-${viewport.key}-${surface.id}`));
+  await page.locator(rootSelector).scrollIntoViewIfNeeded();
   await waitForExpectedProvider(page, rootSelector, provider);
   return { rootSelector, provider: await root.evaluate(providerFromRoot) };
 }
