@@ -284,6 +284,9 @@ async function waitForAvailablePins(page, rootSelector, timeoutMs = 15000) {
 }
 
 async function waitForCalloutStable(page, rootSelector) {
+  await page.evaluate((selector) => {
+    delete window[`__qa_callout_${selector}`];
+  }, rootSelector);
   const handle = await page.waitForFunction((selector) => {
     const root = document.querySelector(selector);
     if (!root) return false;
@@ -308,34 +311,53 @@ async function waitForCalloutStable(page, rootSelector) {
   return box;
 }
 
-async function measurePin(page, rootSelector, pin, provider) {
-  const stableLeafletPin = provider === 'osm-fallback'
-    ? page.locator(`${rootSelector} [data-qa-pin-key="${pin.key.replace(/"/gu, '\\"')}"]:visible`).first()
-    : null;
-  if (stableLeafletPin) {
-    await stableLeafletPin.hover({ timeout: 10000, force: true });
-    await stableLeafletPin.dispatchEvent('mouseover');
-  } else {
-    await page.mouse.move(pin.center_x, pin.center_y);
-  }
-  const calloutBox = await waitForCalloutStable(page, rootSelector);
+async function dispatchLeafletMouseover(page, rootSelector, pin) {
   const refreshedPins = await listPins(page, rootSelector);
   const currentPin = refreshedPins.find((candidate) => candidate.label === pin.label) || pin;
-  const pinBox = {
-    x: currentPin.left,
-    y: currentPin.top,
-    width: currentPin.width,
-    height: currentPin.height,
-  };
+  const dispatched = await page.evaluate(({ selector, key }) => {
+    const root = document.querySelector(selector);
+    const node = [...(root?.querySelectorAll('[data-qa-pin-key]') || [])]
+      .find((candidate) => candidate.getAttribute('data-qa-pin-key') === key);
+    if (!node) return false;
+    node.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, cancelable: true, view: window }));
+    return true;
+  }, { selector: rootSelector, key: currentPin.key });
+  if (!dispatched) throw new Error(`Leaflet pin disappeared before hover: ${currentPin.key}`);
+  return currentPin;
+}
+
+async function measurePin(page, rootSelector, pin, provider) {
   const containerBox = await page.locator(rootSelector).boundingBox();
-  if (!containerBox || !calloutBox) throw new Error(`Geometry was unavailable for pin: ${pin.key}`);
-  return {
-    pin_key: pin.key,
-    pin: pinBox,
-    callout: calloutBox,
-    container: containerBox,
-    geometry: assessGeometry(containerBox, pinBox, calloutBox),
-  };
+  if (!containerBox) throw new Error(`Map geometry was unavailable for pin: ${pin.key}`);
+  let targetPin = pin;
+  let result = null;
+  const maxAttempts = provider === 'osm-fallback' ? 2 : 1;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    if (provider === 'osm-fallback') {
+      targetPin = await dispatchLeafletMouseover(page, rootSelector, targetPin);
+    } else {
+      await page.mouse.move(targetPin.center_x, targetPin.center_y);
+    }
+    const calloutBox = await waitForCalloutStable(page, rootSelector);
+    const refreshedPins = await listPins(page, rootSelector);
+    const currentPin = refreshedPins.find((candidate) => candidate.label === targetPin.label) || targetPin;
+    const pinBox = {
+      x: currentPin.left,
+      y: currentPin.top,
+      width: currentPin.width,
+      height: currentPin.height,
+    };
+    result = {
+      pin_key: pin.key,
+      pin: pinBox,
+      callout: calloutBox,
+      container: containerBox,
+      geometry: assessGeometry(containerBox, pinBox, calloutBox),
+    };
+    if (result.geometry.ok || provider !== 'osm-fallback') return result;
+    targetPin = currentPin;
+  }
+  return result;
 }
 
 async function dragPinToward(page, rootSelector, pinKey, target) {
