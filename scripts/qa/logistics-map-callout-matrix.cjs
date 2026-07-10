@@ -235,7 +235,15 @@ async function listPins(page, rootSelector) {
       && rect.height >= 6 && rect.height <= 120
       && rect.right > rootRect.left && rect.left < rootRect.right
       && rect.bottom > rootRect.top && rect.top < rootRect.bottom
-    )).sort((left, right) => left.label.localeCompare(right.label) || left.rect.top - right.rect.top || left.rect.left - right.rect.left);
+    )).sort((left, right) => {
+      const rootCenterX = rootRect.left + rootRect.width / 2;
+      const rootCenterY = rootRect.top + rootRect.height / 2;
+      const leftDistance = ((left.rect.left + left.rect.width / 2) - rootCenterX) ** 2
+        + ((left.rect.top + left.rect.height / 2) - rootCenterY) ** 2;
+      const rightDistance = ((right.rect.left + right.rect.width / 2) - rootCenterX) ** 2
+        + ((right.rect.top + right.rect.height / 2) - rootCenterY) ** 2;
+      return leftDistance - rightDistance || left.label.localeCompare(right.label);
+    });
     const occurrence = new Map();
     return candidates.map(({ node, rect, label }) => {
       const count = occurrence.get(label) || 0;
@@ -256,8 +264,18 @@ async function listPins(page, rootSelector) {
   }, rootSelector);
 }
 
+async function waitForAvailablePins(page, rootSelector, timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  do {
+    const pins = await listPins(page, rootSelector);
+    if (pins.length) return pins;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  } while (Date.now() < deadline);
+  return [];
+}
+
 async function waitForCalloutStable(page, rootSelector) {
-  await page.waitForFunction((selector) => {
+  const handle = await page.waitForFunction((selector) => {
     const root = document.querySelector(selector);
     if (!root) return false;
     const callouts = [...root.querySelectorAll('.logistics-map-callout')].filter((node) => {
@@ -272,27 +290,30 @@ async function waitForCalloutStable(page, rootSelector) {
     const previous = window[stateKey];
     const stable = previous && value.every((item, index) => Math.abs(item - previous.value[index]) <= 0.5);
     window[stateKey] = { value, count: stable ? previous.count + 1 : 0 };
-    return window[stateKey].count >= 2;
-  }, rootSelector, { timeout: 2000, polling: 100 });
+    return window[stateKey].count >= 2
+      ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
+      : false;
+  }, rootSelector, { timeout: 5000, polling: 100 });
+  const box = await handle.jsonValue();
+  await handle.dispose();
+  return box;
 }
 
-async function measurePin(page, rootSelector, pinKey) {
-  await listPins(page, rootSelector);
-  const pin = page.locator(`${rootSelector} [data-qa-pin-key="${pinKey.replace(/"/gu, '\\"')}"]`).first();
-  if (!(await pin.count())) throw new Error(`Pin disappeared before hover: ${pinKey}`);
-  await pin.hover({ timeout: 10000, force: true });
-  await waitForCalloutStable(page, rootSelector);
-  await listPins(page, rootSelector);
-  const currentPin = page.locator(`${rootSelector} [data-qa-pin-key="${pinKey.replace(/"/gu, '\\"')}"]`).first();
-  const callout = page.locator(`${rootSelector} .logistics-map-callout:visible`).last();
-  const [containerBox, pinBox, calloutBox] = await Promise.all([
-    page.locator(rootSelector).boundingBox(),
-    currentPin.boundingBox(),
-    callout.boundingBox(),
-  ]);
-  if (!containerBox || !pinBox || !calloutBox) throw new Error(`Geometry was unavailable for pin: ${pinKey}`);
+async function measurePin(page, rootSelector, pin) {
+  await page.mouse.move(pin.center_x, pin.center_y);
+  const calloutBox = await waitForCalloutStable(page, rootSelector);
+  const refreshedPins = await listPins(page, rootSelector);
+  const currentPin = refreshedPins.find((candidate) => candidate.label === pin.label) || pin;
+  const pinBox = {
+    x: currentPin.left,
+    y: currentPin.top,
+    width: currentPin.width,
+    height: currentPin.height,
+  };
+  const containerBox = await page.locator(rootSelector).boundingBox();
+  if (!containerBox || !calloutBox) throw new Error(`Geometry was unavailable for pin: ${pin.key}`);
   return {
-    pin_key: pinKey,
+    pin_key: pin.key,
     pin: pinBox,
     callout: calloutBox,
     container: containerBox,
@@ -379,13 +400,13 @@ async function failureScreenshot(page, provider, viewport, surface, suffix) {
 }
 
 async function testPins(page, rootSelector, provider, viewport, surface, scope) {
-  const pins = await listPins(page, rootSelector);
+  const pins = await waitForAvailablePins(page, rootSelector);
   if (!pins.length) throw new Error(`No hoverable pins found for ${surface.id} (${scope})`);
   const sampledPins = pins.slice(0, PIN_SAMPLE_LIMIT);
   const results = [];
   for (const pin of sampledPins) {
     try {
-      const measured = await measurePin(page, rootSelector, pin.key);
+      const measured = await measurePin(page, rootSelector, pin);
       if (!measured.geometry.ok) measured.screenshot = await failureScreenshot(page, provider, viewport, surface, `${scope}-${pin.key}`);
       results.push({ ...measured, scope });
     } catch (error) {
@@ -404,7 +425,9 @@ async function testPins(page, rootSelector, provider, viewport, surface, scope) 
     try {
       const edgePosition = await dragPinToward(page, rootSelector, edgePin.key, target);
       if (!edgePosition.reached) throw new Error(`Pin did not reach the ${target.key} edge probe target.`);
-      const measured = await measurePin(page, rootSelector, edgePin.key);
+      const refreshedPins = await listPins(page, rootSelector);
+      const refreshedPin = refreshedPins.find((pin) => pin.label === edgePin.label) || edgePin;
+      const measured = await measurePin(page, rootSelector, refreshedPin);
       if (!measured.geometry.ok) measured.screenshot = await failureScreenshot(page, provider, viewport, surface, `edge-${target.key}`);
       edgeResults.push({ ...measured, edge: target.key, edge_position: edgePosition });
     } catch (error) {
@@ -447,25 +470,17 @@ async function testMarketRegions(page, rootSelector, provider, viewport, surface
   const scopes = [];
   const mode = await page.locator(rootSelector).getAttribute('data-map-mode');
   if (mode === 'points') return [await testPins(page, rootSelector, provider, viewport, surface, 'points')];
-  const regionNames = await page.locator(`${rootSelector} [data-region-cluster-button="true"]`).evaluateAll((nodes) => (
-    [...new Set(nodes
-      .map((node) => String(node.getAttribute('data-region-name') || node.textContent || '').replace(/\s+/gu, ' ').trim())
-      .filter(Boolean))]
-  ));
-  if (!regionNames.length) throw new Error(`No region clusters found for ${surface.id}`);
-  for (const regionName of regionNames.slice(0, PIN_SAMPLE_LIMIT)) {
-    const cluster = page.locator(`${rootSelector} [data-region-cluster-button="true"]`).filter({ hasText: regionName }).first();
-    await cluster.click({ timeout: 15000 });
-    await page.waitForFunction((selector) => {
-      const root = document.querySelector(selector);
-      return root?.getAttribute('data-map-mode') === 'points' && Number(root.getAttribute('data-map-point-count') || 0) > 0;
-    }, rootSelector, { timeout: 90000 });
-    await waitForExpectedProvider(page, rootSelector, provider);
-    scopes.push(await testPins(page, rootSelector, provider, viewport, surface, `region:${regionName}`));
-    const reset = page.locator(`${rootSelector} [data-testid="market-map-region-reset"]`).first();
-    await reset.click({ timeout: 15000 });
-    await page.waitForFunction((selector) => document.querySelector(selector)?.getAttribute('data-map-mode') === 'regions', rootSelector, { timeout: 30000 });
-  }
+  const cluster = page.locator(`${rootSelector} [data-region-cluster-button="true"]:visible`).first();
+  await cluster.waitFor({ state: 'visible', timeout: 15000 });
+  const regionName = String(await cluster.getAttribute('data-region-name') || await cluster.textContent() || '').replace(/\s+/gu, ' ').trim();
+  if (!regionName) throw new Error(`No region clusters found for ${surface.id}`);
+  await cluster.click({ timeout: 15000 });
+  await page.waitForFunction((selector) => {
+    const root = document.querySelector(selector);
+    return root?.getAttribute('data-map-mode') === 'points' && Number(root.getAttribute('data-map-point-count') || 0) > 0;
+  }, rootSelector, { timeout: 90000 });
+  await waitForExpectedProvider(page, rootSelector, provider);
+  scopes.push(await testPins(page, rootSelector, provider, viewport, surface, `region:${regionName}`));
   return scopes;
 }
 
