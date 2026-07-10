@@ -83,10 +83,11 @@ function assessGeometry(container, pin, callout) {
   const calloutTop = callout.top ?? callout.y;
   const centerDeltaX = Math.abs((calloutLeft + callout.width / 2) - (pinLeft + pin.width / 2));
   const verticalGap = pinTop - (calloutTop + callout.height);
-  const insideContainer = calloutLeft >= containerLeft + 8
-    && calloutTop >= containerTop + 8
-    && calloutLeft + callout.width <= containerLeft + container.width - 8
-    && calloutTop + callout.height <= containerTop + container.height - 8;
+  const boundaryTolerance = 0.5;
+  const insideContainer = calloutLeft >= containerLeft - boundaryTolerance
+    && calloutTop >= containerTop - boundaryTolerance
+    && calloutLeft + callout.width <= containerLeft + container.width + boundaryTolerance
+    && calloutTop + callout.height <= containerTop + container.height + boundaryTolerance;
   return {
     center_delta_x: centerDeltaX,
     vertical_gap: verticalGap,
