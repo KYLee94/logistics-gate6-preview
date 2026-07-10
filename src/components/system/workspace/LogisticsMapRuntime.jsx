@@ -32,7 +32,7 @@ export const MAP_CALLOUT_POSITION = Object.freeze({
   leaflet: Object.freeze({
     innerCentered: false,
     offset: Object.freeze([-16, -25]),
-    panPaddingTopLeft: Object.freeze([170, 96]),
+    panPaddingTopLeft: Object.freeze([170, 128]),
     panPaddingBottomRight: Object.freeze([170, 56]),
   }),
   naver: Object.freeze({
