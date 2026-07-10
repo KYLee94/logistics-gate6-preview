@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
-
 const REPOSITORY = 'KYLee94/logistics-gate6-preview';
 const WORKFLOW_PATH = '.github/workflows/logistics-news-daily.yml';
 
