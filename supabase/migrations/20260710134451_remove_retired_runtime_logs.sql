@@ -16,6 +16,10 @@ end $$;
 -- These relations contain only replaced delivery state or internal diagnostics.
 do $$
 begin
+  if to_regclass('public.ll_login_history') is not null then
+    execute 'drop view public.ll_login_history restrict';
+  end if;
+
   if to_regclass('public.ll_news_runs') is not null then
     execute 'drop table public.ll_news_runs restrict';
   end if;
@@ -50,7 +54,8 @@ begin
     ('public.ll_notification_deliveries'),
     ('public.ll_audit_events'),
     ('public.ll_payload_snapshots'),
-    ('public.ll_schema_metadata')
+    ('public.ll_schema_metadata'),
+    ('public.ll_login_history')
   ) as retired(name)
   where to_regclass(name) is not null;
 

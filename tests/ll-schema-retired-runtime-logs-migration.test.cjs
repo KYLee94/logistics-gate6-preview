@@ -24,6 +24,7 @@ test('runtime log cleanup retires only the proven unused relations', () => {
   assert.match(migration, /drop column if exists news_run_id restrict/iu);
   assert.match(migration, /drop column if exists payload restrict/iu);
   assert.match(migration, /drop column if exists created_at restrict/iu);
+  assert.match(migration, /drop view public\.ll_login_history restrict/iu);
   assert.doesNotMatch(migration, /\bcascade\b/iu);
 });
 
