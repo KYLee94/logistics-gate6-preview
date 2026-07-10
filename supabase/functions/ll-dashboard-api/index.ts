@@ -23595,7 +23595,7 @@ async function listAuthUsers(serviceClient: SupabaseClient) {
 }
 
 async function listAuthUsersWithTimeout(serviceClient: SupabaseClient, timeoutMs = 4500) {
-  let timeoutId: number | undefined;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<Record<string, unknown>[]>((_, reject) => {
     timeoutId = setTimeout(() => reject(new Error('Auth user lookup timed out')), timeoutMs);
   });
