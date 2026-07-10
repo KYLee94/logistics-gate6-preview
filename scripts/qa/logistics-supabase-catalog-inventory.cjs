@@ -107,9 +107,6 @@ function usageCounts(tableNames) {
 }
 
 function classifyTable(tableName) {
-  if (['ll_source_cells', 'll_source_runs', 'll_source_field_registry'].includes(tableName)) {
-    return { group: 'Raw Source', decision: 'delete_prohibited', reason: '원본 Excel/live Sheets/source cell 보존층입니다.' };
-  }
   if (['ll_assets', 'll_tenants', 'll_leases', 'll_lease_spaces', 'll_rent_history'].includes(tableName)) {
     return { group: 'Core Normalized', decision: 'keep', reason: 'Dashboard/AI/Data Quality 기준 정규화 테이블입니다.' };
   }

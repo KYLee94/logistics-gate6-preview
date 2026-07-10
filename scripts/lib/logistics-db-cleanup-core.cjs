@@ -20,7 +20,6 @@ const REMOTE_BASELINE_RELATIONS = new Map([
   ['ll_leases', { kind: 'table', source: 'remote_baseline' }],
   ['ll_lease_spaces', { kind: 'table', source: 'remote_baseline' }],
   ['ll_rent_history', { kind: 'table', source: 'remote_baseline' }],
-  ['ll_source_cells', { kind: 'table', source: 'remote_baseline' }],
 ]);
 
 function canonicalize(value) {
