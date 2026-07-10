@@ -299,7 +299,8 @@ async function measurePin(page, rootSelector, pinKey) {
 }
 
 async function dragPinToward(page, rootSelector, pinKey, target) {
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  const maxAttempts = 2;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     await listPins(page, rootSelector);
     const rootBox = await page.locator(rootSelector).boundingBox();
     const pinBox = await page.locator(`${rootSelector} [data-qa-pin-key="${pinKey.replace(/"/gu, '\\"')}"]`).first().boundingBox();
@@ -340,7 +341,7 @@ async function dragPinToward(page, rootSelector, pinKey, target) {
       if (!node) return false;
       const rect = node.getBoundingClientRect();
       return Math.abs(rect.left + rect.width / 2 - beforeX) >= 2 || Math.abs(rect.top + rect.height / 2 - beforeY) >= 2;
-    }, { selector: rootSelector, key: pinKey, beforeX: currentX, beforeY: currentY }, { timeout: 8000 }).catch(() => null);
+    }, { selector: rootSelector, key: pinKey, beforeX: currentX, beforeY: currentY }, { timeout: 1000 }).catch(() => null);
   }
 
   await listPins(page, rootSelector);
@@ -357,7 +358,7 @@ async function dragPinToward(page, rootSelector, pinKey, target) {
   const toleranceY = Math.max(8, rootBox.height * 0.025);
   return {
     reached: Math.abs(targetX - pinX) <= toleranceX && Math.abs(targetY - pinY) <= toleranceY,
-    attempt_count: 4,
+    attempt_count: maxAttempts,
     target_x: targetX,
     target_y: targetY,
     pin_x: pinX,
