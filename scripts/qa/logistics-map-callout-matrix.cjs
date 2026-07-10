@@ -338,7 +338,17 @@ async function measurePin(page, rootSelector, pin, provider) {
     } else {
       await page.mouse.move(targetPin.center_x, targetPin.center_y);
     }
-    const calloutBox = await waitForCalloutStable(page, rootSelector);
+    let calloutBox;
+    try {
+      calloutBox = await waitForCalloutStable(page, rootSelector);
+    } catch (error) {
+      if (provider === 'osm-fallback' && attempt + 1 < maxAttempts) {
+        const refreshedPins = await listPins(page, rootSelector);
+        targetPin = refreshedPins.find((candidate) => candidate.label === targetPin.label) || targetPin;
+        continue;
+      }
+      throw error;
+    }
     const refreshedPins = await listPins(page, rootSelector);
     const currentPin = refreshedPins.find((candidate) => candidate.label === targetPin.label) || targetPin;
     const pinBox = {
