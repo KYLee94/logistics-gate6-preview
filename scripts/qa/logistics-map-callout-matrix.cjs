@@ -556,7 +556,7 @@ async function configureContext(context, provider, session, email) {
   }
 }
 
-async function runProvider(browser, baseUrl, provider, auth, registry, stamp) {
+async function runProvider(browser, baseUrl, provider, auth, registry, stamp, viewports = VIEWPORTS) {
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
@@ -567,7 +567,7 @@ async function runProvider(browser, baseUrl, provider, auth, registry, stamp) {
     viewports: [],
     errors: [],
   };
-  for (const viewport of VIEWPORTS) {
+  for (const viewport of viewports) {
     const context = await browser.newContext({ viewport: { width: viewport.width, height: viewport.height }, serviceWorkers: 'block' });
     await configureContext(context, provider, auth.session, auth.user?.email || envValue('LOGISTICS_BROWSER_UI_EMAIL'));
     const page = await context.newPage();
@@ -585,8 +585,9 @@ async function runProvider(browser, baseUrl, provider, auth, registry, stamp) {
   }
   report.ok = registry.ok && report.viewports.every((viewport) => viewport.ok) && report.errors.length === 0;
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const outJson = path.join(OUT_DIR, `map-callout-matrix-${provider}-${stamp}.json`);
-  const latestJson = path.join(OUT_DIR, `map-callout-matrix-${provider}-latest.json`);
+  const viewportSuffix = viewports.length === 1 ? `-${viewports[0].key}` : '';
+  const outJson = path.join(OUT_DIR, `map-callout-matrix-${provider}${viewportSuffix}-${stamp}.json`);
+  const latestJson = path.join(OUT_DIR, `map-callout-matrix-${provider}${viewportSuffix}-latest.json`);
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(latestJson, `${JSON.stringify(report, null, 2)}\n`);
   return { ...report, artifact: path.relative(ROOT, outJson).replace(/\\/gu, '/') };
@@ -602,6 +603,11 @@ async function main() {
   const requestedProvider = argsValue('provider', 'all');
   const providers = requestedProvider === 'all' ? PROVIDERS : [requestedProvider];
   if (!providers.every((provider) => PROVIDERS.includes(provider))) throw new Error(`Unknown provider: ${requestedProvider}`);
+  const requestedViewport = argsValue('viewport', 'all');
+  const viewports = requestedViewport === 'all'
+    ? VIEWPORTS
+    : VIEWPORTS.filter((viewport) => viewport.key === requestedViewport);
+  if (!viewports.length) throw new Error(`Unknown viewport: ${requestedViewport}`);
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
@@ -611,7 +617,7 @@ async function main() {
   const stamp = timestampForFile();
   try {
     const reports = [];
-    for (const provider of providers) reports.push(await runProvider(browser, baseUrl, provider, auth, registry, stamp));
+    for (const provider of providers) reports.push(await runProvider(browser, baseUrl, provider, auth, registry, stamp, viewports));
     const ok = reports.every((report) => report.ok);
     console.log(JSON.stringify({ ok, base_url: baseUrl, reports: reports.map((report) => ({ provider: report.provider, ok: report.ok, artifact: report.artifact })) }, null, 2));
     if (!ok) process.exitCode = 1;
