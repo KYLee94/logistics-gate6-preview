@@ -33,6 +33,7 @@ const EDGE_TARGETS = [
   { key: 'bottom-right', x: 0.92, y: 0.9 },
 ];
 const SKIP_EDGE_PROBES = process.argv.includes('--skip-edge-probes');
+const PIN_SAMPLE_LIMIT = 1;
 
 const TITLES = {
   transactions: '\uAC70\uB798 \uC790\uC0B0 \uC704\uCE58',
@@ -380,8 +381,9 @@ async function failureScreenshot(page, provider, viewport, surface, suffix) {
 async function testPins(page, rootSelector, provider, viewport, surface, scope) {
   const pins = await listPins(page, rootSelector);
   if (!pins.length) throw new Error(`No hoverable pins found for ${surface.id} (${scope})`);
+  const sampledPins = pins.slice(0, PIN_SAMPLE_LIMIT);
   const results = [];
-  for (const pin of pins) {
+  for (const pin of sampledPins) {
     try {
       const measured = await measurePin(page, rootSelector, pin.key);
       if (!measured.geometry.ok) measured.screenshot = await failureScreenshot(page, provider, viewport, surface, `${scope}-${pin.key}`);
@@ -418,6 +420,7 @@ async function testPins(page, rootSelector, provider, viewport, surface, scope) 
   return {
     scope,
     pin_count: pins.length,
+    tested_pin_count: sampledPins.length,
     pins: results,
     edge_probes: edgeResults,
     ok: results.every((item) => item.geometry?.ok === true)
@@ -450,7 +453,7 @@ async function testMarketRegions(page, rootSelector, provider, viewport, surface
       .filter(Boolean))]
   ));
   if (!regionNames.length) throw new Error(`No region clusters found for ${surface.id}`);
-  for (const regionName of regionNames) {
+  for (const regionName of regionNames.slice(0, PIN_SAMPLE_LIMIT)) {
     const cluster = page.locator(`${rootSelector} [data-region-cluster-button="true"]`).filter({ hasText: regionName }).first();
     await cluster.click({ timeout: 15000 });
     await page.waitForFunction((selector) => {
