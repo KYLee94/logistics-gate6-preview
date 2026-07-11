@@ -468,6 +468,8 @@ const AI_CHAT_MAX_HISTORY_ITEM_CHARS = 500;
 const AI_CHAT_MAX_HISTORY_CHARS = 2_400;
 const AI_CHAT_REQUESTS_PER_MINUTE = 30;
 const AI_CHAT_REQUEST_WINDOW_MS = 60_000;
+const AI_CHAT_DISTRIBUTED_LOCK_TTL_MS = 90_000;
+const AI_CHAT_DISTRIBUTED_LOCK_TYPE = 'ai_chat_lock';
 // Keep signed URLs comfortably ahead of the five-minute dashboard response cache.
 const ASSET_FLOOR_PLAN_URL_TTL_SECONDS = 30 * 60;
 const GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET = Object.freeze({
@@ -23296,6 +23298,55 @@ async function callAiGeneralChatResponse(
   });
 }
 
+type AiChatDistributedLock = { cacheKey: string; lockId: string };
+
+function aiChatDistributedLockKey(userId: string) {
+  return `user:${userId}`;
+}
+
+async function acquireAiChatDistributedLock(ctx: Context): Promise<AiChatDistributedLock | null> {
+  const cacheKey = aiChatDistributedLockKey(ctx.user.id);
+  const now = new Date();
+  const staleDelete = await ctx.serviceClient
+    .from('ll_cache_entries')
+    .delete()
+    .eq('cache_type', AI_CHAT_DISTRIBUTED_LOCK_TYPE)
+    .eq('cache_key', cacheKey)
+    .lt('expires_at', now.toISOString());
+  if (staleDelete.error && !isMissingCacheTable(staleDelete.error)) {
+    throw new Error(`AI request lock cleanup failed: ${staleDelete.error.message}`);
+  }
+  if (staleDelete.error) return null;
+
+  const lockId = crypto.randomUUID();
+  const { error } = await ctx.serviceClient
+    .from('ll_cache_entries')
+    .insert({
+      cache_type: AI_CHAT_DISTRIBUTED_LOCK_TYPE,
+      cache_key: cacheKey,
+      provider: 'edge_request_lock',
+      created_by: ctx.user.id,
+      user_safe: false,
+      payload: { lock_id: lockId },
+      expires_at: new Date(now.getTime() + AI_CHAT_DISTRIBUTED_LOCK_TTL_MS).toISOString(),
+      updated_at: now.toISOString(),
+    });
+  if (!error) return { cacheKey, lockId };
+  if (error.code === '23505') return null;
+  if (isMissingCacheTable(error)) return null;
+  throw new Error(`AI request lock acquire failed: ${error.message}`);
+}
+
+async function releaseAiChatDistributedLock(ctx: Context, lock: AiChatDistributedLock | null) {
+  if (!lock) return;
+  await ctx.serviceClient
+    .from('ll_cache_entries')
+    .delete()
+    .eq('cache_type', AI_CHAT_DISTRIBUTED_LOCK_TYPE)
+    .eq('cache_key', lock.cacheKey)
+    .contains('payload', { lock_id: lock.lockId });
+}
+
 async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is limited to selected users', ctx.origin);
@@ -23304,7 +23355,10 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
   if (!checkRateLimit(ctx.user.id, 'ai/search-chat', AI_CHAT_REQUESTS_PER_MINUTE, AI_CHAT_REQUEST_WINDOW_MS)) return fail(429, 'Too many AI chat requests', ctx.origin);
   if (aiChatInFlightUsers.has(ctx.user.id)) return fail(429, 'An AI chat request is already in progress', ctx.origin);
   aiChatInFlightUsers.add(ctx.user.id);
+  let distributedLock: AiChatDistributedLock | null = null;
   try {
+    distributedLock = await acquireAiChatDistributedLock(ctx);
+    if (!distributedLock) return fail(429, 'An AI chat request is already in progress', ctx.origin);
     return await callGoogleAiSearchChatAuthorized(ctx, payload, input.question, input.history);
   } catch (error) {
     await auditOptional(ctx.serviceClient, ctx.user.id, 'ai/search-chat/unhandled-error', 502, {
@@ -23312,6 +23366,7 @@ async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unkn
     });
     return publicAiAnswerResponse('AI 응답을 안전하게 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.', ctx.origin);
   } finally {
+    await releaseAiChatDistributedLock(ctx, distributedLock).catch(() => {});
     aiChatInFlightUsers.delete(ctx.user.id);
   }
 }

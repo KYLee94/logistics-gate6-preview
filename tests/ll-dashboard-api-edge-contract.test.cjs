@@ -43,6 +43,14 @@ test('AI context uses scoped lease data before limited cold-path fallbacks', () 
   assert.match(contextSource, /safeSelectRows\(ctx, 'll_lease_spaces', 1000\)/u);
 });
 
+test('AI concurrent requests use a temporary distributed lock instead of runtime-only state', () => {
+  assert.match(edgeSource, /const AI_CHAT_DISTRIBUTED_LOCK_TYPE = 'ai_chat_lock'/u);
+  assert.match(edgeSource, /async function acquireAiChatDistributedLock\(ctx: Context\)/u);
+  assert.match(edgeSource, /\.insert\(\{[\s\S]*cache_type: AI_CHAT_DISTRIBUTED_LOCK_TYPE/u);
+  assert.match(edgeSource, /if \(error\.code === '23505'\) return null/u);
+  assert.match(edgeSource, /await releaseAiChatDistributedLock\(ctx, distributedLock\)\.catch\(\(\) => \{\}\)/u);
+});
+
 test('gyeongsan coupang floor count preview action stays admin-only and dry-run', () => {
   assert.match(edgeSource, /const GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET = Object\.freeze\(\{/u);
   assert.match(edgeSource, /async function callAdminGyeongsanCoupangFloorCountPreview\(ctx: Context, payload: Record<string, unknown>\)/u);
