@@ -35,7 +35,10 @@ select jsonb_build_object(
       ('public.ll_audit_events'),
       ('public.ll_payload_snapshots'),
       ('public.ll_schema_metadata'),
-      ('public.ll_login_history')
+      ('public.ll_login_history'),
+      ('public.ll_source_cells'),
+      ('public.ll_source_runs'),
+      ('public.ll_source_field_registry')
     ) as retired(name)
     where to_regclass(name) is not null
   ),

@@ -40,7 +40,6 @@ const REQUIRED_RENT_FIELDS = [
 ];
 
 const REQUIRED_EDITABLE_LEASE_FIELDS = [
-  'exclusive_ratio',
   'sublease_yn',
 ];
 
