@@ -174,6 +174,37 @@ function buildHeaders(headerRow, maxLength) {
   });
 }
 
+function buildWorkbookSchema(sheets, columnsBySheetId) {
+  return {
+    schema_version: 'll_source_workbook_schema_v1',
+    sheets: sheets.map((sheet) => ({
+      sheet_name: sheet.sheet_name,
+      sheet_index: sheet.sheet_index,
+      header_row_number: sheet.header_row_number,
+      first_data_row_number: sheet.first_data_row_number,
+      last_row_number: sheet.last_row_number,
+      column_count: sheet.column_count,
+      row_count: sheet.row_count,
+      sheet_hash: sheet.sheet_hash,
+      metadata: sheet.metadata || {},
+      columns: (columnsBySheetId.get(sheet.source_sheet_id) || []).map((column) => ({
+        column_index: column.column_index,
+        column_letter: column.column_letter,
+        header_label: column.header_label,
+        normalized_header: column.normalized_header,
+        value_type: column.value_type,
+        unit_label: column.unit_label,
+        target_table: column.target_table,
+        target_field: column.target_field,
+        edit_group: column.edit_group,
+        is_required: column.is_required,
+        is_user_editable: column.is_user_editable,
+        metadata: column.metadata || {},
+      })),
+    })),
+  };
+}
+
 function rowObject(headers, row) {
   const out = {};
   headers.forEach((header, index) => {
@@ -334,6 +365,14 @@ function parseSourceWorkbook(filePath, options = {}) {
     rows.push(...sheetRows);
   });
 
+  const columnsBySheetId = new Map();
+  columns.forEach((column) => {
+    const current = columnsBySheetId.get(column.source_sheet_id) || [];
+    current.push(column);
+    columnsBySheetId.set(column.source_sheet_id, current);
+  });
+  const workbookSchema = buildWorkbookSchema(sheets, columnsBySheetId);
+
   const normalized = domain === 'sector_market' ? normalizeSectorMarket(wb, sourceFileId, sourceRowIndex) : {};
   const rowCounts = Object.fromEntries(sheets.map((sheet) => [sheet.sheet_name, sheet.row_count]));
   const sourceFile = {
@@ -352,6 +391,7 @@ function parseSourceWorkbook(filePath, options = {}) {
     parse_status: 'validated',
     report_period: options.reportPeriod || null,
     as_of_date: options.asOfDate || null,
+    workbook_schema: workbookSchema,
     row_counts: rowCounts,
     validation_summary: buildValidationSummary(domain, rowCounts, normalized),
     metadata: { parser_version: 'logistics_source_workbook_ingest_v1' },
@@ -808,6 +848,7 @@ function buildSqlExport(parsed, options = {}) {
       ? `update public.ll_source_files set active_version = false, parse_status = 'archived', updated_at = now() where source_domain = ${sqlLiteral(parsed.sourceFile.source_domain)} and active_version is true and source_file_id <> ${sqlLiteral(parsed.sourceFile.source_file_id)};`
       : '',
     upsertFromJsonSql('ll_source_files', [sourceFile], ['source_key'], 'source_files_json'),
+    '-- Compatibility shadow writes for Edge paths that still read ll_source_sheets / ll_source_columns.',
     upsertFromJsonSql('ll_source_sheets', parsed.sheets, ['source_file_id', 'sheet_name'], 'source_sheets_json'),
     upsertFromJsonSql('ll_source_columns', parsed.columns, ['source_sheet_id', 'column_index'], 'source_columns_json'),
     upsertFromJsonSql('ll_source_rows', parsed.rows, ['source_file_id', 'sheet_name', 'row_number'], 'source_rows_json'),
@@ -924,7 +965,14 @@ async function main() {
   console.log(JSON.stringify({ ok: true, outPath: noArtifact ? null : outPath, ...summary }, null, 2));
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  buildSqlExport,
+  parseSourceWorkbook,
+};
