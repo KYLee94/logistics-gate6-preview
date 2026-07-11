@@ -7,9 +7,9 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const DEFAULT_MANIFEST = path.join(ROOT, 'ops', 'manifests', 'logistics-floor-plan-manifest.json');
 const DEFAULT_IMAGE_ROOT = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'floor-plan-prepared-images');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
-const TARGET_ASSET_ID = 'asset_a112721001';
-const TARGET_ASSET_CODE = 'A112721001';
-const TARGET_ASSET_NAME_FRAGMENT = '인천석남';
+const DEFAULT_TARGET_ASSET_ID = 'asset_a112721001';
+const DEFAULT_TARGET_ASSET_CODE = 'A112721001';
+const DEFAULT_TARGET_ASSET_NAME_FRAGMENT = '인천석남';
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -85,24 +85,33 @@ function floorKeyFromLabel(label) {
 }
 
 function imagePathForPlan(imageRoot, asset, plan) {
-  return path.join(imageRoot, 'asset-spec', 'floor-plans', asset.asset_id, plan.output_filename);
+  if (asset.asset_id === DEFAULT_TARGET_ASSET_ID) {
+    return path.join(imageRoot, 'asset-spec', 'floor-plans', asset.asset_id, plan.output_filename);
+  }
+  return path.join(imageRoot, 'review-required', asset.asset_id, plan.output_filename);
 }
 
-function selectIncheonPlans(manifest) {
+function selectTargetPlans(manifest, targetAssetId = DEFAULT_TARGET_ASSET_ID) {
   const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
+  const normalizedTargetAssetId = String(targetAssetId || '').trim();
   const asset = assets.find((row) => (
-    String(row.asset_id || '') === TARGET_ASSET_ID
-    || String(row.asset_code || '').toUpperCase() === TARGET_ASSET_CODE
-    || compact(row.asset_name).includes(compact(TARGET_ASSET_NAME_FRAGMENT))
+    String(row.asset_id || '') === normalizedTargetAssetId
+    || (
+      normalizedTargetAssetId === DEFAULT_TARGET_ASSET_ID
+      && (
+        String(row.asset_code || '').toUpperCase() === DEFAULT_TARGET_ASSET_CODE
+        || compact(row.asset_name).includes(compact(DEFAULT_TARGET_ASSET_NAME_FRAGMENT))
+      )
+    )
   ));
-  if (!asset) throw new Error(`Target asset ${TARGET_ASSET_ID} was not found in ${path.basename(DEFAULT_MANIFEST)}.`);
+  if (!asset) throw new Error(`Target asset ${normalizedTargetAssetId} was not found in ${path.basename(DEFAULT_MANIFEST)}.`);
   const plans = (asset.floor_plans || []).filter((plan) => (
     asset.asset_identity_status === 'verified'
     && plan.registration_status === 'ready'
     && Array.isArray(plan.source_candidates)
     && plan.source_candidates.length === 1
   ));
-  if (!plans.length) throw new Error('No ready Incheon Seoknam floor plans were found in the canonical manifest.');
+  if (!plans.length) throw new Error(`No ready floor plans were found for ${asset.asset_id} in the canonical manifest.`);
   return { asset, plans };
 }
 
@@ -169,10 +178,11 @@ async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const manifestPath = path.resolve(argValue('--manifest', DEFAULT_MANIFEST));
   const imageRoot = path.resolve(argValue('--image-root', DEFAULT_IMAGE_ROOT));
+  const targetAssetId = argValue('--asset-id', DEFAULT_TARGET_ASSET_ID);
   const storageBucket = requiredText(argValue('--storage-bucket', envValue('LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET')), '--storage-bucket');
   const apply = hasFlag('--apply');
   const manifest = readManifest(manifestPath);
-  const { asset, plans } = selectIncheonPlans(manifest);
+  const { asset, plans } = selectTargetPlans(manifest, targetAssetId);
   const prepared = plans.map((plan) => {
     const imagePath = imagePathForPlan(imageRoot, asset, plan);
     const exists = fs.existsSync(imagePath);
@@ -198,6 +208,7 @@ async function main() {
       asset_id: asset.asset_id,
       asset_name: asset.asset_name,
       ready_plan_count: plans.length,
+      selected_via: targetAssetId,
     },
     prepared,
     missing_images: missing.map((row) => row.image_path),

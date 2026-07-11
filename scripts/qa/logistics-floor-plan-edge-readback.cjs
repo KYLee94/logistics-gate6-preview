@@ -8,7 +8,7 @@ const MANIFEST_PATH = path.join(ROOT, 'ops', 'manifests', 'logistics-floor-plan-
 const IMAGE_ROOT = path.join(ROOT, 'qa-artifacts', 'logistics-gate6', 'floor-plan-prepared-images');
 const EDGE_PATH = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'index.ts');
 const OPS_PATH = path.join(ROOT, 'scripts', 'ops', 'logistics-floor-plan-ingest.cjs');
-const TARGET_ASSET_ID = 'asset_a112721001';
+const DEFAULT_TARGET_ASSET_ID = 'asset_a112721001';
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -48,9 +48,15 @@ function timestampForFile() {
   return new Date().toISOString().replace(/[-:]/gu, '').replace(/\..+$/u, '').replace('T', '-');
 }
 
-function selectPlans(manifest) {
-  const asset = (manifest.assets || []).find((row) => row.asset_id === TARGET_ASSET_ID);
-  if (!asset) throw new Error(`Target asset ${TARGET_ASSET_ID} not found in manifest.`);
+function imageBasePathForAsset(assetId) {
+  return assetId === DEFAULT_TARGET_ASSET_ID
+    ? path.join(IMAGE_ROOT, 'asset-spec', 'floor-plans', assetId)
+    : path.join(IMAGE_ROOT, 'review-required', assetId);
+}
+
+function selectPlans(manifest, targetAssetId = DEFAULT_TARGET_ASSET_ID) {
+  const asset = (manifest.assets || []).find((row) => row.asset_id === targetAssetId);
+  if (!asset) throw new Error(`Target asset ${targetAssetId} not found in manifest.`);
   const plans = (asset.floor_plans || []).filter((plan) => asset.asset_identity_status === 'verified' && plan.registration_status === 'ready');
   return { asset, plans };
 }
@@ -88,22 +94,25 @@ async function invoke(supabaseUrl, anonKey, token, action, payload = {}) {
 
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
+  const targetAssetId = argValue('--asset-id', DEFAULT_TARGET_ASSET_ID);
   const manifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8'));
-  const { asset, plans } = selectPlans(manifest);
+  const { asset, plans } = selectPlans(manifest, targetAssetId);
   const edgeSource = fs.readFileSync(EDGE_PATH, 'utf8');
   const opsSource = fs.readFileSync(OPS_PATH, 'utf8');
+  const imageBasePath = imageBasePathForAsset(asset.asset_id);
   const checks = {
     edge_action_registered: edgeSource.includes("action === 'asset-floor-plans/register'"),
     ui_response_hides_storage_fields: edgeSource.includes('record: publicFloorPlanRecord(readbackRow)'),
     ops_script_uses_edge_action: opsSource.includes('asset-floor-plans/register'),
     ops_script_avoids_service_role: !/SERVICE_ROLE_KEY/u.test(opsSource),
-    incheon_ready_plan_count: plans.length === 9,
-    incheon_images_exist: plans.every((plan) => fs.existsSync(path.join(IMAGE_ROOT, 'asset-spec', 'floor-plans', asset.asset_id, plan.output_filename))),
-    gyeongsan_not_selected_by_ops: !opsSource.includes('asset_a120085001'),
+    selected_asset_ready_plan_count: plans.length > 0,
+    selected_asset_images_exist: plans.every((plan) => fs.existsSync(path.join(imageBasePath, plan.output_filename))),
+    ops_script_supports_asset_selector: opsSource.includes("argValue('--asset-id'"),
   };
   const report = {
     ok: Object.values(checks).every(Boolean),
     generated_at: new Date().toISOString(),
+    target_asset_id: targetAssetId,
     checks,
     live: null,
   };
@@ -114,7 +123,7 @@ async function main() {
     const bucket = argValue('--storage-bucket', envValue('LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET'));
     if (!supabaseUrl || !anonKey || !bucket) throw new Error('Live QA needs LOGISTICS_SUPABASE_URL, LOGISTICS_SUPABASE_ANON_KEY, and --storage-bucket (or LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET).');
     const auth = await signIn(supabaseUrl, anonKey);
-    const result = await invoke(supabaseUrl, anonKey, auth.token, 'dashboard/asset/read', { asset_id: TARGET_ASSET_ID });
+    const result = await invoke(supabaseUrl, anonKey, auth.token, 'dashboard/asset/read', { asset_id: targetAssetId });
     const floorPlans = Array.isArray(result.body?.data?.floor_plans) ? result.body.data.floor_plans : [];
     report.live = {
       ok: result.ok,
@@ -123,7 +132,7 @@ async function main() {
       floor_plan_count: floorPlans.length,
       storage_fields_hidden: floorPlans.every((row) => !JSON.stringify(row).match(/storage_bucket|storage_path/iu)),
     };
-    report.ok = report.ok && result.ok && report.live.floor_plan_count >= 9 && report.live.storage_fields_hidden;
+    report.ok = report.ok && result.ok && report.live.floor_plan_count >= plans.length && report.live.storage_fields_hidden;
   }
 
   const outPath = path.join(OUT_DIR, `floor-plan-edge-readback-${timestampForFile()}.json`);

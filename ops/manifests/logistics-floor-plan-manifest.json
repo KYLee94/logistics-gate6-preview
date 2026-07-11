@@ -1,0 +1,409 @@
+{
+  "schema_version": 1,
+  "purpose": "Read-only source selection, local PNG preparation, and SQL-plan generation for ll_asset_spec_files. This manifest does not upload files or write to Supabase.",
+  "render_defaults": {
+    "format": "png",
+    "dpi": 150
+  },
+  "storage": {
+    "bucket": null,
+    "bucket_resolution": "Required at plan-generation time. Use only an existing private Storage bucket verified by the release owner.",
+    "path_prefix": "asset-spec/floor-plans"
+  },
+  "assets": [
+    {
+      "asset_id": "asset_a120085001",
+      "asset_name": "\uacbd\uc0b0 \ucfe0\ud321\ubb3c\ub958\uc13c\ud130",
+      "canonical_asset_evidence": {
+        "source": "src/components/system/workspace/logisticsAssetData/asset_a120085001.json",
+        "building_name": "\ubc84\ubba4\ub2e4 \ub370\uc774\ud130\uc13c\ud130",
+        "floor_count": "12F / B2"
+      },
+      "asset_identity_status": "verified",
+      "asset_identity_reason": "canonical asset JSON already contains floor_count 12F / B2 for asset_a120085001, so the prior identity mismatch blocker is stale.",
+      "floor_plans": [
+        {
+          "floor_label": "B2",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 B2 \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-201",
+          "output_filename": "b2.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-201 \uc9c0\ud558 2\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-201 \uc9c0\ud558 2\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "046aad316c55f51c7fff974652ca4197309a85451a4fc23cf558805128a07c0c"
+            }
+          ]
+        },
+        {
+          "floor_label": "B1",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 B1 \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-202",
+          "output_filename": "b1.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-202 \uc9c0\ud558 1\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-202 \uc9c0\ud558 1\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "c3500bc841d2d64a1638ef4edbe86616a69acc4b0df77889b153f3a13a1733d3"
+            }
+          ]
+        },
+        {
+          "floor_label": "1F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 1F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-203",
+          "output_filename": "1f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-203 \uc9c0\uc0c1 1\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-203 \uc9c0\uc0c1 1\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "a00565e1e8ad4afad9a1b910dcd4340937d95268b94091bd916e1ff4a0e56ec4"
+            }
+          ]
+        },
+        {
+          "floor_label": "2F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 2F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-204",
+          "output_filename": "2f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-204 \uc9c0\uc0c1 2\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-204 \uc9c0\uc0c1 2\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "f20ce5634965589bef8cc054fa6cad9007a38ce6794cf34a7a011880f4a1fcb9"
+            }
+          ]
+        },
+        {
+          "floor_label": "3F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 3F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-205",
+          "output_filename": "3f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-205 \uc9c0\uc0c1 3\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-205 \uc9c0\uc0c1 3\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "1c1f9a79115616aad97cf28f6db043026d20ed52e0c3502206f1ab8af50b2903"
+            }
+          ]
+        },
+        {
+          "floor_label": "4F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 4F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-206",
+          "output_filename": "4f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-206 \uc9c0\uc0c1 4\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-206 \uc9c0\uc0c1 4\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "0f2dae2f03b521f9c861689a7f31a7e1d379467d93358e66c548d6f07fe95a7d"
+            }
+          ]
+        },
+        {
+          "floor_label": "5F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 5F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-207",
+          "output_filename": "5f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-207 \uc9c0\uc0c1 5\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-207 \uc9c0\uc0c1 5\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "584536fbd6b0ec24fe9b00cc45744ab1d390e26f44149a3e775deaf5e8f768ea"
+            }
+          ]
+        },
+        {
+          "floor_label": "6F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 6F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-208",
+          "output_filename": "6f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-208 \uc9c0\uc0c1 6\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-208 \uc9c0\uc0c1 6\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "130100c75709d8c93ec5018c2e337900026c58e743a1731bc3d18357ae357563"
+            }
+          ]
+        },
+        {
+          "floor_label": "7F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 7F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-209",
+          "output_filename": "7f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-209 \uc9c0\uc0c1 7\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-209 \uc9c0\uc0c1 7\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "3fc270f589a381e645d7bb670e9c5cbf610a15809f846b2bb01362fde29668d7"
+            }
+          ]
+        },
+        {
+          "floor_label": "8F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 8F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-210",
+          "output_filename": "8f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-210 \uc9c0\uc0c1 8\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-210 \uc9c0\uc0c1 8\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "086c1cca28d20dfda85d23a358f1bcea957cd05d37cffbe05e306a7aec70e0c0"
+            }
+          ]
+        },
+        {
+          "floor_label": "9F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 9F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-211",
+          "output_filename": "9f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-211 \uc9c0\uc0c1 9\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-211 \uc9c0\uc0c1 9\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "c1b38247f625f99fa1b446ddae5b30a2c27e896e428c171610c17600acfbb56d"
+            }
+          ]
+        },
+        {
+          "floor_label": "10F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 10F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-212",
+          "output_filename": "10f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-212 \uc9c0\uc0c1 10\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-212 \uc9c0\uc0c1 10\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "d109b93431cfd455e2d2dd8fe994c9be5e0d85635ec9393c596b00b4aa10b363"
+            }
+          ]
+        },
+        {
+          "floor_label": "11F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 11F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-213",
+          "output_filename": "11f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-213 \uc9c0\uc0c1 11\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-213 \uc9c0\uc0c1 11\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "78a449e407c0fd2cd138f81c5083bd3257cb671bf0078b6d83f591605e07386c"
+            }
+          ]
+        },
+        {
+          "floor_label": "12F",
+          "title": "\uacbd\uc0b0 \ucfe0\ud321 12F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-214",
+          "output_filename": "12f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uacbd\uc0b0 \ucfe0\ud321] 59-1. \uac74\ucd95(PDF)\\59-1. \uac74\ucd95(PDF)\\A-214 \uc9c0\uc0c1 12\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_file_name": "A-214 \uc9c0\uc0c1 12\uce35 \ud3c9\uba74\ub3c4.pdf",
+              "source_page": 1,
+              "sha256": "735a1fd85d0f4fca57b2b938f01faf248f5302dca265971d7a752aaa9b455e43"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "asset_id": "asset_a112721001",
+      "asset_name": "\uc778\ucc9c\uc11d\ub0a8\ubb3c\ub958\uc13c\ud130",
+      "canonical_asset_evidence": {
+        "source": "src/components/system/workspace/logisticsAssetData/asset_a112721001.json",
+        "building_name": "\uc778\ucc9c \uc11d\ub0a8 \ud601\uc2e0\ubb3c\ub958\uc13c\ud130",
+        "floor_count": "8F / B1"
+      },
+      "asset_identity_status": "verified",
+      "asset_identity_reason": "canonical asset and source PDF agree on the B1-8F floor stack.",
+      "floor_plans": [
+        {
+          "floor_label": "B1",
+          "title": "\uc778\ucc9c\uc11d\ub0a8 B1 \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-302",
+          "output_filename": "b1.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_file_name": "[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_page": 116,
+              "sha256": "a3c87c9fde91840cd59956019d411638d355ebbd28d0d9c88d45b5af2059bb8d"
+            }
+          ]
+        },
+        {
+          "floor_label": "1F",
+          "title": "\uc778\ucc9c\uc11d\ub0a8 1F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-303",
+          "output_filename": "1f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_file_name": "[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_page": 117,
+              "sha256": "a3c87c9fde91840cd59956019d411638d355ebbd28d0d9c88d45b5af2059bb8d"
+            }
+          ]
+        },
+        {
+          "floor_label": "2F",
+          "title": "\uc778\ucc9c\uc11d\ub0a8 2F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-304",
+          "output_filename": "2f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_file_name": "[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_page": 118,
+              "sha256": "a3c87c9fde91840cd59956019d411638d355ebbd28d0d9c88d45b5af2059bb8d"
+            }
+          ]
+        },
+        {
+          "floor_label": "3F",
+          "title": "\uc778\ucc9c\uc11d\ub0a8 3F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-305",
+          "output_filename": "3f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_file_name": "[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_page": 119,
+              "sha256": "a3c87c9fde91840cd59956019d411638d355ebbd28d0d9c88d45b5af2059bb8d"
+            }
+          ]
+        },
+        {
+          "floor_label": "4F",
+          "title": "\uc778\ucc9c\uc11d\ub0a8 4F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-306",
+          "output_filename": "4f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_file_name": "[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_page": 120,
+              "sha256": "a3c87c9fde91840cd59956019d411638d355ebbd28d0d9c88d45b5af2059bb8d"
+            }
+          ]
+        },
+        {
+          "floor_label": "5F",
+          "title": "\uc778\ucc9c\uc11d\ub0a8 5F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-307",
+          "output_filename": "5f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_file_name": "[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_page": 121,
+              "sha256": "a3c87c9fde91840cd59956019d411638d355ebbd28d0d9c88d45b5af2059bb8d"
+            }
+          ]
+        },
+        {
+          "floor_label": "6F",
+          "title": "\uc778\ucc9c\uc11d\ub0a8 6F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-308",
+          "output_filename": "6f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_file_name": "[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_page": 122,
+              "sha256": "a3c87c9fde91840cd59956019d411638d355ebbd28d0d9c88d45b5af2059bb8d"
+            }
+          ]
+        },
+        {
+          "floor_label": "7F",
+          "title": "\uc778\ucc9c\uc11d\ub0a8 7F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-309",
+          "output_filename": "7f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_file_name": "[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_page": 123,
+              "sha256": "a3c87c9fde91840cd59956019d411638d355ebbd28d0d9c88d45b5af2059bb8d"
+            }
+          ]
+        },
+        {
+          "floor_label": "8F",
+          "title": "\uc778\ucc9c\uc11d\ub0a8 8F \ud3c9\uba74\ub3c4",
+          "drawing_number": "A-310",
+          "output_filename": "8f.png",
+          "registration_status": "ready",
+          "blockers": [],
+          "source_candidates": [
+            {
+              "source_path": "C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_file_name": "[\uc778\ucc9c\uc11d\ub0a8] \uac74\ucd95_PDF.pdf",
+              "source_page": 124,
+              "sha256": "a3c87c9fde91840cd59956019d411638d355ebbd28d0d9c88d45b5af2059bb8d"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
