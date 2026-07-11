@@ -77,6 +77,7 @@ const SECTOR_MARKET_LEASE_TEMPERATURE_SEGMENT_LABELS = [
 ] as const;
 const ASSET_FLOOR_PLAN_ALLOWED_MIME_TYPES = new Set(['image/png']);
 const ASSET_FLOOR_PLAN_MAX_BYTES = 25 * 1024 * 1024;
+const CANONICAL_ASSET_FLOOR_PLAN_BUCKET = 'logistics-sector-market-workbooks';
 const ASSET_FLOOR_PLAN_ALLOWED_FLOOR_LABELS = new Set([
   'B2', 'B1',
   '1F', '2F', '3F', '4F', '5F', '6F', '7F', '8F', '9F', '10F', '11F', '12F',
@@ -2500,6 +2501,9 @@ async function resolveAssetFloorPlanBucket(ctx: Context) {
   if (referencedBuckets.length === 1) return referencedBuckets[0];
   if (referencedBuckets.length > 1) {
     throw new Error('Multiple private floor plan buckets are already referenced. Configure LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET explicitly.');
+  }
+  if (privateBucketNames.has(CANONICAL_ASSET_FLOOR_PLAN_BUCKET)) {
+    return CANONICAL_ASSET_FLOOR_PLAN_BUCKET;
   }
   throw new Error('Floor plan Storage bucket is not configured. Set LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET to an existing private bucket.');
 }

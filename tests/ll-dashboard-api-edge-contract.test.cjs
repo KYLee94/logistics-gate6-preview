@@ -11,6 +11,8 @@ test('floor plan uploads resolve the private bucket on the server', () => {
   assert.match(edgeSource, /await resolveAssetFloorPlanBucket\(ctx\)/u);
   assert.match(edgeSource, /storage_bucket is resolved by the server and cannot be overridden/u);
   assert.match(edgeSource, /LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET/u);
+  assert.match(edgeSource, /CANONICAL_ASSET_FLOOR_PLAN_BUCKET = 'logistics-sector-market-workbooks'/u);
+  assert.match(edgeSource, /privateBucketNames\.has\(CANONICAL_ASSET_FLOOR_PLAN_BUCKET\)/u);
 });
 
 test('gyeongsan coupang floor count preview action stays admin-only and dry-run', () => {
