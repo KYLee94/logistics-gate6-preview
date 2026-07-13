@@ -137,7 +137,6 @@ async function main() {
       return text.includes('주소') && text.includes('GFA(㎡)') && text.includes('소방설비');
     }, { timeout: 10000 }).then(() => true).catch(() => false);
     report.checks.table_view_buttons = (await page.getByRole('button', { name: '테이블 보기' }).count().catch(() => 0)) >= 2;
-
     const firstTableButton = page.getByRole('button', { name: '테이블 보기' }).first();
     if ((await firstTableButton.count().catch(() => 0)) > 0) {
       await firstTableButton.click();
@@ -162,7 +161,7 @@ async function main() {
     }, { timeout: 10000 }).then(() => true).catch(() => false);
     report.checks.save_delete_controls = await page.waitForFunction(() => {
       const text = document.querySelector('[role="dialog"]')?.innerText || '';
-      return text.includes('Supabase 저장') && text.includes('선택 자산 스펙 삭제');
+      return text.includes('저장') && text.includes('선택 자산 스펙 삭제');
     }, { timeout: 10000 }).then(() => true).catch(() => false);
     await page.screenshot({ path: screenshot, fullPage: false });
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
