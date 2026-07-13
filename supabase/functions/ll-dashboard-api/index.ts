@@ -2706,7 +2706,7 @@ async function listVerifiedFloorPlansForAsset(ctx: Context, assetId: string) {
     .eq('asset_id', assetId)
     .eq('file_type', 'floor_plan')
     .order('created_at', { ascending: false })
-    .limit(12);
+    .limit(32);
   if (error) {
     return {
       floorPlans: [] as Record<string, unknown>[],
@@ -4694,6 +4694,108 @@ async function listLeaseEvents(ctx: Context, payload: Record<string, unknown>) {
   return jsonResponse({ ok: true, data: rows }, 200, ctx.origin);
 }
 
+function notificationBusinessEventDedupeKey(eventKind, eventId, recipientEmail) {
+  const normalized = [eventKind, eventId, recipientEmail]
+    .map((value) => String(value || '').trim().toLowerCase());
+  return `business-event:${normalized.join(':')}`;
+}
+
+function notificationPublicBusinessText(value, fallback = '업무 알림') {
+  const text = String(value ?? '').trim();
+  if (!text) return fallback;
+  const aliases = {
+    tenant_master_name: '임차인',
+    data_management_view_field: '데이터 수정 요청',
+    data_management_view_field_update: '데이터 수정 요청',
+    multiple_fields: '여러 항목',
+  };
+  const normalized = text.toLowerCase();
+  if (aliases[normalized]) return aliases[normalized];
+  if (/(?:public\.)?ll_[a-z0-9_]+|(?:^|\W)(?:tenant_master_name|data_management_view_field_update|target_type|field_name|reason_code|source_table)(?:\W|$)/iu.test(text)) {
+    return fallback;
+  }
+  return text;
+}
+
+function editRequestBusinessNotification(row: Record<string, unknown>, recipientEmail: string, recipientUserId: string) {
+  const requestId = safeText(row.id);
+  if (!requestId) return null;
+  const requestPayload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
+  const notification = requestPayload.notification && typeof requestPayload.notification === 'object' && !Array.isArray(requestPayload.notification)
+    ? requestPayload.notification as Record<string, unknown>
+    : {};
+  const finding = requestPayload.finding && typeof requestPayload.finding === 'object' && !Array.isArray(requestPayload.finding)
+    ? requestPayload.finding as Record<string, unknown>
+    : {};
+  const changeItems = editRequestChangeItems(row);
+  const firstChange = changeItems[0] || {};
+  const targetLabel = notificationPublicBusinessText(
+    firstDefined(notification.target_label, firstChange.target_name, row.target_name, finding.target),
+    '데이터 관리',
+  );
+  const fieldLabel = notificationPublicBusinessText(
+    firstDefined(notification.field_label, firstChange.field_label, dataManagementFieldLabel(row.field_name)),
+    '변경 항목',
+  );
+  return {
+    notification_type: 'data_update',
+    dedupe_key: notificationBusinessEventDedupeKey('data-management-edit', requestId, recipientEmail),
+    title: '데이터 수정 요청',
+    body: [targetLabel, fieldLabel, '승인 대기'].filter(Boolean).join(' · '),
+    recipient_user_id: recipientUserId || null,
+    recipient_email: recipientEmail,
+    recipient_name: safeText(firstDefined(row.requested_by_name, row.requested_by_email)) || null,
+    delivery_status: 'unread',
+    read_at: null,
+    dismissed_at: null,
+    notified_at: safeText(firstDefined(row.created_at, row.updated_at)) || new Date().toISOString(),
+  };
+}
+
+function leaseEventBusinessNotification(row: Record<string, unknown>, recipientEmail: string, recipientUserId: string) {
+  const eventId = safeText(row.id);
+  if (!eventId) return null;
+  const assetName = notificationPublicBusinessText(row.asset_name, '자산');
+  const tenantName = notificationPublicBusinessText(row.tenant_name, '임차인');
+  return {
+    notification_type: 'data_update',
+    dedupe_key: notificationBusinessEventDedupeKey('lease-contract-event', eventId, recipientEmail),
+    asset_id: safeText(row.asset_id) || null,
+    lease_space_id: safeText(row.lease_space_id) || null,
+    title: '임대차계약 변경',
+    body: [assetName, tenantName].filter(Boolean).join(' · '),
+    recipient_user_id: recipientUserId || null,
+    recipient_email: recipientEmail,
+    recipient_name: null,
+    delivery_status: 'unread',
+    read_at: null,
+    dismissed_at: null,
+    notified_at: safeText(firstDefined(row.created_at, row.updated_at)) || new Date().toISOString(),
+  };
+}
+
+async function materializeBusinessNotifications(
+  ctx: Context,
+  editRequests: Record<string, unknown>[],
+  leaseEvents: Record<string, unknown>[],
+) {
+  const recipientEmail = canonicalPermissionEmail(ctx.permission, ctx.user.email);
+  if (!recipientEmail) return 0;
+  const notificationRows = [
+    ...editRequests.map((row) => editRequestBusinessNotification(row, recipientEmail, ctx.user.id)),
+    ...leaseEvents.map((row) => leaseEventBusinessNotification(row, recipientEmail, ctx.user.id)),
+  ].filter(Boolean) as Record<string, unknown>[];
+  if (!notificationRows.length) return 0;
+  const { error } = await ctx.serviceClient
+    .from('ll_notifications')
+    .upsert(notificationRows, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+  if (error) {
+    if (isMissingRelationError(error)) return 0;
+    throw new Error(`business notification materialization failed: ${error.message}`);
+  }
+  return notificationRows.length;
+}
+
 async function listLogisticsNotifications(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'notifications/list', 90)) return fail(429, 'Rate limit exceeded', ctx.origin);
@@ -4721,18 +4823,18 @@ async function listLogisticsNotifications(ctx: Context, payload: Record<string, 
     .filter((row) => canUseQuality || row.requested_by === ctx.user.id || canReadEditRequestRow(ctx, row))
     .map((row) => decorateEditRequestRow(row))
     .slice(0, limit);
+  const materializedCount = await materializeBusinessNotifications(ctx, editRequests, leaseEvents);
   const canonicalNotifications = await listCanonicalNotifications(ctx, limit);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'notifications/list', 200, {
     canonical_notifications: canonicalNotifications.length,
-    lease_events: leaseEvents.length,
-    edit_requests: editRequests.length,
+    materialized_business_notifications: materializedCount,
   });
   return jsonResponse({
     ok: true,
     data: {
       notifications: canonicalNotifications,
-      lease_events: leaseEvents,
-      edit_requests: editRequests,
+      lease_events: [],
+      edit_requests: [],
       generated_at: new Date().toISOString(),
     },
   }, 200, ctx.origin);
@@ -4764,8 +4866,8 @@ async function listCanonicalNotifications(ctx: Context, limit: number) {
       notification_id: safeText(row.notification_id),
       type: safeText(row.notification_type),
       tag: safeText(row.notification_type) === 'loan_maturity' ? 'Loan Maturity' : safeText(row.notification_type) === 'lease_maturity' ? 'Lease Maturity' : 'Notification',
-      title: safeText(row.title),
-      body: safeText(row.body),
+      title: notificationPublicBusinessText(row.title, '업무 알림'),
+      body: notificationPublicBusinessText(row.body, '확인할 업무가 있습니다.'),
       due_date: safeText(row.due_date),
       lead_days: Number(row.lead_days || 0),
       delivery_status: safeText(row.delivery_status),
@@ -5162,7 +5264,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const sampleLimit = Math.min(Math.max(Number(payload.limit || 500), 50), 12000);
   const sourceResult = await ctx.serviceClient
     .from('ll_source_files')
-    .select('source_file_id,source_domain,source_version,file_name,source_hash,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at')
+    .select('source_file_id,source_domain,source_version,file_name,source_hash,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,workbook_schema,created_at,updated_at')
     .eq('source_domain', 'sector_market')
     .order('active_version', { ascending: false })
     .order('created_at', { ascending: false })
@@ -5315,14 +5417,15 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   }
 
   const [sourceSheetsResult, sourceRowsCountResult] = await Promise.all([
-    needsSourceAudit || needsStatisticRows
-      ? ctx.serviceClient
-        .from('ll_source_sheets')
-        .select('source_sheet_id,sheet_name,sheet_index,header_row_number,row_count,column_count')
-        .eq('source_file_id', activeSourceId)
-        .order('sheet_index', { ascending: true })
-        .limit(40)
-      : Promise.resolve({ data: [], error: null }),
+    Promise.resolve({
+      data: needsSourceAudit || needsStatisticRows
+        ? workbookSchemaSheets(activeSource)
+            .filter((sheet) => safeText(sheet.source_file_id) === activeSourceId)
+            .sort((a, b) => Number(a.sheet_index || 0) - Number(b.sheet_index || 0))
+            .slice(0, 40)
+        : [],
+      error: null,
+    }),
     needsSourceAudit
       ? ctx.serviceClient
         .from('ll_source_rows')
@@ -5354,13 +5457,9 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   }
   let sourceColumnCount = 0;
   if (needsSourceAudit && sourceSheets.length) {
-    const sheetIds = sourceSheets.map((row) => safeText(row.source_sheet_id)).filter(Boolean);
-    const columnCountResult = await ctx.serviceClient
-      .from('ll_source_columns')
-      .select('source_column_id', { count: 'exact', head: true })
-      .in('source_sheet_id', sheetIds);
-    if (columnCountResult.error && !isMissingRelationError(columnCountResult.error)) return fail(500, 'Failed to read source columns', ctx.origin, { error: columnCountResult.error.message });
-    sourceColumnCount = columnCountResult.count || 0;
+    sourceColumnCount = sourceSheets.reduce((sum, sheet) => {
+      return sum + workbookSchemaColumnsForSheet(activeSource, safeText(sheet.sheet_name)).length;
+    }, 0);
   }
   if (sourceRowsCountResult.error && !isMissingRelationError(sourceRowsCountResult.error)) return fail(500, 'Failed to count source rows', ctx.origin, { error: sourceRowsCountResult.error.message });
   const sheetReadback = needsSourceAudit ? await Promise.all(sourceSheets.map(async (sheet) => {
@@ -5384,41 +5483,35 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       ok: expectedRows === actualRows,
     };
   })) : [];
-  const statisticSheetIds = needsStatisticRows ? sourceSheets
+  const statisticSheetNames = needsStatisticRows ? sourceSheets
     .filter((sheet) => ['임대시장 통계', '공급시장 통계'].includes(safeText(sheet.sheet_name)))
-    .map((sheet) => safeText(sheet.source_sheet_id))
+    .map((sheet) => safeText(sheet.sheet_name))
     .filter(Boolean) : [];
-  const [sourceStatisticRowsResult, sourceStatisticColumnsResult] = statisticSheetIds.length ? await Promise.all([
+  const [sourceStatisticRowsResult, sourceStatisticColumnsResult] = statisticSheetNames.length ? await Promise.all([
     ctx.serviceClient
       .from('ll_source_rows')
-      .select('source_sheet_id,sheet_name,row_number,row_values')
+      .select('sheet_name,row_number,row_values')
       .eq('source_file_id', activeSourceId)
-      .in('source_sheet_id', statisticSheetIds)
-      .order('source_sheet_id', { ascending: true })
+      .in('sheet_name', statisticSheetNames)
+      .order('sheet_name', { ascending: true })
       .order('row_number', { ascending: true })
       .limit(240),
-    ctx.serviceClient
-      .from('ll_source_columns')
-      .select('source_sheet_id,column_index,normalized_header,header_label')
-      .in('source_sheet_id', statisticSheetIds)
-      .order('source_sheet_id', { ascending: true })
-      .order('column_index', { ascending: true })
-      .limit(420),
+    Promise.resolve({
+      data: statisticSheetNames.flatMap((sheetName) => workbookSchemaColumnsForSheet(activeSource, sheetName)),
+      error: null,
+    }),
   ]) : [{ data: [], error: null }, { data: [], error: null }];
   if (sourceStatisticRowsResult.error && !isMissingRelationError(sourceStatisticRowsResult.error)) return fail(500, 'Failed to read market statistic source rows', ctx.origin, { error: sourceStatisticRowsResult.error.message });
   if (sourceStatisticColumnsResult.error && !isMissingRelationError(sourceStatisticColumnsResult.error)) return fail(500, 'Failed to read market statistic source columns', ctx.origin, { error: sourceStatisticColumnsResult.error.message });
   const sourceStatisticRows = (sourceStatisticRowsResult.data || []) as Record<string, unknown>[];
   const sourceStatisticColumns = (sourceStatisticColumnsResult.data || []) as Record<string, unknown>[];
-  const statisticSheetIdByName = new Map(sourceSheets.map((sheet) => [safeText(sheet.sheet_name), safeText(sheet.source_sheet_id)]));
-  const leaseStatisticSheetId = statisticSheetIdByName.get('임대시장 통계') || '';
-  const supplyStatisticSheetId = statisticSheetIdByName.get('공급시장 통계') || '';
   const leaseStatisticRows = parseLeaseStatisticRows(
-    sourceStatisticRows.filter((row) => safeText(row.source_sheet_id) === leaseStatisticSheetId),
-    sourceStatisticColumns.filter((column) => safeText(column.source_sheet_id) === leaseStatisticSheetId),
+    sourceStatisticRows.filter((row) => safeText(row.sheet_name) === '임대시장 통계'),
+    sourceStatisticColumns.filter((column) => safeText(column.sheet_name) === '임대시장 통계'),
   );
   const supplyStatisticRows = parseSupplyStatisticRows(
-    sourceStatisticRows.filter((row) => safeText(row.source_sheet_id) === supplyStatisticSheetId),
-    sourceStatisticColumns.filter((column) => safeText(column.source_sheet_id) === supplyStatisticSheetId),
+    sourceStatisticRows.filter((row) => safeText(row.sheet_name) === '공급시장 통계'),
+    sourceStatisticColumns.filter((column) => safeText(column.sheet_name) === '공급시장 통계'),
   );
   const temperatureSegmentSemantics = marketLeaseTemperatureSegmentSemantics(leaseStatisticRows, needsStatisticRows);
 
@@ -6543,8 +6636,6 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
   ll_staff_profiles: '직원 프로필',
   ll_login_history: '로그인 이력',
   ll_source_files: '원천 파일',
-  ll_source_sheets: '원천 시트',
-  ll_source_columns: '원천 컬럼',
   ll_source_rows: '원천 행',
   ll_weekly_records: '주간 기록',
   ll_work_items: '업무 항목',
@@ -7041,8 +7132,6 @@ const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_fund_asset_links: 'id',
   ll_fund_capital_tranches: 'id',
   ll_source_files: 'source_file_id',
-  ll_source_sheets: 'source_sheet_id',
-  ll_source_columns: 'source_column_id',
   ll_source_rows: 'source_row_id',
   ll_sector_market_lease_observations: 'observation_id',
   ll_sector_market_supply_cases: 'supply_case_id',
@@ -8253,13 +8342,83 @@ function dataManagementFormatWorkbookValue(value: unknown, field: Record<string,
 async function dataManagementSourceFileForDomain(ctx: Context, sourceDomain: string) {
   const { data, error } = await ctx.serviceClient
     .from('ll_source_files')
-    .select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,row_counts,created_at,updated_at')
+    .select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,row_counts,workbook_schema,created_at,updated_at')
     .eq('source_domain', sourceDomain)
     .order('active_version', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(1);
   if (error && !isMissingRelationError(error)) throw new Error(error.message);
   return ((data || []) as Record<string, unknown>[])[0] || null;
+}
+
+async function dataManagementSourceFileById(ctx: Context, sourceFileId: string) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_source_files')
+    .select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,row_counts,workbook_schema,created_at,updated_at')
+    .eq('source_file_id', sourceFileId)
+    .maybeSingle();
+  if (error && !isMissingRelationError(error)) throw new Error(error.message);
+  return (data as Record<string, unknown> | null) || null;
+}
+
+function sourceWorkbookSchema(sourceFile: Record<string, unknown> | null | undefined) {
+  const raw = sourceFile?.workbook_schema;
+  if (!raw) return {};
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+    } catch {
+      return {};
+    }
+  }
+  return raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+}
+
+function workbookSchemaSheets(sourceFile: Record<string, unknown> | null | undefined) {
+  const sourceFileId = safeText(sourceFile?.source_file_id);
+  const schema = sourceWorkbookSchema(sourceFile);
+  const sheets = Array.isArray(schema.sheets) ? schema.sheets as Record<string, unknown>[] : [];
+  return sheets
+    .map((sheet, index) => stripUndefined({
+      source_file_id: sourceFileId,
+      sheet_name: safeText(sheet.sheet_name),
+      sheet_index: Number(firstDefined(sheet.sheet_index, sheet.index, index + 1) || 0),
+      header_row_number: Number(firstDefined(sheet.header_row_number, sheet.header_row, 0) || 0),
+      first_data_row_number: Number(firstDefined(sheet.first_data_row_number, sheet.first_row_number, 0) || 0),
+      last_row_number: Number(firstDefined(sheet.last_row_number, 0) || 0),
+      row_count: Number(firstDefined(sheet.row_count, 0) || 0),
+      column_count: Number(firstDefined(sheet.column_count, Array.isArray(sheet.columns) ? sheet.columns.length : 0) || 0),
+      metadata: sheet.metadata && typeof sheet.metadata === 'object' ? sheet.metadata : {},
+    }) as Record<string, unknown>)
+    .filter((sheet) => safeText(sheet.sheet_name));
+}
+
+function workbookSchemaSheetByName(sourceFile: Record<string, unknown> | null | undefined, sheetName: string) {
+  return workbookSchemaSheets(sourceFile).find((sheet) => safeText(sheet.sheet_name) === safeText(sheetName)) || null;
+}
+
+function workbookSchemaColumnsForSheet(sourceFile: Record<string, unknown> | null | undefined, sheetName: string) {
+  const schema = sourceWorkbookSchema(sourceFile);
+  const sheets = Array.isArray(schema.sheets) ? schema.sheets as Record<string, unknown>[] : [];
+  const rawSheet = sheets.find((sheet) => safeText(sheet.sheet_name) === safeText(sheetName));
+  if (!rawSheet) return [];
+  const columns = Array.isArray(rawSheet.columns) ? rawSheet.columns as Record<string, unknown>[] : [];
+  return columns.map((column, index) => stripUndefined({
+    sheet_name: safeText(sheetName),
+    column_index: Number(firstDefined(column.column_index, column.index, index + 1) || 0),
+    column_letter: safeText(column.column_letter),
+    header_label: safeText(column.header_label),
+    normalized_header: safeText(column.normalized_header),
+    value_type: safeText(column.value_type),
+    unit_label: safeText(column.unit_label),
+    target_table: safeText(column.target_table),
+    target_field: safeText(column.target_field),
+    edit_group: safeText(column.edit_group),
+    is_required: Boolean(column.is_required),
+    is_user_editable: firstDefined(column.is_user_editable, true) !== false,
+    metadata: column.metadata && typeof column.metadata === 'object' ? column.metadata : {},
+  }) as Record<string, unknown>);
 }
 
 async function dataManagementLeaseWorkbookRows(ctx: Context, payload: Record<string, unknown>, scope: DataManagementScope, config: Record<string, unknown>) {
@@ -8288,14 +8447,7 @@ async function dataManagementLeaseWorkbookRows(ctx: Context, payload: Record<str
     };
   }
   const sheetName = safeText(config.sheet_name);
-  const sheetResult = await ctx.serviceClient
-    .from('ll_source_sheets')
-    .select('source_sheet_id,source_file_id,sheet_name,sheet_index,header_row_number,row_count,column_count')
-    .eq('source_file_id', safeText(sourceFile.source_file_id))
-    .eq('sheet_name', sheetName)
-    .maybeSingle();
-  if (sheetResult.error && !isMissingRelationError(sheetResult.error)) throw new Error(sheetResult.error.message);
-  const sheet = sheetResult.data as Record<string, unknown> | null;
+  const sheet = workbookSchemaSheetByName(sourceFile, sheetName);
   if (!sheet) {
     return {
       rows: [],
@@ -8313,12 +8465,10 @@ async function dataManagementLeaseWorkbookRows(ctx: Context, payload: Record<str
     };
   }
   const [columnsResult, rowsResult] = await Promise.all([
-    ctx.serviceClient
-      .from('ll_source_columns')
-      .select('source_column_id,source_sheet_id,column_index,column_letter,header_label,normalized_header,value_type,unit_label,is_user_editable')
-      .eq('source_sheet_id', safeText(sheet.source_sheet_id))
-      .order('column_index', { ascending: true })
-      .limit(220),
+    Promise.resolve({
+      data: workbookSchemaColumnsForSheet(sourceFile, sheetName),
+      error: null,
+    }),
     ctx.serviceClient
       .from('ll_source_rows')
       .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at')
@@ -12659,10 +12809,10 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   };
   const dataManagementSourceDomainKeys = DATA_MANAGEMENT_SOURCE_DOMAIN_KEYS;
   const [sourcesResult, sheetsResult, columnsResult, editsResult] = await Promise.all([
-    ctx.serviceClient.from('ll_source_files').select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,created_at,updated_at').order('created_at', { ascending: false }).limit(80),
-    ctx.serviceClient.from('ll_source_sheets').select('source_sheet_id,source_file_id,sheet_name,sheet_index,header_row_number,row_count,column_count').limit(240),
+    ctx.serviceClient.from('ll_source_files').select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,workbook_schema,created_at,updated_at').order('created_at', { ascending: false }).limit(80),
+    Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
     managerView
-      ? ctx.serviceClient.from('ll_source_columns').select('source_column_id,source_sheet_id,column_index,column_letter,header_label,normalized_header,value_type,unit_label,target_table,target_field,edit_group,is_required,is_user_editable').limit(800)
+      ? Promise.resolve({ data: [] as Record<string, unknown>[], error: null })
       : Promise.resolve({ data: [], error: null }),
     ctx.serviceClient.from('ll_edit_requests').select('id,source_table,target_type,target_name,target_row_id,field_name,reason_code,before_value,requested_value,readback_value,request_payload,status,write_status,write_error,write_result,requested_by,approved_by,approved_at,rejected_by,rejected_at,created_at,updated_at,written_at').order('created_at', { ascending: false }).limit(Math.min(Math.max(Number(payload.limit || 60), 10), 120)),
   ]);
@@ -12682,7 +12832,8 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
       .limit(rowLimit)
     : { data: [], error: null };
   if (rowsResult.error && !isMissingRelationError(rowsResult.error)) return fail(500, 'Failed to read data management status', ctx.origin, { error: rowsResult.error.message });
-  const sheets = (sheetsResult.data || []) as Record<string, unknown>[];
+  const workbookSheets = sources.flatMap((source) => workbookSchemaSheets(source));
+  const sheets = workbookSheets.slice(0, 240);
   const rawSourceRows = (rowsResult.data || []) as Record<string, unknown>[];
   const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
   const sourceRows = rawSourceRows.filter((row) => {
@@ -12699,6 +12850,10 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   if (syntheticRows.length) {
     sources.push(...syntheticDataManagementSources(managementScope));
   }
+  const sourceFileById = new Map(sources.map((source) => [safeText(source.source_file_id), source]));
+  const workbookColumns = managerView
+    ? sheets.flatMap((sheet) => workbookSchemaColumnsForSheet(sourceFileById.get(safeText(sheet.source_file_id)) || null, safeText(sheet.sheet_name)))
+    : [];
   const rawEdits = (editsResult.data || []) as Record<string, unknown>[];
   const canSeeEdit = (row: Record<string, unknown>) => {
     if (!dataManagementEditMatchesRefs(row, managementScope.allRefs)) return false;
@@ -12906,7 +13061,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
     },
     sources,
     sheets,
-    columns: columnsResult.data || [],
+    columns: workbookColumns,
     source_rows: effectiveSourceRows,
     domain_stats: Object.values(domainStats),
     edit_requests: editHistory,
@@ -13007,12 +13162,9 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
   let primaryKeyField = safeText(payload.primary_key_field || payload.primaryKeyField || 'id');
   let sourceColumn: Record<string, unknown> | null = null;
   if (!targetTable || !targetField) {
-    const { data: columns } = await ctx.serviceClient
-      .from('ll_source_columns')
-      .select('source_column_id,header_label,normalized_header,target_table,target_field,is_required,is_user_editable,value_type,unit_label')
-      .eq('source_sheet_id', sourceRow.source_sheet_id)
-      .limit(500);
-    sourceColumn = ((columns || []) as Record<string, unknown>[]).find((column) => (
+    const sourceFile = await dataManagementSourceFileById(ctx, safeText(sourceRow.source_file_id));
+    const columns = workbookSchemaColumnsForSheet(sourceFile, safeText(sourceRow.sheet_name));
+    sourceColumn = (columns as Record<string, unknown>[]).find((column) => (
       safeText(column.normalized_header) === fieldName || safeText(column.header_label) === fieldName
     )) || null;
     targetTable = targetTable || safeText(sourceColumn?.target_table);

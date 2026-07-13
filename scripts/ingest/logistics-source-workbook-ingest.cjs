@@ -322,7 +322,6 @@ function parseSourceWorkbook(filePath, options = {}) {
       const rowHash = sha256Json(values);
       const item = {
         source_row_id: sourceRowId,
-        source_sheet_id: sheetId,
         source_file_id: sourceFileId,
         sheet_name: sheetName,
         row_number: rowNumber,
@@ -768,8 +767,6 @@ async function publishParsed(parsed, options) {
   };
   for (const [table, rows] of [
     ['ll_source_files', [sourceFile]],
-    ['ll_source_sheets', parsed.sheets],
-    ['ll_source_columns', parsed.columns],
     ['ll_source_rows', parsed.rows],
     ['ll_sector_market_lease_observations', parsed.normalized.leaseObservations || []],
     ['ll_sector_market_supply_cases', parsed.normalized.supplyCases || []],
@@ -848,9 +845,6 @@ function buildSqlExport(parsed, options = {}) {
       ? `update public.ll_source_files set active_version = false, parse_status = 'archived', updated_at = now() where source_domain = ${sqlLiteral(parsed.sourceFile.source_domain)} and active_version is true and source_file_id <> ${sqlLiteral(parsed.sourceFile.source_file_id)};`
       : '',
     upsertFromJsonSql('ll_source_files', [sourceFile], ['source_key'], 'source_files_json'),
-    '-- Compatibility shadow writes for Edge paths that still read ll_source_sheets / ll_source_columns.',
-    upsertFromJsonSql('ll_source_sheets', parsed.sheets, ['source_file_id', 'sheet_name'], 'source_sheets_json'),
-    upsertFromJsonSql('ll_source_columns', parsed.columns, ['source_sheet_id', 'column_index'], 'source_columns_json'),
     upsertFromJsonSql('ll_source_rows', parsed.rows, ['source_file_id', 'sheet_name', 'row_number'], 'source_rows_json'),
     upsertFromJsonSql('ll_sector_market_lease_observations', parsed.normalized.leaseObservations || [], ['source_row_id'], 'lease_observations_json'),
     upsertFromJsonSql('ll_sector_market_supply_cases', parsed.normalized.supplyCases || [], ['source_row_id'], 'supply_cases_json'),
@@ -888,8 +882,6 @@ function writeSqlChunkFiles(parsed, options = {}) {
     'commit;',
   ].filter(Boolean).join('\n'));
   const tableSpecs = [
-    ['ll_source_sheets', parsed.sheets, ['source_file_id', 'sheet_name'], 200, 'source_sheets'],
-    ['ll_source_columns', parsed.columns, ['source_sheet_id', 'column_index'], 250, 'source_columns'],
     ['ll_source_rows', parsed.rows, ['source_file_id', 'sheet_name', 'row_number'], 120, 'source_rows'],
     ['ll_sector_market_lease_observations', parsed.normalized.leaseObservations || [], ['source_row_id'], 500, 'lease_observations'],
     ['ll_sector_market_supply_cases', parsed.normalized.supplyCases || [], ['source_row_id'], 300, 'supply_cases'],

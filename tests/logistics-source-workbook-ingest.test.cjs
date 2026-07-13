@@ -7,7 +7,7 @@ const XLSX = require('xlsx');
 
 const ingest = require('../scripts/ingest/logistics-source-workbook-ingest.cjs');
 
-test('parseSourceWorkbook builds workbook_schema and preserves compatibility source sheet ids', () => {
+test('parseSourceWorkbook stores sheet metadata in workbook_schema without source sheet ids on rows', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'logi-source-ingest-'));
   const workbookPath = path.join(tmpDir, 'market-2026q1.xlsx');
   const wb = XLSX.utils.book_new();
@@ -33,12 +33,12 @@ test('parseSourceWorkbook builds workbook_schema and preserves compatibility sou
   assert.equal(Array.isArray(parsed.sourceFile.workbook_schema.sheets[0].columns), true);
   assert.ok(parsed.sourceFile.workbook_schema.sheets[0].columns.length >= 1);
   assert.ok(parsed.rows.every((row) => row.sheet_name === 'Sheet1'));
-  assert.ok(parsed.rows.every((row) => typeof row.source_sheet_id === 'string' && row.source_sheet_id.length > 10));
+  assert.ok(parsed.rows.every((row) => !Object.hasOwn(row, 'source_sheet_id')));
   assert.equal(parsed.sheets.length, 1);
   assert.ok(parsed.columns.length >= 1);
 });
 
-test('buildSqlExport writes workbook_schema to ll_source_files and keeps compatibility table upserts for now', () => {
+test('buildSqlExport writes workbook_schema and retires source sheet and column shadow upserts', () => {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'logi-source-ingest-'));
   const workbookPath = path.join(tmpDir, 'market-2026q1.xlsx');
   const wb = XLSX.utils.book_new();
@@ -60,8 +60,8 @@ test('buildSqlExport writes workbook_schema to ll_source_files and keeps compati
 
   assert.match(sql, /workbook_schema/iu);
   assert.match(sql, /insert into public\.ll_source_files/iu);
-  assert.match(sql, /insert into public\.ll_source_sheets/iu);
-  assert.match(sql, /insert into public\.ll_source_columns/iu);
   assert.match(sql, /insert into public\.ll_source_rows/iu);
-  assert.match(sql, /Compatibility shadow writes/iu);
+  assert.doesNotMatch(sql, /insert into public\.ll_source_sheets/iu);
+  assert.doesNotMatch(sql, /insert into public\.ll_source_columns/iu);
+  assert.doesNotMatch(sql, /source_sheet_id/iu);
 });

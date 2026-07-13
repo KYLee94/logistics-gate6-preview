@@ -465,10 +465,33 @@ const isSmokeNotificationSource = (row = {}) => {
         || String(row.status || '').toLowerCase().startsWith('smoke')
         || payload.rollback_after_write === true;
 };
+const stableNotificationHash = (value) => {
+    let hash = 5381;
+    for (const character of String(value || '')) {
+        hash = ((hash * 33) ^ character.charCodeAt(0)) >>> 0;
+    }
+    return hash.toString(36);
+};
+const notificationFallbackId = (row = {}) => {
+    const payload = parseNotificationPayload(row.payload || row.notification_payload || row.request_payload);
+    const businessFields = [
+        row.type || row.notification_type,
+        row.event_type || payload.event_type,
+        row.reference_id || row.referenceId || payload.reference_id || payload.referenceId,
+        row.entity_id || row.entityId || row.request_id || row.requestId || payload.entity_id || payload.entityId || payload.request_id || payload.requestId,
+        row.asset_id || row.assetId || row.lease_id || row.leaseId || payload.asset_id || payload.assetId || payload.lease_id || payload.leaseId,
+        row.created_at || row.createdAt || row.due_date || row.dueDate,
+        row.title || payload.title,
+        row.body || payload.body,
+    ].map((value) => String(value || '').trim().toLowerCase());
+    return `notification:${stableNotificationHash(businessFields.join('|'))}`;
+};
 const sanitizeNotificationText = (value, fallback = '-') => {
     const source = String(value || '').trim();
     if (!source) return fallback;
     const cleaned = source
+        .replace(/tenant_master_name/giu, '임차인')
+        .replace(/data_management_view_field_update/giu, '데이터 수정 요청')
         .replace(/tenant_brn_\d{6,}/giu, '임차인')
         .replace(/asset_[a-z0-9_-]{8,}/giu, '자산')
         .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/giu, '')
@@ -500,7 +523,7 @@ const buildCanonicalNotification = (row = {}) => {
     const deliveryStatus = String(row.delivery_status || row.deliveryStatus || '').toLowerCase();
     const readAt = row.read_at || row.readAt || '';
     return {
-        id: String(row.id || row.delivery_id || row.notification_id || `${type}:${row.created_at || Date.now()}`),
+        id: String(row.id || row.delivery_id || row.notification_id || notificationFallbackId(row)),
         canonical: true,
         tag: sanitizeNotificationText(row.tag, type === 'loan_maturity' ? 'Loan Maturity' : type === 'lease_maturity' ? 'Lease Maturity' : 'Notification'),
         title: sanitizeNotificationText(row.title, type === 'loan_maturity' ? '대출 만기 알림' : type === 'lease_maturity' ? '임대차 만기 알림' : '플랫폼 알림'),
@@ -859,31 +882,37 @@ export default function IotaLeftNav({ currentPath = '' }) {
             return next;
         });
     }, [notificationStorageKey]);
-    const persistDismissedNotificationIds = (updater) => {
-        setDismissedNotificationIds((current) => {
-            const next = [...new Set(typeof updater === 'function' ? updater(current) : updater)].slice(-500);
-            writeStoredNotificationIds(notificationDismissedStorageKey, next);
-            return next;
-        });
+    const invalidateNotificationCaches = () => {
+        try {
+            localStorage.removeItem(LOGISTICS_NOTIFICATION_CACHE_KEY);
+            localStorage.removeItem(notificationStorageKey);
+            localStorage.removeItem(notificationDismissedStorageKey);
+        } catch {
+            // Cache invalidation must not block the authoritative server readback.
+        }
+        setReadNotificationIds([]);
+        setDismissedNotificationIds([]);
+    };
+    const refreshNotificationsFromServer = async () => {
+        invalidateNotificationCaches();
+        await loadNotifications({ markRead: false, silent: true, forceServer: true });
     };
     const markNotificationsRead = useCallback(async (rows = notificationsRef.current) => {
         const ids = rows.map((item) => item.id).filter(Boolean);
         if (!ids.length) return;
         const canonicalIds = rows.filter((item) => item.canonical).map((item) => item.id).filter(Boolean);
-        const localOnlyIds = rows.filter((item) => !item.canonical).map((item) => item.id).filter(Boolean);
         if (canonicalIds.length) {
             try {
                 const { data, error } = await invokeWithTimeout('notifications/mark-read', { ids: canonicalIds }, 10000, true, { retryTimeout: false });
                 if (error || data?.ok === false || data?.data?.skipped) throw new Error(data?.message || error?.message || 'notification readback failed');
-                persistReadNotificationIds((current) => [...current, ...ids]);
-                window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-mark-read' } }));
             } catch {
-                if (localOnlyIds.length) persistReadNotificationIds((current) => [...current, ...localOnlyIds]);
                 setNotificationsError('읽음 처리 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
+                return;
             }
-        } else {
-            persistReadNotificationIds((current) => [...current, ...ids]);
         }
+        persistReadNotificationIds((current) => [...current, ...ids]);
+        await refreshNotificationsFromServer();
+        window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-mark-read' } }));
     }, [persistReadNotificationIds]);
     const markAllNotificationsRead = async () => {
         const rows = notifications;
@@ -893,16 +922,14 @@ export default function IotaLeftNav({ currentPath = '' }) {
             try {
                 const { data, error } = await invokeWithTimeout('notifications/mark-read', { all: true }, 12000, true, { retryTimeout: false });
                 if (error || data?.ok === false || data?.data?.skipped) throw new Error(data?.message || error?.message || 'notification readback failed');
-                persistReadNotificationIds((current) => [...current, ...ids]);
-                window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-mark-all-read' } }));
             } catch {
-                const localOnlyIds = rows.filter((item) => !item.canonical).map((item) => item.id).filter(Boolean);
-                if (localOnlyIds.length) persistReadNotificationIds((current) => [...current, ...localOnlyIds]);
                 setNotificationsError('전체 읽음 처리 반영이 늦어지고 있습니다. 새로고침으로 다시 확인해 주세요.');
+                return;
             }
-        } else {
-            persistReadNotificationIds((current) => [...current, ...ids]);
         }
+        persistReadNotificationIds((current) => [...current, ...ids]);
+        await refreshNotificationsFromServer();
+        window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-mark-all-read' } }));
     };
     const handleNotificationNavigate = (item) => {
         const route = item?.route || LOGISTICS_INTERNAL_BASE;
@@ -910,8 +937,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setShowNotificationsPanel(false);
         handleNavigation(route);
     };
-    const loadNotifications = useCallback(async ({ markRead = false, silent = false } = {}) => {
-        const cachedRows = notificationsRef.current;
+    const loadNotifications = useCallback(async ({ markRead = false, silent = false, forceServer = false } = {}) => {
+        const cachedRows = forceServer ? [] : notificationsRef.current;
         if (!silent || !cachedRows.length) setNotificationsLoading(true);
         setNotificationsError('');
         try {
@@ -1011,7 +1038,6 @@ export default function IotaLeftNav({ currentPath = '' }) {
             try {
                 const { data, error } = await invokeWithTimeout('notifications/dismiss', { ids: [item.id] }, 10000, true, { retryTimeout: false });
                 if (error || data?.ok === false || data?.data?.skipped) throw new Error(data?.message || error?.message || 'notification dismiss failed');
-                window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-dismiss' } }));
             } catch {
                 setNotifications(previousNotifications);
                 writeCachedNotifications(previousNotifications);
@@ -1020,7 +1046,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 return;
             }
         }
-        persistDismissedNotificationIds((ids) => [...ids, item.id]);
+        await refreshNotificationsFromServer();
+        window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-dismiss' } }));
     };
     const dismissAllNotifications = async () => {
         const ids = notifications.map((item) => item.id).filter(Boolean);
@@ -1034,7 +1061,6 @@ export default function IotaLeftNav({ currentPath = '' }) {
             try {
                 const { data, error } = await invokeWithTimeout('notifications/dismiss', { all: true }, 12000, true, { retryTimeout: false });
                 if (error || data?.ok === false || data?.data?.skipped) throw new Error(data?.message || error?.message || 'notification dismiss all failed');
-                window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-dismiss-all' } }));
             } catch {
                 setNotifications(previousNotifications);
                 writeCachedNotifications(previousNotifications);
@@ -1043,7 +1069,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 return;
             }
         }
-        persistDismissedNotificationIds((current) => [...current, ...ids]);
+        await refreshNotificationsFromServer();
+        window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-dismiss-all' } }));
     };
     useEffect(() => {
         setReadNotificationIds(readStoredNotificationIds(notificationStorageKey));

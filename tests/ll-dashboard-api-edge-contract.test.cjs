@@ -13,6 +13,7 @@ test('floor plan uploads resolve the private bucket on the server', () => {
   assert.match(edgeSource, /LOGISTICS_FLOOR_PLAN_STORAGE_BUCKET/u);
   assert.match(edgeSource, /CANONICAL_ASSET_FLOOR_PLAN_BUCKET = 'logistics-sector-market-workbooks'/u);
   assert.match(edgeSource, /privateBucketNames\.has\(CANONICAL_ASSET_FLOOR_PLAN_BUCKET\)/u);
+  assert.match(edgeSource, /\.eq\('file_type', 'floor_plan'\)[\s\S]*?\.limit\(32\)/u);
 });
 
 test('AI demo cannot execute before authenticated feature access is established', () => {
@@ -49,6 +50,34 @@ test('AI concurrent requests use a temporary distributed lock instead of runtime
   assert.match(edgeSource, /\.insert\(\{[\s\S]*cache_type: AI_CHAT_DISTRIBUTED_LOCK_TYPE/u);
   assert.match(edgeSource, /if \(error\.code === '23505'\) return null/u);
   assert.match(edgeSource, /await releaseAiChatDistributedLock\(ctx, distributedLock\)\.catch\(\(\) => \{\}\)/u);
+});
+
+test('source workbook reads use ll_source_files.workbook_schema and row sheet names', () => {
+  const sectorStart = edgeSource.indexOf('async function callSectorMarketRead(');
+  const dataManagementStart = edgeSource.indexOf('async function dataManagementLeaseWorkbookRows(');
+  const statusStart = edgeSource.indexOf('async function callDataManagementStatus(');
+  const previewStart = edgeSource.indexOf('async function callDataManagementPreviewEdit(');
+  const submitStart = edgeSource.indexOf('async function callDataManagementSubmitRowAdd(', previewStart);
+  const sectorSource = edgeSource.slice(sectorStart, dataManagementStart);
+  const dataManagementSource = edgeSource.slice(dataManagementStart, previewStart);
+  const statusSource = edgeSource.slice(statusStart, previewStart);
+  const previewSource = edgeSource.slice(previewStart, submitStart);
+
+  assert.ok(sectorStart >= 0 && dataManagementStart > sectorStart);
+  assert.ok(statusStart >= 0 && previewStart > statusStart && submitStart > previewStart);
+  assert.match(edgeSource, /function sourceWorkbookSchema\(/u);
+  assert.match(edgeSource, /function workbookSchemaSheets\(/u);
+  assert.match(edgeSource, /function workbookSchemaColumnsForSheet\(/u);
+  assert.doesNotMatch(edgeSource, /\.from\('ll_source_sheets'\)/u);
+  assert.doesNotMatch(edgeSource, /\.from\('ll_source_columns'\)/u);
+  assert.match(sectorSource, /workbook_schema/u);
+  assert.match(sectorSource, /workbookSchemaSheets\(activeSource\)/u);
+  assert.match(sectorSource, /\.in\('sheet_name', statisticSheetNames\)/u);
+  assert.match(dataManagementSource, /workbookSchemaSheetByName\(sourceFile, sheetName\)/u);
+  assert.match(dataManagementSource, /workbookSchemaColumnsForSheet\(sourceFile, sheetName\)/u);
+  assert.match(statusSource, /workbook_schema/u);
+  assert.match(statusSource, /workbookSchemaSheets\(source\)/u);
+  assert.match(previewSource, /workbookSchemaColumnsForSheet\(sourceFile, safeText\(sourceRow\.sheet_name\)\)/u);
 });
 
 test('gyeongsan coupang floor count preview action stays admin-only and dry-run', () => {

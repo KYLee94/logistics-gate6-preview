@@ -54,9 +54,9 @@ insert into public.ll_notifications (
     notified_at
   )
   values (
-    'system',
-    'QA notification readback',
-    'QA notification readback probe',
+    'data_update',
+    'data_management_view_field_update',
+    'tenant_master_name',
     0,
     ${sqlLiteral(dedupeKey)},
     ${sqlLiteral(recipientEmail)},
@@ -65,14 +65,7 @@ insert into public.ll_notifications (
     null,
     now()
   )
-  on conflict (dedupe_key) do update
-    set title = excluded.title,
-        body = excluded.body,
-        recipient_email = excluded.recipient_email,
-        delivery_status = 'unread',
-        read_at = null,
-        dismissed_at = null,
-        notified_at = excluded.notified_at
+  on conflict (dedupe_key) do nothing
   returning notification_id::text, recipient_email, delivery_status;
 `, 'notification-readback-insert');
     const notification = inserted[0];
@@ -82,6 +75,9 @@ insert into public.ll_notifications (
     const beforeRows = Array.isArray(listBefore.data?.notifications) ? listBefore.data.notifications : [];
     const createdBefore = beforeRows.find((row) => text(row.id) === text(notification.notification_id));
     assert(createdBefore, 'Created notification was not returned by notifications/list.');
+    assert(text(createdBefore.title) === '데이터 수정 요청', 'Internal update key was not converted to a business title.');
+    assert(text(createdBefore.body) === '임차인', 'Internal tenant key was not converted to a business field label.');
+    assert(!/tenant_master_name|data_management_view_field_update/iu.test(JSON.stringify(createdBefore)), 'Internal notification keys leaked in the public response.');
 
     await invoke(supabaseUrl, anonKey, auth.token, 'notifications/mark-read', { ids: [notification.notification_id] });
     const afterReadRows = runLinkedDbQuery(`
@@ -90,6 +86,24 @@ from public.ll_notifications
 where notification_id = ${sqlLiteral(notification.notification_id)};
 `, 'notification-readback-read');
     assert(afterReadRows[0]?.delivery_status === 'read' && afterReadRows[0]?.has_read_at === true, 'notifications/mark-read did not persist read status.');
+
+    const duplicateAfterRead = runLinkedDbQuery(`
+insert into public.ll_notifications (
+  notification_type, title, body, lead_days, dedupe_key, recipient_email,
+  delivery_status, read_at, dismissed_at, notified_at
+)
+values (
+  'data_update', 'data_management_view_field_update', 'tenant_master_name', 0,
+  ${sqlLiteral(dedupeKey)}, ${sqlLiteral(recipientEmail)}, 'unread', null, null, now()
+)
+on conflict (dedupe_key) do nothing;
+
+select notification_id::text, delivery_status, read_at is not null as has_read_at
+from public.ll_notifications
+where dedupe_key = ${sqlLiteral(dedupeKey)};
+`, 'notification-readback-repeat-after-read');
+    assert(text(duplicateAfterRead[0]?.notification_id) === text(notification.notification_id), 'Repeated business event changed notification identity after read.');
+    assert(duplicateAfterRead[0]?.delivery_status === 'read' && duplicateAfterRead[0]?.has_read_at === true, 'Repeated business event reset the read state.');
 
     const listAfterRead = await invoke(supabaseUrl, anonKey, auth.token, 'notifications/list', { limit: 120, include_smoke: true });
     const readRow = (Array.isArray(listAfterRead.data?.notifications) ? listAfterRead.data.notifications : []).find((row) => text(row.id) === text(notification.notification_id));
@@ -103,6 +117,24 @@ where notification_id = ${sqlLiteral(notification.notification_id)};
 `, 'notification-readback-dismiss');
     assert(afterDismissRows[0]?.delivery_status === 'dismissed' && afterDismissRows[0]?.has_dismissed_at === true, 'notifications/dismiss did not persist dismissed status.');
 
+    const duplicateAfterDismiss = runLinkedDbQuery(`
+insert into public.ll_notifications (
+  notification_type, title, body, lead_days, dedupe_key, recipient_email,
+  delivery_status, read_at, dismissed_at, notified_at
+)
+values (
+  'data_update', 'data_management_view_field_update', 'tenant_master_name', 0,
+  ${sqlLiteral(dedupeKey)}, ${sqlLiteral(recipientEmail)}, 'unread', null, null, now()
+)
+on conflict (dedupe_key) do nothing;
+
+select notification_id::text, delivery_status, dismissed_at is not null as has_dismissed_at
+from public.ll_notifications
+where dedupe_key = ${sqlLiteral(dedupeKey)};
+`, 'notification-readback-repeat-after-dismiss');
+    assert(text(duplicateAfterDismiss[0]?.notification_id) === text(notification.notification_id), 'Repeated business event changed notification identity after dismiss.');
+    assert(duplicateAfterDismiss[0]?.delivery_status === 'dismissed' && duplicateAfterDismiss[0]?.has_dismissed_at === true, 'Repeated business event recreated a dismissed notification.');
+
     const listAfterDismiss = await invoke(supabaseUrl, anonKey, auth.token, 'notifications/list', { limit: 120, include_smoke: true });
     const dismissedStillVisible = (Array.isArray(listAfterDismiss.data?.notifications) ? listAfterDismiss.data.notifications : []).some((row) => text(row.id) === text(notification.notification_id));
     assert(!dismissedStillVisible, 'Dismissed notification was still returned by notifications/list.');
@@ -113,9 +145,12 @@ where notification_id = ${sqlLiteral(notification.notification_id)};
       recipient_email: recipientEmail,
       checks: {
         created_visible: true,
+        internal_keys_hidden: true,
         read_persisted: true,
+        repeated_event_preserved_read_state: true,
         read_visible_on_reload: true,
         dismissed_persisted: true,
+        repeated_event_preserved_dismissed_state: true,
         dismissed_hidden_on_reload: true,
         qa_row_cleaned: false,
       },
