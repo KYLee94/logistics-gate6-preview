@@ -78,6 +78,9 @@ test('source workbook reads use ll_source_files.workbook_schema and row sheet na
   assert.match(statusSource, /workbook_schema/u);
   assert.match(statusSource, /workbookSchemaSheets\(source\)/u);
   assert.match(previewSource, /workbookSchemaColumnsForSheet\(sourceFile, safeText\(sourceRow\.sheet_name\)\)/u);
+  const sourceRowSelects = [...edgeSource.matchAll(/\.from\('ll_source_rows'\)\s*\.select\('([^']*)'/gu)].map((match) => match[1]);
+  assert.ok(sourceRowSelects.length >= 8);
+  assert.ok(sourceRowSelects.every((columns) => !columns.split(',').includes('source_sheet_id')));
 });
 
 test('gyeongsan coupang floor count preview action stays admin-only and dry-run', () => {

@@ -614,7 +614,7 @@ const logisticsDashboardItems = [
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 15l3-3 3 2 4-6M8 19v-4m4 4v-7m4 7v-5m4 5V8" /></svg>,
     },
     {
-        label: '자산 스펙',
+        label: '자산별 스펙 비교',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/asset-spec`,
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7h16M6 7v12h12V7M9 11h6M9 15h3M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>,
     },

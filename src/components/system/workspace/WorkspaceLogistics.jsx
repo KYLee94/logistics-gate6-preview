@@ -12,6 +12,7 @@ import assetSearchIndexData from './logisticsAssetSearchIndex.json';
 import companyOptionsData from './logisticsCompanyOptionsData.json';
 import sectorData from './logisticsSectorData.json';
 import logisticsPermissionData from './logisticsPermissionData.json';
+import { floorPlanLabelFromRecord, normalizeFloorPlanImageSource } from './floorPlanImageSource';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
 import { normalizeStackingFloorLabel, normalizeStackingFloorLabelFromRow } from './stackingFloorNormalizer';
 import {
@@ -138,7 +139,7 @@ const MODULES = [
   { id: 'asset', label: '자산', source: '자산' },
   { id: 'company', label: '기업', source: '기업' },
   { id: 'investment-index', label: '투자 정보', source: '투자 정보' },
-  { id: 'asset-spec', label: '자산 스펙', source: '자산 스펙' },
+  { id: 'asset-spec', label: '자산별 스펙 비교', source: '자산 스펙' },
   { id: 'tools', label: '분석 도구', source: '분석 도구' },
   { id: 'playground', label: '피벗 테이블', source: '피벗 테이블' },
   { id: 'quality', label: '데이터 품질', source: '데이터 품질' },
@@ -177,7 +178,7 @@ const WORK_PLATFORM_QUICK_TAB_OPTIONS = [
   { key: 'asset', label: '자산', path: pathFor('dashboard/asset') },
   { key: 'company', label: '기업', path: pathFor('dashboard/company') },
   { key: 'investment-index', label: '투자 정보', path: pathFor('dashboard/investment-index') },
-  { key: 'asset-spec', label: '자산 스펙', path: pathFor('dashboard/asset-spec') },
+  { key: 'asset-spec', label: '자산별 스펙 비교', path: pathFor('dashboard/asset-spec') },
   { key: 'market-overview', label: '시장 개요', path: pathFor('market-data/overview') },
   { key: 'lease-market', label: '임대 시장', path: pathFor('market-data/lease-market') },
   { key: 'supply-pipeline', label: '공급 예정', path: pathFor('market-data/supply-pipeline') },
@@ -13652,13 +13653,16 @@ function AssetDashboard() {
       ? scaleFloorLabels
       : (floorLabels.length && !floorLabelsOnlyOverall ? floorLabels : ['층별 평면도']);
     if (sourceFloorplans.length) {
-      return sortFloorplanSlides(sourceFloorplans.map((item, index) => ({
-        id: cleanDisplay(firstDefined(item.id, item.floorLabel, item.floor), `floorplan-${index}`),
-        label: cleanDisplay(firstDefined(item.label, item.floorLabel, item.floor, fallbackLabels[index]), `평면도 ${index + 1}`),
-        floorLabel: cleanDisplay(firstDefined(item.floorLabel, item.floor, item.label, fallbackLabels[index]), ''),
-        pageNumber: Number(firstDefined(item.pageNumber, item.page, index + 1)),
-        imageUrl: cleanDisplay(firstDefined(item.imageUrl, item.image_url, item.url, item.src), ''),
-      })));
+      return sortFloorplanSlides(sourceFloorplans.map((item, index) => {
+        const floorLabel = floorPlanLabelFromRecord(item, fallbackLabels[index]);
+        return {
+          id: cleanDisplay(firstDefined(item.id, item.asset_spec_file_id, floorLabel), `floorplan-${index}`),
+          label: cleanDisplay(firstDefined(item.label, floorLabel, item.title), `평면도 ${index + 1}`),
+          floorLabel,
+          pageNumber: Number(firstDefined(item.pageNumber, item.page, index + 1)),
+          imageUrl: normalizeFloorPlanImageSource(firstDefined(item.imageUrl, item.image_url, item.url, item.src)),
+        };
+      }));
     }
     return sortFloorplanSlides(fallbackLabels.map((label, index) => ({
       id: `${selectedAssetId || 'asset'}-floorplan-${index}`,
@@ -14894,7 +14898,7 @@ function DashboardShell({ activeModule }) {
     asset: '자산',
     company: '기업',
     'investment-index': '투자 정보',
-    'asset-spec': '자산 스펙',
+    'asset-spec': '자산별 스펙 비교',
     tools: '분석 도구',
     playground: '피벗 테이블',
     quality: '데이터 품질',

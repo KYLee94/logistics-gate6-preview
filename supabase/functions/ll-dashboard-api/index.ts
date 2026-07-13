@@ -4694,16 +4694,16 @@ async function listLeaseEvents(ctx: Context, payload: Record<string, unknown>) {
   return jsonResponse({ ok: true, data: rows }, 200, ctx.origin);
 }
 
-function notificationBusinessEventDedupeKey(eventKind, eventId, recipientEmail) {
+function notificationBusinessEventDedupeKey(eventKind: unknown, eventId: unknown, recipientEmail: unknown) {
   const normalized = [eventKind, eventId, recipientEmail]
     .map((value) => String(value || '').trim().toLowerCase());
   return `business-event:${normalized.join(':')}`;
 }
 
-function notificationPublicBusinessText(value, fallback = '업무 알림') {
+function notificationPublicBusinessText(value: unknown, fallback = '업무 알림') {
   const text = String(value ?? '').trim();
   if (!text) return fallback;
-  const aliases = {
+  const aliases: Record<string, string> = {
     tenant_master_name: '임차인',
     data_management_view_field: '데이터 수정 요청',
     data_management_view_field_update: '데이터 수정 요청',
@@ -5433,7 +5433,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
         .eq('source_file_id', activeSourceId)
       : Promise.resolve({ count: 0, error: null }),
   ]);
-  if (sourceSheetsResult.error && !isMissingRelationError(sourceSheetsResult.error)) return fail(500, 'Failed to read source sheets', ctx.origin, { error: sourceSheetsResult.error.message });
+  if (sourceSheetsResult.error && !isMissingRelationError(sourceSheetsResult.error)) return fail(500, 'Failed to read source sheets', ctx.origin, { error: dataManagementErrorMessage(sourceSheetsResult.error) });
   const sourceSheets = (sourceSheetsResult.data || []) as Record<string, unknown>[];
   const rawRowHashes: Record<string, unknown>[] = [];
   if (includeRawRowHashes) {
@@ -5461,7 +5461,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       return sum + workbookSchemaColumnsForSheet(activeSource, safeText(sheet.sheet_name)).length;
     }, 0);
   }
-  if (sourceRowsCountResult.error && !isMissingRelationError(sourceRowsCountResult.error)) return fail(500, 'Failed to count source rows', ctx.origin, { error: sourceRowsCountResult.error.message });
+  if (sourceRowsCountResult.error && !isMissingRelationError(sourceRowsCountResult.error)) return fail(500, 'Failed to count source rows', ctx.origin, { error: dataManagementErrorMessage(sourceRowsCountResult.error) });
   const sheetReadback = needsSourceAudit ? await Promise.all(sourceSheets.map(async (sheet) => {
     const { count, error } = await ctx.serviceClient
       .from('ll_source_rows')
@@ -5501,8 +5501,8 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       error: null,
     }),
   ]) : [{ data: [], error: null }, { data: [], error: null }];
-  if (sourceStatisticRowsResult.error && !isMissingRelationError(sourceStatisticRowsResult.error)) return fail(500, 'Failed to read market statistic source rows', ctx.origin, { error: sourceStatisticRowsResult.error.message });
-  if (sourceStatisticColumnsResult.error && !isMissingRelationError(sourceStatisticColumnsResult.error)) return fail(500, 'Failed to read market statistic source columns', ctx.origin, { error: sourceStatisticColumnsResult.error.message });
+  if (sourceStatisticRowsResult.error && !isMissingRelationError(sourceStatisticRowsResult.error)) return fail(500, 'Failed to read market statistic source rows', ctx.origin, { error: dataManagementErrorMessage(sourceStatisticRowsResult.error) });
+  if (sourceStatisticColumnsResult.error && !isMissingRelationError(sourceStatisticColumnsResult.error)) return fail(500, 'Failed to read market statistic source columns', ctx.origin, { error: dataManagementErrorMessage(sourceStatisticColumnsResult.error) });
   const sourceStatisticRows = (sourceStatisticRowsResult.data || []) as Record<string, unknown>[];
   const sourceStatisticColumns = (sourceStatisticColumnsResult.data || []) as Record<string, unknown>[];
   const leaseStatisticRows = parseLeaseStatisticRows(
@@ -8471,14 +8471,14 @@ async function dataManagementLeaseWorkbookRows(ctx: Context, payload: Record<str
     }),
     ctx.serviceClient
       .from('ll_source_rows')
-      .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at')
+      .select('source_row_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at')
       .eq('source_file_id', safeText(sourceFile.source_file_id))
       .eq('sheet_name', sheetName)
       .gte('row_number', Number(config.min_row_number || 1))
       .order('row_number', { ascending: true })
       .limit(6000),
   ]);
-  if (columnsResult.error && !isMissingRelationError(columnsResult.error)) throw new Error(columnsResult.error.message);
+  if (columnsResult.error && !isMissingRelationError(columnsResult.error)) throw new Error(dataManagementErrorMessage(columnsResult.error));
   if (rowsResult.error && !isMissingRelationError(rowsResult.error)) throw new Error(rowsResult.error.message);
   const columns = ((columnsResult.data || []) as Record<string, unknown>[])
     .filter((column) => dataManagementWorkbookHeaderLabel(column));
@@ -12826,7 +12826,7 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
   const rowsResult = dataManagementSourceIds.length
     ? await ctx.serviceClient
       .from('ll_source_rows')
-      .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,row_hash,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at')
+      .select('source_row_id,source_file_id,sheet_name,row_number,row_hash,natural_key,row_values,normalized_values,validation_flags,source_locator,created_at,updated_at')
       .in('source_file_id', dataManagementSourceIds)
       .order('created_at', { ascending: false })
       .limit(rowLimit)
@@ -13134,7 +13134,7 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
   } else {
     const { data, error: sourceError } = await ctx.serviceClient
       .from('ll_source_rows')
-      .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values,validation_flags,source_locator')
+      .select('source_row_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values,validation_flags,source_locator')
       .eq('source_row_id', sourceRowId)
       .maybeSingle();
     if (sourceError && !isMissingRelationError(sourceError)) return fail(500, 'Failed to read source row', ctx.origin, { error: sourceError.message });
@@ -13420,7 +13420,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     } else {
       const { data, error: sourceError } = await ctx.serviceClient
         .from('ll_source_rows')
-        .select('source_row_id,source_sheet_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values')
+        .select('source_row_id,source_file_id,sheet_name,row_number,natural_key,row_values,normalized_values')
         .eq('source_row_id', targetRowId)
         .maybeSingle();
       if (sourceError && !isMissingRelationError(sourceError)) return fail(500, 'Failed to read source row', ctx.origin, { error: sourceError.message });
