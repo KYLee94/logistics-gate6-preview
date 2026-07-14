@@ -615,6 +615,39 @@ async function stabilizeResidualOverlays(page, options = {}) {
   throw new Error('Overlay stabilization ended unexpectedly.');
 }
 
+async function clickAfterOverlayRecovery(button, stabilizeOverlays, maxAttempts = 3) {
+  const attempts = [];
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const beforeTrial = await stabilizeOverlays();
+    if (!beforeTrial.ok) {
+      return { ok: false, attempts, problem: 'overlay cleanup failed before actionability check', before_trial: beforeTrial };
+    }
+    try {
+      await button.click({ trial: true, timeout: 3000 });
+    } catch (error) {
+      const overlays = await inspectResidualOverlays(button.page());
+      attempts.push({ attempt, phase: 'trial', overlays, problem: error?.message || String(error) });
+      if (!overlays.length) throw error;
+      continue;
+    }
+
+    const afterTrial = await stabilizeOverlays();
+    if (!afterTrial.ok) {
+      attempts.push({ attempt, phase: 'after-trial', overlays: afterTrial.remaining_overlays || [], problem: afterTrial.problem || 'overlay cleanup failed' });
+      continue;
+    }
+    try {
+      await button.click({ timeout: 5000 });
+      return { ok: true, attempts, before_trial: beforeTrial, after_trial: afterTrial };
+    } catch (error) {
+      const overlays = await inspectResidualOverlays(button.page());
+      attempts.push({ attempt, phase: 'click', overlays, problem: error?.message || String(error) });
+      if (!overlays.length) throw error;
+    }
+  }
+  return { ok: false, attempts, problem: 'popup trigger remained covered after overlay recovery' };
+}
+
 async function checkPopupLifecycle({ button, popup, action, close, stabilizeOverlays }) {
   const overlayCleanup = { open: null, reopen: null, ok: false, observed_overlay_types: [] };
   const cleanupSummary = () => {
@@ -629,16 +662,22 @@ async function checkPopupLifecycle({ button, popup, action, close, stabilizeOver
     return { ok: false, opened: false, closed: false, reopened: false, reclosed: false, problem: 'popup trigger not visible', overlay_cleanup: cleanupSummary() };
   }
   try {
+    let firstTrigger = null;
     overlayCleanup.open = await stabilizeOverlays();
     if (!overlayCleanup.open.ok) {
       return { ok: false, opened: false, closed: false, reopened: false, reclosed: false, problem: 'overlay cleanup failed before open', overlay_cleanup: cleanupSummary() };
     }
-    const firstAction = await waitForAction(button.page(), action, () => button.click());
+    const firstAction = await waitForAction(button.page(), action, async () => {
+      firstTrigger = await clickAfterOverlayRecovery(button, stabilizeOverlays);
+      if (!firstTrigger.ok) throw new Error(firstTrigger.problem);
+    });
+    overlayCleanup.open.trigger = firstTrigger;
     await popup.waitFor({ state: 'visible', timeout: 15000 });
     const opened = true;
     await close();
     await popup.waitFor({ state: 'hidden', timeout: 15000 });
     const closed = true;
+    let secondTrigger = null;
     overlayCleanup.reopen = await stabilizeOverlays();
     if (!overlayCleanup.reopen.ok) {
       return {
@@ -654,7 +693,11 @@ async function checkPopupLifecycle({ button, popup, action, close, stabilizeOver
         overlay_cleanup: cleanupSummary(),
       };
     }
-    const secondAction = await waitForAction(button.page(), action, () => button.click());
+    const secondAction = await waitForAction(button.page(), action, async () => {
+      secondTrigger = await clickAfterOverlayRecovery(button, stabilizeOverlays);
+      if (!secondTrigger.ok) throw new Error(secondTrigger.problem);
+    });
+    overlayCleanup.reopen.trigger = secondTrigger;
     await popup.waitFor({ state: 'visible', timeout: 15000 });
     const reopened = true;
     await close();

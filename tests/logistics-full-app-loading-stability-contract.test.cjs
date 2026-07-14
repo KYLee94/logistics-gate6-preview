@@ -136,6 +136,7 @@ test('popup open and reopen stabilize late fullscreen overlays immediately befor
   const inspectOverlays = extractFunction(fullAppSource, 'inspectResidualOverlays');
   const dismissOverlays = extractFunction(fullAppSource, 'dismissResidualOverlays');
   const stabilizeOverlays = extractFunction(fullAppSource, 'stabilizeResidualOverlays');
+  const recoverClick = extractFunction(fullAppSource, 'clickAfterOverlayRecovery');
   const popupLifecycle = extractFunction(fullAppSource, 'checkPopupLifecycle');
   const modalChecks = extractFunction(fullAppSource, 'checkSystemModals');
   assert.match(inspectOverlays, /kind:/u);
@@ -147,6 +148,10 @@ test('popup open and reopen stabilize late fullscreen overlays immediately befor
   assert.match(stabilizeOverlays, /waitForLateOverlayOrQuiet/u);
   assert.match(stabilizeOverlays, /observed_overlay_types/u);
   assert.match(stabilizeOverlays, /remaining_overlays/u);
+  assert.match(recoverClick, /click\(\{ trial: true, timeout: 3000 \}\)/u);
+  assert.match(recoverClick, /inspectResidualOverlays\(button\.page\(\)\)/u);
+  assert.match(recoverClick, /popup trigger remained covered after overlay recovery/u);
+  assert.doesNotMatch(recoverClick, /force\s*:/u);
 
   const openCleanup = popupLifecycle.indexOf('overlayCleanup.open = await stabilizeOverlays()');
   const firstClick = popupLifecycle.indexOf('const firstAction = await waitForAction');
@@ -157,6 +162,7 @@ test('popup open and reopen stabilize late fullscreen overlays immediately befor
   assert.ok(closed < reopenCleanup && reopenCleanup < secondClick, 'late overlay stabilization must run after close and immediately before reopening');
   assert.match(popupLifecycle, /overlay_cleanup: cleanupSummary\(\)/u);
   assert.match(popupLifecycle, /overlayCleanup\.open\.ok && overlayCleanup\.reopen\.ok/u);
+  assert.equal((popupLifecycle.match(/clickAfterOverlayRecovery\(button, stabilizeOverlays\)/gu) || []).length, 2, 'open and reopen must both use actionability recovery');
 
   assert.equal((modalChecks.match(/stabilizeOverlays:/gu) || []).length, 3, 'all popup lifecycles must receive stabilized cleanup');
   assert.match(modalChecks, /report\.overlay_cleanup = overlayCleanup/u);
