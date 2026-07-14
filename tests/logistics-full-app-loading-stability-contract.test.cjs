@@ -132,24 +132,33 @@ test('full app QA observes actual dashboard requests and popup reopen lifecycle'
   }
 });
 
-test('modal checks clear residual fullscreen overlays before every popup lifecycle', () => {
+test('popup open and reopen stabilize late fullscreen overlays immediately before clicking', () => {
+  const inspectOverlays = extractFunction(fullAppSource, 'inspectResidualOverlays');
   const dismissOverlays = extractFunction(fullAppSource, 'dismissResidualOverlays');
+  const stabilizeOverlays = extractFunction(fullAppSource, 'stabilizeResidualOverlays');
+  const popupLifecycle = extractFunction(fullAppSource, 'checkPopupLifecycle');
   const modalChecks = extractFunction(fullAppSource, 'checkSystemModals');
+  assert.match(inspectOverlays, /kind:/u);
+  assert.match(inspectOverlays, /panel_testid/u);
   assert.match(dismissOverlays, /div\.fixed\.inset-0\.z-40/u);
   assert.match(dismissOverlays, /keyboard\.press\('Escape'\)/u);
   assert.match(dismissOverlays, /mouse\.click\(12, 12\)/u);
-  assert.equal((modalChecks.match(/await dismissResidualOverlays\(page\)/gu) || []).length, 3, 'each popup lifecycle must have its own overlay cleanup');
+  assert.doesNotMatch(dismissOverlays, /force\s*:/u);
+  assert.match(stabilizeOverlays, /waitForLateOverlayOrQuiet/u);
+  assert.match(stabilizeOverlays, /observed_overlay_types/u);
+  assert.match(stabilizeOverlays, /remaining_overlays/u);
 
-  const featureCleanup = modalChecks.indexOf('overlayCleanup.feature_access = await dismissResidualOverlays(page)');
-  const featureLifecycle = modalChecks.indexOf('modalChecks.feature_access = await checkPopupLifecycle');
-  const loginCleanup = modalChecks.indexOf('overlayCleanup.login_history = await dismissResidualOverlays(page)');
-  const loginLifecycle = modalChecks.indexOf('modalChecks.login_history = await checkPopupLifecycle');
-  const notificationCleanup = modalChecks.indexOf('overlayCleanup.notifications = await dismissResidualOverlays(page)');
-  const notificationLifecycle = modalChecks.indexOf('modalChecks.notifications = await checkPopupLifecycle');
+  const openCleanup = popupLifecycle.indexOf('overlayCleanup.open = await stabilizeOverlays()');
+  const firstClick = popupLifecycle.indexOf('const firstAction = await waitForAction');
+  const closed = popupLifecycle.indexOf('const closed = true');
+  const reopenCleanup = popupLifecycle.indexOf('overlayCleanup.reopen = await stabilizeOverlays()');
+  const secondClick = popupLifecycle.indexOf('const secondAction = await waitForAction');
+  assert.ok(openCleanup >= 0 && openCleanup < firstClick, 'late overlay stabilization must run immediately before opening');
+  assert.ok(closed < reopenCleanup && reopenCleanup < secondClick, 'late overlay stabilization must run after close and immediately before reopening');
+  assert.match(popupLifecycle, /overlay_cleanup: cleanupSummary\(\)/u);
+  assert.match(popupLifecycle, /overlayCleanup\.open\.ok && overlayCleanup\.reopen\.ok/u);
 
-  assert.ok(featureCleanup >= 0 && featureCleanup < featureLifecycle, 'feature access cleanup must precede its lifecycle');
-  assert.ok(loginCleanup >= 0 && loginCleanup < loginLifecycle, 'login history cleanup must precede its lifecycle');
-  assert.ok(loginLifecycle < notificationCleanup && notificationCleanup < notificationLifecycle, 'notification cleanup must run after login history and before notification lifecycle');
+  assert.equal((modalChecks.match(/stabilizeOverlays:/gu) || []).length, 3, 'all popup lifecycles must receive stabilized cleanup');
   assert.match(modalChecks, /report\.overlay_cleanup = overlayCleanup/u);
   assert.match(fullAppSource, /overlayCleanupChecks\.length === 3/u);
   assert.match(fullAppSource, /overlayCleanupChecks\.every\(\(row\) => row\.ok\)/u);

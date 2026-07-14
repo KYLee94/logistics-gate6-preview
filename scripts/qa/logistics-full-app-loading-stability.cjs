@@ -454,6 +454,63 @@ async function waitForAction(page, action, trigger, timeout = 30000) {
   };
 }
 
+async function inspectResidualOverlays(page) {
+  const overlaySelector = 'div.fixed.inset-0.z-40';
+  return page.locator(overlaySelector).evaluateAll((nodes) => nodes
+    .filter((node) => {
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0 && rect.width > 1 && rect.height > 1;
+    })
+    .map((node, index) => {
+      const panel = node.nextElementSibling;
+      const panelTestId = panel?.getAttribute('data-testid') || panel?.querySelector('[data-testid]')?.getAttribute('data-testid') || '';
+      const panelRole = panel?.getAttribute('role') || '';
+      const panelText = String(panel?.textContent || '').replace(/\s+/gu, ' ').trim();
+      const kind = panelTestId === 'logistics-notification-panel'
+        ? 'notification-panel-backdrop'
+        : (/로그아웃/u.test(panelText) ? 'profile-menu-backdrop' : (panelTestId ? `${panelTestId}-backdrop` : 'fullscreen-click-away-backdrop'));
+      return {
+        kind: kind,
+        index,
+        selector: overlaySelector,
+        class_name: String(node.className || ''),
+        panel_testid: panelTestId,
+        panel_role: panelRole,
+      };
+    }));
+}
+
+async function waitForLateOverlayOrQuiet(page, quietMs = 500) {
+  const overlaySelector = 'div.fixed.inset-0.z-40';
+  const state = await page.evaluate(({ selector, quietWindowMs }) => new Promise((resolve) => {
+    let observer;
+    let quietTimer;
+    const visibleOverlayExists = () => [...document.querySelectorAll(selector)].some((node) => {
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0 && rect.width > 1 && rect.height > 1;
+    });
+    const finish = (nextState) => {
+      if (observer) observer.disconnect();
+      if (quietTimer) clearTimeout(quietTimer);
+      resolve(nextState);
+    };
+    const inspect = () => {
+      if (visibleOverlayExists()) finish('overlay-visible');
+    };
+    observer = new MutationObserver(inspect);
+    observer.observe(document.documentElement, { attributes: true, childList: true, subtree: true });
+    quietTimer = setTimeout(() => finish('quiet'), quietWindowMs);
+    inspect();
+  }), { selector: overlaySelector, quietWindowMs: quietMs });
+  return {
+    state,
+    quiet_ms: quietMs,
+    overlays: await inspectResidualOverlays(page),
+  };
+}
+
 async function dismissResidualOverlays(page) {
   const overlaySelector = 'div.fixed.inset-0.z-40';
   const waitForOverlaysToClose = () => page.waitForFunction((selector) => {
@@ -463,34 +520,140 @@ async function dismissResidualOverlays(page) {
       return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0 && rect.width > 1 && rect.height > 1;
     });
   }, overlaySelector, { timeout: 3000 }).then(() => true).catch(() => false);
-  const visibleBefore = await page.locator(overlaySelector).evaluateAll((nodes) => nodes.some((node) => {
-    const style = window.getComputedStyle(node);
-    const rect = node.getBoundingClientRect();
-    return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0 && rect.width > 1 && rect.height > 1;
-  }));
-  if (!visibleBefore) return { ok: true, visible_before: false, escaped: false, outside_clicked: false };
+  const overlaysBefore = await inspectResidualOverlays(page);
+  const overlayTypes = [...new Set(overlaysBefore.map((overlay) => overlay.kind))];
+  if (overlaysBefore.length === 0) {
+    return {
+      ok: true,
+      visible_before: false,
+      escaped: false,
+      outside_clicked: false,
+      overlay_types: [],
+      overlays_before: [],
+      remaining_overlays: [],
+    };
+  }
 
   await page.keyboard.press('Escape');
   if (await waitForOverlaysToClose()) {
-    return { ok: true, visible_before: true, escaped: true, outside_clicked: false };
+    return {
+      ok: true,
+      visible_before: true,
+      escaped: true,
+      outside_clicked: false,
+      overlay_types: overlayTypes,
+      overlays_before: overlaysBefore,
+      remaining_overlays: [],
+    };
   }
 
   await page.mouse.click(12, 12);
-  const ok = await waitForOverlaysToClose();
-  return { ok, visible_before: true, escaped: true, outside_clicked: true };
+  await waitForOverlaysToClose();
+  const remainingOverlays = await inspectResidualOverlays(page);
+  return {
+    ok: remainingOverlays.length === 0,
+    visible_before: true,
+    escaped: true,
+    outside_clicked: true,
+    overlay_types: overlayTypes,
+    overlays_before: overlaysBefore,
+    remaining_overlays: remainingOverlays,
+  };
 }
 
-async function checkPopupLifecycle({ button, popup, action, close }) {
+async function stabilizeResidualOverlays(page, options = {}) {
+  const quietMs = Number(options.quietMs || 500);
+  const maxCleanupAttempts = Number(options.maxCleanupAttempts || 4);
+  const cleanupAttempts = [];
+  const observedOverlayTypes = new Set();
+  for (let round = 0; round <= maxCleanupAttempts; round += 1) {
+    const observation = await waitForLateOverlayOrQuiet(page, quietMs);
+    for (const overlay of observation.overlays) observedOverlayTypes.add(overlay.kind);
+    if (observation.state === 'quiet') {
+      const remainingOverlays = await inspectResidualOverlays(page);
+      for (const overlay of remainingOverlays) observedOverlayTypes.add(overlay.kind);
+      return {
+        ok: remainingOverlays.length === 0,
+        stable: remainingOverlays.length === 0,
+        quiet_ms: quietMs,
+        cleanup_attempts: cleanupAttempts,
+        observed_overlay_types: [...observedOverlayTypes],
+        remaining_overlays: remainingOverlays,
+      };
+    }
+    if (round === maxCleanupAttempts) {
+      const remainingOverlays = await inspectResidualOverlays(page);
+      return {
+        ok: false,
+        stable: false,
+        quiet_ms: quietMs,
+        problem: 'overlay stability was not reached',
+        cleanup_attempts: cleanupAttempts,
+        observed_overlay_types: [...observedOverlayTypes],
+        remaining_overlays: remainingOverlays,
+      };
+    }
+    const cleanup = await dismissResidualOverlays(page);
+    for (const overlayType of cleanup.overlay_types || []) observedOverlayTypes.add(overlayType);
+    cleanupAttempts.push({
+      attempt: round + 1,
+      detected_overlays: observation.overlays,
+      ...cleanup,
+    });
+    if (!cleanup.ok) {
+      return {
+        ok: false,
+        stable: false,
+        quiet_ms: quietMs,
+        problem: 'residual overlay could not be closed',
+        cleanup_attempts: cleanupAttempts,
+        observed_overlay_types: [...observedOverlayTypes],
+        remaining_overlays: cleanup.remaining_overlays || [],
+      };
+    }
+  }
+  throw new Error('Overlay stabilization ended unexpectedly.');
+}
+
+async function checkPopupLifecycle({ button, popup, action, close, stabilizeOverlays }) {
+  const overlayCleanup = { open: null, reopen: null, ok: false, observed_overlay_types: [] };
+  const cleanupSummary = () => {
+    overlayCleanup.ok = Boolean(overlayCleanup.open?.ok && overlayCleanup.reopen?.ok);
+    overlayCleanup.observed_overlay_types = [...new Set([
+      ...(overlayCleanup.open?.observed_overlay_types || []),
+      ...(overlayCleanup.reopen?.observed_overlay_types || []),
+    ])];
+    return overlayCleanup;
+  };
   if (!await button.isVisible().catch(() => false)) {
-    return { ok: false, opened: false, closed: false, reopened: false, reclosed: false, problem: 'popup trigger not visible' };
+    return { ok: false, opened: false, closed: false, reopened: false, reclosed: false, problem: 'popup trigger not visible', overlay_cleanup: cleanupSummary() };
   }
   try {
+    overlayCleanup.open = await stabilizeOverlays();
+    if (!overlayCleanup.open.ok) {
+      return { ok: false, opened: false, closed: false, reopened: false, reclosed: false, problem: 'overlay cleanup failed before open', overlay_cleanup: cleanupSummary() };
+    }
     const firstAction = await waitForAction(button.page(), action, () => button.click());
     await popup.waitFor({ state: 'visible', timeout: 15000 });
     const opened = true;
     await close();
     await popup.waitFor({ state: 'hidden', timeout: 15000 });
     const closed = true;
+    overlayCleanup.reopen = await stabilizeOverlays();
+    if (!overlayCleanup.reopen.ok) {
+      return {
+        ...firstAction,
+        ok: false,
+        visible: opened,
+        opened,
+        closed,
+        reopened: false,
+        reclosed: false,
+        first_action: firstAction,
+        problem: 'overlay cleanup failed before reopen',
+        overlay_cleanup: cleanupSummary(),
+      };
+    }
     const secondAction = await waitForAction(button.page(), action, () => button.click());
     await popup.waitFor({ state: 'visible', timeout: 15000 });
     const reopened = true;
@@ -506,7 +669,8 @@ async function checkPopupLifecycle({ button, popup, action, close }) {
       reclosed,
       first_action: firstAction,
       second_action: secondAction,
-      ok: firstAction.ok && secondAction.ok && opened && closed && reopened && reclosed,
+      overlay_cleanup: cleanupSummary(),
+      ok: firstAction.ok && secondAction.ok && opened && closed && reopened && reclosed && overlayCleanup.open.ok && overlayCleanup.reopen.ok,
     };
   } catch (error) {
     return {
@@ -516,6 +680,7 @@ async function checkPopupLifecycle({ button, popup, action, close }) {
       reopened: false,
       reclosed: false,
       problem: error?.message || String(error),
+      overlay_cleanup: cleanupSummary(),
     };
   }
 }
@@ -530,29 +695,32 @@ async function checkSystemModals(page, report) {
   const overlayCleanup = {};
   const modalChecks = {};
 
-  overlayCleanup.feature_access = await dismissResidualOverlays(page);
   modalChecks.feature_access = await checkPopupLifecycle({
     button: featureButton,
     popup: featurePopup,
     action: 'feature-access/get',
     close: () => page.getByTestId('logistics-feature-access-close').click(),
+    stabilizeOverlays: () => stabilizeResidualOverlays(page),
   });
+  overlayCleanup.feature_access = modalChecks.feature_access.overlay_cleanup;
 
-  overlayCleanup.login_history = await dismissResidualOverlays(page);
   modalChecks.login_history = await checkPopupLifecycle({
     button: loginButton,
     popup: loginPopup,
     action: 'auth/login-history/list',
     close: () => page.getByTestId('logistics-login-history-close').click(),
+    stabilizeOverlays: () => stabilizeResidualOverlays(page),
   });
+  overlayCleanup.login_history = modalChecks.login_history.overlay_cleanup;
 
-  overlayCleanup.notifications = await dismissResidualOverlays(page);
   modalChecks.notifications = await checkPopupLifecycle({
     button: notificationButton,
     popup: notificationPopup,
     action: 'notifications/list',
     close: () => notificationButton.click(),
+    stabilizeOverlays: () => stabilizeResidualOverlays(page),
   });
+  overlayCleanup.notifications = modalChecks.notifications.overlay_cleanup;
 
   report.overlay_cleanup = overlayCleanup;
   report.modal_checks = modalChecks;
