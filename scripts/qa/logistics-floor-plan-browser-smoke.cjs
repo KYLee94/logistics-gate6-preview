@@ -173,6 +173,8 @@ async function loadedImageEvidence(page, image, responseByUrl) {
 async function verifyZoomAndPan(page, dialog) {
   const viewport = dialog.locator('[data-floorplan-zoom]').first();
   const zoomIn = dialog.locator('button:has([data-lucide="zoom-in"])').first();
+  const zoomOut = dialog.locator('button:has([data-lucide="zoom-out"])').first();
+  const reset = dialog.locator('button:has([data-lucide="rotate-ccw"])').first();
   await zoomIn.click();
   await zoomIn.click();
   await page.waitForFunction((node) => Number(node?.dataset?.floorplanZoom || 0) > 1, await viewport.elementHandle());
@@ -200,11 +202,39 @@ async function verifyZoomAndPan(page, dialog) {
     left: node.scrollLeft,
     top: node.scrollTop,
   }));
+
+  await reset.click();
+  await zoomOut.click();
+  await zoomOut.click();
+  await page.waitForFunction((node) => Number(node?.dataset?.floorplanZoom || 0) < 1, await viewport.elementHandle());
+  const reducedBefore = await viewport.evaluate((node) => ({
+    zoom: Number(node.dataset.floorplanZoom || 0),
+    x: Number(node.dataset.floorplanPanX || 0),
+    y: Number(node.dataset.floorplanPanY || 0),
+  }));
+  const reducedBox = await viewport.boundingBox();
+  if (!reducedBox) throw new Error('Reduced floor-plan pan viewport had no visible bounds.');
+  const reducedStart = {
+    x: reducedBox.x + (reducedBox.width * 0.5),
+    y: reducedBox.y + (reducedBox.height * 0.5),
+  };
+  await page.mouse.move(reducedStart.x, reducedStart.y);
+  await page.mouse.down();
+  await page.mouse.move(reducedStart.x + Math.min(120, reducedBox.width * 0.2), reducedStart.y + Math.min(90, reducedBox.height * 0.15), { steps: 8 });
+  await page.mouse.up();
+  const reducedAfter = await viewport.evaluate((node) => ({
+    x: Number(node.dataset.floorplanPanX || 0),
+    y: Number(node.dataset.floorplanPanY || 0),
+  }));
   return {
     zoomed: before.scrollWidth > before.clientWidth && before.scrollHeight > before.clientHeight,
     moved: after.left > before.left + 10 && after.top > before.top + 10,
     before,
     after,
+    reduced_zoom: reducedBefore.zoom,
+    reduced_moved: Math.abs(reducedAfter.x - reducedBefore.x) > 10 && Math.abs(reducedAfter.y - reducedBefore.y) > 10,
+    reduced_before: reducedBefore,
+    reduced_after: reducedAfter,
   };
 }
 
@@ -238,6 +268,7 @@ async function verifyTarget(context, baseUrl, stamp, target, reportErrors) {
       modal_image_has_pixels: false,
       modal_zoom_scrollable: false,
       modal_drag_pan_works: false,
+      modal_reduced_drag_pan_works: false,
       stacking_floor_range_correct: target.expectedStackingFloors ? false : true,
       screenshot_written: false,
     },
@@ -291,6 +322,7 @@ async function verifyTarget(context, baseUrl, stamp, target, reportErrors) {
     result.pan = await verifyZoomAndPan(page, dialog);
     result.checks.modal_zoom_scrollable = result.pan.zoomed;
     result.checks.modal_drag_pan_works = result.pan.moved;
+    result.checks.modal_reduced_drag_pan_works = result.pan.reduced_moved;
 
     await page.screenshot({ path: screenshotPath, fullPage: false });
     result.checks.screenshot_written = fs.existsSync(screenshotPath) && fs.statSync(screenshotPath).size > 0;

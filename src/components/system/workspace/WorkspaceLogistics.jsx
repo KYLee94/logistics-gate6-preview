@@ -13561,6 +13561,11 @@ function clampFloorplanZoom(value) {
   return Math.min(FLOORPLAN_ZOOM_MAX, Math.max(FLOORPLAN_ZOOM_MIN, Number(value) || FLOORPLAN_ZOOM_DEFAULT));
 }
 
+function clampFloorplanPanOffset(value, viewportSize) {
+  const limit = Math.max(48, (Number(viewportSize) || 0) * 0.45);
+  return Math.min(limit, Math.max(-limit, Number(value) || 0));
+}
+
 function FloorplanLucideIcon({ name, className = 'h-4 w-4' }) {
   return (
     <svg
@@ -13607,6 +13612,7 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
   const floorplanViewportRef = useRef(null);
   const floorplanPanRef = useRef(null);
   const [isFloorplanPanning, setIsFloorplanPanning] = useState(false);
+  const [floorplanPanOffset, setFloorplanPanOffset] = useState({ x: 0, y: 0 });
   const activeSlide = safeSlides[activeIndex] || safeSlides[0];
   const imageUrl = firstDefined(activeSlide?.imageUrl, activeSlide?.image_url, activeSlide?.url, activeSlide?.src, '');
   const canMove = safeSlides.length > 1;
@@ -13619,6 +13625,7 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
       viewport.scrollTop = 0;
     }
     floorplanPanRef.current = null;
+    setFloorplanPanOffset({ x: 0, y: 0 });
     setIsFloorplanPanning(false);
   }, []);
 
@@ -13628,10 +13635,6 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
     setZoom(FLOORPLAN_ZOOM_DEFAULT);
     setActiveIndex(0);
   }, [activeIndex, resetFloorplanPosition, safeSlides.length]);
-
-  useEffect(() => {
-    if (zoom <= FLOORPLAN_ZOOM_DEFAULT) resetFloorplanPosition();
-  }, [resetFloorplanPosition, zoom]);
 
   useEffect(() => () => {
     const viewport = floorplanViewportRef.current;
@@ -13665,7 +13668,7 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
     setZoom(FLOORPLAN_ZOOM_DEFAULT);
   };
 
-  const isPannable = modalMode && zoom > FLOORPLAN_ZOOM_DEFAULT;
+  const isPannable = modalMode && Boolean(imageUrl);
 
   const handleFloorplanPointerDown = (event) => {
     const interactiveTarget = event.target.closest?.('button, a, input, select, textarea, [role="button"]');
@@ -13678,6 +13681,9 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
       clientY: event.clientY,
       scrollLeft: viewport.scrollLeft,
       scrollTop: viewport.scrollTop,
+      offsetX: floorplanPanOffset.x,
+      offsetY: floorplanPanOffset.y,
+      usesScroll: zoom > FLOORPLAN_ZOOM_DEFAULT,
     };
     viewport.setPointerCapture(event.pointerId);
     setIsFloorplanPanning(true);
@@ -13688,8 +13694,15 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
     const panStart = floorplanPanRef.current;
     if (!panStart || panStart.pointerId !== event.pointerId) return;
     const viewport = event.currentTarget;
-    viewport.scrollLeft = panStart.scrollLeft - (event.clientX - panStart.clientX);
-    viewport.scrollTop = panStart.scrollTop - (event.clientY - panStart.clientY);
+    if (panStart.usesScroll) {
+      viewport.scrollLeft = panStart.scrollLeft - (event.clientX - panStart.clientX);
+      viewport.scrollTop = panStart.scrollTop - (event.clientY - panStart.clientY);
+    } else {
+      setFloorplanPanOffset({
+        x: clampFloorplanPanOffset(panStart.offsetX + (event.clientX - panStart.clientX), viewport.clientWidth),
+        y: clampFloorplanPanOffset(panStart.offsetY + (event.clientY - panStart.clientY), viewport.clientHeight),
+      });
+    }
     event.preventDefault();
   };
 
@@ -13720,6 +13733,9 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
   const titleClass = modalMode ? 'text-[18px]' : 'text-[14px]';
   const zoomPercent = Math.round(zoom * 100);
   const zoomCanvasPercent = Math.max(FLOORPLAN_ZOOM_DEFAULT, zoom) * 100;
+  const isFloorplanAtDefault = zoom === FLOORPLAN_ZOOM_DEFAULT
+    && floorplanPanOffset.x === 0
+    && floorplanPanOffset.y === 0;
 
   return (
     <div
@@ -13737,6 +13753,8 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
             className={`custom-scrollbar h-full w-full overflow-auto ${isPannable ? `touch-none select-none ${isFloorplanPanning ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
             data-floorplan-zoom={zoom}
             data-floorplan-panning={isFloorplanPanning}
+            data-floorplan-pan-x={floorplanPanOffset.x}
+            data-floorplan-pan-y={floorplanPanOffset.y}
             onPointerDown={handleFloorplanPointerDown}
             onPointerMove={handleFloorplanPointerMove}
             onPointerUp={finishFloorplanPointerPan}
@@ -13753,7 +13771,10 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
                 className="h-full w-full object-contain"
                 draggable={false}
                 onDragStart={(event) => event.preventDefault()}
-                style={zoom < FLOORPLAN_ZOOM_DEFAULT ? { transform: `scale(${zoom})`, transformOrigin: 'center' } : undefined}
+                style={zoom <= FLOORPLAN_ZOOM_DEFAULT ? {
+                  transform: `translate3d(${floorplanPanOffset.x}px, ${floorplanPanOffset.y}px, 0) scale(${zoom})`,
+                  transformOrigin: 'center',
+                } : undefined}
               />
             </div>
           </div>
@@ -13796,7 +13817,7 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
           <button
             type="button"
             onClick={resetZoom}
-            disabled={zoom === FLOORPLAN_ZOOM_DEFAULT}
+            disabled={isFloorplanAtDefault}
             className="flex h-8 w-8 items-center justify-center rounded-[6px] text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9AD7FF] disabled:cursor-not-allowed disabled:opacity-35"
             aria-label="평면도 원래 크기로 복원"
             title="원래 크기"

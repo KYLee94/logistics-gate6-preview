@@ -91,9 +91,10 @@ test('floor-plan popup zoom is bounded, accessible, and reset when slides change
   assert.match(carousel, /disabled=\{zoom <= FLOORPLAN_ZOOM_MIN\}/u);
   assert.match(carousel, /disabled=\{zoom >= FLOORPLAN_ZOOM_MAX\}/u);
   assert.match(carousel, /data-floorplan-zoom=\{zoom\}/u);
+  assert.match(carousel, /disabled=\{isFloorplanAtDefault\}/u);
 });
 
-test('zoomed floor-plan popup pans with pointer input and preserves carousel button clicks', () => {
+test('floor-plan popup pans at every zoom level and preserves carousel button clicks', () => {
   const carousel = sourceBetween(
     workspaceSource,
     'function FloorplanCarousel',
@@ -101,7 +102,8 @@ test('zoomed floor-plan popup pans with pointer input and preserves carousel but
   );
 
   assert.match(carousel, /const floorplanViewportRef = useRef\(null\);/u);
-  assert.match(carousel, /const isPannable = modalMode && zoom > FLOORPLAN_ZOOM_DEFAULT;/u);
+  assert.match(carousel, /const isPannable = modalMode && Boolean\(imageUrl\);/u);
+  assert.match(carousel, /const \[floorplanPanOffset, setFloorplanPanOffset\] = useState\(\{ x: 0, y: 0 \}\);/u);
   assert.match(carousel, /cursor-grab/u);
   assert.match(carousel, /cursor-grabbing/u);
   assert.match(carousel, /onPointerDown=\{handleFloorplanPointerDown\}/u);
@@ -113,9 +115,12 @@ test('zoomed floor-plan popup pans with pointer input and preserves carousel but
   assert.match(carousel, /setPointerCapture\(event\.pointerId\)/u);
   assert.match(carousel, /scrollLeft = panStart\.scrollLeft - \(event\.clientX - panStart\.clientX\);/u);
   assert.match(carousel, /scrollTop = panStart\.scrollTop - \(event\.clientY - panStart\.clientY\);/u);
+  assert.match(carousel, /setFloorplanPanOffset\(\{[\s\S]*x: clampFloorplanPanOffset[\s\S]*y: clampFloorplanPanOffset/u);
+  assert.match(carousel, /translate3d\(\$\{floorplanPanOffset\.x\}px, \$\{floorplanPanOffset\.y\}px, 0\) scale\(\$\{zoom\}\)/u);
   assert.match(carousel, /draggable=\{false\}/u);
   assert.match(carousel, /onDragStart=\{\(event\) => event\.preventDefault\(\)\}/u);
   assert.match(carousel, /viewport\.scrollLeft = 0;[\s\S]*viewport\.scrollTop = 0;/u);
+  assert.match(carousel, /setFloorplanPanOffset\(\{ x: 0, y: 0 \}\);/u);
   assert.match(carousel, /const moveSlide[\s\S]*resetFloorplanPosition\(\);[\s\S]*setActiveIndex/u);
   assert.match(carousel, /const resetZoom[\s\S]*resetFloorplanPosition\(\);[\s\S]*setZoom\(FLOORPLAN_ZOOM_DEFAULT\)/u);
   assert.match(carousel, /onClick=\{\(event\) => moveSlide\(-1, event\)\}/u);
