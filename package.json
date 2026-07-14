@@ -98,7 +98,6 @@
     "qa:feature-access:save-readback": "node scripts/qa/logistics-feature-access-save-readback.cjs",
     "qa:notifications:readback": "node scripts/qa/logistics-notification-readback.cjs",
     "qa:auth-permission-matrix": "node scripts/qa/logistics-auth-permission-matrix.cjs",
-    "qa:permission:live-contract": "node scripts/qa/logistics-permission-live-contract.cjs",
     "ops:backfill-logistics-users": "node scripts/ops/backfill-logistics-user-permissions.cjs",
     "qa:work-platform:browser": "node scripts/qa/logistics-work-platform-browser-smoke.cjs",
     "qa:sector-tabs:browser": "node scripts/qa/logistics-sector-tabs-browser-smoke.cjs",

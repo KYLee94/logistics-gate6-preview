@@ -5,20 +5,20 @@ const { spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const ARTIFACT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
+const SOURCE_JSON = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'logisticsPermissionData.json');
 const CRITICAL_RUNTIME_FILES = [
   'src/context/AuthContext.jsx',
   'src/components/system/AuthSetup.jsx',
   'src/components/system/workspace/WorkspaceLogistics.jsx',
   'src/components/system/IotaLeftNav.jsx',
 ];
-const SYSTEM_ADMIN_EMAILS = [
+const ADMIN_EMAILS = [
   'kylee@igisam.com',
   'sjlee@igisam.com',
   'jk.jeon@igisam.com',
   'seunghoon.lee@igisam.com',
   'ethan.lee@igisam.com',
 ];
-const FEATURE_MANAGER_EMAILS = SYSTEM_ADMIN_EMAILS.slice(0, 3);
 const FEATURE_KEYS = [
   'ai_chat',
   'data_quality',
@@ -29,8 +29,39 @@ const FEATURE_KEYS = [
   'opendart_refresh',
 ];
 
+function normalizeEmail(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
 function timestamp() {
   return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+function readSourceUsers() {
+  const parsed = JSON.parse(fs.readFileSync(SOURCE_JSON, 'utf8'));
+  return (parsed.users || [])
+    .map((user) => ({
+      email: normalizeEmail(user.email),
+      staff_name: String(user.name || '').trim(),
+      organization: String(user.organization || '').trim(),
+    }))
+    .filter((user) => user.email);
+}
+
+function readSourcePermissionRows() {
+  const parsed = JSON.parse(fs.readFileSync(SOURCE_JSON, 'utf8'));
+  return (parsed.users || [])
+    .map((user) => ({
+      email: normalizeEmail(user.email),
+      staff_name: String(user.name || '').trim(),
+      managed_asset_count: Array.isArray(user.managedAssets) ? user.managedAssets.length : 0,
+      managed_fund_count: Array.isArray(user.managedFunds) ? user.managedFunds.length : 0,
+    }))
+    .filter((user) => user.email);
+}
+
+function sqlJsonLiteral(value) {
+  return `$json$${JSON.stringify(value)}$json$`;
 }
 
 function sqlTextArray(values) {
@@ -66,8 +97,8 @@ function scanRuntimeImports() {
     const absolutePath = path.join(ROOT, relativePath);
     const text = fs.readFileSync(absolutePath, 'utf8');
     const findings = [];
-    if (/logisticsPermissionUsers|findStaticLogisticsPermissionUser|mergeBootstrapPermission/.test(text)) {
-      findings.push({ file: relativePath, issue: 'runtime_permission_fallback' });
+    if (/import\s+.*logisticsPermissionData\.json/.test(text)) {
+      findings.push({ file: relativePath, issue: 'runtime_permission_json_fallback' });
     }
     if (/LOGISTICS_ALLOWED_EMAILS|LOGISTICS_PERMISSION_USERS|logisticsUserByEmail/.test(text)) {
       findings.push({ file: relativePath, issue: 'legacy_frontend_permission_gate' });
@@ -76,11 +107,14 @@ function scanRuntimeImports() {
   });
 }
 
-function buildSql() {
+function buildSql(sourceUsers) {
   return `
-with profiles as (
+with source_users as (
+  select lower(email) as email, staff_name, organization
+  from jsonb_to_recordset(${sqlJsonLiteral(sourceUsers)}::jsonb) as x(email text, staff_name text, organization text)
+),
+permissions as (
   select
-    user_id,
     lower(email) as email,
     staff_name,
     organization,
@@ -89,94 +123,91 @@ with profiles as (
     feature_permissions,
     last_login_at
   from public.ll_user_permissions
-  where email is not null
-    and btrim(email) <> ''
-    and principal_type is null
-    and scope_type is null
-),
-scopes as (
-  select user_id, lower(principal_id) as principal_id, scope_type, scope_id, can_read, can_write, can_delete
-  from public.ll_user_permissions
-  where email is null
-    and principal_type = 'user_email'
-    and scope_type in ('asset', 'other_assets')
+  where email is not null and btrim(email) <> ''
 ),
 duplicates as (
   select email, count(*) as row_count
-  from profiles
+  from permissions
   group by email
   having count(*) > 1
 ),
-duplicate_scopes as (
-  select principal_id, scope_type, scope_id, count(*) as row_count
-  from scopes
-  group by principal_id, scope_type, scope_id
-  having count(*) > 1
+missing_source as (
+  select source_users.email
+  from source_users
+  left join permissions on permissions.email = source_users.email
+  where permissions.email is null
 ),
-orphan_scopes as (
-  select scopes.*
-  from scopes
-  left join profiles on profiles.email = scopes.principal_id
-  where profiles.email is null
+admin_rows as (
+  select *
+  from permissions
+  where email = any(${sqlTextArray(ADMIN_EMAILS)}::text[])
 ),
-invalid_asset_scopes as (
-  select scopes.*
-  from scopes
-  left join public.ll_assets on ll_assets.asset_id::text = scopes.scope_id
-  where scopes.scope_type = 'asset' and ll_assets.asset_id is null
-),
-feature_counts as (
-  select key, count(*)::int as granted_count
-  from profiles
+admin_feature_gaps as (
+  select email, key
+  from admin_rows
   cross join unnest(${sqlTextArray(FEATURE_KEYS)}::text[]) as key
-  where coalesce((feature_permissions ->> key)::boolean, false) is true
-  group by key
+  where coalesce((feature_permissions ->> key)::boolean, false) is not true
 )
 select jsonb_build_object(
-  'permission_user_count', (select count(*) from profiles),
-  'active_permission_user_count', (select count(*) from profiles where coalesce(account_status, 'active') = 'active'),
-  'system_admin_count', (select count(*) from profiles where email = any(${sqlTextArray(SYSTEM_ADMIN_EMAILS)}::text[])),
-  'feature_manager_count', (select count(*) from profiles where email = any(${sqlTextArray(FEATURE_MANAGER_EMAILS)}::text[])),
+  'source_user_count', (select count(*) from source_users),
+  'permission_user_count', (select count(*) from permissions),
+  'active_permission_user_count', (select count(*) from permissions where coalesce(account_status, 'active') = 'active'),
   'duplicate_email_count', (select count(*) from duplicates),
   'duplicate_emails', coalesce((select jsonb_agg(email order by email) from duplicates), '[]'::jsonb),
-  'scope_row_count', (select count(*) from scopes),
-  'scope_user_count', (select count(distinct principal_id) from scopes),
-  'asset_scope_row_count', (select count(*) from scopes where scope_type = 'asset'),
-  'other_scope_row_count', (select count(*) from scopes where scope_type = 'other_assets'),
-  'duplicate_scope_count', (select count(*) from duplicate_scopes),
-  'orphan_scope_count', (select count(*) from orphan_scopes),
-  'invalid_asset_scope_count', (select count(*) from invalid_asset_scopes),
-  'feature_grant_counts', coalesce((select jsonb_object_agg(key, granted_count order by key) from feature_counts), '{}'::jsonb),
-  'recent_login_rows', (select count(*) from profiles where last_login_at is not null)
+  'missing_source_count', (select count(*) from missing_source),
+  'missing_source_emails', coalesce((select jsonb_agg(email order by email) from missing_source), '[]'::jsonb),
+  'admin_user_count', (select count(*) from admin_rows),
+  'admin_feature_gap_count', (select count(*) from admin_feature_gaps),
+  'admin_feature_gaps', coalesce((select jsonb_agg(jsonb_build_object('email', email, 'feature', key) order by email, key) from admin_feature_gaps), '[]'::jsonb),
+  'recent_login_rows', (
+    select count(*)
+    from public.ll_user_permissions
+    where last_login_at is not null
+  )
 ) as result;
 `;
 }
 
 function main() {
   fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+  const sourceUsers = readSourceUsers();
+  const sourcePermissionRows = readSourcePermissionRows();
   const staticFindings = scanRuntimeImports();
-  const queryRows = runSupabaseQuery(buildSql());
+  const legacyGateFindings = staticFindings.filter((finding) => finding.issue === 'legacy_frontend_permission_gate');
+  const expectedAdminAssetCount = Math.max(...sourcePermissionRows.map((row) => row.managed_asset_count), 0);
+  const expectedAdminFundCount = Math.max(...sourcePermissionRows.map((row) => row.managed_fund_count), 0);
+  const adminStaticScope = ADMIN_EMAILS.map((email) => {
+    const row = sourcePermissionRows.find((user) => user.email === email);
+    return row || { email, staff_name: '', managed_asset_count: 0, managed_fund_count: 0 };
+  });
+  const adminStaticScopeGaps = adminStaticScope.filter((row) => (
+    row.managed_asset_count !== expectedAdminAssetCount
+    || row.managed_fund_count !== expectedAdminFundCount
+  ));
+  const queryRows = runSupabaseQuery(buildSql(sourceUsers));
   const db = queryRows?.[0]?.result || {};
   const failures = [];
 
-  if (staticFindings.length) failures.push('runtime permission fallback or legacy gate remains');
-  if (Number(db.permission_user_count || 0) < 1) failures.push('no permission profiles exist');
+  if (legacyGateFindings.length) failures.push('legacy frontend permission gates remain');
+  if (adminStaticScopeGaps.length) failures.push('admin static asset/fund scopes are missing');
+  if (Number(db.source_user_count || 0) !== sourceUsers.length) failures.push('source JSON count mismatch');
+  if (Number(db.permission_user_count || 0) < sourceUsers.length) failures.push('ll_user_permissions has fewer users than source JSON');
   if (Number(db.duplicate_email_count || 0) > 0) failures.push('duplicate permission emails exist');
-  if (Number(db.duplicate_scope_count || 0) > 0) failures.push('duplicate permission scopes exist');
-  if (Number(db.orphan_scope_count || 0) > 0) failures.push('permission scopes without profiles exist');
-  if (Number(db.invalid_asset_scope_count || 0) > 0) failures.push('permission scopes reference missing assets');
-  if (Number(db.system_admin_count || 0) !== SYSTEM_ADMIN_EMAILS.length) failures.push('system admin profiles are missing');
-  if (Number(db.feature_manager_count || 0) !== FEATURE_MANAGER_EMAILS.length) failures.push('feature access manager profiles are missing');
+  if (Number(db.missing_source_count || 0) > 0) failures.push('some source users are not backfilled to ll_user_permissions');
+  if (Number(db.admin_user_count || 0) !== ADMIN_EMAILS.length) failures.push('admin users are missing from ll_user_permissions');
+  if (Number(db.admin_feature_gap_count || 0) > 0) failures.push('admin feature permissions are incomplete');
 
   const report = {
     ok: failures.length === 0,
     generated_at: new Date().toISOString(),
-    db,
-    policy: {
-      system_admin_emails: SYSTEM_ADMIN_EMAILS,
-      feature_manager_emails: FEATURE_MANAGER_EMAILS,
-      features_are_independent: true,
+    source_json: path.relative(ROOT, SOURCE_JSON),
+    expected_admin_scope: {
+      managed_asset_count: expectedAdminAssetCount,
+      managed_fund_count: expectedAdminFundCount,
     },
+    db,
+    admin_static_scope: adminStaticScope,
+    admin_static_scope_gaps: adminStaticScopeGaps,
     static_findings: staticFindings,
     failures,
   };

@@ -4,18 +4,10 @@ type LogisticsRole = 'Reader' | 'Editor' | 'Manager' | 'Admin' | 'System Admin';
 // The project has no generated Database type yet, so the client schema is dynamic.
 // Keep request and response shapes typed at the function boundary instead.
 type SupabaseClient = any;
-type PermissionScope = {
-  scopeType: 'asset' | 'other_assets';
-  scopeId: string;
-  canRead: boolean;
-  canWrite: boolean;
-  canDelete: boolean;
-};
 type Context = {
   serviceClient: SupabaseClient;
   user: { id: string; email?: string | null };
   permission: Record<string, unknown> | null;
-  permissionScopes: PermissionScope[];
   role: string;
   origin: string;
 };
@@ -524,11 +516,6 @@ const DATA_MANAGEMENT_APPROVER_EMAILS = new Set([
   'sjlee@igisam.com',
   'jk.jeon@igisam.com',
 ]);
-const FEATURE_ACCESS_MANAGER_EMAILS = new Set([
-  'kylee@igisam.com',
-  'sjlee@igisam.com',
-  'jk.jeon@igisam.com',
-]);
 
 function canApproveDataManagementChanges(ctx: Context) {
   const authEmail = normalizeAuthEmail(ctx.user?.email);
@@ -909,8 +896,6 @@ async function getContext(request: Request, origin: string): Promise<Context> {
     .from('ll_user_permissions')
     .select('*')
     .eq('user_id', userData.user.id)
-    .is('principal_type', null)
-    .is('scope_type', null)
     .maybeSingle();
   if (!permission) {
     const emailCandidates = logisticsAuthEmailCandidates(userData.user.email);
@@ -919,39 +904,15 @@ async function getContext(request: Request, origin: string): Promise<Context> {
         .from('ll_user_permissions')
         .select('*')
         .in('email', emailCandidates)
-        .is('principal_type', null)
-        .is('scope_type', null)
         .limit(1)
         .maybeSingle();
       permission = emailPermission || null;
     }
   }
 
-  if (!isActivePermission(permission || null)) throw new Response('No active logistics permission found', { status: 403 });
-  const canonicalEmail = canonicalPermissionEmail(permission, userData.user.email);
-  const { data: scopeRows, error: scopeError } = await serviceClient
-    .from('ll_user_permissions')
-    .select('scope_type,scope_id,can_read,can_write,can_delete')
-    .eq('principal_type', 'user_email')
-    .eq('principal_id', canonicalEmail)
-    .in('scope_type', ['asset', 'other_assets']);
-  if (scopeError) throw new Response('Failed to read logistics permission scopes', { status: 500 });
-  const permissionScopes = ((scopeRows || []) as Record<string, unknown>[])
-    .map((row): PermissionScope | null => {
-      const scopeType = safeText(row.scope_type);
-      const scopeId = safeText(row.scope_id);
-      if ((scopeType !== 'asset' && scopeType !== 'other_assets') || (scopeType === 'asset' && !scopeId)) return null;
-      return {
-        scopeType,
-        scopeId,
-        canRead: row.can_read === true,
-        canWrite: row.can_write === true,
-        canDelete: row.can_delete === true,
-      };
-    })
-    .filter((scope): scope is PermissionScope => Boolean(scope));
-  const role = safeText(permission?.logistics_role, 'Reader');
-  return { serviceClient, user: { id: userData.user.id, email: userData.user.email || null }, permission, permissionScopes, role, origin };
+  const permissionFallback = mergeBootstrapPermission(permission || null, userData.user.email);
+  const role = safeText(permissionFallback?.logistics_role, 'Reader');
+  return { serviceClient, user: { id: userData.user.id, email: userData.user.email || null }, permission: permissionFallback || null, role, origin };
 }
 
 async function audit(serviceClient: SupabaseClient, userId: string | null, action: string, status: number, payload: unknown) {
@@ -1002,11 +963,13 @@ function isDefaultFeatureAccessPermission(permission: Record<string, unknown> | 
 }
 
 function userFeaturePermissions(permission: Record<string, unknown> | null) {
-  if (!isActivePermission(permission)) return {};
   const explicit = permission?.feature_permissions;
   const base = explicit && typeof explicit === 'object' && !Array.isArray(explicit)
     ? { ...(explicit as Record<string, unknown>) }
     : {};
+  if (isDefaultFeatureAccessPermission(permission)) {
+    return { ...allLogisticsFeaturePermissions(true), ...base };
+  }
   return base;
 }
 
@@ -1045,46 +1008,29 @@ function permissionFlag(permission: Record<string, unknown> | null, key: 'manage
   return value?.[action] === true;
 }
 
-function normalizedScopePermission(ctx: Context, action: 'read' | 'create' | 'update' | 'delete', relatedAssetId: unknown) {
-  if (!ctx.permissionScopes.length) return null;
-  const assetId = String(relatedAssetId || '').trim();
-  if (!assetId) return false;
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(assetId)) return false;
-  const assetScope = ctx.permissionScopes.find((scope) => scope.scopeType === 'asset' && scope.scopeId === assetId);
-  const scope = assetScope || ctx.permissionScopes.find((item) => item.scopeType === 'other_assets');
-  if (!scope) return false;
-  if (action === 'read') return scope.canRead === true;
-  if (action === 'delete') return scope.canDelete === true;
-  return scope.canWrite === true;
-}
-
 function canWriteRelatedAsset(ctx: Context, relatedAssetId: unknown, relatedAssetName?: unknown) {
-  const scoped = normalizedScopePermission(ctx, 'update', relatedAssetId);
-  if (scoped !== null) return scoped;
+  if (hasRole(ctx.role, 'Admin')) return true;
   const assetId = String(relatedAssetId || '').trim();
   const assetName = String(relatedAssetName || '').trim();
   if (!assetId && !assetName) return false;
-  if (hasManagedAssetReference(ctx.permission, assetId, assetName)) {
-    return permissionFlag(ctx.permission, 'managed_asset_permissions', 'update');
-  }
-  return permissionFlag(ctx.permission, 'other_asset_permissions', 'update');
+  return hasManagedAssetReference(ctx.permission, assetId, assetName)
+    ? permissionFlag(ctx.permission, 'managed_asset_permissions', 'update')
+    : permissionFlag(ctx.permission, 'other_asset_permissions', 'update');
 }
 
 function canMutateRelatedAsset(ctx: Context, action: 'create' | 'update' | 'delete', relatedAssetId: unknown, relatedAssetName?: unknown) {
-  const scoped = normalizedScopePermission(ctx, action, relatedAssetId);
-  if (scoped !== null) return scoped;
+  if (hasRole(ctx.role, 'Admin')) return true;
   const assetId = String(relatedAssetId || '').trim();
   const assetName = String(relatedAssetName || '').trim();
   if (!assetId && !assetName) return false;
-  if (hasManagedAssetReference(ctx.permission, assetId, assetName)) {
-    return permissionFlag(ctx.permission, 'managed_asset_permissions', action);
-  }
-  return permissionFlag(ctx.permission, 'other_asset_permissions', action);
+  const managed = hasManagedAssetReference(ctx.permission, assetId, assetName);
+  return managed
+    ? permissionFlag(ctx.permission, 'managed_asset_permissions', action)
+    : permissionFlag(ctx.permission, 'other_asset_permissions', action);
 }
 
 function canMutateWorklog(ctx: Context, action: 'create' | 'update' | 'delete', relatedAssetId: unknown) {
-  const scoped = normalizedScopePermission(ctx, action, relatedAssetId);
-  if (scoped !== null) return scoped;
+  if (hasRole(ctx.role, 'Admin')) return true;
   const assetId = String(relatedAssetId || '').trim();
   const permissionKey = assetId && hasManagedAssetRef(ctx.permission, assetId)
     ? 'managed_asset_permissions'
@@ -1093,9 +1039,7 @@ function canMutateWorklog(ctx: Context, action: 'create' | 'update' | 'delete', 
 }
 
 function canArchiveUnscopedSeedTask(ctx: Context) {
-  if (ctx.permissionScopes.length) {
-    return ctx.permissionScopes.some((scope) => scope.scopeType === 'other_assets' && scope.canDelete === true);
-  }
+  if (hasRole(ctx.role, 'Manager')) return true;
   return permissionFlag(ctx.permission, 'managed_asset_permissions', 'delete')
     || permissionFlag(ctx.permission, 'other_asset_permissions', 'delete');
 }
@@ -1128,18 +1072,17 @@ function serverWorklogPayload(ctx: Context, rawPayload: unknown, currentPayload:
 }
 
 function canReadRelatedAsset(ctx: Context, relatedAssetId: unknown) {
-  const scoped = normalizedScopePermission(ctx, 'read', relatedAssetId);
-  if (scoped !== null) return scoped;
+  if (hasRole(ctx.role, 'Manager')) return true;
   const assetId = String(relatedAssetId || '').trim();
   if (!assetId) return true;
-  if (hasManagedAssetRef(ctx.permission, assetId)) {
-    return permissionFlag(ctx.permission, 'managed_asset_permissions', 'read');
-  }
-  return permissionFlag(ctx.permission, 'other_asset_permissions', 'read');
+  const otherPermissions = ctx.permission?.other_asset_permissions as Record<string, unknown> | undefined;
+  return hasManagedAssetRef(ctx.permission, assetId) || otherPermissions?.read === true;
 }
 
 function canReadRelatedAssetRecord(ctx: Context, row: Record<string, unknown>) {
-  return canReadRelatedAsset(ctx, firstDefined(row.asset_id, row.asset_code, row.asset_name));
+  if (allReadableAssetsAllowed(ctx)) return true;
+  return hasManagedAssetReference(ctx.permission, row.asset_id, row.asset_name)
+    || hasManagedAssetReference(ctx.permission, row.asset_code, row.asset_name);
 }
 
 function allowedDataQualityEmails() {
@@ -1150,13 +1093,25 @@ function allowedDataQualityEmails() {
 }
 
 function canUseDataQuality(ctx: Context) {
-  return hasUserFeaturePermission(ctx.permission, 'data_quality');
+  if (hasRole(ctx.role, 'System Admin')) return true;
+  if (hasUserFeaturePermission(ctx.permission, 'data_quality')) return true;
+  const organization = String(ctx.permission?.organization || ctx.permission?.department || '').trim();
+  const name = String(ctx.permission?.staff_name || ctx.permission?.name || ctx.permission?.display_name || '').trim();
+  const email = String(ctx.permission?.email || '').trim().toLowerCase();
+  const mappedName = staffNameForEmail(email);
+  return organization === '기획추진센터'
+    || DATA_QUALITY_ALLOWED_NAMES.has(name)
+    || DATA_QUALITY_ALLOWED_NAMES.has(mappedName)
+    || allowedDataQualityEmails().includes(email);
 }
 
 function canManageFeatureAccess(ctx: Context) {
-  const authEmail = normalizeAuthEmail(ctx.user.email);
-  const permissionEmail = normalizeAuthEmail(ctx.permission?.email);
-  return FEATURE_ACCESS_MANAGER_EMAILS.has(authEmail) || FEATURE_ACCESS_MANAGER_EMAILS.has(permissionEmail);
+  const email = String(ctx.permission?.email || '').trim().toLowerCase();
+  const name = String(ctx.permission?.staff_name || ctx.permission?.name || ctx.permission?.display_name || '').trim();
+  const mappedName = staffNameForEmail(email);
+  return LOGISTICS_ADMIN_EMAILS.has(email)
+    || DATA_QUALITY_ALLOWED_NAMES.has(name)
+    || DATA_QUALITY_ALLOWED_NAMES.has(mappedName);
 }
 
 function compactFeatureAccessUser(row: Record<string, unknown>) {
@@ -1252,9 +1207,13 @@ async function readFeatureAccessConfig(ctx: Context) {
 }
 
 async function canUseServerFeature(ctx: Context, featureKey: string) {
-  if (!isActivePermission(ctx.permission)) return false;
+  if (canManageFeatureAccess(ctx)) return true;
   if (!LOGISTICS_FEATURE_KEYS.has(featureKey)) return false;
-  return hasUserFeaturePermission(ctx.permission, featureKey);
+  if (hasUserFeaturePermission(ctx.permission, featureKey)) return true;
+  const config = await readFeatureAccessConfig(ctx);
+  const feature = (config.features as Record<string, unknown>)?.[featureKey] as Record<string, unknown> | undefined;
+  const users = Array.isArray(feature?.users) ? feature.users as Record<string, unknown>[] : [];
+  return users.some((row) => featureAccessUserMatches(ctx, row));
 }
 
 async function canUseMarketResearch(ctx: Context) {
@@ -1264,17 +1223,9 @@ async function canUseMarketResearch(ctx: Context) {
 
 async function callFeatureAccessGet(ctx: Context) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  if (canManageFeatureAccess(ctx)) {
-    const config = await readFeatureAccessConfig(ctx);
-    await auditOptional(ctx.serviceClient, ctx.user.id, 'feature-access/get', 200, {});
-    return jsonResponse({ ok: true, data: config }, 200, ctx.origin);
-  }
-  const featurePermissions = userFeaturePermissions(ctx.permission);
+  const config = await readFeatureAccessConfig(ctx);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'feature-access/get', 200, {});
-  return jsonResponse({ ok: true, data: {
-    self: compactFeatureAccessUser(ctx.permission || {}),
-    feature_permissions: featurePermissions,
-  } }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: config }, 200, ctx.origin);
 }
 
 async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unknown>) {
@@ -1887,14 +1838,10 @@ function hasPermissionRow(ctx: Context) {
 }
 
 function allReadableAssetsAllowed(ctx: Context) {
-  if (ctx.permissionScopes.length) {
-    return ctx.permissionScopes.some((scope) => scope.scopeType === 'other_assets' && scope.canRead === true);
-  }
-  return permissionFlag(ctx.permission, 'other_asset_permissions', 'read');
+  return hasRole(ctx.role, 'Manager') || permissionFlag(ctx.permission, 'other_asset_permissions', 'read');
 }
 
 function matchesManagedAsset(ctx: Context, row: Record<string, unknown>) {
-  if (ctx.permissionScopes.length) return canReadRelatedAssetRecord(ctx, row);
   const managed = new Set(managedAssetCodes(ctx.permission).map((item) => String(item).trim()).filter(Boolean));
   return managed.has(String(row.asset_id || ''))
     || managed.has(String(row.asset_code || ''))
@@ -1927,7 +1874,7 @@ async function listReadableAssetsForDashboard(ctx: Context) {
   if (error) return { rows: [], errorResponse: fail(500, 'Failed to read assets', ctx.origin) };
   const rows = ((data || []) as Record<string, unknown>[]).filter(isDashboardVisibleAsset);
   return {
-    rows: rows.filter((row) => canReadRelatedAssetRecord(ctx, row)),
+    rows: allReadableAssetsAllowed(ctx) ? rows : rows.filter((row) => matchesManagedAsset(ctx, row)),
     errorResponse: null,
   };
 }
@@ -2570,7 +2517,7 @@ function normalizeFloorCountDisplay(value: unknown) {
 }
 
 async function callAssetFloorPlanRegister(ctx: Context, formData: FormData | null) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!formData) return fail(400, 'Multipart form data is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'asset-floor-plans/register', 24, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const payloadEntry = formData.get('payload');
@@ -2592,7 +2539,7 @@ async function callAssetFloorPlanRegister(ctx: Context, formData: FormData | nul
   const assetName = safeText(asset.asset_name, assetId);
   const canCreate = canMutateRelatedAsset(ctx, 'create', assetId, assetName);
   const canUpdate = canMutateRelatedAsset(ctx, 'update', assetId, assetName);
-  if (!canCreate && !canUpdate) {
+  if (!hasRole(ctx.role, 'Admin') && !canWriteRelatedAsset(ctx, assetId, assetName) && !canCreate && !canUpdate) {
     return fail(403, 'Insufficient asset write permission for floor plan upload', ctx.origin);
   }
 
@@ -3721,6 +3668,7 @@ async function runBoundedDataChangeAudits(jobs: Array<() => Promise<void>>, time
 }
 
 function canReadDataQualityRow(ctx: Context, row: Record<string, unknown>) {
+  if (hasRole(ctx.role, 'Manager')) return true;
   const assetId = firstDefined(row.asset_id, row.target_asset_id, row.related_asset_id, row.asset_code, row.entity_id);
   const assetName = firstDefined(row.asset_name, row.target_asset_name, row.target_name);
   if (!assetId && !assetName) return true;
@@ -3728,6 +3676,7 @@ function canReadDataQualityRow(ctx: Context, row: Record<string, unknown>) {
 }
 
 function canReadEditRequestRow(ctx: Context, row: Record<string, unknown>) {
+  if (hasRole(ctx.role, 'Manager')) return true;
   const payload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
   const notification = payload.notification && typeof payload.notification === 'object' && !Array.isArray(payload.notification)
     ? payload.notification as Record<string, unknown>
@@ -4215,7 +4164,7 @@ async function readbackEdit(ctx: Context, payload: Record<string, unknown>) {
 }
 
 async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/submit', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const sourceTable = normalizePublicLlTable(payload.source_table || 'public.ll_lease_spaces');
   if (!EDIT_TARGET_TABLE_ALLOWLIST.has(sourceTable)) return fail(403, 'Source table is not allowed', ctx.origin);
@@ -4225,6 +4174,7 @@ async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
   const isContractDataRequest = payload.target_type === 'contract_data'
     || rawRequestPayload.kind === 'contract_data_edit'
     || rawRequestPayload.kind === 'lease_contract_event';
+  if (!isContractDataRequest && !await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   const sanitizedRequestPayload = redactSensitivePayload(rawRequestPayload) as Record<string, unknown>;
   const draftRecord = {
     ...payload,
@@ -4490,7 +4440,7 @@ async function writeSourceOnlyContractAudit(
 }
 
 async function applyContractData(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'contract-data/apply', 20)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const rawCells = Array.isArray(payload.cell_edits) ? payload.cell_edits as Record<string, unknown>[] : [];
   if (!rawCells.length || rawCells.length > MAX_EDIT_CELLS_PER_REQUEST) return fail(400, 'Edit cell count is invalid', ctx.origin);
@@ -4513,17 +4463,6 @@ async function applyContractData(ctx: Context, payload: Record<string, unknown>)
   const sourceOnlyCells = cells.filter((cell) => cell.sourceOnly);
   const directValidationError = directCells.map((cell) => validateEditCell(ctx, cell)).find(Boolean);
   if (directValidationError) return fail(400, directValidationError, ctx.origin);
-  for (const cell of directCells) {
-    const targetRow = await readTargetRow(ctx.serviceClient, cell);
-    if (!await assertTargetRowPermission(ctx, targetRow, cell)) {
-      return fail(403, 'Insufficient asset update permission for contract data', ctx.origin);
-    }
-  }
-  for (const cell of sourceOnlyCells) {
-    if (!canMutateRelatedAsset(ctx, 'update', cell.assetId, cell.assetName)) {
-      return fail(403, 'Insufficient asset update permission for source-only contract data', ctx.origin);
-    }
-  }
 
   const startedAt = new Date().toISOString();
   const { data: requestData, error: requestError } = await ctx.serviceClient
@@ -6348,9 +6287,9 @@ async function callAssetSpecRead(ctx: Context, _payload: Record<string, unknown>
   }).filter(([key]) => key) as Array<[string, Record<string, unknown>]>).values()];
   const publicAssets: Record<string, unknown>[] = assets.map((asset) => ({
     ...asset,
-    can_create: canMutateRelatedAsset(ctx, 'create', asset.asset_id, asset.asset_name),
-    can_update: canMutateRelatedAsset(ctx, 'update', asset.asset_id, asset.asset_name),
-    can_delete: canMutateRelatedAsset(ctx, 'delete', asset.asset_id, asset.asset_name),
+    can_create: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'create', asset.asset_id, asset.asset_name),
+    can_update: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'update', asset.asset_id, asset.asset_name),
+    can_delete: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'delete', asset.asset_id, asset.asset_name),
   }));
   const visibleAssetIds = new Set(publicAssets.map((row) => safeText(row.asset_id)).filter(Boolean));
   const specs = ((specsResult.data || []) as Record<string, unknown>[]).filter((row) => visibleAssetIds.has(safeText(row.asset_id)));
@@ -6432,7 +6371,7 @@ function assetSpecNumeric(value: unknown) {
 }
 
 async function callAssetSpecSave(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'asset-spec/save', 40, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const assetId = safeText(firstDefined(payload.asset_id, payload.assetId));
   if (!assetId) return fail(400, 'asset_id is required', ctx.origin);
@@ -6454,7 +6393,7 @@ async function callAssetSpecSave(ctx: Context, payload: Record<string, unknown>)
   const existing = ((existingRows || []) as Record<string, unknown>[])[0] || null;
   const mode = safeText(payload.mode).toLowerCase();
   const requiredAction = mode === 'delete' ? 'delete' : (existing ? 'update' : 'create');
-  if (!canMutateRelatedAsset(ctx, requiredAction, assetId, assetName)) {
+  if (!hasRole(ctx.role, 'Manager') && !canMutateRelatedAsset(ctx, requiredAction, assetId, assetName)) {
     return fail(403, `Insufficient asset ${requiredAction} permission for asset spec`, ctx.origin);
   }
 
@@ -7340,7 +7279,7 @@ async function readDataManagementScope(ctx: Context, managerView: boolean): Prom
     const sourcePayload = link.source_payload && typeof link.source_payload === 'object' ? link.source_payload as Record<string, unknown> : {};
     if (fundId) scopeFundMap.set(fundId, publicFundValues(fundId, sourcePayload));
   });
-  const scopeAssets = (managerView ? [...scopeAssetMap.values()] : assets.filter((asset) => canReadRelatedAsset(ctx, asset.asset_id)))
+  const scopeAssets = [...scopeAssetMap.values()]
     .sort((a, b) => safeText(a.asset_name || a.asset_code).localeCompare(safeText(b.asset_name || b.asset_code), 'ko'));
   const scopeFunds = [...scopeFundMap.values()]
     .sort((a, b) => safeText(firstDefined(a.display_name, a.short_name, a.fund_name, a.fund_code)).localeCompare(safeText(firstDefined(b.display_name, b.short_name, b.fund_name, b.fund_code)), 'ko'));
@@ -11543,7 +11482,7 @@ async function callDataManagementSubmitDetailRowChange(ctx: Context, payload: Re
 
 async function callDataManagementViews(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = false;
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
@@ -11568,7 +11507,7 @@ async function callDataManagementViews(ctx: Context, payload: Record<string, unk
 
 async function callDataManagementViewRows(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = false;
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
@@ -11851,7 +11790,7 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
 
 async function callDataManagementCatalog(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = false;
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
@@ -11891,7 +11830,7 @@ async function callDataManagementCatalog(ctx: Context, payload: Record<string, u
 
 async function callDataManagementRows(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = false;
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
@@ -12326,7 +12265,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       return dataManagementDedupedEditResponse(ctx, existing, clientRequestId, rawChanges.length);
     }
   }
-  const managerView = false;
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const scope = scopeResult.scope || dataManagementEmptyScope();
@@ -12846,7 +12785,7 @@ function dataManagementDedupedEditResponse(ctx: Context, existing: Record<string
 
 async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
   if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = false;
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const rowLimit = Math.min(Math.max(Number(payload.row_limit || 600), 20), 1200);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
@@ -13123,10 +13062,10 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
 }
 
 async function callDataManagementPreviewEdit(ctx: Context, payload: Record<string, unknown>): Promise<Response> {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/preview-edit', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
   if (safeText(payload.edit_mode || payload.editMode) === 'detail_field') {
-    const managerView = false;
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     try {
@@ -13137,7 +13076,7 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
     }
   }
   if (isDataManagementViewFieldPayload(payload)) {
-    const managerView = false;
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     const viewKey = safeText(payload.view_key || payload.viewKey);
@@ -13176,7 +13115,7 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
   const fieldName = safeText(payload.field_name || payload.fieldName);
   const requestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
   if (!sourceRowId || !fieldName) return fail(400, 'source_row_id and field_name are required', ctx.origin);
-  const managerView = false;
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope;
@@ -13199,7 +13138,9 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
     return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);
   }
   if (!managerView) {
-    const readable = dataManagementRowMatchesRefs(sourceRow, managementScope.readableRefs);
+    const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
+    const readable = dataManagementRowMatchesRefs(sourceRow, managementScope.readableRefs)
+      || dataManagementRowMatchesRefs(sourceRow, managedRefs);
     if (!readable) {
       return fail(403, 'Source row is outside the assigned asset scope', ctx.origin);
     }
@@ -13369,7 +13310,7 @@ async function callDataManagementSubmitRowAdd(ctx: Context, payload: Record<stri
 }
 
 async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string, unknown>): Promise<Response> {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/submit-edit', 40)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const clientRequestId = dataManagementClientRequestId(payload);
   if (clientRequestId) {
@@ -13377,19 +13318,19 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     if (existing) return dataManagementDedupedEditResponse(ctx, existing, clientRequestId);
   }
   if (safeText(payload.edit_mode || payload.editMode) === 'row_add') {
-    const managerView = false;
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     return callDataManagementSubmitRowAdd(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
   }
   if (['detail_row_add', 'detail_row_delete'].includes(safeText(payload.edit_mode || payload.editMode))) {
-    const managerView = false;
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     return callDataManagementSubmitDetailRowChange(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
   }
   if (safeText(payload.edit_mode || payload.editMode) === 'detail_field') {
-    const managerView = false;
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     try {
@@ -13407,7 +13348,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     }
   }
   if (isDataManagementViewFieldPayload(payload)) {
-    const managerView = false;
+    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     const viewKey = safeText(payload.view_key || payload.viewKey);
@@ -13458,7 +13399,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
   const targetRecordId = safeText(payload.target_record_id || payload.targetRecordId || payload.resolved_target_row_id || payload.resolvedTargetRowId);
   const primaryKeyField = safeText(payload.primary_key_field || payload.primaryKeyField || 'id');
   const autoWriteEnabled = Boolean(normalizedTargetTable && EDIT_TARGET_TABLE_ALLOWLIST.has(normalizedTargetTable) && targetField && targetRecordId);
-  const managerView = false;
+  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope;
@@ -13483,7 +13424,9 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
       return fail(403, 'Data Management edits are limited to IGIS-managed assets and funds', ctx.origin);
     }
     if (!managerView) {
-      const readable = dataManagementRowMatchesRefs(sourceRow, managementScope.readableRefs);
+      const managedRefs = managedAssetCodes(ctx.permission).map((item) => normalizeKey(item)).filter(Boolean);
+      const readable = dataManagementRowMatchesRefs(sourceRow, managementScope.readableRefs)
+        || dataManagementRowMatchesRefs(sourceRow, managedRefs);
       if (!readable) return fail(403, 'Source row is outside the assigned asset scope', ctx.origin);
     }
   }
@@ -15439,7 +15382,7 @@ async function previewLeaseEvent(ctx: Context, payload: Record<string, unknown>)
 }
 
 async function submitLeaseEvent(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'lease-events/submit', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const eventPayload = normalizeLeaseEventPayload(payload);
   if (!eventPayload.asset_id && !eventPayload.asset_name) return fail(400, 'asset_id or asset_name is required', ctx.origin);
@@ -16610,6 +16553,9 @@ async function readWorkPlatformTaskForWrite(ctx: Context, id: string) {
     .eq('id', id)
     .single();
   if (error || !data) return { data: null, response: fail(404, 'Work platform task not found', ctx.origin) };
+  if (data.created_by !== ctx.user.id && !hasRole(ctx.role, 'Manager')) {
+    return { data: null, response: fail(403, 'Only author or manager can modify this task', ctx.origin) };
+  }
   return { data, response: null };
 }
 
@@ -16771,7 +16717,7 @@ async function listWorkPlatformBoardPosts(ctx: Context, payload: Record<string, 
     .eq('item_type', 'board_post')
     .neq('status', 'deleted');
 
-  if (!allReadableAssetsAllowed(ctx)) {
+  if (!hasRole(ctx.role, 'Manager') && !allReadableAssetsAllowed(ctx)) {
     const { rows: readableAssets } = await listReadableAssetsForDashboard(ctx);
     const readableAssetIds = Array.from(new Set(
       readableAssets
@@ -16848,6 +16794,9 @@ async function readWorkPlatformBoardForWrite(ctx: Context, idOrLogId: string) {
     .eq('item_type', 'board_post');
   const { data, error } = await (isUuid ? query.eq('id', idText) : query.eq('board_log_id', idText)).single();
   if (error || !data) return { data: null, response: fail(404, 'Work platform board post not found', ctx.origin) };
+  if (data.created_by !== ctx.user.id && !hasRole(ctx.role, 'Manager')) {
+    return { data: null, response: fail(403, 'Only author or manager can modify this board post', ctx.origin) };
+  }
   return { data, response: null };
 }
 
@@ -16931,7 +16880,7 @@ async function commentWorkPlatformBoardPost(ctx: Context, payload: Record<string
   const current = await readWorkPlatformBoardForWrite(ctx, id);
   if (current.response) return current.response;
   const currentRow = current.data as Record<string, unknown>;
-  if (!canMutateWorklog(ctx, 'create', currentRow.related_asset_id)) return fail(403, 'Insufficient create permission for this board post', ctx.origin);
+  if (!canReadRelatedAsset(ctx, currentRow.related_asset_id)) return fail(403, 'Insufficient read permission for this board post', ctx.origin);
   const comments = Array.isArray(currentRow.comments) ? currentRow.comments as Record<string, unknown>[] : [];
   const nextComment = {
     id: `comment_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
@@ -16962,7 +16911,9 @@ async function deleteWorkPlatformBoardComment(ctx: Context, payload: Record<stri
   const comments = Array.isArray(currentRow.comments) ? currentRow.comments as Record<string, unknown>[] : [];
   const target = comments.find((comment) => comment.id === commentId);
   if (!target) return fail(404, 'Comment not found', ctx.origin);
-  if (!canMutateWorklog(ctx, 'delete', currentRow.related_asset_id)) return fail(403, 'Insufficient delete permission for this board post', ctx.origin);
+  if (target.author_email !== actorEmail(ctx) && !hasRole(ctx.role, 'Manager')) {
+    return fail(403, 'Only comment author or manager can delete this comment', ctx.origin);
+  }
   const { data, error } = await ctx.serviceClient
     .from('ll_work_items')
     .update({ comments: comments.filter((comment) => comment.id !== commentId), updated_at: new Date().toISOString() })
@@ -17014,7 +16965,7 @@ function weeklyAssetPayload(row: Record<string, unknown>) {
 }
 
 async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const rows = Array.isArray(payload.rows) ? payload.rows as Record<string, unknown>[] : [];
   const originalAssetNames = Array.isArray(payload.original_asset_names)
     ? payload.original_asset_names.map((item) => safeText(item)).filter(Boolean)
@@ -17030,36 +16981,14 @@ async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown
     .maybeSingle();
   if (reportError || !report?.id) return fail(404, 'Weekly report not found', ctx.origin);
 
-  const { data: assetRows, error: assetRowsError } = await ctx.serviceClient
-    .from('ll_assets')
-    .select('asset_id,asset_code,asset_name')
-    .limit(500);
-  if (assetRowsError) return fail(500, 'Failed to resolve weekly asset scope', ctx.origin);
-  const assets = (assetRows || []) as Record<string, unknown>[];
-  const assetForReference = (reference: unknown) => {
-    const normalized = safeText(reference).toLowerCase();
-    return assets.find((asset) => [asset.asset_id, asset.asset_code, asset.asset_name]
-      .some((value) => safeText(value).toLowerCase() === normalized)) || null;
-  };
   const nextRows = rows
     .map((row) => weeklyAssetPayload(row))
-    .map((row) => {
-      const asset = assetForReference(firstDefined(row.asset_id, row.asset_code, row.asset_name));
-      return asset ? { ...row, asset_id: asset.asset_id, asset_code: asset.asset_code, asset_name: asset.asset_name } : row;
-    })
     .filter((row) => row.asset_name);
   const requestedNames = [...new Set([
     ...originalAssetNames,
     ...nextRows.map((row) => String(row.asset_name || '')),
   ].filter(Boolean))];
-  const nextNames = new Set(nextRows.map((row) => safeText(row.asset_name)));
-  const permittedNames = requestedNames.filter((assetName) => {
-    const asset = assetForReference(assetName);
-    if (!asset) return false;
-    return nextNames.has(assetName)
-      ? canMutateRelatedAsset(ctx, 'update', asset.asset_id, asset.asset_name)
-      : canMutateRelatedAsset(ctx, 'delete', asset.asset_id, asset.asset_name);
-  });
+  const permittedNames = requestedNames.filter((assetName) => canWriteRelatedAsset(ctx, assetName, assetName));
   if (!permittedNames.length) return fail(403, 'No writable asset rows in request', ctx.origin);
   const blockedNames = requestedNames.filter((assetName) => !permittedNames.includes(assetName));
   const rowsToInsert = nextRows
@@ -17122,7 +17051,6 @@ async function listLatestWeeklyAssets(ctx: Context) {
     .limit(300);
   if (error) return fail(500, 'Failed to read weekly asset rows', ctx.origin);
   const rows = ((data || []) as unknown as Record<string, unknown>[])
-    .filter((row) => canReadRelatedAsset(ctx, row.asset_id || row.asset_name))
     .map((row) => weeklyAssetResponse(row));
   await audit(ctx.serviceClient, ctx.user.id, 'weekly-assets/latest', 200, { report_id: reportId, rows: rows.length });
   return jsonResponse({ ok: true, data: { report_id: reportId, rows } }, 200, ctx.origin);
@@ -17274,18 +17202,17 @@ async function getWeeklyProjectAssetDetail(ctx: Context, payload: Record<string,
 }
 
 async function saveWeeklyProjectAssetDetail(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetRef = await resolveAssetReference(ctx, payload);
   if (!assetRef.assetName && !assetRef.assetId) return fail(400, 'asset_name is required', ctx.origin);
+  if (!canWriteRelatedAsset(ctx, assetRef.assetId, assetRef.assetName)) {
+    return fail(403, 'Insufficient update permission for this asset project detail', ctx.origin);
+  }
   const overviewRows = normalizeProjectRows(payload.overview_rows);
   const investmentRows = normalizeProjectRows(payload.investment_rows);
   const { reportId, rows } = await listWeeklyProjectsForLatestReport(ctx);
   if (!reportId) return fail(404, 'Weekly report not found', ctx.origin);
   const matched = rows.find((row) => projectMatchesAsset(row, assetRef.assetName || assetRef.assetId));
-  const requiredAction = matched?.id ? 'update' : 'create';
-  if (!canMutateRelatedAsset(ctx, requiredAction, assetRef.assetId, assetRef.assetName)) {
-    return fail(403, `Insufficient asset ${requiredAction} permission for this asset project detail`, ctx.origin);
-  }
   const currentRowJson = matched?.row_json && typeof matched.row_json === 'object' && !Array.isArray(matched.row_json)
     ? matched.row_json as Record<string, unknown>
     : {};
@@ -17678,7 +17605,7 @@ async function writeFundAudit(ctx: Context, fundId: string, beforeValue: unknown
 }
 
 async function saveFundOverviewByAsset(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetRef = await resolveAssetReference(ctx, payload);
   if (!assetRef.assetId && !assetRef.assetName) return fail(400, 'asset_name is required', ctx.origin);
   if (!canWriteRelatedAsset(ctx, assetRef.assetId, assetRef.assetName)) {
@@ -24378,41 +24305,8 @@ function publicPermissionUser(permission: Record<string, unknown>) {
   }) as Record<string, unknown>;
 }
 
-function assetPermissionResponse(ctx: Context, asset: Record<string, unknown>) {
-  const assetId = firstDefined(asset.asset_id, asset.assetId);
-  const assetName = firstDefined(asset.asset_name, asset.assetName);
-  return {
-    read: canReadRelatedAsset(ctx, assetId),
-    create: canMutateRelatedAsset(ctx, 'create', assetId, assetName),
-    update: canMutateRelatedAsset(ctx, 'update', assetId, assetName),
-    delete: canMutateRelatedAsset(ctx, 'delete', assetId, assetName),
-  };
-}
-
-function otherAssetPermissionResponse(ctx: Context) {
-  const sentinelAssetId = '00000000-0000-4000-8000-000000000000';
-  return {
-    read: normalizedScopePermission(ctx, 'read', sentinelAssetId) ?? permissionFlag(ctx.permission, 'other_asset_permissions', 'read'),
-    create: normalizedScopePermission(ctx, 'create', sentinelAssetId) ?? permissionFlag(ctx.permission, 'other_asset_permissions', 'create'),
-    update: normalizedScopePermission(ctx, 'update', sentinelAssetId) ?? permissionFlag(ctx.permission, 'other_asset_permissions', 'update'),
-    delete: normalizedScopePermission(ctx, 'delete', sentinelAssetId) ?? permissionFlag(ctx.permission, 'other_asset_permissions', 'delete'),
-  };
-}
-
-function publicScopePermissions(ctx: Context) {
-  return ctx.permissionScopes.map((scope) => ({
-    scope_type: scope.scopeType,
-    scope_id: scope.scopeId || null,
-    can_read: scope.canRead,
-    can_write: scope.canWrite,
-    can_delete: scope.canDelete,
-  }));
-}
-
 async function permissionAssetRows(ctx: Context, permission: Record<string, unknown> | null) {
-  const refs = ctx.permissionScopes.length
-    ? [...new Set(ctx.permissionScopes.filter((scope) => scope.scopeType === 'asset').map((scope) => scope.scopeId.toLowerCase()))]
-    : [...new Set(managedAssetCodes(permission).flatMap(assetRefVariants).map((item) => String(item).toLowerCase()))];
+  const refs = [...new Set(managedAssetCodes(permission).flatMap(assetRefVariants).map((item) => String(item).toLowerCase()))];
   if (!refs.length) return [];
   const { data, error } = await ctx.serviceClient
     .from('ll_assets')
@@ -24458,7 +24352,6 @@ async function permissionAssetRows(ctx: Context, permission: Record<string, unkn
       fundName: firstDefined(asset.fund_name, linkedFund.fundName),
       assetManagerName: asset.current_manager_name,
       assetManagerEmail: asset.current_manager_email,
-      permissions: assetPermissionResponse(ctx, asset),
     };
   });
 }
@@ -24478,9 +24371,6 @@ async function callAuthMe(ctx: Context) {
   const managedAssets = await permissionAssetRows(ctx, ctx.permission);
   const managedFunds = await permissionFundRows(ctx, managedAssets);
   const teamMembers = await listPermissionUsers(ctx, { organization: profile.organization });
-  const assetPermissions = Object.fromEntries(managedAssets.map((asset) => [safeText(asset.assetId), asset.permissions]));
-  const otherAssetPermissionsExact = otherAssetPermissionResponse(ctx);
-  const scopePermissions = publicScopePermissions(ctx);
   return jsonResponse({
     ok: true,
     data: {
@@ -24488,15 +24378,9 @@ async function callAuthMe(ctx: Context) {
       managedAssets,
       managedFunds,
       teamMembers,
-      asset_permissions: assetPermissions,
-      other_asset_permissions_exact: otherAssetPermissionsExact,
-      scope_permissions: scopePermissions,
       permissions: {
         managedAsset: profile.managed_asset_permissions || {},
         otherAsset: profile.other_asset_permissions || {},
-        asset_permissions: assetPermissions,
-        other_asset_permissions_exact: otherAssetPermissionsExact,
-        scope_permissions: scopePermissions,
       },
     },
   }, 200, ctx.origin);
@@ -24669,7 +24553,8 @@ function logisticsFirstAccessCode() {
   return safeText(
     readEdgeSecret('LOGISTICS_PILOT_ACCESS_CODE')
     || readEdgeSecret('IOTA_PILOT_ACCESS_CODE')
-    || Deno.env.get('VITE_IOTA_PILOT_ACCESS_CODE'),
+    || Deno.env.get('VITE_IOTA_PILOT_ACCESS_CODE')
+    || 'logistics1!',
   );
 }
 
@@ -24985,6 +24870,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'auth/first-login/setup') return callLogisticsFirstLoginSetup(origin, payload);
   if (action === 'auth/password-reset/access-code') return callLogisticsPasswordResetWithAccessCode(origin, payload);
   if (action === 'auth/logistics-status') return callLogisticsAuthStatus(origin, payload);
+  if (action === 'weekly-assets/latest-preview') return callWeeklyAssetsLatestPreview(origin, payload);
 
   let ctx: Context;
   try {
@@ -25056,7 +24942,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'work-platform/board-posts/comment') return commentWorkPlatformBoardPost(ctx, payload);
   if (action === 'work-platform/board-posts/comment-delete') return deleteWorkPlatformBoardComment(ctx, payload);
   if (action === 'weekly-assets/replace-latest') return replaceWeeklyAssets(ctx, payload);
-  if (action === 'weekly-assets/latest' || action === 'weekly-assets/latest-preview') return listLatestWeeklyAssets(ctx);
+  if (action === 'weekly-assets/latest') return listLatestWeeklyAssets(ctx);
   if (action === 'weekly-projects/get-asset-detail') return getWeeklyProjectAssetDetail(ctx, payload);
   if (action === 'weekly-projects/save-asset-detail') return saveWeeklyProjectAssetDetail(ctx, payload);
   if (action === 'funds/read-by-asset') return readFundOverviewByAsset(ctx, payload);
