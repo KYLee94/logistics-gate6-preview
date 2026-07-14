@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
 const { pathToFileURL } = require('node:url');
@@ -12,9 +13,45 @@ const normalizerUrl = pathToFileURL(path.join(
   'workspace',
   'stackingFloorNormalizer.js',
 )).href;
+const workspacePath = path.join(
+  __dirname,
+  '..',
+  'src',
+  'components',
+  'system',
+  'workspace',
+  'WorkspaceLogistics.jsx',
+);
 
 async function loadNormalizer() {
   return import(normalizerUrl);
+}
+
+async function loadBuildStackingFloorsFromRows() {
+  const normalizer = await loadNormalizer();
+  const source = fs.readFileSync(workspacePath, 'utf8');
+  const start = source.indexOf('function buildStackingFloorsFromRows');
+  const end = source.indexOf('function buildExpiryRowsFromRows', start);
+  assert.ok(start >= 0 && end > start, 'buildStackingFloorsFromRows must exist');
+  const declaration = source.slice(start, end);
+  const firstDefined = (...values) => values.find((value) => value !== undefined && value !== null && value !== '');
+  const firstHumanTenantName = (...values) => values.find((value) => String(value ?? '').trim()) || '';
+  const cleanDisplay = (value, fallback = '') => String(value ?? '').trim() || fallback;
+
+  return new Function(
+    'normalizeStackingFloorLabel',
+    'normalizeStackingFloorLabelFromRow',
+    'firstDefined',
+    'firstHumanTenantName',
+    'cleanDisplay',
+    `${declaration}\nreturn buildStackingFloorsFromRows;`,
+  )(
+    normalizer.normalizeStackingFloorLabel,
+    normalizer.normalizeStackingFloorLabelFromRow,
+    firstDefined,
+    firstHumanTenantName,
+    cleanDisplay,
+  );
 }
 
 test('normalizes verified single-floor labels to one canonical label', async () => {
@@ -40,4 +77,73 @@ test('does not infer a floor from an explicit aggregate label', async () => {
 
   assert.equal(normalizeStackingFloorLabelFromRow({ floorLabel: 'B1~8', spaceLabel: 'B1' }), '');
   assert.equal(normalizeStackingFloorLabelFromRow({ spaceLabel: '3F A구역' }), '3F');
+});
+
+test('expands basement-to-ground, ground-only, and comma-combined floor ranges', async () => {
+  const { expandStackingFloorLabels, normalizeStackingFloorLabelFromRow } = await loadNormalizer();
+
+  assert.deepEqual(expandStackingFloorLabels('B1~8'), [
+    'B1', '1F', '2F', '3F', '4F', '5F', '6F', '7F', '8F',
+  ]);
+  assert.deepEqual(expandStackingFloorLabels('B2~3'), ['B2', 'B1', '1F', '2F', '3F']);
+  assert.deepEqual(expandStackingFloorLabels('1~3'), ['1F', '2F', '3F']);
+  assert.deepEqual(expandStackingFloorLabels('B2~B1, 1~3, 5'), [
+    'B2', 'B1', '1F', '2F', '3F', '5F',
+  ]);
+  assert.deepEqual(normalizeStackingFloorLabelFromRow({
+    floorLabel: 'B2',
+    sourceFloorLabel: 'B2~3',
+  }, { expandRanges: true }), ['B2', 'B1', '1F', '2F', '3F']);
+});
+
+test('expands one aggregate API row once and evenly preserves its leased area total', async () => {
+  const buildStackingFloorsFromRows = await loadBuildStackingFloorsFromRows();
+  const floors = buildStackingFloorsFromRows([{
+    leaseSpaceId: 'lease-api-1',
+    floorLabel: 'B1~8',
+    sourceFloorLabel: 'B1~8',
+    tenantMasterName: 'API Tenant',
+    leasedAreaSqm: 900,
+  }]);
+
+  assert.deepEqual(floors.map((floor) => floor.floorLabel), [
+    'B1', '1F', '2F', '3F', '4F', '5F', '6F', '7F', '8F',
+  ]);
+  assert.deepEqual(floors.map((floor) => floor.tenants.length), Array(9).fill(1));
+  assert.deepEqual(floors.map((floor) => floor.tenants[0].leasedAreaSqm), Array(9).fill(100));
+  assert.equal(floors.reduce((sum, floor) => sum + floor.totalLeasedAreaSqm, 0), 900);
+});
+
+test('deduplicates split fallback rows by lease, source range, and tenant before distributing area', async () => {
+  const buildStackingFloorsFromRows = await loadBuildStackingFloorsFromRows();
+  const floorLabels = ['B2', 'B1', '1F', '2F', '3F'];
+  const splitAreas = [80, 90, 100, 110, 120];
+  const floors = buildStackingFloorsFromRows(floorLabels.map((floorLabel, index) => ({
+    leaseSpaceId: 'lease-fallback-1',
+    sourceFloorLabel: 'B2~3',
+    floorLabel,
+    tenantMasterName: 'Fallback Tenant',
+    leasedAreaSqm: splitAreas[index],
+  })));
+
+  assert.deepEqual(floors.map((floor) => floor.floorLabel), floorLabels);
+  assert.deepEqual(floors.map((floor) => floor.tenants.length), Array(5).fill(1));
+  assert.deepEqual(floors.map((floor) => floor.tenants[0].leasedAreaSqm), Array(5).fill(100));
+  assert.equal(floors.reduce((sum, floor) => sum + floor.totalLeasedAreaSqm, 0), 500);
+});
+
+test('preserves existing single-floor stacking behavior', async () => {
+  const buildStackingFloorsFromRows = await loadBuildStackingFloorsFromRows();
+  const floors = buildStackingFloorsFromRows([{
+    leaseSpaceId: 'lease-single-1',
+    floorLabel: '2F',
+    tenantMasterName: 'Single Tenant',
+    leasedAreaSqm: 120,
+  }]);
+
+  assert.equal(floors.length, 1);
+  assert.equal(floors[0].floorLabel, '2F');
+  assert.equal(floors[0].totalLeasedAreaSqm, 120);
+  assert.equal(floors[0].tenants[0].leasedAreaSqm, 120);
+  assert.equal(floors[0].tenants[0].share, 1);
 });

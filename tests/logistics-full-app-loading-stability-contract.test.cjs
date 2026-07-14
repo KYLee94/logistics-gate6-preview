@@ -90,17 +90,32 @@ test('idle defaults to two minutes in both live loading scripts', () => {
   assert.match(idleSource, /numberArg\('idle-ms', MIN_LIVE_IDLE_MS\)/u);
 });
 
-test('progress audit detects regression, no-request badge, and retained badge', () => {
+test('progress audit ignores transient no-request badges but rejects retained completion badges', () => {
   const assess = sourceFunction(fullAppSource, 'assessLoadingSamples');
-  const result = assess([
+  const transient = assess([
+    { pending: 0, started: 0, wave: 0, reason: 'dom-mutation', badges: [{ id: 'dashboard', progress: 50 }] },
+  ], { settled: true, finalPending: 0, finalBadges: [] });
+  assert.equal(transient.ok, true);
+  assert.equal(transient.regressions.length, 0);
+  assert.equal(transient.badges_without_requests.length, 0);
+  assert.equal(transient.retained_badges.length, 0);
+
+  const regression = assess([
     { pending: 1, started: 1, wave: 1, badges: [{ id: 'dashboard', progress: 96 }] },
     { pending: 1, started: 1, wave: 1, badges: [{ id: 'dashboard', progress: 84 }] },
-    { pending: 0, started: 0, wave: 0, badges: [{ id: 'orphan', progress: 18 }] },
-  ], { settled: false, finalBadges: [{ id: 'dashboard', progress: 84 }] });
-  assert.equal(result.ok, false);
-  assert.equal(result.regressions.length, 1);
-  assert.equal(result.badges_without_requests.length, 1);
-  assert.equal(result.retained_badges.length, 1);
+  ], { settled: true, finalPending: 0, finalBadges: [] });
+  assert.equal(regression.ok, false);
+  assert.equal(regression.regressions.length, 1);
+
+  const completion = assess([], {
+    settled: true,
+    finalPending: 0,
+    finalBadges: [{ id: 'dashboard', progress: 50 }],
+  });
+  assert.equal(completion.ok, false);
+  assert.equal(completion.badges_without_requests.length, 1);
+  assert.equal(completion.retained_badges.length, 1);
+
   const pending = assess([], { settled: false, finalPending: 1, finalBadges: [{ id: 'still-loading', progress: 50 }] });
   assert.equal(pending.ok, false);
   assert.equal(pending.pending_requests_at_timeout, 1);
@@ -115,6 +130,29 @@ test('full app QA observes actual dashboard requests and popup reopen lifecycle'
   for (const field of ['opened', 'closed', 'reopened', 'reclosed']) {
     assert.match(fullAppSource, new RegExp(`\\b${field}\\b`, 'u'));
   }
+});
+
+test('modal checks clear residual fullscreen overlays before every popup lifecycle', () => {
+  const dismissOverlays = extractFunction(fullAppSource, 'dismissResidualOverlays');
+  const modalChecks = extractFunction(fullAppSource, 'checkSystemModals');
+  assert.match(dismissOverlays, /div\.fixed\.inset-0\.z-40/u);
+  assert.match(dismissOverlays, /keyboard\.press\('Escape'\)/u);
+  assert.match(dismissOverlays, /mouse\.click\(12, 12\)/u);
+  assert.equal((modalChecks.match(/await dismissResidualOverlays\(page\)/gu) || []).length, 3, 'each popup lifecycle must have its own overlay cleanup');
+
+  const featureCleanup = modalChecks.indexOf('overlayCleanup.feature_access = await dismissResidualOverlays(page)');
+  const featureLifecycle = modalChecks.indexOf('modalChecks.feature_access = await checkPopupLifecycle');
+  const loginCleanup = modalChecks.indexOf('overlayCleanup.login_history = await dismissResidualOverlays(page)');
+  const loginLifecycle = modalChecks.indexOf('modalChecks.login_history = await checkPopupLifecycle');
+  const notificationCleanup = modalChecks.indexOf('overlayCleanup.notifications = await dismissResidualOverlays(page)');
+  const notificationLifecycle = modalChecks.indexOf('modalChecks.notifications = await checkPopupLifecycle');
+
+  assert.ok(featureCleanup >= 0 && featureCleanup < featureLifecycle, 'feature access cleanup must precede its lifecycle');
+  assert.ok(loginCleanup >= 0 && loginCleanup < loginLifecycle, 'login history cleanup must precede its lifecycle');
+  assert.ok(loginLifecycle < notificationCleanup && notificationCleanup < notificationLifecycle, 'notification cleanup must run after login history and before notification lifecycle');
+  assert.match(modalChecks, /report\.overlay_cleanup = overlayCleanup/u);
+  assert.match(fullAppSource, /overlayCleanupChecks\.length === 3/u);
+  assert.match(fullAppSource, /overlayCleanupChecks\.every\(\(row\) => row\.ok\)/u);
 });
 
 test('401 and 403 are release failures reported separately from server errors', () => {

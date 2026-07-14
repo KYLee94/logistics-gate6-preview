@@ -8937,7 +8937,12 @@ function StackingPlan({ floors, onTenantClick }) {
     <div className="space-y-2">
       {rows.map((floor) => (
         <div key={floor.floorLabel} className="grid grid-cols-[52px_1fr] gap-3 items-stretch">
-          <div className="rounded-[8px] border border-[#333333] bg-[#1F1F1E] flex items-center justify-center text-[13px] text-white font-semibold">{floor.floorLabel}</div>
+          <div
+            className="rounded-[8px] border border-[#333333] bg-[#1F1F1E] flex items-center justify-center text-[13px] text-white font-semibold"
+            data-stacking-floor-label={floor.floorLabel}
+          >
+            {floor.floorLabel}
+          </div>
           <div className="min-h-[38px] rounded-[8px] border border-[#333333] bg-[#191918] overflow-hidden flex">
             {(floor.tenants || []).map((tenant, index) => (
               <button
@@ -9120,21 +9125,56 @@ function sortExpiryRows(rows = []) {
 
 function buildStackingFloorsFromRows(rows = [], fallbackFloors = []) {
   const grouped = new Map();
-  (rows || []).forEach((row) => {
-    const floorLabel = normalizeStackingFloorLabelFromRow(row);
-    if (!floorLabel) return;
+  const expansionGroups = new Map();
+  (rows || []).forEach((row, rowIndex) => {
+    const floorLabels = normalizeStackingFloorLabelFromRow(row, { expandRanges: true });
+    if (!floorLabels.length) return;
     const leasedAreaSqm = Number(row.leasedAreaSqm || 0);
-    const key = floorLabel.toUpperCase();
-    if (!grouped.has(key)) grouped.set(key, { floorLabel, totalLeasedAreaSqm: 0, tenants: [] });
-    const group = grouped.get(key);
     const tenantDisplayName = firstHumanTenantName(row.tenantMasterName, row.tenantName, row.companyName);
-    group.totalLeasedAreaSqm += Number.isFinite(leasedAreaSqm) ? leasedAreaSqm : 0;
-    group.tenants.push({
-      ...row,
-      tenantMasterName: tenantDisplayName || '-',
-      detailAreaLabel: cleanDisplay(row.detailAreaLabel, ''),
-      leasedAreaSqm,
-      monthlyCostTotal: firstDefined(row.monthlyCostTotal, row.monthlyCombinedTotal, row.currentMonthlyCostTotal),
+    const leaseSpaceId = firstDefined(row.leaseSpaceId, row.lease_space_id);
+    const sourceFloorLabel = firstDefined(
+      row.sourceFloorLabel,
+      row.source_floor_label,
+      row.floorLabel,
+      row.floor_label,
+      floorLabels.join(','),
+    );
+    const leaseKey = leaseSpaceId ? String(leaseSpaceId) : `row-${rowIndex}`;
+    const sourceFloorKey = String(sourceFloorLabel || '').replace(/\s+/gu, '').toUpperCase();
+    const tenantKey = String(tenantDisplayName || '-').trim().toUpperCase();
+    const expansionKey = `${leaseKey}|${sourceFloorKey}|${tenantKey}`;
+    if (!expansionGroups.has(expansionKey)) {
+      expansionGroups.set(expansionKey, {
+        row,
+        floorLabels,
+        sourceFloorLabel,
+        tenantDisplayName: tenantDisplayName || '-',
+        totalLeasedAreaSqm: 0,
+      });
+    }
+    const expansionGroup = expansionGroups.get(expansionKey);
+    expansionGroup.totalLeasedAreaSqm += Number.isFinite(leasedAreaSqm) ? leasedAreaSqm : 0;
+  });
+  expansionGroups.forEach((expansionGroup) => {
+    const leasedAreaSqm = expansionGroup.totalLeasedAreaSqm / expansionGroup.floorLabels.length;
+    expansionGroup.floorLabels.forEach((floorLabel) => {
+      const key = floorLabel.toUpperCase();
+      if (!grouped.has(key)) grouped.set(key, { floorLabel, totalLeasedAreaSqm: 0, tenants: [] });
+      const group = grouped.get(key);
+      group.totalLeasedAreaSqm += leasedAreaSqm;
+      group.tenants.push({
+        ...expansionGroup.row,
+        floorLabel,
+        sourceFloorLabel: expansionGroup.sourceFloorLabel,
+        tenantMasterName: expansionGroup.tenantDisplayName,
+        detailAreaLabel: cleanDisplay(expansionGroup.row.detailAreaLabel, ''),
+        leasedAreaSqm,
+        monthlyCostTotal: firstDefined(
+          expansionGroup.row.monthlyCostTotal,
+          expansionGroup.row.monthlyCombinedTotal,
+          expansionGroup.row.currentMonthlyCostTotal,
+        ),
+      });
     });
   });
   if (grouped.size) {
@@ -13564,21 +13604,49 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
     : [{ id: 'floorplan-empty', label: '층별 평면도', imageUrl: '' }];
   const [activeIndex, setActiveIndex] = useState(0);
   const [zoom, setZoom] = useState(FLOORPLAN_ZOOM_DEFAULT);
+  const floorplanViewportRef = useRef(null);
+  const floorplanPanRef = useRef(null);
+  const [isFloorplanPanning, setIsFloorplanPanning] = useState(false);
   const activeSlide = safeSlides[activeIndex] || safeSlides[0];
   const imageUrl = firstDefined(activeSlide?.imageUrl, activeSlide?.image_url, activeSlide?.url, activeSlide?.src, '');
   const canMove = safeSlides.length > 1;
   const canOpen = typeof onOpen === 'function';
 
+  const resetFloorplanPosition = useCallback(() => {
+    const viewport = floorplanViewportRef.current;
+    if (viewport) {
+      viewport.scrollLeft = 0;
+      viewport.scrollTop = 0;
+    }
+    floorplanPanRef.current = null;
+    setIsFloorplanPanning(false);
+  }, []);
+
   useEffect(() => {
     if (activeIndex < safeSlides.length) return;
+    resetFloorplanPosition();
     setZoom(FLOORPLAN_ZOOM_DEFAULT);
     setActiveIndex(0);
-  }, [activeIndex, safeSlides.length]);
+  }, [activeIndex, resetFloorplanPosition, safeSlides.length]);
+
+  useEffect(() => {
+    if (zoom <= FLOORPLAN_ZOOM_DEFAULT) resetFloorplanPosition();
+  }, [resetFloorplanPosition, zoom]);
+
+  useEffect(() => () => {
+    const viewport = floorplanViewportRef.current;
+    if (viewport) {
+      viewport.scrollLeft = 0;
+      viewport.scrollTop = 0;
+    }
+    floorplanPanRef.current = null;
+  }, []);
 
   const moveSlide = (direction, event) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
     if (!canMove) return;
+    resetFloorplanPosition();
     setZoom(FLOORPLAN_ZOOM_DEFAULT);
     setActiveIndex((current) => (current + direction + safeSlides.length) % safeSlides.length);
   };
@@ -13593,7 +13661,46 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
   const resetZoom = (event) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
+    resetFloorplanPosition();
     setZoom(FLOORPLAN_ZOOM_DEFAULT);
+  };
+
+  const isPannable = modalMode && zoom > FLOORPLAN_ZOOM_DEFAULT;
+
+  const handleFloorplanPointerDown = (event) => {
+    const interactiveTarget = event.target.closest?.('button, a, input, select, textarea, [role="button"]');
+    if (interactiveTarget) return;
+    if (!isPannable || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    const viewport = event.currentTarget;
+    floorplanPanRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
+    viewport.setPointerCapture(event.pointerId);
+    setIsFloorplanPanning(true);
+    event.preventDefault();
+  };
+
+  const handleFloorplanPointerMove = (event) => {
+    const panStart = floorplanPanRef.current;
+    if (!panStart || panStart.pointerId !== event.pointerId) return;
+    const viewport = event.currentTarget;
+    viewport.scrollLeft = panStart.scrollLeft - (event.clientX - panStart.clientX);
+    viewport.scrollTop = panStart.scrollTop - (event.clientY - panStart.clientY);
+    event.preventDefault();
+  };
+
+  const finishFloorplanPointerPan = (event) => {
+    const panStart = floorplanPanRef.current;
+    if (!panStart || panStart.pointerId !== event.pointerId) return;
+    const viewport = event.currentTarget;
+    if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+    floorplanPanRef.current = null;
+    setIsFloorplanPanning(false);
+    event.preventDefault();
   };
 
   const openModal = () => {
@@ -13625,7 +13732,17 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
     >
       {imageUrl ? (
         modalMode ? (
-          <div className="custom-scrollbar h-full w-full overflow-auto" data-floorplan-zoom={zoom}>
+          <div
+            ref={floorplanViewportRef}
+            className={`custom-scrollbar h-full w-full overflow-auto ${isPannable ? `touch-none select-none ${isFloorplanPanning ? 'cursor-grabbing' : 'cursor-grab'}` : ''}`}
+            data-floorplan-zoom={zoom}
+            data-floorplan-panning={isFloorplanPanning}
+            onPointerDown={handleFloorplanPointerDown}
+            onPointerMove={handleFloorplanPointerMove}
+            onPointerUp={finishFloorplanPointerPan}
+            onPointerCancel={finishFloorplanPointerPan}
+            onLostPointerCapture={finishFloorplanPointerPan}
+          >
             <div
               className="grid place-items-center transition-[width,height] duration-150"
               style={{ minWidth: '100%', minHeight: '100%', width: `${zoomCanvasPercent}%`, height: `${zoomCanvasPercent}%` }}
@@ -13634,6 +13751,8 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
                 src={imageUrl}
                 alt={`${assetName || '자산'} ${slideLabel} 평면도`}
                 className="h-full w-full object-contain"
+                draggable={false}
+                onDragStart={(event) => event.preventDefault()}
                 style={zoom < FLOORPLAN_ZOOM_DEFAULT ? { transform: `scale(${zoom})`, transformOrigin: 'center' } : undefined}
               />
             </div>

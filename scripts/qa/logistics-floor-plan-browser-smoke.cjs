@@ -18,6 +18,7 @@ const TARGETS = [
     assetId: 'asset_a112721001',
     assetName: '인천석남물류센터',
     floorLabel: 'B1',
+    expectedStackingFloors: ['B1', '1F', '2F', '3F', '4F', '5F', '6F', '7F', '8F'],
   },
 ];
 
@@ -169,6 +170,44 @@ async function loadedImageEvidence(page, image, responseByUrl) {
   };
 }
 
+async function verifyZoomAndPan(page, dialog) {
+  const viewport = dialog.locator('[data-floorplan-zoom]').first();
+  const zoomIn = dialog.locator('button:has([data-lucide="zoom-in"])').first();
+  await zoomIn.click();
+  await zoomIn.click();
+  await page.waitForFunction((node) => Number(node?.dataset?.floorplanZoom || 0) > 1, await viewport.elementHandle());
+
+  const before = await viewport.evaluate((node) => ({
+    left: node.scrollLeft,
+    top: node.scrollTop,
+    scrollWidth: node.scrollWidth,
+    scrollHeight: node.scrollHeight,
+    clientWidth: node.clientWidth,
+    clientHeight: node.clientHeight,
+  }));
+  const box = await viewport.boundingBox();
+  if (!box) throw new Error('Floor-plan pan viewport had no visible bounds.');
+  const start = {
+    x: box.x + (box.width * 0.68),
+    y: box.y + (box.height * 0.68),
+  };
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(start.x - Math.min(180, box.width * 0.25), start.y - Math.min(120, box.height * 0.2), { steps: 8 });
+  await page.mouse.up();
+
+  const after = await viewport.evaluate((node) => ({
+    left: node.scrollLeft,
+    top: node.scrollTop,
+  }));
+  return {
+    zoomed: before.scrollWidth > before.clientWidth && before.scrollHeight > before.clientHeight,
+    moved: after.left > before.left + 10 && after.top > before.top + 10,
+    before,
+    after,
+  };
+}
+
 function imageChecks(evidence) {
   return {
     image_complete: evidence.complete === true,
@@ -197,6 +236,9 @@ async function verifyTarget(context, baseUrl, stamp, target, reportErrors) {
       modal_title_visible: false,
       modal_image_complete: false,
       modal_image_has_pixels: false,
+      modal_zoom_scrollable: false,
+      modal_drag_pan_works: false,
+      stacking_floor_range_correct: target.expectedStackingFloors ? false : true,
       screenshot_written: false,
     },
     image: null,
@@ -224,6 +266,14 @@ async function verifyTarget(context, baseUrl, stamp, target, reportErrors) {
     const image = carousel.getByRole('img', { name: imageName }).first();
     result.image = await loadedImageEvidence(page, image, responseByUrl);
     Object.assign(result.checks, imageChecks(result.image));
+    if (target.expectedStackingFloors) {
+      const stackingFloors = await page.locator('[data-stacking-floor-label]').evaluateAll((nodes) => (
+        nodes.map((node) => String(node.getAttribute('data-stacking-floor-label') || '').trim()).filter(Boolean)
+      ));
+      result.stacking_floors = stackingFloors;
+      result.checks.stacking_floor_range_correct = target.expectedStackingFloors.every((label) => stackingFloors.includes(label))
+        && !['B2', 'B3', 'B4', 'B5', 'B6', 'B7', 'B8'].some((label) => stackingFloors.includes(label));
+    }
 
     await carousel.click();
     const dialog = page.getByRole('dialog').first();
@@ -238,6 +288,9 @@ async function verifyTarget(context, baseUrl, stamp, target, reportErrors) {
     result.modal_image = await loadedImageEvidence(page, modalImage, responseByUrl);
     result.checks.modal_image_complete = result.modal_image.complete === true;
     result.checks.modal_image_has_pixels = result.modal_image.natural_width > 0 && result.modal_image.natural_height > 0;
+    result.pan = await verifyZoomAndPan(page, dialog);
+    result.checks.modal_zoom_scrollable = result.pan.zoomed;
+    result.checks.modal_drag_pan_works = result.pan.moved;
 
     await page.screenshot({ path: screenshotPath, fullPage: false });
     result.checks.screenshot_written = fs.existsSync(screenshotPath) && fs.statSync(screenshotPath).size > 0;

@@ -80,6 +80,7 @@
     "qa:floor-plans:manifest": "node scripts/qa/logistics-floor-plan-manifest-smoke.cjs",
     "qa:floor-plans:edge-readback": "node scripts/qa/logistics-floor-plan-edge-readback.cjs",
     "qa:floor-plans:browser": "node scripts/qa/logistics-floor-plan-browser-smoke.cjs",
+    "qa:floor-count:integrity": "node scripts/qa/logistics-floor-count-integrity.cjs",
     "test:floor-plans:manifest": "node --test tests/logistics-floor-plan-manifest.test.cjs",
     "qa:market-rag:preflight": "node scripts/ops/logistics-market-rag-preflight.cjs",
     "qa:market-retrieval": "node scripts/qa/logistics-market-retrieval-qa.cjs",

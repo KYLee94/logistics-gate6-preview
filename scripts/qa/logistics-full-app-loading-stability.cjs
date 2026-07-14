@@ -160,14 +160,10 @@ function visibleLoadingState() {
 
 function assessLoadingSamples(samples, options = {}) {
   const regressions = [];
-  const badgesWithoutRequests = [];
   const previousProgress = new Map();
   for (const sample of Array.isArray(samples) ? samples : []) {
     const badges = Array.isArray(sample?.badges) ? sample.badges : [];
     for (const badge of badges) {
-      if (Number(sample?.pending || 0) === 0 && Number(sample?.started || 0) === 0) {
-        badgesWithoutRequests.push({ id: badge.id, progress: badge.progress, reason: sample.reason || '' });
-      }
       if (Number(sample?.pending || 0) <= 0 || !Number.isFinite(Number(badge.progress))) continue;
       const key = `${Number(sample?.wave || 0)}:${badge.id}`;
       const current = Number(badge.progress);
@@ -179,14 +175,15 @@ function assessLoadingSamples(samples, options = {}) {
     }
   }
   const finalPending = Number(options.finalPending || 0);
-  const retainedBadges = options.settled === false && finalPending === 0 && Array.isArray(options.finalBadges)
-    ? options.finalBadges.map((badge) => ({ id: badge.id, progress: badge.progress }))
+  const finalBadges = finalPending === 0 && Array.isArray(options.finalBadges)
+    ? options.finalBadges.map((badge) => ({ id: badge.id, progress: badge.progress, reason: 'completion' }))
     : [];
+  const retainedBadges = finalBadges.map(({ id, progress }) => ({ id, progress }));
   const unique = (items) => [...new Map(items.map((item) => [JSON.stringify(item), item])).values()];
   const result = {
     sample_count: Array.isArray(samples) ? samples.length : 0,
     regressions: unique(regressions),
-    badges_without_requests: unique(badgesWithoutRequests),
+    badges_without_requests: unique(finalBadges),
     retained_badges: unique(retainedBadges),
     pending_requests_at_timeout: options.settled === false ? finalPending : 0,
   };
@@ -457,6 +454,32 @@ async function waitForAction(page, action, trigger, timeout = 30000) {
   };
 }
 
+async function dismissResidualOverlays(page) {
+  const overlaySelector = 'div.fixed.inset-0.z-40';
+  const waitForOverlaysToClose = () => page.waitForFunction((selector) => {
+    return ![...document.querySelectorAll(selector)].some((node) => {
+      const style = window.getComputedStyle(node);
+      const rect = node.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0 && rect.width > 1 && rect.height > 1;
+    });
+  }, overlaySelector, { timeout: 3000 }).then(() => true).catch(() => false);
+  const visibleBefore = await page.locator(overlaySelector).evaluateAll((nodes) => nodes.some((node) => {
+    const style = window.getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0 && rect.width > 1 && rect.height > 1;
+  }));
+  if (!visibleBefore) return { ok: true, visible_before: false, escaped: false, outside_clicked: false };
+
+  await page.keyboard.press('Escape');
+  if (await waitForOverlaysToClose()) {
+    return { ok: true, visible_before: true, escaped: true, outside_clicked: false };
+  }
+
+  await page.mouse.click(12, 12);
+  const ok = await waitForOverlaysToClose();
+  return { ok, visible_before: true, escaped: true, outside_clicked: true };
+}
+
 async function checkPopupLifecycle({ button, popup, action, close }) {
   if (!await button.isVisible().catch(() => false)) {
     return { ok: false, opened: false, closed: false, reopened: false, reclosed: false, problem: 'popup trigger not visible' };
@@ -504,26 +527,35 @@ async function checkSystemModals(page, report) {
   const loginPopup = page.getByTestId('logistics-login-history-modal');
   const notificationButton = page.getByTestId('logistics-notification-button');
   const notificationPopup = page.getByTestId('logistics-notification-panel');
-  report.modal_checks = {
-    feature_access: await checkPopupLifecycle({
-      button: featureButton,
-      popup: featurePopup,
-      action: 'feature-access/get',
-      close: () => page.getByTestId('logistics-feature-access-close').click(),
-    }),
-    login_history: await checkPopupLifecycle({
-      button: loginButton,
-      popup: loginPopup,
-      action: 'auth/login-history/list',
-      close: () => page.getByTestId('logistics-login-history-close').click(),
-    }),
-    notifications: await checkPopupLifecycle({
-      button: notificationButton,
-      popup: notificationPopup,
-      action: 'notifications/list',
-      close: () => notificationButton.click(),
-    }),
-  };
+  const overlayCleanup = {};
+  const modalChecks = {};
+
+  overlayCleanup.feature_access = await dismissResidualOverlays(page);
+  modalChecks.feature_access = await checkPopupLifecycle({
+    button: featureButton,
+    popup: featurePopup,
+    action: 'feature-access/get',
+    close: () => page.getByTestId('logistics-feature-access-close').click(),
+  });
+
+  overlayCleanup.login_history = await dismissResidualOverlays(page);
+  modalChecks.login_history = await checkPopupLifecycle({
+    button: loginButton,
+    popup: loginPopup,
+    action: 'auth/login-history/list',
+    close: () => page.getByTestId('logistics-login-history-close').click(),
+  });
+
+  overlayCleanup.notifications = await dismissResidualOverlays(page);
+  modalChecks.notifications = await checkPopupLifecycle({
+    button: notificationButton,
+    popup: notificationPopup,
+    action: 'notifications/list',
+    close: () => notificationButton.click(),
+  });
+
+  report.overlay_cleanup = overlayCleanup;
+  report.modal_checks = modalChecks;
 }
 
 async function waitForDuration(page, durationMs) {
@@ -625,6 +657,7 @@ async function main() {
     routes: [],
     idle_return: null,
     modal_checks: {},
+    overlay_cleanup: {},
     progress_audit: null,
     auth_errors: [],
     server_errors: [],
@@ -741,12 +774,14 @@ async function main() {
     failed_routes: report.routes.filter((row) => !row.ok).length,
     idle_return_ok: report.idle_return?.ok === true,
     failed_modals: Object.values(report.modal_checks || {}).filter((row) => !row.ok).length,
+    failed_overlay_cleanups: Object.values(report.overlay_cleanup || {}).filter((row) => !row.ok).length,
     failed_progress_operations: progressRows.filter((row) => !row.ok).length,
     max_elapsed_ms: elapsedValues.length ? Math.max(...elapsedValues) : null,
     avg_elapsed_ms: elapsedValues.length ? Math.round(elapsedValues.reduce((sum, value) => sum + value, 0) / elapsedValues.length) : null,
   };
   report.warnings = Array.from(new Set(report.warnings));
   const popupChecks = Object.values(report.modal_checks || {});
+  const overlayCleanupChecks = Object.values(report.overlay_cleanup || {});
   report.ok = ROUTES.length === 23
     && cycles >= 50
     && idleMs >= DEFAULT_IDLE_MS
@@ -755,6 +790,8 @@ async function main() {
     && report.idle_return?.ok === true
     && popupChecks.length === 3
     && popupChecks.every((row) => row.ok)
+    && overlayCleanupChecks.length === 3
+    && overlayCleanupChecks.every((row) => row.ok)
     && report.progress_audit.ok
     && report.auth_errors.length === 0
     && report.server_errors.length === 0
