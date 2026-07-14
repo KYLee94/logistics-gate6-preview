@@ -1400,16 +1400,24 @@ function edgeInflightRequest(action, payload, requestKey) {
 const USER_FACING_LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다. 탭을 다시 열거나 잠시 후 재시도해 주세요.';
 const EDGE_DATA_CACHE_TTL_MS = 10 * 60 * 1000;
 const EDGE_DATA_REVALIDATE_MS = 90 * 1000;
+const SECTOR_MARKET_CACHE_TTL_MS = 30 * 60 * 1000;
+const SECTOR_MARKET_REVALIDATE_MS = 30 * 60 * 1000;
 const EDGE_DATA_REQUEST_TIMEOUT_MS = 45 * 1000;
 const EDGE_DATA_INFLIGHT_STALE_MS = EDGE_DATA_REQUEST_TIMEOUT_MS + 5000;
-const EDGE_DATA_ACTIVITY_REFRESH_DEBOUNCE_MS = 250;
 const EDGE_DATA_CACHE = new Map();
 const EDGE_DATA_INFLIGHT = new Map();
 const EDGE_DATA_LATEST_REQUEST_ID = new Map();
 const EDGE_DATA_REFRESH_SUBSCRIBERS = new Set();
 let edgeDataRequestSequence = 0;
 let edgeDataRefreshListenersReady = false;
-let edgeDataActivityRefreshTimer = null;
+
+function edgeDataCacheTtlMs(action) {
+  return action === 'sector-market/read' ? SECTOR_MARKET_CACHE_TTL_MS : EDGE_DATA_CACHE_TTL_MS;
+}
+
+function edgeDataRevalidateMs(action) {
+  return action === 'sector-market/read' ? SECTOR_MARKET_REVALIDATE_MS : EDGE_DATA_REVALIDATE_MS;
+}
 
 function stableDataManagementStringify(value) {
   if (Array.isArray(value)) return `[${value.map((item) => stableDataManagementStringify(item)).join(',')}]`;
@@ -1451,6 +1459,10 @@ function invalidateDataManagementEdgeCache() {
   invalidateEdgeDataCache((key) => key.includes(':data-management/'));
 }
 
+function invalidateSectorMarketEdgeCache() {
+  invalidateEdgeDataCache((key) => key.includes(':sector-market/read:'));
+}
+
 function notifyLogisticsDataRefresh(detail = {}) {
   if (typeof window === 'undefined') return;
   window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail }));
@@ -1462,20 +1474,12 @@ function ensureEdgeDataRefreshListeners() {
   const notify = (event) => {
     if (document.visibilityState && document.visibilityState !== 'visible') return;
     if (event?.type === 'logistics-data-refresh' && event.detail?.path && !event.detail?.source) return;
-    EDGE_DATA_REFRESH_SUBSCRIBERS.forEach((callback) => callback());
+    EDGE_DATA_REFRESH_SUBSCRIBERS.forEach((callback) => callback(event));
   };
-  const notifyAfterActivity = () => {
-    if (document.visibilityState && document.visibilityState !== 'visible') return;
-    if (edgeDataActivityRefreshTimer !== null) return;
-    edgeDataActivityRefreshTimer = window.setTimeout(() => {
-      edgeDataActivityRefreshTimer = null;
-      notify();
-    }, EDGE_DATA_ACTIVITY_REFRESH_DEBOUNCE_MS);
-  };
-  window.addEventListener('focus', notifyAfterActivity);
+  window.addEventListener('focus', notify);
   window.addEventListener('online', notify);
   window.addEventListener('logistics-data-refresh', notify);
-  document.addEventListener('visibilitychange', notifyAfterActivity);
+  document.addEventListener('visibilitychange', notify);
 }
 
 function edgeCacheKey(action, payload = {}) {
@@ -1560,7 +1564,7 @@ function summarizeEdgeDataLoadingTrace(...traces) {
 export async function primeEdgeData(action, payload = {}) {
   const requestKey = edgeCacheKey(action, payload);
   const cached = EDGE_DATA_CACHE.get(requestKey);
-  if (cached && Date.now() - cached.loadedAt < EDGE_DATA_REVALIDATE_MS) return cached.data;
+  if (cached && Date.now() - cached.loadedAt < edgeDataRevalidateMs(action)) return cached.data;
   const inflight = edgeInflightRequest(action, payload, requestKey);
   const data = await inflight.promise;
   if (EDGE_DATA_LATEST_REQUEST_ID.get(requestKey) === inflight.requestId && shouldCacheEdgeData(action, data)) {
@@ -1604,9 +1608,9 @@ function useEdgeData(action, payload = {}) {
     const attempt = options.__retry ? 2 : 1;
     const cached = EDGE_DATA_CACHE.get(requestKey);
     const cachedAge = cached ? Date.now() - cached.loadedAt : Number.POSITIVE_INFINITY;
-    if (!options.force && !Object.keys(normalizedOverride).length && cached && cachedAge < EDGE_DATA_CACHE_TTL_MS) {
+    if (!options.force && !Object.keys(normalizedOverride).length && cached && cachedAge < edgeDataCacheTtlMs(action)) {
       if (mountedRef.current) setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: requestKey, loadingStage: 'ready', loadingTrace: createEdgeDataLoadingTrace({ stage: 'ready', attempt, startedAt: cached.loadedAt, finishedAt: cached.loadedAt, hasData: true }) });
-      if (cachedAge >= EDGE_DATA_REVALIDATE_MS && !options.__revalidate) {
+      if (cachedAge >= edgeDataRevalidateMs(action) && !options.__revalidate) {
         window.setTimeout(() => {
           if (mountedRef.current) reloadRef.current?.({}, { silent: true, force: true, __revalidate: true });
         }, 0);
@@ -1706,7 +1710,7 @@ function useEdgeData(action, payload = {}) {
     const cached = EDGE_DATA_CACHE.get(payloadKey);
     if (cached) {
       setState({ loading: false, error: '', refreshError: '', data: cached.data, loadedAt: cached.loadedAt, sourceKey: payloadKey, loadingStage: 'ready', loadingTrace: createEdgeDataLoadingTrace({ stage: 'ready', attempt: 1, startedAt: cached.loadedAt, finishedAt: cached.loadedAt, hasData: true }) });
-      if (Date.now() - cached.loadedAt >= EDGE_DATA_REVALIDATE_MS) reload({}, { silent: true, force: true });
+      if (Date.now() - cached.loadedAt >= edgeDataRevalidateMs(action)) reload({}, { silent: true, force: true });
       return () => {
         mountedRef.current = false;
         requestRef.current += 1;
@@ -1720,21 +1724,23 @@ function useEdgeData(action, payload = {}) {
       mountedRef.current = false;
       requestRef.current += 1;
     };
-  }, [lifecycleActive, payloadKey, reload]);
+  }, [action, lifecycleActive, payloadKey, reload]);
   useEffect(() => {
     if (!lifecycleActive) return undefined;
     ensureEdgeDataRefreshListeners();
-    const refreshIfStale = () => {
+    const refreshIfStale = (event) => {
+      if (event?.detail?.action && event.detail.action !== action) return;
       if (document.visibilityState && document.visibilityState !== 'visible') return;
+      const forcedRefresh = event?.detail?.action === action;
       const current = stateRef.current;
       const now = Date.now();
-      const stale = current.loadedAt && now - current.loadedAt > EDGE_DATA_REVALIDATE_MS;
+      const stale = current.loadedAt && now - current.loadedAt > edgeDataRevalidateMs(action);
       const inflight = EDGE_DATA_INFLIGHT.get(payloadKey);
       const staleLoading = current.loading && (!inflight || isEdgeInflightStale(inflight, now));
-      if (current.loading && !staleLoading) return;
-      if (!current.error && hasEdgeDataValue(current.data) && !stale) return;
+      if (current.loading && !staleLoading && !forcedRefresh) return;
+      if (!forcedRefresh && !current.error && hasEdgeDataValue(current.data) && !stale) return;
       const currentLock = backgroundRefreshRef.current;
-      if (currentLock?.requestKey === payloadKey && now - currentLock.startedAt < EDGE_DATA_INFLIGHT_STALE_MS) return;
+      if (!forcedRefresh && currentLock?.requestKey === payloadKey && now - currentLock.startedAt < EDGE_DATA_INFLIGHT_STALE_MS) return;
       const refreshLock = { requestKey: payloadKey, startedAt: now };
       backgroundRefreshRef.current = refreshLock;
       Promise.resolve(reload({}, { silent: Boolean(current.data), force: true })).finally(() => {
@@ -1746,7 +1752,7 @@ function useEdgeData(action, payload = {}) {
       EDGE_DATA_REFRESH_SUBSCRIBERS.delete(refreshIfStale);
       backgroundRefreshRef.current = null;
     };
-  }, [lifecycleActive, payloadKey, reload]);
+  }, [action, lifecycleActive, payloadKey, reload]);
   useEffect(() => {
     if (!lifecycleActive || !lifecycleModuleId || typeof reportLifecycleLoading !== 'function') return undefined;
     const pending = ['queued', 'loading', 'refreshing', 'retrying'].includes(state.loadingStage);
@@ -5523,34 +5529,6 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
   const readback = summary.readback || {};
   const hasMarketData = Boolean(data && Object.keys(data || {}).length);
   const isInitialMarketLoading = loading && !hasMarketData;
-  useEffect(() => {
-    if (!data || loading) return undefined;
-    let cancelled = false;
-    const queue = MARKET_TABS
-      .map((tab) => tab.id)
-      .filter((tabId) => tabId !== currentTab);
-    const run = async () => {
-      for (const tabId of queue) {
-        if (cancelled || document.visibilityState === 'hidden') break;
-        await new Promise((resolve) => window.setTimeout(resolve, 160));
-        if (cancelled || document.visibilityState === 'hidden') break;
-        try {
-          await primeEdgeData('sector-market/read', marketReadPayloadFor(tabId));
-        } catch {
-          // Background warming should never replace visible data with an error.
-        }
-      }
-    };
-    const idleId = typeof window.requestIdleCallback === 'function'
-      ? window.requestIdleCallback(run, { timeout: 1800 })
-      : window.setTimeout(run, 450);
-    return () => {
-      cancelled = true;
-      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleId);
-      else window.clearTimeout(idleId);
-    };
-  }, [currentTab, data, loading]);
-
   const uploadMarketSourceWorkbook = async () => {
     if (!sourceUploadFile) {
       setSourceUploadState({ type: 'warning', message: '업데이트할 Excel 파일을 먼저 선택해 주세요.' });
@@ -5588,6 +5566,8 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
       if (!response.ok || parsed?.ok === false) {
         throw new Error(parsed?.message || parsed?.error || `업로드 실패 (${response.status})`);
       }
+      invalidateSectorMarketEdgeCache();
+      notifyLogisticsDataRefresh({ source: 'market-docs-upload', action: 'sector-market/read' });
       setSourceUploadState({
         type: 'success',
         message: '원본 Excel 보존 저장이 완료되었습니다. 기존 active 데이터는 유지되며, dry-run 검증과 승인 후에만 최신 수치로 교체됩니다.',
@@ -7858,7 +7838,12 @@ function DataManagementApprovalDashboard() {
         rejection_note: action === 'reject' ? 'Data Management 반려' : undefined,
       }, 30000, { forceSessionRefresh: false, retryNetwork: false, retryTimeout: false });
       invalidateDataManagementEdgeCache();
-      notifyLogisticsDataRefresh({ source: 'data-management-approval' });
+      if (action === 'approve') {
+        invalidateSectorMarketEdgeCache();
+        notifyLogisticsDataRefresh({ source: 'data-management-approval', action: 'sector-market/read' });
+      } else {
+        notifyLogisticsDataRefresh({ source: 'data-management-approval' });
+      }
       await reload({}, { force: true });
       setDetailRequest(null);
       setActionStatus({ type: 'success', message: `${actionLabel} 처리가 완료됐습니다. 저장값을 다시 확인했습니다.` });

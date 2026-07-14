@@ -1,6 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
+const {
+  DEFAULT_MAX_COMPRESSED_BYTES,
+  argsNumber,
+  marketReadPayload,
+  responseSizeMetrics,
+  summarizeEgress,
+  summarizeUiConsumption,
+} = require('./logistics-market-data-egress-contract.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
@@ -377,7 +385,7 @@ async function waitForStableMarketDataPage(page, tab) {
   return result;
 }
 
-async function invokeMarketData(session) {
+async function invokeMarketData(session, payload) {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/functions/v1/ll-dashboard-api`, {
@@ -387,12 +395,20 @@ async function invokeMarketData(session) {
       authorization: `Bearer ${session.access_token}`,
       'content-type': 'application/json',
       origin: 'https://kylee94.github.io',
+      'accept-encoding': 'gzip, br',
     },
-    body: JSON.stringify({ action: 'sector-market/read', payload: { limit: 12000 } }),
+    body: JSON.stringify({ action: 'sector-market/read', payload }),
   });
-  const body = await response.json().catch(() => ({}));
+  const rawText = await response.text();
+  const body = JSON.parse(rawText || '{}');
   if (!response.ok || body?.ok === false) throw new Error(`sector-market/read failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
-  return body;
+  return {
+    body,
+    payload,
+    status: response.status,
+    raw_text: rawText,
+    ...responseSizeMetrics(response, rawText),
+  };
 }
 
 async function main() {
@@ -401,18 +417,6 @@ async function main() {
   const outJson = path.join(OUT_DIR, `market-data-browser-smoke-${stamp}.json`);
   const latestJson = path.join(OUT_DIR, 'market-data-browser-smoke-latest.json');
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
-  const auth = await signInSession();
-  const apiBody = await invokeMarketData(auth.session);
-  const uiEmail = auth.session.user?.email || envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com';
-  const browserSession = auth.session;
-  const report = {
-    ok: false,
-    generated_at: new Date().toISOString(),
-    base_url: baseUrl,
-    auth_source: auth.source,
-    tabs: [],
-    errors: [],
-  };
   const tabs = [
     { key: 'overview', route: 'market-data/overview', viewKey: 'overview', needsMap: false },
     { key: 'lease-market', route: 'market-data/lease-market', viewKey: 'lease', needsMap: true },
@@ -420,6 +424,31 @@ async function main() {
     { key: 'transactions', route: 'market-data/transactions', viewKey: 'transactions', needsMap: true },
     { key: 'source-update', route: 'market-data/source-update', viewKey: 'source', needsMap: false },
   ];
+  const auth = await signInSession();
+  const maxCompressedBytes = argsNumber('max-compressed-bytes', DEFAULT_MAX_COMPRESSED_BYTES);
+  const egressResponses = [];
+  for (const tab of tabs) {
+    egressResponses.push(await invokeMarketData(auth.session, marketReadPayload(tab.viewKey)));
+  }
+  const egress = summarizeEgress(egressResponses, maxCompressedBytes);
+  if (!egress.one_request_per_view || egress.duplicate_request_count !== 0 || !egress.within_compressed_budget) {
+    throw new Error(`Market egress contract failed: ${JSON.stringify(egress)}`);
+  }
+  const apiBodies = new Map(egressResponses.map((item) => [item.payload.view, item.body]));
+  const cachedResponses = new Map(egressResponses.map((item) => [`${item.payload.view}:${item.payload.limit}`, item]));
+  const uiMarketRequests = [];
+  const uiUnexpectedMarketRequests = [];
+  const uiEmail = auth.session.user?.email || envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com';
+  const browserSession = auth.session;
+  const report = {
+    ok: false,
+    generated_at: new Date().toISOString(),
+    base_url: baseUrl,
+    auth_source: auth.source,
+    egress,
+    tabs: [],
+    errors: [],
+  };
   let browser;
   try {
     browser = await chromium.launch({ headless: true, executablePath: chromeExecutablePath() });
@@ -429,6 +458,30 @@ async function main() {
       sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email }));
       localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
     }, { email: uiEmail, session: browserSession });
+    await context.route('**/functions/v1/ll-dashboard-api', async (route) => {
+      const request = route.request();
+      let requestBody = {};
+      try {
+        requestBody = JSON.parse(request.postData() || '{}');
+      } catch {
+        await route.continue();
+        return;
+      }
+      if (requestBody.action !== 'sector-market/read') {
+        await route.continue();
+        return;
+      }
+      const payload = requestBody.payload || {};
+      const key = `${payload.view || ''}:${Number(payload.limit || 0)}`;
+      uiMarketRequests.push({ view: payload.view || null, limit: Number(payload.limit || 0) });
+      const cached = cachedResponses.get(key);
+      if (!cached) {
+        uiUnexpectedMarketRequests.push({ view: payload.view || null, limit: Number(payload.limit || 0) });
+        await route.fulfill({ status: 400, contentType: 'application/json', body: JSON.stringify({ ok: false, message: 'Unexpected market QA payload.' }) });
+        return;
+      }
+      await route.fulfill({ status: cached.status, contentType: 'application/json', body: cached.raw_text });
+    });
     const page = await context.newPage();
     page.on('pageerror', (error) => {
       const message = error.message || '';
@@ -441,6 +494,7 @@ async function main() {
       }
     });
     for (const tab of tabs) {
+      const apiBody = apiBodies.get(tab.viewKey) || {};
       const url = joinUrl(baseUrl, tab.route);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
       const waitState = await waitForStableMarketDataPage(page, tab);
@@ -874,7 +928,36 @@ async function main() {
         && (tab.key !== 'transactions' || (row.transaction_slicer_present && row.transaction_size_slicer_present && row.transaction_market_chart.ok && row.transaction_size_explorer.ok && row.cap_rate_chart.ok));
       report.tabs.push(row);
     }
-    report.ok = report.tabs.every((tab) => tab.ok) && report.errors.length === 0;
+    const uiConsumption = summarizeUiConsumption(uiMarketRequests);
+    report.egress = {
+      ...egress,
+      direct_live_responses_verified: egressResponses.every((item) => item.status >= 200 && item.status < 300 && item.body?.ok === true),
+      direct_live_response_payloads: egressResponses.map((item) => ({
+        view: item.payload.view,
+        limit: item.payload.limit,
+        status: item.status,
+        content_encoding: item.content_encoding,
+        compressed_bytes: item.compressed_bytes,
+      })),
+      ...uiConsumption,
+      ui_consumed_live_payloads: uiMarketRequests.map((item) => ({
+        ...item,
+        cache_key: `${item.view}:${item.limit}`,
+        matched_direct_live_response: cachedResponses.has(`${item.view}:${item.limit}`),
+      })),
+      ui_payloads_match_direct_live_responses: uiMarketRequests.every((item) => cachedResponses.has(`${item.view}:${item.limit}`)),
+      ui_unexpected_request_count: uiUnexpectedMarketRequests.length,
+      ui_unexpected_requests: uiUnexpectedMarketRequests,
+      ui_egress_request_count: 0,
+    };
+    report.ok = report.tabs.every((tab) => tab.ok)
+      && report.errors.length === 0
+      && report.egress.direct_live_responses_verified
+      && report.egress.ui_payloads_match_direct_live_responses
+      && report.egress.ui_unexpected_request_count === 0
+      && report.egress.ui_duplicate_request_count === 0
+      && report.egress.ui_each_view_at_most_once
+      && report.egress.ui_total_at_most_five;
   } catch (error) {
     report.errors.push(error?.message || String(error));
   } finally {

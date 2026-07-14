@@ -1,9 +1,18 @@
 const fs = require('fs');
 const path = require('path');
+const {
+  DEFAULT_MAX_COMPRESSED_BYTES,
+  MARKET_VIEWS,
+  argsNumber,
+  hasFlag,
+  marketReadPayload,
+  responseSizeMetrics,
+  summarizeEgress,
+} = require('./logistics-market-data-egress-contract.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
-const VIEWS = ['overview', 'lease', 'supply', 'transactions', 'source'];
+const VIEWS = MARKET_VIEWS;
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
@@ -58,6 +67,7 @@ async function invokeRaw(supabaseUrl, anonKey, token, payload) {
       apikey: anonKey,
       authorization: `Bearer ${token}`,
       'content-type': 'application/json',
+      'accept-encoding': 'gzip, br',
       origin: 'https://kylee94.github.io',
     },
     body: JSON.stringify({ action: 'sector-market/read', payload }),
@@ -66,7 +76,12 @@ async function invokeRaw(supabaseUrl, anonKey, token, payload) {
   const elapsedMs = Date.now() - startedAt;
   const body = JSON.parse(rawText || '{}');
   if (!response.ok || body?.ok === false) throw new Error(`sector-market/read failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
-  return { elapsed_ms: elapsedMs, bytes: Buffer.byteLength(rawText), data: body.data || {} };
+  return {
+    elapsed_ms: elapsedMs,
+    bytes: Buffer.byteLength(rawText),
+    ...responseSizeMetrics(response, rawText),
+    data: body.data || {},
+  };
 }
 
 async function invokeMeasured(supabaseUrl, anonKey, token, payload) {
@@ -115,23 +130,26 @@ async function main() {
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
   const auth = await signIn(supabaseUrl, anonKey);
-  const legacyAll = await invokeMeasured(supabaseUrl, anonKey, auth.token, { limit: 12000 });
-  const fallbackAll = legacyAll.ok
-    ? null
-    : await invokeMeasured(supabaseUrl, anonKey, auth.token, { limit: 2000 });
+  const full = hasFlag('full');
+  const maxCompressedBytes = argsNumber('max-compressed-bytes', DEFAULT_MAX_COMPRESSED_BYTES);
+  const legacyAll = full ? await invokeMeasured(supabaseUrl, anonKey, auth.token, { limit: 12000 }) : null;
   const viewResults = [];
   for (const view of VIEWS) {
-    const result = await invokeRaw(supabaseUrl, anonKey, auth.token, { view, limit: 12000 });
+    const payload = marketReadPayload(view, { full });
+    const result = await invokeRaw(supabaseUrl, anonKey, auth.token, payload);
     const readbackStatus = result.data?.summary?.readback_status || result.data?.readback?.status || '';
     const viewKeys = Object.keys(result.data?.views || {});
-    const baselineBytes = legacyAll.ok ? legacyAll.bytes : (fallbackAll?.ok ? fallbackAll.bytes : 0);
+    const baselineBytes = legacyAll?.ok ? legacyAll.bytes : 0;
     const readbackRequired = view !== 'source';
     const readbackOk = readbackStatus === 'checked'
       || readbackStatus === 'not_applicable';
     viewResults.push({
       view,
+      payload,
       elapsed_ms: result.elapsed_ms,
       bytes: result.bytes,
+      content_encoding: result.content_encoding,
+      compressed_bytes: result.compressed_bytes,
       byte_ratio_to_legacy_all: baselineBytes ? Math.round((result.bytes / Math.max(1, baselineBytes)) * 1000) / 10 : null,
       readback_status: readbackStatus,
       readback_required: readbackRequired,
@@ -144,19 +162,25 @@ async function main() {
     });
   }
   const interactiveViews = viewResults.filter((row) => row.view !== 'source');
-  const legacyFullResourceExhausted = !legacyAll.ok && /546|compute resource|enough compute resources/iu.test(legacyAll.error || '');
-  const ratioCheck = legacyAll.ok
+  const legacyFullResourceExhausted = full && !legacyAll.ok && /546|compute resource|enough compute resources/iu.test(legacyAll.error || '');
+  const ratioCheck = !full || (legacyAll.ok
     ? interactiveViews.every((row) => Number(row.byte_ratio_to_legacy_all) <= 35)
-    : legacyFullResourceExhausted;
+    : legacyFullResourceExhausted);
+  const egress = summarizeEgress(viewResults, maxCompressedBytes);
   const report = {
     ok: viewResults.every((row) => row.ok && row.internal_key_hits.length === 0)
-      && ratioCheck,
+      && ratioCheck
+      && egress.one_request_per_view
+      && egress.duplicate_request_count === 0
+      && egress.within_compressed_budget,
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
+    mode: full ? 'full' : 'light',
     baseline: {
       legacy_full: legacyAll,
-      fallback_all: fallbackAll,
-      note: legacyFullResourceExhausted
+      note: !full
+        ? '기본 실행은 탭별 UI 한도와 5개 단일 응답의 압축 전송량만 검증합니다. 전체 응답 기준선은 --full에서만 조회합니다.'
+        : legacyFullResourceExhausted
         ? '기존 전체 limit 12000 호출은 Edge compute resource 초과로 실패했습니다. 탭별 view 호출의 필요성을 보여주는 기준선으로 기록합니다.'
         : '기존 전체 호출 기준으로 탭별 payload 비율을 계산했습니다.',
     },
@@ -171,13 +195,14 @@ async function main() {
         : null,
       interactive_views_survive_when_legacy_full_fails: legacyFullResourceExhausted && interactiveViews.every((row) => row.ok),
       internal_fields_hidden: viewResults.every((row) => row.internal_key_hits.length === 0),
+      egress,
     },
   };
   const outJson = path.join(OUT_DIR, `market-data-view-payload-audit-${timestampForFile()}.json`);
   const latestJson = path.join(OUT_DIR, 'market-data-view-payload-audit-latest.json');
   fs.writeFileSync(outJson, `${JSON.stringify(report, null, 2)}\n`);
   fs.writeFileSync(latestJson, `${JSON.stringify(report, null, 2)}\n`);
-  console.log(JSON.stringify({ ok: report.ok, artifact: outJson, checks: report.checks, views: report.views.map((row) => ({ view: row.view, bytes: row.bytes, ratio: row.byte_ratio_to_legacy_all, elapsed_ms: row.elapsed_ms })) }, null, 2));
+  console.log(JSON.stringify({ ok: report.ok, artifact: outJson, checks: report.checks, egress, views: report.views.map((row) => ({ view: row.view, bytes: row.bytes, compressed_bytes: row.compressed_bytes, ratio: row.byte_ratio_to_legacy_all, elapsed_ms: row.elapsed_ms })) }, null, 2));
   if (!report.ok) process.exitCode = 1;
 }
 

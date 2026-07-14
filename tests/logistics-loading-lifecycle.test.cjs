@@ -47,7 +47,7 @@ test('dashboard inflight staleness is based on startedAt, not missing cache age'
   assert.equal(isStale(null, 10_000, 5_000), false);
 });
 
-test('lifecycle restart lock coalesces focus, visibility, and online events', () => {
+test('lifecycle restart lock coalesces explicit invalidation events', () => {
   const isLocked = sourceFunction(workspaceSource, 'isDashboardLifecycleRefreshLocked');
   const lock = { cacheKey: 'dashboard/home', startedAt: 10_000 };
   assert.equal(isLocked(lock, 'dashboard/home', 10_100, 5_000), true);
@@ -84,6 +84,48 @@ test('hidden dashboard modules keep component state but disable data refresh sub
   assert.match(bridge, /return \(\) => \{\s*cancelled = true;/u);
   assert.match(shell, /const activeShellDatasetLoading = selected\?\.id === 'home' && dashboardDataset\.loading;/u);
   assert.match(shell, /const activeDashboardLoading = activeShellDatasetLoading \|\| activeModuleLoadingEntries\.length > 0;/u);
+});
+
+test('market data reads only the active tab and invalidates explicitly after approved updates', () => {
+  const marketDashboard = extractFunction(sectorSource, 'MarketDataDashboardContent');
+  const edgeHook = extractFunction(sectorSource, 'useEdgeData');
+  const edgeRefreshListeners = extractFunction(sectorSource, 'ensureEdgeDataRefreshListeners');
+  const approvalDashboard = extractFunction(sectorSource, 'DataManagementApprovalDashboard');
+
+  assert.match(marketDashboard, /useEdgeData\('sector-market\/read', marketReadPayload\)/u);
+  assert.doesNotMatch(marketDashboard, /primeEdgeData\('sector-market\/read'/u);
+  assert.doesNotMatch(workspaceSource, /primeEdgeData\('sector-market\/read'/u);
+  assert.doesNotMatch(workspaceSource, /setInterval\(runWhenIdle, 75_000\)/u);
+
+  assert.match(edgeRefreshListeners, /window\.addEventListener\('logistics-data-refresh', notify\)/u);
+  assert.match(edgeRefreshListeners, /window\.addEventListener\('focus', notify\)/u);
+  assert.match(edgeRefreshListeners, /window\.addEventListener\('online', notify\)/u);
+  assert.match(edgeRefreshListeners, /document\.addEventListener\('visibilitychange', notify\)/u);
+  assert.match(edgeHook, /if \(event\?\.detail\?\.action && event\.detail\.action !== action\) return;/u);
+  assert.match(workspaceSource, /window\.addEventListener\('focus', refreshIfNeeded\)/u);
+  assert.match(workspaceSource, /window\.addEventListener\('online', refreshIfNeeded\)/u);
+  assert.match(workspaceSource, /document\.addEventListener\('visibilitychange', refreshIfNeeded\)/u);
+
+  assert.match(sectorSource, /function invalidateSectorMarketEdgeCache\(\) \{[\s\S]*:sector-market\/read:/u);
+  assert.match(approvalDashboard, /if \(action === 'approve'\) \{[\s\S]*invalidateSectorMarketEdgeCache\(\);[\s\S]*action: 'sector-market\/read'/u);
+  assert.match(marketDashboard, /const uploadMarketSourceWorkbook[\s\S]*invalidateSectorMarketEdgeCache\(\);[\s\S]*notifyLogisticsDataRefresh\(\{ source: 'market-docs-upload', action: 'sector-market\/read' \}\)/u);
+});
+
+test('market data uses a longer automatic revalidation window but refreshes immediately after invalidation', () => {
+  const prime = extractFunction(sectorSource, 'primeEdgeData');
+  const edgeHook = extractFunction(sectorSource, 'useEdgeData');
+  const revalidationPolicy = extractFunction(sectorSource, 'edgeDataRevalidateMs');
+  const cacheTtlPolicy = extractFunction(sectorSource, 'edgeDataCacheTtlMs');
+
+  assert.match(sectorSource, /const SECTOR_MARKET_REVALIDATE_MS = 30 \* 60 \* 1000;/u);
+  assert.match(sectorSource, /const SECTOR_MARKET_CACHE_TTL_MS = 30 \* 60 \* 1000;/u);
+  assert.match(revalidationPolicy, /action === 'sector-market\/read' \? SECTOR_MARKET_REVALIDATE_MS : EDGE_DATA_REVALIDATE_MS/u);
+  assert.match(cacheTtlPolicy, /action === 'sector-market\/read' \? SECTOR_MARKET_CACHE_TTL_MS : EDGE_DATA_CACHE_TTL_MS/u);
+  assert.match(prime, /Date\.now\(\) - cached\.loadedAt < edgeDataRevalidateMs\(action\)/u);
+  assert.match(edgeHook, /cachedAge < edgeDataCacheTtlMs\(action\)/u);
+  assert.match(edgeHook, /const forcedRefresh = event\?\.detail\?\.action === action;/u);
+  assert.match(edgeHook, /if \(!forcedRefresh && !current\.error && hasEdgeDataValue\(current\.data\) && !stale\) return;/u);
+  assert.match(edgeHook, /reload\(\{\}, \{ silent: Boolean\(current\.data\), force: true \}\)/u);
 });
 
 test('protected floorplan and transaction fullscreen changes remain present', () => {

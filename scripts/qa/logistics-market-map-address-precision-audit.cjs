@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { hasFlag, marketReadPayload } = require('./logistics-market-data-egress-contract.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
@@ -192,10 +193,11 @@ async function main() {
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
   const auth = await signIn(supabaseUrl, anonKey);
+  const full = hasFlag('full');
   const [leaseData, supplyData, transactionData] = await Promise.all([
-    invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', { view: 'lease', limit: 12000 }),
-    invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', { view: 'supply', limit: 12000 }),
-    invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', { view: 'transactions', limit: 12000 }),
+    invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', marketReadPayload('lease', { full })),
+    invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', marketReadPayload('supply', { full })),
+    invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', marketReadPayload('transactions', { full })),
   ]);
   const leaseRows = mapRowsForAudit('lease', leaseData);
   const supplyRows = mapRowsForAudit('supply', supplyData);
@@ -224,6 +226,12 @@ async function main() {
     ok: totals.missing_precise_address_count === totals.source_lot_exception_count,
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
+    mode: full ? 'full' : 'light',
+    request_limits: {
+      lease: marketReadPayload('lease', { full }).limit,
+      supply: marketReadPayload('supply', { full }).limit,
+      transactions: marketReadPayload('transactions', { full }).limit,
+    },
     scope: 'market-map-visible-rows',
     coordinate_note: '지도는 Supabase 주소를 우선 사용하고, 저장 좌표가 없는 행은 Naver geocode-batch로 표시 직전 좌표를 채웁니다. 서버 저장 좌표 수는 별도 참고값으로 기록합니다.',
     address_note: '읍/면/동/리 + 본번-부번이 있는 행은 모두 정밀 주소로 통과합니다. 원천에 지번이 없고 산업단지 블록/부지명 또는 리 단위까지만 있는 행은 source_lot_exception으로 따로 남깁니다.',

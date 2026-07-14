@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { hasFlag, marketReadPayload } = require('./logistics-market-data-egress-contract.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
@@ -103,7 +104,38 @@ async function main() {
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
   const auth = await signIn(supabaseUrl, anonKey);
-  const data = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', { limit: 12000 });
+  const full = hasFlag('full');
+  let data;
+  if (full) {
+    data = await invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', { limit: 12000 });
+  } else {
+    const [overviewData, leaseData, supplyData, transactionData, sourceData] = await Promise.all([
+      invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', marketReadPayload('overview')),
+      invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', marketReadPayload('lease')),
+      invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', marketReadPayload('supply')),
+      invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', marketReadPayload('transactions')),
+      invoke(supabaseUrl, anonKey, auth.token, 'sector-market/read', marketReadPayload('source')),
+    ]);
+    data = {
+      ...overviewData,
+      leases: leaseData.views?.lease?.latest_rows || [],
+      supply: supplyData.views?.supply?.rows || [],
+      transactions: transactionData.views?.transactions?.rows || [],
+      cap_rates: transactionData.views?.transactions?.charts?.cap_rate_series || [],
+      views: {
+        overview: overviewData.views?.overview || {},
+        lease: leaseData.views?.lease || {},
+        supply: supplyData.views?.supply || {},
+        transactions: transactionData.views?.transactions || {},
+        source: sourceData.views?.source || {},
+      },
+      egress: {
+        mode: 'light',
+        request_limits: ['overview', 'lease', 'supply', 'transactions', 'source']
+          .map((view) => marketReadPayload(view)),
+      },
+    };
+  }
   const summary = data.summary || {};
   const readback = summary.readback || {};
   const sourceAudit = summary.source_audit || {};
@@ -169,7 +201,9 @@ async function main() {
     sample_non_empty: Array.isArray(data.leases) && data.leases.length > 0
       && Array.isArray(data.supply) && data.supply.length > 0
       && Array.isArray(data.transactions) && data.transactions.length > 0,
-    lease_sample_full: Array.isArray(data.leases) && data.leases.length === 9610,
+    lease_sample_matches_requested_scope: full
+      ? Array.isArray(data.leases) && data.leases.length === 9610
+      : Array.isArray(data.leases) && data.leases.length > 0 && Number(summary.lease_observation_count) === 9610,
     lease_area_fill_rate: Number(dataQuality.lease_area_fill_rate || 0) >= 95,
     lease_rent_fill_rate: Number(dataQuality.lease_rent_fill_rate || 0) >= 50,
     transaction_area_fill_rate: Number(dataQuality.transaction_area_fill_rate || 0) >= 95,
@@ -196,6 +230,7 @@ async function main() {
     ok: Object.values(checks).every(Boolean),
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
+    mode: full ? 'full' : 'light',
     checks,
     observed: {
       status: summary.status,
@@ -231,6 +266,7 @@ async function main() {
       },
       readback,
       source_audit: sourceAudit,
+      egress: data.egress || { mode: 'full', request_limits: [{ view: 'all', limit: 12000 }] },
     },
   };
   const outJson = path.join(OUT_DIR, `market-data-readback-smoke-${timestampForFile()}.json`);

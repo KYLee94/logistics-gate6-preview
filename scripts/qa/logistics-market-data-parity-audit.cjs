@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
+const { hasFlag, marketReadPayload } = require('./logistics-market-data-egress-contract.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
@@ -247,7 +248,7 @@ async function signIn(supabaseUrl, anonKey) {
   return { token: body.access_token, source: 'password_grant' };
 }
 
-async function invoke(supabaseUrl, anonKey, token) {
+async function invoke(supabaseUrl, anonKey, token, payload) {
   const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/functions/v1/ll-dashboard-api`, {
     method: 'POST',
     headers: {
@@ -256,7 +257,7 @@ async function invoke(supabaseUrl, anonKey, token) {
       'content-type': 'application/json',
       origin: 'https://kylee94.github.io',
     },
-    body: JSON.stringify({ action: 'sector-market/read', payload: { limit: 12000, include_raw_row_hashes: true } }),
+    body: JSON.stringify({ action: 'sector-market/read', payload }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok || body?.ok === false) throw new Error(`sector-market/read failed (${response.status}): ${body.message || body.error || 'unknown error'}`);
@@ -326,21 +327,31 @@ async function main() {
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
   const auth = await signIn(supabaseUrl, anonKey);
-  const data = await invoke(supabaseUrl, anonKey, auth.token);
-  const apiLeaseRows = (data.views?.lease?.statistics_rows || []).map((row) => ({
+  const full = hasFlag('full');
+  const fullData = full
+    ? await invoke(supabaseUrl, anonKey, auth.token, { limit: 12000, include_raw_row_hashes: true })
+    : null;
+  const [leaseData, supplyData, transactionData] = full
+    ? [fullData, fullData, fullData]
+    : await Promise.all([
+      invoke(supabaseUrl, anonKey, auth.token, marketReadPayload('lease')),
+      invoke(supabaseUrl, anonKey, auth.token, marketReadPayload('supply')),
+      invoke(supabaseUrl, anonKey, auth.token, marketReadPayload('transactions')),
+    ]);
+  const apiLeaseRows = (leaseData.views?.lease?.statistics_rows || []).map((row) => ({
     ...row,
     key: ['lease', row.scope, row.period_label, row.segment_label, row.metric_key, row.dimension_type, row.label].join('|'),
   }));
-  const apiSupplyRows = (data.views?.supply?.statistics_rows || []).map((row) => ({
+  const apiSupplyRows = (supplyData.views?.supply?.statistics_rows || []).map((row) => ({
     ...row,
     key: ['supply', row.series_type, row.period_label, row.scope, row.label].join('|'),
   }));
-  const apiCapRateRows = (data.cap_rates || []).map((row) => ({
+  const apiCapRateRows = (transactionData.views?.transactions?.charts?.cap_rate_series || []).map((row) => ({
     ...row,
     key: ['cap_rate', row.report_year, quarterKey(row.report_quarter), capRateRegionKey(row.region)].join('|'),
     value: Number(row.cap_rate),
   }));
-  const apiRawHashRows = (data.summary?.source_audit?.raw_row_hashes || []).map((row) => ({
+  const apiRawHashRows = (fullData?.summary?.source_audit?.raw_row_hashes || []).map((row) => ({
     key: [row.sheet_name, row.row_number].join('|'),
     sheet_name: row.sheet_name,
     row_number: row.row_number,
@@ -349,14 +360,21 @@ async function main() {
   const leaseCompare = compareRows(excelLeaseRows, apiLeaseRows);
   const supplyCompare = compareRows(excelSupplyRows, apiSupplyRows);
   const capRateCompare = compareRows(excelCapRateRows, apiCapRateRows, 0.000000000001);
-  const rawRowHashCompare = compareHashRows(excelRawHashRows, apiRawHashRows);
+  const rawRowHashCompare = full ? compareHashRows(excelRawHashRows, apiRawHashRows) : null;
   const sentinel = apiLeaseRows.find((row) => row.key === SENTINEL_KEY);
   const sentinelOk = Math.abs(Number(sentinel?.value) - SENTINEL_EXPECTED) < 0.000001;
   const capRateCountOk = excelCapRateRows.length === EXPECTED_CAP_RATE_ROWS * 2 && apiCapRateRows.length === EXPECTED_CAP_RATE_ROWS * 2;
   const report = {
-    ok: leaseCompare.mismatches.length === 0 && supplyCompare.mismatches.length === 0 && capRateCompare.mismatches.length === 0 && rawRowHashCompare.mismatches.length === 0 && sentinelOk && capRateCountOk,
+    ok: leaseCompare.mismatches.length === 0 && supplyCompare.mismatches.length === 0 && capRateCompare.mismatches.length === 0 && (!full || rawRowHashCompare.mismatches.length === 0) && sentinelOk && capRateCountOk,
     generated_at: new Date().toISOString(),
     auth_source: auth.source,
+    mode: full ? 'full' : 'light',
+    request_limits: {
+      lease: marketReadPayload('lease', { full }).limit,
+      supply: marketReadPayload('supply', { full }).limit,
+      transactions: marketReadPayload('transactions', { full }).limit,
+      raw_row_hashes: full ? 12000 : null,
+    },
     workbook: WORKBOOK_PATH,
     sentinel: {
       key: SENTINEL_KEY,
@@ -376,7 +394,7 @@ async function main() {
       lease_mismatches: leaseCompare.mismatches.length,
       supply_mismatches: supplyCompare.mismatches.length,
       cap_rate_mismatches: capRateCompare.mismatches.length,
-      raw_row_hash_mismatches: rawRowHashCompare.mismatches.length,
+       raw_row_hash_mismatches: rawRowHashCompare?.mismatches.length ?? null,
       cap_rate_count_ok: capRateCountOk,
     },
     lease_compare: leaseCompare,

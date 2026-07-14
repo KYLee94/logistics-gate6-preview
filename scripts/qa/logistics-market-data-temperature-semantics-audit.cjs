@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { marketReadPayload } = require('./logistics-market-data-egress-contract.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
@@ -90,7 +91,8 @@ async function main() {
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   if (!supabaseUrl || !anonKey) throw new Error('Set LOGISTICS_SUPABASE_URL/VITE_SUPABASE_URL and LOGISTICS_SUPABASE_ANON_KEY/VITE_SUPABASE_ANON_KEY.');
   const auth = await signIn(supabaseUrl, anonKey);
-  const data = await invoke(supabaseUrl, anonKey, auth.token, { view: 'lease', limit: 12000 });
+  // Statistics rows are complete for the lease view; request only the UI contract limit.
+  const data = await invoke(supabaseUrl, anonKey, auth.token, marketReadPayload('lease'));
   const leaseView = data.views?.lease || {};
   const rows = Array.isArray(leaseView.statistics_rows) ? leaseView.statistics_rows : [];
   const summaries = EXPECTED_SEGMENTS.map((segment) => groupSummary(rows, segment));

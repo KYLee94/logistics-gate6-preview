@@ -83,6 +83,28 @@ test('source workbook reads use ll_source_files.workbook_schema and row sheet na
   assert.ok(sourceRowSelects.every((columns) => !columns.split(',').includes('source_sheet_id')));
 });
 
+test('sector market responses expose only the public source contract', () => {
+  const sectorStart = edgeSource.indexOf('async function callSectorMarketRead(');
+  const sectorEnd = edgeSource.indexOf('async function callInvestmentIndexRead(', sectorStart);
+  const publicSourceStart = edgeSource.indexOf('function publicSectorMarketSource(');
+  const publicSourceEnd = edgeSource.indexOf('function sectorMarketDataForView(', publicSourceStart);
+  const sectorSource = edgeSource.slice(sectorStart, sectorEnd);
+  const publicSource = edgeSource.slice(publicSourceStart, publicSourceEnd);
+
+  assert.ok(sectorStart >= 0 && sectorEnd > sectorStart);
+  assert.ok(publicSourceStart >= 0 && publicSourceEnd > publicSourceStart);
+  assert.match(publicSource, /source_domain: row\?\.source_domain/u);
+  assert.match(publicSource, /source_version: row\?\.source_version/u);
+  assert.match(publicSource, /file_name: row\?\.file_name/u);
+  assert.match(publicSource, /row_counts: row\?\.row_counts/u);
+  assert.doesNotMatch(publicSource, /source_file_id|source_hash|validation_summary|workbook_schema/u);
+  assert.match(sectorSource, /source: publicSectorMarketSource\(activeSource\)/u);
+  const publicSourceLists = sectorSource.match(/sources: sources\.map\(\(row\) => publicSectorMarketSource\(row\)\)/gu) || [];
+  assert.equal(publicSourceLists.length, 2);
+  assert.doesNotMatch(sectorSource, /source: activeSource/u);
+  assert.doesNotMatch(sectorSource, /source_file_id,source_domain,source_version,file_name,source_hash/u);
+});
+
 test('gyeongsan coupang floor count preview action stays admin-only and dry-run', () => {
   assert.match(edgeSource, /const GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET = Object\.freeze\(\{/u);
   assert.match(edgeSource, /async function callAdminGyeongsanCoupangFloorCountPreview\(ctx: Context, payload: Record<string, unknown>\)/u);

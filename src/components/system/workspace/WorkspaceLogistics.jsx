@@ -23,8 +23,6 @@ import {
   HomeOperatingCostSummary,
   InvestmentIndexDashboard,
   MarketDataDashboard,
-  marketReadPayloadFor,
-  primeEdgeData,
 } from './LogisticsSectorModules';
 import {
   buildMapCalloutHtml,
@@ -5436,7 +5434,6 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   ]);
   const aiChatScrollRef = useRef(null);
   const taskSnapshotSyncRef = useRef('');
-  const workPlatformDataPrewarmRef = useRef(0);
   const [marketDocsStatus, setMarketDocsStatus] = useState(null);
   const [marketDocsLoading, setMarketDocsLoading] = useState(false);
   const [marketDocsUploadState, setMarketDocsUploadState] = useState({ type: 'idle', message: '' });
@@ -5598,53 +5595,6 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       cancelled = true;
     };
   }, [isLoadingTasks, permission.email, shouldLoadWorkPlatformData, taskRecords, weeklyTasks]);
-
-  useEffect(() => {
-    if (!shouldLoadWorkPlatformData || !permission.email) return undefined;
-    let cancelled = false;
-    const prewarm = async (force = false) => {
-      const now = Date.now();
-      if (!force && now - workPlatformDataPrewarmRef.current < 60_000) return;
-      workPlatformDataPrewarmRef.current = now;
-      const marketTabs = ['overview', 'lease', 'supply', 'transactions', 'source'];
-      const queue = [
-        () => primeEdgeData('operating-costs/read', {}),
-        ...marketTabs.map((tabId) => () => primeEdgeData('sector-market/read', marketReadPayloadFor(tabId))),
-      ];
-      for (const run of queue) {
-        if (cancelled || document.visibilityState === 'hidden') break;
-        try {
-          await run();
-        } catch {
-          // Background prewarming must not replace visible data with an error.
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 120));
-      }
-    };
-    const runWhenIdle = () => {
-      if (typeof window.requestIdleCallback === 'function') {
-        window.requestIdleCallback(() => prewarm(false), { timeout: 1800 });
-      } else {
-        window.setTimeout(() => prewarm(false), 450);
-      }
-    };
-    prewarm(true);
-    const intervalId = window.setInterval(runWhenIdle, 75_000);
-    const refresh = () => {
-      if (document.visibilityState && document.visibilityState !== 'visible') return;
-      prewarm(true);
-    };
-    window.addEventListener('focus', refresh);
-    window.addEventListener('online', refresh);
-    document.addEventListener('visibilitychange', refresh);
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-      window.removeEventListener('focus', refresh);
-      window.removeEventListener('online', refresh);
-      document.removeEventListener('visibilitychange', refresh);
-    };
-  }, [permission.email, shouldLoadWorkPlatformData]);
 
   useEffect(() => {
     aiChatScrollRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });

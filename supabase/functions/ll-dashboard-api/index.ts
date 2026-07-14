@@ -5222,6 +5222,21 @@ function scrubSectorMarketInternalResponseKeys(value: unknown): unknown {
   return output;
 }
 
+function publicSectorMarketSource(row: Record<string, unknown> | null | undefined) {
+  return stripUndefined({
+    source_domain: row?.source_domain,
+    source_version: row?.source_version,
+    file_name: row?.file_name,
+    active_version: row?.active_version,
+    parse_status: row?.parse_status,
+    report_period: row?.report_period,
+    as_of_date: row?.as_of_date,
+    row_counts: row?.row_counts,
+    created_at: row?.created_at,
+    updated_at: row?.updated_at,
+  }) as Record<string, unknown>;
+}
+
 function sectorMarketDataForView(fullData: Record<string, unknown>, view: SectorMarketReadView | null) {
   const summary = (fullData.summary && typeof fullData.summary === 'object')
     ? fullData.summary as Record<string, unknown>
@@ -5259,7 +5274,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
   const sampleLimit = Math.min(Math.max(Number(payload.limit || 500), 50), 12000);
   const sourceResult = await ctx.serviceClient
     .from('ll_source_files')
-    .select('source_file_id,source_domain,source_version,file_name,source_hash,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,workbook_schema,created_at,updated_at')
+    .select('source_file_id,source_domain,source_version,file_name,active_version,parse_status,report_period,as_of_date,row_counts,validation_summary,workbook_schema,created_at,updated_at')
     .eq('source_domain', 'sector_market')
     .order('active_version', { ascending: false })
     .order('created_at', { ascending: false })
@@ -5900,18 +5915,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
       },
     },
     source: {
-      sources: sources.map((row) => ({
-        source_domain: row.source_domain,
-        source_version: row.source_version,
-        file_name: row.file_name,
-        active_version: row.active_version,
-        parse_status: row.parse_status,
-        report_period: row.report_period,
-        as_of_date: row.as_of_date,
-        row_counts: row.row_counts,
-        created_at: row.created_at,
-        updated_at: row.updated_at,
-      })),
+      sources: sources.map((row) => publicSectorMarketSource(row)),
       sheet_readback: sheetReadback,
       temperature_semantics: temperatureSegmentSemantics,
       chapter_checks: {
@@ -5945,7 +5949,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     && dataQualityOk;
   const summary = {
     status: marketDataReady ? 'ready' : 'readback_mismatch',
-    source: activeSource,
+    source: publicSectorMarketSource(activeSource),
     latest_lease_period: latestLeasePeriod,
     lease_observation_count: leaseCount,
     latest_lease_center_count: new Set(latestLeases.map((row) => safeText(row.center_name)).filter(Boolean)).size,
@@ -6000,7 +6004,7 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
     supply: publicSupply,
     transactions: publicTransactions,
     cap_rates: publicCapRates,
-    sources,
+    sources: sources.map((row) => publicSectorMarketSource(row)),
     charts: {
       lease_rent_by_region: marketViews.overview.charts.lease_rent_by_region,
       lease_vacancy_by_region: marketViews.overview.charts.lease_vacancy_by_region,
