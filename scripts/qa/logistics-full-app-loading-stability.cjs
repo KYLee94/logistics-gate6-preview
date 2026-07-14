@@ -760,7 +760,9 @@ async function checkSystemModals(page, report) {
     button: notificationButton,
     popup: notificationPopup,
     action: 'notifications/list',
-    close: () => notificationButton.click(),
+    close: () => notificationPopup
+      .locator('xpath=preceding-sibling::div[contains(@class,"fixed") and contains(@class,"inset-0")]')
+      .click({ position: { x: 12, y: 12 } }),
     stabilizeOverlays: () => stabilizeResidualOverlays(page),
   });
   overlayCleanup.notifications = modalChecks.notifications.overlay_cleanup;

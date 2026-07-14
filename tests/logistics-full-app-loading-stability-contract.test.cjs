@@ -165,6 +165,8 @@ test('popup open and reopen stabilize late fullscreen overlays immediately befor
   assert.equal((popupLifecycle.match(/clickAfterOverlayRecovery\(button, stabilizeOverlays\)/gu) || []).length, 2, 'open and reopen must both use actionability recovery');
 
   assert.equal((modalChecks.match(/stabilizeOverlays:/gu) || []).length, 3, 'all popup lifecycles must receive stabilized cleanup');
+  assert.match(modalChecks, /notificationPopup[\s\S]*preceding-sibling::div[\s\S]*click\(\{ position: \{ x: 12, y: 12 \} \}\)/u);
+  assert.doesNotMatch(modalChecks, /close: \(\) => notificationButton\.click\(\)/u);
   assert.match(modalChecks, /report\.overlay_cleanup = overlayCleanup/u);
   assert.match(fullAppSource, /overlayCleanupChecks\.length === 3/u);
   assert.match(fullAppSource, /overlayCleanupChecks\.every\(\(row\) => row\.ok\)/u);
