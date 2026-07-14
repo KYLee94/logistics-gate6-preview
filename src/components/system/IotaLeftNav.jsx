@@ -4,6 +4,7 @@ import { supabase } from '../../utils/supabaseClient';
 import { invokeDashboardApi } from '../../utils/supabaseSession';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './workspace/logisticsRoutes';
 import UserAvatar from './UserAvatar';
+import { hasActualFeatureGrant, isFeatureAccessManager } from '../../utils/logisticsAccessControl';
 
 const menuItems = [
     {
@@ -441,14 +442,8 @@ const featureAccessGrantedUsers = (config, featureKey, users = []) => {
     ]);
 };
 const memberHasFeatureAccess = (config, featureKey, memberInfo = {}) => {
-    const member = memberInfo || {};
-    const featurePermissions = member.feature_permissions || member.featurePermissions || member.logistics_permission?.feature_permissions || {};
-    if (featurePermissions[featureKey] === true || featurePermissions[featureKey] === 'true') return true;
-    return featureAccessHasUser(config, featureKey, {
-    email: member.email,
-    staff_name: member.staff_name || member.name,
-    organization: member.organization || member.department,
-});
+    void config;
+    return hasActualFeatureGrant(memberInfo, featureKey);
 };
 const isSmokeNotificationSource = (row = {}) => {
     const payload = parseNotificationPayload(row.request_payload);
@@ -822,15 +817,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
 
     const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
     const isLogisticsPath = normalizedCurrentPath.startsWith(LOGISTICS_INTERNAL_BASE);
-    const memberRole = memberInfo?.logistics_role || memberInfo?.logisticsRole || memberInfo?.role || memberInfo?.logistics_permission?.logistics_role;
-    const memberEmail = String(memberInfo?.email || memberInfo?.logistics_permission?.email || user?.email || '').trim().toLowerCase();
-    const memberName = memberInfo?.staff_name || memberInfo?.name;
-    const canUseCoreOnlyTools = SOURCE_UPDATE_DATA_QUALITY_EMAILS.has(memberEmail)
-        || SOURCE_UPDATE_DATA_QUALITY_NAMES.has(memberName);
-    const canUseAccessAdminTools = LOGISTICS_ADMIN_EMAILS.has(memberEmail) || LOGISTICS_ADMIN_NAMES.has(memberName);
-    const canViewSourceUpdateAndDataQuality = canUseCoreOnlyTools;
-    const isLogisticsAdmin = memberRole === 'System Admin'
-        || canUseAccessAdminTools;
+    const canManageFeatureAccess = isFeatureAccessManager(memberInfo);
+    const canViewSourceUpdate = canManageFeatureAccess;
+    const canViewLoginHistory = hasActualFeatureGrant(memberInfo, 'login_history');
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
     const recentLoginHistoryRows = loginHistoryRows.slice(0, 5);
     const loginCapabilityUsers = useMemo(() => (
@@ -1281,20 +1270,18 @@ export default function IotaLeftNav({ currentPath = '' }) {
     if (isLogisticsPath) {
         const visibleDashboardItems = logisticsDashboardItems.filter((item) => {
             if (!item.adminOnly) return true;
-            if (isLogisticsAdmin) return true;
             const featureKey = LOGISTICS_DASHBOARD_FEATURE_BY_PATH[item.path];
             return featureKey ? memberHasFeatureAccess(featureAccessData, featureKey, memberInfo) : false;
         });
         const visibleMarketDataItems = logisticsMarketDataItems.filter((item) => (
             item.path !== `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`
-            || canViewSourceUpdateAndDataQuality
+            || canViewSourceUpdate
         ));
         const visibleDataManagementItems = logisticsDataManagementItems.filter((item) => {
             if (!item.adminOnly) return true;
-            if (isLogisticsAdmin) return true;
             const featureKey = LOGISTICS_DASHBOARD_FEATURE_BY_PATH[item.path];
             if (featureKey) return memberHasFeatureAccess(featureAccessData, featureKey, memberInfo);
-            return canViewSourceUpdateAndDataQuality;
+            return canManageFeatureAccess;
         });
         const visibleStandaloneItems = logisticsStandaloneItems;
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
@@ -1467,9 +1454,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 </div>
 
                 <div className={`relative border-t border-[#2C2C2E] ${isCollapsed ? 'flex flex-col items-center gap-2 px-0 py-2' : 'p-3'}`}>
-                    {canUseCoreOnlyTools ? (
+                    {canManageFeatureAccess || canViewLoginHistory ? (
                         <div className={isCollapsed ? 'flex w-full flex-col items-center gap-2' : 'mb-2 space-y-2'}>
-                            <button
+                            {canManageFeatureAccess ? <button
                                 type="button"
                                 data-testid="logistics-feature-access-button"
                                 onClick={openFeatureAccessModal}
@@ -1480,8 +1467,8 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 16v-2m8-6h-2M6 12H4m12.95-4.95l-1.42 1.42M8.47 15.53l-1.42 1.42m9.9 0l-1.42-1.42M8.47 8.47 7.05 7.05M12 15a3 3 0 100-6 3 3 0 000 6z" />
                                 </svg>
                                 {!isCollapsed ? <span>기능 권한 관리</span> : null}
-                            </button>
-                            <button
+                            </button> : null}
+                            {canViewLoginHistory ? <button
                                 type="button"
                                 data-testid="logistics-login-history-button"
                                 onClick={openLoginHistoryModal}
@@ -1492,7 +1479,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6l4 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 {!isCollapsed ? <span>로그인 이력</span> : null}
-                            </button>
+                            </button> : null}
                         </div>
                     ) : null}
                     {showNotificationsPanel ? (

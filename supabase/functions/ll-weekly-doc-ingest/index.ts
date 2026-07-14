@@ -3,8 +3,15 @@ import mammoth from 'npm:mammoth@1.8.0';
 import { Buffer } from 'node:buffer';
 
 type Role = 'Reader' | 'Editor' | 'Manager' | 'Admin' | 'System Admin';
-type SupabaseClient = ReturnType<typeof createClient>;
+type SupabaseClient = any;
 type RateBucket = { resetAt: number; count: number };
+type PermissionScope = {
+  scope_type: 'asset' | 'other_assets';
+  scope_id: string | null;
+  can_read: boolean;
+  can_write: boolean;
+  can_delete: boolean;
+};
 
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_work_items',
@@ -136,8 +143,44 @@ function buildMonthlyWeekRanges(year: number, month: number) {
 }
 
 function roleCanIngest(role: string | undefined, dbFlag: boolean | undefined) {
-  const normalized = String(role || '') as Role;
-  return Boolean(dbFlag) || normalized === 'Manager' || normalized === 'Admin' || normalized === 'System Admin';
+  void role;
+  return dbFlag === true;
+}
+
+function isActivePermission(permission: Record<string, unknown> | null) {
+  const status = String(permission?.account_status || 'active').trim().toLowerCase();
+  return Boolean(permission && !['inactive', 'disabled', 'blocked', 'deleted', 'archived'].includes(status));
+}
+
+function permissionScopes(permission: Record<string, unknown> | null) {
+  const scopes = permission?._permission_scopes;
+  return Array.isArray(scopes) ? scopes as PermissionScope[] : [];
+}
+
+function legacyPermissionFlag(permission: Record<string, unknown> | null, key: 'managed_asset_permissions' | 'other_asset_permissions', action: 'create' | 'update') {
+  const permissions = permission?.[key];
+  return Boolean(permissions && typeof permissions === 'object' && (permissions as Record<string, unknown>)[action] === true);
+}
+
+function assetWriteAllowed(permission: Record<string, unknown> | null, asset: Record<string, unknown>) {
+  const scopes = permissionScopes(permission);
+  const assetId = String(asset.asset_id || '').trim();
+  if (scopes.length) {
+    const scope = scopes.find((row) => row.scope_type === 'asset' && row.scope_id === assetId)
+      || scopes.find((row) => row.scope_type === 'other_assets');
+    return scope?.can_write === true;
+  }
+  const managedCodes = Array.isArray(permission?.managed_asset_codes) ? permission?.managed_asset_codes.map(String) : [];
+  const managed = managedCodes.includes(assetId)
+    || managedCodes.includes(String(asset.asset_code || ''))
+    || managedCodes.includes(String(asset.asset_name || ''));
+  return managed
+    ? legacyPermissionFlag(permission, 'managed_asset_permissions', 'update') || legacyPermissionFlag(permission, 'managed_asset_permissions', 'create')
+    : legacyPermissionFlag(permission, 'other_asset_permissions', 'update') || legacyPermissionFlag(permission, 'other_asset_permissions', 'create');
+}
+
+function filterAssetsForPermission(assets: Record<string, unknown>[], permission: Record<string, unknown> | null) {
+  return assets.filter((asset) => assetWriteAllowed(permission, asset));
 }
 
 function checkRateLimit(userId: string, action: string, limit = 10, windowMs = 10 * 60 * 1000) {
@@ -160,7 +203,7 @@ function hasWordFileSignature(buffer: ArrayBuffer) {
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  let timeout: number | undefined;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<T>((_, reject) => {
     timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
   });
@@ -258,12 +301,15 @@ function buildSnapshotTask(
 ) {
   const rawText = String(row.issue || row.project_name || row.asset_name || '').trim();
   const matchedAsset = matchAssetForLine(rawText, assets);
+  const rowJson = row.row_json && typeof row.row_json === 'object' && !Array.isArray(row.row_json)
+    ? row.row_json as Record<string, unknown>
+    : {};
   const relatedAssetId = String(matchedAsset?.asset_id || '').trim();
   const relatedAssetName = String(matchedAsset?.asset_name || row.asset_name || '').trim();
   const seedLabel = String(row.project_name || row.asset_name || rawText).trim().slice(0, 120) || 'Task';
   return stripUndefined({
     id: crypto.randomUUID(),
-    seed_id: `${sourceKind}:${row.row_json?.lineNumber || '0'}:${seedLabel}`,
+    seed_id: `${sourceKind}:${rowJson.lineNumber || '0'}:${seedLabel}`,
     source: 'weekly_report_seed',
     seed_source: sourceKind,
     related_asset: relatedAssetName || undefined,
@@ -284,7 +330,7 @@ function buildSnapshotTask(
     payload: {
       source: 'll-weekly-doc-ingest',
       source_kind: sourceKind,
-      line_number: row.row_json?.lineNumber || null,
+      line_number: rowJson.lineNumber || null,
       line_text: rawText,
     },
   });
@@ -325,12 +371,23 @@ Deno.serve(async (request) => {
   });
   const { data: permission } = await serviceClient
     .from('ll_user_permissions')
-    .select('logistics_role, can_ingest_weekly, organization')
+    .select('email, logistics_role, can_ingest_weekly, organization, account_status, managed_asset_codes, managed_asset_permissions, other_asset_permissions')
     .eq('user_id', userData.user.id)
+    .is('principal_type', null)
+    .is('scope_type', null)
     .maybeSingle();
 
-  const role = permission?.logistics_role;
-  if (!roleCanIngest(role, permission?.can_ingest_weekly)) return fail(403, 'Insufficient logistics permission', origin);
+  if (!isActivePermission(permission || null)) return fail(403, 'No active logistics permission found', origin);
+  const permissionEmail = String(permission?.email || userData.user.email || '').trim().toLowerCase();
+  const { data: scopeRows, error: scopeError } = await serviceClient
+    .from('ll_user_permissions')
+    .select('scope_type,scope_id,can_read,can_write,can_delete')
+    .eq('principal_type', 'user_email')
+    .eq('principal_id', permissionEmail)
+    .in('scope_type', ['asset', 'other_assets']);
+  if (scopeError) return fail(500, 'Failed to read weekly ingest permission scopes', origin);
+  const permissionWithScopes = { ...(permission as Record<string, unknown>), _permission_scopes: scopeRows || [] };
+  if (!roleCanIngest(permission?.logistics_role, permission?.can_ingest_weekly)) return fail(403, 'Insufficient logistics permission', origin);
   if (!checkRateLimit(userData.user.id, 'weekly/ingest', 8, 10 * 60 * 1000)) return fail(429, 'Rate limit exceeded', origin);
 
   if (![...WRITE_TABLE_ALLOWLIST].every((table) => table.startsWith('public.ll_'))) {
@@ -397,7 +454,7 @@ Deno.serve(async (request) => {
   const weekly = parseWeeklyText(parsed.value || '');
   if (!weekly.lines.length) return fail(422, 'Word parsing produced no readable text', origin);
 
-  const assets = await listRegisteredAssets(serviceClient);
+  const assets = filterAssetsForPermission(await listRegisteredAssets(serviceClient), permissionWithScopes);
   const actorEmail = String(userData.user.email || '').trim().toLowerCase();
   const actorName = shortActorName(actorEmail, userData.user.id);
   const nowIso = new Date().toISOString();

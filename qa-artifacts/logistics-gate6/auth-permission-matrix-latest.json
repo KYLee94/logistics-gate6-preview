@@ -1,62 +1,46 @@
 {
   "ok": true,
-  "generated_at": "2026-07-03T05:05:43.996Z",
-  "source_json": "src\\components\\system\\workspace\\logisticsPermissionData.json",
-  "expected_admin_scope": {
-    "managed_asset_count": 19,
-    "managed_fund_count": 17
-  },
+  "generated_at": "2026-07-14T08:37:20.451Z",
   "db": {
-    "active_permission_user_count": 40,
-    "admin_feature_gap_count": 0,
-    "admin_feature_gaps": [],
-    "admin_user_count": 5,
+    "active_permission_user_count": 39,
+    "asset_scope_row_count": 211,
     "duplicate_email_count": 0,
     "duplicate_emails": [],
-    "missing_source_count": 0,
-    "missing_source_emails": [],
-    "permission_user_count": 40,
-    "recent_login_rows": 151,
-    "source_user_count": 38
+    "duplicate_scope_count": 0,
+    "feature_grant_counts": {
+      "ai_chat": 3,
+      "analysis_tools": 6,
+      "building_register_refresh": 3,
+      "data_playground": 6,
+      "data_quality": 5,
+      "login_history": 3,
+      "opendart_refresh": 3
+    },
+    "feature_manager_count": 3,
+    "invalid_asset_scope_count": 0,
+    "orphan_scope_count": 0,
+    "other_scope_row_count": 13,
+    "permission_user_count": 39,
+    "recent_login_rows": 5,
+    "scope_row_count": 224,
+    "scope_user_count": 38,
+    "system_admin_count": 5
   },
-  "admin_static_scope": [
-    {
-      "email": "kylee@igisam.com",
-      "staff_name": "이관용",
-      "managed_asset_count": 19,
-      "managed_fund_count": 17
-    },
-    {
-      "email": "sjlee@igisam.com",
-      "staff_name": "이시정",
-      "managed_asset_count": 19,
-      "managed_fund_count": 17
-    },
-    {
-      "email": "jk.jeon@igisam.com",
-      "staff_name": "전기영",
-      "managed_asset_count": 19,
-      "managed_fund_count": 17
-    },
-    {
-      "email": "seunghoon.lee@igisam.com",
-      "staff_name": "이승훈",
-      "managed_asset_count": 19,
-      "managed_fund_count": 17
-    },
-    {
-      "email": "ethan.lee@igisam.com",
-      "staff_name": "이철승",
-      "managed_asset_count": 19,
-      "managed_fund_count": 17
-    }
-  ],
-  "admin_static_scope_gaps": [],
-  "static_findings": [
-    {
-      "file": "src/components/system/workspace/WorkspaceLogistics.jsx",
-      "issue": "runtime_permission_json_fallback"
-    }
-  ],
+  "policy": {
+    "system_admin_emails": [
+      "kylee@igisam.com",
+      "sjlee@igisam.com",
+      "jk.jeon@igisam.com",
+      "seunghoon.lee@igisam.com",
+      "ethan.lee@igisam.com"
+    ],
+    "feature_manager_emails": [
+      "kylee@igisam.com",
+      "sjlee@igisam.com",
+      "jk.jeon@igisam.com"
+    ],
+    "features_are_independent": true
+  },
+  "static_findings": [],
   "failures": []
 }
