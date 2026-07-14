@@ -6,6 +6,32 @@ const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const SRC_DIR = path.join(ROOT, 'src');
 const QA_DIR = path.join(ROOT, 'scripts', 'qa');
 
+const REQUIRED_LOADING_ROUTES = [
+  'work-platform',
+  'work-platform/archive',
+  'home',
+  'asset',
+  'company',
+  'investment-index',
+  'asset-spec',
+  'analysis-tools',
+  'pivot-table',
+  'data-quality',
+  'market-data/overview',
+  'market-data/lease-market',
+  'market-data/supply-pipeline',
+  'market-data/transactions',
+  'market-data/source-update',
+  'data-management/asset-data',
+  'data-management/investment-data',
+  'data-management/lease-contracts',
+  'data-management/managers',
+  'data-management/data-quality',
+  'data-management/approval',
+  'contract-data',
+  'pdf-report',
+];
+
 const SURFACES = [
   {
     id: 'global-auth-loading',
@@ -224,27 +250,50 @@ function latestArtifact(name) {
 }
 
 function fullAppLoadingOk() {
-  return latestArtifactOk('full-app-loading-stability-latest.json', (json) => (
-    Number(json.summary?.failed_routes || 0) === 0
-    && Number(json.summary?.failed_modals || 0) === 0
-  ));
+  return latestArtifactOk('full-app-loading-stability-latest.json', (json) => {
+    const routes = safeArray(json.routes);
+    const seen = new Set(routes.filter((route) => route.ok === true).map((route) => route.route));
+    const popupChecks = Object.values(json.modal_checks || {});
+    return Number(json.route_count || 0) === REQUIRED_LOADING_ROUTES.length
+      && Number(json.cycles || 0) >= 50
+      && Number(json.idle_ms || 0) >= 120_000
+      && routes.length >= Number(json.cycles || 0)
+      && REQUIRED_LOADING_ROUTES.every((route) => seen.has(route))
+      && Number(json.summary?.failed_routes || 0) === 0
+      && Number(json.summary?.failed_modals || 0) === 0
+      && Number(json.summary?.failed_progress_operations || 0) === 0
+      && json.progress_audit?.ok === true
+      && safeArray(json.auth_errors).length === 0
+      && safeArray(json.server_errors).length === 0
+      && popupChecks.length === 3
+      && popupChecks.every((popup) => (
+        popup?.ok === true
+        && popup.opened === true
+        && popup.closed === true
+        && popup.reopened === true
+        && popup.reclosed === true
+      ));
+  });
 }
 
 function idleLoadingOk() {
   return latestArtifactOk('data-loading-idle-latest.json', (json) => (
     json.idle_model === 'live_browser_wait'
-    && Number(json.idle_ms || 0) >= 95_000
+    && Number(json.idle_ms || 0) >= 120_000
     && Number(json.summary?.failed_routes || 0) === 0
     && Number(json.summary?.failed_modals || 0) === 0
     && safeArray(json.routes).length >= 5
     && safeArray(json.routes).every((route) => route.ok === true)
+    && Object.values(json.modal_checks || {}).length >= 3
     && Object.values(json.modal_checks || {}).every((modal) => modal?.ok === true)
+    && safeArray(json.auth_errors).length === 0
+    && safeArray(json.server_errors).length === 0
   ));
 }
 
 function fullAppRoutesOk(routes) {
   const json = latestArtifact('full-app-loading-stability-latest.json');
-  if (!json?.ok || Number(json.summary?.failed_routes || 0) > 0) return false;
+  if (!json?.ok || !fullAppLoadingOk() || Number(json.summary?.failed_routes || 0) > 0) return false;
   const seen = new Set(safeArray(json.routes).filter((route) => route.ok === true).map((route) => route.route));
   return routes.every((route) => seen.has(route));
 }
@@ -570,7 +619,7 @@ const SURFACE_EVIDENCE = {
     ['logout-browser-smoke-latest.json', () => notificationsAndLogoutOk()],
   ],
   'work-platform': [
-    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['work-platform'])],
+    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['work-platform', 'work-platform/archive'])],
     ['work-platform-browser-smoke-latest.json', () => latestArtifactOk('work-platform-browser-smoke-latest.json')],
   ],
   'dashboard-home-asset-company': [
@@ -600,6 +649,7 @@ const SURFACE_EVIDENCE = {
       'data-management/lease-contracts',
       'data-management/managers',
       'data-management/data-quality',
+      'data-management/approval',
     ])],
     ['data-management-browser-readback-smoke-latest.json', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json')],
     ['data-management-live-browser-flow-latest.json', () => latestArtifactOk('data-management-live-browser-flow-latest.json')],

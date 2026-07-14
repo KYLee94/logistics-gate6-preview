@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supabaseSession';
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
@@ -22,6 +22,7 @@ import {
 const CARD = 'rounded-[16px] border border-[#333333] bg-[#252524]';
 const INNER = 'rounded-[12px] border border-[#333333] bg-[#1F1F1E]';
 const MUTED = 'text-[#A1A1AA]';
+export const DashboardModuleLifecycleContext = createContext({ active: true, moduleId: '', reportLoading: null });
 const CHART_COLORS = {
   primary: '#9AD7FF',
   secondary: '#B5E48C',
@@ -1370,20 +1371,30 @@ async function invokeEdgeDataWithTimeout(action, payload = {}, timeoutMs = EDGE_
   }
 }
 
-function edgeInflightPromise(action, payload, requestKey) {
+function isEdgeInflightStale(entry, now = Date.now(), staleMs = EDGE_DATA_INFLIGHT_STALE_MS) {
+  if (!entry) return false;
+  const startedAt = Number(entry.startedAt);
+  return !Number.isFinite(startedAt) || startedAt <= 0 || now - startedAt >= staleMs;
+}
+
+function edgeInflightRequest(action, payload, requestKey) {
   const current = EDGE_DATA_INFLIGHT.get(requestKey);
+  if (current && !isEdgeInflightStale(current)) return current;
   if (current) {
-    if (Date.now() - current.startedAt < EDGE_DATA_INFLIGHT_STALE_MS) return current.promise;
     EDGE_DATA_INFLIGHT.delete(requestKey);
   }
   const entry = {
+    requestId: edgeDataRequestSequence + 1,
     startedAt: Date.now(),
-    promise: invokeEdgeDataWithTimeout(action, payload).finally(() => {
-      if (EDGE_DATA_INFLIGHT.get(requestKey) === entry) EDGE_DATA_INFLIGHT.delete(requestKey);
-    }),
+    promise: null,
   };
+  edgeDataRequestSequence = entry.requestId;
+  EDGE_DATA_LATEST_REQUEST_ID.set(requestKey, entry.requestId);
+  entry.promise = invokeEdgeDataWithTimeout(action, payload).finally(() => {
+      if (EDGE_DATA_INFLIGHT.get(requestKey) === entry) EDGE_DATA_INFLIGHT.delete(requestKey);
+    });
   EDGE_DATA_INFLIGHT.set(requestKey, entry);
-  return entry.promise;
+  return entry;
 }
 
 const USER_FACING_LOAD_ERROR_TEXT = '데이터를 불러오지 못했습니다. 탭을 다시 열거나 잠시 후 재시도해 주세요.';
@@ -1394,7 +1405,9 @@ const EDGE_DATA_INFLIGHT_STALE_MS = EDGE_DATA_REQUEST_TIMEOUT_MS + 5000;
 const EDGE_DATA_ACTIVITY_REFRESH_DEBOUNCE_MS = 250;
 const EDGE_DATA_CACHE = new Map();
 const EDGE_DATA_INFLIGHT = new Map();
+const EDGE_DATA_LATEST_REQUEST_ID = new Map();
 const EDGE_DATA_REFRESH_SUBSCRIBERS = new Set();
+let edgeDataRequestSequence = 0;
 let edgeDataRefreshListenersReady = false;
 let edgeDataActivityRefreshTimer = null;
 
@@ -1427,7 +1440,10 @@ function invalidateEdgeDataCache(predicate) {
     if (predicate(key)) EDGE_DATA_CACHE.delete(key);
   });
   [...EDGE_DATA_INFLIGHT.keys()].forEach((key) => {
-    if (predicate(key)) EDGE_DATA_INFLIGHT.delete(key);
+    if (predicate(key)) {
+      EDGE_DATA_INFLIGHT.delete(key);
+      EDGE_DATA_LATEST_REQUEST_ID.delete(key);
+    }
   });
 }
 
@@ -1443,8 +1459,9 @@ function notifyLogisticsDataRefresh(detail = {}) {
 function ensureEdgeDataRefreshListeners() {
   if (edgeDataRefreshListenersReady || typeof window === 'undefined' || typeof document === 'undefined') return;
   edgeDataRefreshListenersReady = true;
-  const notify = () => {
+  const notify = (event) => {
     if (document.visibilityState && document.visibilityState !== 'visible') return;
+    if (event?.type === 'logistics-data-refresh' && event.detail?.path && !event.detail?.source) return;
     EDGE_DATA_REFRESH_SUBSCRIBERS.forEach((callback) => callback());
   };
   const notifyAfterActivity = () => {
@@ -1457,7 +1474,6 @@ function ensureEdgeDataRefreshListeners() {
   };
   window.addEventListener('focus', notifyAfterActivity);
   window.addEventListener('online', notify);
-  window.addEventListener('popstate', notify);
   window.addEventListener('logistics-data-refresh', notify);
   document.addEventListener('visibilitychange', notifyAfterActivity);
 }
@@ -1503,16 +1519,20 @@ function hasEdgeDataValue(value) {
 }
 
 function createEdgeDataLoadingTrace({ stage = 'queued', attempt = 0, startedAt = 0, finishedAt = 0, hasData = false } = {}) {
-  const isRetry = stage === 'retrying' || stage === 'refreshing';
-  const isReady = stage === 'ready';
-  const isRetainedFailure = stage === 'failed' && hasData;
+  const completedSteps = stage === 'queued'
+    ? 1
+    : stage === 'loading'
+      ? 2
+      : stage === 'retrying' && !hasData
+        ? 3
+        : 4;
   return {
     stage,
     attempt,
     startedAt,
     finishedAt,
-    completedSteps: isReady || isRetry || isRetainedFailure ? 1 : 0,
-    totalSteps: isRetry || isRetainedFailure ? 2 : 1,
+    completedSteps,
+    totalSteps: 4,
   };
 }
 
@@ -1541,13 +1561,19 @@ export async function primeEdgeData(action, payload = {}) {
   const requestKey = edgeCacheKey(action, payload);
   const cached = EDGE_DATA_CACHE.get(requestKey);
   if (cached && Date.now() - cached.loadedAt < EDGE_DATA_REVALIDATE_MS) return cached.data;
-  const requestPromise = edgeInflightPromise(action, payload, requestKey);
-  const data = await requestPromise;
-  if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt: Date.now() });
+  const inflight = edgeInflightRequest(action, payload, requestKey);
+  const data = await inflight.promise;
+  if (EDGE_DATA_LATEST_REQUEST_ID.get(requestKey) === inflight.requestId && shouldCacheEdgeData(action, data)) {
+    EDGE_DATA_CACHE.set(requestKey, { data, loadedAt: Date.now() });
+  }
   return data;
 }
 
 function useEdgeData(action, payload = {}) {
+  const lifecycle = useContext(DashboardModuleLifecycleContext);
+  const lifecycleActive = lifecycle.active;
+  const lifecycleModuleId = lifecycle.moduleId;
+  const reportLifecycleLoading = lifecycle.reportLoading;
   const payloadKey = edgeCacheKey(action, payload);
   const payloadRef = useRef(payload);
   payloadRef.current = payload;
@@ -1562,7 +1588,8 @@ function useEdgeData(action, payload = {}) {
   const lastPayloadKeyRef = useRef(payloadKey);
   const mountedRef = useRef(true);
   const reloadRef = useRef(null);
-  const backgroundRefreshKeyRef = useRef('');
+  const backgroundRefreshRef = useRef(null);
+  const loadingTokenRef = useRef(Symbol(action));
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -1606,12 +1633,16 @@ function useEdgeData(action, payload = {}) {
       }));
     }
     try {
-      const requestPromise = edgeInflightPromise(action, requestPayload, requestKey);
-      const data = await requestPromise;
+      const inflight = edgeInflightRequest(action, requestPayload, requestKey);
+      const data = await inflight.promise;
       const loadedAt = Date.now();
-      if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt });
-      else EDGE_DATA_CACHE.delete(requestKey);
-      if (mountedRef.current && requestRef.current === requestId) {
+      const latestRequest = requestRef.current === requestId
+        && EDGE_DATA_LATEST_REQUEST_ID.get(requestKey) === inflight.requestId;
+      if (latestRequest) {
+        if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt });
+        else EDGE_DATA_CACHE.delete(requestKey);
+      }
+      if (mountedRef.current && latestRequest) {
         setState({ loading: false, error: '', refreshError: '', data, loadedAt, sourceKey: requestKey, loadingStage: 'ready', loadingTrace: createEdgeDataLoadingTrace({ stage: 'ready', attempt, startedAt: requestStartedAt, finishedAt: loadedAt, hasData: hasEdgeDataValue(data) }) });
       }
       return data;
@@ -1662,6 +1693,11 @@ function useEdgeData(action, payload = {}) {
   }, [action, payloadKey]);
   reloadRef.current = reload;
   useEffect(() => {
+    if (!lifecycleActive) {
+      mountedRef.current = false;
+      requestRef.current += 1;
+      return undefined;
+    }
     mountedRef.current = true;
     if (lastPayloadKeyRef.current !== payloadKey) {
       requestRef.current += 1;
@@ -1673,6 +1709,7 @@ function useEdgeData(action, payload = {}) {
       if (Date.now() - cached.loadedAt >= EDGE_DATA_REVALIDATE_MS) reload({}, { silent: true, force: true });
       return () => {
         mountedRef.current = false;
+        requestRef.current += 1;
       };
     }
     if (stateRef.current.sourceKey !== payloadKey) {
@@ -1681,26 +1718,42 @@ function useEdgeData(action, payload = {}) {
     reload({}, { silent: stateRef.current.sourceKey === payloadKey && Boolean(stateRef.current.data) });
     return () => {
       mountedRef.current = false;
+      requestRef.current += 1;
     };
-  }, [payloadKey, reload]);
+  }, [lifecycleActive, payloadKey, reload]);
   useEffect(() => {
+    if (!lifecycleActive) return undefined;
     ensureEdgeDataRefreshListeners();
     const refreshIfStale = () => {
       if (document.visibilityState && document.visibilityState !== 'visible') return;
       const current = stateRef.current;
-      const stale = current.loadedAt && Date.now() - current.loadedAt > EDGE_DATA_REVALIDATE_MS;
+      const now = Date.now();
+      const stale = current.loadedAt && now - current.loadedAt > EDGE_DATA_REVALIDATE_MS;
+      const inflight = EDGE_DATA_INFLIGHT.get(payloadKey);
+      const staleLoading = current.loading && (!inflight || isEdgeInflightStale(inflight, now));
+      if (current.loading && !staleLoading) return;
       if (!current.error && hasEdgeDataValue(current.data) && !stale) return;
-      if (backgroundRefreshKeyRef.current === payloadKey) return;
-      backgroundRefreshKeyRef.current = payloadKey;
+      const currentLock = backgroundRefreshRef.current;
+      if (currentLock?.requestKey === payloadKey && now - currentLock.startedAt < EDGE_DATA_INFLIGHT_STALE_MS) return;
+      const refreshLock = { requestKey: payloadKey, startedAt: now };
+      backgroundRefreshRef.current = refreshLock;
       Promise.resolve(reload({}, { silent: Boolean(current.data), force: true })).finally(() => {
-        if (backgroundRefreshKeyRef.current === payloadKey) backgroundRefreshKeyRef.current = '';
+        if (backgroundRefreshRef.current === refreshLock) backgroundRefreshRef.current = null;
       });
     };
     EDGE_DATA_REFRESH_SUBSCRIBERS.add(refreshIfStale);
     return () => {
       EDGE_DATA_REFRESH_SUBSCRIBERS.delete(refreshIfStale);
+      backgroundRefreshRef.current = null;
     };
-  }, [payloadKey, reload]);
+  }, [lifecycleActive, payloadKey, reload]);
+  useEffect(() => {
+    if (!lifecycleActive || !lifecycleModuleId || typeof reportLifecycleLoading !== 'function') return undefined;
+    const pending = ['queued', 'loading', 'refreshing', 'retrying'].includes(state.loadingStage);
+    const loadingToken = loadingTokenRef.current;
+    reportLifecycleLoading(lifecycleModuleId, loadingToken, pending, edgeDataLoadingProgress(state.loadingTrace));
+    return () => reportLifecycleLoading(lifecycleModuleId, loadingToken, false, 100);
+  }, [lifecycleActive, lifecycleModuleId, reportLifecycleLoading, state.loadingStage, state.loadingTrace]);
   return { ...state, loadingStage: state.loadingStage, loadingTrace: state.loadingTrace, reload };
 }
 
@@ -1751,7 +1804,7 @@ function MarketDataLoadingBadge({
   loadingTrace = null,
 }) {
   if (!loading) return null;
-  const safeProgress = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
+  const safeProgress = Math.max(1, Math.min(100, Math.round(Number(progress) || 0)));
   return (
     <div className="min-w-[150px] rounded-[8px] border border-[#2F3A4A] bg-[#151C27] px-3 py-2 shadow-[0_10px_30px_rgba(22,36,64,0.25)]" data-market-data-loading-progress="true" data-loading-progress="true" data-loading-stage={loadingStage} data-loading-completed-steps={loadingTrace?.completedSteps} data-loading-total-steps={loadingTrace?.totalSteps} data-testid={testId}>
       <div className="flex items-center justify-between gap-3 text-[11px] font-semibold text-[#D7E8FF]">
@@ -6426,7 +6479,21 @@ function MarketDataDashboardContent({ activeTab = 'overview' }) {
             </div>
             <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(420px,0.75fr)_minmax(560px,1.25fr)]">
               <MarketMapPanel title="거래 자산 위치" rows={filteredTransactions} labelKey="asset_name" onSelect={(row) => setModal({ title: text(row.asset_name), row, columns: transactionColumns })} />
-              <SortableTable minWidth={1120} stickyCount={2} defaultSort={{ key: 'transaction_amount_krw', direction: 'desc' }} columns={transactionColumns} rows={filteredTransactions} onRowClick={(row) => setModal({ title: text(row.asset_name), row, columns: transactionColumns })} />
+              <SortableTable
+                minWidth={1120}
+                stickyCount={2}
+                defaultSort={{ key: 'transaction_amount_krw', direction: 'desc' }}
+                columns={transactionColumns}
+                rows={filteredTransactions}
+                onRowClick={(row) => setModal({
+                  title: text(row.asset_name),
+                  row,
+                  columns: transactionColumns,
+                  width: 'max-w-[calc(100vw-32px)]',
+                  maxHeight: 'calc(100vh - 150px)',
+                  fullscreen: true,
+                })}
+              />
             </div>
           </section>
           <section className={`${CARD} p-5`}>

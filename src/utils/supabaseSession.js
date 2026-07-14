@@ -1,11 +1,11 @@
-import { supabase } from './supabaseClient';
+import { supabase } from './supabaseClient.js';
 
 const SESSION_REFRESH_MARGIN_MS = 10 * 60 * 1000;
 const SESSION_RECENT_CHECK_REUSE_MS = 15 * 1000;
 const DASHBOARD_INVOKE_TIMEOUT_MS = 45 * 1000;
 const AUTH_SESSION_TIMEOUT_MS = 3500;
 const AUTH_REFRESH_TIMEOUT_MS = 5000;
-let refreshPromise = null;
+let refreshOperationPromise = null;
 let lastSessionCheckAt = 0;
 
 function authFailureMessage(error) {
@@ -64,6 +64,14 @@ function timeoutError(action, timeoutMs) {
   return error;
 }
 
+function abortError(action, signal) {
+  if (signal?.reason instanceof Error) return signal.reason;
+  const error = new Error(`${action} aborted`);
+  error.name = 'AbortError';
+  error.status = 499;
+  return error;
+}
+
 function authTimeoutError(action, timeoutMs) {
   const error = new Error(`${action} timed out after ${timeoutMs}ms`);
   error.name = 'SupabaseAuthTimeoutError';
@@ -71,38 +79,62 @@ function authTimeoutError(action, timeoutMs) {
   return error;
 }
 
-async function withDashboardInvokeTimeout(action, invokeFactory, timeoutMs) {
+async function withDeadline(action, operationFactory, timeoutMs, {
+  signal = null,
+  errorFactory = timeoutError,
+} = {}) {
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   let timeoutId;
-  let timedOut = false;
-  if (controller && timeoutMs > 0) {
+  let externalAbortListener;
+  let rejectBoundary;
+  const boundaryPromise = new Promise((_, reject) => {
+    rejectBoundary = reject;
+  });
+
+  const rejectForAbort = () => {
+    const error = abortError(action, signal);
+    if (controller && !controller.signal.aborted) controller.abort(error);
+    rejectBoundary(error);
+  };
+
+  if (signal) {
+    externalAbortListener = rejectForAbort;
+    if (signal.aborted) rejectForAbort();
+    else signal.addEventListener('abort', externalAbortListener, { once: true });
+  }
+
+  if (timeoutMs > 0) {
     timeoutId = globalThis.setTimeout(() => {
-      timedOut = true;
-      controller.abort(timeoutError(action, timeoutMs));
+      const error = errorFactory(action, timeoutMs);
+      if (controller && !controller.signal.aborted) controller.abort(error);
+      rejectBoundary(error);
     }, timeoutMs);
   }
+
+  const operationPromise = Promise.resolve().then(() => operationFactory(controller?.signal || signal));
   try {
-    const result = await invokeFactory(controller?.signal);
-    if (timedOut && !result?.error) throw timeoutError(action, timeoutMs);
-    return result;
-  } catch (error) {
-    if (timedOut) throw timeoutError(action, timeoutMs);
-    throw error;
+    return await Promise.race([operationPromise, boundaryPromise]);
   } finally {
     if (timeoutId) globalThis.clearTimeout(timeoutId);
+    if (externalAbortListener) signal?.removeEventListener('abort', externalAbortListener);
   }
 }
 
-async function withAuthTimeout(action, promise, timeoutMs) {
-  let timeoutId;
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = globalThis.setTimeout(() => reject(authTimeoutError(action, timeoutMs)), timeoutMs);
-  });
-  try {
-    return await Promise.race([promise, timeoutPromise]);
-  } finally {
-    globalThis.clearTimeout(timeoutId);
-  }
+function withDashboardInvokeTimeout(action, invokeFactory, timeoutMs, signal = null) {
+  return withDeadline(action, invokeFactory, timeoutMs, { signal, errorFactory: timeoutError });
+}
+
+function withAuthTimeout(action, promise, timeoutMs, signal = null) {
+  return withDeadline(action, () => promise, timeoutMs, { signal, errorFactory: authTimeoutError });
+}
+
+function browserIsOffline() {
+  return typeof navigator !== 'undefined' && navigator.onLine === false;
+}
+
+function errorStatus(error) {
+  const status = Number(error?.status || error?.context?.status || error?.statusCode || 0);
+  return Number.isFinite(status) ? status : 0;
 }
 
 export function isSupabaseAuthFailure(error) {
@@ -117,15 +149,17 @@ export function isSupabaseAuthFailure(error) {
     || message.includes('forbidden');
 }
 
-export async function ensureFreshSupabaseSession({ force = false, throwOnFailure = false } = {}) {
+export async function ensureFreshSupabaseSession({ force = false, throwOnFailure = false, signal = null } = {}) {
+  if (signal?.aborted) throw abortError('supabase.auth.getSession', signal);
   const now = Date.now();
   if (!force && lastSessionCheckAt && now - lastSessionCheckAt < SESSION_RECENT_CHECK_REUSE_MS) {
     return readSupabaseStorageSession();
   }
   let sessionResult;
   try {
-    sessionResult = await withAuthTimeout('supabase.auth.getSession', supabase.auth.getSession(), AUTH_SESSION_TIMEOUT_MS);
+    sessionResult = await withAuthTimeout('supabase.auth.getSession', supabase.auth.getSession(), AUTH_SESSION_TIMEOUT_MS, signal);
   } catch (sessionError) {
+    if (signal?.aborted || sessionError?.name === 'AbortError') throw sessionError;
     console.warn('Supabase session read timed out:', sessionError?.message || sessionError);
     lastSessionCheckAt = Date.now();
     const storedSession = readSupabaseStorageSession();
@@ -154,38 +188,43 @@ export async function ensureFreshSupabaseSession({ force = false, throwOnFailure
     return session;
   }
 
-  if (!refreshPromise) {
-    refreshPromise = withAuthTimeout('supabase.auth.refreshSession', supabase.auth.refreshSession(), AUTH_REFRESH_TIMEOUT_MS)
-      .then((result) => {
-        if (result?.error) throw result.error;
-        lastSessionCheckAt = Date.now();
-        return result?.data?.session || session;
-      })
-      .catch((refreshError) => {
-        console.warn('Supabase session refresh failed:', refreshError?.message || refreshError);
-        lastSessionCheckAt = Date.now();
-        if (throwOnFailure) throw refreshError;
-        return session;
-      })
+  if (!refreshOperationPromise) {
+    refreshOperationPromise = Promise.resolve()
+      .then(() => supabase.auth.refreshSession())
       .finally(() => {
-        refreshPromise = null;
+        refreshOperationPromise = null;
       });
   }
 
-  return refreshPromise;
+  try {
+    const result = await withAuthTimeout('supabase.auth.refreshSession', refreshOperationPromise, AUTH_REFRESH_TIMEOUT_MS, signal);
+    if (result?.error) throw result.error;
+    lastSessionCheckAt = Date.now();
+    return result?.data?.session || session;
+  } catch (refreshError) {
+    if (signal?.aborted || refreshError?.name === 'AbortError') throw refreshError;
+    console.warn('Supabase session refresh failed:', refreshError?.message || refreshError);
+    lastSessionCheckAt = Date.now();
+    if (throwOnFailure) throw refreshError;
+    return session;
+  }
 }
 
-function shouldRetryDashboardInvoke(error, { retryNetwork = true, retryTimeout = true } = {}) {
+function shouldRetryDashboardInvoke(error, { retryNetwork = true, retryTimeout = true, signal = null } = {}) {
+  if (signal?.aborted || browserIsOffline()) return false;
   const message = authFailureMessage(error);
+  const status = errorStatus(error);
   const timeoutLike = message.includes('timeout')
     || message.includes('aborted')
     || error?.name === 'DashboardInvokeTimeoutError';
   const networkLike = message.includes('failed to fetch')
     || message.includes('network')
     || message.includes('load failed');
+  if (status === 403 || message.includes('forbidden')) return false;
   if (timeoutLike && !retryTimeout) return false;
   if (networkLike && !retryNetwork) return false;
-  return isSupabaseAuthFailure(error)
+  return status === 401
+    || (isSupabaseAuthFailure(error) && status !== 403)
     || networkLike
     || timeoutLike;
 }
@@ -196,35 +235,32 @@ export async function invokeDashboardApi(action, payload = {}, {
   timeoutMs = DASHBOARD_INVOKE_TIMEOUT_MS,
   retryNetwork = true,
   retryTimeout = true,
+  signal = null,
 } = {}) {
-  await ensureFreshSupabaseSession({ force: forceSessionRefresh });
-  let result;
-  try {
-    result = await withDashboardInvokeTimeout(action, (signal) => supabase.functions.invoke('ll-dashboard-api', {
+  return withDashboardInvokeTimeout(action, async (deadlineSignal) => {
+    const retryOptions = { retryNetwork, retryTimeout, signal: deadlineSignal };
+    const invokeOnce = () => supabase.functions.invoke('ll-dashboard-api', {
       body: { action, payload },
-      signal,
+      signal: deadlineSignal,
       timeout: timeoutMs,
-    }), timeoutMs);
-  } catch (invokeError) {
-    if (!retryAuth || !shouldRetryDashboardInvoke(invokeError, { retryNetwork, retryTimeout })) throw invokeError;
-    await ensureFreshSupabaseSession({ force: true, throwOnFailure: true });
-    return withDashboardInvokeTimeout(action, (signal) => supabase.functions.invoke('ll-dashboard-api', {
-      body: { action, payload },
-      signal,
-      timeout: timeoutMs,
-    }), timeoutMs);
-  }
+    });
 
-  if (retryAuth && result?.error && shouldRetryDashboardInvoke(result.error, { retryNetwork, retryTimeout })) {
-    await ensureFreshSupabaseSession({ force: true, throwOnFailure: true });
-    result = await withDashboardInvokeTimeout(action, (signal) => supabase.functions.invoke('ll-dashboard-api', {
-      body: { action, payload },
-      signal,
-      timeout: timeoutMs,
-    }), timeoutMs);
-  }
+    await ensureFreshSupabaseSession({ force: forceSessionRefresh, signal: deadlineSignal });
+    let result;
+    try {
+      result = await invokeOnce();
+    } catch (invokeError) {
+      if (!retryAuth || !shouldRetryDashboardInvoke(invokeError, retryOptions)) throw invokeError;
+      await ensureFreshSupabaseSession({ force: true, throwOnFailure: true, signal: deadlineSignal });
+      return invokeOnce();
+    }
 
-  return result;
+    if (retryAuth && result?.error && shouldRetryDashboardInvoke(result.error, retryOptions)) {
+      await ensureFreshSupabaseSession({ force: true, throwOnFailure: true, signal: deadlineSignal });
+      result = await invokeOnce();
+    }
+    return result;
+  }, timeoutMs, signal);
 }
 
 export async function signOutSupabaseLocal({ timeoutMs = 2500 } = {}) {

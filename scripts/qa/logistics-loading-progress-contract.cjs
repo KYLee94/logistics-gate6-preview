@@ -3,6 +3,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const SOURCE_PATH = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'LogisticsSectorModules.jsx');
+const WORKSPACE_SOURCE_PATH = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'WorkspaceLogistics.jsx');
 
 function extractFunction(source, name) {
   const marker = `function ${name}`;
@@ -98,11 +99,18 @@ function verifyScenario(createTrace, progressForTrace, scenario) {
   if (observed.some((event) => event.completed_steps < 0 || event.completed_steps > event.total_steps)) {
     throw new Error(`${scenario.id}: invalid completed/total step relationship`);
   }
+  if (observed[0]?.progress <= 0) {
+    throw new Error(`${scenario.id}: initial progress must be greater than zero`);
+  }
+  if (observed.some((event, index) => index > 0 && event.progress < observed[index - 1].progress)) {
+    throw new Error(`${scenario.id}: progress must not decrease`);
+  }
   return { id: scenario.id, events: observed };
 }
 
 function main() {
   const source = fs.readFileSync(SOURCE_PATH, 'utf8');
+  const workspaceSource = fs.readFileSync(WORKSPACE_SOURCE_PATH, 'utf8');
   const createTrace = sourceFunction(source, 'createEdgeDataLoadingTrace');
   const progressForTrace = sourceFunction(source, 'edgeDataLoadingProgress');
   const report = {
@@ -126,9 +134,9 @@ function main() {
         { input: { stage: 'ready', attempt: 1, startedAt: 101, finishedAt: 102, hasData: true } },
       ],
       expected: [
-        { stage: 'queued', attempt: 0, completed_steps: 0, total_steps: 1, progress: 0 },
-        { stage: 'loading', attempt: 1, completed_steps: 0, total_steps: 1, progress: 0 },
-        { stage: 'ready', attempt: 1, completed_steps: 1, total_steps: 1, progress: 100 },
+        { stage: 'queued', attempt: 0, completed_steps: 1, total_steps: 4, progress: 25 },
+        { stage: 'loading', attempt: 1, completed_steps: 2, total_steps: 4, progress: 50 },
+        { stage: 'ready', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
       ],
     },
     {
@@ -139,9 +147,9 @@ function main() {
         { input: { stage: 'ready', attempt: 1, startedAt: 21, finishedAt: 22, hasData: true } },
       ],
       expected: [
-        { stage: 'ready', attempt: 1, completed_steps: 1, total_steps: 1, progress: 100 },
-        { stage: 'refreshing', attempt: 1, completed_steps: 1, total_steps: 2, progress: 50 },
-        { stage: 'ready', attempt: 1, completed_steps: 1, total_steps: 1, progress: 100 },
+        { stage: 'ready', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
+        { stage: 'refreshing', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
+        { stage: 'ready', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
       ],
     },
     {
@@ -153,10 +161,10 @@ function main() {
         { input: { stage: 'ready', attempt: 2, startedAt: 31, finishedAt: 32, hasData: true } },
       ],
       expected: [
-        { stage: 'queued', attempt: 0, completed_steps: 0, total_steps: 1, progress: 0 },
-        { stage: 'loading', attempt: 1, completed_steps: 0, total_steps: 1, progress: 0 },
-        { stage: 'retrying', attempt: 2, completed_steps: 1, total_steps: 2, progress: 50 },
-        { stage: 'ready', attempt: 2, completed_steps: 1, total_steps: 1, progress: 100 },
+        { stage: 'queued', attempt: 0, completed_steps: 1, total_steps: 4, progress: 25 },
+        { stage: 'loading', attempt: 1, completed_steps: 2, total_steps: 4, progress: 50 },
+        { stage: 'retrying', attempt: 2, completed_steps: 3, total_steps: 4, progress: 75 },
+        { stage: 'ready', attempt: 2, completed_steps: 4, total_steps: 4, progress: 100 },
       ],
     },
     {
@@ -166,8 +174,8 @@ function main() {
         { input: { stage: 'failed', attempt: 2, startedAt: 41, finishedAt: 42, hasData: true } },
       ],
       expected: [
-        { stage: 'refreshing', attempt: 1, completed_steps: 1, total_steps: 2, progress: 50 },
-        { stage: 'failed', attempt: 2, completed_steps: 1, total_steps: 2, progress: 50 },
+        { stage: 'refreshing', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
+        { stage: 'failed', attempt: 2, completed_steps: 4, total_steps: 4, progress: 100 },
       ],
     },
   ];
@@ -194,9 +202,20 @@ function main() {
       requireMatch(badge, /data-loading-stage=\{loadingStage\}/u, 'loading stage data attribute'),
       requireMatch(badge, /data-loading-completed-steps=\{loadingTrace\?\.completedSteps\}/u, 'completed step data attribute'),
       requireMatch(badge, /data-loading-total-steps=\{loadingTrace\?\.totalSteps\}/u, 'total step data attribute'),
-      requireMatch(badge, /const safeProgress = Math\.max\(0, Math\.min\(100, Math\.round\(Number\(progress\) \|\| 0\)\)\)/u, 'bounded progress display'),
+      requireMatch(badge, /const safeProgress = Math\.max\(1, Math\.min\(100, Math\.round\(Number\(progress\) \|\| 0\)\)\)/u, 'positive bounded progress display'),
       requireMatch(source, /<MarketDataLoadingBadge loading=\{loading\} progress=\{edgeDataLoadingProgress\(loadingTrace\)\}/u, 'trace-derived market progress'),
       requireMatch(source, /<MarketDataLoadingBadge loading progress=\{edgeDataLoadingProgress\(loadingTrace\)\}/u, 'trace-derived approval progress'),
+    ];
+  });
+
+  evaluateCheck(report, 'dashboard-progress-uses-active-request-tracker', 'Dashboard loading reflects active request state without timer-driven 96 percent plateaus or backward resets.', () => {
+    const shell = extractFunction(workspaceSource, 'DashboardShell');
+    if (/setInterval|Math\.min\(96|Math\.min\([^\n]*84/u.test(shell)) {
+      throw new Error('DashboardShell still contains timer-driven or backward progress logic.');
+    }
+    return [
+      requireMatch(shell, /reportModuleLoading/u, 'active module loading tracker'),
+      requireMatch(shell, /activeDashboardLoading/u, 'active dashboard loading state'),
     ];
   });
 

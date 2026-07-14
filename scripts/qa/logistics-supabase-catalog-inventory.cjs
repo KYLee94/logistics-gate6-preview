@@ -116,6 +116,9 @@ function classifyTable(tableName) {
   if (['ll_funds', 'll_fund_asset_links', 'll_fund_capital_tranches'].includes(tableName)) {
     return { group: 'Fund', decision: 'keep', reason: '펀드 master/link/tranche 구조입니다.' };
   }
+  if (['ll_asset_specs', 'll_asset_spec_files', 'll_asset_operating_costs'].includes(tableName)) {
+    return { group: 'Asset Detail', decision: 'keep', reason: '자산 스펙, 평면도 파일, 운영비 입력 기능의 운영 테이블입니다.' };
+  }
   if (['ll_work_items', 'll_board_posts', 'll_weekly_records'].includes(tableName)) {
     return { group: 'Work Platform / Weekly', decision: 'keep', reason: '업무 플랫폼과 weekly 관리 Project 운영 데이터입니다.' };
   }
@@ -124,6 +127,18 @@ function classifyTable(tableName) {
   }
   if (tableName === 'll_cache_entries') {
     return { group: 'Cache / Snapshot', decision: 'keep', reason: '외부 API cache와 dashboard metric cache를 통합한 운영 cache contract입니다.' };
+  }
+  if (['ll_source_files', 'll_source_rows'].includes(tableName)) {
+    return { group: 'Source Lineage', decision: 'keep', reason: '활성 원본 파일과 원본 행을 연결하는 최소 출처 체계입니다.' };
+  }
+  if (tableName.startsWith('ll_sector_market_')) {
+    return { group: 'Market Data', decision: 'keep', reason: '임대, 공급, 거래, Cap Rate 화면의 정규화 시장 데이터입니다.' };
+  }
+  if (['ll_news_items', 'll_notifications'].includes(tableName)) {
+    return { group: 'User Messaging', decision: 'keep', reason: '화면 뉴스와 사용자 알림 상태를 저장하는 운영 데이터입니다.' };
+  }
+  if (tableName === 'll_staff_profiles') {
+    return { group: 'Staff Profile', decision: 'keep', reason: '사용자 이름, 소속, 사진 등 표시용 프로필 데이터입니다.' };
   }
   if (tableName === 'll_schema_metadata') {
     return { group: 'Metadata', decision: 'keep', reason: 'll_* 테이블과 컬럼 역할을 기록하는 schema metadata registry입니다.' };

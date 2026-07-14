@@ -5,12 +5,14 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
+const DEFAULT_IDLE_MS = 120_000;
 const INTERNAL_TOKEN_PATTERN = /\bll_|source_row_id|source_file_id|source_sheet_id|natural_key|row_hash|payload|\bPNU\b|\bpnu\b|asset_[a-z0-9_]+|tenant_brn_/iu;
 const BROKEN_TEXT_PATTERN = /\?{4,}/u;
 const AUTH_SETUP_PATTERN = /auth-setup/iu;
 
 const ROUTES = [
   { key: 'work-platform', route: 'work-platform', selector: '#task-management', minText: 600 },
+  { key: 'work-platform-archive', route: 'work-platform/archive', minText: 300 },
   { key: 'home', route: 'home', minText: 600 },
   { key: 'asset', route: 'asset', minText: 600 },
   { key: 'company', route: 'company', minText: 600 },
@@ -29,6 +31,7 @@ const ROUTES = [
   { key: 'data-management-lease', route: 'data-management/lease-contracts', selector: '[data-data-management-redesign="true"]', minText: 500 },
   { key: 'data-management-managers', route: 'data-management/managers', selector: '[data-data-management-redesign="true"]', minText: 500 },
   { key: 'data-management-quality', route: 'data-management/data-quality', selector: '[data-data-management-redesign="true"]', minText: 300 },
+  { key: 'data-management-approval', route: 'data-management/approval', selector: '[data-data-management-approval-dashboard="true"]', minText: 300 },
   { key: 'contract-data', route: 'contract-data', minText: 300 },
   { key: 'pdf-report', route: 'pdf-report', minText: 300 },
 ];
@@ -97,6 +100,9 @@ async function navigateInApp(page, baseUrl, route, stamp) {
     window.dispatchEvent(new PopStateEvent('popstate'));
     window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { path: window.location.pathname } }));
   }, url);
+  await page.evaluate(() => new Promise((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+  }));
 }
 
 async function signInSession() {
@@ -152,6 +158,184 @@ function visibleLoadingState() {
   });
 }
 
+function assessLoadingSamples(samples, options = {}) {
+  const regressions = [];
+  const badgesWithoutRequests = [];
+  const previousProgress = new Map();
+  for (const sample of Array.isArray(samples) ? samples : []) {
+    const badges = Array.isArray(sample?.badges) ? sample.badges : [];
+    for (const badge of badges) {
+      if (Number(sample?.pending || 0) === 0 && Number(sample?.started || 0) === 0) {
+        badgesWithoutRequests.push({ id: badge.id, progress: badge.progress, reason: sample.reason || '' });
+      }
+      if (Number(sample?.pending || 0) <= 0 || !Number.isFinite(Number(badge.progress))) continue;
+      const key = `${Number(sample?.wave || 0)}:${badge.id}`;
+      const current = Number(badge.progress);
+      const previous = previousProgress.get(key);
+      if (Number.isFinite(previous) && current < previous) {
+        regressions.push({ id: badge.id, wave: Number(sample?.wave || 0), from: previous, to: current });
+      }
+      previousProgress.set(key, current);
+    }
+  }
+  const finalPending = Number(options.finalPending || 0);
+  const retainedBadges = options.settled === false && finalPending === 0 && Array.isArray(options.finalBadges)
+    ? options.finalBadges.map((badge) => ({ id: badge.id, progress: badge.progress }))
+    : [];
+  const unique = (items) => [...new Map(items.map((item) => [JSON.stringify(item), item])).values()];
+  const result = {
+    sample_count: Array.isArray(samples) ? samples.length : 0,
+    regressions: unique(regressions),
+    badges_without_requests: unique(badgesWithoutRequests),
+    retained_badges: unique(retainedBadges),
+    pending_requests_at_timeout: options.settled === false ? finalPending : 0,
+  };
+  result.ok = result.regressions.length === 0
+    && result.badges_without_requests.length === 0
+    && result.retained_badges.length === 0
+    && result.pending_requests_at_timeout === 0;
+  return result;
+}
+
+async function installLoadingRequestProbe(context) {
+  await context.addInitScript(() => {
+    const state = {
+      operation_id: '',
+      pending: 0,
+      started: 0,
+      finished: 0,
+      failed: 0,
+      wave: 0,
+      samples: [],
+      last_fingerprint: '',
+    };
+    const trackedUrl = (value) => String(value?.url || value || '').includes('/functions/v1/ll-dashboard-api');
+    const visibleBadges = () => [...document.querySelectorAll('[data-loading-progress="true"]')]
+      .filter((node) => {
+        const style = window.getComputedStyle(node);
+        const rect = node.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0 && rect.width > 1 && rect.height > 1;
+      })
+      .map((node, index) => {
+        const match = String(node.textContent || '').match(/(\d{1,3})\s*%/u);
+        return {
+          id: node.getAttribute('data-testid')
+            || (node.hasAttribute('data-dashboard-loading-progress') ? 'dashboard-loading-progress' : `loading-progress-${index + 1}`),
+          progress: match ? Number(match[1]) : null,
+          stage: node.getAttribute('data-loading-stage') || '',
+        };
+      });
+    const capture = (reason) => {
+      const badges = visibleBadges();
+      const fingerprint = JSON.stringify([state.operation_id, state.pending, state.started, state.finished, state.failed, state.wave, badges]);
+      if (fingerprint === state.last_fingerprint) return;
+      state.last_fingerprint = fingerprint;
+      state.samples.push({
+        reason,
+        pending: state.pending,
+        started: state.started,
+        finished: state.finished,
+        failed: state.failed,
+        wave: state.wave,
+        badges,
+      });
+      if (state.samples.length > 2000) state.samples.shift();
+    };
+    const requestStarted = () => {
+      if (state.pending === 0) state.wave += 1;
+      state.pending += 1;
+      state.started += 1;
+      capture('request-start');
+    };
+    const requestEnded = (failed = false) => {
+      state.pending = Math.max(0, state.pending - 1);
+      state.finished += 1;
+      if (failed) state.failed += 1;
+      capture('request-end');
+    };
+    const beginOperation = (operationId) => {
+      state.operation_id = String(operationId || '');
+      state.started = 0;
+      state.finished = 0;
+      state.failed = 0;
+      state.wave = state.pending > 0 ? 1 : 0;
+      state.samples = [];
+      state.last_fingerprint = '';
+      capture('operation-start');
+    };
+    const snapshot = (reason = 'snapshot') => {
+      capture(reason);
+      return {
+        operation_id: state.operation_id,
+        pending: state.pending,
+        started: state.started,
+        finished: state.finished,
+        failed: state.failed,
+        wave: state.wave,
+        badges: visibleBadges(),
+        samples: state.samples.slice(),
+      };
+    };
+    window.__LOGISTICS_LOADING_QA__ = { state, beginOperation, capture, snapshot };
+
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = (...args) => {
+      if (!trackedUrl(args[0])) return nativeFetch(...args);
+      requestStarted();
+      return nativeFetch(...args).then(
+        (response) => {
+          requestEnded(false);
+          return response;
+        },
+        (error) => {
+          requestEnded(true);
+          throw error;
+        },
+      );
+    };
+
+    const nativeOpen = window.XMLHttpRequest.prototype.open;
+    const nativeSend = window.XMLHttpRequest.prototype.send;
+    window.XMLHttpRequest.prototype.open = function open(method, url, ...rest) {
+      this.__logisticsLoadingQaTracked = trackedUrl(url);
+      return nativeOpen.call(this, method, url, ...rest);
+    };
+    window.XMLHttpRequest.prototype.send = function send(...args) {
+      if (!this.__logisticsLoadingQaTracked) return nativeSend.apply(this, args);
+      requestStarted();
+      this.addEventListener('loadend', () => requestEnded(this.status === 0), { once: true });
+      return nativeSend.apply(this, args);
+    };
+
+    const observe = () => {
+      if (!document.documentElement) return;
+      new MutationObserver(() => capture('dom-mutation')).observe(document.documentElement, {
+        attributes: true,
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+      capture('observer-ready');
+    };
+    if (document.documentElement) observe();
+    else window.addEventListener('DOMContentLoaded', observe, { once: true });
+  });
+}
+
+async function beginLoadingOperation(page, operationId) {
+  await page.evaluate((id) => {
+    if (!window.__LOGISTICS_LOADING_QA__) throw new Error('Loading request probe is unavailable.');
+    window.__LOGISTICS_LOADING_QA__.beginOperation(id);
+  }, operationId);
+}
+
+async function loadingOperationSnapshot(page, reason) {
+  return page.evaluate((captureReason) => {
+    if (!window.__LOGISTICS_LOADING_QA__) throw new Error('Loading request probe is unavailable.');
+    return window.__LOGISTICS_LOADING_QA__.snapshot(captureReason);
+  }, reason);
+}
+
 async function waitForRouteReady(page, probe) {
   await page.waitForFunction(({ selector, minText }) => {
     const body = document.body?.innerText || '';
@@ -160,7 +344,6 @@ async function waitForRouteReady(page, probe) {
     if (selector && !document.querySelector(selector)) return false;
     return true;
   }, { selector: probe.selector || '', minText: probe.minText || 300 }, { timeout: 45000 });
-  await page.waitForFunction(visibleLoadingState, undefined, { timeout: 2500 }).catch(() => null);
   await page.waitForFunction(() => {
     const loadingText = /(\ubd88\ub7ec\uc624\ub294 \uc911|\ub85c\ub529|Loading)/iu;
     const nodes = [...document.body.querySelectorAll('div, span, p, td, th, button')].slice(0, 2500);
@@ -173,7 +356,11 @@ async function waitForRouteReady(page, probe) {
       const rect = node.getBoundingClientRect();
       return rect.width > 1 && rect.height > 1;
     });
-  }, undefined, { timeout: 15000 }).catch(() => null);
+  }, undefined, { timeout: 15000 });
+  await page.waitForFunction(() => {
+    const probeState = window.__LOGISTICS_LOADING_QA__?.snapshot('settle-check');
+    return Boolean(probeState && probeState.pending === 0 && probeState.badges.length === 0);
+  }, undefined, { timeout: 15000 });
 }
 
 async function collectRouteState(page, probe, elapsedMs) {
@@ -258,42 +445,93 @@ async function waitForAction(page, action, trigger, timeout = 30000) {
   await trigger();
   const response = await responsePromise;
   const body = response ? await response.json().catch(() => null) : null;
-  return { matched: Boolean(response), status: response?.status() || null, ok: Boolean(response) && response.status() < 400 && body?.ok !== false };
+  const status = response?.status() || null;
+  const failureType = !response
+    ? 'response-not-observed'
+    : ([401, 403].includes(status) ? 'auth' : (status >= 500 ? 'server' : (status >= 400 ? 'client' : (body?.ok === false ? 'application' : ''))));
+  return {
+    matched: Boolean(response),
+    status,
+    failure_type: failureType || null,
+    ok: Boolean(response) && status < 400 && body?.ok !== false,
+  };
+}
+
+async function checkPopupLifecycle({ button, popup, action, close }) {
+  if (!await button.isVisible().catch(() => false)) {
+    return { ok: false, opened: false, closed: false, reopened: false, reclosed: false, problem: 'popup trigger not visible' };
+  }
+  try {
+    const firstAction = await waitForAction(button.page(), action, () => button.click());
+    await popup.waitFor({ state: 'visible', timeout: 15000 });
+    const opened = true;
+    await close();
+    await popup.waitFor({ state: 'hidden', timeout: 15000 });
+    const closed = true;
+    const secondAction = await waitForAction(button.page(), action, () => button.click());
+    await popup.waitFor({ state: 'visible', timeout: 15000 });
+    const reopened = true;
+    await close();
+    await popup.waitFor({ state: 'hidden', timeout: 15000 });
+    const reclosed = true;
+    return {
+      ...firstAction,
+      visible: opened,
+      opened,
+      closed,
+      reopened,
+      reclosed,
+      first_action: firstAction,
+      second_action: secondAction,
+      ok: firstAction.ok && secondAction.ok && opened && closed && reopened && reclosed,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      opened: false,
+      closed: false,
+      reopened: false,
+      reclosed: false,
+      problem: error?.message || String(error),
+    };
+  }
 }
 
 async function checkSystemModals(page, report) {
-  const modalChecks = {};
   const featureButton = page.getByTestId('logistics-feature-access-button');
-  if (await featureButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-    const result = await waitForAction(page, 'feature-access/get', () => featureButton.click());
-    const visible = await page.getByTestId('logistics-feature-access-modal').isVisible({ timeout: 15000 }).catch(() => false);
-    modalChecks.feature_access = { ...result, visible, ok: result.ok && visible };
-    await page.getByTestId('logistics-feature-access-close').click().catch(() => {});
-  } else {
-    modalChecks.feature_access = { ok: false, visible: false, problem: 'feature access button not visible' };
-  }
-
+  const featurePopup = page.getByTestId('logistics-feature-access-modal');
   const loginButton = page.getByTestId('logistics-login-history-button');
-  if (await loginButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-    const result = await waitForAction(page, 'auth/login-history/list', () => loginButton.click());
-    const visible = await page.getByTestId('logistics-login-history-modal').isVisible({ timeout: 15000 }).catch(() => false);
-    modalChecks.login_history = { ...result, visible, ok: result.ok && visible };
-    await page.getByTestId('logistics-login-history-close').click().catch(() => {});
-  } else {
-    modalChecks.login_history = { ok: false, visible: false, problem: 'login history button not visible' };
-  }
-
+  const loginPopup = page.getByTestId('logistics-login-history-modal');
   const notificationButton = page.getByTestId('logistics-notification-button');
-  if (await notificationButton.isVisible({ timeout: 5000 }).catch(() => false)) {
-    const result = await waitForAction(page, 'notifications/list', () => notificationButton.click());
-    const visible = await page.getByTestId('logistics-notification-panel').isVisible({ timeout: 15000 }).catch(() => false);
-    modalChecks.notifications = { ...result, visible, ok: result.ok && visible };
-    await page.keyboard.press('Escape').catch(() => {});
-    await page.mouse.click(20, 20).catch(() => {});
-  } else {
-    modalChecks.notifications = { ok: false, visible: false, problem: 'notification button not visible' };
-  }
-  report.modal_checks = modalChecks;
+  const notificationPopup = page.getByTestId('logistics-notification-panel');
+  report.modal_checks = {
+    feature_access: await checkPopupLifecycle({
+      button: featureButton,
+      popup: featurePopup,
+      action: 'feature-access/get',
+      close: () => page.getByTestId('logistics-feature-access-close').click(),
+    }),
+    login_history: await checkPopupLifecycle({
+      button: loginButton,
+      popup: loginPopup,
+      action: 'auth/login-history/list',
+      close: () => page.getByTestId('logistics-login-history-close').click(),
+    }),
+    notifications: await checkPopupLifecycle({
+      button: notificationButton,
+      popup: notificationPopup,
+      action: 'notifications/list',
+      close: () => notificationButton.click(),
+    }),
+  };
+}
+
+async function waitForDuration(page, durationMs) {
+  const deadline = Date.now() + durationMs;
+  await page.waitForFunction((target) => Date.now() >= target, deadline, {
+    timeout: durationMs + 10000,
+    polling: Math.min(1000, Math.max(50, durationMs)),
+  });
 }
 
 async function checkIdleReturnAndTabSwitch(page, context, baseUrl, stamp, idleMs) {
@@ -301,32 +539,64 @@ async function checkIdleReturnAndTabSwitch(page, context, baseUrl, stamp, idleMs
   const lease = ROUTES.find((probe) => probe.key === 'market-lease');
   if (!overview || !lease) throw new Error('Market tab probes are not configured.');
 
+  await beginLoadingOperation(page, `${stamp}-idle-prime`);
   await navigateInApp(page, baseUrl, overview.route, `${stamp}-idle-before`);
   await waitForRouteReady(page, overview);
+  const primeSnapshot = await loadingOperationSnapshot(page, 'idle-prime-complete');
+  const primeProgressAudit = assessLoadingSamples(primeSnapshot.samples, {
+    settled: true,
+    finalBadges: primeSnapshot.badges,
+    finalPending: primeSnapshot.pending,
+  });
   const background = await context.newPage();
   try {
     await background.goto('about:blank');
     await background.bringToFront();
-    await page.waitForTimeout(idleMs);
+    await waitForDuration(background, idleMs);
 
+    await beginLoadingOperation(page, `${stamp}-idle-return`);
     const idleReturnStartedAt = Date.now();
     await page.bringToFront();
     await waitForRouteReady(page, overview);
     const idleReturn = await collectRouteState(page, overview, Date.now() - idleReturnStartedAt);
+    const idleSnapshot = await loadingOperationSnapshot(page, 'idle-return-complete');
+    idleReturn.progress_audit = assessLoadingSamples(idleSnapshot.samples, {
+      settled: true,
+      finalBadges: idleSnapshot.badges,
+      finalPending: idleSnapshot.pending,
+    });
+    idleReturn.ok = idleReturn.ok && idleReturn.progress_audit.ok;
 
+    await beginLoadingOperation(page, `${stamp}-tab-reswitch`);
     const tabSwitchStartedAt = Date.now();
     await navigateInApp(page, baseUrl, lease.route, `${stamp}-tab-return`);
     await waitForRouteReady(page, lease);
     const tabSwitch = await collectRouteState(page, lease, Date.now() - tabSwitchStartedAt);
+    const tabSnapshot = await loadingOperationSnapshot(page, 'tab-reswitch-complete');
+    tabSwitch.progress_audit = assessLoadingSamples(tabSnapshot.samples, {
+      settled: true,
+      finalBadges: tabSnapshot.badges,
+      finalPending: tabSnapshot.pending,
+    });
+    tabSwitch.ok = tabSwitch.ok && tabSwitch.progress_audit.ok;
 
     return {
       idle_ms: idleMs,
+      prime_progress_audit: primeProgressAudit,
       idle_return: idleReturn,
       tab_reswitch: tabSwitch,
-      ok: idleReturn.ok && tabSwitch.ok,
+      ok: primeProgressAudit.ok && idleReturn.ok && tabSwitch.ok,
     };
   } finally {
     await background.close().catch(() => {});
+  }
+}
+
+function edgeAction(response) {
+  try {
+    return JSON.parse(response.request().postData() || '{}')?.action || 'unknown-action';
+  } catch {
+    return 'unknown-action';
   }
 }
 
@@ -338,7 +608,7 @@ async function main() {
   const screenshotPath = path.join(OUT_DIR, `full-app-loading-stability-${stamp}.png`);
   const baseUrl = argValue('base-url', DEFAULT_BASE_URL);
   const cycles = numberArg('cycles', 50);
-  const idleMs = numberArg('idle-ms', 3000);
+  const idleMs = numberArg('idle-ms', DEFAULT_IDLE_MS);
   const auth = await signInSession();
   const uiEmail = argValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || auth.email || 'kylee@igisam.com');
   const browserSession = { ...auth.session, user: { ...(auth.session.user || {}), email: uiEmail } };
@@ -355,6 +625,9 @@ async function main() {
     routes: [],
     idle_return: null,
     modal_checks: {},
+    progress_audit: null,
+    auth_errors: [],
+    server_errors: [],
     errors: [],
     warnings: [],
     screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
@@ -363,6 +636,7 @@ async function main() {
   try {
     browser = await chromium.launch({ headless: true, executablePath: chromeExecutablePath() });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    await installLoadingRequestProbe(context);
     await context.addInitScript(({ email, session }) => {
       sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(session));
       sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email }));
@@ -386,8 +660,11 @@ async function main() {
       if (response.status() === 404) {
         report.warnings.push(`resource 404 while_at=${page.url()} resource=${response.url()}`.slice(0, 1200));
       }
-      if (response.url().includes('/functions/v1/ll-dashboard-api') && [401, 403, 500, 502, 503, 504].includes(response.status())) {
-        report.errors.push(`edge ${response.status()} ${response.request().postData() || response.url()}`.slice(0, 900));
+      if (response.url().includes('/functions/v1/ll-dashboard-api') && [401, 403].includes(response.status())) {
+        report.auth_errors.push(`edge ${response.status()} action=${edgeAction(response)}`);
+      }
+      if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 500) {
+        report.server_errors.push(`edge ${response.status()} action=${edgeAction(response)}`);
       }
     });
 
@@ -398,10 +675,18 @@ async function main() {
       const probe = ROUTES[cycle % ROUTES.length];
       const startedAt = Date.now();
       try {
+        await beginLoadingOperation(page, `route-${cycle + 1}-${probe.key}`);
         await navigateInApp(page, baseUrl, probe.route, `${stamp}-${cycle + 1}`);
         await waitForRouteReady(page, probe);
         const row = await collectRouteState(page, probe, Date.now() - startedAt);
+        const loadingSnapshot = await loadingOperationSnapshot(page, 'route-complete');
+        row.progress_audit = assessLoadingSamples(loadingSnapshot.samples, {
+          settled: true,
+          finalBadges: loadingSnapshot.badges,
+          finalPending: loadingSnapshot.pending,
+        });
         row.cycle = cycle + 1;
+        row.ok = row.ok && row.progress_audit.ok;
         report.routes.push(row);
       } catch (error) {
         const row = await collectRouteState(page, probe, Date.now() - startedAt).catch(() => ({
@@ -412,6 +697,12 @@ async function main() {
           url: page.url(),
           problem: error?.message || String(error),
         }));
+        const loadingSnapshot = await loadingOperationSnapshot(page, 'route-failed').catch(() => ({ samples: [], badges: [] }));
+        row.progress_audit = assessLoadingSamples(loadingSnapshot.samples, {
+          settled: false,
+          finalBadges: loadingSnapshot.badges,
+          finalPending: loadingSnapshot.pending,
+        });
         row.cycle = cycle + 1;
         row.ok = false;
         row.problem = row.problem || error?.message || String(error);
@@ -432,18 +723,41 @@ async function main() {
   }
 
   const elapsedValues = report.routes.map((row) => row.elapsed_ms).filter((value) => Number.isFinite(value));
+  const progressRecords = [
+    ...report.routes.map((row) => ({ cycle: row.cycle, route: row.route, audit: row.progress_audit })),
+    { route: 'idle-prime', audit: report.idle_return?.prime_progress_audit },
+    { route: 'idle-return', audit: report.idle_return?.idle_return?.progress_audit },
+    { route: 'tab-reswitch', audit: report.idle_return?.tab_reswitch?.progress_audit },
+  ].filter((row) => row.audit);
+  const progressRows = progressRecords.map((row) => row.audit);
+  report.progress_audit = {
+    ok: progressRecords.length === report.routes.length + 3 && progressRows.every((audit) => audit.ok),
+    regressions: progressRecords.flatMap((row) => (row.audit.regressions || []).map((item) => ({ cycle: row.cycle, route: row.route, ...item }))),
+    badges_without_requests: progressRecords.flatMap((row) => (row.audit.badges_without_requests || []).map((item) => ({ cycle: row.cycle, route: row.route, ...item }))),
+    retained_badges: progressRecords.flatMap((row) => (row.audit.retained_badges || []).map((item) => ({ cycle: row.cycle, route: row.route, ...item }))),
+    pending_requests_at_timeout: progressRecords.reduce((sum, row) => sum + Number(row.audit.pending_requests_at_timeout || 0), 0),
+  };
   report.summary = {
     failed_routes: report.routes.filter((row) => !row.ok).length,
     idle_return_ok: report.idle_return?.ok === true,
     failed_modals: Object.values(report.modal_checks || {}).filter((row) => !row.ok).length,
+    failed_progress_operations: progressRows.filter((row) => !row.ok).length,
     max_elapsed_ms: elapsedValues.length ? Math.max(...elapsedValues) : null,
     avg_elapsed_ms: elapsedValues.length ? Math.round(elapsedValues.reduce((sum, value) => sum + value, 0) / elapsedValues.length) : null,
   };
   report.warnings = Array.from(new Set(report.warnings));
-  report.ok = report.routes.length >= cycles
+  const popupChecks = Object.values(report.modal_checks || {});
+  report.ok = ROUTES.length === 23
+    && cycles >= 50
+    && idleMs >= DEFAULT_IDLE_MS
+    && report.routes.length >= cycles
     && report.routes.every((row) => row.ok)
     && report.idle_return?.ok === true
-    && Object.values(report.modal_checks || {}).every((row) => row.ok)
+    && popupChecks.length === 3
+    && popupChecks.every((row) => row.ok)
+    && report.progress_audit.ok
+    && report.auth_errors.length === 0
+    && report.server_errors.length === 0
     && report.errors.length === 0
     && /^https:\/\/kylee94\.github\.io\/logistics-gate6-preview\/?/iu.test(baseUrl);
 

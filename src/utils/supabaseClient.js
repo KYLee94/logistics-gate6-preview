@@ -1,10 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
 
-export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://dummy-url.supabase.co';
-export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'dummy-key';
+const viteEnv = import.meta.env || {};
+const AUTH_FETCH_TIMEOUT_MS = 5000;
+const FUNCTION_FETCH_TIMEOUT_MS = 45000;
+const DEFAULT_FETCH_TIMEOUT_MS = 15000;
+
+export const supabaseUrl = viteEnv.VITE_SUPABASE_URL || 'https://dummy-url.supabase.co';
+export const supabaseAnonKey = viteEnv.VITE_SUPABASE_ANON_KEY || 'dummy-key';
 
 let supabaseInstance;
 let functionAuthRetryPromise = null;
+
+function withPromiseDeadline(promise, timeoutMs, label) {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+            const error = new Error(`${label} timed out after ${timeoutMs}ms`);
+            error.name = 'SupabaseAuthTimeoutError';
+            error.status = 408;
+            reject(error);
+        }, timeoutMs);
+    });
+    return Promise.race([Promise.resolve(promise), timeoutPromise])
+        .finally(() => clearTimeout(timeoutId));
+}
 
 if (!window.__SUPABASE_CLIENT__) {
     const customFetch = async (url, options = {}) => {
@@ -13,27 +32,34 @@ if (!window.__SUPABASE_CLIENT__) {
         const isFunctionRequest = requestUrl.includes('/functions/v1/');
         const controller = new AbortController();
         let timeoutId;
+        let externalAbortListener;
 
-        // Keep auth requests unbounded so token refresh is not aborted after the tab is idle.
-        // Edge Functions can cold-start after idle, so they need a longer request window.
-        if (!isAuthRequest && !options.signal) {
+        if (!options.signal) {
+            const timeoutMs = isAuthRequest
+                ? AUTH_FETCH_TIMEOUT_MS
+                : (isFunctionRequest ? FUNCTION_FETCH_TIMEOUT_MS : DEFAULT_FETCH_TIMEOUT_MS);
             timeoutId = setTimeout(() => {
                 console.warn(`Supabase fetch timeout exceeded for url: ${requestUrl}`);
-                controller.abort();
-            }, isFunctionRequest ? 45000 : 15000);
+                controller.abort(new Error(`Supabase fetch timed out after ${timeoutMs}ms`));
+            }, timeoutMs);
         }
 
         if (options && options.signal) {
-            if (options.signal.aborted) controller.abort();
-            else options.signal.addEventListener('abort', () => controller.abort(), { once: true });
+            externalAbortListener = () => controller.abort(options.signal.reason);
+            if (options.signal.aborted) externalAbortListener();
+            else options.signal.addEventListener('abort', externalAbortListener, { once: true });
         }
 
         return fetch(url, { ...options, signal: controller.signal })
             .then(async (response) => {
-                if (!isAuthRequest && isFunctionRequest && (response.status === 401 || response.status === 403)) {
+                if (!isAuthRequest && isFunctionRequest && response.status === 401) {
                     try {
                         if (!functionAuthRetryPromise) {
-                            functionAuthRetryPromise = window.__SUPABASE_CLIENT__?.auth?.refreshSession?.()
+                            functionAuthRetryPromise = withPromiseDeadline(
+                                window.__SUPABASE_CLIENT__?.auth?.refreshSession?.(),
+                                AUTH_FETCH_TIMEOUT_MS,
+                                'supabase.auth.refreshSession',
+                            )
                                 .finally(() => {
                                     functionAuthRetryPromise = null;
                                 });
@@ -53,6 +79,7 @@ if (!window.__SUPABASE_CLIENT__) {
             })
             .finally(() => {
                 if (timeoutId) clearTimeout(timeoutId);
+                if (externalAbortListener) options.signal?.removeEventListener('abort', externalAbortListener);
             });
     };
 

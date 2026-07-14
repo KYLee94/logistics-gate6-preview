@@ -740,6 +740,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const [notificationsError, setNotificationsError] = useState('');
     const [notifications, setNotifications] = useState(() => readCachedNotifications());
     const notificationsRef = useRef(notifications);
+    const loadNotificationsRef = useRef(null);
     const [readNotificationIds, setReadNotificationIds] = useState([]);
     const [, setDismissedNotificationIds] = useState([]);
     const [newPassword, setNewPassword] = useState('');
@@ -882,7 +883,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             return next;
         });
     }, [notificationStorageKey]);
-    const invalidateNotificationCaches = () => {
+    const invalidateNotificationCaches = useCallback(() => {
         try {
             localStorage.removeItem(LOGISTICS_NOTIFICATION_CACHE_KEY);
             localStorage.removeItem(notificationStorageKey);
@@ -892,11 +893,14 @@ export default function IotaLeftNav({ currentPath = '' }) {
         }
         setReadNotificationIds([]);
         setDismissedNotificationIds([]);
-    };
-    const refreshNotificationsFromServer = async () => {
+    }, [notificationDismissedStorageKey, notificationStorageKey]);
+    const refreshNotificationsFromServer = useCallback(async () => {
         invalidateNotificationCaches();
-        await loadNotifications({ markRead: false, silent: true, forceServer: true });
-    };
+        const loadNotifications = loadNotificationsRef.current;
+        if (loadNotifications) {
+            await loadNotifications({ markRead: false, silent: true, forceServer: true });
+        }
+    }, [invalidateNotificationCaches]);
     const markNotificationsRead = useCallback(async (rows = notificationsRef.current) => {
         const ids = rows.map((item) => item.id).filter(Boolean);
         if (!ids.length) return;
@@ -913,7 +917,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         persistReadNotificationIds((current) => [...current, ...ids]);
         await refreshNotificationsFromServer();
         window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-mark-read' } }));
-    }, [persistReadNotificationIds]);
+    }, [persistReadNotificationIds, refreshNotificationsFromServer]);
     const markAllNotificationsRead = async () => {
         const rows = notifications;
         const ids = rows.map((item) => item.id).filter(Boolean);
@@ -1014,6 +1018,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             setNotificationsLoading(false);
         }
     }, [markNotificationsRead, notificationDismissedStorageKey, persistReadNotificationIds]);
+    loadNotificationsRef.current = loadNotifications;
     const openNotificationsPanel = async (event) => {
         event?.stopPropagation();
         setShowProfileMenu(false);
@@ -1050,7 +1055,6 @@ export default function IotaLeftNav({ currentPath = '' }) {
         window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { source: 'notifications-dismiss' } }));
     };
     const dismissAllNotifications = async () => {
-        const ids = notifications.map((item) => item.id).filter(Boolean);
         const canonicalIds = notifications.filter((item) => item.canonical).map((item) => item.id);
         const previousNotifications = notifications;
         const previousReadIds = readNotificationIds;

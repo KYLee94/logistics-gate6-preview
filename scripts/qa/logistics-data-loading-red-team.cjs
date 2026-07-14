@@ -125,12 +125,13 @@ function main() {
     return { version, commit, retryAbort };
   });
 
-  evaluateCheck(report, 'stale-dashboard-response-rejected', 'Superseded dashboard reads are discarded and explicitly reloaded instead of being treated as current data.', () => {
+  evaluateCheck(report, 'stale-dashboard-response-rejected', 'Only an inflight read whose startedAt exceeds the stale threshold is superseded, and its late response is discarded.', () => {
     return requireOrdered(dashboardBridge, [
-      ['supersede stale inflight', /if \(staleInflight\) staleInflight\.superseded = true;/u],
-      ['remove stale inflight entry', /DASHBOARD_READ_INFLIGHT\.delete\(cacheKey\);/u],
-      ['ignore superseded response', /if \(inflight\.superseded\)\s*\{/u],
-      ['request a replacement read', /setRefreshNonce\(\(value\) => value \+ 1\);/u],
+      ['read current inflight', /const staleInflight = DASHBOARD_READ_INFLIGHT\.get\(cacheKey\);/u],
+      ['check startedAt staleness', /if \(isDashboardReadInflightStale\(staleInflight\)\)/u],
+      ['supersede stale inflight', /staleInflight\.superseded = true;/u],
+      ['remove only matching inflight entry', /if \(DASHBOARD_READ_INFLIGHT\.get\(cacheKey\) === staleInflight\) DASHBOARD_READ_INFLIGHT\.delete\(cacheKey\);/u],
+      ['ignore superseded response', /if \(inflight\.superseded\) return;/u],
     ], 'dashboard stale response contract');
   });
 
@@ -142,26 +143,29 @@ function main() {
   });
 
   evaluateCheck(report, 'visibility-hidden-does-not-refresh', 'Focus and visibility events are ignored while the document is hidden.', () => {
-    const notifyGuard = requireMatch(edgeListeners, /const notify = \(\) => \{\s*if \(document\.visibilityState && document\.visibilityState !== 'visible'\) return;/u, 'immediate refresh visibility guard');
+    const notifyGuard = requireMatch(edgeListeners, /const notify = \(event\) => \{\s*if \(document\.visibilityState && document\.visibilityState !== 'visible'\) return;/u, 'immediate refresh visibility guard');
     const activityGuard = requireMatch(edgeListeners, /const notifyAfterActivity = \(\) => \{\s*if \(document\.visibilityState && document\.visibilityState !== 'visible'\) return;/u, 'activity refresh visibility guard');
     return { notifyGuard, activityGuard };
   });
 
-  evaluateCheck(report, 'idle-return-and-visibility-subscriptions', 'A visible tab return can notify subscribers after focus, online, navigation, explicit refresh, or visibility change.', () => {
-    return requireOrdered(edgeListeners, [
+  evaluateCheck(report, 'idle-return-and-visibility-subscriptions', 'A visible tab return can notify active subscribers after focus, online, explicit refresh, or visibility change without route-wide fan-out.', () => {
+    const evidence = requireOrdered(edgeListeners, [
       ['focus listener', "window.addEventListener('focus', notifyAfterActivity);"],
       ['online listener', "window.addEventListener('online', notify);"],
-      ['navigation listener', "window.addEventListener('popstate', notify);"],
       ['explicit refresh listener', "window.addEventListener('logistics-data-refresh', notify);"],
       ['visibility listener', "document.addEventListener('visibilitychange', notifyAfterActivity);"],
     ], 'edge activity listener contract');
+    if (/addEventListener\('popstate'/u.test(edgeListeners)) throw new Error('Route navigation must not fan out refreshes to every edge subscriber.');
+    return evidence;
   });
 
-  evaluateCheck(report, 'dashboard-visibility-return-revalidates-stale-data', 'Dashboard reads revalidate on a visible return only when blocked, absent, or older than the revalidation threshold.', () => {
+  evaluateCheck(report, 'dashboard-visibility-return-revalidates-stale-data', 'Dashboard reads coalesce visible-return recovery and restart only missing or stale loading requests.', () => {
     const visibleGuard = requireMatch(dashboardBridge, /if \(document\.visibilityState && document\.visibilityState !== 'visible'\) return;/u, 'dashboard visibility guard');
-    const staleDecision = requireMatch(dashboardBridge, /if \(current\?\.status === 'blocked' \|\| !current\?\.payload \|\| stale\)\s*\{/u, 'dashboard stale decision');
+    const staleDecision = requireMatch(dashboardBridge, /const staleLoading = current\?\.status === 'loading'[\s\S]{0,160}isDashboardReadInflightStale\(inflight, now\)/u, 'dashboard stale loading decision');
+    const freshLoadingGuard = requireMatch(dashboardBridge, /if \(current\?\.status === 'loading' && !staleLoading\) return;/u, 'fresh loading guard');
+    const restartLock = requireMatch(dashboardBridge, /isDashboardLifecycleRefreshLocked\(lifecycleRefreshLockRef\.current, cacheKey, now\)/u, 'single restart lock');
     const listener = requireMatch(dashboardBridge, /document\.addEventListener\('visibilitychange', refreshIfNeeded\);/u, 'dashboard visibility listener');
-    return { visibleGuard, staleDecision, listener };
+    return { visibleGuard, staleDecision, freshLoadingGuard, restartLock, listener };
   });
 
   report.ok = report.checks.every((check) => check.ok);

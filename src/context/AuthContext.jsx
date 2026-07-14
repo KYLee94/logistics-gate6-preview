@@ -9,6 +9,14 @@ const AUTH_INITIALIZATION_WARNING_MS = 15 * 1000;
 const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
 const LOGISTICS_LOCAL_AUTH_KEY = 'logistics_preview_auth';
 
+const deferAuthStateWork = (work) => {
+    window.setTimeout(() => {
+        void Promise.resolve()
+            .then(work)
+            .catch((error) => console.warn('Deferred auth state work failed:', error?.message || error));
+    }, 0);
+};
+
 const canonicalLogisticsEmail = (email) => {
     const normalized = String(email || '').trim().toLowerCase();
     return LOGISTICS_EMAIL_ALIASES[normalized] || normalized;
@@ -91,10 +99,10 @@ export function AuthProvider({ children }) {
         }
     };
 
-    const fetchMemberInfo = async (sessionEmail) => {
+    const fetchMemberInfo = async (sessionEmail, shouldCommit = () => true) => {
         const normalizedEmail = String(sessionEmail || '').trim().toLowerCase();
         if (!normalizedEmail) {
-            setMemberInfo(null);
+            if (shouldCommit()) setMemberInfo(null);
             return false;
         }
 
@@ -104,15 +112,15 @@ export function AuthProvider({ children }) {
             const remoteUser = data?.data || data?.user || null;
             if (error || data?.ok === false || !remoteUser) {
                 console.warn('Logistics auth profile unavailable:', error?.message || data?.error || 'empty profile');
-                setMemberInfo(null);
+                if (shouldCommit()) setMemberInfo(null);
                 return false;
             }
 
-            setMemberInfo(normalizeMemberInfo(remoteUser, normalizedEmail));
+            if (shouldCommit()) setMemberInfo(normalizeMemberInfo(remoteUser, normalizedEmail));
             return true;
         } catch (error) {
             console.warn('Failed to fetch logistics auth profile:', error?.message || error);
-            setMemberInfo(null);
+            if (shouldCommit()) setMemberInfo(null);
             return false;
         }
     };
@@ -130,6 +138,7 @@ export function AuthProvider({ children }) {
     useEffect(() => {
         let subscription;
         let mounted = true;
+        let authStateVersion = 0;
 
         const initializeAuth = async () => {
             let timeoutId;
@@ -181,7 +190,9 @@ export function AuthProvider({ children }) {
                 clearTimeout(timeoutId);
                 if (mounted) setLoading(false);
 
-                const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
+                const { data } = supabase.auth.onAuthStateChange((event, session) => {
+                    const currentVersion = authStateVersion + 1;
+                    authStateVersion = currentVersion;
                     const recoveryEventActive = event === 'PASSWORD_RECOVERY'
                         || (Boolean(session?.user) && (recoveryModeRef.current || isPasswordRecoveryLocation()));
 
@@ -197,15 +208,21 @@ export function AuthProvider({ children }) {
 
                     if (session?.user) {
                         setUser(session.user);
-                        const ok = await fetchMemberInfo(session.user.email);
-                        if (!ok) {
-                            setMemberInfo((current) => current || normalizeMemberInfo({ email: session.user.email }, session.user.email));
-                        }
+                        setMemberInfo((current) => current || normalizeMemberInfo({ email: session.user.email }, session.user.email));
+                        setLoading(false);
+                        deferAuthStateWork(async () => {
+                            const isCurrent = () => mounted && authStateVersion === currentVersion;
+                            if (!isCurrent()) return;
+                            const ok = await fetchMemberInfo(session.user.email, isCurrent);
+                            if (isCurrent() && !ok) {
+                                setMemberInfo((current) => current || normalizeMemberInfo({ email: session.user.email }, session.user.email));
+                            }
+                        });
                     } else {
                         setUser(null);
                         setMemberInfo(null);
+                        setLoading(false);
                     }
-                    setLoading(false);
                 });
 
                 subscription = data.subscription;

@@ -384,11 +384,6 @@ const EDIT_FIELD_ALLOWLIST: Record<string, Set<string>> = {
     'tenantMasterName', 'tenant_master_name', 'businessRegistrationNo', 'business_registration_no',
     'dartCorpCode', 'dart_corp_code', 'companyName', 'company_name', 'displayName', 'display_name',
   ]),
-  'public.ll_weekly_records': new Set([
-    'record_type', 'asset_name', 'fund_name', 'project_type', 'project_name',
-    'issue', 'plan', 'status', 'stakeholder', 'row_json', 'report_json',
-    'source_text', 'source_file_name',
-  ]),
   'public.ll_funds': new Set([
     'fund_code', 'fund_name', 'short_name', 'legal_form', 'investment_sector', 'fund_type', 'investment_strategy',
     'initial_setup_date', 'maturity_date', 'notes',
@@ -6551,7 +6546,6 @@ const DATA_MANAGEMENT_COVERAGE_DOMAINS = [
       'll_sector_market_supply_cases',
       'll_sector_market_transaction_cases',
       'll_sector_market_cap_rate_series',
-      'll_market_deprecation_backups',
     ],
   },
   {
@@ -6630,16 +6624,13 @@ const DATA_MANAGEMENT_TABLE_LABELS: Record<string, string> = {
   ll_sector_market_supply_cases: '시장 공급 사례',
   ll_sector_market_transaction_cases: '시장 거래 사례',
   ll_sector_market_cap_rate_series: '시장 Cap Rate',
-  ll_market_deprecation_backups: '시장 이전 백업',
   ll_news_items: '뉴스 항목',
   ll_user_permissions: '사용자 권한',
   ll_staff_profiles: '직원 프로필',
   ll_login_history: '로그인 이력',
   ll_source_files: '원천 파일',
   ll_source_rows: '원천 행',
-  ll_weekly_records: '주간 기록',
   ll_work_items: '업무 항목',
-  ll_board_posts: '게시글',
   ll_notifications: '알림',
   ll_edit_requests: '변경 요청',
   ll_cache_entries: '캐시 엔트리',
@@ -7142,7 +7133,6 @@ const DATA_MANAGEMENT_TABLE_PRIMARY_KEYS: Record<string, string> = {
   ll_asset_spec_files: 'asset_spec_file_id',
   ll_notifications: 'notification_id',
   ll_news_items: 'news_item_id',
-  ll_market_deprecation_backups: 'backup_id',
   ll_staff_profiles: 'staff_id',
   ll_user_permissions: 'user_id',
   ll_login_history: 'id',
@@ -7165,8 +7155,6 @@ const DATA_MANAGEMENT_ROW_LABEL_FIELDS: Record<string, string[]> = {
   ll_news_items: ['title', 'published_at', 'source_name'],
   ll_login_history: ['staff_name', 'email', 'logged_at', 'status'],
   ll_work_items: ['title', 'asset_name', 'status'],
-  ll_board_posts: ['title', 'created_at'],
-  ll_weekly_records: ['project_name', 'asset_name', 'fund_name', 'status'],
 };
 
 type DataManagementScope = {
@@ -16174,12 +16162,12 @@ const WORK_PLATFORM_TASK_SNAPSHOT_SELECT = [
 
 const WORK_PLATFORM_BOARD_SELECT = [
   'id',
-  'log_id',
+  'log_id:board_log_id',
   'workspace_code',
   'workspace_label',
   'work_date',
   'title',
-  'content',
+  'content:board_content',
   'related_asset_id',
   'related_asset_name',
   'triage_type',
@@ -16191,7 +16179,7 @@ const WORK_PLATFORM_BOARD_SELECT = [
   'visibility_individuals',
   'comments',
   'attachments',
-  'metadata',
+  'metadata:board_metadata',
   'status',
   'created_by',
   'created_by_email',
@@ -16200,6 +16188,74 @@ const WORK_PLATFORM_BOARD_SELECT = [
   'created_at',
   'updated_at',
 ].join(', ');
+
+const WEEKLY_RECORD_SELECT = [
+  'id',
+  'record_type:weekly_record_type',
+  'report_id:weekly_report_id',
+  'week_key',
+  'organization',
+  'report_year',
+  'report_month',
+  'report_week',
+  'source_file_name:weekly_source_file_name',
+  'source_sha256:weekly_source_sha256',
+  'source_text:weekly_source_text',
+  'report_json:weekly_report_json',
+  'asset_code',
+  'asset_name',
+  'fund_code',
+  'fund_name',
+  'project_type',
+  'project_name',
+  'stakeholder',
+  'status:weekly_status',
+  'issue',
+  'plan:weekly_plan',
+  'row_json:weekly_row_json',
+  'requested_by:weekly_requested_by',
+  'parsed_counts:weekly_parsed_counts',
+  'message:weekly_message',
+  'created_by',
+  'created_at',
+  'updated_at',
+].join(', ');
+
+function boardWorkItemContractRow(row: Record<string, unknown>) {
+  const mapped: Record<string, unknown> = {
+    ...row,
+    log_id: row.board_log_id,
+    content: row.board_content,
+    metadata: row.board_metadata,
+  };
+  delete mapped.item_type;
+  delete mapped.board_log_id;
+  delete mapped.board_content;
+  delete mapped.board_metadata;
+  return mapped;
+}
+
+function weeklyWorkItemContractRow(row: Record<string, unknown>) {
+  const mapped: Record<string, unknown> = {
+    ...row,
+    record_type: row.weekly_record_type,
+    report_id: row.weekly_report_id,
+    source_file_name: row.weekly_source_file_name,
+    source_sha256: row.weekly_source_sha256,
+    source_text: row.weekly_source_text,
+    report_json: row.weekly_report_json,
+    status: row.weekly_status,
+    plan: row.weekly_plan,
+    row_json: row.weekly_row_json,
+    requested_by: row.weekly_requested_by,
+    parsed_counts: row.weekly_parsed_counts,
+    message: row.weekly_message,
+  };
+  for (const key of Object.keys(mapped)) {
+    if (key === 'item_type' || key.startsWith('weekly_')) delete mapped[key];
+  }
+  return mapped;
+}
 
 function workPlatformTaskMutationPayload(ctx: Context, payload: Record<string, unknown>, currentPayload: Record<string, unknown> = {}) {
   return serverWorklogPayload(ctx, payload.payload, currentPayload, {
@@ -16652,8 +16708,9 @@ async function listWorkPlatformBoardPosts(ctx: Context, payload: Record<string, 
   const limit = Math.min(Number(payload.limit || 200), 500);
   const queryLimit = Math.min(Math.max(limit * 3, 300), 1000);
   let query = ctx.serviceClient
-    .from('ll_board_posts')
+    .from('ll_work_items')
     .select(WORK_PLATFORM_BOARD_SELECT)
+    .eq('item_type', 'board_post')
     .neq('status', 'deleted');
 
   if (!hasRole(ctx.role, 'Manager') && !allReadableAssetsAllowed(ctx)) {
@@ -16685,14 +16742,16 @@ async function saveWorkPlatformBoardPost(ctx: Context, payload: Record<string, u
   if (!canMutateWorklog(ctx, 'create', relatedAssetId)) return fail(403, 'Insufficient create permission for this board post scope', ctx.origin);
   const logId = safeText(payload.log_id, `ll_board_${crypto.randomUUID()}`);
   const { data, error } = await ctx.serviceClient
-    .from('ll_board_posts')
+    .from('ll_work_items')
     .insert(stripUndefined({
-      log_id: logId,
+      item_type: 'board_post',
+      legacy_text_id: `board:${logId}`,
+      board_log_id: logId,
       workspace_code: 'WS_LOGISTICS',
       workspace_label: '물류센터 워크 플랫폼',
       work_date: safeDateText(payload.work_date) || new Date().toISOString().slice(0, 10),
       title: safeText(firstDefined(payload.title, payload.summary), '업무 공유'),
-      content: safeText(firstDefined(payload.content, payload.raw_text)),
+      board_content: safeText(firstDefined(payload.content, payload.raw_text)),
       related_asset_id: relatedAssetId,
       related_asset_name: safeText(payload.related_asset_name) || safeText(resolvedAsset.asset_name) || null,
       triage_type: safeText(payload.triage_type, '공유'),
@@ -16704,7 +16763,7 @@ async function saveWorkPlatformBoardPost(ctx: Context, payload: Record<string, u
       visibility_individuals: Array.isArray(payload.visibility_individuals) ? payload.visibility_individuals : [],
       comments: [],
       attachments: Array.isArray(payload.attachments) ? payload.attachments : [],
-      metadata: boardMetadata(ctx, payload),
+      board_metadata: boardMetadata(ctx, payload),
       created_by: ctx.user.id,
       created_by_email: actorEmail(ctx),
       created_by_name: actorName(ctx),
@@ -16726,9 +16785,10 @@ async function readWorkPlatformBoardForWrite(ctx: Context, idOrLogId: string) {
   const idText = safeText(idOrLogId);
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(idText);
   const query = ctx.serviceClient
-    .from('ll_board_posts')
-    .select(WORK_PLATFORM_BOARD_SELECT);
-  const { data, error } = await (isUuid ? query.eq('id', idText) : query.eq('log_id', idText)).single();
+    .from('ll_work_items')
+    .select(WORK_PLATFORM_BOARD_SELECT)
+    .eq('item_type', 'board_post');
+  const { data, error } = await (isUuid ? query.eq('id', idText) : query.eq('board_log_id', idText)).single();
   if (error || !data) return { data: null, response: fail(404, 'Work platform board post not found', ctx.origin) };
   if (data.created_by !== ctx.user.id && !hasRole(ctx.role, 'Manager')) {
     return { data: null, response: fail(403, 'Only author or manager can modify this board post', ctx.origin) };
@@ -16758,11 +16818,11 @@ async function updateWorkPlatformBoardPost(ctx: Context, payload: Record<string,
     return fail(403, 'Insufficient update permission for new board post scope', ctx.origin);
   }
   const { data, error } = await ctx.serviceClient
-    .from('ll_board_posts')
+    .from('ll_work_items')
     .update(stripUndefined({
       work_date: payload.work_date === undefined ? undefined : safeDateText(payload.work_date),
       title: payload.title === undefined && payload.summary === undefined ? undefined : safeText(firstDefined(payload.title, payload.summary), safeText(currentRow.title)),
-      content: payload.content === undefined && payload.raw_text === undefined ? undefined : safeText(firstDefined(payload.content, payload.raw_text), safeText(currentRow.content)),
+      board_content: payload.content === undefined && payload.raw_text === undefined ? undefined : safeText(firstDefined(payload.content, payload.raw_text), safeText(currentRow.content)),
       related_asset_id: nextAssetId || undefined,
       related_asset_name: payload.related_asset_name === undefined ? undefined : nextAssetName || null,
       triage_type: payload.triage_type === undefined ? undefined : safeText(payload.triage_type),
@@ -16773,7 +16833,7 @@ async function updateWorkPlatformBoardPost(ctx: Context, payload: Record<string,
       visibility_groups: payload.visibility_groups === undefined ? undefined : (Array.isArray(payload.visibility_groups) ? payload.visibility_groups : []),
       visibility_individuals: payload.visibility_individuals === undefined ? undefined : (Array.isArray(payload.visibility_individuals) ? payload.visibility_individuals : []),
       attachments: payload.attachments === undefined ? undefined : (Array.isArray(payload.attachments) ? payload.attachments : []),
-      metadata: boardMetadata(ctx, payload, currentRow.metadata as Record<string, unknown> || {}),
+      board_metadata: boardMetadata(ctx, payload, currentRow.metadata as Record<string, unknown> || {}),
       updated_at: new Date().toISOString(),
     }))
     .eq('id', currentRow.id)
@@ -16793,12 +16853,12 @@ async function deleteWorkPlatformBoardPost(ctx: Context, payload: Record<string,
   const currentRow = current.data as Record<string, unknown>;
   if (!canMutateWorklog(ctx, 'delete', currentRow.related_asset_id)) return fail(403, 'Insufficient delete permission for existing board post scope', ctx.origin);
   const { data, error } = await ctx.serviceClient
-    .from('ll_board_posts')
+    .from('ll_work_items')
     .update({
       status: 'deleted',
       deleted_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      metadata: stripUndefined({ ...(currentRow.metadata as Record<string, unknown> || {}), deleted_at: new Date().toISOString(), deleted_by: ctx.user.id }),
+      board_metadata: stripUndefined({ ...(currentRow.metadata as Record<string, unknown> || {}), deleted_at: new Date().toISOString(), deleted_by: ctx.user.id }),
     })
     .eq('id', currentRow.id)
     .select(WORK_PLATFORM_BOARD_SELECT)
@@ -16826,7 +16886,7 @@ async function commentWorkPlatformBoardPost(ctx: Context, payload: Record<string
     created_at: new Date().toISOString(),
   };
   const { data, error } = await ctx.serviceClient
-    .from('ll_board_posts')
+    .from('ll_work_items')
     .update({ comments: [...comments, nextComment], updated_at: new Date().toISOString() })
     .eq('id', currentRow.id)
     .select(WORK_PLATFORM_BOARD_SELECT)
@@ -16851,7 +16911,7 @@ async function deleteWorkPlatformBoardComment(ctx: Context, payload: Record<stri
     return fail(403, 'Only comment author or manager can delete this comment', ctx.origin);
   }
   const { data, error } = await ctx.serviceClient
-    .from('ll_board_posts')
+    .from('ll_work_items')
     .update({ comments: comments.filter((comment) => comment.id !== commentId), updated_at: new Date().toISOString() })
     .eq('id', currentRow.id)
     .select(WORK_PLATFORM_BOARD_SELECT)
@@ -16865,15 +16925,20 @@ function weeklyAssetPayload(row: Record<string, unknown>) {
   const rowJson = row.row_json && typeof row.row_json === 'object' && !Array.isArray(row.row_json)
     ? row.row_json as Record<string, unknown>
     : {};
+  const id = crypto.randomUUID();
   return stripUndefined({
+    id,
+    item_type: 'weekly_asset',
+    legacy_text_id: `weekly:${id}`,
+    weekly_record_type: 'asset',
     asset_code: safeText(firstDefined(row.asset_code, row.assetCode, row.assetId)) || null,
     asset_name: safeText(firstDefined(row.asset_name, row.assetName)) || '',
     fund_code: safeText(firstDefined(row.fund_code, row.fundCode)) || null,
     fund_name: safeText(firstDefined(row.fund_name, row.fundName)) || null,
-    status: safeText(firstDefined(row.status, row.occupancyRate, row.mainIssue)) || null,
+    weekly_status: safeText(firstDefined(row.status, row.occupancyRate, row.mainIssue)) || null,
     issue: safeText(firstDefined(row.issue, row.mainIssue)) || null,
-    plan: safeText(firstDefined(row.plan, row.nextPlan)) || null,
-    row_json: stripUndefined({
+    weekly_plan: safeText(firstDefined(row.plan, row.nextPlan)) || null,
+    weekly_row_json: stripUndefined({
       ...rowJson,
       no: firstDefined(row.no, rowJson.no),
       category: firstDefined(row.category, rowJson.category),
@@ -16904,9 +16969,9 @@ async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown
   if (!rows.length && !originalAssetNames.length) return fail(400, 'rows or original_asset_names is required', ctx.origin);
 
   const { data: report, error: reportError } = await ctx.serviceClient
-    .from('ll_weekly_records')
+    .from('ll_work_items')
     .select('id')
-    .eq('record_type', 'report')
+    .eq('item_type', 'weekly_report')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -16924,20 +16989,20 @@ async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown
   const blockedNames = requestedNames.filter((assetName) => !permittedNames.includes(assetName));
   const rowsToInsert = nextRows
     .filter((row) => permittedNames.includes(String(row.asset_name || '')))
-    .map((row) => ({ ...row, report_id: report.id }));
+    .map((row) => ({ ...row, weekly_report_id: report.id }));
 
   const { error: deleteError } = await ctx.serviceClient
-    .from('ll_weekly_records')
+    .from('ll_work_items')
     .delete()
-    .eq('record_type', 'asset')
-    .eq('report_id', report.id)
+    .eq('item_type', 'weekly_asset')
+    .eq('weekly_report_id', report.id)
     .in('asset_name', permittedNames);
   if (deleteError) return fail(500, 'Failed to delete previous weekly asset rows', ctx.origin);
 
   if (rowsToInsert.length) {
     const { error: insertError } = await ctx.serviceClient
-      .from('ll_weekly_records')
-      .insert(rowsToInsert.map((row) => ({ ...row, record_type: 'asset' })));
+      .from('ll_work_items')
+      .insert(rowsToInsert);
     if (insertError) return fail(500, 'Failed to insert weekly asset rows', ctx.origin);
   }
   await audit(ctx.serviceClient, ctx.user.id, 'weekly-assets/replace-latest', 200, {
@@ -16965,7 +17030,7 @@ function weeklyAssetResponse(row: Record<string, unknown>) {
     issue: firstDefined(row.issue, rowJson.issue),
     plan: firstDefined(row.plan, rowJson.plan),
     ...rowJson,
-    sourceTable: 'public.ll_weekly_records',
+    sourceTable: 'public.ll_work_items',
   });
 }
 
@@ -16974,14 +17039,14 @@ async function listLatestWeeklyAssets(ctx: Context) {
   const reportId = await latestWeeklyReportId(ctx);
   if (!reportId) return fail(404, 'Weekly report not found', ctx.origin);
   const { data, error } = await ctx.serviceClient
-    .from('ll_weekly_records')
-    .select('*')
-    .eq('record_type', 'asset')
-    .eq('report_id', reportId)
+    .from('ll_work_items')
+    .select(WEEKLY_RECORD_SELECT)
+    .eq('item_type', 'weekly_asset')
+    .eq('weekly_report_id', reportId)
     .order('asset_name', { ascending: true })
     .limit(300);
   if (error) return fail(500, 'Failed to read weekly asset rows', ctx.origin);
-  const rows = ((data || []) as Record<string, unknown>[])
+  const rows = ((data || []) as unknown as Record<string, unknown>[])
     .map((row) => weeklyAssetResponse(row));
   await audit(ctx.serviceClient, ctx.user.id, 'weekly-assets/latest', 200, { report_id: reportId, rows: rows.length });
   return jsonResponse({ ok: true, data: { report_id: reportId, rows } }, 200, ctx.origin);
@@ -17046,9 +17111,9 @@ function weeklyProjectRowsFromRowJson(rowJson: Record<string, unknown>) {
 
 async function latestWeeklyReportId(ctx: Context) {
   const { data, error } = await ctx.serviceClient
-    .from('ll_weekly_records')
+    .from('ll_work_items')
     .select('id')
-    .eq('record_type', 'report')
+    .eq('item_type', 'weekly_report')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -17081,10 +17146,10 @@ async function listWeeklyProjectsForLatestReport(ctx: Context) {
   const reportId = await latestWeeklyReportId(ctx);
   if (!reportId) return { reportId: '', rows: [] as Record<string, unknown>[] };
   const { data, error } = await ctx.serviceClient
-    .from('ll_weekly_records')
-    .select('*')
-    .eq('record_type', 'project')
-    .eq('report_id', reportId)
+    .from('ll_work_items')
+    .select(WEEKLY_RECORD_SELECT)
+    .eq('item_type', 'weekly_project')
+    .eq('weekly_report_id', reportId)
     .eq('project_type', 'managementProjects')
     .limit(200);
   if (error) throw new Error(`Failed to read weekly projects: ${error.message}`);
@@ -17160,22 +17225,26 @@ async function saveWeeklyProjectAssetDetail(ctx: Context, payload: Record<string
 
   if (matched?.id) {
     const { error } = await ctx.serviceClient
-      .from('ll_weekly_records')
+      .from('ll_work_items')
       .update({
-        row_json: nextRowJson,
+        weekly_row_json: nextRowJson,
         project_name: safeText(matched.project_name) || assetRef.assetName,
       })
       .eq('id', matched.id);
     if (error) return fail(500, 'Failed to update weekly project detail', ctx.origin);
   } else {
+    const id = crypto.randomUUID();
     const { error } = await ctx.serviceClient
-      .from('ll_weekly_records')
+      .from('ll_work_items')
       .insert({
-        record_type: 'project',
-        report_id: reportId,
+        id,
+        item_type: 'weekly_project',
+        legacy_text_id: `weekly:${id}`,
+        weekly_record_type: 'project',
+        weekly_report_id: reportId,
         project_type: 'managementProjects',
         project_name: assetRef.assetName,
-        row_json: nextRowJson,
+        weekly_row_json: nextRowJson,
       });
     if (error) return fail(500, 'Failed to insert weekly project detail', ctx.origin);
   }
@@ -19414,15 +19483,20 @@ function compactEvidenceRows(rows: Record<string, unknown>[], table: string, max
 
 async function collectAiSearchContext(ctx: Context, question: string, basisDate = currentKstMonthEndDate()) {
   const terms = aiSearchTerms(question).slice(0, 8);
-  const [assetRows, leaseContractRows, tenantRows, taskRows, boardRows, weeklyRows, metricCacheRows] = await Promise.all([
+  const [assetRows, leaseContractRows, tenantRows, workRows, metricCacheRows] = await Promise.all([
     safeSelectRows(ctx, 'll_assets', 250),
     safeSelectRows(ctx, 'll_leases', 2000),
     safeSelectRows(ctx, 'll_tenants', 300),
-    safeSelectRows(ctx, 'll_work_items', 500),
-    safeSelectRows(ctx, 'll_board_posts', 300),
-    safeSelectRows(ctx, 'll_weekly_records', 500),
+    safeSelectRows(ctx, 'll_work_items', 1000),
     safeSelectRows(ctx, 'll_cache_entries', 1000),
   ]);
+  const taskRows = workRows.filter((row) => safeText(row.item_type) === 'task');
+  const boardRows = workRows
+    .filter((row) => safeText(row.item_type) === 'board_post')
+    .map((row) => boardWorkItemContractRow(row));
+  const weeklyRows = workRows
+    .filter((row) => safeText(row.item_type).startsWith('weekly_'))
+    .map((row) => weeklyWorkItemContractRow(row));
   const metricRows = metricCacheRows.filter((row) => normalizeText(row.cache_type) === 'dashboard_metric');
   const allowedAssets = assetRows.filter((row) => canReadDataRow(ctx, row));
   const allowedAssetIds = allowedAssets.map((row) => String(row.asset_id || '')).filter(Boolean);
@@ -19500,9 +19574,9 @@ async function collectAiSearchContext(ctx: Context, question: string, basisDate 
     { table: 'll_rent_history', rows: permittedRentRows },
     { table: 'll_tenants', rows: permittedTenants },
     { table: 'll_work_items', rows: permittedTasks },
-    { table: 'll_board_posts', rows: permittedBoardPosts },
-    { table: 'll_weekly_records:asset', rows: permittedWeeklyAssets },
-    { table: 'll_weekly_records:project', rows: permittedWeeklyProjects },
+    { table: 'll_work_items:board_post', rows: permittedBoardPosts },
+    { table: 'll_work_items:weekly_asset', rows: permittedWeeklyAssets },
+    { table: 'll_work_items:weekly_project', rows: permittedWeeklyProjects },
     { table: 'll_cache_entries', rows: permittedMetricRows },
   ].map((bucket) => ({
     ...bucket,
@@ -24729,24 +24803,24 @@ async function callWeeklyAssetsLatestPreview(origin: string, payload: Record<str
   });
 
   const { data: report, error: reportError } = await serviceClient
-    .from('ll_weekly_records')
+    .from('ll_work_items')
     .select('id')
-    .eq('record_type', 'report')
+    .eq('item_type', 'weekly_report')
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (reportError || !report?.id) return fail(404, 'Weekly report not found', origin);
 
   const { data, error } = await serviceClient
-    .from('ll_weekly_records')
-    .select('*')
-    .eq('record_type', 'asset')
-    .eq('report_id', report.id)
+    .from('ll_work_items')
+    .select(WEEKLY_RECORD_SELECT)
+    .eq('item_type', 'weekly_asset')
+    .eq('weekly_report_id', report.id)
     .order('asset_name', { ascending: true })
     .limit(300);
   if (error) return fail(500, 'Failed to read weekly asset rows', origin);
 
-  const rows = ((data || []) as Record<string, unknown>[])
+  const rows = ((data || []) as unknown as Record<string, unknown>[])
     .map((row) => weeklyAssetResponse(row));
   await audit(serviceClient, null, 'weekly-assets/latest-preview', 200, {
     report_id: report.id,

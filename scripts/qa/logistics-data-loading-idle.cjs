@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..', '..');
 const OUT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const DEFAULT_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
-const MIN_LIVE_IDLE_MS = 95_000;
+const MIN_LIVE_IDLE_MS = 120_000;
 
 const ROUTES = [
   { key: 'work-platform', route: 'work-platform', selector: '#task-management', minText: 600 },
@@ -82,6 +82,14 @@ async function navigateInApp(page, baseUrl, route, stamp) {
   }, url);
 }
 
+async function waitForDuration(page, durationMs) {
+  const deadline = Date.now() + durationMs;
+  await page.waitForFunction((target) => Date.now() >= target, deadline, {
+    timeout: durationMs + 10_000,
+    polling: Math.min(1000, Math.max(50, durationMs)),
+  });
+}
+
 async function signInSession() {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
@@ -155,7 +163,7 @@ async function waitForRouteReady(page, probe) {
       const rect = node.getBoundingClientRect();
       return rect.width > 1 && rect.height > 1;
     });
-  }, undefined, { timeout: 15_000 }).catch(() => null);
+  }, undefined, { timeout: 15_000 });
 }
 
 async function collectRouteState(page, probe, elapsedMs) {
@@ -255,6 +263,14 @@ async function checkSystemModals(page) {
   return modalChecks;
 }
 
+function edgeAction(response) {
+  try {
+    return JSON.parse(response.request().postData() || '{}')?.action || 'unknown-action';
+  } catch {
+    return 'unknown-action';
+  }
+}
+
 async function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const stamp = timestampForFile();
@@ -277,6 +293,8 @@ async function main() {
     idle_ms: idleMs,
     routes: [],
     modal_checks: {},
+    auth_errors: [],
+    server_errors: [],
     errors: [],
     warnings: [],
     screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
@@ -298,15 +316,26 @@ async function main() {
       }
     });
     page.on('response', (response) => {
-      if (response.url().includes('/functions/v1/ll-dashboard-api') && [401, 403, 500, 502, 503, 504].includes(response.status())) {
-        report.errors.push(`edge ${response.status()} ${response.request().postData() || response.url()}`.slice(0, 900));
+      if (response.url().includes('/functions/v1/ll-dashboard-api') && [401, 403].includes(response.status())) {
+        report.auth_errors.push(`edge ${response.status()} action=${edgeAction(response)}`);
+      }
+      if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 500) {
+        report.server_errors.push(`edge ${response.status()} action=${edgeAction(response)}`);
       }
     });
 
     await page.goto(joinUrl(baseUrl, '', `${stamp}-warmup`), { waitUntil: 'domcontentloaded', timeout: 60_000 });
     await waitForRouteReady(page, ROUTES[0]);
     report.idle_started_at = new Date().toISOString();
-    await page.waitForTimeout(idleMs);
+    const background = await context.newPage();
+    try {
+      await background.goto('about:blank');
+      await background.bringToFront();
+      await waitForDuration(background, idleMs);
+    } finally {
+      await background.close().catch(() => null);
+      await page.bringToFront();
+    }
     report.idle_finished_at = new Date().toISOString();
 
     for (const probe of ROUTES) {
@@ -349,6 +378,8 @@ async function main() {
   report.ok = report.routes.length === ROUTES.length
     && report.routes.every((row) => row.ok)
     && Object.values(report.modal_checks || {}).every((row) => row.ok)
+    && report.auth_errors.length === 0
+    && report.server_errors.length === 0
     && report.errors.length === 0
     && idleMs >= MIN_LIVE_IDLE_MS
     && /^https:\/\/kylee94\.github\.io\/logistics-gate6-preview\/?/iu.test(baseUrl);

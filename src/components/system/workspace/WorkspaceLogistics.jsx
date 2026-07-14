@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../../utils/supabaseClient';
 import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supabaseSession';
@@ -17,6 +17,7 @@ import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } 
 import { normalizeStackingFloorLabel, normalizeStackingFloorLabelFromRow } from './stackingFloorNormalizer';
 import {
   AssetSpecDashboard,
+  DashboardModuleLifecycleContext,
   DailyLogisticsNewsCard,
   DataManagementDashboard,
   HomeOperatingCostSummary,
@@ -198,6 +199,8 @@ const DASHBOARD_READ_CACHE = new Map();
 const DASHBOARD_READ_INFLIGHT = new Map();
 const DASHBOARD_READ_CACHE_TTL_MS = 5 * 60 * 1000;
 const DASHBOARD_READ_REVALIDATE_MS = 90 * 1000;
+const DASHBOARD_READ_INFLIGHT_STALE_MS = 95 * 1000;
+const DASHBOARD_LIFECYCLE_REFRESH_LOCK_MS = 1000;
 const ASSET_PROJECT_DETAIL_CACHE = new Map();
 const ASSET_FUND_OVERVIEW_CACHE = new Map();
 const ASSET_BUILDING_REGISTER_CACHE = new Map();
@@ -431,7 +434,21 @@ function dashboardReadCacheKey(action, payloadKey) {
   return `${getDashboardCacheScope()}:${action}:${payloadKey || '{}'}`;
 }
 
+function isDashboardReadInflightStale(entry, now = Date.now(), staleMs = DASHBOARD_READ_INFLIGHT_STALE_MS) {
+  if (!entry) return false;
+  const startedAt = Number(entry.startedAt);
+  return !Number.isFinite(startedAt) || startedAt <= 0 || now - startedAt >= staleMs;
+}
+
+function isDashboardLifecycleRefreshLocked(lock, cacheKey, now = Date.now(), lockMs = DASHBOARD_LIFECYCLE_REFRESH_LOCK_MS) {
+  return Boolean(lock?.cacheKey === cacheKey && now - Number(lock.startedAt || 0) < lockMs);
+}
+
 function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled = true) {
+  const lifecycle = useContext(DashboardModuleLifecycleContext);
+  const lifecycleActive = lifecycle.active;
+  const lifecycleModuleId = lifecycle.moduleId;
+  const reportLifecycleLoading = lifecycle.reportLoading;
   const payloadKey = JSON.stringify(payload || {});
   const summaryKey = JSON.stringify(staticSummary || {});
   const cacheKey = dashboardReadCacheKey(action, payloadKey);
@@ -454,6 +471,8 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
   const [refreshNonce, setRefreshNonce] = useState(0);
   const effectiveStateRef = useRef(effectiveState);
   const requestOwnerRef = useRef(0);
+  const lifecycleRefreshLockRef = useRef(null);
+  const loadingTokenRef = useRef(Symbol(action));
   useEffect(() => {
     ensureWorkspaceLogisticsCacheInvalidationListener();
   }, []);
@@ -468,6 +487,8 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       setState({ cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' });
       return undefined;
     }
+    if (!lifecycleActive) return undefined;
+    lifecycleRefreshLockRef.current = null;
     let cancelled = false;
     const ownsRequest = () => !cancelled && requestOwnerRef.current === requestOwner;
     const runDashboardRead = async () => {
@@ -482,10 +503,10 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       if (primaryMode && cached?.payload && cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS) {
         setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
       }
-      if (cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS) {
-        const staleInflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
-        if (staleInflight) staleInflight.superseded = true;
-        DASHBOARD_READ_INFLIGHT.delete(cacheKey);
+      const staleInflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
+      if (isDashboardReadInflightStale(staleInflight)) {
+        staleInflight.superseded = true;
+        if (DASHBOARD_READ_INFLIGHT.get(cacheKey) === staleInflight) DASHBOARD_READ_INFLIGHT.delete(cacheKey);
       }
       if (primaryMode) setState((current) => ({
         cacheKey,
@@ -498,17 +519,14 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       try {
         let inflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
         if (!inflight) {
-          inflight = { requestId: `${Date.now()}:${Math.random()}`, superseded: false, promise: null };
+          inflight = { requestId: `${Date.now()}:${Math.random()}`, startedAt: Date.now(), superseded: false, promise: null };
           inflight.promise = invokeDashboardApi(action, requestPayload).finally(() => {
             if (DASHBOARD_READ_INFLIGHT.get(cacheKey) === inflight) DASHBOARD_READ_INFLIGHT.delete(cacheKey);
           });
           DASHBOARD_READ_INFLIGHT.set(cacheKey, inflight);
         }
         const { data, error } = await inflight.promise;
-        if (inflight.superseded) {
-          if (ownsRequest()) setRefreshNonce((value) => value + 1);
-          return;
-        }
+        if (inflight.superseded) return;
         if (error) throw error;
         const expectedBasisDate = String(firstDefined(requestPayload.basis_date, requestPayload.basisDate, '') || '');
         const invalidReason = dashboardReadInvalidReason(data, expectedBasisDate);
@@ -606,44 +624,57 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
     return () => {
       cancelled = true;
     };
-  }, [action, enabled, mode, payloadKey, primaryMode, summaryKey, adapter, cacheKey, refreshNonce]);
+  }, [action, enabled, lifecycleActive, mode, payloadKey, primaryMode, summaryKey, adapter, cacheKey, refreshNonce]);
 
   useEffect(() => {
-    if (!enabled || mode === 'off') return undefined;
+    if (!enabled || !lifecycleActive || mode === 'off') return undefined;
     const refreshIfNeeded = () => {
       if (document.visibilityState && document.visibilityState !== 'visible') return;
       const current = effectiveStateRef.current;
-      if (current?.status === 'loading') return;
+      const now = Date.now();
+      const inflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
+      const staleLoading = current?.status === 'loading'
+        && (!inflight || isDashboardReadInflightStale(inflight, now));
+      if (current?.status === 'loading' && !staleLoading) return;
       const cached = DASHBOARD_READ_CACHE.get(cacheKey);
       const stale = cached?.checkedAt
-        ? Date.now() - Date.parse(cached.checkedAt) > DASHBOARD_READ_REVALIDATE_MS
+        ? now - Date.parse(cached.checkedAt) > DASHBOARD_READ_REVALIDATE_MS
         : true;
-      if (current?.status === 'blocked' || !current?.payload || stale) {
-        const inflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
-        if (inflight) inflight.superseded = true;
-        DASHBOARD_READ_INFLIGHT.delete(cacheKey);
-        setRefreshNonce((value) => value + 1);
+      if (!staleLoading && current?.status !== 'blocked' && current?.payload && !stale) return;
+      if (inflight && !isDashboardReadInflightStale(inflight, now)) return;
+      if (isDashboardLifecycleRefreshLocked(lifecycleRefreshLockRef.current, cacheKey, now)) return;
+      lifecycleRefreshLockRef.current = { cacheKey, startedAt: now };
+      if (inflight) {
+        inflight.superseded = true;
+        if (DASHBOARD_READ_INFLIGHT.get(cacheKey) === inflight) DASHBOARD_READ_INFLIGHT.delete(cacheKey);
       }
+      setRefreshNonce((value) => value + 1);
     };
     window.addEventListener('focus', refreshIfNeeded);
     window.addEventListener('online', refreshIfNeeded);
-    window.addEventListener('popstate', refreshIfNeeded);
     window.addEventListener('logistics-data-refresh', refreshIfNeeded);
     document.addEventListener('visibilitychange', refreshIfNeeded);
     return () => {
       window.removeEventListener('focus', refreshIfNeeded);
       window.removeEventListener('online', refreshIfNeeded);
-      window.removeEventListener('popstate', refreshIfNeeded);
       window.removeEventListener('logistics-data-refresh', refreshIfNeeded);
       document.removeEventListener('visibilitychange', refreshIfNeeded);
     };
-  }, [cacheKey, enabled, mode]);
+  }, [cacheKey, enabled, lifecycleActive, mode]);
+
+  useEffect(() => {
+    if (!lifecycleActive || !lifecycleModuleId || typeof reportLifecycleLoading !== 'function') return undefined;
+    const pending = primaryMode && enabled && (effectiveState.status === 'idle' || effectiveState.status === 'loading');
+    const loadingToken = loadingTokenRef.current;
+    reportLifecycleLoading(lifecycleModuleId, loadingToken, pending, pending ? 50 : 100);
+    return () => reportLifecycleLoading(lifecycleModuleId, loadingToken, false, 100);
+  }, [effectiveState.status, enabled, lifecycleActive, lifecycleModuleId, primaryMode, reportLifecycleLoading]);
 
   return {
     ...effectiveState,
     mode,
     primaryMode,
-    loading: primaryMode && enabled && (effectiveState.status === 'idle' || effectiveState.status === 'loading'),
+    loading: primaryMode && enabled && lifecycleActive && (effectiveState.status === 'idle' || effectiveState.status === 'loading'),
     fallbackAllowed: !primaryMode || effectiveState.status === 'fallback' || effectiveState.status === 'preview',
   };
 }
@@ -2589,16 +2620,19 @@ function LogisticsModal({ modal, onClose }) {
     };
   }, [modal]);
   if (!modal) return null;
+  const isFloorplanModal = modal.variant === 'floorplan';
   const sizeClass = modal.size === 'wide'
     ? 'max-w-[min(1760px,96vw)]'
     : modal.size === 'fullscreen'
       ? 'max-w-none'
       : 'max-w-[1120px]';
-  const bodyHeightClass = modal.size === 'fullscreen'
-    ? 'h-[calc(100vh-102px)]'
-    : modal.size === 'wide'
-      ? 'h-[calc(88vh-88px)]'
-      : 'max-h-[calc(88vh-88px)]';
+  const bodyHeightClass = isFloorplanModal
+    ? 'min-h-0 flex-1'
+    : modal.size === 'fullscreen'
+      ? 'h-[calc(100vh-102px)]'
+      : modal.size === 'wide'
+        ? 'h-[calc(88vh-88px)]'
+        : 'max-h-[calc(88vh-88px)]';
   const containerHeightClass = modal.size === 'fullscreen'
     ? 'h-[calc(100vh-32px)] max-h-[calc(100vh-32px)]'
     : modal.size === 'wide'
@@ -2606,15 +2640,31 @@ function LogisticsModal({ modal, onClose }) {
       : 'max-h-[94vh]';
   const overlay = (
     <div className="fixed inset-0 z-[9999] bg-black/70 backdrop-blur-sm flex items-center justify-center px-4 py-4" role="dialog" aria-modal="true" onWheel={(event) => event.stopPropagation()}>
-      <div className={`w-full ${sizeClass} ${containerHeightClass} overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl`}>
-        <div className="px-6 py-5 border-b border-[#333333] flex items-center justify-between gap-4">
-          <div>
-            <div className="text-[12px] text-[#86868B] font-semibold">DETAIL</div>
-            <h3 className="text-[22px] text-white font-semibold tracking-tight mt-1">{modal.title}</h3>
-          </div>
-          <button type="button" onClick={onClose} className="h-9 px-3 rounded-[8px] bg-[#1F1F1E] text-[#C7C7CC] text-[13px] font-semibold hover:bg-[#30302F]">닫기</button>
+      <div className={`w-full ${sizeClass} ${containerHeightClass} ${isFloorplanModal ? 'flex flex-col' : ''} overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl`}>
+        <div className={isFloorplanModal ? 'flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-[#333333] px-3 py-1' : 'flex items-center justify-between gap-4 border-b border-[#333333] px-6 py-5'}>
+          {isFloorplanModal ? (
+            <h3 className="min-w-0 truncate text-[14px] font-semibold text-white">{modal.title}</h3>
+          ) : (
+            <div>
+              <div className="text-[12px] text-[#86868B] font-semibold">DETAIL</div>
+              <h3 className="text-[22px] text-white font-semibold tracking-tight mt-1">{modal.title}</h3>
+            </div>
+          )}
+          {isFloorplanModal ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[7px] bg-[#1F1F1E] text-[#C7C7CC] hover:bg-[#30302F] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9AD7FF]"
+              aria-label="평면도 팝업 닫기"
+              title="닫기"
+            >
+              <FloorplanLucideIcon name="x" />
+            </button>
+          ) : (
+            <button type="button" onClick={onClose} className="h-9 px-3 rounded-[8px] bg-[#1F1F1E] text-[#C7C7CC] text-[13px] font-semibold hover:bg-[#30302F]">닫기</button>
+          )}
         </div>
-        <div className={`custom-scrollbar p-6 overflow-auto ${bodyHeightClass}`}>
+        <div className={`custom-scrollbar ${isFloorplanModal ? 'overflow-hidden p-2' : 'overflow-auto p-6'} ${bodyHeightClass}`}>
           {modal.rows ? (
             <DataTable headers={modal.headers} rows={modal.rows} compact />
           ) : modal.content}
@@ -13462,11 +13512,58 @@ function DataQualityDashboard() {
   );
 }
 
+const FLOORPLAN_ZOOM_MIN = 0.5;
+const FLOORPLAN_ZOOM_DEFAULT = 1;
+const FLOORPLAN_ZOOM_MAX = 3;
+const FLOORPLAN_ZOOM_STEP = 0.25;
+
+function clampFloorplanZoom(value) {
+  return Math.min(FLOORPLAN_ZOOM_MAX, Math.max(FLOORPLAN_ZOOM_MIN, Number(value) || FLOORPLAN_ZOOM_DEFAULT));
+}
+
+function FloorplanLucideIcon({ name, className = 'h-4 w-4' }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      data-lucide={name}
+      aria-hidden="true"
+    >
+      {name === 'zoom-in' || name === 'zoom-out' ? (
+        <>
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.3-4.3" />
+          <path d="M8 11h6" />
+          {name === 'zoom-in' ? <path d="M11 8v6" /> : null}
+        </>
+      ) : null}
+      {name === 'rotate-ccw' ? (
+        <>
+          <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+          <path d="M3 3v5h5" />
+        </>
+      ) : null}
+      {name === 'x' ? (
+        <>
+          <path d="M18 6 6 18" />
+          <path d="m6 6 12 12" />
+        </>
+      ) : null}
+    </svg>
+  );
+}
+
 function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onOpen }) {
   const safeSlides = Array.isArray(slides) && slides.length
     ? slides
     : [{ id: 'floorplan-empty', label: '층별 평면도', imageUrl: '' }];
   const [activeIndex, setActiveIndex] = useState(0);
+  const [zoom, setZoom] = useState(FLOORPLAN_ZOOM_DEFAULT);
   const activeSlide = safeSlides[activeIndex] || safeSlides[0];
   const imageUrl = firstDefined(activeSlide?.imageUrl, activeSlide?.image_url, activeSlide?.url, activeSlide?.src, '');
   const canMove = safeSlides.length > 1;
@@ -13474,6 +13571,7 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
 
   useEffect(() => {
     if (activeIndex < safeSlides.length) return;
+    setZoom(FLOORPLAN_ZOOM_DEFAULT);
     setActiveIndex(0);
   }, [activeIndex, safeSlides.length]);
 
@@ -13481,7 +13579,21 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
     event?.preventDefault?.();
     event?.stopPropagation?.();
     if (!canMove) return;
+    setZoom(FLOORPLAN_ZOOM_DEFAULT);
     setActiveIndex((current) => (current + direction + safeSlides.length) % safeSlides.length);
+  };
+
+  const changeZoom = (delta, event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!modalMode) return;
+    setZoom((current) => clampFloorplanZoom(current + delta));
+  };
+
+  const resetZoom = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    setZoom(FLOORPLAN_ZOOM_DEFAULT);
   };
 
   const openModal = () => {
@@ -13497,8 +13609,10 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
   };
 
   const slideLabel = cleanDisplay(firstDefined(activeSlide?.label, activeSlide?.floorLabel, activeSlide?.floor), '층별 평면도');
-  const containerHeightClass = modalMode ? 'min-h-[520px]' : 'min-h-[116px]';
+  const containerLayoutClass = modalMode ? 'mt-0 h-full min-h-0' : 'mt-3 min-h-[116px]';
   const titleClass = modalMode ? 'text-[18px]' : 'text-[14px]';
+  const zoomPercent = Math.round(zoom * 100);
+  const zoomCanvasPercent = Math.max(FLOORPLAN_ZOOM_DEFAULT, zoom) * 100;
 
   return (
     <div
@@ -13506,11 +13620,27 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
       tabIndex={canOpen ? 0 : undefined}
       onClick={openModal}
       onKeyDown={handleKeyDown}
-      className={`group relative mt-3 flex ${containerHeightClass} w-full overflow-hidden rounded-[10px] border border-dashed border-[#4A4A4D] bg-[#1F1F1E] text-center ${canOpen ? 'cursor-pointer hover:bg-[#2A2A29]' : ''}`}
+      className={`group relative flex ${containerLayoutClass} w-full overflow-hidden rounded-[10px] border border-dashed border-[#4A4A4D] bg-[#1F1F1E] text-center ${canOpen ? 'cursor-pointer hover:bg-[#2A2A29]' : ''}`}
       aria-label={`${assetName || '자산'} 평면도 이미지`}
     >
       {imageUrl ? (
-        <img src={imageUrl} alt={`${assetName || '자산'} ${slideLabel} 평면도`} className="h-full w-full object-contain" />
+        modalMode ? (
+          <div className="custom-scrollbar h-full w-full overflow-auto" data-floorplan-zoom={zoom}>
+            <div
+              className="grid place-items-center transition-[width,height] duration-150"
+              style={{ minWidth: '100%', minHeight: '100%', width: `${zoomCanvasPercent}%`, height: `${zoomCanvasPercent}%` }}
+            >
+              <img
+                src={imageUrl}
+                alt={`${assetName || '자산'} ${slideLabel} 평면도`}
+                className="h-full w-full object-contain"
+                style={zoom < FLOORPLAN_ZOOM_DEFAULT ? { transform: `scale(${zoom})`, transformOrigin: 'center' } : undefined}
+              />
+            </div>
+          </div>
+        ) : (
+          <img src={imageUrl} alt={`${assetName || '자산'} ${slideLabel} 평면도`} className="h-full w-full object-contain" />
+        )
       ) : (
         <div className="flex flex-1 items-center justify-center p-6">
           <div>
@@ -13519,12 +13649,49 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
           </div>
         </div>
       )}
+      {modalMode && imageUrl ? (
+        <div className="absolute right-3 top-3 z-20 flex items-center gap-1 rounded-[8px] border border-white/15 bg-black/70 p-1 shadow-lg backdrop-blur-sm" role="group" aria-label="평면도 확대 및 축소 도구">
+          <button
+            type="button"
+            onClick={(event) => changeZoom(-FLOORPLAN_ZOOM_STEP, event)}
+            disabled={zoom <= FLOORPLAN_ZOOM_MIN}
+            className="flex h-8 w-8 items-center justify-center rounded-[6px] text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9AD7FF] disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="평면도 축소"
+            title="축소"
+          >
+            <FloorplanLucideIcon name="zoom-out" />
+          </button>
+          <output className="min-w-[48px] text-center text-[11px] font-semibold tabular-nums text-white" aria-live="polite" aria-label={`현재 확대 비율 ${zoomPercent}%`}>
+            {zoomPercent}%
+          </output>
+          <button
+            type="button"
+            onClick={(event) => changeZoom(FLOORPLAN_ZOOM_STEP, event)}
+            disabled={zoom >= FLOORPLAN_ZOOM_MAX}
+            className="flex h-8 w-8 items-center justify-center rounded-[6px] text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9AD7FF] disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="평면도 확대"
+            title="확대"
+          >
+            <FloorplanLucideIcon name="zoom-in" />
+          </button>
+          <button
+            type="button"
+            onClick={resetZoom}
+            disabled={zoom === FLOORPLAN_ZOOM_DEFAULT}
+            className="flex h-8 w-8 items-center justify-center rounded-[6px] text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9AD7FF] disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="평면도 원래 크기로 복원"
+            title="원래 크기"
+          >
+            <FloorplanLucideIcon name="rotate-ccw" />
+          </button>
+        </div>
+      ) : null}
       {canMove ? (
         <>
           <button
             type="button"
             onClick={(event) => moveSlide(-1, event)}
-            className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-[24px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-70 hover:bg-white/35 hover:opacity-100 focus:opacity-100"
+            className="absolute left-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-[24px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-70 hover:bg-black/70 hover:opacity-100 focus:opacity-100"
             aria-label="이전 평면도 보기"
           >
             ‹
@@ -13532,7 +13699,7 @@ function FloorplanCarousel({ slides = [], assetName = '', modalMode = false, onO
           <button
             type="button"
             onClick={(event) => moveSlide(1, event)}
-            className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white/25 text-[24px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-70 hover:bg-white/35 hover:opacity-100 focus:opacity-100"
+            className="absolute right-3 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-[24px] font-semibold text-white opacity-0 shadow-lg transition group-hover:opacity-70 hover:bg-black/70 hover:opacity-100 focus:opacity-100"
             aria-label="다음 평면도 보기"
           >
             ›
@@ -14159,6 +14326,7 @@ function AssetDashboard() {
             onOpen={() => setModal({
               title: `${overview.assetName || '자산'} 평면도 이미지`,
               size: 'fullscreen',
+              variant: 'floorplan',
               content: <FloorplanCarousel slides={floorplanSlides} assetName={overview.assetName} modalMode />,
             })}
           />
@@ -14905,41 +15073,32 @@ function DashboardShell({ activeModule }) {
   }[selected?.id] || selected?.label;
   const shouldShowExternalApiRefresh = selected?.id !== 'investment-index' && featureAccess.buildingRegisterRefresh;
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission) && shouldShowExternalApiRefresh);
-  const dashboardDatasetLoadingRef = useRef(dashboardDataset.loading);
-  dashboardDatasetLoadingRef.current = dashboardDataset.loading;
-  const [dashboardPageLoading, setDashboardPageLoading] = useState(false);
-  const [dashboardLoadingProgress, setDashboardLoadingProgress] = useState(100);
+  const [moduleLoadingState, setModuleLoadingState] = useState(() => new Map());
+  const reportModuleLoading = useCallback((moduleId, token, pending, progress = 50) => {
+    if (!moduleId || !token) return;
+    setModuleLoadingState((current) => {
+      const previous = current.get(token);
+      const nextProgress = Math.max(1, Math.min(100, Math.round(Number(progress) || 1)));
+      if (pending && previous?.moduleId === moduleId && previous.progress === nextProgress) return current;
+      if (!pending && !previous) return current;
+      const next = new Map(current);
+      if (pending) next.set(token, { moduleId, progress: nextProgress });
+      else next.delete(token);
+      return next;
+    });
+  }, []);
+  const activeModuleLoadingEntries = useMemo(() => (
+    [...moduleLoadingState.values()].filter((entry) => entry.moduleId === selected?.id)
+  ), [moduleLoadingState, selected?.id]);
+  const activeShellDatasetLoading = selected?.id === 'home' && dashboardDataset.loading;
+  const activeDashboardLoading = activeShellDatasetLoading || activeModuleLoadingEntries.length > 0;
+  const activeDashboardProgress = activeDashboardLoading
+    ? Math.min(
+      ...(activeShellDatasetLoading ? [50] : []),
+      ...activeModuleLoadingEntries.map((entry) => entry.progress),
+    )
+    : 100;
   const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
-  useEffect(() => {
-    if (!selected?.id) return undefined;
-    setDashboardPageLoading(true);
-    setDashboardLoadingProgress(18);
-    const progressTimer = window.setInterval(() => {
-      setDashboardLoadingProgress((current) => Math.min(96, current + 9));
-    }, 180);
-    const settleTimer = window.setTimeout(() => {
-      if (!dashboardDatasetLoadingRef.current) {
-        setDashboardLoadingProgress(100);
-        setDashboardPageLoading(false);
-      }
-    }, selected.id === 'home' ? 900 : 650);
-    return () => {
-      window.clearInterval(progressTimer);
-      window.clearTimeout(settleTimer);
-    };
-  }, [selected?.id]);
-  useEffect(() => {
-    if (dashboardDataset.loading) {
-      setDashboardPageLoading(true);
-      setDashboardLoadingProgress((current) => Math.min(current || 24, 84));
-      return undefined;
-    }
-    const timer = window.setTimeout(() => {
-      setDashboardLoadingProgress(100);
-      setDashboardPageLoading(false);
-    }, 220);
-    return () => window.clearTimeout(timer);
-  }, [dashboardDataset.loading]);
   useEffect(() => {
     if (!selected?.id) return undefined;
     const timer = window.setTimeout(() => {
@@ -14975,7 +15134,7 @@ function DashboardShell({ activeModule }) {
         title={selectedTitle}
         right={(
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <DashboardPageLoadingBadge loading={dashboardPageLoading || dashboardDataset.loading} progress={dashboardLoadingProgress} />
+            <DashboardPageLoadingBadge loading={activeDashboardLoading} progress={activeDashboardProgress} />
             {shouldShowExternalApiRefresh ? (
               <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={{ ...featureAccess, openDartRefresh: false }} />
             ) : null}
@@ -14991,7 +15150,9 @@ function DashboardShell({ activeModule }) {
             aria-hidden={selected.id !== item.id}
             style={selected.id === item.id ? undefined : { contentVisibility: 'hidden', containIntrinsicSize: '540px' }}
           >
-            {renderDashboardModule(item.id)}
+            <DashboardModuleLifecycleContext.Provider value={{ moduleId: item.id, active: selected.id === item.id, reportLoading: reportModuleLoading }}>
+              {renderDashboardModule(item.id)}
+            </DashboardModuleLifecycleContext.Provider>
           </div>
         ))}
       </div>
