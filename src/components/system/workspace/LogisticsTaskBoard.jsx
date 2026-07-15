@@ -633,8 +633,8 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
                   <th className="w-[23%] px-4 font-semibold">업무 요약</th>
                   <th className="w-[12%] px-4"><HeaderFilterDropdown filterKey="assignee" label="담당자" value={filters.assignee_user_id} options={assigneeOptions.map((assignee) => ({ value: assignee.user_id, label: assignee.name }))} onChange={(value) => changeFilter('assignee_user_id', value)} /></th>
                   <th className="w-[14%] px-4 font-semibold">이해관계자</th>
-                  <th className="w-[9%] px-4"><HeaderFilterDropdown filterKey="status" label="진행상황" value={filters.status} options={TASK_BOARD_STATUSES} onChange={(value) => changeFilter('status', value)} /></th>
-                  <th className="w-[12%] px-4 text-left font-semibold">등록일</th>
+                  <th className="w-[10%] px-2"><HeaderFilterDropdown filterKey="status" label="진행상황" value={filters.status} options={TASK_BOARD_STATUSES} onChange={(value) => changeFilter('status', value)} /></th>
+                  <th className="w-[11%] px-4 text-left font-semibold">등록일</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3c3c3c] text-[13px] text-white">

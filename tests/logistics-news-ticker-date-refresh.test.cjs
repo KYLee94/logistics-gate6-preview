@@ -58,5 +58,5 @@ test('expanded ticker renders all ten news rows without an internal vertical scr
   assert.doesNotMatch(component, /max-h-\[[^\]]+\][^"']*overflow-y-auto/u);
   assert.doesNotMatch(component, /overflow-y-(?:auto|scroll)/u);
   assert.match(component, /\[color-scheme:dark\]/u);
-  assert.match(component, /text-\[14px\]/u);
+  assert.match(component, /text-\[18px\][^"']*leading-none/u);
 });
