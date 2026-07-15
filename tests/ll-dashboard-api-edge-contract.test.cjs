@@ -105,10 +105,16 @@ test('sector market responses expose only the public source contract', () => {
   assert.doesNotMatch(sectorSource, /source_file_id,source_domain,source_version,file_name,source_hash/u);
 });
 
-test('gyeongsan coupang floor count preview action stays admin-only and dry-run', () => {
+test('gyeongsan coupang floor count preview requires feature and canonical asset update permission and stays dry-run', () => {
+  const start = edgeSource.indexOf('async function callAdminGyeongsanCoupangFloorCountPreview(');
+  const end = edgeSource.indexOf('\nasync function ', start + 1);
+  const handlerSource = edgeSource.slice(start, end);
+  assert.ok(start >= 0 && end > start);
   assert.match(edgeSource, /const GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET = Object\.freeze\(\{/u);
-  assert.match(edgeSource, /async function callAdminGyeongsanCoupangFloorCountPreview\(ctx: Context, payload: Record<string, unknown>\)/u);
-  assert.match(edgeSource, /if \(!hasRole\(ctx\.role, 'Admin'\)\) return fail\(403, 'Insufficient logistics permission', ctx\.origin\);/u);
-  assert.match(edgeSource, /write_blocked: true/u);
+  assert.match(handlerSource, /async function callAdminGyeongsanCoupangFloorCountPreview\(ctx: Context, payload: Record<string, unknown>\)/u);
+  assert.match(handlerSource, /if \(!await canUseServerFeature\(ctx, 'permission_admin'\)\) return fail\(403, 'Permission administration is required', ctx\.origin\);/u);
+  assert.match(handlerSource, /evaluateCanonicalAssetPermission\([\s\S]*?ctx,[\s\S]*?'update',[\s\S]*?GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET\.asset_id/u);
+  assert.doesNotMatch(handlerSource, /if \(!hasRole\(ctx\.role, 'Admin'\)\)/u);
+  assert.match(handlerSource, /write_blocked: true/u);
   assert.match(edgeSource, /action === 'asset-admin\/gyeongsan-coupang-floor-count-preview'/u);
 });

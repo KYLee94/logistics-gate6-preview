@@ -1,6 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
-type LogisticsRole = 'Reader' | 'Editor' | 'Manager' | 'Admin' | 'System Admin';
 // The project has no generated Database type yet, so the client schema is dynamic.
 // Keep request and response shapes typed at the function boundary instead.
 type SupabaseClient = any;
@@ -483,15 +482,6 @@ const FREE_TIER_GOOGLE_AI_MODELS = new Set([
   'gemini-2.5-flash-lite',
 ]);
 const SENSITIVE_KEY_PATTERN = /(authorization|password|secret|service[_-]?role|token|api[_-]?key|apikey|crtfc[_-]?key|client[_-]?secret|serviceKey|x-ncp)/iu;
-const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용', '이승훈', '이철승']);
-const DEFAULT_FEATURE_ACCESS_EMAIL_BY_NAME: Record<string, string> = {
-  '이관용': 'kylee@igisam.com',
-  '이시정': 'sjlee@igisam.com',
-  '전기영': 'jk.jeon@igisam.com',
-  '이승훈': 'seunghoon.lee@igisam.com',
-  '이철승': 'ethan.lee@igisam.com',
-  '\uC815\uD558\uC724': 'hayun.jeong@igisam.com',
-};
 const LOGISTICS_FEATURE_ACCESS_CACHE_TYPE = 'logistics_feature_access';
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'active';
 const LOGISTICS_FEATURE_KEYS = new Set([
@@ -503,25 +493,109 @@ const LOGISTICS_FEATURE_KEYS = new Set([
   'building_register_refresh',
   'opendart_refresh',
   'market_research',
+  'permission_admin',
+  'approval_management',
 ]);
-const LOGISTICS_ADMIN_EMAILS = new Set([
-  'kylee@igisam.com',
-  'sjlee@igisam.com',
-  'jk.jeon@igisam.com',
-  'seunghoon.lee@igisam.com',
-  'ethan.lee@igisam.com',
+type ActionClassification = 'public' | 'authenticated' | 'permission_admin' | 'approval_management';
+const ACTION_MANIFEST = new Map<string, ActionClassification>([
+  ...['naver/maps-config', 'auth/logistics-status'].map((action) => [action, 'public'] as const),
+  ...['auth/users/list', 'permissions/evaluate', 'auth/users/upsert', 'auth/user-permissions/update', 'feature-access/get', 'feature-access/update'].map((action) => [action, 'permission_admin'] as const),
+  ...['edits/approve', 'edits/reject'].map((action) => [action, 'approval_management'] as const),
+  ...[
+    'health', 'ai/search-chat-demo', 'ai/provider-diagnostics', 'ai/gemini-diagnostics', 'auth/me',
+    'auth/login-history/record', 'auth/login-history/list', 'auth/login-capability/list', 'quality/findings',
+    'contract-data/apply', 'edits/submit', 'edits/list', 'edits/readback', 'notifications/list',
+    'notifications/dismiss', 'notifications/mark-read', 'sector-market/address-backfill', 'sector-market/read',
+    'sector-market/status', 'investment-index/read', 'investment-index/cleanup-empty-loans', 'asset-spec/read',
+    'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
+    'data-management/catalog', 'data-management/rows', 'data-management/views', 'data-management/view-rows',
+    'data-management/status', 'data-management/coverage', 'data-management/preview-edit', 'data-management/submit-edit',
+    'news/list', 'news/collect-run', 'news/restore-20260617', 'lease-events/list', 'lease-events/preview',
+    'lease-events/submit', 'worklogs/list', 'worklogs', 'worklogs/update', 'worklogs/complete', 'worklogs/delete',
+    'work-platform/tasks/list', 'work-platform/tasks/snapshots/upsert-current', 'work-platform/tasks/snapshots/list',
+    'work-platform/tasks', 'work-platform/tasks/update', 'work-platform/tasks/complete', 'work-platform/tasks/delete',
+    'work-platform/tasks/archive-seed', 'work-platform/board-posts/list', 'work-platform/board-posts',
+    'work-platform/board-posts/update', 'work-platform/board-posts/delete', 'work-platform/board-posts/comment',
+    'work-platform/board-posts/comment-delete', 'weekly-assets/replace-latest', 'weekly-assets/latest',
+    'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset',
+    'funds/save-by-asset', 'opendart/company/cache-upsert', 'opendart/company', 'building-register/summary',
+    'naver/geocode', 'naver/geocode-batch', 'naver/reverse-geocode', 'dashboard/home/read', 'dashboard/asset/read',
+    'dashboard/company/read', 'dashboard/read', 'ai/search-chat', 'asset-floor-plans/register', 'market-docs/upload',
+    'market-docs/ingest', 'market-docs/embed', 'market-docs/status', 'market-docs/search',
+    'dashboard-metrics/refresh', 'snapshot-refresh', 'cache-clear',
+  ].map((action) => [action, 'authenticated'] as const),
 ]);
-const DATA_MANAGEMENT_APPROVER_EMAILS = new Set([
-  'kylee@igisam.com',
-  'sjlee@igisam.com',
-  'jk.jeon@igisam.com',
+type ActionScopeContract = 'public' | 'self' | 'global' | 'asset' | 'multi_asset';
+const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
+  ...['naver/maps-config', 'auth/logistics-status'].map((action) => [action, 'public'] as const),
+  ...['auth/me', 'auth/login-history/record', 'notifications/list', 'notifications/dismiss', 'notifications/mark-read'].map((action) => [action, 'self'] as const),
+  ...[
+    'health', 'ai/search-chat-demo', 'ai/provider-diagnostics', 'ai/gemini-diagnostics',
+    'auth/users/list', 'permissions/evaluate', 'auth/users/upsert', 'auth/user-permissions/update',
+    'auth/login-history/list', 'auth/login-capability/list', 'feature-access/get', 'feature-access/update',
+    'sector-market/address-backfill', 'sector-market/read', 'sector-market/status',
+    'investment-index/read', 'investment-index/cleanup-empty-loans',
+    'news/list', 'news/collect-run', 'news/restore-20260617',
+    'market-docs/upload', 'market-docs/ingest', 'market-docs/embed', 'market-docs/status', 'market-docs/search',
+    'dashboard-metrics/refresh', 'snapshot-refresh', 'cache-clear',
+  ].map((action) => [action, 'global'] as const),
+  ...[
+    'asset-spec/read', 'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
+    'worklogs/list', 'worklogs', 'worklogs/update', 'worklogs/complete', 'worklogs/delete',
+    'work-platform/tasks', 'work-platform/tasks/update', 'work-platform/tasks/complete', 'work-platform/tasks/delete', 'work-platform/tasks/archive-seed',
+    'work-platform/board-posts', 'work-platform/board-posts/update', 'work-platform/board-posts/delete',
+    'work-platform/board-posts/comment', 'work-platform/board-posts/comment-delete',
+    'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
+    'opendart/company/cache-upsert', 'opendart/company', 'building-register/summary',
+    'naver/geocode', 'naver/geocode-batch', 'naver/reverse-geocode', 'dashboard/asset/read', 'asset-floor-plans/register',
+  ].map((action) => [action, 'asset'] as const),
+  ...[
+    'quality/findings', 'contract-data/apply', 'edits/submit', 'edits/list', 'edits/readback', 'edits/approve', 'edits/reject',
+    'data-management/catalog', 'data-management/rows', 'data-management/views', 'data-management/view-rows',
+    'data-management/status', 'data-management/coverage', 'data-management/preview-edit', 'data-management/submit-edit',
+    'lease-events/list', 'lease-events/preview', 'lease-events/submit',
+    'work-platform/tasks/list', 'work-platform/tasks/snapshots/upsert-current', 'work-platform/tasks/snapshots/list',
+    'work-platform/board-posts/list', 'weekly-assets/replace-latest', 'weekly-assets/latest',
+    'dashboard/home/read', 'dashboard/company/read', 'dashboard/read', 'ai/search-chat',
+  ].map((action) => [action, 'multi_asset'] as const),
+]);
+const ACTION_SCOPE_VALUES = new Set<ActionScopeContract>(['public', 'self', 'global', 'asset', 'multi_asset']);
+// Asset-scoped handlers must remain explicitly registered. This prevents a new
+// route from being classified as asset-scoped without an accompanying canonical
+// asset permission check in its handler.
+const ACTION_SCOPE_HANDLER_CONTRACTS = new Map<string, Extract<ActionScopeContract, 'asset' | 'multi_asset'>>([
+  ...[
+    'asset-spec/read', 'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
+    'worklogs/list', 'worklogs', 'worklogs/update', 'worklogs/complete', 'worklogs/delete',
+    'work-platform/tasks', 'work-platform/tasks/update', 'work-platform/tasks/complete', 'work-platform/tasks/delete', 'work-platform/tasks/archive-seed',
+    'work-platform/board-posts', 'work-platform/board-posts/update', 'work-platform/board-posts/delete',
+    'work-platform/board-posts/comment', 'work-platform/board-posts/comment-delete',
+    'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
+    'opendart/company/cache-upsert', 'opendart/company', 'building-register/summary',
+    'naver/geocode', 'naver/geocode-batch', 'naver/reverse-geocode', 'dashboard/asset/read', 'asset-floor-plans/register',
+  ].map((action) => [action, 'asset'] as const),
+  ...[
+    'quality/findings', 'contract-data/apply', 'edits/submit', 'edits/list', 'edits/readback', 'edits/approve', 'edits/reject',
+    'data-management/catalog', 'data-management/rows', 'data-management/views', 'data-management/view-rows',
+    'data-management/status', 'data-management/coverage', 'data-management/preview-edit', 'data-management/submit-edit',
+    'lease-events/list', 'lease-events/preview', 'lease-events/submit',
+    'work-platform/tasks/list', 'work-platform/tasks/snapshots/upsert-current', 'work-platform/tasks/snapshots/list',
+    'work-platform/board-posts/list', 'weekly-assets/replace-latest', 'weekly-assets/latest',
+    'dashboard/home/read', 'dashboard/company/read', 'dashboard/read', 'ai/search-chat',
+  ].map((action) => [action, 'multi_asset'] as const),
 ]);
 
+function assertActionScopeManifest() {
+  return ACTION_SCOPE_MANIFEST.size === ACTION_MANIFEST.size
+    && [...ACTION_MANIFEST.keys()].every((action) => ACTION_SCOPE_VALUES.has(ACTION_SCOPE_MANIFEST.get(action) as ActionScopeContract))
+    && [...ACTION_SCOPE_MANIFEST.entries()].every(([action, scope]) => ACTION_MANIFEST.has(action) && ACTION_SCOPE_MANIFEST.get(action) === scope)
+    && [...ACTION_SCOPE_MANIFEST.entries()].every(([action, scope]) => (
+      scope !== 'asset' && scope !== 'multi_asset'
+    ) || ACTION_SCOPE_HANDLER_CONTRACTS.get(action) === scope)
+    && [...ACTION_SCOPE_HANDLER_CONTRACTS.entries()].every(([action, scope]) => ACTION_SCOPE_MANIFEST.get(action) === scope);
+}
 function canApproveDataManagementChanges(ctx: Context) {
-  const authEmail = normalizeAuthEmail(ctx.user?.email);
-  const permissionEmail = normalizeAuthEmail(ctx.permission?.email);
-  return DATA_MANAGEMENT_APPROVER_EMAILS.has(authEmail)
-    || DATA_MANAGEMENT_APPROVER_EMAILS.has(permissionEmail);
+  return hasPermissionRow(ctx) && hasUserFeaturePermission(ctx.permission, 'approval_management');
 }
 
 function allLogisticsFeaturePermissions(enabled = true) {
@@ -532,58 +606,6 @@ function allLogisticsFeaturePermissions(enabled = true) {
   return out;
 }
 
-function bootstrapPermissionForEmail(email: unknown) {
-  const rawEmail = normalizeAuthEmail(email);
-  const normalized = normalizeAuthEmail(LOGISTICS_AUTH_EMAIL_ALIASES[rawEmail]) || rawEmail;
-  if (!LOGISTICS_ADMIN_EMAILS.has(normalized)) return null;
-  const logisticsRole = normalized === 'hayun.jeong@igisam.com' ? 'Reader' : 'System Admin';
-  return {
-    user_id: `bootstrap-${normalized}`,
-    email: normalized,
-    staff_name: staffNameForEmail(normalized),
-    organization: organizationForEmail(normalized),
-    image_url: logisticsProfileImageUrl(normalized),
-    logistics_role: logisticsRole,
-    managed_asset_codes: [],
-    managed_asset_permissions: { read: true, create: true, update: true, delete: true },
-    other_asset_permissions: { read: true, create: true, update: true, delete: true },
-    can_ingest_weekly: true,
-    account_status: 'active',
-    feature_permissions: allLogisticsFeaturePermissions(true),
-    profile_payload: {
-      source: 'runtime_bootstrap_until_ll_user_permissions_backfill',
-    },
-  };
-}
-
-function mergeBootstrapPermission(row: Record<string, unknown> | null, email: unknown) {
-  const bootstrap = bootstrapPermissionForEmail(email) as Record<string, unknown> | null;
-  if (!bootstrap) return row;
-  if (!row) return bootstrap;
-  const rowRole = safeText(row.logistics_role);
-  const bootstrapRole = safeText(bootstrap.logistics_role);
-  const mergedFeaturePermissions = {
-    ...((bootstrap.feature_permissions && typeof bootstrap.feature_permissions === 'object') ? bootstrap.feature_permissions as Record<string, unknown> : {}),
-    ...((row.feature_permissions && typeof row.feature_permissions === 'object') ? row.feature_permissions as Record<string, unknown> : {}),
-  };
-  return {
-    ...row,
-    email: normalizeAuthEmail(firstDefined(row.email, bootstrap.email, email)),
-    staff_name: firstDefined(row.staff_name, bootstrap.staff_name),
-    organization: firstDefined(row.organization, bootstrap.organization),
-    logistics_role: roleRank(rowRole) >= roleRank(bootstrapRole) ? rowRole : bootstrapRole,
-    managed_asset_codes: [],
-    managed_asset_permissions: bootstrap.managed_asset_permissions,
-    other_asset_permissions: bootstrap.other_asset_permissions,
-    can_ingest_weekly: true,
-    account_status: 'active',
-    feature_permissions: mergedFeaturePermissions,
-    profile_payload: {
-      ...((row.profile_payload && typeof row.profile_payload === 'object') ? row.profile_payload as Record<string, unknown> : {}),
-      bootstrap_merge: true,
-    },
-  };
-}
 
 function allowedOrigins() {
   return [
@@ -661,16 +683,6 @@ function jsonResponse(body: unknown, status = 200, origin = '') {
 
 function fail(status: number, message: string, origin: string, detail?: unknown) {
   return jsonResponse({ ok: false, status, message, detail }, status, origin);
-}
-
-function roleRank(role: string | undefined) {
-  const order: LogisticsRole[] = ['Reader', 'Editor', 'Manager', 'Admin', 'System Admin'];
-  const index = order.indexOf((role || 'Reader') as LogisticsRole);
-  return index < 0 ? 0 : index;
-}
-
-function hasRole(role: string | undefined, minimum: LogisticsRole) {
-  return roleRank(role) >= roleRank(minimum);
 }
 
 function assertLlAllowlist() {
@@ -873,6 +885,10 @@ function checkRateLimit(userId: string, action: string, limit = 30, windowMs = 6
   return bucket.count <= limit;
 }
 
+function permissionMatchesJwtUser(profile: Record<string, unknown>, jwtUserId: string) {
+  return isActivePermission(profile) && safeText(profile.user_id) === jwtUserId;
+}
+
 async function getContext(request: Request, origin: string): Promise<Context> {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const anonKey = readEdgeSecret('SUPABASE_ANON_KEY');
@@ -892,27 +908,21 @@ async function getContext(request: Request, origin: string): Promise<Context> {
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  let { data: permission } = await serviceClient
+  const { data, error } = await serviceClient
     .from('ll_user_permissions')
     .select('*')
     .eq('user_id', userData.user.id)
-    .maybeSingle();
-  if (!permission) {
-    const emailCandidates = logisticsAuthEmailCandidates(userData.user.email);
-    if (emailCandidates.length) {
-      const { data: emailPermission } = await serviceClient
-        .from('ll_user_permissions')
-        .select('*')
-        .in('email', emailCandidates)
-        .limit(1)
-        .maybeSingle();
-      permission = emailPermission || null;
-    }
-  }
+    .limit(2);
+  if (error) throw new Response('Failed to read logistics permission', { status: 500 });
+  const profiles = ((data || []) as Record<string, unknown>[])
+    .filter((profile) => permissionMatchesJwtUser(profile, userData.user.id));
+  if (profiles.length > 1) throw new Response('Ambiguous active logistics profile', { status: 403 });
+  const permission = profiles[0] || null;
 
-  const permissionFallback = mergeBootstrapPermission(permission || null, userData.user.email);
-  const role = safeText(permissionFallback?.logistics_role, 'Reader');
-  return { serviceClient, user: { id: userData.user.id, email: userData.user.email || null }, permission: permissionFallback || null, role, origin };
+  if (!permission) throw new Response('Active logistics profile is required', { status: 403 });
+
+  const role = safeText(permission?.logistics_role, 'Reader');
+  return { serviceClient, user: { id: userData.user.id, email: userData.user.email || null }, permission, role, origin };
 }
 
 async function audit(serviceClient: SupabaseClient, userId: string | null, action: string, status: number, payload: unknown) {
@@ -946,31 +956,22 @@ function managedAssetCodes(permission: Record<string, unknown> | null) {
 }
 
 function permissionAccountStatus(permission: Record<string, unknown> | null) {
-  return String(permission?.account_status || 'active').trim().toLowerCase();
+  return String(permission?.account_status || '').trim().toLowerCase();
 }
 
 function isActivePermission(permission: Record<string, unknown> | null) {
-  return Boolean(permission && !['inactive', 'disabled', 'blocked', 'deleted', 'archived'].includes(permissionAccountStatus(permission)));
-}
-
-function isDefaultFeatureAccessPermission(permission: Record<string, unknown> | null) {
-  const email = String(permission?.email || '').trim().toLowerCase();
-  const name = String(permission?.staff_name || permission?.name || permission?.display_name || '').trim();
-  const mappedName = staffNameForEmail(email);
-  return LOGISTICS_ADMIN_EMAILS.has(email)
-    || DATA_QUALITY_ALLOWED_NAMES.has(name)
-    || DATA_QUALITY_ALLOWED_NAMES.has(mappedName);
+  return Boolean(permission && permissionAccountStatus(permission) === 'active');
 }
 
 function userFeaturePermissions(permission: Record<string, unknown> | null) {
   const explicit = permission?.feature_permissions;
-  const base = explicit && typeof explicit === 'object' && !Array.isArray(explicit)
+  const source = explicit && typeof explicit === 'object' && !Array.isArray(explicit)
     ? { ...(explicit as Record<string, unknown>) }
     : {};
-  if (isDefaultFeatureAccessPermission(permission)) {
-    return { ...allLogisticsFeaturePermissions(true), ...base };
-  }
-  return base;
+  return {
+    ...source,
+    ...Object.fromEntries([...LOGISTICS_FEATURE_KEYS].map((key) => [key, source[key] === true])),
+  };
 }
 
 function hasUserFeaturePermission(permission: Record<string, unknown> | null, featureKey: string) {
@@ -1008,8 +1009,93 @@ function permissionFlag(permission: Record<string, unknown> | null, key: 'manage
   return value?.[action] === true;
 }
 
+type AssetCrudAction = 'read' | 'create' | 'update' | 'delete';
+type CanonicalAsset = Record<string, unknown> & { asset_id: string; asset_code?: string | null; asset_name?: string | null };
+
+function requestedAssetReferences(value: unknown) {
+  const values = Array.isArray(value) ? value : [value];
+  return [...new Set(values.flatMap((item) => {
+    if (Array.isArray(item)) return item;
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const row = item as Record<string, unknown>;
+      return [row.asset_id, row.assetId, row.asset_code, row.assetCode, row.asset_name, row.assetName];
+    }
+    return [item];
+  }).map((item) => safeText(item)).filter(Boolean))];
+}
+
+async function resolveCanonicalAssets(ctx: Context, references: unknown) {
+  const requested = requestedAssetReferences(references);
+  if (!requested.length) return { assets: [] as CanonicalAsset[], error: 'asset reference is required', reasonCode: 'asset_reference_required' };
+  const { data, error } = await ctx.serviceClient
+    .from('ll_assets')
+    .select('asset_id,asset_code,asset_name,fund_code,fund_name,current_manager_name,current_manager_email')
+    .limit(500);
+  if (error) return { assets: [] as CanonicalAsset[], error: 'failed to resolve canonical asset', reasonCode: 'asset_resolution_unavailable' };
+  const assets = ((data || []) as Record<string, unknown>[])
+    .filter((row) => safeText(row.asset_id)) as CanonicalAsset[];
+  const resolved: CanonicalAsset[] = [];
+  for (const reference of requested) {
+    const variants = new Set(assetRefVariants(reference).map((item) => item.toLowerCase()));
+    const matches = assets.filter((asset) => [asset.asset_id, asset.asset_code, asset.asset_name]
+      .flatMap(assetRefVariants)
+      .some((item) => variants.has(item.toLowerCase())));
+    if (matches.length !== 1) {
+      return {
+        assets: [] as CanonicalAsset[],
+        error: matches.length ? 'asset reference is ambiguous' : 'asset reference was not found',
+        reasonCode: matches.length ? 'asset_reference_ambiguous' : 'asset_reference_unknown',
+      };
+    }
+    if (!resolved.some((asset) => asset.asset_id === matches[0].asset_id)) resolved.push(matches[0]);
+  }
+  return { assets: resolved, error: '', reasonCode: '' };
+}
+
+function permissionRevision(permission: Record<string, unknown> | null) {
+  return safeText(firstDefined(permission?.permission_revision, permission?.updated_at, permission?.created_at)) || null;
+}
+
+function canonicalAssetIsManaged(permission: Record<string, unknown> | null, asset: CanonicalAsset) {
+  const managedRefs = new Set(managedAssetCodes(permission).flatMap(assetRefVariants).map((item) => item.toLowerCase()));
+  return [asset.asset_id, asset.asset_code, asset.asset_name]
+    .flatMap(assetRefVariants)
+    .some((item) => managedRefs.has(item.toLowerCase()));
+}
+
+function canonicalAssetCapability(permission: Record<string, unknown> | null, asset: CanonicalAsset) {
+  const key = canonicalAssetIsManaged(permission, asset) ? 'managed_asset_permissions' : 'other_asset_permissions';
+  return {
+    read: permissionFlag(permission, key, 'read'),
+    create: permissionFlag(permission, key, 'create'),
+    update: permissionFlag(permission, key, 'update'),
+    delete: permissionFlag(permission, key, 'delete'),
+    scope: key === 'managed_asset_permissions' ? 'managed' : 'other',
+  };
+}
+
+async function assetCapabilitiesForProfile(ctx: Context, permission: Record<string, unknown> | null = ctx.permission) {
+  const { data, error } = await ctx.serviceClient
+    .from('ll_assets')
+    .select('asset_id,asset_code,asset_name')
+    .order('asset_name', { ascending: true })
+    .limit(500);
+  if (error) return { capabilities: {}, error: 'failed to read canonical assets' };
+  const capabilities = Object.fromEntries(((data || []) as Record<string, unknown>[])
+    .filter((asset) => safeText(asset.asset_id))
+    .map((asset) => [safeText(asset.asset_id), canonicalAssetCapability(permission, asset as CanonicalAsset)]));
+  return { capabilities, error: '' };
+}
+
+async function evaluateCanonicalAssetPermission(ctx: Context, action: AssetCrudAction, references: unknown) {
+  if (!hasPermissionRow(ctx)) return { allowed: false, assets: [] as CanonicalAsset[], error: 'no active logistics permission', reasonCode: 'active_profile_required' };
+  const resolved = await resolveCanonicalAssets(ctx, references);
+  if (resolved.error || !resolved.assets.length) return { allowed: false, assets: [] as CanonicalAsset[], error: resolved.error || 'asset reference is required', reasonCode: resolved.reasonCode || 'asset_reference_required' };
+  const allowed = resolved.assets.every((asset) => canonicalAssetCapability(ctx.permission, asset)[action] === true);
+  return { allowed, assets: resolved.assets, error: allowed ? '' : `asset ${action} permission denied`, reasonCode: allowed ? '' : `asset_${action}_denied` };
+}
+
 function canWriteRelatedAsset(ctx: Context, relatedAssetId: unknown, relatedAssetName?: unknown) {
-  if (hasRole(ctx.role, 'Admin')) return true;
   const assetId = String(relatedAssetId || '').trim();
   const assetName = String(relatedAssetName || '').trim();
   if (!assetId && !assetName) return false;
@@ -1019,7 +1105,6 @@ function canWriteRelatedAsset(ctx: Context, relatedAssetId: unknown, relatedAsse
 }
 
 function canMutateRelatedAsset(ctx: Context, action: 'create' | 'update' | 'delete', relatedAssetId: unknown, relatedAssetName?: unknown) {
-  if (hasRole(ctx.role, 'Admin')) return true;
   const assetId = String(relatedAssetId || '').trim();
   const assetName = String(relatedAssetName || '').trim();
   if (!assetId && !assetName) return false;
@@ -1030,18 +1115,12 @@ function canMutateRelatedAsset(ctx: Context, action: 'create' | 'update' | 'dele
 }
 
 function canMutateWorklog(ctx: Context, action: 'create' | 'update' | 'delete', relatedAssetId: unknown) {
-  if (hasRole(ctx.role, 'Admin')) return true;
   const assetId = String(relatedAssetId || '').trim();
+  if (!assetId) return false;
   const permissionKey = assetId && hasManagedAssetRef(ctx.permission, assetId)
     ? 'managed_asset_permissions'
     : 'other_asset_permissions';
   return permissionFlag(ctx.permission, permissionKey, action);
-}
-
-function canArchiveUnscopedSeedTask(ctx: Context) {
-  if (hasRole(ctx.role, 'Manager')) return true;
-  return permissionFlag(ctx.permission, 'managed_asset_permissions', 'delete')
-    || permissionFlag(ctx.permission, 'other_asset_permissions', 'delete');
 }
 
 function serverWorklogPayload(ctx: Context, rawPayload: unknown, currentPayload: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) {
@@ -1071,52 +1150,32 @@ function serverWorklogPayload(ctx: Context, rawPayload: unknown, currentPayload:
   };
 }
 
-function canReadRelatedAsset(ctx: Context, relatedAssetId: unknown) {
-  if (hasRole(ctx.role, 'Manager')) return true;
-  const assetId = String(relatedAssetId || '').trim();
-  if (!assetId) return true;
-  const otherPermissions = ctx.permission?.other_asset_permissions as Record<string, unknown> | undefined;
-  return hasManagedAssetRef(ctx.permission, assetId) || otherPermissions?.read === true;
+function canReadRelatedAsset(ctx: Context, relatedAssetId: unknown, relatedAssetCode?: unknown, relatedAssetName?: unknown) {
+  const references = [relatedAssetId, relatedAssetCode, relatedAssetName]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+  if (!references.length) return false;
+  const key = references.some((reference) => hasManagedAssetRef(ctx.permission, reference))
+    ? 'managed_asset_permissions'
+    : 'other_asset_permissions';
+  return permissionFlag(ctx.permission, key, 'read');
 }
 
 function canReadRelatedAssetRecord(ctx: Context, row: Record<string, unknown>) {
-  if (allReadableAssetsAllowed(ctx)) return true;
-  return hasManagedAssetReference(ctx.permission, row.asset_id, row.asset_name)
-    || hasManagedAssetReference(ctx.permission, row.asset_code, row.asset_name);
-}
-
-function allowedDataQualityEmails() {
-  return (Deno.env.get('LL_DATA_QUALITY_ALLOWED_EMAILS') || '')
-    .split(',')
-    .map((item) => item.trim().toLowerCase())
-    .filter(Boolean);
+  return canReadRelatedAsset(ctx, row.asset_id, row.asset_code, row.asset_name);
 }
 
 function canUseDataQuality(ctx: Context) {
-  if (hasRole(ctx.role, 'System Admin')) return true;
-  if (hasUserFeaturePermission(ctx.permission, 'data_quality')) return true;
-  const organization = String(ctx.permission?.organization || ctx.permission?.department || '').trim();
-  const name = String(ctx.permission?.staff_name || ctx.permission?.name || ctx.permission?.display_name || '').trim();
-  const email = String(ctx.permission?.email || '').trim().toLowerCase();
-  const mappedName = staffNameForEmail(email);
-  return organization === '기획추진센터'
-    || DATA_QUALITY_ALLOWED_NAMES.has(name)
-    || DATA_QUALITY_ALLOWED_NAMES.has(mappedName)
-    || allowedDataQualityEmails().includes(email);
+  return hasPermissionRow(ctx) && hasUserFeaturePermission(ctx.permission, 'data_quality');
 }
 
 function canManageFeatureAccess(ctx: Context) {
-  const email = String(ctx.permission?.email || '').trim().toLowerCase();
-  const name = String(ctx.permission?.staff_name || ctx.permission?.name || ctx.permission?.display_name || '').trim();
-  const mappedName = staffNameForEmail(email);
-  return LOGISTICS_ADMIN_EMAILS.has(email)
-    || DATA_QUALITY_ALLOWED_NAMES.has(name)
-    || DATA_QUALITY_ALLOWED_NAMES.has(mappedName);
+  return hasPermissionRow(ctx) && hasUserFeaturePermission(ctx.permission, 'permission_admin');
 }
 
 function compactFeatureAccessUser(row: Record<string, unknown>) {
   const staffName = safeText(firstDefined(row.staff_name, row.name));
-  const email = String(row.email || DEFAULT_FEATURE_ACCESS_EMAIL_BY_NAME[staffName] || '').trim().toLowerCase();
+  const email = normalizeAuthEmail(row.email);
   const imageUrl = logisticsProfileImageUrl(email, firstDefined(row.image_url, row.avatar_url));
   return {
     email,
@@ -1207,13 +1266,43 @@ async function readFeatureAccessConfig(ctx: Context) {
 }
 
 async function canUseServerFeature(ctx: Context, featureKey: string) {
-  if (canManageFeatureAccess(ctx)) return true;
+  if (!hasPermissionRow(ctx)) return false;
   if (!LOGISTICS_FEATURE_KEYS.has(featureKey)) return false;
   if (hasUserFeaturePermission(ctx.permission, featureKey)) return true;
-  const config = await readFeatureAccessConfig(ctx);
-  const feature = (config.features as Record<string, unknown>)?.[featureKey] as Record<string, unknown> | undefined;
-  const users = Array.isArray(feature?.users) ? feature.users as Record<string, unknown>[] : [];
-  return users.some((row) => featureAccessUserMatches(ctx, row));
+  return false;
+}
+
+async function authorizeActionManifest(ctx: Context, action: string) {
+  const classification = ACTION_MANIFEST.get(action);
+  if (!classification) return fail(404, 'Unknown action', ctx.origin, { reason_code: 'unknown_action' });
+  if (classification === 'permission_admin' && !await canUseServerFeature(ctx, 'permission_admin')) {
+    return fail(403, 'This action is not available for this account', ctx.origin, { reason_code: 'permission_admin_required' });
+  }
+  if (classification === 'approval_management' && !await canUseServerFeature(ctx, 'approval_management')) {
+    return fail(403, 'This action is not available for this account', ctx.origin, { reason_code: 'approval_management_required' });
+  }
+  return null;
+}
+
+async function authorizeActionScope(ctx: Context, action: string, payload: Record<string, unknown>) {
+  const scope = ACTION_SCOPE_MANIFEST.get(action);
+  if (!scope) return fail(500, 'Action scope is not classified', ctx.origin, { reason_code: 'action_scope_unclassified' });
+  if (scope === 'public') return null;
+  if (!hasPermissionRow(ctx)) return fail(403, 'Active logistics profile is required', ctx.origin);
+  if (scope === 'self') {
+    const requestedActorIds = [payload.user_id, payload.userId, payload.actor_id, payload.actorId, payload.created_by, payload.createdBy]
+      .map((value) => safeText(value))
+      .filter(Boolean);
+    if (requestedActorIds.some((userId) => userId !== ctx.user.id)) {
+      return fail(403, 'Self-scoped action cannot target another user', ctx.origin, { reason_code: 'self_scope_mismatch' });
+    }
+  }
+  if (scope === 'asset' || scope === 'multi_asset') {
+    if (ACTION_SCOPE_HANDLER_CONTRACTS.get(action) !== scope) {
+      return fail(500, 'Asset scope handler contract is invalid', ctx.origin, { reason_code: 'asset_scope_handler_unregistered' });
+    }
+  }
+  return null;
 }
 
 async function canUseMarketResearch(ctx: Context) {
@@ -1222,7 +1311,6 @@ async function canUseMarketResearch(ctx: Context) {
 }
 
 async function callFeatureAccessGet(ctx: Context) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const config = await readFeatureAccessConfig(ctx);
   await auditOptional(ctx.serviceClient, ctx.user.id, 'feature-access/get', 200, {});
   return jsonResponse({ ok: true, data: config }, 200, ctx.origin);
@@ -1263,12 +1351,16 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
       const existing = Array.isArray(existingRows) && existingRows.length ? existingRows[0] as Record<string, unknown> : null;
       if (!existing) {
         if (!change.enabled) continue;
+        const principal = await resolveExactPermissionPrincipal(ctx.serviceClient, email);
+        if (principal.error) {
+          return fail(409, 'An exact Auth user is required before feature permissions can be created', ctx.origin, { reason_code: principal.reasonCode });
+        }
         const nextFeatures = allLogisticsFeaturePermissions(false);
         nextFeatures[change.featureKey] = true;
         const { error: upsertError } = await ctx.serviceClient
           .from('ll_user_permissions')
           .upsert(stripUndefined({
-            user_id: crypto.randomUUID(),
+            user_id: principal.userId,
             email,
             staff_name: safeText(firstDefined(change.user.staff_name, staffNameForEmail(email))),
             organization: safeText(firstDefined(change.user.organization, organizationForEmail(email))),
@@ -1341,10 +1433,14 @@ async function callFeatureAccessUpdate(ctx: Context, payload: Record<string, unk
     LOGISTICS_FEATURE_KEYS.forEach((key) => {
       nextFeatures[key] = userKeys.some((item) => desiredByFeature.get(key)?.has(item));
     });
+    const principal = await resolveExactPermissionPrincipal(ctx.serviceClient, email);
+    if (principal.error) {
+      return fail(409, 'An exact Auth user is required before feature permissions can be created', ctx.origin, { reason_code: principal.reasonCode });
+    }
     const { error: upsertError } = await ctx.serviceClient
       .from('ll_user_permissions')
       .upsert(stripUndefined({
-        user_id: crypto.randomUUID(),
+        user_id: principal.userId,
         email,
         staff_name: safeText(firstDefined(user.staff_name, staffNameForEmail(email))),
         organization: safeText(firstDefined(user.organization, organizationForEmail(email))),
@@ -1829,8 +1925,25 @@ function filterWorkPlatformTaskRows(ctx: Context, rows: Record<string, unknown>[
   });
 }
 
-function filterWorkPlatformBoardRows(ctx: Context, rows: Record<string, unknown>[]) {
-  return rows.filter((row) => row.created_by === ctx.user.id || canReadRelatedAsset(ctx, row.related_asset_id));
+function explicitBoardLegacyScope(row: Record<string, unknown>) {
+  const metadata = row.board_metadata && typeof row.board_metadata === 'object' && !Array.isArray(row.board_metadata)
+    ? row.board_metadata as Record<string, unknown>
+    : (row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata) ? row.metadata as Record<string, unknown> : {});
+  return safeText(firstDefined(row.legacy_scope, row.visibility_scope, metadata.legacy_scope, metadata.visibility_scope, metadata.access_scope)).toLowerCase();
+}
+
+async function filterWorkPlatformBoardRows(ctx: Context, rows: Record<string, unknown>[]) {
+  const permitted = await Promise.all(rows.map(async (row) => {
+    const relatedAssetId = safeText(row.related_asset_id);
+    if (relatedAssetId) {
+      return (await evaluateCanonicalAssetPermission(ctx, 'read', relatedAssetId)).allowed ? row : null;
+    }
+    const legacyScope = explicitBoardLegacyScope(row);
+    if (legacyScope === 'global') return row;
+    if (legacyScope === 'self' && safeText(row.created_by) === ctx.user.id) return row;
+    return null;
+  }));
+  return permitted.filter((row): row is Record<string, unknown> => row !== null);
 }
 
 function hasPermissionRow(ctx: Context) {
@@ -1838,7 +1951,9 @@ function hasPermissionRow(ctx: Context) {
 }
 
 function allReadableAssetsAllowed(ctx: Context) {
-  return hasRole(ctx.role, 'Manager') || permissionFlag(ctx.permission, 'other_asset_permissions', 'read');
+  const managedRefs = managedAssetCodes(ctx.permission);
+  return permissionFlag(ctx.permission, 'other_asset_permissions', 'read')
+    && (!managedRefs.length || permissionFlag(ctx.permission, 'managed_asset_permissions', 'read'));
 }
 
 function matchesManagedAsset(ctx: Context, row: Record<string, unknown>) {
@@ -1873,8 +1988,10 @@ async function listReadableAssetsForDashboard(ctx: Context) {
     .limit(500);
   if (error) return { rows: [], errorResponse: fail(500, 'Failed to read assets', ctx.origin) };
   const rows = ((data || []) as Record<string, unknown>[]).filter(isDashboardVisibleAsset);
+  const capabilityResult = await assetCapabilitiesForProfile(ctx);
+  if (capabilityResult.error) return { rows: [], errorResponse: fail(500, 'Failed to read asset capabilities', ctx.origin) };
   return {
-    rows: allReadableAssetsAllowed(ctx) ? rows : rows.filter((row) => matchesManagedAsset(ctx, row)),
+    rows: rows.filter((row) => capabilityResult.capabilities[safeText(row.asset_id)]?.read === true),
     errorResponse: null,
   };
 }
@@ -2517,7 +2634,6 @@ function normalizeFloorCountDisplay(value: unknown) {
 }
 
 async function callAssetFloorPlanRegister(ctx: Context, formData: FormData | null) {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!formData) return fail(400, 'Multipart form data is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'asset-floor-plans/register', 24, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const payloadEntry = formData.get('payload');
@@ -2537,9 +2653,9 @@ async function callAssetFloorPlanRegister(ctx: Context, formData: FormData | nul
   if (assetError && !isMissingRelationError(assetError)) return fail(500, 'Failed to validate asset for floor plan upload', ctx.origin);
   if (!asset?.asset_id) return fail(404, 'Asset not found for floor plan upload', ctx.origin);
   const assetName = safeText(asset.asset_name, assetId);
-  const canCreate = canMutateRelatedAsset(ctx, 'create', assetId, assetName);
-  const canUpdate = canMutateRelatedAsset(ctx, 'update', assetId, assetName);
-  if (!hasRole(ctx.role, 'Admin') && !canWriteRelatedAsset(ctx, assetId, assetName) && !canCreate && !canUpdate) {
+  const createPermission = await evaluateCanonicalAssetPermission(ctx, 'create', assetId);
+  const updatePermission = await evaluateCanonicalAssetPermission(ctx, 'update', assetId);
+  if (!createPermission.allowed && !updatePermission.allowed) {
     return fail(403, 'Insufficient asset write permission for floor plan upload', ctx.origin);
   }
 
@@ -2751,7 +2867,17 @@ async function listVerifiedFloorPlansForAsset(ctx: Context, assetId: string) {
 }
 
 async function callAdminGyeongsanCoupangFloorCountPreview(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'permission_admin')) return fail(403, 'Permission administration is required', ctx.origin);
+  const assetAuthorization = await evaluateCanonicalAssetPermission(
+    ctx,
+    'update',
+    [GYEONGSAN_COUPANG_FLOOR_COUNT_TARGET.asset_id],
+  );
+  if (!assetAuthorization.allowed) {
+    return fail(403, 'Asset update permission is required', ctx.origin, {
+      reason_code: assetAuthorization.reasonCode || 'asset_update_denied',
+    });
+  }
   if (!checkRateLimit(ctx.user.id, 'asset-admin/gyeongsan-coupang-floor-count-preview', 12, 60_000)) {
     return fail(429, 'Rate limit exceeded', ctx.origin);
   }
@@ -2870,7 +2996,6 @@ async function callAdminGyeongsanCoupangFloorCountPreview(ctx: Context, payload:
 }
 
 async function callDashboardHomeRead(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return denyDashboardRead(ctx, 'dashboard/home/read', 403, 'Insufficient logistics permission', 'role_below_reader');
   const basisDate = dashboardBasisDate(payload);
   const assetResult = await listReadableAssetsForDashboard(ctx);
   if (assetResult.errorResponse) return assetResult.errorResponse;
@@ -2955,7 +3080,6 @@ async function callDashboardHomeRead(ctx: Context, payload: Record<string, unkno
 }
 
 async function callDashboardAssetRead(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return denyDashboardRead(ctx, 'dashboard/asset/read', 403, 'Insufficient logistics permission', 'role_below_reader');
   const basisDate = dashboardBasisDate(payload);
   const assetResult = await listReadableAssetsForDashboard(ctx);
   if (assetResult.errorResponse) return assetResult.errorResponse;
@@ -3065,7 +3189,6 @@ async function callDashboardAssetRead(ctx: Context, payload: Record<string, unkn
 }
 
 async function callDashboardCompanyRead(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return denyDashboardRead(ctx, 'dashboard/company/read', 403, 'Insufficient logistics permission', 'role_below_reader');
   const basisDate = dashboardBasisDate(payload);
   const assetResult = await listReadableAssetsForDashboard(ctx);
   if (assetResult.errorResponse) return assetResult.errorResponse;
@@ -3558,7 +3681,9 @@ async function canWriteAnyLeaseAsset(ctx: Context, tenantIds: string[]) {
     .in('tenant_id', normalizedTenantIds)
     .limit(200);
   if (error) throw new Error(`Related lease permission check failed: ${error.message}`);
-  return (data || []).some((lease: Record<string, unknown>) => canWriteRelatedAsset(ctx, lease.asset_id));
+  const assetIds = (data || []).map((lease: Record<string, unknown>) => lease.asset_id);
+  const result = await evaluateCanonicalAssetPermission(ctx, 'update', assetIds);
+  return result.allowed;
 }
 
 async function canWriteTenantScopedRow(ctx: Context, row: Record<string, unknown>, cell: ReturnType<typeof normalizeEditCells>[number]) {
@@ -3568,9 +3693,11 @@ async function canWriteTenantScopedRow(ctx: Context, row: Record<string, unknown
 
 async function assertTargetRowPermission(ctx: Context, row: Record<string, unknown>, cell: ReturnType<typeof normalizeEditCells>[number]) {
   const related = rowRelatedAsset(row, cell);
-  if (related.assetId || related.assetName) return canWriteRelatedAsset(ctx, related.assetId, related.assetName);
+  if (related.assetId || related.assetName) {
+    return (await evaluateCanonicalAssetPermission(ctx, 'update', related.assetId || related.assetName)).allowed;
+  }
   if (cell.targetTable === 'public.ll_tenants') return canWriteTenantScopedRow(ctx, row, cell);
-  return canWriteRelatedAsset(ctx, related.assetId, related.assetName);
+  return false;
 }
 
 function assertRowTemporalWriteAllowed(cell: ReturnType<typeof normalizeEditCells>[number], row: Record<string, unknown>) {
@@ -3668,7 +3795,6 @@ async function runBoundedDataChangeAudits(jobs: Array<() => Promise<void>>, time
 }
 
 function canReadDataQualityRow(ctx: Context, row: Record<string, unknown>) {
-  if (hasRole(ctx.role, 'Manager')) return true;
   const assetId = firstDefined(row.asset_id, row.target_asset_id, row.related_asset_id, row.asset_code, row.entity_id);
   const assetName = firstDefined(row.asset_name, row.target_asset_name, row.target_name);
   if (!assetId && !assetName) return true;
@@ -3676,7 +3802,6 @@ function canReadDataQualityRow(ctx: Context, row: Record<string, unknown>) {
 }
 
 function canReadEditRequestRow(ctx: Context, row: Record<string, unknown>) {
-  if (hasRole(ctx.role, 'Manager')) return true;
   const payload = parseJsonValue(row.request_payload, {}) as Record<string, unknown>;
   const notification = payload.notification && typeof payload.notification === 'object' && !Array.isArray(payload.notification)
     ? payload.notification as Record<string, unknown>
@@ -4044,7 +4169,7 @@ async function buildRuntimeQualityFindings(ctx: Context, limit: number) {
 
   tenantsRaw.filter((row) => {
     const tenantName = rowTenantName(row);
-    return tenantName && (hasRole(ctx.role, 'Manager') || activeLeaseSpaces.some((space) => safeText(space.tenant_id) === safeText(row.tenant_id) || rowTenantName(space) === tenantName));
+    return tenantName && activeLeaseSpaces.some((space) => safeText(space.tenant_id) === safeText(row.tenant_id) || rowTenantName(space) === tenantName);
   }).forEach((tenant) => {
     const tenantId = safeText(firstDefined(tenant.tenant_id, tenant.tenantId));
     const tenantName = rowTenantName(tenant) || tenantId || '임차인';
@@ -4072,7 +4197,6 @@ async function buildRuntimeQualityFindings(ctx: Context, limit: number) {
 }
 
 async function listQualityFindings(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'quality/findings', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 200), 1), 500);
@@ -4100,7 +4224,6 @@ async function listQualityFindings(ctx: Context, payload: Record<string, unknown
 }
 
 async function listEditRequests(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const canUseQuality = await canUseServerFeature(ctx, 'data_quality');
   if (!checkRateLimit(ctx.user.id, 'edits/list', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const status = String(payload.status || 'submitted');
@@ -4129,7 +4252,7 @@ async function listEditRequests(ctx: Context, payload: Record<string, unknown>) 
 }
 
 async function readbackEdit(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Manager')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is required', ctx.origin);
   if (!await canUseServerFeature(ctx, 'data_quality')) return fail(403, 'Data Quality permission is limited to selected users', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/readback', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const id = String(payload.id || '');
@@ -4164,7 +4287,6 @@ async function readbackEdit(ctx: Context, payload: Record<string, unknown>) {
 }
 
 async function submitEdit(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'edits/submit', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const sourceTable = normalizePublicLlTable(payload.source_table || 'public.ll_lease_spaces');
   if (!EDIT_TARGET_TABLE_ALLOWLIST.has(sourceTable)) return fail(403, 'Source table is not allowed', ctx.origin);
@@ -4440,7 +4562,6 @@ async function writeSourceOnlyContractAudit(
 }
 
 async function applyContractData(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'contract-data/apply', 20)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const rawCells = Array.isArray(payload.cell_edits) ? payload.cell_edits as Record<string, unknown>[] : [];
   if (!rawCells.length || rawCells.length > MAX_EDIT_CELLS_PER_REQUEST) return fail(400, 'Edit cell count is invalid', ctx.origin);
@@ -4668,7 +4789,6 @@ function isSmokeLeaseEventRow(row: Record<string, unknown>) {
 }
 
 async function listLeaseEvents(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'lease-events/list', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 100), 1), 300);
   const includeSmoke = payload.include_smoke === true;
@@ -4792,7 +4912,6 @@ async function materializeBusinessNotifications(
 }
 
 async function listLogisticsNotifications(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'notifications/list', 90)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 80), 1), 120);
   const includeSmoke = payload.include_smoke === true;
@@ -4874,7 +4993,6 @@ async function listCanonicalNotifications(ctx: Context, limit: number) {
 }
 
 async function dismissLogisticsNotifications(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'notifications/dismiss', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const email = canonicalPermissionEmail(ctx.permission, ctx.user.email);
   if (!email) return fail(400, 'Missing user email', ctx.origin);
@@ -4898,7 +5016,6 @@ async function dismissLogisticsNotifications(ctx: Context, payload: Record<strin
 }
 
 async function markReadLogisticsNotifications(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'notifications/mark-read', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const email = canonicalPermissionEmail(ctx.permission, ctx.user.email);
   if (!email) return fail(400, 'Missing user email', ctx.origin);
@@ -5104,7 +5221,7 @@ async function marketBackfillGeocode(ctx: Context, address: string) {
 }
 
 async function callSectorMarketAddressBackfill(ctx: Context, payload: Record<string, unknown>) {
-  if (!canManageFeatureAccess(ctx) && !hasRole(ctx.role, 'Admin')) return fail(403, 'Management permission required', ctx.origin);
+  if (!canManageFeatureAccess(ctx)) return fail(403, 'Management permission required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'sector-market/address-backfill', 10)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const dryRun = payload.dry_run !== false;
   const limit = Math.min(Math.max(Number(payload.limit || 500), 1), 1200);
@@ -6018,7 +6135,6 @@ async function callSectorMarketRead(ctx: Context, payload: Record<string, unknow
 }
 
 async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const [fundsResult, linksResult, tranchesResult, assetsResult] = await Promise.all([
     ctx.serviceClient.from('ll_funds').select('*').limit(500),
     ctx.serviceClient.from('ll_fund_asset_links').select('*').limit(1000),
@@ -6198,7 +6314,7 @@ async function callInvestmentIndexRead(ctx: Context, _payload: Record<string, un
 }
 
 async function callInvestmentIndexCleanupEmptyLoans(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Manager')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'permission_admin')) return fail(403, 'Permission administration is required', ctx.origin);
   const dryRun = payload.dry_run === true;
   const { data: loanRows, error: readError } = await ctx.serviceClient
     .from('ll_fund_capital_tranches')
@@ -6259,7 +6375,6 @@ async function callInvestmentIndexCleanupEmptyLoans(ctx: Context, payload: Recor
 }
 
 async function callAssetSpecRead(ctx: Context, _payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const [assetsResult, specsResult, filesResult, linksResult] = await Promise.all([
     ctx.serviceClient.from('ll_assets').select('*').limit(1000),
     ctx.serviceClient.from('ll_asset_specs').select('*').limit(2000),
@@ -6287,9 +6402,9 @@ async function callAssetSpecRead(ctx: Context, _payload: Record<string, unknown>
   }).filter(([key]) => key) as Array<[string, Record<string, unknown>]>).values()];
   const publicAssets: Record<string, unknown>[] = assets.map((asset) => ({
     ...asset,
-    can_create: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'create', asset.asset_id, asset.asset_name),
-    can_update: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'update', asset.asset_id, asset.asset_name),
-    can_delete: hasRole(ctx.role, 'Manager') || canMutateRelatedAsset(ctx, 'delete', asset.asset_id, asset.asset_name),
+    can_create: canMutateRelatedAsset(ctx, 'create', asset.asset_id, asset.asset_name),
+    can_update: canMutateRelatedAsset(ctx, 'update', asset.asset_id, asset.asset_name),
+    can_delete: canMutateRelatedAsset(ctx, 'delete', asset.asset_id, asset.asset_name),
   }));
   const visibleAssetIds = new Set(publicAssets.map((row) => safeText(row.asset_id)).filter(Boolean));
   const specs = ((specsResult.data || []) as Record<string, unknown>[]).filter((row) => visibleAssetIds.has(safeText(row.asset_id)));
@@ -6371,7 +6486,6 @@ function assetSpecNumeric(value: unknown) {
 }
 
 async function callAssetSpecSave(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'asset-spec/save', 40, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const assetId = safeText(firstDefined(payload.asset_id, payload.assetId));
   if (!assetId) return fail(400, 'asset_id is required', ctx.origin);
@@ -6393,7 +6507,7 @@ async function callAssetSpecSave(ctx: Context, payload: Record<string, unknown>)
   const existing = ((existingRows || []) as Record<string, unknown>[])[0] || null;
   const mode = safeText(payload.mode).toLowerCase();
   const requiredAction = mode === 'delete' ? 'delete' : (existing ? 'update' : 'create');
-  if (!hasRole(ctx.role, 'Manager') && !canMutateRelatedAsset(ctx, requiredAction, assetId, assetName)) {
+  if (!(await evaluateCanonicalAssetPermission(ctx, requiredAction, assetId)).allowed) {
     return fail(403, `Insufficient asset ${requiredAction} permission for asset spec`, ctx.origin);
   }
 
@@ -6477,7 +6591,6 @@ async function callAssetSpecSave(ctx: Context, payload: Record<string, unknown>)
 }
 
 async function callOperatingCostsRead(ctx: Context, _payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const { data, error } = await ctx.serviceClient
     .from('ll_asset_operating_costs')
     .select('*')
@@ -7995,7 +8108,8 @@ function dataManagementCanReadTable(ctx: Context, table: Record<string, unknown>
   const capability = safeText(table.capability);
   if (spaceKey === 'operations') return false;
   if (capability === 'readback_only' || capability === 'feature_access_workflow') return false;
-  return hasRole(ctx.role, 'Reader');
+  return permissionFlag(ctx.permission, 'managed_asset_permissions', 'read')
+    || permissionFlag(ctx.permission, 'other_asset_permissions', 'read');
 }
 
 async function countPublicLlTableRows(ctx: Context, tableName: string) {
@@ -8807,7 +8921,7 @@ async function dataManagementFallbackTableViewRows(ctx: Context, payload: Record
   const { data, error, count } = await query;
   if (error && !isMissingRelationError(error)) throw new Error(error.message);
   let rawRows = ((data || []) as Record<string, unknown>[])
-    .filter((row) => dataManagementRowReadable(ctx, row, hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx), scope))
+    .filter((row) => dataManagementRowReadable(ctx, row, false, scope))
     .filter((row) => dataManagementRowMatchesBundle(row, bundle));
   const searchKey = normalizeKey(payload.search);
   if (searchKey) rawRows = rawRows.filter((row) => dataManagementRowHaystackGeneric(row).includes(searchKey));
@@ -11481,8 +11595,7 @@ async function callDataManagementSubmitDetailRowChange(ctx: Context, payload: Re
 }
 
 async function callDataManagementViews(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const managerView = false;
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
@@ -11506,8 +11619,7 @@ async function callDataManagementViews(ctx: Context, payload: Record<string, unk
 }
 
 async function callDataManagementViewRows(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const managerView = false;
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
@@ -11789,8 +11901,7 @@ async function callDataManagementViewRows(ctx: Context, payload: Record<string, 
 }
 
 async function callDataManagementCatalog(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const managerView = false;
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
@@ -11829,8 +11940,7 @@ async function callDataManagementCatalog(ctx: Context, payload: Record<string, u
 }
 
 async function callDataManagementRows(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const managerView = false;
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || dataManagementEmptyScope();
@@ -12265,7 +12375,7 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
       return dataManagementDedupedEditResponse(ctx, existing, clientRequestId, rawChanges.length);
     }
   }
-  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const managerView = false;
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const scope = scopeResult.scope || dataManagementEmptyScope();
@@ -12474,10 +12584,10 @@ async function callDataManagementSubmitViewFieldBatch(ctx: Context, payload: Rec
 }
 
 async function callDataManagementCoverage(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Manager') && !canManageFeatureAccess(ctx)) {
+  if (!canManageFeatureAccess(ctx)) {
     return fail(403, 'Data Management coverage audit requires manager permission', ctx.origin);
   }
-  const managerView = true;
+  const managerView = false;
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope || {
@@ -12784,8 +12894,7 @@ function dataManagementDedupedEditResponse(ctx: Context, existing: Record<string
 }
 
 async function callDataManagementStatus(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
-  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const managerView = false;
   const rowLimit = Math.min(Math.max(Number(payload.row_limit || 600), 20), 1200);
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
@@ -13062,10 +13171,9 @@ async function callDataManagementStatus(ctx: Context, payload: Record<string, un
 }
 
 async function callDataManagementPreviewEdit(ctx: Context, payload: Record<string, unknown>): Promise<Response> {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/preview-edit', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
   if (safeText(payload.edit_mode || payload.editMode) === 'detail_field') {
-    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const managerView = false;
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     try {
@@ -13076,7 +13184,7 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
     }
   }
   if (isDataManagementViewFieldPayload(payload)) {
-    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const managerView = false;
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     const viewKey = safeText(payload.view_key || payload.viewKey);
@@ -13115,7 +13223,7 @@ async function callDataManagementPreviewEdit(ctx: Context, payload: Record<strin
   const fieldName = safeText(payload.field_name || payload.fieldName);
   const requestedValue = firstPresent(payload.requested_value, payload.requestedValue, payload.after_value, payload.afterValue);
   if (!sourceRowId || !fieldName) return fail(400, 'source_row_id and field_name are required', ctx.origin);
-  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const managerView = false;
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope;
@@ -13310,7 +13418,6 @@ async function callDataManagementSubmitRowAdd(ctx: Context, payload: Record<stri
 }
 
 async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string, unknown>): Promise<Response> {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'data-management/submit-edit', 40)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const clientRequestId = dataManagementClientRequestId(payload);
   if (clientRequestId) {
@@ -13318,19 +13425,19 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     if (existing) return dataManagementDedupedEditResponse(ctx, existing, clientRequestId);
   }
   if (safeText(payload.edit_mode || payload.editMode) === 'row_add') {
-    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const managerView = false;
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     return callDataManagementSubmitRowAdd(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
   }
   if (['detail_row_add', 'detail_row_delete'].includes(safeText(payload.edit_mode || payload.editMode))) {
-    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const managerView = false;
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     return callDataManagementSubmitDetailRowChange(ctx, payload, scopeResult.scope || dataManagementEmptyScope());
   }
   if (safeText(payload.edit_mode || payload.editMode) === 'detail_field') {
-    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const managerView = false;
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     try {
@@ -13348,7 +13455,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
     }
   }
   if (isDataManagementViewFieldPayload(payload)) {
-    const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+    const managerView = false;
     const scopeResult = await readDataManagementScope(ctx, managerView);
     if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
     const viewKey = safeText(payload.view_key || payload.viewKey);
@@ -13399,7 +13506,7 @@ async function callDataManagementSubmitEdit(ctx: Context, payload: Record<string
   const targetRecordId = safeText(payload.target_record_id || payload.targetRecordId || payload.resolved_target_row_id || payload.resolvedTargetRowId);
   const primaryKeyField = safeText(payload.primary_key_field || payload.primaryKeyField || 'id');
   const autoWriteEnabled = Boolean(normalizedTargetTable && EDIT_TARGET_TABLE_ALLOWLIST.has(normalizedTargetTable) && targetField && targetRecordId);
-  const managerView = hasRole(ctx.role, 'Manager') || canManageFeatureAccess(ctx);
+  const managerView = false;
   const scopeResult = await readDataManagementScope(ctx, managerView);
   if (scopeResult.error) return fail(500, 'Failed to read data management scope', ctx.origin, { error: scopeResult.error });
   const managementScope = scopeResult.scope;
@@ -14176,7 +14283,6 @@ async function collectAndStoreNewsRun(ctx: Context, dateText: string, limit = 10
 }
 
 async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const limit = Math.min(Math.max(Number(payload.limit || 10), 1), 30);
   const selectedDate = safeText(firstDefined(payload.date, payload.news_date, payload.selected_date));
   const hasDateFilter = /^\d{4}-\d{2}-\d{2}$/u.test(selectedDate);
@@ -14235,7 +14341,7 @@ async function callNewsList(ctx: Context, payload: Record<string, unknown>) {
 }
 
 async function callNewsCollectRun(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'permission_admin')) return fail(403, 'Permission administration is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'news/collect-run', 3, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const requestedDate = safeText(firstDefined(payload.date, payload.news_date, payload.selected_date));
   const selectedDate = /^\d{4}-\d{2}-\d{2}$/u.test(requestedDate) ? requestedDate : newsDefaultCollectDateKey();
@@ -14268,7 +14374,7 @@ async function callNewsCollectRun(ctx: Context, payload: Record<string, unknown>
 }
 
 async function callNewsRestore20260617(ctx: Context) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'permission_admin')) return fail(403, 'Permission administration is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'news/restore-20260617', 6, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const targetDate = '2026-06-17';
   const beforeResult = await ctx.serviceClient
@@ -14358,6 +14464,8 @@ function normalizeLeaseEventPayload(payload: Record<string, unknown>) {
     asset_id: safeText(payload.asset_id || payload.assetId),
     asset_name: safeText(payload.asset_name || payload.assetName),
     tenant_name: safeText(payload.tenant_name || payload.tenantName || payload.tenant_master_name),
+    tenant_id: safeText(payload.tenant_id || payload.tenantId),
+    lease_id: safeText(payload.lease_id || payload.leaseId),
     lease_space_id: safeText(payload.lease_space_id || payload.leaseSpaceId),
     effective_date: safeText(payload.effective_date || payload.effectiveDate),
     summary: safeText(payload.summary || payload.reason || payload.notes),
@@ -15364,12 +15472,174 @@ async function applyUpdateLeaseEvent(ctx: Context, editRequestId: string, eventP
   }
 }
 
+function uniqueLeaseEventIds(values: unknown[]) {
+  return [...new Set(values.map((value) => safeText(value)).filter(Boolean))];
+}
+
+function leaseEventAuthorizationFailure(reasonCode: string, error: string) {
+  return { allowed: false, assets: [] as CanonicalAsset[], reasonCode, error };
+}
+
+async function leaseEventAuthorizationRows(
+  ctx: Context,
+  table: 'll_lease_spaces' | 'll_leases' | 'll_tenants',
+  idField: 'lease_space_id' | 'lease_id' | 'tenant_id',
+  ids: string[],
+  columns: string,
+) {
+  if (!ids.length) return { rows: [] as Record<string, unknown>[], error: '', reasonCode: '' };
+  const { data, error } = await ctx.serviceClient
+    .from(table)
+    .select(columns)
+    .in(idField, ids)
+    .limit(Math.max(ids.length + 1, 2));
+  if (error) return { rows: [] as Record<string, unknown>[], error: `Failed to read ${table} connection`, reasonCode: 'asset_connection_unavailable' };
+  const rows = (data || []) as Record<string, unknown>[];
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const id = safeText(row[idField]);
+    if (!id || seen.has(id)) return { rows: [] as Record<string, unknown>[], error: `Ambiguous ${table} connection`, reasonCode: 'asset_connection_ambiguous' };
+    seen.add(id);
+  }
+  if (seen.size !== ids.length || ids.some((id) => !seen.has(id))) {
+    return { rows: [] as Record<string, unknown>[], error: `Missing ${table} connection`, reasonCode: 'asset_connection_missing' };
+  }
+  return { rows, error: '', reasonCode: '' };
+}
+
+async function resolveLeaseEventAssetAuthorization(ctx: Context, eventPayload: Record<string, unknown>, action: AssetCrudAction) {
+  const claimed = await resolveCanonicalAssets(ctx, [eventPayload.asset_id, eventPayload.asset_name]);
+  if (claimed.error || claimed.assets.length !== 1) {
+    return leaseEventAuthorizationFailure('asset_scope_ambiguous', claimed.error || 'Lease event asset must resolve to exactly one canonical asset');
+  }
+  const claimedAsset = claimed.assets[0];
+  const mode = leaseEventMode(eventPayload);
+  if (mode === 'add') {
+    const permission = await evaluateCanonicalAssetPermission(ctx, action, [claimedAsset.asset_id]);
+    if (!permission.allowed) return leaseEventAuthorizationFailure(permission.reasonCode || 'asset_permission_denied', permission.error || 'Lease event asset permission denied');
+    eventPayload.asset_id = claimedAsset.asset_id;
+    return { allowed: true, assets: permission.assets, reasonCode: '', error: '' };
+  }
+
+  const cells = normalizeLeaseEventCells(eventPayload);
+  const leaseSpaceIds = uniqueLeaseEventIds([
+    eventPayload.lease_space_id,
+    ...cells.map((cell) => cell.leaseSpaceId),
+  ]);
+  const leaseIds = uniqueLeaseEventIds([
+    eventPayload.lease_id,
+    ...cells.map((cell) => cell.leaseId),
+  ]);
+  const tenantIds = uniqueLeaseEventIds(cells.flatMap((cell) => {
+    const target = leaseEventTargetForCell(cell);
+    return target.table === 'public.ll_tenants'
+      ? [leaseEventTargetRowId(cell, target.table, eventPayload)]
+      : [];
+  }));
+  const directAssetReferences = uniqueLeaseEventIds(cells.flatMap((cell) => {
+    const target = leaseEventTargetForCell(cell);
+    return target.table === 'public.ll_assets'
+      ? [leaseEventTargetRowId(cell, target.table, eventPayload)]
+      : [];
+  }));
+  if (cells.some((cell) => leaseEventTargetForCell(cell).table === 'public.ll_assets') && !directAssetReferences.length) {
+    return leaseEventAuthorizationFailure('asset_connection_missing', 'Lease event asset target is missing');
+  }
+
+  const spaceResult = await leaseEventAuthorizationRows(
+    ctx,
+    'll_lease_spaces',
+    'lease_space_id',
+    leaseSpaceIds,
+    'lease_space_id,lease_id,asset_id,tenant_id',
+  );
+  if (spaceResult.error) return leaseEventAuthorizationFailure(spaceResult.reasonCode, spaceResult.error);
+  const allLeaseIds = uniqueLeaseEventIds([
+    ...leaseIds,
+    ...spaceResult.rows.map((row) => row.lease_id),
+  ]);
+  const leaseResult = await leaseEventAuthorizationRows(
+    ctx,
+    'll_leases',
+    'lease_id',
+    allLeaseIds,
+    'lease_id,asset_id,tenant_id',
+  );
+  if (leaseResult.error) return leaseEventAuthorizationFailure(leaseResult.reasonCode, leaseResult.error);
+  const tenantResult = await leaseEventAuthorizationRows(ctx, 'll_tenants', 'tenant_id', tenantIds, 'tenant_id');
+  if (tenantResult.error) return leaseEventAuthorizationFailure(tenantResult.reasonCode, tenantResult.error);
+
+  let tenantLeaseRows: Record<string, unknown>[] = [];
+  if (tenantIds.length) {
+    const { data, error } = await ctx.serviceClient
+      .from('ll_leases')
+      .select('lease_id,asset_id,tenant_id')
+      .in('tenant_id', tenantIds)
+      .limit(500);
+    if (error) return leaseEventAuthorizationFailure('asset_connection_unavailable', 'Failed to read tenant lease connections');
+    tenantLeaseRows = (data || []) as Record<string, unknown>[];
+    if (!tenantLeaseRows.length || tenantIds.some((tenantId) => !tenantLeaseRows.some((row) => safeText(row.tenant_id) === tenantId))) {
+      return leaseEventAuthorizationFailure('asset_connection_missing', 'Tenant has no complete lease connection');
+    }
+  }
+
+  const leaseById = new Map(leaseResult.rows.map((row) => [safeText(row.lease_id), row]));
+  for (const space of spaceResult.rows) {
+    const leaseId = safeText(space.lease_id);
+    const assetId = safeText(space.asset_id);
+    const tenantId = safeText(space.tenant_id);
+    const lease = leaseById.get(leaseId);
+    if (!leaseId || !assetId || !tenantId || !lease) {
+      return leaseEventAuthorizationFailure('asset_connection_missing', 'Lease space has an incomplete lease connection');
+    }
+    if (safeText(lease.asset_id) !== assetId) {
+      return leaseEventAuthorizationFailure('lease_space_lease_mismatch', 'Lease space and lease asset IDs do not match');
+    }
+    if (safeText(lease.tenant_id) !== tenantId) {
+      return leaseEventAuthorizationFailure('lease_space_lease_mismatch', 'Lease space and lease tenant IDs do not match');
+    }
+  }
+  for (const lease of [...leaseResult.rows, ...tenantLeaseRows]) {
+    if (!safeText(lease.asset_id) || !safeText(lease.tenant_id)) {
+      return leaseEventAuthorizationFailure('asset_connection_missing', 'Lease has an incomplete asset or tenant connection');
+    }
+  }
+
+  const connectedAssetReferences = uniqueLeaseEventIds([
+    ...directAssetReferences,
+    ...spaceResult.rows.map((row) => row.asset_id),
+    ...leaseResult.rows.map((row) => row.asset_id),
+    ...tenantLeaseRows.map((row) => row.asset_id),
+  ]);
+  if (!connectedAssetReferences.length) {
+    return leaseEventAuthorizationFailure('asset_connection_missing', 'Lease event has no canonical asset connection');
+  }
+  const canonicalResult = await resolveCanonicalAssets(ctx, connectedAssetReferences);
+  if (canonicalResult.error || !canonicalResult.assets.length) {
+    return leaseEventAuthorizationFailure(canonicalResult.reasonCode || 'asset_connection_ambiguous', canonicalResult.error || 'Lease event asset connection is ambiguous');
+  }
+  const canonicalAssets = canonicalResult.assets;
+  if (!canonicalAssets.some((asset) => asset.asset_id === claimedAsset.asset_id)) {
+    return leaseEventAuthorizationFailure('asset_scope_mismatch', 'Requested asset does not match the lease event connection');
+  }
+  const permission = await evaluateCanonicalAssetPermission(ctx, action, canonicalAssets.map((asset) => asset.asset_id));
+  if (!permission.allowed) return leaseEventAuthorizationFailure(permission.reasonCode || 'asset_permission_denied', permission.error || 'Lease event asset permission denied');
+  eventPayload.asset_id = claimedAsset.asset_id;
+  return { allowed: true, assets: permission.assets, reasonCode: '', error: '' };
+}
+
+function requiredLeaseEventAction(eventPayload: Record<string, unknown>): AssetCrudAction {
+  const mode = leaseEventMode(eventPayload);
+  return mode === 'add' ? 'create' : mode === 'archive' ? 'delete' : 'update';
+}
+
 async function previewLeaseEvent(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'lease-events/preview', 60)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const eventPayload = normalizeLeaseEventPayload(payload);
   if (!eventPayload.asset_id && !eventPayload.asset_name) return fail(400, 'asset_id or asset_name is required', ctx.origin);
-  if (!canReadRelatedAsset(ctx, eventPayload.asset_id || eventPayload.asset_name)) return fail(403, 'Asset is not readable for this user', ctx.origin);
+  const requiredAction = requiredLeaseEventAction(eventPayload);
+  const authorization = await resolveLeaseEventAssetAuthorization(ctx, eventPayload, requiredAction);
+  if (!authorization.allowed) return fail(403, 'Lease event asset scope denied', ctx.origin, { reason_code: authorization.reasonCode });
   const plan = await buildLeaseEventPlan(ctx, eventPayload);
   return jsonResponse({
     ok: true,
@@ -15382,14 +15652,14 @@ async function previewLeaseEvent(ctx: Context, payload: Record<string, unknown>)
 }
 
 async function submitLeaseEvent(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'lease-events/submit', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const eventPayload = normalizeLeaseEventPayload(payload);
   if (!eventPayload.asset_id && !eventPayload.asset_name) return fail(400, 'asset_id or asset_name is required', ctx.origin);
   if (!eventPayload.summary) return fail(400, 'summary is required', ctx.origin);
+  const requiredAction = requiredLeaseEventAction(eventPayload);
+  const authorization = await resolveLeaseEventAssetAuthorization(ctx, eventPayload, requiredAction);
+  if (!authorization.allowed) return fail(403, 'Lease event asset scope denied', ctx.origin, { reason_code: authorization.reasonCode });
   const mode = leaseEventMode(eventPayload);
-  const requiredAction = mode === 'add' ? 'create' : mode === 'archive' ? 'delete' : 'update';
-  if (!canMutateRelatedAsset(ctx, requiredAction, eventPayload.asset_id || eventPayload.asset_name, eventPayload.asset_name)) return fail(403, `Insufficient asset ${requiredAction} permission for lease event`, ctx.origin);
   const plan = await buildLeaseEventPlan(ctx, eventPayload);
   if (plan.required_missing.length) return fail(400, 'Lease event has missing required fields', ctx.origin, { required_missing: plan.required_missing, preview: plan });
   if (plan.duplicate_findings.length) return fail(409, 'Lease event was blocked by duplicate or correction rules', ctx.origin, { duplicate_findings: plan.duplicate_findings, preview: plan });
@@ -16295,7 +16565,6 @@ async function resolveWorkPlatformAssetForWrite(ctx: Context, relatedAssetId: un
 }
 
 async function listWorkPlatformTasks(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const limit = Math.min(Number(payload.limit || 200), 500);
   const includeDeleted = Boolean(payload.include_deleted || payload.include_archived);
   let query = ctx.serviceClient
@@ -16409,7 +16678,6 @@ function safeSnapshotSeedTask(ctx: Context, task: Record<string, unknown>) {
 }
 
 async function upsertCurrentWorkPlatformTaskSnapshot(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const meta = logisticsWeekMeta(payload.basis_date);
   const { data: rows, error } = await ctx.serviceClient
     .from('ll_work_items')
@@ -16485,7 +16753,6 @@ async function upsertCurrentWorkPlatformTaskSnapshot(ctx: Context, payload: Reco
 }
 
 async function listWorkPlatformTaskSnapshots(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const limit = Math.min(Number(payload.limit || 100), 500);
   let query = ctx.serviceClient
     .from('ll_work_items')
@@ -16495,7 +16762,7 @@ async function listWorkPlatformTaskSnapshots(ctx: Context, payload: Record<strin
     .order('basis_date', { ascending: false })
     .order('updated_at', { ascending: false })
     .limit(limit);
-  if (!hasRole(ctx.role, 'Manager')) query = query.eq('created_by', ctx.user.id);
+  if (!allReadableAssetsAllowed(ctx)) query = query.eq('created_by', ctx.user.id);
   const { data, error } = await query;
   if (error) return fail(500, 'Failed to list work platform task snapshots', ctx.origin);
   const snapshots = ((data || []) as Record<string, unknown>[]).map((snapshot) => ({
@@ -16511,12 +16778,11 @@ async function listWorkPlatformTaskSnapshots(ctx: Context, payload: Record<strin
 }
 
 async function saveWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetResolution = await resolveWorkPlatformAssetForWrite(ctx, payload.related_asset_id, payload.related_asset_name);
   if (assetResolution.response) return assetResolution.response;
   const resolvedAsset = assetResolution.asset as Record<string, unknown>;
   const relatedAssetId = safeText(resolvedAsset.asset_id);
-  if (!canMutateWorklog(ctx, 'create', relatedAssetId)) return fail(403, 'Insufficient create permission for this task asset', ctx.origin);
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'create', relatedAssetId)).allowed) return fail(403, 'Insufficient create permission for this task asset', ctx.origin);
   const { data, error } = await ctx.serviceClient
     .from('ll_work_items')
     .insert(stripUndefined({
@@ -16553,14 +16819,10 @@ async function readWorkPlatformTaskForWrite(ctx: Context, id: string) {
     .eq('id', id)
     .single();
   if (error || !data) return { data: null, response: fail(404, 'Work platform task not found', ctx.origin) };
-  if (data.created_by !== ctx.user.id && !hasRole(ctx.role, 'Manager')) {
-    return { data: null, response: fail(403, 'Only author or manager can modify this task', ctx.origin) };
-  }
   return { data, response: null };
 }
 
 async function updateWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const id = safeText(payload.id);
   if (!id) return fail(400, 'id is required', ctx.origin);
   const current = await readWorkPlatformTaskForWrite(ctx, id);
@@ -16576,8 +16838,8 @@ async function updateWorkPlatformTask(ctx: Context, payload: Record<string, unkn
     nextAssetId = safeText(resolvedAsset.asset_id);
     nextAssetName = safeText(payload.related_asset_name) || safeText(resolvedAsset.asset_name);
   }
-  if (!canMutateWorklog(ctx, 'update', currentAssetId)) return fail(403, 'Insufficient update permission for existing task asset', ctx.origin);
-  if (nextAssetId !== currentAssetId && !canMutateWorklog(ctx, 'update', nextAssetId)) {
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'update', currentAssetId)).allowed) return fail(403, 'Insufficient update permission for existing task asset', ctx.origin);
+  if (nextAssetId !== currentAssetId && !(await evaluateCanonicalAssetPermission(ctx, 'update', nextAssetId)).allowed) {
     return fail(403, 'Insufficient update permission for new task asset', ctx.origin);
   }
   const currentPayload = (currentRow.payload || {}) as Record<string, unknown>;
@@ -16613,13 +16875,12 @@ async function completeWorkPlatformTask(ctx: Context, payload: Record<string, un
 }
 
 async function deleteWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const id = safeText(payload.id);
   if (!id) return fail(400, 'id is required', ctx.origin);
   const current = await readWorkPlatformTaskForWrite(ctx, id);
   if (current.response) return current.response;
   const currentRow = current.data as Record<string, unknown>;
-  if (!canMutateWorklog(ctx, 'delete', currentRow.related_asset_id)) return fail(403, 'Insufficient delete permission for existing task asset', ctx.origin);
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'delete', currentRow.related_asset_id)).allowed) return fail(403, 'Insufficient delete permission for existing task asset', ctx.origin);
   const currentPayload = (currentRow.payload || {}) as Record<string, unknown>;
   const { data, error } = await ctx.serviceClient
     .from('ll_work_items')
@@ -16639,20 +16900,17 @@ async function deleteWorkPlatformTask(ctx: Context, payload: Record<string, unkn
 }
 
 async function archiveSeedWorkPlatformTask(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetResolution = await resolveWorkPlatformAssetForWrite(ctx, payload.related_asset_id, payload.related_asset_name);
   let relatedAssetId = '';
   let relatedAssetName = safeText(payload.related_asset_name);
   let archivedWithoutAssetMatch = false;
   if (assetResolution.response) {
-    if (!canArchiveUnscopedSeedTask(ctx)) return assetResolution.response;
-    relatedAssetName = relatedAssetName || safeText(firstDefined(payload.assetName, payload.related_asset, payload.asset_name));
-    archivedWithoutAssetMatch = true;
+    return assetResolution.response;
   } else {
     const resolvedAsset = assetResolution.asset as Record<string, unknown>;
     relatedAssetId = safeText(resolvedAsset.asset_id);
     relatedAssetName = relatedAssetName || safeText(resolvedAsset.asset_name);
-    if (!canMutateWorklog(ctx, 'delete', relatedAssetId)) return fail(403, 'Insufficient delete permission for this seed task asset', ctx.origin);
+    if (!(await evaluateCanonicalAssetPermission(ctx, 'delete', relatedAssetId)).allowed) return fail(403, 'Insufficient delete permission for this seed task asset', ctx.origin);
   }
   const now = new Date().toISOString();
   const { data, error } = await ctx.serviceClient
@@ -16708,42 +16966,28 @@ function boardMetadata(ctx: Context, payload: Record<string, unknown>, currentMe
 }
 
 async function listWorkPlatformBoardPosts(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const limit = Math.min(Number(payload.limit || 200), 500);
-  const queryLimit = Math.min(Math.max(limit * 3, 300), 1000);
-  let query = ctx.serviceClient
+  const query = ctx.serviceClient
     .from('ll_work_items')
     .select(WORK_PLATFORM_BOARD_SELECT)
     .eq('item_type', 'board_post')
     .neq('status', 'deleted');
 
-  if (!hasRole(ctx.role, 'Manager') && !allReadableAssetsAllowed(ctx)) {
-    const { rows: readableAssets } = await listReadableAssetsForDashboard(ctx);
-    const readableAssetIds = Array.from(new Set(
-      readableAssets
-        .map((asset) => safeText(asset.asset_id))
-        .filter((assetId) => /^[a-zA-Z0-9_-]+$/u.test(assetId)),
-    ));
-    const filters = [`created_by.eq.${ctx.user.id}`];
-    if (readableAssetIds.length) filters.push(`related_asset_id.in.(${readableAssetIds.join(',')})`);
-    query = query.or(filters.join(','));
-  }
-
   const { data, error } = await query
     .order('created_at', { ascending: false })
     .order('work_date', { ascending: false })
-    .limit(queryLimit);
+    .limit(1000);
   if (error) return fail(500, 'Failed to list work platform board posts', ctx.origin);
-  return jsonResponse({ ok: true, data: filterWorkPlatformBoardRows(ctx, data || []).slice(0, limit) }, 200, ctx.origin);
+  const rows = await filterWorkPlatformBoardRows(ctx, data || []);
+  return jsonResponse({ ok: true, data: rows.slice(0, limit) }, 200, ctx.origin);
 }
 
 async function saveWorkPlatformBoardPost(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetResolution = await resolveWorkPlatformAssetForWrite(ctx, payload.related_asset_id, payload.related_asset_name);
   if (assetResolution.response) return assetResolution.response;
   const resolvedAsset = assetResolution.asset as Record<string, unknown>;
   const relatedAssetId = safeText(resolvedAsset.asset_id);
-  if (!canMutateWorklog(ctx, 'create', relatedAssetId)) return fail(403, 'Insufficient create permission for this board post scope', ctx.origin);
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'create', relatedAssetId)).allowed) return fail(403, 'Insufficient create permission for this board post scope', ctx.origin);
   const logId = safeText(payload.log_id, `ll_board_${crypto.randomUUID()}`);
   const { data, error } = await ctx.serviceClient
     .from('ll_work_items')
@@ -16794,14 +17038,10 @@ async function readWorkPlatformBoardForWrite(ctx: Context, idOrLogId: string) {
     .eq('item_type', 'board_post');
   const { data, error } = await (isUuid ? query.eq('id', idText) : query.eq('board_log_id', idText)).single();
   if (error || !data) return { data: null, response: fail(404, 'Work platform board post not found', ctx.origin) };
-  if (data.created_by !== ctx.user.id && !hasRole(ctx.role, 'Manager')) {
-    return { data: null, response: fail(403, 'Only author or manager can modify this board post', ctx.origin) };
-  }
   return { data, response: null };
 }
 
 async function updateWorkPlatformBoardPost(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const id = safeText(firstDefined(payload.id, payload.log_id));
   if (!id) return fail(400, 'id or log_id is required', ctx.origin);
   const current = await readWorkPlatformBoardForWrite(ctx, id);
@@ -16817,8 +17057,8 @@ async function updateWorkPlatformBoardPost(ctx: Context, payload: Record<string,
     nextAssetId = safeText(resolvedAsset.asset_id);
     nextAssetName = safeText(payload.related_asset_name) || safeText(resolvedAsset.asset_name);
   }
-  if (!canMutateWorklog(ctx, 'update', currentAssetId)) return fail(403, 'Insufficient update permission for existing board post scope', ctx.origin);
-  if (nextAssetId !== currentAssetId && !canMutateWorklog(ctx, 'update', nextAssetId)) {
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'update', currentAssetId)).allowed) return fail(403, 'Insufficient update permission for existing board post scope', ctx.origin);
+  if (nextAssetId !== currentAssetId && !(await evaluateCanonicalAssetPermission(ctx, 'update', nextAssetId)).allowed) {
     return fail(403, 'Insufficient update permission for new board post scope', ctx.origin);
   }
   const { data, error } = await ctx.serviceClient
@@ -16849,13 +17089,12 @@ async function updateWorkPlatformBoardPost(ctx: Context, payload: Record<string,
 }
 
 async function deleteWorkPlatformBoardPost(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const id = safeText(firstDefined(payload.id, payload.log_id));
   if (!id) return fail(400, 'id or log_id is required', ctx.origin);
   const current = await readWorkPlatformBoardForWrite(ctx, id);
   if (current.response) return current.response;
   const currentRow = current.data as Record<string, unknown>;
-  if (!canMutateWorklog(ctx, 'delete', currentRow.related_asset_id)) return fail(403, 'Insufficient delete permission for existing board post scope', ctx.origin);
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'delete', currentRow.related_asset_id)).allowed) return fail(403, 'Insufficient delete permission for existing board post scope', ctx.origin);
   const { data, error } = await ctx.serviceClient
     .from('ll_work_items')
     .update({
@@ -16873,14 +17112,13 @@ async function deleteWorkPlatformBoardPost(ctx: Context, payload: Record<string,
 }
 
 async function commentWorkPlatformBoardPost(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const id = safeText(firstDefined(payload.id, payload.log_id));
   const text = safeText(payload.text);
   if (!id || !text) return fail(400, 'id/log_id and text are required', ctx.origin);
   const current = await readWorkPlatformBoardForWrite(ctx, id);
   if (current.response) return current.response;
   const currentRow = current.data as Record<string, unknown>;
-  if (!canReadRelatedAsset(ctx, currentRow.related_asset_id)) return fail(403, 'Insufficient read permission for this board post', ctx.origin);
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'create', currentRow.related_asset_id)).allowed) return fail(403, 'Insufficient create permission for this board post', ctx.origin);
   const comments = Array.isArray(currentRow.comments) ? currentRow.comments as Record<string, unknown>[] : [];
   const nextComment = {
     id: `comment_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`,
@@ -16901,18 +17139,20 @@ async function commentWorkPlatformBoardPost(ctx: Context, payload: Record<string
 }
 
 async function deleteWorkPlatformBoardComment(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const id = safeText(firstDefined(payload.id, payload.log_id));
   const commentId = safeText(payload.comment_id);
   if (!id || !commentId) return fail(400, 'id/log_id and comment_id are required', ctx.origin);
   const current = await readWorkPlatformBoardForWrite(ctx, id);
   if (current.response) return current.response;
   const currentRow = current.data as Record<string, unknown>;
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'delete', currentRow.related_asset_id)).allowed) {
+    return fail(403, 'Insufficient delete permission for this board asset', ctx.origin);
+  }
   const comments = Array.isArray(currentRow.comments) ? currentRow.comments as Record<string, unknown>[] : [];
   const target = comments.find((comment) => comment.id === commentId);
   if (!target) return fail(404, 'Comment not found', ctx.origin);
-  if (target.author_email !== actorEmail(ctx) && !hasRole(ctx.role, 'Manager')) {
-    return fail(403, 'Only comment author or manager can delete this comment', ctx.origin);
+  if (target.author_email !== actorEmail(ctx)) {
+    return fail(403, 'Only the comment author can delete this comment', ctx.origin);
   }
   const { data, error } = await ctx.serviceClient
     .from('ll_work_items')
@@ -16965,7 +17205,6 @@ function weeklyAssetPayload(row: Record<string, unknown>) {
 }
 
 async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const rows = Array.isArray(payload.rows) ? payload.rows as Record<string, unknown>[] : [];
   const originalAssetNames = Array.isArray(payload.original_asset_names)
     ? payload.original_asset_names.map((item) => safeText(item)).filter(Boolean)
@@ -16988,11 +17227,10 @@ async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown
     ...originalAssetNames,
     ...nextRows.map((row) => String(row.asset_name || '')),
   ].filter(Boolean))];
-  const permittedNames = requestedNames.filter((assetName) => canWriteRelatedAsset(ctx, assetName, assetName));
-  if (!permittedNames.length) return fail(403, 'No writable asset rows in request', ctx.origin);
-  const blockedNames = requestedNames.filter((assetName) => !permittedNames.includes(assetName));
+  const permission = await evaluateCanonicalAssetPermission(ctx, 'update', requestedNames);
+  if (!permission.allowed) return fail(403, 'Weekly asset batch denied: every requested asset must resolve uniquely and allow update', ctx.origin);
+  const permittedNames = permission.assets.map((asset) => safeText(asset.asset_name)).filter(Boolean);
   const rowsToInsert = nextRows
-    .filter((row) => permittedNames.includes(String(row.asset_name || '')))
     .map((row) => ({ ...row, weekly_report_id: report.id }));
 
   const { error: deleteError } = await ctx.serviceClient
@@ -17013,9 +17251,8 @@ async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown
     report_id: report.id,
     inserted: rowsToInsert.length,
     deleted_scope: permittedNames.length,
-    blocked: blockedNames,
   });
-  return jsonResponse({ ok: true, message: 'Weekly asset rows saved', data: { inserted: rowsToInsert.length, deleted_scope: permittedNames.length, blocked: blockedNames } }, 200, ctx.origin);
+  return jsonResponse({ ok: true, message: 'Weekly asset rows saved', data: { inserted: rowsToInsert.length, deleted_scope: permittedNames.length, blocked: [] } }, 200, ctx.origin);
 }
 
 function weeklyAssetResponse(row: Record<string, unknown>) {
@@ -17039,7 +17276,7 @@ function weeklyAssetResponse(row: Record<string, unknown>) {
 }
 
 async function listLatestWeeklyAssets(ctx: Context) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!hasPermissionRow(ctx)) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const reportId = await latestWeeklyReportId(ctx);
   if (!reportId) return fail(404, 'Weekly report not found', ctx.origin);
   const { data, error } = await ctx.serviceClient
@@ -17051,6 +17288,7 @@ async function listLatestWeeklyAssets(ctx: Context) {
     .limit(300);
   if (error) return fail(500, 'Failed to read weekly asset rows', ctx.origin);
   const rows = ((data || []) as unknown as Record<string, unknown>[])
+    .filter((row) => canReadRelatedAsset(ctx, firstDefined(row.asset_id, row.asset_code, row.asset_name)))
     .map((row) => weeklyAssetResponse(row));
   await audit(ctx.serviceClient, ctx.user.id, 'weekly-assets/latest', 200, { report_id: reportId, rows: rows.length });
   return jsonResponse({ ok: true, data: { report_id: reportId, rows } }, 200, ctx.origin);
@@ -17175,10 +17413,9 @@ function projectMatchesAsset(project: Record<string, unknown>, assetName: string
 }
 
 async function getWeeklyProjectAssetDetail(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetRef = await resolveAssetReference(ctx, payload);
   if (!assetRef.assetName && !assetRef.assetId) return fail(400, 'asset_name is required', ctx.origin);
-  if (!canReadRelatedAsset(ctx, assetRef.assetId) && !canReadRelatedAsset(ctx, assetRef.assetName)) {
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'read', assetRef.assetId || assetRef.assetName)).allowed) {
     return fail(403, 'Insufficient read permission for this asset project detail', ctx.origin);
   }
   const { reportId, rows } = await listWeeklyProjectsForLatestReport(ctx);
@@ -17202,10 +17439,9 @@ async function getWeeklyProjectAssetDetail(ctx: Context, payload: Record<string,
 }
 
 async function saveWeeklyProjectAssetDetail(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetRef = await resolveAssetReference(ctx, payload);
   if (!assetRef.assetName && !assetRef.assetId) return fail(400, 'asset_name is required', ctx.origin);
-  if (!canWriteRelatedAsset(ctx, assetRef.assetId, assetRef.assetName)) {
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'update', assetRef.assetId || assetRef.assetName)).allowed) {
     return fail(403, 'Insufficient update permission for this asset project detail', ctx.origin);
   }
   const overviewRows = normalizeProjectRows(payload.overview_rows);
@@ -17515,10 +17751,9 @@ async function readFundOverviewPayload(ctx: Context, payload: Record<string, unk
 }
 
 async function readFundOverviewByAsset(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetRef = await resolveAssetReference(ctx, payload);
   if (!assetRef.assetId && !assetRef.assetName) return fail(400, 'asset_name is required', ctx.origin);
-  if (!canReadRelatedAsset(ctx, assetRef.assetId) && !canReadRelatedAsset(ctx, assetRef.assetName)) {
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'read', assetRef.assetId || assetRef.assetName)).allowed) {
     return fail(403, 'Insufficient read permission for this fund overview', ctx.origin);
   }
   try {
@@ -17605,10 +17840,9 @@ async function writeFundAudit(ctx: Context, fundId: string, beforeValue: unknown
 }
 
 async function saveFundOverviewByAsset(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Editor')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   const assetRef = await resolveAssetReference(ctx, payload);
   if (!assetRef.assetId && !assetRef.assetName) return fail(400, 'asset_name is required', ctx.origin);
-  if (!canWriteRelatedAsset(ctx, assetRef.assetId, assetRef.assetName)) {
+  if (!(await evaluateCanonicalAssetPermission(ctx, 'update', assetRef.assetId || assetRef.assetName)).allowed) {
     return fail(403, 'Insufficient update permission for this fund overview', ctx.origin);
   }
   try {
@@ -17957,7 +18191,7 @@ function callNaverMapsConfig(origin: string) {
 }
 
 async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'opendart_refresh')) return fail(403, 'OpenDART refresh permission is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'opendart/company', 120)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const apiKey = (Deno.env.get('OPENDART_API_KEY') || '').trim();
   const proxyUrl = (Deno.env.get('OPENDART_PROXY_URL') || '').trim();
@@ -18069,7 +18303,7 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
 }
 
 async function callOpenDartCacheUpsert(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'opendart_refresh')) return fail(403, 'OpenDART refresh permission is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'opendart/company/cache-upsert', 120)) return fail(429, 'Rate limit exceeded', ctx.origin);
   if (/(crtfc_key|serviceKey|api[_-]?key|apikey|authorization|service[_-]?role|Bearer\s+)/iu.test(JSON.stringify(payload))) {
     return fail(400, 'OpenDART cache payload must not include secrets or provider request URLs', ctx.origin);
@@ -18173,7 +18407,7 @@ function buildingRegisterEndpointCandidates() {
 }
 
 async function callBuildingRegister(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'building_register_refresh')) return fail(403, 'Building-register refresh permission is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'building-register/summary', 80)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const apiKey = (Deno.env.get('BUILDING_REGISTER_API_KEY') || '').trim();
   if (!apiKey) return fail(503, 'Building-register API key is not configured', ctx.origin);
@@ -18255,7 +18489,7 @@ async function callBuildingRegister(ctx: Context, payload: Record<string, unknow
 }
 
 async function callNaverGeocode(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'market_research')) return fail(403, 'Market research permission is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'naver/geocode', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const clientId = (Deno.env.get('NAVER_CLOUD_CLIENT_ID') || Deno.env.get('NAVER_MAPS_CLIENT_ID') || '').trim();
   const clientSecret = (Deno.env.get('NAVER_CLOUD_CLIENT_SECRET') || Deno.env.get('NAVER_MAPS_CLIENT_SECRET') || '').trim();
@@ -18380,7 +18614,7 @@ async function callNaverGeocodeBatch(ctx: Context, payload: Record<string, unkno
 }
 
 async function callNaverReverseGeocode(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'market_research')) return fail(403, 'Market research permission is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'naver/reverse-geocode', 30)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const clientId = (Deno.env.get('NAVER_CLOUD_CLIENT_ID') || Deno.env.get('NAVER_MAPS_CLIENT_ID') || '').trim();
   const clientSecret = (Deno.env.get('NAVER_CLOUD_CLIENT_SECRET') || Deno.env.get('NAVER_MAPS_CLIENT_SECRET') || '').trim();
@@ -18594,11 +18828,6 @@ function latestCorrectedAssetRows(rows: Record<string, unknown>[], question: str
 }
 
 function canReadDataRow(ctx: Context, row: Record<string, unknown>) {
-  if (hasRole(ctx.role, 'Manager')) return true;
-  const otherPermissions = ctx.permission?.other_asset_permissions as Record<string, unknown> | undefined;
-  if (otherPermissions?.read === true) return true;
-  const allowed = managedAssetCodes(ctx.permission).map(normalizeKey).filter(Boolean);
-  if (!allowed.length) return false;
   const candidates = [
     row.asset_id,
     row.assetId,
@@ -18610,7 +18839,9 @@ function canReadDataRow(ctx: Context, row: Record<string, unknown>) {
     (row.payload as Record<string, unknown> | undefined)?.assetName,
     (row.payload as Record<string, unknown> | undefined)?.relatedAsset,
   ].map(normalizeKey).filter(Boolean);
-  return candidates.some((candidate) => allowed.includes(candidate));
+  if (!candidates.length) return false;
+  const isManaged = candidates.some((candidate) => hasManagedAssetRef(ctx.permission, candidate));
+  return permissionFlag(ctx.permission, isManaged ? 'managed_asset_permissions' : 'other_asset_permissions', 'read');
 }
 
 function keywordMatches(row: Record<string, unknown>, terms: string[]) {
@@ -19539,7 +19770,6 @@ async function collectAiSearchContext(ctx: Context, question: string, basisDate 
   const permittedContractRows = namedLeaseContractRows.filter((row) => canReadDataRow(ctx, row));
   const permittedRentRows = namedRentRows.filter((row) => canReadDataRow(ctx, row));
   const permittedMetricRows = metricRows.filter((row) => {
-    if (hasRole(ctx.role, 'Manager')) return true;
     const candidates = [
       row.asset_id,
       row.assetId,
@@ -19553,7 +19783,7 @@ async function collectAiSearchContext(ctx: Context, question: string, basisDate 
   const weeklyProjectSourceRows = weeklyRows.filter((row) => safeText(row.record_type) === 'project');
   const permittedWeeklyAssets = weeklyAssetSourceRows.filter((row) => canReadDataRow(ctx, row));
   const permittedTasks = filterWorkPlatformTaskRows(ctx, taskRows.filter((row) => safeText(row.item_type) === 'task'));
-  const permittedBoardPosts = filterWorkPlatformBoardRows(ctx, boardRows);
+  const permittedBoardPosts = await filterWorkPlatformBoardRows(ctx, boardRows);
   const allowedTenantKeys = new Set([...permittedLeaseRows, ...permittedContractRows, ...permittedRentRows].flatMap((row) => [
     row.tenant_id,
     row.tenantId,
@@ -19569,7 +19799,7 @@ async function collectAiSearchContext(ctx: Context, question: string, basisDate 
   });
   const permittedWeeklyProjects = weeklyProjectSourceRows.filter((row) => {
     const text = normalizeKey(rowText(row));
-    return [...allowedAssetKeys].some((key) => key && text.includes(key)) || hasRole(ctx.role, 'Manager');
+    return [...allowedAssetKeys].some((key) => key && text.includes(key));
   });
   const buckets = [
     { table: 'll_assets', rows: allowedAssets },
@@ -21079,7 +21309,7 @@ const AI_SAFE_METRIC_KEYS = new Set([
 
 function safeGoogleModelOverrideFromPayload(ctx: Context, payload: Record<string, unknown>) {
   if (payload.qa_sample !== true && payload.qaSample !== true) return '';
-  if (!hasRole(ctx.role, 'Manager')) return '';
+  if (!hasUserFeaturePermission(ctx.permission, 'ai_chat')) return '';
   const requested = normalizeText(firstDefined(payload.model_override, payload.modelOverride, payload.model)).trim();
   if (requested === 'gemini-3.1-flash-lite') return '';
   return requested && FREE_TIER_GOOGLE_AI_MODELS.has(requested) ? requested : '';
@@ -23185,7 +23415,7 @@ async function refreshDashboardMetricSnapshots(serviceClient: SupabaseClient, ba
 }
 
 async function callDashboardMetricRefresh(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'permission_admin')) return fail(403, 'Permission administration is required', ctx.origin);
   if (!checkRateLimit(ctx.user.id, 'dashboard-metrics/refresh', 6, 60_000)) return fail(429, 'Rate limit exceeded', ctx.origin);
   const basisDate = dashboardBasisDate(payload);
   try {
@@ -23415,7 +23645,7 @@ async function generateGeminiContent(model: string, apiKey: string, prompt: stri
 }
 
 async function callGeminiDiagnostics(ctx: Context, payload: Record<string, unknown> = {}) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is required', ctx.origin);
   if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is limited to selected users', ctx.origin);
   const requestedModel = normalizeText(firstDefined(payload.model, payload.model_override, payload.modelOverride)).trim();
   const model = requestedModel && FREE_TIER_GOOGLE_AI_MODELS.has(requestedModel)
@@ -23456,7 +23686,7 @@ async function callGeminiDiagnostics(ctx: Context, payload: Record<string, unkno
 }
 
 async function callAiProviderDiagnostics(ctx: Context) {
-  if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is required', ctx.origin);
   if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is limited to selected users', ctx.origin);
   const groqKey = groqApiKey();
   const googleKey = googleAiApiKey();
@@ -23578,7 +23808,6 @@ async function releaseAiChatDistributedLock(ctx: Context, lock: AiChatDistribute
 }
 
 async function callGoogleAiSearchChat(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is limited to selected users', ctx.origin);
   const input = validateAiSearchChatPayload(payload);
   if (!input.ok) return fail(input.status, input.message, ctx.origin);
@@ -24061,7 +24290,6 @@ async function collectAiDemoSearchContext(serviceClient: SupabaseClient, questio
 }
 
 async function callGoogleAiSearchChatDemo(ctx: Context, payload: Record<string, unknown>) {
-  if (!hasRole(ctx.role, 'Reader')) return fail(403, 'Insufficient logistics permission', ctx.origin);
   if (!await canUseServerFeature(ctx, 'ai_chat')) return fail(403, 'AI chat permission is limited to selected users', ctx.origin);
   const origin = ctx.origin;
   if (!isAiDemoAllowed(origin)) return fail(403, 'AI demo mode is not enabled for this origin', origin);
@@ -24128,7 +24356,36 @@ function normalizeAuthEmail(value: unknown) {
 function logisticsAuthEmailCandidates(value: unknown) {
   const email = normalizeAuthEmail(value);
   const alias = normalizeAuthEmail(LOGISTICS_AUTH_EMAIL_ALIASES[email]);
-  return [...new Set([email, alias].filter(Boolean))];
+  const reverseAliases = Object.entries(LOGISTICS_AUTH_EMAIL_ALIASES)
+    .filter(([, target]) => normalizeAuthEmail(target) === email)
+    .map(([source]) => normalizeAuthEmail(source));
+  return [...new Set([email, alias, ...reverseAliases].filter(Boolean))];
+}
+
+function canonicalProfileEmail(value: unknown) {
+  const email = normalizeAuthEmail(value);
+  return normalizeAuthEmail(LOGISTICS_AUTH_EMAIL_ALIASES[email] || email);
+}
+
+async function readActiveCanonicalProfile(serviceClient: SupabaseClient, email: string) {
+  const canonicalEmail = canonicalProfileEmail(email);
+  const candidates = logisticsAuthEmailCandidates(email);
+  if (!canonicalEmail || !candidates.length) return { permission: null, candidates, reasonCode: 'canonical_profile_required', error: null };
+  const { data, error } = await serviceClient
+    .from('ll_user_permissions')
+    .select('*')
+    .in('email', candidates)
+    .limit(1000);
+  if (error) return { permission: null, candidates, reasonCode: 'canonical_profile_lookup_failed', error };
+  const profiles = ((data || []) as Record<string, unknown>[]).filter((row) => (
+    isActivePermission(row)
+    && Boolean(normalizeAuthEmail(row.email))
+    && canonicalProfileEmail(row.email) === canonicalEmail
+  ));
+  if (profiles.length !== 1) {
+    return { permission: null, candidates, reasonCode: profiles.length ? 'canonical_profile_ambiguous' : 'canonical_profile_not_active', error: null };
+  }
+  return { permission: profiles[0], candidates, reasonCode: '', error: null };
 }
 
 async function findAuthUserByEmail(serviceClient: SupabaseClient, email: string) {
@@ -24146,6 +24403,40 @@ async function findAuthUserByEmail(serviceClient: SupabaseClient, email: string)
     if (users.length < 1000) break;
   }
   return null;
+}
+
+async function resolveExactPermissionPrincipal(serviceClient: SupabaseClient, email: string) {
+  const normalizedEmail = normalizeAuthEmail(email);
+  if (!normalizedEmail) return { userId: '', error: 'permission_principal_email_invalid', reasonCode: 'permission_principal_email_invalid' };
+
+  const { data: permissionRows, error: permissionError } = await serviceClient
+    .from('ll_user_permissions')
+    .select('user_id,email')
+    .eq('email', normalizedEmail)
+    .limit(3);
+  if (permissionError) return { userId: '', error: 'permission_principal_lookup_failed', reasonCode: 'permission_principal_lookup_failed' };
+  const profiles = ((permissionRows || []) as Record<string, unknown>[])
+    .filter((profile) => normalizeAuthEmail(profile.email) === normalizedEmail);
+  if (profiles.length > 1) return { userId: '', error: 'permission_principal_ambiguous', reasonCode: 'permission_principal_ambiguous' };
+
+  let authUsers: Record<string, unknown>[];
+  try {
+    authUsers = (await listAuthUsers(serviceClient))
+      .filter((authUser) => normalizeAuthEmail(authUser.email) === normalizedEmail);
+  } catch {
+    return { userId: '', error: 'permission_principal_auth_lookup_failed', reasonCode: 'permission_principal_auth_lookup_failed' };
+  }
+  if (authUsers.length !== 1) {
+    return { userId: '', error: 'permission_principal_auth_user_required', reasonCode: 'permission_principal_auth_user_required' };
+  }
+  const userId = safeText(authUsers[0].id);
+  if (!userId) return { userId: '', error: 'permission_principal_auth_user_required', reasonCode: 'permission_principal_auth_user_required' };
+
+  const storedUserId = safeText(profiles[0]?.user_id);
+  if (storedUserId && storedUserId !== userId) {
+    return { userId: '', error: 'permission_principal_mismatch', reasonCode: 'permission_principal_mismatch' };
+  }
+  return { userId, error: '', reasonCode: '' };
 }
 
 async function listAuthUsers(serviceClient: SupabaseClient) {
@@ -24305,6 +24596,18 @@ function publicPermissionUser(permission: Record<string, unknown>) {
   }) as Record<string, unknown>;
 }
 
+function publicPermissionDirectoryUser(permission: Record<string, unknown>) {
+  const profile = publicPermissionUser(permission);
+  const {
+    managed_asset_codes: _managedAssetCodes,
+    managed_asset_permissions: _managedAssetPermissions,
+    other_asset_permissions: _otherAssetPermissions,
+    profile_payload: _profilePayload,
+    ...directoryProfile
+  } = profile;
+  return directoryProfile;
+}
+
 async function permissionAssetRows(ctx: Context, permission: Record<string, unknown> | null) {
   const refs = [...new Set(managedAssetCodes(permission).flatMap(assetRefVariants).map((item) => String(item).toLowerCase()))];
   if (!refs.length) return [];
@@ -24371,6 +24674,10 @@ async function callAuthMe(ctx: Context) {
   const managedAssets = await permissionAssetRows(ctx, ctx.permission);
   const managedFunds = await permissionFundRows(ctx, managedAssets);
   const teamMembers = await listPermissionUsers(ctx, { organization: profile.organization });
+  const capabilityResult = await assetCapabilitiesForProfile(ctx);
+  if (capabilityResult.error) return fail(500, 'Failed to read asset capabilities', ctx.origin);
+  const revision = permissionRevision(ctx.permission);
+  const exactFeaturePermissions = userFeaturePermissions(ctx.permission);
   return jsonResponse({
     ok: true,
     data: {
@@ -24378,9 +24685,15 @@ async function callAuthMe(ctx: Context) {
       managedAssets,
       managedFunds,
       teamMembers,
+      permission_revision: revision,
+      asset_capabilities: capabilityResult.capabilities,
+      feature_permissions: exactFeaturePermissions,
       permissions: {
         managedAsset: profile.managed_asset_permissions || {},
         otherAsset: profile.other_asset_permissions || {},
+        permission_revision: revision,
+        asset_capabilities: capabilityResult.capabilities,
+        feature_permissions: exactFeaturePermissions,
       },
     },
   }, 200, ctx.origin);
@@ -24397,14 +24710,69 @@ async function listPermissionUsers(ctx: Context, filters: Record<string, unknown
   if (error) throw new Error(`Failed to read user permissions: ${error.message}`);
   return ((data || []) as Record<string, unknown>[])
     .filter(isActivePermission)
-    .map(publicPermissionUser);
+    .map(publicPermissionDirectoryUser);
 }
 
 async function callAuthUsersList(ctx: Context) {
-  if (!await canUseServerFeature(ctx, 'login_history')) return fail(403, 'User permission management is limited to selected users', ctx.origin);
+  if (!await canUseServerFeature(ctx, 'permission_admin')) return fail(403, 'Permission management is not available for this account', ctx.origin);
   const users = await listPermissionUsers(ctx);
   await audit(ctx.serviceClient, ctx.user.id, 'auth/users/list', 200, { users: users.length });
-  return jsonResponse({ ok: true, data: { users } }, 200, ctx.origin);
+  return jsonResponse({ ok: true, data: { users, source: 'll_user_permissions' } }, 200, ctx.origin);
+}
+
+async function callPermissionsEvaluate(ctx: Context, payload: Record<string, unknown>) {
+  if (!canManageFeatureAccess(ctx)) return fail(403, 'Permission evaluation requires admin permission', ctx.origin);
+  const email = normalizeAuthEmail(payload.email);
+  if (!email) return fail(400, 'email is required', ctx.origin);
+  const { data, error } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('*')
+    .eq('email', email)
+    .limit(2);
+  if (error) return fail(500, 'Failed to read permission profile', ctx.origin);
+  const profile = ((data || []) as Record<string, unknown>[])
+    .find((row) => Boolean(normalizeAuthEmail(row.email)) && isActivePermission(row)) || null;
+  if (!profile) return fail(404, 'Active email-bearing permission profile was not found', ctx.origin);
+  const evaluatedContext: Context = {
+    ...ctx,
+    user: { id: safeText(profile.user_id), email: normalizeAuthEmail(profile.email) },
+    permission: profile,
+    role: safeText(profile.logistics_role, 'Reader'),
+  };
+  const references = requestedAssetReferences([
+    payload.asset_id,
+    payload.assetId,
+    payload.asset_code,
+    payload.assetCode,
+    payload.asset_name,
+    payload.assetName,
+    payload.asset_ids,
+    payload.assetIds,
+    payload.assets,
+  ]);
+  const capabilityResult = await assetCapabilitiesForProfile(evaluatedContext, profile);
+  if (capabilityResult.error) return fail(500, 'Failed to read asset capabilities', ctx.origin);
+  const evaluations: Record<string, unknown> = {};
+  if (references.length) {
+    for (const action of ['read', 'create', 'update', 'delete'] as AssetCrudAction[]) {
+      const result = await evaluateCanonicalAssetPermission(evaluatedContext, action, references);
+      evaluations[action] = {
+        allowed: result.allowed,
+        asset_ids: result.assets.map((asset) => asset.asset_id),
+        reason_code: result.reasonCode || null,
+      };
+    }
+  }
+  await audit(ctx.serviceClient, ctx.user.id, 'permissions/evaluate', 200, { email, references: references.length });
+  return jsonResponse({
+    ok: true,
+    data: {
+      profile: publicPermissionUser(profile),
+      permission_revision: permissionRevision(profile),
+      asset_capabilities: capabilityResult.capabilities,
+      evaluations,
+    },
+  }, 200, ctx.origin);
 }
 
 async function callAuthUserPermissionsUpdate(ctx: Context, payload: Record<string, unknown>) {
@@ -24425,13 +24793,12 @@ async function callAuthUserPermissionsUpdate(ctx: Context, payload: Record<strin
     profile_payload: payload.profile_payload && typeof payload.profile_payload === 'object' ? payload.profile_payload : undefined,
     updated_at: new Date().toISOString(),
   }) as Record<string, unknown>;
-  const { data: existing } = await ctx.serviceClient
-    .from('ll_user_permissions')
-    .select('user_id,email')
-    .eq('email', email)
-    .maybeSingle();
+  const principal = await resolveExactPermissionPrincipal(ctx.serviceClient, email);
+  if (principal.error) {
+    return fail(409, 'An exact Auth user is required before user permissions can be saved', ctx.origin, { reason_code: principal.reasonCode });
+  }
   const row = {
-    user_id: existing?.user_id || crypto.randomUUID(),
+    user_id: principal.userId,
     email,
     ...next,
   };
@@ -24549,289 +24916,39 @@ async function listLogisticsLoginCapability(ctx: Context) {
   return jsonResponse({ ok: true, data: { users, auth_user_read_ok: !authReadError, auth_read_error: authReadError || null } }, 200, ctx.origin);
 }
 
-function logisticsFirstAccessCode() {
-  return safeText(
-    readEdgeSecret('LOGISTICS_PILOT_ACCESS_CODE')
-    || readEdgeSecret('IOTA_PILOT_ACCESS_CODE')
-    || Deno.env.get('VITE_IOTA_PILOT_ACCESS_CODE')
-    || 'logistics1!',
-  );
-}
-
-function matchesLogisticsFirstAccessCode(value: unknown) {
-  const expected = logisticsFirstAccessCode();
-  if (!expected) return false;
-  return safeText(value).trim().toUpperCase() === expected.trim().toUpperCase();
-}
-
-async function callLogisticsFirstLoginSetup(origin: string, payload: Record<string, unknown>) {
-  const email = normalizeAuthEmail(payload.email);
-  const password = String(payload.password || '');
-  if (!email || !email.endsWith('@igisam.com')) return fail(403, 'Company email is required', origin);
-  if (password.length < 6) return fail(400, 'Password must be at least 6 characters', origin);
-  if (!matchesLogisticsFirstAccessCode(payload.access_code)) return fail(403, 'Invalid first access code', origin);
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = readEdgeSecret('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) return fail(500, 'Server is not configured', origin);
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const emailCandidates = logisticsAuthEmailCandidates(email);
-  const { data: permissionRows, error: permissionError } = await serviceClient
-    .from('ll_user_permissions')
-    .select('*')
-    .in('email', emailCandidates)
-    .limit(1);
-  if (permissionError) return fail(500, 'Failed to read logistics permission', origin);
-  const permission = ((permissionRows || [])[0] as Record<string, unknown> | undefined) || bootstrapPermissionForEmail(email) || undefined;
-  if (!isActivePermission(permission || null)) return fail(403, 'No active logistics permission found', origin);
-
-  const authEmail = canonicalPermissionEmail(permission || null, email);
-  let authUser: Record<string, unknown> | null = null;
-  try {
-    authUser = await findAuthUserByEmail(serviceClient, authEmail || email) as Record<string, unknown> | null;
-  } catch (error) {
-    return fail(500, 'Failed to inspect auth user', origin, { error: safeProviderError(error) });
-  }
-
-  if (isConfirmedAuthUser(authUser)) {
-    return fail(409, 'This account already completed first login. Please sign in or reset the password.', origin);
-  }
-
-  const metadata = stripUndefined({
-    staff_name: permission?.staff_name || staffNameForEmail(authEmail),
-    organization: permission?.organization || organizationForEmail(authEmail),
-    logistics_permission_email: authEmail,
-    source: 'logistics_first_login_setup',
-  }) as Record<string, unknown>;
-
-  let savedAuthUser: Record<string, unknown> | null = null;
-  if (authUser?.id) {
-    const { data, error } = await serviceClient.auth.admin.updateUserById(String(authUser.id), {
-      password,
-      email_confirm: true,
-      user_metadata: metadata,
-    });
-    if (error || !data?.user) return fail(500, 'Failed to complete first login setup', origin, { error: error?.message || 'missing auth user' });
-    savedAuthUser = data.user as unknown as Record<string, unknown>;
-  } else {
-    const { data, error } = await serviceClient.auth.admin.createUser({
-      email: authEmail,
-      password,
-      email_confirm: true,
-      user_metadata: metadata,
-    });
-    if (error || !data?.user) return fail(500, 'Failed to create login account', origin, { error: error?.message || 'missing auth user' });
-    savedAuthUser = data.user as unknown as Record<string, unknown>;
-  }
-
-  const authUserId = safeText(savedAuthUser?.id);
-  if (authUserId && permissionRows?.length) {
-    await serviceClient
-      .from('ll_user_permissions')
-      .update({
-        user_id: authUserId,
-        updated_at: new Date().toISOString(),
-      })
-      .in('email', emailCandidates);
-  }
-
-  await audit(serviceClient, authUserId || null, 'auth/first-login/setup', 200, {
-    email,
-    auth_email: authEmail,
-    permission_row: Boolean(permissionRows?.length),
-    existing_auth_user: Boolean(authUser?.id),
-  });
-
-  return jsonResponse({
-    ok: true,
-    auth_email: authEmail,
-    has_auth_user: true,
-    first_login_completed: true,
-    staff_name: permission?.staff_name || staffNameForEmail(authEmail),
-    organization: permission?.organization || organizationForEmail(authEmail),
-  }, 200, origin);
-}
-
-async function callLogisticsPasswordResetWithAccessCode(origin: string, payload: Record<string, unknown>) {
-  const email = normalizeAuthEmail(payload.email);
-  const password = String(firstDefined(payload.password, payload.new_password, payload.newPassword) || '');
-  if (!email || !email.endsWith('@igisam.com')) return fail(403, 'Company email is required', origin);
-  if (password.length < 6) return fail(400, 'Password must be at least 6 characters', origin);
-  if (!matchesLogisticsFirstAccessCode(payload.access_code)) return fail(403, 'Invalid access code', origin);
-
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = readEdgeSecret('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) return fail(500, 'Server is not configured', origin);
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const emailCandidates = logisticsAuthEmailCandidates(email);
-  const { data: permissionRows, error: permissionError } = await serviceClient
-    .from('ll_user_permissions')
-    .select('*')
-    .in('email', emailCandidates)
-    .limit(1);
-  if (permissionError) return fail(500, 'Failed to read logistics permission', origin);
-  const permission = ((permissionRows || [])[0] as Record<string, unknown> | undefined) || bootstrapPermissionForEmail(email) || undefined;
-  if (!isActivePermission(permission || null)) return fail(403, 'No active logistics permission found', origin);
-
-  const authEmail = canonicalPermissionEmail(permission || null, email);
-  let authUser: Record<string, unknown> | null = null;
-  try {
-    authUser = await findAuthUserByEmail(serviceClient, authEmail || email) as Record<string, unknown> | null;
-  } catch (error) {
-    return fail(500, 'Failed to inspect auth user', origin, { error: safeProviderError(error) });
-  }
-
-  const metadata = stripUndefined({
-    staff_name: permission?.staff_name || staffNameForEmail(authEmail),
-    organization: permission?.organization || organizationForEmail(authEmail),
-    logistics_permission_email: authEmail,
-    source: 'logistics_password_reset_access_code',
-  }) as Record<string, unknown>;
-
-  let savedAuthUser: Record<string, unknown> | null = null;
-  if (authUser?.id) {
-    const { data, error } = await serviceClient.auth.admin.updateUserById(String(authUser.id), {
-      password,
-      email_confirm: true,
-      user_metadata: metadata,
-    });
-    if (error || !data?.user) return fail(500, 'Failed to reset password', origin, { error: error?.message || 'missing auth user' });
-    savedAuthUser = data.user as unknown as Record<string, unknown>;
-  } else {
-    const { data, error } = await serviceClient.auth.admin.createUser({
-      email: authEmail,
-      password,
-      email_confirm: true,
-      user_metadata: metadata,
-    });
-    if (error || !data?.user) return fail(500, 'Failed to create login account', origin, { error: error?.message || 'missing auth user' });
-    savedAuthUser = data.user as unknown as Record<string, unknown>;
-  }
-
-  const authUserId = safeText(savedAuthUser?.id);
-  if (authUserId && permissionRows?.length) {
-    await serviceClient
-      .from('ll_user_permissions')
-      .update({
-        user_id: authUserId,
-        updated_at: new Date().toISOString(),
-      })
-      .in('email', emailCandidates);
-  }
-
-  await audit(serviceClient, authUserId || null, 'auth/password-reset/access-code', 200, {
-    email,
-    auth_email: authEmail,
-    permission_row: Boolean(permissionRows?.length),
-    existing_auth_user: Boolean(authUser?.id),
-  });
-
-  return jsonResponse({
-    ok: true,
-    auth_email: authEmail,
-    has_auth_user: true,
-    password_reset_completed: true,
-    staff_name: permission?.staff_name || staffNameForEmail(authEmail),
-    organization: permission?.organization || organizationForEmail(authEmail),
-  }, 200, origin);
-}
-
 async function callLogisticsAuthStatus(origin: string, payload: Record<string, unknown>) {
   const email = normalizeAuthEmail(payload.email);
-  if (!email || !email.endsWith('@igisam.com')) return fail(403, 'Company email is required', origin);
-  const bootstrapPermission = bootstrapPermissionForEmail(email);
+  if (!checkRateLimit(`public:auth-status:${email || 'invalid'}`, 'auth/logistics-status', 12, 60_000)) {
+    return fail(429, 'Too many enrollment status requests', origin);
+  }
+  if (!email || !email.endsWith('@igisam.com')) {
+    return jsonResponse({ allowed: false, auth_email: null, has_auth_user: false, account_status: null }, 200, origin);
+  }
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = readEdgeSecret('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) return fail(500, 'Server is not configured', origin);
+  if (!supabaseUrl || !serviceRoleKey) return fail(503, 'Enrollment status is temporarily unavailable', origin);
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const emailCandidates = logisticsAuthEmailCandidates(email);
-  const { data: permissionRows, error: permissionError } = await serviceClient
-    .from('ll_user_permissions')
-    .select('*')
-    .in('email', emailCandidates)
-    .limit(1);
-  if (permissionError) return fail(500, 'Failed to read logistics permission', origin, { error: permissionError.message });
-  const permission = ((permissionRows || [])[0] as Record<string, unknown> | undefined) || bootstrapPermissionForEmail(email) || undefined;
+  const profileResult = await readActiveCanonicalProfile(serviceClient, email);
+  if (profileResult.error) return fail(503, 'Enrollment status is temporarily unavailable', origin);
+  const permission = profileResult.permission;
   const authEmail = canonicalPermissionEmail(permission || null, email);
   const allowed = isActivePermission(permission || null);
-  const registered = Boolean(permission);
   let authUser: Record<string, unknown> | null = null;
-  let authReadOk = true;
-  let authReadError = '';
-  try {
-    authUser = await findAuthUserByEmail(serviceClient, authEmail || email) as Record<string, unknown> | null;
-  } catch (error) {
-    authReadOk = false;
-    authReadError = safeProviderError(error);
+  if (allowed) {
+    try {
+      authUser = await findAuthUserByEmail(serviceClient, authEmail || email) as Record<string, unknown> | null;
+    } catch {
+      return fail(503, 'Enrollment status is temporarily unavailable', origin);
+    }
   }
-  if (!authReadOk) return fail(503, 'Failed to inspect auth status', origin, { auth_read_ok: false, auth_read_error: authReadError || null });
-  const hasAuthUser = Boolean(authUser);
-  const hasConfirmedAuthUser = isConfirmedAuthUser(authUser);
   return jsonResponse({
-    ok: true,
     allowed,
-    registered,
-    first_login_completed: authReadOk ? hasConfirmedAuthUser : registered,
-    auth_email: authEmail,
-    has_auth_user: authReadOk ? hasAuthUser : null,
-    email_confirmed: authReadOk ? hasConfirmedAuthUser : null,
-    has_permission_row: Boolean(permissionRows?.length),
-    bootstrap_permission: !permissionRows?.length && Boolean(permission),
-    auth_read_ok: authReadOk,
-    auth_read_error: authReadError || null,
+    auth_email: allowed ? authEmail : null,
+    has_auth_user: allowed ? Boolean(authUser) : false,
     account_status: permission?.account_status || null,
-    staff_name: permission?.staff_name || staffNameForEmail(email),
-    organization: permission?.organization || organizationForEmail(email),
-    image_url: logisticsProfileImageUrl(email, permission?.image_url) || null,
   }, 200, origin);
-}
-
-async function callWeeklyAssetsLatestPreview(origin: string, payload: Record<string, unknown>) {
-  const emailCandidates = logisticsAuthEmailCandidates(payload.email);
-  if (!emailCandidates.length || !emailCandidates.some((email) => email.endsWith('@igisam.com'))) {
-    return fail(403, 'Company email is required', origin);
-  }
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = readEdgeSecret('SUPABASE_SERVICE_ROLE_KEY');
-  if (!supabaseUrl || !serviceRoleKey) return fail(500, 'Server is not configured', origin);
-  const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const { data: report, error: reportError } = await serviceClient
-    .from('ll_work_items')
-    .select('id')
-    .eq('item_type', 'weekly_report')
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (reportError || !report?.id) return fail(404, 'Weekly report not found', origin);
-
-  const { data, error } = await serviceClient
-    .from('ll_work_items')
-    .select(WEEKLY_RECORD_SELECT)
-    .eq('item_type', 'weekly_asset')
-    .eq('weekly_report_id', report.id)
-    .order('asset_name', { ascending: true })
-    .limit(300);
-  if (error) return fail(500, 'Failed to read weekly asset rows', origin);
-
-  const rows = ((data || []) as unknown as Record<string, unknown>[])
-    .map((row) => weeklyAssetResponse(row));
-  await audit(serviceClient, null, 'weekly-assets/latest-preview', 200, {
-    report_id: report.id,
-    email: emailCandidates[0],
-    rows: rows.length,
-  });
-  return jsonResponse({ ok: true, data: { report_id: report.id, rows } }, 200, origin);
 }
 
 Deno.serve(async (request): Promise<Response> => {
@@ -24841,6 +24958,7 @@ Deno.serve(async (request): Promise<Response> => {
     if (request.method === 'OPTIONS') return jsonResponse({ ok: true }, 200, origin);
     if (request.method !== 'POST') return fail(405, 'Method not allowed', origin);
     if (!assertLlAllowlist()) return fail(500, 'Write allowlist is invalid', origin);
+    if (!assertActionScopeManifest()) return fail(500, 'Action scope manifest is invalid', origin);
 
   let body: Record<string, unknown> = {};
   let formData: FormData | null = null;
@@ -24865,12 +24983,10 @@ Deno.serve(async (request): Promise<Response> => {
   }
   const action = safeAction(body.action);
   const payload = (body.payload || {}) as Record<string, unknown>;
+  if (!ACTION_MANIFEST.has(action)) return fail(404, 'Unknown action', origin, { reason_code: 'unknown_action' });
 
   if (action === 'naver/maps-config') return callNaverMapsConfig(origin);
-  if (action === 'auth/first-login/setup') return callLogisticsFirstLoginSetup(origin, payload);
-  if (action === 'auth/password-reset/access-code') return callLogisticsPasswordResetWithAccessCode(origin, payload);
   if (action === 'auth/logistics-status') return callLogisticsAuthStatus(origin, payload);
-  if (action === 'weekly-assets/latest-preview') return callWeeklyAssetsLatestPreview(origin, payload);
 
   let ctx: Context;
   try {
@@ -24880,12 +24996,18 @@ Deno.serve(async (request): Promise<Response> => {
     return fail(500, 'Authorization failed closed', origin);
   }
 
+  const manifestAuthorization = await authorizeActionManifest(ctx, action);
+  if (manifestAuthorization) return manifestAuthorization;
+  const scopeAuthorization = await authorizeActionScope(ctx, action, payload);
+  if (scopeAuthorization) return scopeAuthorization;
+
   if (action === 'health') return jsonResponse({ ok: true, role: ctx.role }, 200, origin);
   if (action === 'ai/search-chat-demo') return callGoogleAiSearchChatDemo(ctx, payload);
   if (action === 'ai/provider-diagnostics') return callAiProviderDiagnostics(ctx);
   if (action === 'ai/gemini-diagnostics') return callGeminiDiagnostics(ctx, payload);
   if (action === 'auth/me') return callAuthMe(ctx);
   if (action === 'auth/users/list') return callAuthUsersList(ctx);
+  if (action === 'permissions/evaluate') return callPermissionsEvaluate(ctx, payload);
   if (action === 'auth/users/upsert' || action === 'auth/user-permissions/update') return callAuthUserPermissionsUpdate(ctx, payload);
   if (action === 'auth/login-history/record') return recordLogisticsLoginHistory(ctx, payload);
   if (action === 'auth/login-history/list') return listLogisticsLoginHistory(ctx, payload);
@@ -24969,7 +25091,7 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'market-docs/search') return callMarketDocsSearch(ctx, payload);
   if (action === 'dashboard-metrics/refresh') return callDashboardMetricRefresh(ctx, payload);
   if (action === 'snapshot-refresh' || action === 'cache-clear') {
-    if (!hasRole(ctx.role, 'Admin')) return fail(403, 'Insufficient logistics permission', origin);
+    if (!await canUseServerFeature(ctx, 'permission_admin')) return fail(403, 'Permission administration is required', origin);
     await audit(ctx.serviceClient, ctx.user.id, action, 202, payload);
     return jsonResponse({ ok: true, message: `${action} accepted for server-side worker` }, 202, origin);
   }

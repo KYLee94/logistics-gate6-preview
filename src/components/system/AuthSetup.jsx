@@ -1,34 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 import { supabase, supabaseAnonKey, supabaseUrl } from '../../utils/supabaseClient';
-import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import { useAuth } from '../../context/AuthContext';
 import UserAvatar from './UserAvatar';
 
 const LOGISTICS_EMAIL_ALIASES = { '10524@igisam.com': 'kylee@igisam.com' };
 const canonicalLogisticsEmail = (email) => LOGISTICS_EMAIL_ALIASES[String(email || '').trim().toLowerCase()] || String(email || '').trim().toLowerCase();
-const LOGISTICS_LOCAL_AUTH_KEY = 'logistics_preview_auth';
-const LOGISTICS_ENROLLED_EMAILS_KEY = 'logistics_enrolled_emails';
 const LOGISTICS_LAST_EMAIL_KEY = 'logistics_last_login_email';
 const LOGISTICS_REMEMBER_EMAIL_KEY = 'logistics_remember_login_email';
 const LOGISTICS_PRODUCTION_AUTH_BASE_URL = 'https://kylee94.github.io/logistics-gate6-preview/';
 const LOGISTICS_PASSWORD_RECOVERY_REDIRECT_URL = new URL('auth-setup', LOGISTICS_PRODUCTION_AUTH_BASE_URL).toString();
-const readEnrolledLogisticsEmails = () => {
-    try {
-        const parsed = JSON.parse(localStorage.getItem(LOGISTICS_ENROLLED_EMAILS_KEY) || '[]');
-        return new Set(Array.isArray(parsed) ? parsed.map((item) => String(item || '').trim().toLowerCase()).filter(Boolean) : []);
-    } catch {
-        return new Set();
-    }
-};
-const hasCompletedFirstAccess = (email) => readEnrolledLogisticsEmails().has(String(email || '').trim().toLowerCase());
-const markFirstAccessComplete = (email) => {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    if (!normalizedEmail) return;
-    const emails = readEnrolledLogisticsEmails();
-    emails.add(normalizedEmail);
-    localStorage.setItem(LOGISTICS_ENROLLED_EMAILS_KEY, JSON.stringify([...emails]));
-};
 const fetchLogisticsAuthStatus = async (email) => {
     try {
         const response = await fetch(`${supabaseUrl}/functions/v1/ll-dashboard-api`, {
@@ -48,31 +29,6 @@ const fetchLogisticsAuthStatus = async (email) => {
         return data || null;
     } catch {
         return null;
-    }
-};
-const setupLogisticsFirstLogin = async ({ email, authEmail, password, accessCode }) => {
-    try {
-        const response = await fetch(`${supabaseUrl}/functions/v1/ll-dashboard-api`, {
-            method: 'POST',
-            headers: {
-                apikey: supabaseAnonKey,
-                authorization: `Bearer ${supabaseAnonKey}`,
-                'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-                action: 'auth/first-login/setup',
-                payload: {
-                    email,
-                    auth_email: authEmail || email,
-                    password,
-                    access_code: accessCode,
-                },
-            }),
-        });
-        const data = await response.json().catch(() => null);
-        return data || { ok: false, error: response.ok ? '최초 접속 설정에 실패했습니다.' : `최초 접속 설정 실패 (${response.status})` };
-    } catch {
-        return { ok: false, error: '서버 연결에 실패했습니다.' };
     }
 };
 const buildPasswordRecoveryRedirectUrl = () => LOGISTICS_PASSWORD_RECOVERY_REDIRECT_URL;
@@ -108,20 +64,6 @@ const navigateAfterSuccessfulAuth = (onLogin) => {
         if (!window.location.href.includes('auth-setup')) return;
         navigateToPostLoginPath({ replace: true });
     }, 0);
-};
-const activateLocalLogisticsSession = (email, userId, memberInfo = {}) => {
-    const normalizedEmail = String(email || '').trim().toLowerCase();
-    if (!normalizedEmail) return false;
-    sessionStorage.setItem(LOGISTICS_LOCAL_AUTH_KEY, JSON.stringify({
-        email: normalizedEmail,
-        user_id: userId || `local-logistics-${normalizedEmail}`,
-        staff_name: memberInfo.staff_name || memberInfo.name || normalizedEmail,
-        organization: memberInfo.organization || '',
-        created_at: new Date().toISOString(),
-    }));
-    localStorage.removeItem(LOGISTICS_LOCAL_AUTH_KEY);
-    window.dispatchEvent(new CustomEvent('logistics-local-auth-changed'));
-    return true;
 };
 const recordLogisticsLoginHistory = async (email, authEmail, source = 'web_app') => {
     try {
@@ -197,11 +139,10 @@ export default function AuthSetup({ onLogin }) {
     const [isFirstTime, setIsFirstTime] = useState(true);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [accessCode, setAccessCode] = useState('');
     const [oldPassword, setOldPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmNewPassword, setConfirmNewPassword] = useState('');
-    const pilotAccessCode = import.meta.env.VITE_IOTA_PILOT_ACCESS_CODE || 'logistics1!';
+    const [signupConfirmationPending, setSignupConfirmationPending] = useState(false);
     const [mounted, setMounted] = useState(false);
     const [dissolved, setDissolved] = useState(false);
     const [hasError, setHasError] = useState(false);
@@ -216,10 +157,10 @@ export default function AuthSetup({ onLogin }) {
     const selectedAvatarInfo = selectedMemberInfo || { staff_name: staffName, name: staffName, email: currentAuthEmail() };
 
     useEffect(() => {
-        if (step === 2 && passwordInputRef.current) {
+        if (step === 2 && !signupConfirmationPending && passwordInputRef.current) {
             passwordInputRef.current.focus();
         }
-    }, [step]);
+    }, [step, signupConfirmationPending]);
 
     useEffect(() => {
         const timer = setTimeout(() => setMounted(true), 100);
@@ -253,26 +194,16 @@ export default function AuthSetup({ onLogin }) {
             const permissionEmail = canonicalLogisticsEmail(normalizedEmail);
             const remoteAuthStatus = await fetchLogisticsAuthStatus(permissionEmail);
 
-            if (!remoteAuthStatus?.allowed || remoteAuthStatus?.account_status === 'disabled') {
+            if (
+                remoteAuthStatus?.allowed !== true
+                || String(remoteAuthStatus?.account_status || '').toLowerCase() !== 'active'
+            ) {
                 triggerError('물류센터 워크플랫폼 로그인 권한이 등록되지 않은 이메일입니다.');
                 return;
             }
 
-            let memberData = null;
-            try {
-                const { data } = await fetchWithRetry(() => supabase
-                    .from('iota_seoul_pilot_members')
-                    .select('staff_name, auth_id')
-                    .eq('email', normalizedEmail)
-                    .single());
-                memberData = data || null;
-            } catch {
-                memberData = null;
-            }
-
             const authEmail = String(remoteAuthStatus?.auth_email || normalizedEmail).trim().toLowerCase();
-            const remoteFirstAccessComplete = Boolean(remoteAuthStatus?.first_login_completed);
-            const remoteStaffName = remoteAuthStatus?.staff_name || remoteAuthStatus?.name || memberData?.staff_name || normalizedEmail;
+            const remoteStaffName = remoteAuthStatus?.staff_name || remoteAuthStatus?.name || normalizedEmail;
             setStaffName(remoteStaffName);
             setSelectedMemberInfo({
                 ...remoteAuthStatus,
@@ -284,10 +215,8 @@ export default function AuthSetup({ onLogin }) {
             });
             setResolvedAuthEmail(authEmail);
             const remoteHasAuthUser = remoteAuthStatus?.has_auth_user;
-            setIsFirstTime(
-                remoteHasAuthUser === false
-                || (!remoteFirstAccessComplete && !memberData?.auth_id && !hasCompletedFirstAccess(normalizedEmail) && !hasCompletedFirstAccess(authEmail))
-            );
+            setIsFirstTime(remoteHasAuthUser !== true);
+            setSignupConfirmationPending(false);
             setStep(2);
         } catch {
             triggerError('서버 연결에 실패했습니다.');
@@ -305,10 +234,6 @@ export default function AuthSetup({ onLogin }) {
             return;
         }
         if (isFirstTime) {
-            if (!pilotAccessCode || accessCode.trim().toUpperCase() !== pilotAccessCode.trim().toUpperCase()) {
-                triggerError('최초 접속 코드가 올바르지 않습니다.');
-                return;
-            }
             if (password !== confirmPassword) {
                 triggerError('패스워드가 일치하지 않습니다.');
                 return;
@@ -495,25 +420,23 @@ export default function AuthSetup({ onLogin }) {
             });
 
             if (isFirstTime) {
-                const setupResult = await setupLogisticsFirstLogin({
-                    email: normalizedEmail,
-                    authEmail,
+                const { data, error } = await supabase.auth.signUp({
+                    email: authEmail,
                     password,
-                    accessCode,
+                    options: {
+                        emailRedirectTo: buildPasswordRecoveryRedirectUrl(),
+                    },
                 });
 
-                if (!setupResult?.ok) {
-                    triggerError(setupResult?.error || '최초 접속 설정에 실패했습니다.');
+                if (error) {
+                    triggerError(error.message || '최초 접속 설정에 실패했습니다.');
                     return;
                 }
 
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email: authEmail,
-                    password,
-                });
-
-                if (error || !data?.user) {
-                    triggerError('패스워드 설정은 완료했지만 로그인 세션 생성에 실패했습니다. 같은 패스워드로 다시 로그인해 주세요.');
+                if (!data?.session) {
+                    setSignupConfirmationPending(true);
+                    setPassword('');
+                    setConfirmPassword('');
                     return;
                 }
 
@@ -521,12 +444,9 @@ export default function AuthSetup({ onLogin }) {
                     body: {
                         action: 'first_login',
                         email: authEmail,
-                        auth_id: data.user.id,
+                        auth_id: data.session.user.id,
                     },
                 });
-                markFirstAccessComplete(normalizedEmail);
-                markFirstAccessComplete(authEmail);
-                activateLocalLogisticsSession(normalizedEmail, data.user.id, selectedAvatarInfo);
                 await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
             } else {
                 // Sign in existing user
@@ -540,16 +460,18 @@ export default function AuthSetup({ onLogin }) {
                     return;
                 }
 
-                if (data.user) {
-                    markFirstAccessComplete(normalizedEmail);
-                    markFirstAccessComplete(authEmail);
+                if (!data?.session?.user) {
+                    triggerError('로그인 세션을 확인할 수 없습니다. 다시 로그인해 주세요.');
+                    return;
+                }
+
+                {
                     await supabase.functions.invoke('iota-auth-member-sync', {
                         body: {
                             action: 'login',
                             email: authEmail,
                         },
                     });
-                    activateLocalLogisticsSession(normalizedEmail, data.user.id, selectedAvatarInfo);
                     await recordLogisticsLoginHistory(normalizedEmail, authEmail, 'web_app');
                 }
             }
@@ -668,6 +590,23 @@ export default function AuthSetup({ onLogin }) {
                                 </button>
                             </div>
 
+                            {signupConfirmationPending ? (
+                                <div className="w-full text-center">
+                                    <p className="text-[15px] leading-6 text-[#4A4A4A] dark:text-[#D1D1D6]">
+                                        계정 확인 이메일을 발송했습니다. 이메일의 확인 링크를 연 뒤 로그인해 주세요.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSignupConfirmationPending(false);
+                                            setStep(1);
+                                        }}
+                                        className="mt-6 text-[#86868B] hover:text-[#111] dark:hover:text-[#E5E5E5] text-[13px] font-medium transition-colors border-b border-transparent hover:border-[#111] dark:hover:border-[#E5E5E5] pb-0.5"
+                                    >
+                                        다른 이메일 사용
+                                    </button>
+                                </div>
+                            ) : (
                             <form onSubmit={handlePasswordSubmit} className="w-full">
                                 <input type="hidden" name="username" autoComplete="username" value={currentAuthEmail()} readOnly />
                                 <div className="w-full mb-2">
@@ -696,20 +635,6 @@ export default function AuthSetup({ onLogin }) {
                                                 autoComplete="new-password"
                                                 onChange={(e) => {
                                                     setConfirmPassword(e.target.value);
-                                                    if (errorMessage) setErrorMessage('');
-                                                }}
-                                                className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
-                                            />
-                                        </div>
-                                        <div className="w-full mb-2">
-                                            <input 
-                                                type="text" 
-                                                placeholder="최초 접속 코드"
-                                                value={accessCode}
-                                                name="logistics-access-code"
-                                                autoComplete="off"
-                                                onChange={(e) => {
-                                                    setAccessCode(e.target.value);
                                                     if (errorMessage) setErrorMessage('');
                                                 }}
                                                 className={`w-full bg-white dark:bg-[#262626] text-[#111] dark:text-white placeholder-gray-400 dark:placeholder-[#737373] text-[15px] px-4 py-3.5 rounded-[16px] border focus:outline-none transition-colors duration-300 ${hasError ? 'border-red-500 dark:border-red-500' : 'border-black/10 dark:border-[#3A3A3A] focus:border-[#111] dark:focus:border-[#666]'}`}
@@ -753,6 +678,7 @@ export default function AuthSetup({ onLogin }) {
                                     </div>
                                 )}
                             </form>
+                            )}
                         </>
                     ) : step === 3 ? (
                         <>

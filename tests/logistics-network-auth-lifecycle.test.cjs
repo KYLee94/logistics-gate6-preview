@@ -76,6 +76,7 @@ global.window = {
   localStorage,
   setTimeout,
   clearTimeout,
+  dispatchEvent: () => true,
 };
 Object.defineProperty(globalThis, 'navigator', {
   configurable: true,
@@ -90,6 +91,12 @@ function activeSession(overrides = {}) {
     user: { id: 'user-1', email: 'user@igisam.com' },
     ...overrides,
   };
+}
+
+function jwtForSubject(subject) {
+  const payload = Buffer.from(JSON.stringify({ sub: subject }), 'utf8')
+    .toString('base64url');
+  return `header.${payload}.signature`;
 }
 
 function resetFakeSupabase(session = activeSession()) {
@@ -174,6 +181,103 @@ test('network and auth lifecycle contracts', async (t) => {
       (error) => error?.name === 'AbortError',
     );
     assert.equal(invokeCount, 1);
+  });
+
+  await t.test('the AbortSignal is forwarded to the invoked request', async () => {
+    resetFakeSupabase();
+    let invokeSignal = null;
+    fakeSupabase.functions.invoke = (_name, options) => new Promise((_, reject) => {
+      invokeSignal = options.signal;
+      options.signal.addEventListener('abort', () => reject(options.signal.reason), { once: true });
+    });
+    const controller = new AbortController();
+    const { invokeDashboardApi } = await loadSessionModule('abort-forwarded');
+    const pending = invokeDashboardApi('dashboard/home/read', {}, {
+      timeoutMs: 1000,
+      retryAuth: false,
+      signal: controller.signal,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    controller.abort();
+
+    await assert.rejects(guardDuration(pending), (error) => error?.name === 'AbortError');
+    assert.equal(invokeSignal?.aborted, true);
+  });
+
+  await t.test('write actions do not retry timeout failures', async () => {
+    resetFakeSupabase();
+    let invokeCount = 0;
+    fakeSupabase.functions.invoke = async () => {
+      invokeCount += 1;
+      return {
+        data: null,
+        error: { status: 408, name: 'DashboardInvokeTimeoutError', message: 'request timed out' },
+      };
+    };
+    const { invokeDashboardApi } = await loadSessionModule('write-timeout');
+    const result = await guardDuration(invokeDashboardApi('contract-data/apply'));
+
+    assert.equal(result.error.status, 408);
+    assert.equal(invokeCount, 1);
+  });
+
+  await t.test('return revalidation shares an in-flight request and applies only a short throttle', async () => {
+    resetFakeSupabase();
+    const { createReturnRevalidationGate } = await loadSessionModule('return-gate');
+    let now = 1000;
+    let runs = 0;
+    let release;
+    const gate = createReturnRevalidationGate(() => {
+      runs += 1;
+      return new Promise((resolve) => {
+        release = resolve;
+      });
+    }, { minimumIntervalMs: 1000, now: () => now });
+
+    const first = gate();
+    const second = gate();
+    const third = gate();
+    assert.strictEqual(first, second);
+    assert.strictEqual(second, third);
+    assert.equal(runs, 1);
+
+    release(true);
+    await first;
+    now += 999;
+    await gate();
+    assert.equal(runs, 1);
+  });
+
+  await t.test('permission cache scope requires a matching JWT subject and discards inactive identities', async () => {
+    const session = activeSession({
+      access_token: jwtForSubject('user-1'),
+      user: { id: 'user-1', email: 'user@igisam.com' },
+    });
+    resetFakeSupabase(session);
+    const {
+      getDashboardCacheScope,
+      setDashboardPermissionCacheIdentity,
+    } = await loadSessionModule('permission-cache-scope');
+
+    localStorage.setItem('logistics_preview_auth', JSON.stringify({ email: 'other@igisam.com' }));
+    localStorage.setItem('logisticsFeatureAccessConfig', JSON.stringify({ stale: true }));
+    setDashboardPermissionCacheIdentity(session, {
+      permission_revision: 'rev-1',
+      account_status: 'active',
+      feature_permissions: { analysis_tools: true, data_quality: false },
+    });
+    assert.equal(
+      getDashboardCacheScope(),
+      'sub:user-1:revision:rev-1:status:active:features:analysis_tools:1,data_quality:0',
+    );
+
+    setDashboardPermissionCacheIdentity(session, {
+      permission_revision: 'rev-2',
+      account_status: 'inactive',
+      feature_permissions: { analysis_tools: true },
+    });
+    assert.equal(localStorage.getItem('logisticsFeatureAccessConfig'), null);
+    assert.equal(getDashboardCacheScope(), 'sub:user-1:permission-unverified');
   });
 
   await t.test('403 and offline failures do not retry', async () => {

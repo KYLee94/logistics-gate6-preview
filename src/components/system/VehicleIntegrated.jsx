@@ -5,6 +5,15 @@ import { fetchWithRetry } from '../../utils/fetchWithRetry';
 import Fund421DetailCard from './shared/Fund421DetailCard';
 import IotaOne427DetailCard from './shared/IotaOne427DetailCard';
 
+const VehicleDetailCard = ({ renderCard, ...props }) => {
+    const [hoveredBarTranche, setHoveredBarTranche] = useState(null);
+
+    return renderCard({
+        ...props,
+        hoveredBarTranche,
+        setHoveredBarTranche,
+    });
+};
 
 export default function VehicleIntegrated() {
     const [phase816, setPhase816] = useState('refi'); // 'bridge' | 'refi'
@@ -211,8 +220,17 @@ export default function VehicleIntegrated() {
         </div>
     );
 
-    const VehicleDetailCard = ({ id, vehicleId, title, data, toggleContent }) => {
-        const [hoveredBarTranche, setHoveredBarTranche] = useState(null);
+    const renderVehicleDetailCard = ({
+        id,
+        vehicleId,
+        title,
+        data,
+        toggleContent,
+        navigateTo,
+        handleInstClick,
+        hoveredBarTranche,
+        setHoveredBarTranche,
+    }) => {
         let totalEquity = 0;
         let totalLoan = 0;
         
@@ -833,6 +851,9 @@ export default function VehicleIntegrated() {
                 totalAmountStr={formatAmount(displayTotal816)} 
                 data={iotaData[816][phase816 === 'bridge' ? 'Bridge' : 'Refinancing']} 
                 toggleContent={toggle816}
+                navigateTo={navigateTo}
+                handleInstClick={handleInstClick}
+                renderCard={renderVehicleDetailCard}
             />
 
             <div className="w-full h-[38px]"></div>

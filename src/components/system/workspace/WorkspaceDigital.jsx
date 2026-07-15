@@ -112,12 +112,6 @@ export default function WorkspaceDigital() {
     const [isSubmittingTask, setIsSubmittingTask] = useState(false);
     const [editingTaskId, setEditingTaskId] = useState(null);
 
-    useEffect(() => {
-        fetchTasks();
-        const savedAssets = localStorage.getItem('iota_shared_custom_assets');
-        if (savedAssets) setCustomAssets(JSON.parse(savedAssets));
-    }, []);
-
     const registerNewAsset = () => {
         if (!newAssetName.trim()) return;
         setIsSubmittingAsset(true);
@@ -176,6 +170,12 @@ export default function WorkspaceDigital() {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchTasks();
+        const savedAssets = localStorage.getItem('iota_shared_custom_assets');
+        if (savedAssets) setCustomAssets(JSON.parse(savedAssets));
+    }, []);
 
     useEffect(() => {
         if (!isLoading && tasks.length > 0) {

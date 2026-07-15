@@ -121,10 +121,6 @@ const workspaceItems = [
     }
 ];
 
-const LOGISTICS_ADMIN_NAMES = new Set(['이관용', '전기영', '이시정', '이승훈', '이철승']);
-const LOGISTICS_ADMIN_EMAILS = new Set(['kylee@igisam.com', 'jk.jeon@igisam.com', 'sjlee@igisam.com', 'seunghoon.lee@igisam.com', 'ethan.lee@igisam.com']);
-const SOURCE_UPDATE_DATA_QUALITY_NAMES = new Set(['이관용', '전기영', '이시정']);
-const SOURCE_UPDATE_DATA_QUALITY_EMAILS = new Set(['kylee@igisam.com', 'jk.jeon@igisam.com', 'sjlee@igisam.com']);
 const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_ACCESS_USERS_CACHE_KEY = 'logisticsFeatureAccessUsers:v1';
 const LOGISTICS_LOGIN_HISTORY_CACHE_KEY = 'logisticsLoginHistory:v2';
@@ -138,23 +134,9 @@ const LOGISTICS_FEATURES = [
     { key: 'building_register_refresh', label: '건축물대장 새로고침', description: '건축물대장 API 재호출 및 Supabase 저장' },
     { key: 'opendart_refresh', label: 'OpenDART 새로고침', description: 'OpenDART API 재호출 및 Supabase 저장' },
     { key: 'market_research', label: '시장 리서치', description: '시장 리서치 자료 검색 및 AI 답변 근거 조회' },
+    { key: 'permission_admin', label: '기능 권한 관리', description: '기능 권한 관리 화면 및 권한 변경' },
+    { key: 'approval_management', label: '승인 대기 관리', description: '데이터 수정 승인 및 반려' },
 ];
-const FEATURE_ACCESS_DEFAULT_USERS = [
-    { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
-    { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
-    { staff_name: '이시정', organization: '기획추진센터', email: 'sjlee@igisam.com' },
-    { staff_name: '이승훈', organization: '사업그룹4파트', email: 'seunghoon.lee@igisam.com' },
-    { staff_name: '이철승', organization: '리얼에셋부문', email: 'ethan.lee@igisam.com' },
-];
-const FEATURE_ACCESS_FALLBACK_USERS = [
-    { staff_name: '이관용', organization: '기획추진센터', email: 'kylee@igisam.com' },
-    { staff_name: '전기영', organization: '기획추진센터', email: 'jk.jeon@igisam.com' },
-    { staff_name: '이시정', organization: '기획추진센터', email: 'sjlee@igisam.com' },
-    { staff_name: '이승훈', organization: '사업그룹4파트', email: 'seunghoon.lee@igisam.com' },
-    { staff_name: '이철승', organization: '리얼에셋부문', email: 'ethan.lee@igisam.com' },
-    { staff_name: '\uC815\uD558\uC724', organization: '\uC790\uC0B0\uAD00\uB9AC1\uD30C\uD2B81', email: 'hayun.jeong@igisam.com', image_url: HAYUN_PROFILE_IMAGE_URL },
-];
-const FEATURE_ACCESS_DEFAULT_EMAIL_BY_NAME = new Map(FEATURE_ACCESS_DEFAULT_USERS.map((row) => [row.staff_name, row.email]));
 const LOGIN_CAPABILITY_SORT_COLUMNS = [
     { key: 'organization', label: '조직', type: 'text' },
     { key: 'staff_name', label: '이름', type: 'text' },
@@ -270,7 +252,7 @@ const writeStoredNotificationIds = (key, ids = []) => {
 const compactFeatureAccessUserRow = (user = {}) => {
     const row = user || {};
     const staffName = String(row.staff_name || row.name || '').trim();
-    const email = String(row.email || FEATURE_ACCESS_DEFAULT_EMAIL_BY_NAME.get(staffName) || '').trim().toLowerCase();
+    const email = String(row.email || '').trim().toLowerCase();
     const imageUrl = email === 'hayun.jeong@igisam.com'
         ? HAYUN_PROFILE_IMAGE_URL
         : row.image_url || row.avatar_url || row.photo_url || row.picture || '';
@@ -440,15 +422,13 @@ const featureAccessGrantedUsers = (config, featureKey, users = []) => {
         ...users.filter((row) => featureAccessHasEffectiveUser(config, featureKey, row)),
     ]);
 };
-const memberHasFeatureAccess = (config, featureKey, memberInfo = {}) => {
+const memberHasFeatureAccess = (featureKey, memberInfo = {}) => {
     const member = memberInfo || {};
-    const featurePermissions = member.feature_permissions || member.featurePermissions || member.logistics_permission?.feature_permissions || {};
-    if (featurePermissions[featureKey] === true || featurePermissions[featureKey] === 'true') return true;
-    return featureAccessHasUser(config, featureKey, {
-    email: member.email,
-    staff_name: member.staff_name || member.name,
-    organization: member.organization || member.department,
-});
+    const accountStatus = String(member.account_status || '').trim().toLowerCase();
+    const featurePermissions = member.feature_permissions;
+    return accountStatus === 'active'
+        && Boolean(featurePermissions && typeof featurePermissions === 'object')
+        && featurePermissions[featureKey] === true;
 };
 const isSmokeNotificationSource = (row = {}) => {
     const payload = parseNotificationPayload(row.request_payload);
@@ -621,13 +601,13 @@ const logisticsDashboardItems = [
     {
         label: '분석 도구',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/tools`,
-        adminOnly: true,
+        requiredFeature: 'analysis_tools',
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 19V5m0 14h16M8 16V9m4 7V6m4 10v-4" /></svg>,
     },
     {
         label: '피벗 테이블',
         path: `${LOGISTICS_INTERNAL_BASE}/dashboard/playground`,
-        adminOnly: true,
+        requiredFeature: 'data_playground',
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M4 7c0 1.657 3.582 3 8 3s8-1.343 8-3M4 7c0-1.657 3.582-3 8-3s8 1.343 8 3M4 7v10c0 1.657 3.582 3 8 3s8-1.343 8-3V7M4 12c0 1.657 3.582 3 8 3s8-1.343 8-3" /></svg>,
     },
 ];
@@ -635,6 +615,14 @@ const LOGISTICS_DASHBOARD_FEATURE_BY_PATH = {
     [`${LOGISTICS_INTERNAL_BASE}/dashboard/tools`]: 'analysis_tools',
     [`${LOGISTICS_INTERNAL_BASE}/dashboard/playground`]: 'data_playground',
     [`${LOGISTICS_INTERNAL_BASE}/data-management/data-quality`]: 'data_quality',
+    [`${LOGISTICS_INTERNAL_BASE}/data-management/approval`]: 'approval_management',
+    [`${LOGISTICS_INTERNAL_BASE}/market-data/source-update`]: 'market_research',
+};
+const featureForLogisticsPath = (path) => {
+    const normalizedPath = normalizeLogisticsPath(path);
+    return Object.entries(LOGISTICS_DASHBOARD_FEATURE_BY_PATH).find(([protectedPath]) => (
+        normalizedPath === protectedPath || normalizedPath.startsWith(`${protectedPath}/`)
+    ))?.[1] || null;
 };
 const logisticsMarketDataItems = [
     {
@@ -660,6 +648,7 @@ const logisticsMarketDataItems = [
     {
         label: '업데이트',
         path: `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`,
+        requiredFeature: 'market_research',
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M7 4h10v5h4l-9 11-9-11h4V4z" /></svg>,
     },
 ];
@@ -687,13 +676,13 @@ const logisticsDataManagementItems = [
     {
         label: '데이터 품질',
         path: `${LOGISTICS_INTERNAL_BASE}/data-management/data-quality`,
-        adminOnly: true,
+        requiredFeature: 'data_quality',
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4M12 3l7 4v5c0 4.5-2.8 8.2-7 9-4.2-.8-7-4.5-7-9V7l7-4z" /></svg>,
     },
     {
         label: '승인 대기',
         path: `${LOGISTICS_INTERNAL_BASE}/data-management/approval`,
-        adminOnly: true,
+        requiredFeature: 'approval_management',
         icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M9 12l2 2 4-4M5 5h14v14H5z" /></svg>,
     },
 ];
@@ -706,9 +695,11 @@ const logisticsStandaloneItems = [
 ];
 
 export default function IotaLeftNav({ currentPath = '' }) {
-    
-    
     const handleNavigation = (path) => {
+        const requiredFeature = featureForLogisticsPath(path);
+        if (requiredFeature && !memberHasFeatureAccess(requiredFeature, memberInfo)) {
+            return;
+        }
         const base = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL.slice(0, -1) : import.meta.env.BASE_URL;
         const nextUrl = normalizeLogisticsPath(path).startsWith(LOGISTICS_INTERNAL_BASE)
             ? pathForLogisticsUrl(import.meta.env.BASE_URL, path)
@@ -717,7 +708,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         window.dispatchEvent(new PopStateEvent('popstate'));
         window.dispatchEvent(new CustomEvent('logistics-data-refresh', { detail: { path } }));
     };
-    const { user, memberInfo, signOut } = useAuth();
+    const { user, memberInfo, permissionsLoading, signOut } = useAuth();
     const [showProfileMenu, setShowProfileMenu] = useState(false);
     const [showContactModal, setShowContactModal] = useState(false);
     const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -725,16 +716,16 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const [showFeatureAccessModal, setShowFeatureAccessModal] = useState(false);
     const [featureAccessLoading, setFeatureAccessLoading] = useState(false);
     const [featureAccessError, setFeatureAccessError] = useState('');
-    const [featureAccessData, setFeatureAccessData] = useState(() => normalizeFeatureAccessConfig(readFeatureAccessConfig()));
-    const [featureAccessDraft, setFeatureAccessDraft] = useState(() => normalizeFeatureAccessConfig(readFeatureAccessConfig()));
+    const [featureAccessData, setFeatureAccessData] = useState(() => normalizeFeatureAccessConfig({}));
+    const [featureAccessDraft, setFeatureAccessDraft] = useState(() => normalizeFeatureAccessConfig({}));
     const [featureAccessDirty, setFeatureAccessDirty] = useState(false);
-    const [featureAccessUsers, setFeatureAccessUsers] = useState(() => mergeFeatureAccessUsers([...FEATURE_ACCESS_FALLBACK_USERS, ...readFeatureAccessUsersCache()]));
+    const [featureAccessUsers, setFeatureAccessUsers] = useState([]);
     const [featureAccessSaving, setFeatureAccessSaving] = useState(false);
     const [featureAccessSavedAt, setFeatureAccessSavedAt] = useState('');
     const [openFeatureAccessKeys, setOpenFeatureAccessKeys] = useState(() => [LOGISTICS_FEATURES[0]?.key].filter(Boolean));
     const [loginHistoryLoading, setLoginHistoryLoading] = useState(false);
     const [loginHistoryError, setLoginHistoryError] = useState('');
-    const [loginHistoryData, setLoginHistoryData] = useState(() => readLoginHistoryCache());
+    const [loginHistoryData, setLoginHistoryData] = useState(() => ({ rows: [], users: [], summary: null }));
     const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [notificationsError, setNotificationsError] = useState('');
@@ -822,15 +813,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
 
     const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
     const isLogisticsPath = normalizedCurrentPath.startsWith(LOGISTICS_INTERNAL_BASE);
-    const memberRole = memberInfo?.logistics_role || memberInfo?.logisticsRole || memberInfo?.role || memberInfo?.logistics_permission?.logistics_role;
-    const memberEmail = String(memberInfo?.email || memberInfo?.logistics_permission?.email || user?.email || '').trim().toLowerCase();
-    const memberName = memberInfo?.staff_name || memberInfo?.name;
-    const canUseCoreOnlyTools = SOURCE_UPDATE_DATA_QUALITY_EMAILS.has(memberEmail)
-        || SOURCE_UPDATE_DATA_QUALITY_NAMES.has(memberName);
-    const canUseAccessAdminTools = LOGISTICS_ADMIN_EMAILS.has(memberEmail) || LOGISTICS_ADMIN_NAMES.has(memberName);
-    const canViewSourceUpdateAndDataQuality = canUseCoreOnlyTools;
-    const isLogisticsAdmin = memberRole === 'System Admin'
-        || canUseAccessAdminTools;
+    const canManageFeatureAccess = memberHasFeatureAccess('permission_admin', memberInfo);
     const loginHistoryRows = Array.isArray(loginHistoryData?.rows) ? loginHistoryData.rows : [];
     const recentLoginHistoryRows = loginHistoryRows.slice(0, 5);
     const loginCapabilityUsers = useMemo(() => (
@@ -848,8 +831,6 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const selectableFeatureUsers = useMemo(() => {
         const configuredUsers = Object.values(featureAccessModalConfig.features || {}).flatMap((feature) => feature.users || []);
         const rows = [
-            ...FEATURE_ACCESS_DEFAULT_USERS,
-            ...FEATURE_ACCESS_FALLBACK_USERS,
             ...(featureAccessUsers.length ? featureAccessUsers : loginCapabilityUsers),
             ...configuredUsers,
         ];
@@ -859,13 +840,13 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 || String(left.email || '').localeCompare(String(right.email || ''), 'ko-KR'));
     }, [featureAccessModalConfig.features, featureAccessUsers, loginCapabilityUsers]);
     const notificationStorageKey = useMemo(() => {
-        const owner = user?.id || user?.email || memberInfo?.email || memberInfo?.staff_name || 'anonymous';
+        const owner = String(user?.id || memberInfo?.auth_subject || '').trim() || 'anonymous';
         return `logistics-notifications-read:${owner}`;
-    }, [memberInfo?.email, memberInfo?.staff_name, user?.email, user?.id]);
+    }, [memberInfo?.auth_subject, user?.id]);
     const notificationDismissedStorageKey = useMemo(() => {
-        const owner = user?.id || user?.email || memberInfo?.email || memberInfo?.staff_name || 'anonymous';
+        const owner = String(user?.id || memberInfo?.auth_subject || '').trim() || 'anonymous';
         return `logistics-notifications-dismissed:${owner}`;
-    }, [memberInfo?.email, memberInfo?.staff_name, user?.email, user?.id]);
+    }, [memberInfo?.auth_subject, user?.id]);
     useEffect(() => {
         notificationsRef.current = notifications;
     }, [notifications]);
@@ -894,6 +875,23 @@ export default function IotaLeftNav({ currentPath = '' }) {
         setReadNotificationIds([]);
         setDismissedNotificationIds([]);
     }, [notificationDismissedStorageKey, notificationStorageKey]);
+    const invalidatePermissionCaches = useCallback(() => {
+        try {
+            localStorage.removeItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY);
+            localStorage.removeItem(LOGISTICS_FEATURE_ACCESS_USERS_CACHE_KEY);
+            localStorage.removeItem(LOGISTICS_LOGIN_HISTORY_CACHE_KEY);
+        } catch {
+            // Storage cleanup must not delay an auth-state transition.
+        }
+        setFeatureAccessData(normalizeFeatureAccessConfig({}));
+        setFeatureAccessDraft(normalizeFeatureAccessConfig({}));
+        setFeatureAccessUsers([]);
+        setLoginHistoryData({ rows: [], users: [], summary: null });
+    }, []);
+    useEffect(() => {
+        window.addEventListener('logistics-permission-cache-invalidated', invalidatePermissionCaches);
+        return () => window.removeEventListener('logistics-permission-cache-invalidated', invalidatePermissionCaches);
+    }, [invalidatePermissionCaches]);
     const refreshNotificationsFromServer = useCallback(async () => {
         invalidateNotificationCaches();
         const loadNotifications = loadNotificationsRef.current;
@@ -1085,7 +1083,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         loadNotifications({ silent: true });
     }, [isLogisticsPath, loadNotifications]);
     useEffect(() => {
-        if (!isLogisticsPath) return;
+        if (!isLogisticsPath || permissionsLoading || !canManageFeatureAccess) return;
         let cancelled = false;
         invokeWithTimeout('feature-access/get', {}, 22000).then(({ data, error }) => {
             if (cancelled || error || data?.ok === false) return;
@@ -1097,7 +1095,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         return () => {
             cancelled = true;
         };
-    }, [isLogisticsPath]);
+    }, [canManageFeatureAccess, isLogisticsPath, permissionsLoading]);
     const loadFeatureAccess = async () => {
         setFeatureAccessLoading(true);
         setFeatureAccessError('');
@@ -1117,7 +1115,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             setFeatureAccessDirty(false);
             localStorage.setItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY, JSON.stringify(nextConfig));
             const users = Array.isArray(usersValue?.data?.data?.users) ? usersValue.data.data.users : [];
-            const mergedUsers = mergeFeatureAccessUsers([...FEATURE_ACCESS_FALLBACK_USERS, ...(users.length ? users : readFeatureAccessUsersCache())]);
+            const mergedUsers = mergeFeatureAccessUsers(users.length ? users : readFeatureAccessUsersCache());
             setFeatureAccessUsers(mergedUsers);
             writeFeatureAccessUsersCache(mergedUsers);
             if (!users.length && (usersValue?.error || usersValue?.data?.ok === false || usersResult.status === 'rejected')) {
@@ -1125,7 +1123,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
             }
         } catch (error) {
             const cached = normalizeFeatureAccessConfig(readFeatureAccessConfig());
-            const cachedUsers = mergeFeatureAccessUsers([...FEATURE_ACCESS_FALLBACK_USERS, ...readFeatureAccessUsersCache()]);
+            const cachedUsers = mergeFeatureAccessUsers(readFeatureAccessUsersCache());
             if (Object.keys(cached.features || {}).length || cachedUsers.length) {
                 setFeatureAccessDraft((current) => current || cached);
                 setFeatureAccessUsers(cachedUsers);
@@ -1279,23 +1277,10 @@ export default function IotaLeftNav({ currentPath = '' }) {
     };
 
     if (isLogisticsPath) {
-        const visibleDashboardItems = logisticsDashboardItems.filter((item) => {
-            if (!item.adminOnly) return true;
-            if (isLogisticsAdmin) return true;
-            const featureKey = LOGISTICS_DASHBOARD_FEATURE_BY_PATH[item.path];
-            return featureKey ? memberHasFeatureAccess(featureAccessData, featureKey, memberInfo) : false;
-        });
-        const visibleMarketDataItems = logisticsMarketDataItems.filter((item) => (
-            item.path !== `${LOGISTICS_INTERNAL_BASE}/market-data/source-update`
-            || canViewSourceUpdateAndDataQuality
-        ));
-        const visibleDataManagementItems = logisticsDataManagementItems.filter((item) => {
-            if (!item.adminOnly) return true;
-            if (isLogisticsAdmin) return true;
-            const featureKey = LOGISTICS_DASHBOARD_FEATURE_BY_PATH[item.path];
-            if (featureKey) return memberHasFeatureAccess(featureAccessData, featureKey, memberInfo);
-            return canViewSourceUpdateAndDataQuality;
-        });
+        const canDisplayItem = (item) => !item.requiredFeature || memberHasFeatureAccess(item.requiredFeature, memberInfo);
+        const visibleDashboardItems = logisticsDashboardItems.filter(canDisplayItem);
+        const visibleMarketDataItems = logisticsMarketDataItems.filter(canDisplayItem);
+        const visibleDataManagementItems = logisticsDataManagementItems.filter(canDisplayItem);
         const visibleStandaloneItems = logisticsStandaloneItems;
         const isWorkPlatformActive = normalizedCurrentPath === logisticsRootItem.path;
         const isDashboardActive = normalizedCurrentPath.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard`);
@@ -1467,7 +1452,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
                 </div>
 
                 <div className={`relative border-t border-[#2C2C2E] ${isCollapsed ? 'flex flex-col items-center gap-2 px-0 py-2' : 'p-3'}`}>
-                    {canUseCoreOnlyTools ? (
+                    {canManageFeatureAccess ? (
                         <div className={isCollapsed ? 'flex w-full flex-col items-center gap-2' : 'mb-2 space-y-2'}>
                             <button
                                 type="button"

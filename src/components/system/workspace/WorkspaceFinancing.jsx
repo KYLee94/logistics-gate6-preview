@@ -5,6 +5,16 @@ import WorkspaceActivityLog from './WorkspaceActivityLog';
 import { supabase } from '../../../utils/supabaseClient';
 import { fetchWithRetry } from '../../../utils/fetchWithRetry';
 
+const VehicleDetailCard = ({ renderCard, ...props }) => {
+    const [hoveredBarTranche, setHoveredBarTranche] = useState(null);
+
+    return renderCard({
+        ...props,
+        hoveredBarTranche,
+        setHoveredBarTranche,
+    });
+};
+
 export default function WorkspaceFinancing() {
 
     const { memberInfo } = useAuth();
@@ -108,13 +118,6 @@ export default function WorkspaceFinancing() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showAuthAlert, setShowAuthAlert] = useState(false);
 
-    useEffect(() => {
-        fetchTasks();
-        fetchMasterStakeholders();
-        const saved = localStorage.getItem('iota_shared_custom_assets');
-        if (saved) setCustomAssets(JSON.parse(saved));
-    }, []);
-
     const fetchMasterStakeholders = async () => {
         try {
             const { data, error } = await supabase.from('iota_stakeholder_master').select('*');
@@ -183,6 +186,13 @@ export default function WorkspaceFinancing() {
             setIsLoadingTasks(false);
         }
     };
+
+    useEffect(() => {
+        fetchTasks();
+        fetchMasterStakeholders();
+        const saved = localStorage.getItem('iota_shared_custom_assets');
+        if (saved) setCustomAssets(JSON.parse(saved));
+    }, []);
 
     useEffect(() => {
         if (!isLoadingTasks && tasks.length > 0) {
@@ -527,8 +537,17 @@ export default function WorkspaceFinancing() {
         };
     }, []);
 
-    const VehicleDetailCard = ({ id, vehicleId, title, data, toggleContent }) => {
-        const [hoveredBarTranche, setHoveredBarTranche] = useState(null);
+    const renderVehicleDetailCard = ({
+        id,
+        vehicleId,
+        title,
+        data,
+        toggleContent,
+        navigateTo,
+        handleInstClick,
+        hoveredBarTranche,
+        setHoveredBarTranche,
+    }) => {
         let totalEquity = 0;
         let totalLoan = 0;
         
@@ -1242,6 +1261,9 @@ export default function WorkspaceFinancing() {
                             totalAmountStr={formatAmount(displayTotal427)} 
                             data={iotaData[427]['Refinancing']} 
                             toggleContent={null}
+                            navigateTo={navigateTo}
+                            handleInstClick={handleInstClick}
+                            renderCard={renderVehicleDetailCard}
                         />
                         <VehicleDetailCard 
                             id="section-816" 
@@ -1250,6 +1272,9 @@ export default function WorkspaceFinancing() {
                             totalAmountStr={formatAmount(displayTotal816)} 
                             data={iotaData[816]['Refinancing']} 
                             toggleContent={null}
+                            navigateTo={navigateTo}
+                            handleInstClick={handleInstClick}
+                            renderCard={renderVehicleDetailCard}
                         />
                     </div>
 

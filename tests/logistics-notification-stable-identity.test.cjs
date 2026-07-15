@@ -37,7 +37,14 @@ function extractFunction(name) {
 
 function loadPureFunction(name) {
   const declaration = extractFunction(name);
-  return new Function(`${declaration}\nreturn ${name};`)();
+  const bodyStart = declaration.indexOf('{');
+  const signature = declaration.slice(0, bodyStart)
+    .replace(/([,(]\s*[A-Za-z_$][\w$]*\s*)\??\s*:\s*[^,)=]+(?=\s*(?:[,)=]))/gu, '$1')
+    .replace(/\)\s*:\s*[^{}]+$/gu, ')');
+  const body = declaration.slice(bodyStart)
+    .replace(/\b(const|let|var)\s+([A-Za-z_$][\w$]*)\s*:\s*[^=;]+(?=\s*=)/gu, '$1 $2');
+  const runnableDeclaration = `${signature}${body}`;
+  return new Function(`${runnableDeclaration}\nreturn ${name};`)();
 }
 
 test('notification business identity is stable per event and recipient', () => {
@@ -70,4 +77,3 @@ test('notification materialization never resets an existing delivery state', () 
   assert.match(materializer, /ignoreDuplicates:\s*true/u);
   assert.doesNotMatch(materializer, /delivery_status:\s*'unread'[\s\S]*onConflict:[\s\S]*ignoreDuplicates:\s*false/u);
 });
-

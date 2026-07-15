@@ -2,9 +2,14 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import mammoth from 'npm:mammoth@1.8.0';
 import { Buffer } from 'node:buffer';
 
-type Role = 'Reader' | 'Editor' | 'Manager' | 'Admin' | 'System Admin';
-type SupabaseClient = ReturnType<typeof createClient>;
+type SupabaseClient = ReturnType<typeof createClient<any>>;
 type RateBucket = { resetAt: number; count: number };
+type AssetWriteAction = 'create' | 'update';
+type AssetScope = 'managed' | 'other';
+type AssetResolution = {
+  asset: Record<string, unknown> | null;
+  status: 'matched' | 'unmatched' | 'ambiguous';
+};
 
 const WRITE_TABLE_ALLOWLIST = new Set([
   'public.ll_work_items',
@@ -12,6 +17,7 @@ const WRITE_TABLE_ALLOWLIST = new Set([
 
 const MAX_WEEKLY_DOC_BYTES = 20 * 1024 * 1024;
 const rateBuckets = new Map<string, RateBucket>();
+const PERMISSION_PROFILE_FIELDS = 'email, account_status, can_ingest_weekly, organization, managed_asset_codes, managed_asset_permissions, other_asset_permissions';
 
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:5173',
@@ -135,9 +141,82 @@ function buildMonthlyWeekRanges(year: number, month: number) {
   return ranges;
 }
 
-function roleCanIngest(role: string | undefined, dbFlag: boolean | undefined) {
-  const normalized = String(role || '') as Role;
-  return Boolean(dbFlag) || normalized === 'Manager' || normalized === 'Admin' || normalized === 'System Admin';
+function hasActiveWeeklyIngestPermission(permission: Record<string, unknown> | null): permission is Record<string, unknown> {
+  if (!permission) return false;
+  return String(permission.account_status || '').trim().toLowerCase() === 'active'
+    && permission.can_ingest_weekly === true;
+}
+
+function normalizePermissionEmail(value: unknown) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function canonicalPermissionProfile(rows: Record<string, unknown>[]) {
+  const profiles = rows.filter((row) => Boolean(normalizePermissionEmail(row.email)));
+  if (profiles.length > 1) {
+    return { permission: null, error: 'Multiple canonical permission profiles were found' };
+  }
+  return { permission: profiles[0] || null, error: '' };
+}
+
+async function findCanonicalPermission(
+  serviceClient: SupabaseClient,
+  userId: string,
+) {
+  const { data: userRows, error: userError } = await serviceClient
+    .from('ll_user_permissions')
+    .select(PERMISSION_PROFILE_FIELDS)
+    .eq('user_id', userId)
+    .not('email', 'is', null)
+    .limit(3);
+  if (userError) return { permission: null, error: 'Failed to read weekly ingest permission' };
+
+  return canonicalPermissionProfile((userRows || []) as Record<string, unknown>[]);
+}
+
+function assetRefVariants(value: unknown) {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+  const compact = raw.replace(/\s+/gu, '');
+  const variants = new Set([raw, compact, raw.toLowerCase(), compact.toLowerCase(), raw.toUpperCase(), compact.toUpperCase()]);
+  const assetIdMatch = compact.match(/^asset[_-](.+)$/iu);
+  if (assetIdMatch?.[1]) variants.add(assetIdMatch[1].toUpperCase());
+  if (/^[A-Z]{1,2}P?\d{5,}$/iu.test(compact) || /^[AS]\d{5,}$/iu.test(compact)) {
+    variants.add(`asset_${compact.toLowerCase()}`);
+  }
+  return [...variants].filter(Boolean);
+}
+
+function permissionAllowsAssetAction(
+  permission: Record<string, unknown>,
+  permissionKey: 'managed_asset_permissions' | 'other_asset_permissions',
+  action: AssetWriteAction,
+) {
+  const permissions = permission[permissionKey];
+  return Boolean(permissions && typeof permissions === 'object' && !Array.isArray(permissions)
+    && (permissions as Record<string, unknown>)[action] === true);
+}
+
+function assetScopeFor(permission: Record<string, unknown>, asset: Record<string, unknown>): AssetScope {
+  const managedRefs = new Set(
+    (Array.isArray(permission.managed_asset_codes) ? permission.managed_asset_codes : [])
+      .flatMap(assetRefVariants),
+  );
+  const assetRefs = [asset.asset_id, asset.asset_code, asset.asset_name].flatMap(assetRefVariants);
+  return assetRefs.some((reference) => managedRefs.has(reference)) ? 'managed' : 'other';
+}
+
+function canWriteAsset(
+  permission: Record<string, unknown>,
+  action: AssetWriteAction,
+  asset: Record<string, unknown>,
+) {
+  const scope = assetScopeFor(permission, asset);
+  return permissionAllowsAssetAction(
+    permission,
+    scope === 'managed' ? 'managed_asset_permissions' : 'other_asset_permissions',
+    action,
+  );
 }
 
 function checkRateLimit(userId: string, action: string, limit = 10, windowMs = 10 * 60 * 1000) {
@@ -160,7 +239,7 @@ function hasWordFileSignature(buffer: ArrayBuffer) {
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
-  let timeout: number | undefined;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
   const timeoutPromise = new Promise<T>((_, reject) => {
     timeout = setTimeout(() => reject(new Error(message)), timeoutMs);
   });
@@ -235,35 +314,40 @@ function logisticsWeekMeta(year: number, month: number, week: number, weekKey: s
   };
 }
 
-function matchAssetForLine(text: string, assets: Record<string, unknown>[]) {
+function resolveAssetsForLine(text: string, assets: Record<string, unknown>[]): AssetResolution {
   const normalized = normalizeKey(text);
-  if (!normalized) return null;
-  const matches = assets
-    .map((asset) => ({
-      asset,
-      key: normalizeKey(asset.asset_name),
-    }))
-    .filter((item) => item.key && (normalized.includes(item.key) || item.key.includes(normalized)));
-  if (!matches.length) return null;
-  matches.sort((left, right) => right.key.length - left.key.length);
-  return matches[0].asset;
+  if (!normalized) return { asset: null, status: 'unmatched' };
+  const matches = new Map<string, Record<string, unknown>>();
+  for (const asset of assets) {
+    const references = [asset.asset_id, asset.asset_code, asset.asset_name]
+      .map(normalizeKey)
+      .filter((value) => value.length > 1);
+    if (references.some((reference) => normalized.includes(reference))) {
+      const identity = String(asset.asset_id || asset.asset_code || asset.asset_name || '').trim();
+      if (identity) matches.set(identity, asset);
+    }
+  }
+  if (matches.size === 1) return { asset: [...matches.values()][0], status: 'matched' };
+  return { asset: null, status: matches.size ? 'ambiguous' : 'unmatched' };
 }
 
 function buildSnapshotTask(
   row: Record<string, unknown>,
   sourceKind: 'weekly_asset' | 'weekly_project',
   actor: { email: string; name: string },
-  assets: Record<string, unknown>[],
+  matchedAsset: Record<string, unknown> | null,
   nowIso: string,
 ) {
   const rawText = String(row.issue || row.project_name || row.asset_name || '').trim();
-  const matchedAsset = matchAssetForLine(rawText, assets);
+  const rowJson = row.row_json && typeof row.row_json === 'object' && !Array.isArray(row.row_json)
+    ? row.row_json as Record<string, unknown>
+    : {};
   const relatedAssetId = String(matchedAsset?.asset_id || '').trim();
   const relatedAssetName = String(matchedAsset?.asset_name || row.asset_name || '').trim();
   const seedLabel = String(row.project_name || row.asset_name || rawText).trim().slice(0, 120) || 'Task';
   return stripUndefined({
     id: crypto.randomUUID(),
-    seed_id: `${sourceKind}:${row.row_json?.lineNumber || '0'}:${seedLabel}`,
+    seed_id: `${sourceKind}:${rowJson.lineNumber || '0'}:${seedLabel}`,
     source: 'weekly_report_seed',
     seed_source: sourceKind,
     related_asset: relatedAssetName || undefined,
@@ -284,7 +368,7 @@ function buildSnapshotTask(
     payload: {
       source: 'll-weekly-doc-ingest',
       source_kind: sourceKind,
-      line_number: row.row_json?.lineNumber || null,
+      line_number: rowJson.lineNumber || null,
       line_text: rawText,
     },
   });
@@ -323,14 +407,11 @@ Deno.serve(async (request) => {
   const serviceClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
-  const { data: permission } = await serviceClient
-    .from('ll_user_permissions')
-    .select('logistics_role, can_ingest_weekly, organization')
-    .eq('user_id', userData.user.id)
-    .maybeSingle();
+  const permissionLookup = await findCanonicalPermission(serviceClient, userData.user.id);
+  if (permissionLookup.error) return fail(500, permissionLookup.error, origin);
+  const permission = permissionLookup.permission;
 
-  const role = permission?.logistics_role;
-  if (!roleCanIngest(role, permission?.can_ingest_weekly)) return fail(403, 'Insufficient logistics permission', origin);
+  if (!hasActiveWeeklyIngestPermission(permission)) return fail(403, 'Active weekly ingest permission is required', origin);
   if (!checkRateLimit(userData.user.id, 'weekly/ingest', 8, 10 * 60 * 1000)) return fail(429, 'Rate limit exceeded', origin);
 
   if (![...WRITE_TABLE_ALLOWLIST].every((table) => table.startsWith('public.ll_'))) {
@@ -398,12 +479,25 @@ Deno.serve(async (request) => {
   if (!weekly.lines.length) return fail(422, 'Word parsing produced no readable text', origin);
 
   const assets = await listRegisteredAssets(serviceClient);
+  const assetResolutions = weekly.assetRows.map((row) => resolveAssetsForLine(String(row.issue || row.asset_name || ''), assets));
+  const projectResolutions = weekly.projectRows.map((row) => resolveAssetsForLine(String(row.issue || row.project_name || ''), assets));
+  const allResolutions = [...assetResolutions, ...projectResolutions];
+  if (allResolutions.some((resolution) => resolution.status !== 'matched')) {
+    return fail(422, 'Every parsed row must identify exactly one registered asset before any write', origin);
+  }
+
+  const writeAction: AssetWriteAction = previousSnapshot ? 'update' : 'create';
+  const relevantAssets = allResolutions.map((resolution) => resolution.asset as Record<string, unknown>);
+  if (relevantAssets.some((asset) => !canWriteAsset(permission, writeAction, asset))) {
+    return fail(403, 'Create or update permission is required for every parsed asset', origin);
+  }
+
   const actorEmail = String(userData.user.email || '').trim().toLowerCase();
   const actorName = shortActorName(actorEmail, userData.user.id);
   const nowIso = new Date().toISOString();
   const snapshotTasks = [
-    ...weekly.assetRows.map((row) => buildSnapshotTask(row, 'weekly_asset', { email: actorEmail, name: actorName }, assets, nowIso)),
-    ...weekly.projectRows.map((row) => buildSnapshotTask(row, 'weekly_project', { email: actorEmail, name: actorName }, assets, nowIso)),
+    ...weekly.assetRows.map((row, index) => buildSnapshotTask(row, 'weekly_asset', { email: actorEmail, name: actorName }, assetResolutions[index].asset, nowIso)),
+    ...weekly.projectRows.map((row, index) => buildSnapshotTask(row, 'weekly_project', { email: actorEmail, name: actorName }, projectResolutions[index].asset, nowIso)),
   ];
 
   const snapshotRow = stripUndefined({
@@ -439,9 +533,14 @@ Deno.serve(async (request) => {
     ...(previousSnapshot ? {} : { created_at: nowIso }),
   });
 
-  const { error: snapshotError } = await serviceClient
-    .from('ll_work_items')
-    .upsert(snapshotRow, { onConflict: 'item_type,workspace,week_key,created_by' });
+  const { error: snapshotError } = previousSnapshot
+    ? await serviceClient
+      .from('ll_work_items')
+      .update(snapshotRow)
+      .eq('id', previousSnapshot.id)
+    : await serviceClient
+      .from('ll_work_items')
+      .insert(snapshotRow);
   if (snapshotError) return fail(500, 'Failed to save weekly snapshot into work platform', origin);
 
   return jsonResponse({

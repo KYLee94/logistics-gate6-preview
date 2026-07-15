@@ -1,222 +1,157 @@
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
-const { spawnSync } = require('child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const {
+  buildPermissionManifest,
+  extractDirectActions,
+  selectExcelInput,
+  validateWorkbookSourceRanges,
+} = require('./logistics-permission-manifest-core.cjs');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const ARTIFACT_DIR = path.join(ROOT, 'qa-artifacts', 'logistics-gate6');
 const SOURCE_JSON = path.join(ROOT, 'src', 'components', 'system', 'workspace', 'logisticsPermissionData.json');
-const CRITICAL_RUNTIME_FILES = [
-  'src/context/AuthContext.jsx',
-  'src/components/system/AuthSetup.jsx',
-  'src/components/system/workspace/WorkspaceLogistics.jsx',
-  'src/components/system/IotaLeftNav.jsx',
-];
-const ADMIN_EMAILS = [
-  'kylee@igisam.com',
-  'sjlee@igisam.com',
-  'jk.jeon@igisam.com',
-  'seunghoon.lee@igisam.com',
-  'ethan.lee@igisam.com',
-];
-const FEATURE_KEYS = [
-  'ai_chat',
-  'data_quality',
-  'analysis_tools',
-  'data_playground',
-  'login_history',
-  'building_register_refresh',
-  'opendart_refresh',
-];
+const EDGE_SOURCE = path.join(ROOT, 'supabase', 'functions', 'll-dashboard-api', 'index.ts');
+const SOURCE_DIR = path.join(ROOT, 'src');
+const DESKTOP_FALLBACK_XLSX = 'C:\\Users\\10524\\Desktop\\codex_realasset\\Project\\03_Logi_Leasing_Dashboard\\260513_담당자별 권한 부여_수식 제거.xlsx';
 
-function normalizeEmail(value) {
-  return String(value || '').trim().toLowerCase();
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function timestamp() {
-  return new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+function optionValue(name) {
+  const index = process.argv.indexOf(name);
+  return index === -1 ? '' : text(process.argv[index + 1]);
 }
 
-function readSourceUsers() {
-  const parsed = JSON.parse(fs.readFileSync(SOURCE_JSON, 'utf8'));
-  return (parsed.users || [])
-    .map((user) => ({
-      email: normalizeEmail(user.email),
-      staff_name: String(user.name || '').trim(),
-      organization: String(user.organization || '').trim(),
-    }))
-    .filter((user) => user.email);
+function hasOption(name) {
+  return process.argv.includes(name);
 }
 
-function readSourcePermissionRows() {
-  const parsed = JSON.parse(fs.readFileSync(SOURCE_JSON, 'utf8'));
-  return (parsed.users || [])
-    .map((user) => ({
-      email: normalizeEmail(user.email),
-      staff_name: String(user.name || '').trim(),
-      managed_asset_count: Array.isArray(user.managedAssets) ? user.managedAssets.length : 0,
-      managed_fund_count: Array.isArray(user.managedFunds) ? user.managedFunds.length : 0,
-    }))
-    .filter((user) => user.email);
+function text(value) {
+  return String(value || '').trim();
 }
 
-function sqlJsonLiteral(value) {
-  return `$json$${JSON.stringify(value)}$json$`;
-}
-
-function sqlTextArray(values) {
-  return `array[${values.map((value) => `'${String(value).replace(/'/g, "''")}'`).join(',')}]`;
-}
-
-function runSupabaseQuery(sql) {
-  const tmpPath = path.join(os.tmpdir(), `gate6-auth-permission-matrix-${process.pid}-${Date.now()}.sql`);
-  fs.writeFileSync(tmpPath, sql, 'utf8');
-  const result = spawnSync('npx', ['supabase', 'db', 'query', '--linked', '--file', tmpPath, '-o', 'json'], {
-    cwd: ROOT,
-    encoding: 'utf8',
-    shell: process.platform === 'win32',
-  });
-  try {
-    fs.unlinkSync(tmpPath);
-  } catch {
-    // best effort
-  }
-  if (result.status !== 0) {
-    throw new Error((result.stderr || result.stdout || 'supabase db query failed').trim());
-  }
-  const text = (result.stdout || '').trim();
-  const firstJson = text.indexOf('{');
-  const lastJson = text.lastIndexOf('}');
-  const jsonText = firstJson >= 0 && lastJson >= firstJson ? text.slice(firstJson, lastJson + 1) : text;
-  const parsed = JSON.parse(jsonText || '{"rows":[]}');
-  return Array.isArray(parsed) ? parsed : (parsed.rows || []);
-}
-
-function scanRuntimeImports() {
-  return CRITICAL_RUNTIME_FILES.flatMap((relativePath) => {
-    const absolutePath = path.join(ROOT, relativePath);
-    const text = fs.readFileSync(absolutePath, 'utf8');
-    const findings = [];
-    if (/import\s+.*logisticsPermissionData\.json/.test(text)) {
-      findings.push({ file: relativePath, issue: 'runtime_permission_json_fallback' });
-    }
-    if (/LOGISTICS_ALLOWED_EMAILS|LOGISTICS_PERMISSION_USERS|logisticsUserByEmail/.test(text)) {
-      findings.push({ file: relativePath, issue: 'legacy_frontend_permission_gate' });
-    }
-    return findings;
+function sourceFiles(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const target = path.join(directory, entry.name);
+    if (entry.isDirectory()) return sourceFiles(target);
+    return /\.(?:js|jsx|ts|tsx)$/u.test(entry.name) ? [target] : [];
   });
 }
 
-function buildSql(sourceUsers) {
-  return `
-with source_users as (
-  select lower(email) as email, staff_name, organization
-  from jsonb_to_recordset(${sqlJsonLiteral(sourceUsers)}::jsonb) as x(email text, staff_name text, organization text)
-),
-permissions as (
-  select
-    lower(email) as email,
-    staff_name,
-    organization,
-    account_status,
-    logistics_role,
-    feature_permissions,
-    last_login_at
-  from public.ll_user_permissions
-  where email is not null and btrim(email) <> ''
-),
-duplicates as (
-  select email, count(*) as row_count
-  from permissions
-  group by email
-  having count(*) > 1
-),
-missing_source as (
-  select source_users.email
-  from source_users
-  left join permissions on permissions.email = source_users.email
-  where permissions.email is null
-),
-admin_rows as (
-  select *
-  from permissions
-  where email = any(${sqlTextArray(ADMIN_EMAILS)}::text[])
-),
-admin_feature_gaps as (
-  select email, key
-  from admin_rows
-  cross join unnest(${sqlTextArray(FEATURE_KEYS)}::text[]) as key
-  where coalesce((feature_permissions ->> key)::boolean, false) is not true
-)
-select jsonb_build_object(
-  'source_user_count', (select count(*) from source_users),
-  'permission_user_count', (select count(*) from permissions),
-  'active_permission_user_count', (select count(*) from permissions where coalesce(account_status, 'active') = 'active'),
-  'duplicate_email_count', (select count(*) from duplicates),
-  'duplicate_emails', coalesce((select jsonb_agg(email order by email) from duplicates), '[]'::jsonb),
-  'missing_source_count', (select count(*) from missing_source),
-  'missing_source_emails', coalesce((select jsonb_agg(email order by email) from missing_source), '[]'::jsonb),
-  'admin_user_count', (select count(*) from admin_rows),
-  'admin_feature_gap_count', (select count(*) from admin_feature_gaps),
-  'admin_feature_gaps', coalesce((select jsonb_agg(jsonb_build_object('email', email, 'feature', key) order by email, key) from admin_feature_gaps), '[]'::jsonb),
-  'recent_login_rows', (
-    select count(*)
-    from public.ll_user_permissions
-    where last_login_at is not null
-  )
-) as result;
-`;
+function staticRuntimeFindings() {
+  return sourceFiles(SOURCE_DIR).flatMap((filePath) => {
+    const source = fs.readFileSync(filePath, 'utf8');
+    if (/import[\s\S]{0,300}logisticsPermissionData\.json/u.test(source)) {
+      return [{ code: 'runtime_permission_json_fallback', severity: 'blocking', file: path.relative(ROOT, filePath) }];
+    }
+    return [];
+  });
+}
+
+function workbookRows(workbookPath, sourceData) {
+  const XLSX = require('xlsx');
+  const workbook = XLSX.readFile(workbookPath, { raw: false });
+  const sheet = workbook.Sheets[sourceData.sourceSheet];
+  if (!sheet) throw new Error(`workbook sheet not found: ${sourceData.sourceSheet}`);
+  // The legacy JSON range ends at row 62, but the actual 19th asset is on row 63.
+  // Scan the worksheet's populated cells so merged-cell layout cannot silently trim it.
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false, defval: '' });
+  const userRows = rows.filter((row) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/u.test(text(row[1]))
+    && row.slice(3, 11).every((value) => ['Y', 'N'].includes(text(value).toUpperCase())));
+  const assetRows = rows.filter((row) => /^[A-Z][A-Z0-9]+$/iu.test(text(row[0])));
+  return {
+    users: userRows,
+    assetMaster: assetRows,
+    structure: {
+      populated_range: sheet['!ref'] || '',
+      merged_ranges: (sheet['!merges'] || []).length,
+      extraction: 'whole_sheet_identity_scan',
+      user_email_column: 2,
+      user_row_count: userRows.length,
+      asset_row_count: assetRows.length,
+      a190013001_present: assetRows.some((row) => text(row[0]).toUpperCase() === 'A190013001'),
+    },
+  };
+}
+
+function staticSourceForContract() {
+  const workspacePath = path.join(SOURCE_DIR, 'components', 'system', 'workspace', 'WorkspaceLogistics.jsx');
+  return fs.readFileSync(workspacePath, 'utf8');
+}
+
+function authContractFindings(edgeSource, workspaceSource) {
+  const findings = [];
+  const authMeStart = edgeSource.indexOf('async function callAuthMe(');
+  const authMeEnd = edgeSource.indexOf('async function listPermissionUsers(', authMeStart);
+  const authMe = authMeStart >= 0 && authMeEnd > authMeStart ? edgeSource.slice(authMeStart, authMeEnd) : '';
+  if (!/permission_revision/u.test(authMe)) findings.push({ code: 'missing_permission_revision_contract', severity: 'blocking' });
+  if (!/asset_capabilities/u.test(authMe)) findings.push({ code: 'missing_asset_capabilities_contract', severity: 'blocking' });
+  if (!/permission_revision/u.test(workspaceSource) || !/asset_capabilities/u.test(workspaceSource)) {
+    findings.push({ code: 'dashboard_capability_loading_contract_missing', severity: 'blocking' });
+  }
+  return findings;
+}
+
+function dispatcherContractFindings(directActions) {
+  const findings = [];
+  if (directActions.length !== 94) findings.push({ code: 'unexpected_direct_dispatcher_action_count', severity: 'blocking', expected: 94, actual: directActions.length });
+  if (directActions.includes('weekly-assets/latest-preview')) {
+    findings.push({ code: 'removed_weekly_assets_latest_preview_still_dispatched', severity: 'blocking' });
+  }
+  return findings;
 }
 
 function main() {
-  fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
-  const sourceUsers = readSourceUsers();
-  const sourcePermissionRows = readSourcePermissionRows();
-  const staticFindings = scanRuntimeImports();
-  const legacyGateFindings = staticFindings.filter((finding) => finding.issue === 'legacy_frontend_permission_gate');
-  const expectedAdminAssetCount = Math.max(...sourcePermissionRows.map((row) => row.managed_asset_count), 0);
-  const expectedAdminFundCount = Math.max(...sourcePermissionRows.map((row) => row.managed_fund_count), 0);
-  const adminStaticScope = ADMIN_EMAILS.map((email) => {
-    const row = sourcePermissionRows.find((user) => user.email === email);
-    return row || { email, staff_name: '', managed_asset_count: 0, managed_fund_count: 0 };
-  });
-  const adminStaticScopeGaps = adminStaticScope.filter((row) => (
-    row.managed_asset_count !== expectedAdminAssetCount
-    || row.managed_fund_count !== expectedAdminFundCount
-  ));
-  const queryRows = runSupabaseQuery(buildSql(sourceUsers));
-  const db = queryRows?.[0]?.result || {};
-  const failures = [];
-
-  if (legacyGateFindings.length) failures.push('legacy frontend permission gates remain');
-  if (adminStaticScopeGaps.length) failures.push('admin static asset/fund scopes are missing');
-  if (Number(db.source_user_count || 0) !== sourceUsers.length) failures.push('source JSON count mismatch');
-  if (Number(db.permission_user_count || 0) < sourceUsers.length) failures.push('ll_user_permissions has fewer users than source JSON');
-  if (Number(db.duplicate_email_count || 0) > 0) failures.push('duplicate permission emails exist');
-  if (Number(db.missing_source_count || 0) > 0) failures.push('some source users are not backfilled to ll_user_permissions');
-  if (Number(db.admin_user_count || 0) !== ADMIN_EMAILS.length) failures.push('admin users are missing from ll_user_permissions');
-  if (Number(db.admin_feature_gap_count || 0) > 0) failures.push('admin feature permissions are incomplete');
-
+  const sourceData = readJson(SOURCE_JSON);
+  const edgeSource = fs.readFileSync(EDGE_SOURCE, 'utf8');
+  const workspaceSource = staticSourceForContract();
+  const directActions = extractDirectActions(edgeSource);
+  const manifest = buildPermissionManifest(sourceData, directActions);
+  const runtimeFindings = staticRuntimeFindings();
+  const contractFindings = authContractFindings(edgeSource, workspaceSource);
+  const dispatcherFindings = dispatcherContractFindings(directActions);
+  const requireExcel = hasOption('--require-excel');
+  const excelInput = selectExcelInput({
+    cli_excel: optionValue('--excel'),
+    env_excel: process.env.LOGISTICS_PERMISSION_XLSX,
+    fallback_excel: DESKTOP_FALLBACK_XLSX,
+  }, fs.existsSync);
+  const workbookEvidence = excelInput.evidence_status === 'selected' ? workbookRows(excelInput.path, sourceData) : null;
+  const workbookParity = workbookEvidence
+    ? { ...excelInput, evidence_status: 'verified', ...validateWorkbookSourceRanges(sourceData, workbookEvidence), workbook_structure: workbookEvidence.structure }
+    : { ...excelInput, ok: !requireExcel, failures: requireExcel ? [excelInput.reason] : [] };
+  const failures = [
+    ...manifest.failures,
+    ...runtimeFindings.map((finding) => finding.code),
+    ...contractFindings.map((finding) => finding.code),
+    ...dispatcherFindings.map((finding) => finding.code),
+    ...workbookParity.failures,
+  ];
   const report = {
-    ok: failures.length === 0,
-    generated_at: new Date().toISOString(),
-    source_json: path.relative(ROOT, SOURCE_JSON),
-    expected_admin_scope: {
-      managed_asset_count: expectedAdminAssetCount,
-      managed_fund_count: expectedAdminFundCount,
+    schema_version: 'auth_permission_qa_report.v2',
+    evidence_mode: 'source_contract',
+    database_write_used: false,
+    artifact_write_used: false,
+    live_evidence: { status: 'not_attempted', qualifies_as_live: false },
+    mock_or_fake_session: { status: 'not_used', qualifies_as_live: false },
+    source_contract: {
+      static_json: path.relative(ROOT, SOURCE_JSON),
+      manifest: {
+        counts: manifest.counts,
+        direct_route_count: directActions.length,
+        identity_issues: manifest.identity_issues,
+        action_issues: manifest.action_issues,
+      },
+      excel_parity: workbookParity,
+      runtime_static_findings: runtimeFindings,
+      api_contract_findings: contractFindings,
+      dispatcher_contract_findings: dispatcherFindings,
     },
-    db,
-    admin_static_scope: adminStaticScope,
-    admin_static_scope_gaps: adminStaticScopeGaps,
-    static_findings: staticFindings,
+    ok: failures.length === 0,
     failures,
   };
-  const artifactPath = path.join(ARTIFACT_DIR, `auth-permission-matrix-${timestamp()}.json`);
-  const latestPath = path.join(ARTIFACT_DIR, 'auth-permission-matrix-latest.json');
-  fs.writeFileSync(artifactPath, JSON.stringify(report, null, 2), 'utf8');
-  fs.writeFileSync(latestPath, JSON.stringify(report, null, 2), 'utf8');
   console.log(JSON.stringify(report, null, 2));
-  if (!report.ok) process.exit(1);
+  if (!report.ok) process.exitCode = 1;
 }
 
 main();

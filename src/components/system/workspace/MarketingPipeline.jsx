@@ -269,19 +269,17 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
         if (index === 0) return;
         const current = pipelines[index];
         const prev = pipelines[index - 1];
-        
-        const temp = current.created_at;
-        current.created_at = prev.created_at;
-        prev.created_at = temp;
+        const movedPipeline = { ...current, created_at: prev.created_at };
+        const displacedPipeline = { ...prev, created_at: current.created_at };
         
         const newPipelines = [...pipelines];
-        newPipelines[index] = prev;
-        newPipelines[index - 1] = current;
+        newPipelines[index] = displacedPipeline;
+        newPipelines[index - 1] = movedPipeline;
         setPipelines(newPipelines);
         
         try {
-            await supabase.from('iota_marketing_pipelines').update({ created_at: current.created_at }).eq('id', current.id);
-            await supabase.from('iota_marketing_pipelines').update({ created_at: prev.created_at }).eq('id', prev.id);
+            await supabase.from('iota_marketing_pipelines').update({ created_at: movedPipeline.created_at }).eq('id', movedPipeline.id);
+            await supabase.from('iota_marketing_pipelines').update({ created_at: displacedPipeline.created_at }).eq('id', displacedPipeline.id);
         } catch {
             localStorage.setItem('iota_marketing_pipelines', JSON.stringify(newPipelines));
         }
@@ -291,19 +289,17 @@ export default function MarketingPipeline({ memberInfo, masterStakeholders, fetc
         if (index === pipelines.length - 1) return;
         const current = pipelines[index];
         const next = pipelines[index + 1];
-        
-        const temp = current.created_at;
-        current.created_at = next.created_at;
-        next.created_at = temp;
+        const movedPipeline = { ...current, created_at: next.created_at };
+        const displacedPipeline = { ...next, created_at: current.created_at };
         
         const newPipelines = [...pipelines];
-        newPipelines[index] = next;
-        newPipelines[index + 1] = current;
+        newPipelines[index] = displacedPipeline;
+        newPipelines[index + 1] = movedPipeline;
         setPipelines(newPipelines);
         
         try {
-            await supabase.from('iota_marketing_pipelines').update({ created_at: current.created_at }).eq('id', current.id);
-            await supabase.from('iota_marketing_pipelines').update({ created_at: next.created_at }).eq('id', next.id);
+            await supabase.from('iota_marketing_pipelines').update({ created_at: movedPipeline.created_at }).eq('id', movedPipeline.id);
+            await supabase.from('iota_marketing_pipelines').update({ created_at: displacedPipeline.created_at }).eq('id', displacedPipeline.id);
         } catch {
             localStorage.setItem('iota_marketing_pipelines', JSON.stringify(newPipelines));
         }

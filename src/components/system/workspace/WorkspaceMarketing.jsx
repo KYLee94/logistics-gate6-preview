@@ -108,13 +108,6 @@ export default function WorkspaceMarketing() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showAuthAlert, setShowAuthAlert] = useState(false);
 
-    useEffect(() => {
-        fetchTasks();
-        fetchMasterStakeholders();
-        const saved = localStorage.getItem('iota_shared_custom_assets');
-        if (saved) setCustomAssets(JSON.parse(saved));
-    }, []);
-
     const registerNewAsset = () => {
         if (!newAssetName.trim()) return;
         setIsSubmittingAsset(true);
@@ -173,6 +166,13 @@ export default function WorkspaceMarketing() {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        fetchTasks();
+        fetchMasterStakeholders();
+        const saved = localStorage.getItem('iota_shared_custom_assets');
+        if (saved) setCustomAssets(JSON.parse(saved));
+    }, []);
 
     useEffect(() => {
         if (!isLoading && tasks.length > 0) {

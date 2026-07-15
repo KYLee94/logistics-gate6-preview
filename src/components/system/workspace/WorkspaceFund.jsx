@@ -109,13 +109,6 @@ export default function WorkspaceFund() {
     const [isDeleting, setIsDeleting] = useState(false);
     const [showAuthAlert, setShowAuthAlert] = useState(false);
 
-    useEffect(() => {
-        fetchTasks();
-        fetchMasterStakeholders();
-        const saved = localStorage.getItem('iota_shared_custom_assets');
-        if (saved) setCustomAssets(JSON.parse(saved));
-    }, []);
-
     const fetchMasterStakeholders = async () => {
         try {
             const { data, error } = await supabase.from('iota_stakeholder_master').select('*');
@@ -184,6 +177,13 @@ export default function WorkspaceFund() {
             setIsLoadingTasks(false);
         }
     };
+
+    useEffect(() => {
+        fetchTasks();
+        fetchMasterStakeholders();
+        const saved = localStorage.getItem('iota_shared_custom_assets');
+        if (saved) setCustomAssets(JSON.parse(saved));
+    }, []);
 
     useEffect(() => {
         if (!isLoadingTasks && tasks.length > 0) {

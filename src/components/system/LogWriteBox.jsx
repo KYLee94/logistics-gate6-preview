@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../../utils/supabaseClient';
 import { invokeDashboardApi } from '../../utils/supabaseSession';
 import { motion, AnimatePresence } from 'framer-motion';
-import logisticsPermissionData from './workspace/logisticsPermissionData.json';
 import companyOptionsData from './workspace/logisticsCompanyOptionsData.json';
 
 const MotionDiv = motion.div;
@@ -13,15 +12,44 @@ const TRIAGE_TYPE_OPTIONS = ['공유', '협업', '리스크 판단', '의사결�
 const ISSUE_STATUS_OPTIONS = ['신규', '검토중', '진행중', '보류', '완료'];
 const PRIORITY_OPTIONS = ['높음', '중간', '낮음'];
 
-function buildLogisticsPeopleLegacy() {
-    return (logisticsPermissionData.users || [])
-        .map((user) => ({
-            company_name: 'IGIS',
-            contact_name: user.name,
-            role_category: user.organization || 'IGIS 내부인력',
-            email: user.email,
-        }))
-        .filter((item) => item.contact_name);
+function serverLogisticsPermission(memberInfo) {
+    const raw = memberInfo?.logistics_permission || memberInfo || {};
+    const profile = raw.profile_payload || raw.profilePayload || {};
+    const capabilityValue = Object.prototype.hasOwnProperty.call(raw, 'asset_capabilities')
+        ? raw.asset_capabilities
+        : Object.prototype.hasOwnProperty.call(raw, 'assetCapabilities')
+            ? raw.assetCapabilities
+            : Object.prototype.hasOwnProperty.call(profile, 'asset_capabilities')
+                ? profile.asset_capabilities
+                : profile.assetCapabilities;
+    const hasAssetCapabilities = capabilityValue !== undefined && capabilityValue !== null;
+    const capabilityRows = Array.isArray(capabilityValue)
+        ? capabilityValue
+        : Array.isArray(capabilityValue?.assets)
+            ? capabilityValue.assets
+            : Object.entries(capabilityValue || {}).map(([assetId, capability]) => ({ asset_id: assetId, ...(capability || {}) }));
+    const assetCapabilities = new Map(capabilityRows.map((row) => [
+        String(row?.asset_id || row?.assetId || '').trim(),
+        row?.capabilities || row?.permissions || row || {},
+    ]).filter(([assetId]) => assetId));
+    return { assetCapabilities, hasAssetCapabilities };
+}
+
+function canWriteLogisticsAsset(permission, assetId, action) {
+    const id = String(assetId || '').trim();
+    if (!id || !['create', 'update'].includes(action)) return false;
+    return permission?.hasAssetCapabilities === true && permission?.assetCapabilities?.get(id)?.[action] === true;
+}
+
+function serverLogisticsPeople(memberInfo) {
+    const raw = memberInfo?.logistics_permission || memberInfo || {};
+    const members = Array.isArray(raw.teamMembers) ? raw.teamMembers : [];
+    return members.map((user) => ({
+        company_name: user.organization || user.department || 'IGIS',
+        contact_name: user.staff_name || user.name || '',
+        role_category: user.organization || user.department || 'IGIS 내부인력',
+        email: user.email || '',
+    })).filter((item) => item.contact_name);
 }
 
 function buildLogisticsCompanyStakeholdersLegacy() {
@@ -75,8 +103,8 @@ function dedupeStakeholderRows(rows = []) {
     ));
 }
 
-function buildLogisticsPeople(referenceStakeholders = []) {
-    const permissionPeople = buildLogisticsPeopleLegacy();
+function buildLogisticsPeople(referenceStakeholders = [], memberInfo = null) {
+    const permissionPeople = serverLogisticsPeople(memberInfo);
     const referencePeople = (referenceStakeholders || [])
         .map(normalizeStakeholderRow)
         .filter((item) => item.contact_name);
@@ -218,6 +246,7 @@ function DarkDropdown({
 
 export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs, fetchMasterStakeholders, workspaceCode, workspaceLabel, projectOptions = null, defaultExpanded = false, editMode = false, initialData = null, onCancel = null, onSuccess = null, onSavedLog = null }) {
     const isLogisticsMode = workspaceCode === 'WS_LOGISTICS';
+    const logisticsPermission = useMemo(() => serverLogisticsPermission(memberInfo), [memberInfo]);
     const fallbackProjectOptions = useMemo(() => [
         { id: 'IOTA_COMMON', label: 'IOTA 공통' },
         { id: 'P00030', label: '427 PFV' },
@@ -263,7 +292,7 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
     const [showVisibilityModal, setShowVisibilityModal] = useState(false);
     const [showPublicWarningModal, setShowPublicWarningModal] = useState(false);
     const [visibilitySearchQuery, setVisibilitySearchQuery] = useState('');
-    const logisticsPeople = useMemo(() => buildLogisticsPeople(masterStakeholders), [masterStakeholders]);
+    const logisticsPeople = useMemo(() => buildLogisticsPeople(masterStakeholders, memberInfo), [masterStakeholders, memberInfo]);
     const logisticsCompanyStakeholders = useMemo(() => buildLogisticsCompanyStakeholders(masterStakeholders), [masterStakeholders]);
     const effectiveMasterStakeholders = useMemo(() => (
         isLogisticsMode ? logisticsCompanyStakeholders : (masterStakeholders || [])
@@ -287,7 +316,9 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
         availableContacts = [...new Set(effectiveMasterStakeholders.map(s => s.contact_name).filter(Boolean))];
     }
     const filteredContacts = availableContacts.filter(c => c.toLowerCase().includes(contactQuery.toLowerCase()));
-    const isSubmitDisabled = isSubmitting || (isLogisticsMode && normalizedProjectOptions.length === 0);
+    const logisticsWriteAction = editMode ? 'update' : 'create';
+    const canSubmitSelectedLogisticsAsset = !isLogisticsMode || canWriteLogisticsAsset(logisticsPermission, projectId, logisticsWriteAction);
+    const isSubmitDisabled = isSubmitting || (isLogisticsMode && (normalizedProjectOptions.length === 0 || !canSubmitSelectedLogisticsAsset));
 
     useEffect(() => {
         if (!normalizedProjectOptions.length) {
@@ -508,6 +539,9 @@ export default function LogWriteBox({ memberInfo, masterStakeholders, fetchLogs,
             const selectedProject = normalizedProjectOptions.find(option => option.id === projectId);
             if (isLogisticsMode && !selectedProject?.id) {
                 throw new Error('저장할 담당 자산을 선택해야 합니다.');
+            }
+            if (isLogisticsMode && !canWriteLogisticsAsset(logisticsPermission, selectedProject.id, isEditing ? 'update' : 'create')) {
+                throw new Error('현재 계정에는 선택 자산에 대한 게시판 작성 권한이 없습니다.');
             }
             const logData = {
                 work_date: workDate,

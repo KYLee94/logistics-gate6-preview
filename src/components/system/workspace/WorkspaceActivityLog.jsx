@@ -4,18 +4,8 @@ import { invokeDashboardApi } from '../../../utils/supabaseSession';
 import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import LogWriteBox from '../LogWriteBox';
-import logisticsPermissionData from './logisticsPermissionData.json';
 
 const MotionDiv = motion.div;
-const LOGISTICS_MASTER_STAKEHOLDERS = (logisticsPermissionData.users || []).map((user) => ({
-    company_name: user.organization || 'IGIS',
-    contact_name: user.name,
-    role_category: user.organization || 'IGIS 내부인력',
-    email: user.email,
-})).filter((item) => item.contact_name);
-const LOGISTICS_NAME_BY_EMAIL = new Map((logisticsPermissionData.users || [])
-    .filter((user) => user.email && user.name)
-    .map((user) => [String(user.email).toLowerCase(), user.name]));
 
 function cleanStakeholderText(value) {
     return String(value || '').trim();
@@ -61,21 +51,55 @@ function mergeStakeholderRows(...rowGroups) {
     ));
 }
 
+function serverLogisticsPermission(memberInfo) {
+    const raw = memberInfo?.logistics_permission || memberInfo || {};
+    const profile = raw.profile_payload || raw.profilePayload || {};
+    const capabilityValue = Object.prototype.hasOwnProperty.call(raw, 'asset_capabilities')
+        ? raw.asset_capabilities
+        : Object.prototype.hasOwnProperty.call(raw, 'assetCapabilities')
+            ? raw.assetCapabilities
+            : Object.prototype.hasOwnProperty.call(profile, 'asset_capabilities')
+                ? profile.asset_capabilities
+                : profile.assetCapabilities;
+    const hasAssetCapabilities = capabilityValue !== undefined && capabilityValue !== null;
+    const capabilityRows = Array.isArray(capabilityValue)
+        ? capabilityValue
+        : Array.isArray(capabilityValue?.assets)
+            ? capabilityValue.assets
+            : Object.entries(capabilityValue || {}).map(([assetId, capability]) => ({ asset_id: assetId, ...(capability || {}) }));
+    const assetCapabilities = new Map(capabilityRows.map((row) => [
+        String(row?.asset_id || row?.assetId || '').trim(),
+        row?.capabilities || row?.permissions || row || {},
+    ]).filter(([assetId]) => assetId));
+    return { assetCapabilities, hasAssetCapabilities };
+}
+
+function canUseLogisticsAssetPermission(permission, assetId, action) {
+    const id = String(assetId || '').trim();
+    if (!id || !['read', 'create', 'update', 'delete'].includes(action)) return false;
+    return permission?.hasAssetCapabilities === true && permission?.assetCapabilities?.get(id)?.[action] === true;
+}
+
+function serverLogisticsStakeholders(memberInfo) {
+    const raw = memberInfo?.logistics_permission || memberInfo || {};
+    const members = Array.isArray(raw.teamMembers) ? raw.teamMembers : [];
+    return members.map((user) => ({
+        company_name: user.organization || user.department || 'IGIS',
+        contact_name: user.staff_name || user.name || '',
+        role_category: user.organization || user.department || 'IGIS 내부인력',
+        email: user.email || '',
+    })).filter((item) => item.contact_name);
+}
+
 function resolveLogisticsDisplayName(name, email) {
-    const normalizedEmail = cleanStakeholderText(email || name).toLowerCase();
-    const normalizedName = cleanStakeholderText(name);
-    if (normalizedEmail && LOGISTICS_NAME_BY_EMAIL.has(normalizedEmail)) {
-        return LOGISTICS_NAME_BY_EMAIL.get(normalizedEmail);
-    }
-    if (normalizedName.includes('@')) {
-        return LOGISTICS_NAME_BY_EMAIL.get(normalizedName.toLowerCase()) || normalizedName;
-    }
-    return normalizedName || cleanStakeholderText(email) || '익명';
+    return cleanStakeholderText(name) || cleanStakeholderText(email) || '익명';
 }
 
 export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, assetOptions = [], embedded = false }) {
     const { memberInfo } = useAuth();
     const isLogisticsMode = workspaceCode === 'WS_LOGISTICS';
+    const logisticsPermission = useMemo(() => serverLogisticsPermission(memberInfo), [memberInfo]);
+    const logisticsMasterStakeholders = useMemo(() => serverLogisticsStakeholders(memberInfo), [memberInfo]);
     
     // Logs State
     const [isLoading, setIsLoading] = useState(true);
@@ -87,9 +111,9 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
     const [masterStakeholders, setMasterStakeholders] = useState([]);
     const effectiveMasterStakeholders = useMemo(() => (
         isLogisticsMode
-            ? mergeStakeholderRows(masterStakeholders, LOGISTICS_MASTER_STAKEHOLDERS, stakeholderRowsFromLogs(logs))
+            ? mergeStakeholderRows(masterStakeholders, logisticsMasterStakeholders, stakeholderRowsFromLogs(logs))
             : masterStakeholders
-    ), [isLogisticsMode, logs, masterStakeholders]);
+    ), [isLogisticsMode, logisticsMasterStakeholders, logs, masterStakeholders]);
     
     // Delete states
     const [logToDelete, setLogToDelete] = useState(null);
@@ -186,7 +210,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
 
     const fetchMasterStakeholders = useCallback(async () => {
         if (isLogisticsMode) {
-            setMasterStakeholders(LOGISTICS_MASTER_STAKEHOLDERS);
+            setMasterStakeholders(logisticsMasterStakeholders);
             return;
         }
         try {
@@ -195,14 +219,14 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                 .select('*')
                 .limit(5000);
             if (data && !error) {
-                setMasterStakeholders(isLogisticsMode ? mergeStakeholderRows(data, LOGISTICS_MASTER_STAKEHOLDERS) : data);
+                setMasterStakeholders(isLogisticsMode ? mergeStakeholderRows(data, logisticsMasterStakeholders) : data);
                 return;
             }
         } catch (error) {
             console.error('Master stakeholder fetch error:', error);
         }
-        if (isLogisticsMode) setMasterStakeholders(LOGISTICS_MASTER_STAKEHOLDERS);
-    }, [isLogisticsMode]);
+        if (isLogisticsMode) setMasterStakeholders(logisticsMasterStakeholders);
+    }, [isLogisticsMode, logisticsMasterStakeholders]);
 
     const fetchLogs = useCallback(async () => {
         setIsLoading(true);
@@ -238,6 +262,10 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         setIsDeleting(true);
         try {
             if (isLogisticsMode) {
+                const log = logs.find((item) => item.log_id === logId);
+                if (!canUseLogisticsAssetPermission(logisticsPermission, log?.metadata?.asset_id, 'delete')) {
+                    throw new Error('현재 계정에는 선택 게시물 삭제 권한이 없습니다.');
+                }
                 const { data, error } = await invokeDashboardApi('work-platform/board-posts/delete', { log_id: logId });
                 if (error) throw error;
                 if (!data?.ok) throw new Error(data?.message || '협업게시판 글 삭제에 실패했습니다.');
@@ -265,6 +293,10 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         setIsSavingComment(true);
         try {
             if (isLogisticsMode) {
+                const log = logs.find((item) => item.log_id === logId);
+                if (!canUseLogisticsAssetPermission(logisticsPermission, log?.metadata?.asset_id, 'create')) {
+                    throw new Error('현재 계정에는 선택 게시물 댓글 작성 권한이 없습니다.');
+                }
                 const { data, error } = await invokeDashboardApi('work-platform/board-posts/comment', { log_id: logId, text: commentContent });
                 if (error) throw error;
                 if (!data?.ok) throw new Error(data?.message || '댓글 저장에 실패했습니다.');
@@ -310,6 +342,10 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
         setIsDeleting(true);
         try {
             if (isLogisticsMode) {
+                const log = logs.find((item) => item.log_id === logId);
+                if (!canUseLogisticsAssetPermission(logisticsPermission, log?.metadata?.asset_id, 'delete')) {
+                    throw new Error('현재 계정에는 선택 게시물 댓글 삭제 권한이 없습니다.');
+                }
                 const { data, error } = await invokeDashboardApi('work-platform/board-posts/comment-delete', { log_id: logId, comment_id: commentId });
                 if (error) throw error;
                 if (!data?.ok) throw new Error(data?.message || '댓글 삭제에 실패했습니다.');
@@ -407,6 +443,9 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
 
     const logsPerPage = logsViewMode === 'summary' ? 5 : 20;
     const checkUserAccess = (log) => {
+        if (isLogisticsMode) {
+            return canUseLogisticsAssetPermission(logisticsPermission, log.metadata?.asset_id, 'read');
+        }
         const perms = log.metadata?.permissions;
         if (!perms) return true;
         
@@ -440,6 +479,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
     };
 
     const filteredLogs = logs.filter(log => {
+        if (isLogisticsMode && !checkUserAccess(log)) return false;
         // Filter out non-members
         if (!isLogisticsMode && getCellName(log.writer_name) === '기타') return false;
 
@@ -519,7 +559,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                 fetchMasterStakeholders={fetchMasterStakeholders}
                 workspaceCode={workspaceCode}
                 workspaceLabel={workspaceLabel}
-                projectOptions={assetOptions.map((asset) => ({ id: asset.assetId || asset.assetCode || asset.assetName, label: asset.assetName, metadata: asset }))}
+                projectOptions={assetOptions.filter((asset) => asset.assetId).map((asset) => ({ id: asset.assetId, label: asset.assetName, metadata: asset }))}
             />
             <div className="w-full border border-[#3c3c3c] rounded-[24px] flex flex-col bg-[#252525]">
                 {/* Header Row */}
@@ -728,7 +768,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                                 </div>
                                 
                                 {/* Delete Button (Absolute positioned outside content flow) */}
-                                {log.writer_staff_id === memberInfo?.email && (
+                                {log.writer_staff_id === memberInfo?.email && (!isLogisticsMode || canUseLogisticsAssetPermission(logisticsPermission, log.metadata?.asset_id, 'delete')) && (
                                     <button 
                                         type="button"
                                         onClick={(e) => { e.stopPropagation(); setLogToDelete(log); }}
@@ -817,7 +857,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                                                         </div>
                                                         <div className="text-[13px] text-[#A1A1AA] whitespace-pre-wrap break-words ml-[36px]">{comment.text}</div>
                                                     </div>
-                                                    {comment.author_email === memberInfo?.email && (
+                                                    {comment.author_email === memberInfo?.email && (!isLogisticsMode || canUseLogisticsAssetPermission(logisticsPermission, log.metadata?.asset_id, 'delete')) && (
                                                         <button
                                                             onClick={(e) => { e.stopPropagation(); setCommentToDelete({ logId: log.log_id, commentId: comment.id }); }}
                                                             className="text-[12px] text-[#FF453A] opacity-0 group-hover:opacity-100 transition-opacity hover:underline cursor-pointer"
@@ -863,7 +903,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                                         </div>
                                         {checkUserAccess(log) && (
                                             <div className="flex items-center gap-[8px]">
-                                                {!editingLogId && (
+                                                {!editingLogId && (!isLogisticsMode || canUseLogisticsAssetPermission(logisticsPermission, log.metadata?.asset_id, 'create')) && (
                                                     <button
                                                         type="button"
                                                         onClick={(e) => { 
@@ -878,7 +918,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                                                         댓글
                                                     </button>
                                                 )}
-                                                {!editingLogId && (memberInfo?.email === log.writer_staff_id || memberInfo?.name === log.writer_name) && (
+                                                {!editingLogId && (memberInfo?.email === log.writer_staff_id || memberInfo?.name === log.writer_name) && (!isLogisticsMode || canUseLogisticsAssetPermission(logisticsPermission, log.metadata?.asset_id, 'update')) && (
                                                     <button
                                                         type="button"
                                                         onClick={(e) => { 
@@ -936,7 +976,7 @@ export default function WorkspaceActivityLog({ workspaceCode, workspaceLabel, as
                             fetchMasterStakeholders={fetchMasterStakeholders}
                             workspaceCode={workspaceCode}
                             workspaceLabel={workspaceLabel}
-                            projectOptions={assetOptions.map((asset) => ({ id: asset.assetId || asset.assetCode || asset.assetName, label: asset.assetName, metadata: asset }))}
+                            projectOptions={assetOptions.filter((asset) => asset.assetId).map((asset) => ({ id: asset.assetId, label: asset.assetName, metadata: asset }))}
                             editMode={true}
                             initialData={logs.find(l => l.log_id === editingLogId)}
                             onCancel={() => setEditingLogId(null)}

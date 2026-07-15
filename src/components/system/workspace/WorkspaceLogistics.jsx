@@ -11,7 +11,6 @@ import rawAssetOptionsData from './logisticsAssetOptionsData.json';
 import assetSearchIndexData from './logisticsAssetSearchIndex.json';
 import companyOptionsData from './logisticsCompanyOptionsData.json';
 import sectorData from './logisticsSectorData.json';
-import logisticsPermissionData from './logisticsPermissionData.json';
 import { floorPlanLabelFromRecord, normalizeFloorPlanImageSource } from './floorPlanImageSource';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './logisticsRoutes';
 import { normalizeStackingFloorLabel, normalizeStackingFloorLabelFromRow } from './stackingFloorNormalizer';
@@ -43,88 +42,8 @@ import { avatarCandidates } from '../avatarUtils';
 
 const MotionDiv = motion.div;
 
-const assetPayloadModules = import.meta.glob('./logisticsAssetData/*.json');
-const companyPayloadModules = import.meta.glob('./logisticsCompanyData/*.json');
-const ASSET_PAYLOADS = Object.create(null);
-const COMPANY_PAYLOADS = Object.create(null);
-const STATIC_PAYLOAD_INFLIGHT = new Map();
 let xlsxModulePromise = null;
 const assetOptionsData = rawAssetOptionsData;
-
-function loadStaticPayload(modules, cache, directory, kind, id) {
-  const normalizedId = String(id || '').trim();
-  if (!normalizedId) return Promise.resolve(null);
-  if (cache[normalizedId]) return Promise.resolve(cache[normalizedId]);
-
-  const inflightKey = `${kind}:${normalizedId}`;
-  const existing = STATIC_PAYLOAD_INFLIGHT.get(inflightKey);
-  if (existing) return existing;
-
-  const loader = modules[`./${directory}/${normalizedId}.json`];
-  if (!loader) return Promise.resolve(null);
-
-  let request;
-  request = loader().then((module) => {
-    const payload = module?.default || module || null;
-    if (!payload) return null;
-    const payloadId = kind === 'asset'
-      ? firstDefined(payload.overview?.assetId, payload.meta?.selection?.assetId, normalizedId)
-      : firstDefined(payload.meta?.selection?.tenantId, payload.filters?.selectedTenantId, payload.profile?.tenantId, normalizedId);
-    cache[String(payloadId || normalizedId)] = payload;
-    cache[normalizedId] = payload;
-    return payload;
-  }).finally(() => {
-    if (STATIC_PAYLOAD_INFLIGHT.get(inflightKey) === request) STATIC_PAYLOAD_INFLIGHT.delete(inflightKey);
-  });
-  STATIC_PAYLOAD_INFLIGHT.set(inflightKey, request);
-  return request;
-}
-
-function loadAssetPayload(assetId) {
-  return loadStaticPayload(assetPayloadModules, ASSET_PAYLOADS, 'logisticsAssetData', 'asset', assetId);
-}
-
-function loadCompanyPayload(tenantId) {
-  return loadStaticPayload(companyPayloadModules, COMPANY_PAYLOADS, 'logisticsCompanyData', 'company', tenantId);
-}
-
-function useLazyStaticPayload(loader, cache, id, enabled = true) {
-  const normalizedId = String(id || '').trim();
-  const [state, setState] = useState(() => ({
-    id: normalizedId,
-    payload: normalizedId ? cache[normalizedId] || null : null,
-    loading: false,
-    error: null,
-  }));
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!enabled || !normalizedId) {
-      setState({ id: normalizedId, payload: null, loading: false, error: null });
-      return undefined;
-    }
-    const cached = cache[normalizedId] || null;
-    setState({ id: normalizedId, payload: cached, loading: !cached, error: null });
-    loader(normalizedId).then((payload) => {
-      if (!cancelled) setState({ id: normalizedId, payload, loading: false, error: null });
-    }).catch((error) => {
-      if (!cancelled) setState({ id: normalizedId, payload: cached, loading: false, error });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [cache, enabled, loader, normalizedId]);
-
-  return state;
-}
-
-function useLazyAssetPayload(assetId, enabled = true) {
-  return useLazyStaticPayload(loadAssetPayload, ASSET_PAYLOADS, assetId, enabled);
-}
-
-function useLazyCompanyPayload(tenantId, enabled = true) {
-  return useLazyStaticPayload(loadCompanyPayload, COMPANY_PAYLOADS, tenantId, enabled);
-}
 
 function loadXlsxModule() {
   if (!xlsxModulePromise) {
@@ -143,7 +62,6 @@ const MODULES = [
   { id: 'playground', label: '피벗 테이블', source: '피벗 테이블' },
   { id: 'quality', label: '데이터 품질', source: '데이터 품질' },
 ];
-const ADMIN_ONLY_MODULE_IDS = new Set(['tools', 'playground', 'quality']);
 
 const WORKLOGS = [
   { id: 'wl-001', title: '주간 임대차 변동사항 확인', scope: '개인', owner: '물류 AM', status: '진행', priority: '높음', due: '이번 주', asset: 'DB_일반', note: '만기, 공실, 임대료 변동 항목 우선 확인' },
@@ -237,9 +155,6 @@ function ensureWorkspaceLogisticsCacheInvalidationListener() {
     clearWorkspaceLogisticsCaches();
   });
 }
-const DATA_QUALITY_ALLOWED_NAMES = new Set(['이시정', '전기영', '이관용']);
-const CORE_ONLY_TOOL_ALLOWED_EMAILS = new Set(['kylee@igisam.com', 'jk.jeon@igisam.com', 'sjlee@igisam.com']);
-const LOGISTICS_FEATURE_ACCESS_CACHE_KEY = 'logisticsFeatureAccessConfig';
 const LOGISTICS_FEATURE_KEYS = {
   aiChat: 'ai_chat',
   dataQuality: 'data_quality',
@@ -249,6 +164,7 @@ const LOGISTICS_FEATURE_KEYS = {
   buildingRegisterRefresh: 'building_register_refresh',
   openDartRefresh: 'opendart_refresh',
   marketResearch: 'market_research',
+  approvalManagement: 'approval_management',
 };
 
 const AI_CHAT_SCOPE_OPTIONS = [
@@ -442,7 +358,14 @@ function isDashboardLifecycleRefreshLocked(lock, cacheKey, now = Date.now(), loc
   return Boolean(lock?.cacheKey === cacheKey && now - Number(lock.startedAt || 0) < lockMs);
 }
 
+function hasVerifiedActiveMemberInfo(memberInfo) {
+  return String(memberInfo?.account_status || '').trim().toLowerCase() === 'active'
+    && Boolean(String(memberInfo?.auth_subject || '').trim());
+}
+
 function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled = true) {
+  const { memberInfo, permissionsLoading } = useAuth();
+  const retainVerifiedPermissionRead = permissionsLoading && hasVerifiedActiveMemberInfo(memberInfo);
   const lifecycle = useContext(DashboardModuleLifecycleContext);
   const lifecycleActive = lifecycle.active;
   const lifecycleModuleId = lifecycle.moduleId;
@@ -543,6 +466,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
             checked_at: new Date().toISOString(),
           };
           if (ownsRequest()) {
+            if (authFailure && retainVerifiedPermissionRead) return;
             storeDashboardShadowDiff(report);
             setState((current) => ({
               cacheKey,
@@ -606,6 +530,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
           checked_at: new Date().toISOString(),
         };
         if (ownsRequest()) {
+          if (authFailure && retainVerifiedPermissionRead) return;
           storeDashboardShadowDiff(report);
           setState((current) => ({
             cacheKey,
@@ -622,7 +547,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
     return () => {
       cancelled = true;
     };
-  }, [action, enabled, lifecycleActive, mode, payloadKey, primaryMode, summaryKey, adapter, cacheKey, refreshNonce]);
+  }, [action, enabled, lifecycleActive, mode, payloadKey, primaryMode, summaryKey, adapter, cacheKey, refreshNonce, retainVerifiedPermissionRead]);
 
   useEffect(() => {
     if (!enabled || !lifecycleActive || mode === 'off') return undefined;
@@ -1426,12 +1351,7 @@ function resolveAssetIdByName(assetName) {
   const normalized = String(assetName || '').replace(/\s+/g, '').toLowerCase();
   if (!normalized) return '';
   const exact = assetOptionsData.find((item) => String(item.assetName || '').replace(/\s+/g, '').toLowerCase() === normalized);
-  if (exact) return exact.assetId;
-  const partial = assetOptionsData.find((item) => {
-    const optionName = String(item.assetName || '').replace(/\s+/g, '').toLowerCase();
-    return optionName.includes(normalized) || normalized.includes(optionName);
-  });
-  return partial?.assetId || '';
+  return exact?.assetId || '';
 }
 
 function resolveAssetNameByCode(assetRef) {
@@ -1927,48 +1847,29 @@ function buildBuildingRegisterRefreshTargets(assetOptions = [], generalRows = []
     const key = assetOptionKey(asset);
     if (!key || seen.has(key)) return null;
     seen.add(key);
-    const staticPayload = ASSET_PAYLOADS[asset.assetId] || findAssetPayload(asset.assetId, asset.assetName) || {};
     const candidates = [
       ...(rowsByAssetId.get(asset.assetId) || []),
       ...(rowsByAssetName.get(normalizeAssetNameKey(asset.assetName)) || []),
-      ...(staticPayload.rows || staticPayload.leaseSpaces || []),
-      staticPayload.overview,
       asset,
     ].filter(Boolean);
     const payload = candidates.map((candidate) => buildBuildingRegisterPayload(candidate)).find(isCompleteBuildingRegisterPayload)
       || buildBuildingRegisterPayload(asset);
     return {
       assetId: asset.assetId,
-      assetName: asset.assetName || staticPayload.overview?.assetName || '-',
-      address: firstDefined(asset.standardizedAddress, asset.address, staticPayload.overview?.standardizedAddress, staticPayload.overview?.address, candidates.find((candidate) => candidate.standardizedAddress || candidate.address)?.standardizedAddress, candidates.find((candidate) => candidate.standardizedAddress || candidate.address)?.address, ''),
+      assetName: asset.assetName || '-',
+      address: firstDefined(asset.standardizedAddress, asset.address, candidates.find((candidate) => candidate.standardizedAddress || candidate.address)?.standardizedAddress, candidates.find((candidate) => candidate.standardizedAddress || candidate.address)?.address, ''),
       payload,
       ready: isCompleteBuildingRegisterPayload(payload),
     };
   }).filter(Boolean);
 }
 
-function companyStaticPayloadFor(candidate = {}) {
-  const tenantId = String(candidate.tenantId || candidate.tenant_id || '').trim();
-  if (tenantId && COMPANY_PAYLOADS[tenantId]) return COMPANY_PAYLOADS[tenantId];
-  const nameKey = normalizeAssetNameKey(candidate.tenantMasterName || candidate.companyName || candidate.tenantName);
-  if (!nameKey) return {};
-  const option = companyOptionsData.find((item) => normalizeAssetNameKey(item.tenantMasterName || item.companyName) === nameKey);
-  return (option && COMPANY_PAYLOADS[option.tenantId])
-    || Object.values(COMPANY_PAYLOADS).find((payload) => (
-      normalizeAssetNameKey(payload.profile?.tenantMasterName || payload.profile?.company?.tenantMasterName) === nameKey
-    ))
-    || {};
-}
-
 function buildOpenDartRefreshTargets(companyOptions = [], generalRows = []) {
   const targets = new Map();
   const addCandidate = (candidate = {}) => {
-    const staticPayload = companyStaticPayloadFor(candidate);
-    const profile = staticPayload.profile || {};
-    const company = profile.company || {};
-    const tenantId = String(firstDefined(candidate.tenantId, candidate.tenant_id, profile.tenantId, staticPayload.filters?.selectedTenantId, '') || '').trim();
-    const tenantName = cleanDisplay(firstDefined(candidate.tenantMasterName, candidate.companyName, candidate.tenantName, profile.tenantMasterName, company.tenantMasterName), '');
-    const corpCode = String(firstDefined(candidate.dartCorpCode, candidate.dart_corp_code, profile.dartCorpCode, company.dartCorpCode, '') || '').trim();
+    const tenantId = String(firstDefined(candidate.tenantId, candidate.tenant_id, '') || '').trim();
+    const tenantName = cleanDisplay(firstDefined(candidate.tenantMasterName, candidate.companyName, candidate.tenantName), '');
+    const corpCode = String(firstDefined(candidate.dartCorpCode, candidate.dart_corp_code, '') || '').trim();
     const key = corpCode || tenantId || normalizeAssetNameKey(tenantName);
     if (!key || targets.has(key)) return;
     targets.set(key, {
@@ -2015,18 +1916,6 @@ function compactCompositionRows(rows, limit = 8, otherLabel = '기타') {
 
 function monthlyCostCompositionLimit(mode) {
   return mode === 'asset' ? 32 : 8;
-}
-
-function findAssetPayload(assetId, assetName) {
-  if (assetId && ASSET_PAYLOADS[assetId]) return ASSET_PAYLOADS[assetId];
-  const normalizedName = String(assetName || '').replace(/\s+/gu, '');
-  if (!normalizedName) return null;
-  const option = findAssetOption(assetId, assetName);
-  if (option?.assetId && ASSET_PAYLOADS[option.assetId]) return ASSET_PAYLOADS[option.assetId];
-  return Object.values(ASSET_PAYLOADS).find((payload) => {
-    const payloadName = String(payload?.overview?.assetName || payload?.meta?.selection?.assetName || '').replace(/\s+/gu, '');
-    return payloadName === normalizedName;
-  }) || null;
 }
 
 function findAssetOption(assetId, assetName) {
@@ -2149,7 +2038,7 @@ function normalizeWeeklyAssetRows(rows) {
   return [...grouped.values()];
 }
 
-function useLatestWeeklyAssetRows(permission, memberInfo) {
+function useLatestWeeklyAssetRows() {
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState('idle');
   useEffect(() => {
@@ -2164,15 +2053,6 @@ function useLatestWeeklyAssetRows(permission, memberInfo) {
       } catch {
         nextRows = [];
       }
-      if (!nextRows.length) {
-        try {
-          const { data, error } = await invokeDashboardApi('weekly-assets/latest-preview', { email: permission?.email || memberInfo?.email || '' });
-          if (error || data?.ok === false) throw error || new Error(data?.message || 'weekly asset preview read failed');
-          nextRows = normalizeWeeklyAssetRows(data?.data?.rows || []);
-        } catch {
-          nextRows = [];
-        }
-      }
       if (!cancelled) {
         setRows(nextRows);
         setStatus(nextRows.length ? 'live' : 'empty');
@@ -2182,7 +2062,7 @@ function useLatestWeeklyAssetRows(permission, memberInfo) {
     return () => {
       cancelled = true;
     };
-  }, [memberInfo?.email, permission?.email, permission?.role]);
+  }, []);
   return { rows, status };
 }
 
@@ -2838,16 +2718,8 @@ function splitProjectEtcRows(value) {
     });
 }
 
-function findAssetPayloadByName(assetName) {
-  const key = normalizeAssetNameKey(assetName);
-  const option = assetOptionsData.find((item) => normalizeAssetNameKey(item.assetName) === key);
-  if (option?.assetId && ASSET_PAYLOADS[option.assetId]) return ASSET_PAYLOADS[option.assetId];
-  return Object.values(ASSET_PAYLOADS).find((payload) => normalizeAssetNameKey(payload?.overview?.assetName) === key) || null;
-}
-
 function buildAssetOverviewRows(assetName, project, weeklyRow) {
-  const payload = findAssetPayloadByName(assetName);
-  const overview = payload?.overview || {};
+  const overview = findAssetOption('', assetName) || {};
   return [
     ['자산', '구분', normalizeAssetCategory(managementProjectValue(project, '섹터') || weeklyRow?.category)],
     ['자산', '주소', managementProjectValue(project, '주소') || cleanDisplay(overview.address || overview.standardizedAddress, '')],
@@ -3393,7 +3265,7 @@ function AssetFundOverviewTable({
 function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterSummary = null }) {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
-  const { rows: latestWeeklyAssetRows } = useLatestWeeklyAssetRows(permission, memberInfo);
+  const { rows: latestWeeklyAssetRows } = useLatestWeeklyAssetRows();
   const defaultOpenSections = useMemo(() => (
     modalMode
       ? { overview: true, investment: true, fund: true }
@@ -3437,10 +3309,7 @@ function AssetProjectInfoPanel({ assetName, modalMode = false, buildingRegisterS
   const effectiveBeneficiaryRows = useMemo(() => (fundAccessBlock ? [] : serverFundRows?.beneficiaries || []), [fundAccessBlock, serverFundRows]);
   const effectiveLoanRows = useMemo(() => (fundAccessBlock ? [] : serverFundRows?.loans || []), [fundAccessBlock, serverFundRows]);
   const assetId = resolveAssetIdByName(assetName);
-  const canEditProject = Boolean(permission.role === 'Admin' || (
-    assetIdMatchesPermission(assetId, assetName, permission)
-    && (permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete)
-  ));
+  const canEditProject = canUseAssetPermission(permission, assetId, 'update');
   useEffect(() => {
     setOpenSections(defaultOpenSections);
   }, [assetName, defaultOpenSections]);
@@ -3795,7 +3664,9 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
       || /매각|sold|disposed|archived/iu.test(status);
   };
   const assetRows = useMemo(() => assetRowsDraft.filter((row) => !isSoldWorkspaceAsset(row)), [assetRowsDraft]);
-  const canEditWeeklyAssets = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete || permission.role === 'Admin');
+  const canEditWeeklyAssets = canUseAnyAssetPermission(permission, 'update')
+    || canUseAnyAssetPermission(permission, 'create')
+    || canUseAnyAssetPermission(permission, 'delete');
   const displayFieldDefs = [
     ['assetName', '자산명', false],
     ['fundName', '펀드명', false],
@@ -3833,28 +3704,17 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
       } catch {
         rows = [];
       }
-      if (!rows.length) {
-        try {
-          const { data, error } = await invokeDashboardApi('weekly-assets/latest-preview', { email: permission.email || memberInfo?.email || '' });
-          if (error || data?.ok === false) throw error || new Error(data?.message || 'weekly asset preview read failed');
-          rows = normalizeWeeklyAssetRows(data?.data?.rows || []);
-        } catch {
-          rows = [];
-        }
-      }
       if (!cancelled) applyRows(rows);
     };
     fetchRows();
     return () => {
       cancelled = true;
     };
-  }, [memberInfo?.email, permission.email, permission.role]);
+  }, [memberInfo?.email, permission.email]);
   const canEditWeeklyAssetRow = (row) => (
-    permission.role === 'Admin'
-    || (
-      (!cleanDisplay(row.assetName, '') && Boolean(permission.permissions?.managedAsset?.create))
-      || assetIdMatchesPermission(resolveAssetIdByName(row.assetName), row.assetName, permission)
-    ) && Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete)
+    (!cleanDisplay(row.assetName, '')
+      ? canUseAnyAssetPermission(permission, 'create')
+      : canUseAssetPermission(permission, resolveAssetIdByName(row.assetName), 'update'))
   );
   const updateDraftCell = (rowIndex, key, value) => {
     setAssetRowsDraft((rows) => rows.map((row, index) => (index === rowIndex ? { ...row, [key]: value } : row)));
@@ -4351,139 +4211,92 @@ function normalizeAssetNameKey(value) {
   return String(value || '').replace(/\s+/gu, '').toLowerCase();
 }
 
-function hasAllAssetReadPermission(permission) {
-  const role = String(permission?.role || permission?.logisticsRole || '').trim();
-  return Boolean(
-    permission?.permissions?.otherAsset?.read
-    || role === 'Admin'
-    || role === 'System Admin',
-  );
+const CRUD_ACTIONS = ['read', 'create', 'update', 'delete'];
+
+function hasOwn(object, key) {
+  return Boolean(object && Object.prototype.hasOwnProperty.call(object, key));
 }
 
-function assetMatchesPermission(assetName, permission) {
-  if (hasAllAssetReadPermission(permission)) return true;
-  const key = normalizeAssetNameKey(assetName);
-  if (!key) return true;
-  return (permission.managedAssets || []).some((asset) => {
-    const assetKey = normalizeAssetNameKey(asset.assetName);
-    return assetKey && (assetKey.includes(key) || key.includes(assetKey));
-  });
+function explicitCrudFlags(value) {
+  return Object.fromEntries(CRUD_ACTIONS.map((action) => [action, value?.[action] === true]));
 }
 
-function assetIdMatchesPermission(assetId, assetName, permission) {
-  if (hasAllAssetReadPermission(permission)) return true;
-  const readableAssets = permission?.managedAssets || [];
-  if (!readableAssets.length) return false;
-  const id = String(assetId || '').toLowerCase();
-  return readableAssets.some((asset) => (
-    (id && String(asset.assetId || '').toLowerCase() === id)
-    || (id && String(asset.assetCode || '').toLowerCase() === id)
-    || assetMatchesPermission(assetName || asset.assetName, { managedAssets: [asset] })
+function firstServerObject(...values) {
+  return values.find((value) => value && typeof value === 'object' && !Array.isArray(value)) || {};
+}
+
+function firstNonEmptyServerObject(...values) {
+  return values.find((value) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length > 0)
+    || firstServerObject(...values);
+}
+
+function assetCapabilityEntries(value) {
+  const rows = Array.isArray(value)
+    ? value
+    : Array.isArray(value?.assets)
+      ? value.assets
+      : Array.isArray(value?.items)
+        ? value.items
+        : Object.entries(value || {}).map(([assetId, capability]) => ({ asset_id: assetId, ...(capability || {}) }));
+  return rows.reduce((entries, row) => {
+    const assetId = String(row?.asset_id || row?.assetId || '').trim();
+    if (!assetId) return entries;
+    entries.set(assetId, explicitCrudFlags(firstServerObject(row?.capabilities, row?.permissions, row)));
+    return entries;
+  }, new Map());
+}
+
+function canUseAssetPermission(permission, assetId, action) {
+  if (!CRUD_ACTIONS.includes(action)) return false;
+  const canonicalAssetId = String(assetId || '').trim();
+  if (!canonicalAssetId || !permission?.hasAssetCapabilities) return false;
+  return permission.assetCapabilities?.get(canonicalAssetId)?.[action] === true;
+}
+
+function canUseAnyAssetPermission(permission, action = 'read') {
+  if (!CRUD_ACTIONS.includes(action)) return false;
+  if (!permission?.hasAssetCapabilities) return false;
+  return [...(permission.assetCapabilities?.values() || [])].some((capability) => capability?.[action] === true);
+}
+
+function assetIdMatchesPermission(assetId, _assetName, permission) {
+  return canUseAssetPermission(permission, assetId, 'read');
+}
+
+function filterAssetsByPermission(rows, permission, idKey = 'assetId') {
+  return (rows || []).filter((row) => assetIdMatchesPermission(
+    row?.[idKey] || row?.assetId || row?.asset_id,
+    '',
+    permission,
   ));
 }
 
-function filterAssetsByPermission(rows, permission, nameKey = 'assetName', idKey = 'assetId') {
-  return (rows || []).filter((row) => assetIdMatchesPermission(row?.[idKey], row?.[nameKey] || row?.label, permission));
+function canViewDataQuality(_memberInfo, permission) {
+  return permission?.featurePermissions?.[LOGISTICS_FEATURE_KEYS.dataQuality] === true;
 }
 
-function canViewDataQuality(memberInfo, permission) {
-  const name = String(memberInfo?.staff_name || memberInfo?.name || permission?.name || '').trim();
-  if (DATA_QUALITY_ALLOWED_NAMES.has(name)) return true;
-  const featurePermissions = {
-    ...(memberInfo?.feature_permissions || {}),
-    ...(memberInfo?.featurePermissions || {}),
-    ...(permission?.feature_permissions || {}),
-    ...(permission?.featurePermissions || {}),
-  };
-  return permission?.role === 'System Admin'
-    || permission?.logisticsRole === 'System Admin'
-    || featurePermissions.data_quality === true;
-}
-
-function canUseCoreOnlyLogisticsTools(memberInfo, permission) {
-  const name = String(memberInfo?.staff_name || memberInfo?.name || permission?.name || '').trim();
-  const email = normalizeIdentity(memberInfo?.email || permission?.email || '').toLowerCase();
-  return DATA_QUALITY_ALLOWED_NAMES.has(name) || CORE_ONLY_TOOL_ALLOWED_EMAILS.has(email);
-}
-
-function readLogisticsFeatureAccessConfig() {
-  if (typeof window === 'undefined') return {};
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY) || '{}');
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  } catch {
-    return {};
-  }
-}
-
-function normalizeFeatureGrantText(value) {
-  return String(value || '').trim().toLowerCase();
-}
-
-function featureAccessUserMatches(memberInfo, permission, user) {
-  const email = normalizeFeatureGrantText(memberInfo?.email || permission?.email);
-  const name = normalizeFeatureGrantText(memberInfo?.staff_name || memberInfo?.name || permission?.name);
-  const candidateEmail = normalizeFeatureGrantText(user?.email);
-  const candidateName = normalizeFeatureGrantText(user?.staff_name || user?.name);
-  return Boolean((email && candidateEmail && email === candidateEmail) || (name && candidateName && name === candidateName));
-}
-
-function hasConfiguredFeatureAccess(memberInfo, permission, featureKey, config = readLogisticsFeatureAccessConfig()) {
-  const features = config?.features && typeof config.features === 'object' ? config.features : {};
-  const feature = features[featureKey] && typeof features[featureKey] === 'object' ? features[featureKey] : {};
-  const users = Array.isArray(feature.users) ? feature.users : [];
-  return users.some((user) => featureAccessUserMatches(memberInfo, permission, user));
-}
-
-function canUseLogisticsFeature(memberInfo, permission, featureKey, config = readLogisticsFeatureAccessConfig()) {
-  const featurePermissions = {
-    ...(memberInfo?.feature_permissions || {}),
-    ...(memberInfo?.featurePermissions || {}),
-    ...(permission?.feature_permissions || {}),
-    ...(permission?.featurePermissions || {}),
-  };
-  if (featurePermissions[featureKey] === true || featurePermissions[featureKey] === 'true') return true;
-  if (canViewDataQuality(memberInfo, permission)) return true;
-  return hasConfiguredFeatureAccess(memberInfo, permission, featureKey, config);
+function canUseLogisticsFeature(_memberInfo, permission, featureKey) {
+  return permission?.featurePermissions?.[featureKey] === true;
 }
 
 function useLogisticsFeatureAccess(memberInfo, permission) {
-  const [config, setConfig] = useState(() => readLogisticsFeatureAccessConfig());
-  useEffect(() => {
-    let cancelled = false;
-    invokeDashboardApi('feature-access/get', {}).then(({ data, error }) => {
-      if (cancelled || error || data?.ok === false) return;
-      const next = data?.data || {};
-      window.localStorage.setItem(LOGISTICS_FEATURE_ACCESS_CACHE_KEY, JSON.stringify(next));
-      setConfig(next);
-    }).catch(() => {});
-    const handleUpdate = (event) => {
-      const next = event?.detail && typeof event.detail === 'object' ? event.detail : readLogisticsFeatureAccessConfig();
-      setConfig(next);
-    };
-    window.addEventListener('logistics-feature-access-updated', handleUpdate);
-    return () => {
-      cancelled = true;
-      window.removeEventListener('logistics-feature-access-updated', handleUpdate);
-    };
-  }, []);
   return useMemo(() => ({
-    aiChat: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.aiChat, config),
-    dataQuality: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataQuality, config),
-    analysisTools: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.analysisTools, config),
-    dataPlayground: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataPlayground, config),
-    loginHistory: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.loginHistory, config),
-    buildingRegisterRefresh: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.buildingRegisterRefresh, config),
-    openDartRefresh: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.openDartRefresh, config),
-    marketResearch: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.marketResearch, config),
-  }), [config, memberInfo, permission]);
+    aiChat: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.aiChat),
+    dataQuality: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataQuality),
+    analysisTools: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.analysisTools),
+    dataPlayground: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataPlayground),
+    loginHistory: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.loginHistory),
+    buildingRegisterRefresh: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.buildingRegisterRefresh),
+    openDartRefresh: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.openDartRefresh),
+    marketResearch: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.marketResearch),
+    approvalManagement: canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.approvalManagement),
+  }), [memberInfo, permission]);
 }
 
 function canViewAdvancedLogisticsTools(memberInfo, permission) {
   return canViewDataQuality(memberInfo, permission)
     || canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.analysisTools)
-    || canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataPlayground)
-    || canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataQuality);
+    || canUseLogisticsFeature(memberInfo, permission, LOGISTICS_FEATURE_KEYS.dataPlayground);
 }
 
 function isSoldOrArchivedLogisticsAsset(row = {}) {
@@ -4503,7 +4316,8 @@ function buildMainWeeklyTasks(report, permission) {
   return rows.slice(0, 6).map((row, index) => {
     const meta = inferMainTaskMeta(row, index);
     const assetName = cleanDisplay(row.assetName || row.projectName, '');
-    const managedAsset = (permission.managedAssets || []).find((asset) => assetMatchesPermission(assetName || asset.assetName, { managedAssets: [asset] }));
+    const assetId = resolveAssetIdByName(assetName);
+    const managedAsset = (permission.managedAssets || []).find((asset) => String(asset.assetId || asset.asset_id || '') === assetId);
     return {
       id: row.id || `main-task-${index + 1}`,
       seedId: row.id || `main-task-${index + 1}`,
@@ -4541,9 +4355,7 @@ function filterMainTasksByPermission(tasks, permission, showCompleted) {
   return (tasks || []).filter((task) => {
     if (task.status === 'deleted') return false;
     if (!showCompleted && (task.completed || task.status === '완료' || task.status === 'completed')) return false;
-    if (assetMatchesPermission(task.assetName || task.relatedAsset, permission)) return true;
-    if (task.createdByEmail === permission.email || task.createdByName === permission.name) return true;
-    return Boolean(task.organization && task.organization === permission.organization && !task.assetName);
+    return canUseAssetPermission(permission, resolveAssetIdByName(task.assetName || task.relatedAsset), 'read');
   });
 }
 
@@ -4567,7 +4379,7 @@ function defaultLogisticsTaskDraft(permission, assetName = '') {
   return {
     taskName: '',
     companyName: '',
-    assetName: assetName || permission.managedAssets?.[0]?.assetName || '물류센터 워크 플랫폼',
+    assetName: assetName || filterAssetsByPermission(assetOptionsData, permission)[0]?.assetName || '물류센터 워크 플랫폼',
     nextAction: '',
     issue: '',
     notes: '',
@@ -4665,9 +4477,7 @@ function normalizeIdentity(value) {
   return String(value || '').trim().replace(/\t/g, '').toLowerCase();
 }
 
-const logisticsPermissionUsers = Array.isArray(logisticsPermissionData.users) ? logisticsPermissionData.users : [];
-
-function getLogisticsPermissionIdentity(memberInfo, raw = {}) {
+function _getLogisticsPermissionIdentity(memberInfo, raw = {}) {
   return {
     emails: [
       raw.email,
@@ -4720,18 +4530,11 @@ function getLogisticsPermissionIdentity(memberInfo, raw = {}) {
   };
 }
 
-function findStaticLogisticsPermissionUser(memberInfo, raw = {}) {
-  const identity = getLogisticsPermissionIdentity(memberInfo, raw);
-  return logisticsPermissionUsers.find((user) => identity.emails.includes(normalizeIdentity(user.email)))
-    || logisticsPermissionUsers.find((user) => identity.names.includes(String(user.name || '').trim()))
-    || null;
-}
-
-function firstNonEmptyArray(...arrays) {
+function _firstNonEmptyArray(...arrays) {
   return arrays.find((items) => Array.isArray(items) && items.length) || [];
 }
 
-function mergePermissionRows(rows, fallbackRows, keyFields) {
+function _mergePermissionRows(rows, fallbackRows, keyFields) {
   const unique = new Map();
   [...(Array.isArray(rows) ? rows : []), ...(Array.isArray(fallbackRows) ? fallbackRows : [])]
     .filter(Boolean)
@@ -4745,7 +4548,7 @@ function mergePermissionRows(rows, fallbackRows, keyFields) {
   return [...unique.values()];
 }
 
-function mergePermissionFlags(primary = {}, fallback = {}, defaults = {}) {
+function _mergePermissionFlags(primary = {}, fallback = {}, defaults = {}) {
   const merged = { ...defaults, ...fallback, ...primary };
   return Object.fromEntries(Object.entries(merged).map(([key, value]) => [
     key,
@@ -4755,58 +4558,38 @@ function mergePermissionFlags(primary = {}, fallback = {}, defaults = {}) {
 
 function resolveLogisticsPermission(memberInfo) {
   const raw = memberInfo?.logistics_permission || memberInfo || {};
-  let staticUser = findStaticLogisticsPermissionUser(memberInfo, raw);
-  const email = normalizeIdentity(raw.email || memberInfo?.email || staticUser?.email || raw.user_email || memberInfo?.user_email || raw.login_id || memberInfo?.login_id || raw.id || memberInfo?.id);
-  const name = String(raw.staff_name || raw.staffName || raw.name || raw.full_name || raw.display_name || memberInfo?.staff_name || memberInfo?.staffName || memberInfo?.name || memberInfo?.full_name || memberInfo?.display_name || staticUser?.name || '').trim();
-  if (!staticUser) {
-    staticUser = logisticsPermissionUsers.find((user) => email && normalizeIdentity(user.email) === email)
-      || logisticsPermissionUsers.find((user) => name && normalizeIdentity(user.name) === normalizeIdentity(name))
-      || null;
-  }
-  const organization = String(raw.organization || raw.department || raw.team_name || memberInfo?.organization || memberInfo?.department || memberInfo?.team_name || staticUser?.organization || '').trim();
+  const profilePayload = firstServerObject(raw.profile_payload, raw.profilePayload);
+  const flags = firstServerObject(raw.flags, profilePayload.flags);
+  const email = normalizeIdentity(raw.email || raw.user_email || memberInfo?.email || memberInfo?.user_email);
+  const name = String(raw.staff_name || raw.staffName || raw.name || raw.full_name || raw.display_name || memberInfo?.staff_name || memberInfo?.staffName || memberInfo?.name || memberInfo?.full_name || memberInfo?.display_name || '').trim();
+  const organization = String(raw.organization || raw.department || raw.team_name || memberInfo?.organization || memberInfo?.department || memberInfo?.team_name || '').trim();
   const role = raw.logistics_role || raw.logisticsRole || raw.role || 'Reader';
-  const managedAssetCodes = [
-    ...(Array.isArray(raw.managedAssetCodes) ? raw.managedAssetCodes : []),
-    ...(Array.isArray(raw.managed_asset_codes) ? raw.managed_asset_codes : []),
-  ].map((item) => String(item || '').trim()).filter(Boolean);
-  const managedAssets = mergePermissionRows(
-    firstNonEmptyArray(
-      raw.managedAssets,
-      raw.profile_payload?.managed_assets,
-      raw.profilePayload?.managed_assets,
-      managedAssetCodes.map((assetCode) => ({ assetCode, assetId: assetCode, assetName: assetCode })),
-    ),
-    staticUser?.managedAssets,
-    ['assetCode', 'assetId', 'assetName'],
-  );
-  const managedFunds = mergePermissionRows(
-    firstNonEmptyArray(
-      raw.managedFunds,
-      raw.managed_funds,
-      raw.profile_payload?.managed_funds,
-      raw.profilePayload?.managed_funds,
-    ),
-    staticUser?.managedFunds,
-    ['fundCode', 'fundId', 'fundName'],
-  );
-  const managedAssetPermissions = raw.permissions?.managedAsset || raw.managed_asset_permissions || raw.managedAssetPermissions || {};
-  const otherAssetPermissions = raw.permissions?.otherAsset || raw.other_asset_permissions || raw.otherAssetPermissions || {};
+  const managedAssetCodes = [raw.managedAssetCodes, raw.managed_asset_codes, profilePayload.managedAssetCodes, profilePayload.managed_asset_codes].find(Array.isArray) || [];
+  const managedAssets = [raw.managedAssets, raw.managed_assets, profilePayload.managedAssets, profilePayload.managed_assets].find(Array.isArray) || [];
+  const managedFunds = [raw.managedFunds, raw.managed_funds, profilePayload.managedFunds, profilePayload.managed_funds].find(Array.isArray) || [];
+  const managedAssetRefs = new Set([
+    ...managedAssetCodes,
+    ...managedAssets.flatMap((asset) => [asset?.asset_id, asset?.assetId, asset?.asset_code, asset?.assetCode]),
+  ].map((value) => String(value || '').trim()).filter(Boolean));
+  const assetCapabilitiesValue =
+    hasOwn(raw, 'asset_capabilities') ? raw.asset_capabilities
+      : hasOwn(raw, 'assetCapabilities') ? raw.assetCapabilities
+        : hasOwn(profilePayload, 'asset_capabilities') ? profilePayload.asset_capabilities
+          : profilePayload.assetCapabilities;
+  const hasAssetCapabilities = assetCapabilitiesValue !== undefined && assetCapabilitiesValue !== null;
+  const assetCapabilities = assetCapabilityEntries(assetCapabilitiesValue);
+  const permissionRevision = raw.permission_revision || raw.permissionRevision || profilePayload.permission_revision || profilePayload.permissionRevision || null;
+  const managedAssetPermissions = firstNonEmptyServerObject(raw.permissions?.managedAsset, raw.managed_asset_permissions, raw.managedAssetPermissions, flags.managed_asset_permissions, flags.managedAssetPermissions);
+  const otherAssetPermissions = firstNonEmptyServerObject(raw.permissions?.otherAsset, raw.other_asset_permissions, raw.otherAssetPermissions, flags.other_asset_permissions, flags.otherAssetPermissions);
+  const featurePermissions = firstNonEmptyServerObject(raw.feature_permissions, raw.featurePermissions, flags.feature_permissions, flags.featurePermissions, flags);
   const permissions = {
-    managedAsset: mergePermissionFlags(
-      managedAssetPermissions,
-      staticUser?.permissions?.managedAsset,
-      { read: managedAssets.length > 0, create: false, update: false, delete: false },
-    ),
-    otherAsset: mergePermissionFlags(
-      otherAssetPermissions,
-      staticUser?.permissions?.otherAsset,
-      { read: false, create: false, update: false, delete: false },
-    ),
+    managedAsset: explicitCrudFlags(managedAssetPermissions),
+    otherAsset: explicitCrudFlags(otherAssetPermissions),
   };
 
   return {
     ...raw,
-    matched: Boolean(staticUser || raw.email || raw.staff_name || raw.name),
+    matched: Boolean(email || name),
     name: name || '로그인 사용자',
     email: email || '',
     organization: organization || '조직 미확인',
@@ -4815,9 +4598,14 @@ function resolveLogisticsPermission(memberInfo) {
     teamMembers: Array.isArray(raw.teamMembers) ? raw.teamMembers : [],
     managedAssets,
     managedFunds,
+    managedAssetRefs,
+    hasAssetCapabilities,
+    assetCapabilities,
+    permissionRevision,
+    assetCapabilitiesLoading: Boolean(permissionRevision && !hasAssetCapabilities),
     permissions,
-    feature_permissions: raw.feature_permissions || raw.featurePermissions || {},
-    featurePermissions: raw.featurePermissions || raw.feature_permissions || {},
+    feature_permissions: featurePermissions,
+    featurePermissions,
   };
 }
 
@@ -4966,9 +4754,7 @@ function buildLogisticsSearchResults(query, permission) {
     if (!haystack) return false;
     return haystack.includes(normalizedQuery) || terms.every((term) => haystack.includes(term));
   };
-  const managedAssetNames = new Set((permission.managedAssets || []).map((asset) => asset.assetName));
-  const assetResults = assetOptionsData
-    .filter((asset) => !managedAssetNames.size || managedAssetNames.has(asset.assetName) || assetMatchesPermission(asset.assetName, permission))
+  const assetResults = filterAssetsByPermission(assetOptionsData, permission)
     .filter((asset) => matchesQuery(buildAssetSearchText(asset)))
     .sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR'))
     .slice(0, 8)
@@ -4994,29 +4780,31 @@ function buildLogisticsSearchResults(query, permission) {
 }
 
 function DashboardSearchPreview({ result }) {
-  const assetPayloadState = useLazyAssetPayload(result?.type === 'asset' ? result.id : '', result?.type === 'asset');
-  const companyPayloadState = useLazyCompanyPayload(result?.type === 'tenant' ? result.id : '', result?.type === 'tenant');
+  const assetReadAdapter = useMemo(() => (response) => assetPayloadFromDashboardRead(response), []);
+  const companyReadAdapter = useMemo(() => (response) => companyPayloadFromDashboardRead(response), []);
+  const assetRead = useDashboardReadBridge('dashboard/asset/read', { basis_date: DASHBOARD_BASIS_DATE, asset_id: result?.type === 'asset' ? result.id : '' }, {}, assetReadAdapter, result?.type === 'asset');
+  const companyRead = useDashboardReadBridge('dashboard/company/read', { basis_date: DASHBOARD_BASIS_DATE, tenant_id: result?.type === 'tenant' ? result.id : '' }, {}, companyReadAdapter, result?.type === 'tenant');
   if (!result) return null;
   if (result.type === 'asset') {
-    const payload = assetPayloadState.payload || findAssetPayload(result.id, result.label);
+    const payload = assetRead.payload || { overview: {}, rows: [] };
     const asset = normalizeAssetPayload(payload || {});
     const overview = asset.overview || {};
     const rows = asset.normalizedRows || [];
     const tenants = rows.length ? rows.slice(0, 12) : (asset.monthlyCostByTenant || asset.uniqueTenants || []).slice(0, 12);
     const weightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
-    const weeklyRow = (weeklyReportData.assetRows || []).find((item) => assetMatchesPermission(overview.assetName || result.label, { managedAssets: [item] })) || {};
+    const weeklyRow = (weeklyReportData.assetRows || []).find((item) => normalizeAssetNameKey(item.assetName) === normalizeAssetNameKey(overview.assetName || result.label)) || {};
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
           {[
             ['자산명', overview.assetName || result.label],
-            ['펀드명', overview.fundName || result.raw.fundName || '-'],
+            ['펀드명', overview.fundName || '-'],
             ['임대율', formatPercent(overview.vacancyRate == null ? null : 1 - Number(overview.vacancyRate))],
             ['총 임대면적', formatArea(overview.leasedAreaSqm)],
-            ['월 임관리비', formatCurrency(overview.monthlyCostTotal || result.raw.monthlyCostTotal)],
+            ['월 임관리비', formatCurrency(overview.monthlyCostTotal)],
             ['E. NOC', formatWon(weightedENoc || overview.averageENoc)],
             ['연면적', formatArea(overview.grossFloorAreaSqm)],
-            ['현재 임차인 수', `${formatNumber(overview.uniqueTenantCount || rows.length || result.raw.uniqueTenantCount || 0)}개`],
+            ['현재 임차인 수', `${formatNumber(overview.uniqueTenantCount || rows.length || 0)}개`],
           ].map(([label, value]) => (
             <div key={label} className="rounded-[12px] border border-[#333333] bg-[#1F1F1E] p-4">
               <div className="text-[12px] font-semibold text-[#86868B]">{label}</div>
@@ -5027,11 +4815,11 @@ function DashboardSearchPreview({ result }) {
         <DataTable
           headers={['항목', '내용']}
           rows={[
-            ['주소', overview.standardizedAddress || result.raw.address || '-'],
-            ['권역', deriveLogisticsRegionFromAddress(overview.standardizedAddress || result.raw.address, '-')],
-            ['저온/상온', cleanDisplay(overview.coldStorageMix || result.raw.coldStorageMix, '-')],
+            ['주소', overview.standardizedAddress || '-'],
+            ['권역', deriveLogisticsRegionFromAddress(overview.standardizedAddress, '-')],
+            ['저온/상온', cleanDisplay(overview.coldStorageMix, '-')],
             ['Weekly 주요 이슈', cleanDisplay(weeklyRow.mainIssue || overview.mainIssue, '-')],
-            ['데이터 기준', cleanDisplay(asset.meta?.sourceName || result.raw.sourceName, '서버 저장값 / Excel 스냅샷')],
+            ['데이터 기준', cleanDisplay(asset.meta?.sourceName, '서버 저장값')],
           ]}
           compact
         />
@@ -5057,7 +4845,7 @@ function DashboardSearchPreview({ result }) {
     );
   }
 
-  const payload = companyPayloadState.payload || COMPANY_PAYLOADS[result.id];
+  const payload = companyRead.payload || { profile: {}, leasedAssets: [] };
   const company = normalizeCompanyPayload(payload || {});
   const profile = company.profile || {};
   const leasedAssets = company.normalizedLeasedAssets || [];
@@ -5068,9 +4856,9 @@ function DashboardSearchPreview({ result }) {
         {[
           ['임차인명', profile.tenantMasterName || result.label],
           ['사업자번호', formatBusinessRegistrationNo(profile.businessRegistrationNo || profile.company?.businessRegistrationNo, result.id)],
-          ['임차 자산 수', `${formatNumber(profile.assetCount || result.raw.assetCount)}개`],
+          ['임차 자산 수', `${formatNumber(profile.assetCount)}개`],
           ['총 임차면적', formatArea(profile.leasedAreaSqm)],
-          ['월 임관리비', formatCurrency(profile.monthlyCostTotal || result.raw.monthlyCostTotal)],
+          ['월 임관리비', formatCurrency(profile.monthlyCostTotal)],
           ['월 임대료', formatCurrency(profile.monthlyRentTotal || result.raw.monthlyRentTotal)],
           ['월 관리비', formatCurrency(profile.monthlyMfTotal || result.raw.monthlyMfTotal)],
           ['DART 연결', financials.dartLinked ? '연결' : '미연결'],
@@ -5410,7 +5198,7 @@ function aiMentionHighlightSegments(text, selections) {
 }
 
 export default function WorkspaceLogistics({ currentPath = '' }) {
-  const { memberInfo } = useAuth();
+  const { memberInfo, permissionsLoading } = useAuth();
   const [showAllTasks, setShowAllTasks] = useState(false);
   const [showCompletedTasks, setShowCompletedTasks] = useState(false);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
@@ -5479,9 +5267,18 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   };
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
+  const retainVerifiedPermissionRead = permissionsLoading && hasVerifiedActiveMemberInfo(memberInfo);
+  const canReadWorkspace = canUseAnyAssetPermission(permission, 'read') || retainVerifiedPermissionRead;
+  const dataManagementFeatureAllowed = activeDataManagementTab === 'quality'
+    ? featureAccess.dataQuality
+    : activeDataManagementTab === 'approval'
+      ? featureAccess.approvalManagement
+      : true;
+  const canOpenDataManagement = canReadWorkspace && dataManagementFeatureAllowed;
+  const canOpenMarketData = canReadWorkspace && (activeMarketTab !== 'source' || featureAccess.marketResearch);
   const weeklyTasks = useMemo(() => buildMainWeeklyTasks(weeklyReportData, permission), [permission]);
-  const canRegisterTask = Boolean(permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.update);
-  const canUseAiChat = featureAccess.aiChat && canUseCoreOnlyLogisticsTools(memberInfo, permission);
+  const canRegisterTask = canUseAnyAssetPermission(permission, 'create') || canUseAnyAssetPermission(permission, 'update');
+  const canUseAiChat = featureAccess.aiChat;
   const aiInputRef = useRef(null);
   const aiInputOverlayRef = useRef(null);
   const [aiMentionActiveIndex, setAiMentionActiveIndex] = useState(0);
@@ -5617,10 +5414,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       return soldNameTerms.some((term) => name.includes(term))
         || /매각|sold|disposed|archived/iu.test(status);
     };
-    return [...(permission.managedAssets || [])]
+    return filterAssetsByPermission(assetOptionsData, permission)
       .filter((asset) => !isSoldAsset(asset))
       .sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR'));
-  }, [permission.managedAssets]);
+  }, [permission]);
   const [quickTabKeys, setQuickTabKeys] = useState(readWorkPlatformQuickTabKeys);
   const [quickTabDragOver, setQuickTabDragOver] = useState(false);
   const persistQuickTabKeys = useCallback((updater) => {
@@ -5662,9 +5459,12 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const searchResults = useMemo(() => buildLogisticsSearchResults(mainSearchQuery, permission), [mainSearchQuery, permission]);
   const taskStakeholderOptions = useMemo(() => buildTaskStakeholderOptions(taskRecords, []), [taskRecords]);
 
-  const canModifyTask = (task) => task?.createdByEmail === permission.email || task?.createdByName === permission.name || permission.role === 'Admin' || permission.role === 'Manager';
+  const canModifyTask = (task, type = 'edit') => {
+    const operation = type === 'delete' ? 'delete' : 'update';
+    return canUseAssetPermission(permission, resolveAssetIdByName(task?.assetName || task?.relatedAsset), operation);
+  };
   const requestTaskAction = (type, task) => {
-    if (!canModifyTask(task)) return;
+    if (!canModifyTask(task, type)) return;
     const messages = {
       edit: '선택한 Task를 수정하시겠습니까?',
       delete: '선택한 Task를 삭제하시겠습니까?',
@@ -5689,13 +5489,18 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     }
   };
   const submitTaskOperation = async (operation, task, payload = {}) => {
+    const permissionAction = operation === 'create' ? 'create' : operation === 'seed-delete' || operation === 'delete' ? 'delete' : 'update';
+    const assetName = payload.assetName || task.assetName;
+    const assetId = resolveAssetIdByName(assetName);
+    if (!canUseAssetPermission(permission, assetId, permissionAction)) {
+      return { ok: false, error: new Error('현재 계정에는 선택 자산에 대한 작업 권한이 없습니다.') };
+    }
     try {
       const action = operation === 'create'
         ? 'work-platform/tasks'
         : operation === 'seed-delete'
           ? 'work-platform/tasks/archive-seed'
           : `work-platform/tasks/${operation}`;
-      const assetName = payload.assetName || task.assetName;
       const { data, error } = await invokeDashboardApi(action, {
         id: task.id,
         seed_id: payload.seedId || taskSeedId(task) || undefined,
@@ -5707,7 +5512,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         due_date: payload.dueDate || task.dueDate || null,
         priority: payload.priority || task.priority,
         status: payload.status || task.status,
-        related_asset_id: resolveAssetIdByName(assetName),
+        related_asset_id: assetId,
         related_asset_name: assetName,
         payload: { ...task, ...payload, seedId: payload.seedId || taskSeedId(task) || undefined, assetName, relatedAsset: assetName, source: payload.source || task.source || 'main_task_manager' },
       });
@@ -6060,27 +5865,37 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   };
 
   if (isMarketData) {
-    return <MarketDataDashboard activeTab={activeMarketTab} onNavigate={navigateMarketData} />;
+    return canOpenMarketData
+      ? <MarketDataDashboard activeTab={activeMarketTab} onNavigate={navigateMarketData} />
+      : <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14"><DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 Market Data 읽기 권한을 확인하지 못했습니다." /></div>;
   }
 
   if (isDataManagement) {
-    return <DataManagementDashboard activeTab={activeDataManagementTab} />;
+    return canOpenDataManagement
+      ? <DataManagementDashboard activeTab={activeDataManagementTab} />
+      : <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14"><DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 Data Management 읽기 권한을 확인하지 못했습니다." /></div>;
   }
 
   if (isContractData) {
     return (
       <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14">
-        <ContractDataManagementDashboard />
+        {canReadWorkspace ? <ContractDataManagementDashboard /> : <DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 계약 데이터 읽기 권한을 확인하지 못했습니다." />}
       </div>
     );
   }
 
   if (isPdfReport) {
-    return <PdfReportBuilder />;
+    return canReadWorkspace
+      ? <PdfReportBuilder />
+      : <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14"><DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 PDF 읽기 권한을 확인하지 못했습니다." /></div>;
   }
 
   if (isDashboard) {
     return <DashboardShell activeModule={MODULES.some((item) => item.id === activeModule) ? activeModule : 'home'} />;
+  }
+
+  if (!canReadWorkspace) {
+    return <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14"><DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 업무 플랫폼 읽기 권한을 확인하지 못했습니다." /></div>;
   }
 
   return (
@@ -9707,45 +9522,7 @@ function reviewStatusLabel(status) {
 }
 
 function buildLogisticsGeneralRows() {
-  const seen = new Set();
-  return Object.values(ASSET_PAYLOADS).flatMap((payload) => {
-    const normalized = normalizeAssetPayload(payload);
-    const overview = normalized.overview || {};
-    return (normalized.normalizedRows || []).map((row) => {
-      const asset = row.asset || {};
-      const manager = row.manager || {};
-      const rowKey = row.leaseSpaceId || row.leaseId || `${row.assetId || overview.assetId}-${row.tenantId || row.tenantMasterName}-${row.spaceLabel}`;
-      if (seen.has(rowKey)) return null;
-      seen.add(rowKey);
-      const currentMonthlyRentTotal = firstDefined(row.currentMonthlyRentTotal, row.monthlyRentTotal);
-      const currentMonthlyMfTotal = firstDefined(row.currentMonthlyMfTotal, row.monthlyMfTotal);
-      const monthlyCostTotal = firstDefined(row.currentMonthlyCostTotal, row.monthlyCombinedTotal, Number(currentMonthlyRentTotal || 0) + Number(currentMonthlyMfTotal || 0));
-      const leasedAreaSqm = firstDefined(row.leasedAreaSqm, row.currentLeasedAreaSqm);
-      const address = firstDefined(asset.standardizedAddress, overview.standardizedAddress, asset.lookupAddress);
-      return {
-        ...row,
-        assetId: firstDefined(row.assetId, overview.assetId),
-        assetName: firstDefined(row.assetName, asset.assetName, overview.assetName, '-'),
-        fundName: firstDefined(row.fundName, manager.fundName, overview.fundName, '미분류 펀드'),
-        tenantMasterName: firstDefined(row.tenantMasterName, row.company?.tenantMasterName, '-'),
-        sector: firstDefined(row.sector, overview.sector, '물류센터'),
-        address,
-        region: deriveLogisticsRegionFromAddress(address, '미분류'),
-        goodsType: cleanDisplay(row.goodsType, '미분류'),
-        coldStorageType: normalizeColdStorageLabel(row.coldStorageType),
-        calculatedReviewStatus: reviewStatusLabel(row.calculatedReviewStatus || row.reviewStatus),
-        grossFloorAreaSqm: firstDefined(row.grossFloorAreaSqm, asset.grossFloorAreaSqm, overview.grossFloorAreaSqm, overview.areaBreakdown?.grossFloorAreaSqm),
-        leasedAreaSqm,
-        currentMonthlyRentTotal,
-        currentMonthlyMfTotal,
-        monthlyCostTotal,
-        eNoc: firstDefined(row.eNoc, row.averageENoc),
-        currentRentPerPy: firstDefined(row.currentRentPerPy, row.rentPerPy, calculatePerPy(currentMonthlyRentTotal, leasedAreaSqm)),
-        currentMfPerPy: firstDefined(row.currentMfPerPy, row.mfPerPy, calculatePerPy(currentMonthlyMfTotal, leasedAreaSqm)),
-        currentEndDate: firstDefined(row.currentEndDate, row.latestExpiry),
-      };
-    }).filter(Boolean);
-  });
+  return [];
 }
 
 function buildTenantContractGroups(rows) {
@@ -10159,7 +9936,6 @@ function CompanyDashboard() {
   const [companyAssetSummarySortConfig, setCompanyAssetSummarySortConfig] = useState({ index: 1, direction: 'desc' });
   const [leasedAssetSortConfig, setLeasedAssetSortConfig] = useState({ index: 0, direction: 'asc' });
   const [leasedAssetDetailsOpen, setLeasedAssetDetailsOpen] = useState(false);
-  const staticCompanyPayloadState = useLazyCompanyPayload(selectedTenantId, Boolean(selectedTenantId));
   useEffect(() => {
     if (!readableCompanyOptions.length) return;
     if (readableCompanyOptions.some((item) => item.tenantId === selectedTenantId)) return;
@@ -10170,35 +9946,13 @@ function CompanyDashboard() {
     setDartApiStatus(null);
     setDartApiSummary(null);
   }, [readableCompanyOptions, selectedTenantId]);
-  const selectedCompanyOption = useMemo(() => (
-    readableCompanyOptions.find((company) => company.tenantId === selectedTenantId)
-      || companyOptionsData.find((company) => company.tenantId === selectedTenantId)
-      || {}
-  ), [readableCompanyOptions, selectedTenantId]);
-  const staticRawPayload = useMemo(() => (
-    staticCompanyPayloadState.payload
-      || COMPANY_PAYLOADS[selectedTenantId]
-      || { profile: selectedCompanyOption, leasedAssets: [] }
-  ), [selectedCompanyOption, selectedTenantId, staticCompanyPayloadState.payload]);
-  const staticCompany = useMemo(() => normalizeCompanyPayload(staticRawPayload || {}), [staticRawPayload]);
-  const staticCompanyAssets = staticCompany.normalizedLeasedAssets || [];
-  const staticCompanySummary = {
-    asset_count: new Set(staticCompanyAssets.map((row) => row.assetName)).size,
-    leased_area_sqm: sumRows(staticCompanyAssets, (row) => row.leasedAreaSqm),
-    current_monthly_rent_total: sumRows(staticCompanyAssets, (row) => row.monthlyRentTotal),
-    current_monthly_mf_total: sumRows(staticCompanyAssets, (row) => row.monthlyMfTotal),
-    current_monthly_cost_total: sumRows(staticCompanyAssets, (row) => row.monthlyCostTotal),
-  };
   const companyReadAdapter = useMemo(() => (
-    (response) => companyPayloadFromDashboardRead(response, staticRawPayload)
-  ), [staticRawPayload]);
-  const companyRead = useDashboardReadBridge('dashboard/company/read', { basis_date: DASHBOARD_BASIS_DATE, tenant_id: selectedTenantId }, staticCompanySummary, companyReadAdapter, Boolean(selectedTenantId));
-  const showStaticCompanyWhileReading = companyRead.loading && !companyRead.payload;
+    (response) => companyPayloadFromDashboardRead(response)
+  ), []);
+  const companyRead = useDashboardReadBridge('dashboard/company/read', { basis_date: DASHBOARD_BASIS_DATE, tenant_id: selectedTenantId }, {}, companyReadAdapter, Boolean(selectedTenantId));
   const rawPayload = useMemo(() => (
-    companyRead.payload || (showStaticCompanyWhileReading || !companyRead.primaryMode || companyRead.fallbackAllowed
-      ? staticRawPayload
-      : { profile: {}, leasedAssets: [], rows: [], mapPoints: [], operations: {} })
-  ), [companyRead.fallbackAllowed, companyRead.payload, companyRead.primaryMode, showStaticCompanyWhileReading, staticRawPayload]);
+    companyRead.payload || { profile: {}, leasedAssets: [], rows: [], mapPoints: [], operations: {} }
+  ), [companyRead.payload]);
   const company = useMemo(() => normalizeCompanyPayload(rawPayload || {}), [rawPayload]);
   const profile = company.profile || {};
   const financials = company.financials || {};
@@ -11175,9 +10929,9 @@ function ContractDataManagementDashboard() {
   const selectedLeaseRowDraftKey = CONTRACT_DATA_FIELDS.map((field) => (
     `${contractFieldKey(field)}:${excelCellText(contractFieldRawValue(selectedLeaseRow, field))}`
   )).join('|');
-  const canCreate = Boolean(permission.permissions?.managedAsset?.create || permission.role === 'Admin' || permission.role === 'Manager');
-  const canUpdate = Boolean(permission.permissions?.managedAsset?.update || permission.role === 'Admin' || permission.role === 'Manager');
-  const canArchive = Boolean(permission.permissions?.managedAsset?.delete || permission.role === 'Admin' || permission.role === 'Manager');
+  const canCreate = canUseAssetPermission(permission, activeAssetId, 'create');
+  const canUpdate = canUseAssetPermission(permission, activeAssetId, 'update');
+  const canArchive = canUseAssetPermission(permission, activeAssetId, 'delete');
   const canSubmit = dataUpdateMode === 'add' ? canCreate : dataUpdateMode === 'archive' ? canArchive : canUpdate;
   const isAddMode = dataUpdateMode === 'add';
   const isEditMode = dataUpdateMode === 'edit';
@@ -11750,39 +11504,6 @@ function buildDataQualityFindings() {
   assetOptionsData.forEach((asset) => {
     if (asset.monthlyCostTotal == null) findings.push({ severity: 'warning', sheetName: 'DB_히스토리 누적', targetType: 'asset', target: asset.assetName, field: 'monthlyCostTotal', reason: 'mapping_missing', action: '월 임관리비 매핑 확인' });
     if (asset.vacancyRate == null) findings.push({ severity: 'warning', sheetName: 'DB_자산', targetType: 'asset', target: asset.assetName, field: 'vacancyRate', reason: 'mapping_missing', action: '공실률 계산 근거 확인' });
-  });
-  Object.values(ASSET_PAYLOADS).forEach((payload) => {
-    const normalized = normalizeAssetPayload(payload);
-    const overview = normalized.overview || {};
-    const rows = normalized.normalizedRows || [];
-    const assetName = overview.assetName || payload.meta?.selection?.assetName || '-';
-    const hasLeasedRows = rows.some((row) => Number(row.leasedAreaSqm || 0) > 0);
-    const weightedENoc = calculateWeightedENoc(rows, overview.averageENoc);
-    const useRows = buildUseCategoryRows(payload);
-    const storageArea = Number(useRows.find((row) => row.label === '저온창고')?.value || 0)
-      + Number(useRows.find((row) => row.label === '상온창고')?.value || 0);
-    if (hasLeasedRows && !weightedENoc) {
-      findings.push({
-        severity: 'critical',
-        sheetName: 'DB_히스토리누적',
-        targetType: 'asset',
-        target: assetName,
-        field: 'averageENoc',
-        reason: rows.some((row) => row.currentMoneyStatus === 'history_unmatched') ? 'history_unmatched' : 'money_missing',
-        action: '임차 행은 있으나 최신 임대료/관리비 history가 연결되지 않아 E.NOC를 계산할 수 없습니다. DB_히스토리누적 연결키를 확인하세요.',
-      });
-    }
-    if (hasLeasedRows && storageArea <= 0) {
-      findings.push({
-        severity: 'warning',
-        sheetName: 'DB_일반',
-        targetType: 'asset',
-        target: assetName,
-        field: 'coldRatio',
-        reason: 'storage_area_missing',
-        action: '저온/상온 구분은 있으나 면적 기준이 없어 저온창고 비율 산식 적용이 필요합니다.',
-      });
-    }
   });
   companyOptionsData.forEach((company) => {
     if (!company.exposureAvailable) findings.push({ severity: 'info', sheetName: 'DB_일반', targetType: 'company', target: company.tenantMasterName, field: 'exposureAvailable', reason: 'relation_unmatched', action: '임차 자산 연결 확인' });
@@ -12881,7 +12602,7 @@ function buildQualityExcelRows(assetId, permission, findings, sourceRowsOverride
         표시값: qualityDisplayValue(field, value),
         수정값: '',
         변경사유: '',
-        권한상태: assetIdMatchesPermission(row.assetId, row.assetName, permission) && permission.permissions?.managedAsset?.update ? '수정 가능' : '수정 권한 없음',
+        권한상태: canUseAssetPermission(permission, row.assetId || resolveAssetIdByName(row.assetName), 'update', row.assetCode) ? '수정 가능' : '수정 권한 없음',
         target_table: field.table,
         target_row_id: targetRowId,
         primary_key_field: 'id',
@@ -12915,7 +12636,7 @@ function buildQualityExcelRows(assetId, permission, findings, sourceRowsOverride
     표시값: row.beforeValue,
     수정값: '',
     변경사유: finding.action || finding.reason || '',
-    권한상태: permission.permissions?.managedAsset?.update ? '수정 가능' : '수정 권한 없음',
+    권한상태: canUseAssetPermission(permission, resolveAssetIdByName(finding.target), 'update') ? '수정 가능' : '수정 권한 없음',
     target_table: row.targetTable,
     target_row_id: row.targetRowId,
     primary_key_field: 'id',
@@ -13028,7 +12749,7 @@ function normalizeQualityWorkbookRows(rows, permission) {
       assetName: String(row.자산명 || ''),
       tenantId: String(row.tenant_id || ''),
       leaseId: String(row.lease_id || ''),
-      canEdit: assetIdMatchesPermission(assetId, row.자산명, permission) && Boolean(permission.permissions?.managedAsset?.update),
+      canEdit: canUseAssetPermission(permission, assetId, 'update'),
       validationError,
       original: row,
     };
@@ -13056,10 +12777,10 @@ function OriginalDataEditPanel({ permission, sourceRows = null, assetOptions = n
   const qualityFindings = useMemo(() => buildDataQualityFindings(), []);
   const qualityAssetOptions = useMemo(() => (
     filterAssetsByPermission(Array.isArray(assetOptions) ? assetOptions : assetOptionsData, permission)
-      .filter((asset) => permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete || assetIdMatchesPermission(asset.assetId, asset.assetName, permission))
+      .filter((asset) => canUseAssetPermission(permission, asset.assetId, 'update', asset.assetCode))
       .sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR'))
   ), [assetOptions, permission]);
-  const canUseQualityExcel = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create || permission.permissions?.managedAsset?.delete);
+  const canUseQualityExcel = canUseAnyAssetPermission(permission, 'update');
 
   const downloadQualityWorkbook = async () => {
     const rows = buildQualityExcelRows(qualityAssetId, permission, qualityFindings, sourceRows);
@@ -13219,7 +12940,7 @@ async function fetchRemoteQualityFindings(signal) {
 function DataQualityDashboard() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
-  const canEdit = Boolean(permission.permissions?.managedAsset?.update || permission.permissions?.managedAsset?.create);
+  const canEdit = canUseAnyAssetPermission(permission, 'update') || canUseAnyAssetPermission(permission, 'create');
   const [severity, setSeverity] = useState('all');
   const [sheetFilter, setSheetFilter] = useState('all');
   const [fieldFilter, setFieldFilter] = useState('all');
@@ -13396,7 +13117,7 @@ function DataQualityDashboard() {
               <div className="mt-2 text-[24px] font-semibold">{formatNumber(count)}건</div>
             </button>
           ))}
-          <button type="button" onClick={() => setModal({ title: '수정 권한 기준', headers: ['항목', '내용'], rows: [['권한 원본', logisticsPermissionData.sourceFile], ['현재 사용자', permission.name], ['조직', permission.organization], ['담당 자산 수정', permissionText(permission.permissions?.managedAsset?.update)], ['서버 검증', '서버 권한 정책에서 현재 사용자 권한을 재확인합니다.']] })} className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4 text-left text-white hover:bg-[#2A2A29]">
+          <button type="button" onClick={() => setModal({ title: '수정 권한 기준', headers: ['항목', '내용'], rows: [['권한 원본', 'auth/me 서버 권한'], ['현재 사용자', permission.name], ['조직', permission.organization], ['담당 자산 수정', permissionText(canUseAnyAssetPermission(permission, 'update'))], ['서버 검증', '서버 권한 정책에서 현재 사용자 권한을 재확인합니다.']] })} className="rounded-[14px] border border-[#333333] bg-[#1F1F1E] px-4 py-4 text-left text-white hover:bg-[#2A2A29]">
             <div className="text-[12px] font-semibold text-[#86868B]">권한 기준</div>
             <div className="mt-2 text-[18px] font-semibold">담당자별 권한표</div>
           </button>
@@ -13852,12 +13573,11 @@ function AssetDashboard() {
   const storedAssetId = typeof window !== 'undefined' ? window.sessionStorage.getItem('logisticsSelectedAssetId') : '';
   const defaultAssetId = storedAssetId && readableAssetOptions.some((asset) => asset.assetId === storedAssetId)
     ? storedAssetId
-    : readableAssetOptions[0]?.assetId || assetOptionsData[0]?.assetId || Object.keys(ASSET_PAYLOADS)[0];
+    : readableAssetOptions[0]?.assetId || assetOptionsData[0]?.assetId;
   const [selectedAssetId, setSelectedAssetId] = useState(defaultAssetId);
   const [modal, setModal] = useState(null);
   const [buildingRegisterSummary, setBuildingRegisterSummary] = useState(null);
   const [rosterSortConfig, setRosterSortConfig] = useState({ index: 1, direction: 'desc' });
-  const staticAssetPayloadState = useLazyAssetPayload(selectedAssetId, Boolean(selectedAssetId));
   useEffect(() => {
     if (!readableAssetOptions.length) return;
     if (readableAssetOptions.some((asset) => asset.assetId === selectedAssetId)) return;
@@ -13867,31 +13587,13 @@ function AssetDashboard() {
     setSelectedAssetId(nextAssetId);
     setBuildingRegisterSummary(null);
   }, [readableAssetOptions, selectedAssetId]);
-  const selectedAssetOption = useMemo(() => (
-    readableAssetOptions.find((asset) => asset.assetId === selectedAssetId)
-      || assetOptionsData.find((asset) => asset.assetId === selectedAssetId)
-      || {}
-  ), [readableAssetOptions, selectedAssetId]);
-  const staticRawPayload = useMemo(() => (
-    staticAssetPayloadState.payload
-      || ASSET_PAYLOADS[selectedAssetId]
-      || { overview: selectedAssetOption, rows: [] }
-  ), [selectedAssetId, selectedAssetOption, staticAssetPayloadState.payload]);
-  const staticAsset = useMemo(() => normalizeAssetPayload(staticRawPayload || {}), [staticRawPayload]);
   const assetReadAdapter = useMemo(() => (
-    (response) => assetPayloadFromDashboardRead(response, staticRawPayload)
-  ), [staticRawPayload]);
-  const assetRead = useDashboardReadBridge('dashboard/asset/read', { basis_date: DASHBOARD_BASIS_DATE, asset_id: selectedAssetId }, {
-    gross_floor_area_sqm: staticAsset.overview?.grossFloorAreaSqm,
-    leased_area_sqm: staticAsset.overview?.leasedAreaSqm,
-    current_monthly_cost_total: staticAsset.overview?.monthlyCostTotal,
-  }, assetReadAdapter, Boolean(selectedAssetId));
-  const showStaticAssetWhileReading = assetRead.loading && !assetRead.payload;
+    (response) => assetPayloadFromDashboardRead(response)
+  ), []);
+  const assetRead = useDashboardReadBridge('dashboard/asset/read', { basis_date: DASHBOARD_BASIS_DATE, asset_id: selectedAssetId }, {}, assetReadAdapter, Boolean(selectedAssetId));
   const rawPayload = useMemo(() => (
-    assetRead.payload || (showStaticAssetWhileReading || !assetRead.primaryMode || assetRead.fallbackAllowed
-      ? staticRawPayload
-      : { overview: {}, rows: [], kpis: [] })
-  ), [assetRead.fallbackAllowed, assetRead.payload, assetRead.primaryMode, showStaticAssetWhileReading, staticRawPayload]);
+    assetRead.payload || { overview: {}, rows: [], kpis: [] }
+  ), [assetRead.payload]);
   const asset = useMemo(() => normalizeAssetPayload(rawPayload || {}), [rawPayload]);
   const overview = asset.overview || {};
   const breakdown = asset.areaBreakdown || {};
@@ -14447,7 +14149,7 @@ function PdfReportBuilder() {
   const { memberInfo } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const canUseAdvancedTools = canViewAdvancedLogisticsTools(memberInfo, permission);
-  const { rows: latestWeeklyAssetRows } = useLatestWeeklyAssetRows(permission, memberInfo);
+  const { rows: latestWeeklyAssetRows } = useLatestWeeklyAssetRows();
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo);
   const readableAssets = useMemo(() => filterAssetsByPermission(dashboardDataset.assetOptions, permission), [dashboardDataset.assetOptions, permission]);
   const sourceRows = useMemo(() => filterAssetsByPermission(dashboardDataset.generalRows, permission), [dashboardDataset.generalRows, permission]);
@@ -14489,20 +14191,11 @@ function PdfReportBuilder() {
   const unselectedComponentOptions = useMemo(() => componentOptions.filter((option) => !activeComponentIds.includes(option.id)), [activeComponentIds, componentOptions]);
   const orderedComponentOptions = useMemo(() => [...selectedComponentOptions, ...unselectedComponentOptions], [selectedComponentOptions, unselectedComponentOptions]);
   const selectedAsset = readableAssets.find((asset) => asset.assetId === selectedAssetId) || readableAssets[0] || {};
-  const staticAssetPayloadState = useLazyAssetPayload(selectedAsset.assetId, Boolean(selectedAsset.assetId));
-  const staticAssetPayload = staticAssetPayloadState.payload
-    || findAssetPayload(selectedAsset.assetId, selectedAsset.assetName)
-    || { overview: selectedAsset, rows: [] };
   const pdfAssetReadAdapter = useMemo(() => (
-    (response) => assetPayloadFromDashboardRead(response, findAssetPayload(selectedAsset.assetId, selectedAsset.assetName))
-  ), [selectedAsset.assetId, selectedAsset.assetName]);
-  const pdfAssetRead = useDashboardReadBridge('dashboard/asset/read', { basis_date: DASHBOARD_BASIS_DATE, asset_id: selectedAsset.assetId }, {
-    gross_floor_area_sqm: firstDefined(selectedAsset.grossFloorAreaSqm, staticAssetPayload?.overview?.grossFloorAreaSqm),
-    current_monthly_cost_total: firstDefined(selectedAsset.monthlyCostTotal, staticAssetPayload?.overview?.monthlyCostTotal),
-  }, pdfAssetReadAdapter, Boolean(selectedAsset.assetId));
-  const assetPayload = pdfAssetRead.payload || (pdfAssetRead.primaryMode && !pdfAssetRead.fallbackAllowed
-    ? { overview: selectedAsset, rows: [] }
-    : staticAssetPayload);
+    (response) => assetPayloadFromDashboardRead(response)
+  ), []);
+  const pdfAssetRead = useDashboardReadBridge('dashboard/asset/read', { basis_date: DASHBOARD_BASIS_DATE, asset_id: selectedAsset.assetId }, {}, pdfAssetReadAdapter, Boolean(selectedAsset.assetId));
+  const assetPayload = pdfAssetRead.payload || { overview: {}, rows: [] };
   const assetRows = (assetPayload?.rows || []).length
     ? assetPayload.rows
     : sourceRows.filter((row) => row.assetId === selectedAsset.assetId || resolveAssetIdByName(row.assetName) === selectedAsset.assetId);
@@ -15140,17 +14833,27 @@ function DashboardPageLoadingBadge({ loading, progress }) {
 }
 
 function DashboardShell({ activeModule }) {
-  const { memberInfo } = useAuth();
+  const { memberInfo, permissionsLoading } = useAuth();
   const permission = useMemo(() => resolveLogisticsPermission(memberInfo), [memberInfo]);
   const featureAccess = useLogisticsFeatureAccess(memberInfo, permission);
   const [modal, setModal] = useState(null);
-  const visibleModules = useMemo(() => (
-    MODULES.filter((item) => {
-      const featureKey = LOGISTICS_FEATURE_GATED_MODULES[item.id];
-      return !featureKey || featureAccess[item.id === 'tools' ? 'analysisTools' : item.id === 'playground' ? 'dataPlayground' : 'dataQuality'];
-    })
-  ), [featureAccess]);
-  const selected = visibleModules.find((item) => item.id === activeModule) || visibleModules[0];
+  const requestedModule = MODULES.find((item) => item.id === activeModule) || MODULES[0];
+  const requestedFeatureKey = LOGISTICS_FEATURE_GATED_MODULES[requestedModule.id];
+  // auth/me flags remain authoritative while a newer asset capability revision is still loading.
+  const retainVerifiedPermissionRead = permissionsLoading && hasVerifiedActiveMemberInfo(memberInfo);
+  const preserveAuthorizedModuleVisibility = retainVerifiedPermissionRead || permission.assetCapabilitiesLoading || !permission.hasAssetCapabilities;
+  const canUseModuleFeature = (module) => {
+    const featureKey = LOGISTICS_FEATURE_GATED_MODULES[module.id];
+    if (!featureKey) return true;
+    if (preserveAuthorizedModuleVisibility) return permission.featurePermissions?.[featureKey] === true;
+    return featureAccess[module.id === 'tools' ? 'analysisTools' : module.id === 'playground' ? 'dataPlayground' : 'dataQuality'];
+  };
+  const canOpenRequestedModule = (canUseAnyAssetPermission(permission, 'read') || retainVerifiedPermissionRead)
+    && (!requestedFeatureKey || canUseModuleFeature(requestedModule));
+  const visibleModules = preserveAuthorizedModuleVisibility
+    ? MODULES.filter(canUseModuleFeature)
+    : MODULES.filter((item) => canUseAnyAssetPermission(permission, 'read') && canUseModuleFeature(item));
+  const selected = requestedModule;
   const selectedTitle = {
     home: '대시보드 홈',
     asset: '자산',
@@ -15161,8 +14864,8 @@ function DashboardShell({ activeModule }) {
     playground: '피벗 테이블',
     quality: '데이터 품질',
   }[selected?.id] || selected?.label;
-  const shouldShowExternalApiRefresh = selected?.id !== 'investment-index' && featureAccess.buildingRegisterRefresh;
-  const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canViewAdvancedLogisticsTools(memberInfo, permission) && shouldShowExternalApiRefresh);
+  const shouldShowExternalApiRefresh = canOpenRequestedModule && selected?.id !== 'investment-index' && featureAccess.buildingRegisterRefresh;
+  const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canOpenRequestedModule && canViewAdvancedLogisticsTools(memberInfo, permission) && shouldShowExternalApiRefresh);
   const [moduleLoadingState, setModuleLoadingState] = useState(() => new Map());
   const reportModuleLoading = useCallback((moduleId, token, pending, progress = 50) => {
     if (!moduleId || !token) return;
@@ -15233,7 +14936,8 @@ function DashboardShell({ activeModule }) {
       />
 
       <div className="relative min-h-[540px]">
-        {visibleModules.filter((item) => mountedIds.has(item.id)).map((item) => (
+        {!canOpenRequestedModule ? <DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 선택 대시보드 읽기 권한을 확인하지 못했습니다." /> : null}
+        {canOpenRequestedModule && visibleModules.filter((item) => mountedIds.has(item.id)).map((item) => (
           <div
             key={item.id}
             className={`transition-opacity duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] ${selected.id === item.id ? 'relative z-10 block opacity-100' : 'pointer-events-none absolute inset-x-0 top-0 -z-10 opacity-0'}`}
@@ -15264,17 +14968,9 @@ function LegacyWorkspaceLogistics({ currentPath = '' }) {
   const dataCounts = useMemo(() => {
     const readableAssets = filterAssetsByPermission(assetOptionsData, permission);
     const readableAssetNames = new Set(readableAssets.map((asset) => cleanDisplay(asset.assetName, '')));
-    const tenantNames = new Set();
-    Object.values(COMPANY_PAYLOADS).forEach((payload) => {
-      const leasedAssets = payload?.leasedAssets || payload?.leases || [];
-      if (leasedAssets.some((row) => readableAssetNames.has(cleanDisplay(row.assetName, '')))) {
-        tenantNames.add(cleanDisplay(payload?.profile?.tenantMasterName || payload?.profile?.tenantName, ''));
-      }
-    });
     return {
       assets: readableAssets.length,
-      tenants: tenantNames.size || companyOptionsData.length,
-      leases: Object.values(ASSET_PAYLOADS).reduce((sum, payload) => sum + (payload?.leaseSpaces || payload?.contracts || []).length, 0),
+      tenants: companyOptionsData.length,
       issues: (weeklyReportData.assetRows || []).filter((row) => readableAssetNames.has(cleanDisplay(row.assetName, '')) && row.mainIssue).length,
     };
   }, [permission]);
