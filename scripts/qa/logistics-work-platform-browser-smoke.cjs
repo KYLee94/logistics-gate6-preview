@@ -110,13 +110,13 @@ async function main() {
 
     const bodyText = await page.locator('body').innerText();
     report.checks.brand_visible = bodyText.includes('IGIS Logistics Platform');
-    report.checks.platform_title_visible = bodyText.includes('물류센터 워크 플랫폼');
+    report.checks.platform_title_visible = bodyText.includes('업무 플랫폼');
     report.checks.header_commands = bodyText.includes('관리 Project 현황') && bodyText.includes('담당 및 권한') && !bodyText.includes('데일리 물류 뉴스');
     report.checks.ai_hidden = !bodyText.includes('AI 챗봇') && !bodyText.includes('AI에게 질문');
-    report.checks.task_board_visible = (await board.innerText()).includes('통합업무보드');
+    report.checks.task_board_visible = (await board.innerText()).includes('통합 업무 보드');
     const boardText = await board.innerText();
-    report.checks.task_board_columns = ['프로젝트', '업무분류', '업무 요약', '담당자', '이해관계자', '상태'].every((label) => boardText.includes(label));
-    report.checks.task_board_controls = ['간추려보기', '자세히보기', '10개 보기', '20개 보기', '새 업무 추가'].every((label) => boardText.includes(label));
+    report.checks.task_board_columns = ['프로젝트', '업무분류', '업무 요약', '담당자', '이해관계자', '진행상황', '등록일'].every((label) => boardText.includes(label));
+    report.checks.task_board_controls = boardText.includes('새 업무 추가') && !boardText.includes('간추려보기') && !boardText.includes('자세히보기') && !boardText.includes('20개씩 보기');
     report.checks.loading_cleared = !bodyText.includes('데이터 로딩 96%') && !boardText.includes('업무 목록을 불러오는 중입니다.');
 
     await page.getByTestId('logistics-news-expand').click();
@@ -125,14 +125,21 @@ async function main() {
     const newsItemCount = await newsList.locator('[data-news-item="true"]').count();
     report.news_item_count = newsItemCount;
     report.checks.news_dropdown = newsItemCount >= 1 && newsItemCount <= 10;
+    report.checks.news_dropdown_no_scroll = await newsList.evaluate((element) => {
+      const list = element.querySelector('ol');
+      return Boolean(list) && getComputedStyle(list).overflowY !== 'auto' && getComputedStyle(list).overflowY !== 'scroll';
+    });
     report.checks.news_date_control = await page.getByTestId('logistics-news-date-input').isVisible();
     await page.getByTestId('logistics-news-expand').click();
 
     await page.getByRole('button', { name: '관리 Project 현황' }).click();
-    await page.waitForFunction(() => document.querySelectorAll('[role="dialog"]').length >= 2, null, { timeout: 30000 });
-    const dialogText = await page.locator('[role="dialog"]').last().innerText();
-    report.checks.project_large_table_default = dialogText.includes('자산명') && dialogText.includes('펀드명') && dialogText.includes('Main Issue');
-    await page.keyboard.press('Escape').catch(() => null);
+    const projectDialog = page.getByRole('dialog').last();
+    await projectDialog.waitFor({ state: 'visible', timeout: 30000 });
+    const dialogText = await projectDialog.innerText();
+    report.checks.project_large_table_default = dialogText.includes('자산명') && dialogText.includes('펀드명') && dialogText.includes('Main Issue') && !dialogText.includes('큰 표 보기');
+    report.checks.project_edit_available = await projectDialog.getByRole('button', { name: '수정', exact: true }).isVisible().catch(() => false);
+    await projectDialog.getByRole('button', { name: '닫기', exact: true }).click();
+    await projectDialog.waitFor({ state: 'hidden', timeout: 10000 });
 
     await page.screenshot({ path: screenshotPath, fullPage: false });
     report.checks.no_edge_5xx = !report.api.some((row) => row.status >= 500);

@@ -3647,7 +3647,7 @@ function WeeklyAssetStatusFullTable({ rows, headers, columnWidths, numericStartI
   );
 }
 
-function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeTable = false }) {
+function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeTable = false, onClose = null }) {
   const { memberInfo } = useAuth();
   const [modal, setModal] = useState(null);
   const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
@@ -3657,7 +3657,6 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeT
   const [saveStatus, setSaveStatus] = useState(null);
   const originalAssetNamesRef = useRef([]);
   const loadedAssetRowsRef = useRef([]);
-  const openedDefaultLargeTableRef = useRef(false);
   const isSoldWorkspaceAsset = (asset) => {
     const name = cleanDisplay(asset?.assetName || asset?.asset_name || asset?.name || '');
     const status = cleanDisplay(asset?.assetStatus || asset?.asset_status || asset?.dispositionStatus || asset?.disposition_status || asset?.status || '');
@@ -3666,9 +3665,6 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeT
       || /매각|sold|disposed|archived/iu.test(status);
   };
   const assetRows = useMemo(() => assetRowsDraft.filter((row) => !isSoldWorkspaceAsset(row)), [assetRowsDraft]);
-  const canEditWeeklyAssets = canUseAnyAssetPermission(permission, 'update')
-    || canUseAnyAssetPermission(permission, 'create')
-    || canUseAnyAssetPermission(permission, 'delete');
   const displayFieldDefs = [
     ['assetName', '자산명', false],
     ['fundName', '펀드명', false],
@@ -3713,11 +3709,12 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeT
       cancelled = true;
     };
   }, [memberInfo?.email, permission.email]);
-  const canEditWeeklyAssetRow = (row) => (
-    (!cleanDisplay(row.assetName, '')
-      ? canUseAnyAssetPermission(permission, 'create')
-      : canUseAssetPermission(permission, resolveAssetIdByName(row.assetName), 'update'))
-  );
+  const canEditWeeklyAssetRow = (row) => {
+    const assetId = resolveAssetIdByName(row.assetName);
+    if (!assetId) return false;
+    return ['read', 'create', 'update', 'delete'].every((action) => canUseAssetPermission(permission, assetId, action));
+  };
+  const canEditWeeklyAssets = assetRows.some((row) => canEditWeeklyAssetRow(row));
   const updateDraftCell = (rowIndex, key, value) => {
     setAssetRowsDraft((rows) => rows.map((row, index) => (index === rowIndex ? { ...row, [key]: value } : row)));
   };
@@ -3749,16 +3746,37 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeT
   const saveDraftRows = async () => {
     setSaveStatus({ type: 'pending', message: '자산현황 수정 내용을 서버 권한 확인 후 저장 중입니다.' });
     try {
-      const rows = assetRowsDraft.filter((row) => cleanDisplay(row.assetName, ''));
+      const originalRows = loadedAssetRowsRef.current;
+      const originalById = new Map(originalRows.map((row) => [row.id, row]));
+      const currentIds = new Set(assetRowsDraft.map((row) => row.id));
+      const changedRows = assetRowsDraft.filter((row) => {
+        const original = originalById.get(row.id);
+        if (!original) return cleanDisplay(row.assetName, '') && canEditWeeklyAssetRow(row);
+        return activeFieldDefs.some((field) => cleanDisplay(row[field.key], '') !== cleanDisplay(original[field.key], ''));
+      });
+      const deletedRows = originalRows.filter((row) => !currentIds.has(row.id));
+      const unauthorizedRows = [...changedRows, ...deletedRows].filter((row) => !canEditWeeklyAssetRow(row));
+      if (unauthorizedRows.length) throw new Error('읽기·추가·수정·삭제 권한이 모두 있는 자산만 수정할 수 있습니다.');
+      const originalAssetNames = [...new Set([
+        ...changedRows.map((row) => originalById.get(row.id)?.assetName),
+        ...deletedRows.map((row) => row.assetName),
+      ].map((name) => cleanDisplay(name, '')).filter(Boolean))];
+      const rows = changedRows.filter((row) => cleanDisplay(row.assetName, ''));
+      if (!rows.length && !originalAssetNames.length) {
+        setIsEditing(false);
+        setSaveStatus({ type: 'success', message: '변경된 내용이 없습니다.' });
+        return;
+      }
       const { data, error } = await invokeDashboardApi('weekly-assets/replace-latest', {
-        original_asset_names: originalAssetNamesRef.current,
+        original_asset_names: originalAssetNames,
         rows,
       });
       if (error) throw error;
       if (data?.ok === false) throw new Error(data.message || '저장 실패');
-      originalAssetNamesRef.current = rows.map((row) => row.assetName).filter(Boolean);
-      loadedAssetRowsRef.current = rows;
-      setAssetRowsDraft(rows);
+      const nextRows = assetRowsDraft.filter((row) => cleanDisplay(row.assetName, ''));
+      originalAssetNamesRef.current = nextRows.map((row) => row.assetName).filter(Boolean);
+      loadedAssetRowsRef.current = nextRows;
+      setAssetRowsDraft(nextRows);
       setIsEditing(false);
       setSaveStatus({ type: 'success', message: `저장 완료: ${data?.data?.inserted ?? rows.length}건 반영` });
     } catch (error) {
@@ -3798,24 +3816,41 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeT
       ? 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'
       : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#C7C7CC]';
 
-  useEffect(() => {
-    if (!defaultLargeTable || openedDefaultLargeTableRef.current || !sortableRows.length) return;
-    openedDefaultLargeTableRef.current = true;
-    setModal({
-      title,
-      size: 'fullscreen',
-      contentType: 'large-table',
-    });
-  }, [defaultLargeTable, sortableRows.length, title]);
+  const editActions = (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      {canEditWeeklyAssets && !isEditing ? (
+        <button
+          type="button"
+          onClick={() => { setIsEditing(true); setSaveStatus(null); }}
+          className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS}`}
+        >
+          수정
+        </button>
+      ) : null}
+      {isEditing ? (
+        <>
+          {!defaultLargeTable ? <button type="button" onClick={addDraftRow} className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}>행 추가</button> : null}
+          <button type="button" onClick={saveDraftRows} className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS}`}>저장</button>
+          <button
+            type="button"
+            onClick={() => {
+              setAssetRowsDraft(loadedAssetRowsRef.current);
+              setIsEditing(false);
+              setSaveStatus(null);
+            }}
+            className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}
+          >
+            취소
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
 
-  const effectiveModal = modal?.contentType === 'large-table'
-    ? { ...modal, content: <WeeklyAssetStatusFullTable rows={sortableRows} headers={fullHeaders} columnWidths={columnWidths} /> }
-    : modal;
-
-  return (
-    <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5">
-      <LogisticsModal modal={effectiveModal} onClose={() => setModal(null)} />
-      <SectionHeader
+  const content = (
+    <section className={defaultLargeTable ? 'mb-0' : 'mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5'}>
+      <LogisticsModal modal={modal} onClose={() => setModal(null)} />
+      {!defaultLargeTable ? <SectionHeader
         eyebrow="ASSET STATUS"
         title={title}
         right={(
@@ -3833,41 +3868,16 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeT
                 큰 표 보기
               </button>
             ) : null}
-            {canEditWeeklyAssets && !isEditing ? (
-              <button
-                type="button"
-                onClick={() => { setIsEditing(true); setSaveStatus(null); }}
-                className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS}`}
-              >
-                수정
-              </button>
-            ) : null}
-            {isEditing ? (
-              <>
-                <button type="button" onClick={addDraftRow} className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}>행 추가</button>
-                <button type="button" onClick={saveDraftRows} className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${PRIMARY_BLUE_BUTTON_CLASS}`}>저장</button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAssetRowsDraft(loadedAssetRowsRef.current);
-                    setIsEditing(false);
-                    setSaveStatus(null);
-                  }}
-                  className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}
-                >
-                  취소
-                </button>
-              </>
-            ) : null}
+            {editActions}
           </div>
         )}
-      />
+      /> : null}
       {saveStatus ? (
         <div className={`mb-3 rounded-[10px] border px-3 py-2 text-[13px] font-semibold ${statusClass}`}>
           {saveStatus.message}
         </div>
       ) : null}
-      <div className="custom-scrollbar max-h-[540px] overflow-auto rounded-[10px] border border-[#333333]" data-sortable-table="true">
+      <div className={`custom-scrollbar overflow-auto rounded-[10px] border border-[#333333] ${defaultLargeTable ? 'h-[calc(100vh-158px)]' : 'max-h-[540px]'}`} data-sortable-table="true">
         <table className={`${isEditing ? 'min-w-[2340px]' : 'min-w-[2240px]'} table-fixed border-collapse text-left`}>
           <colgroup>
             {visibleColumnWidths.map((width, index) => <col key={`${visibleHeaders[index]}-${width}`} style={{ width }} />)}
@@ -3945,6 +3955,15 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeT
       </div>
     </section>
   );
+
+  if (defaultLargeTable) {
+    return (
+      <MainOverlay title={title} eyebrow="PROJECT STATUS" onClose={onClose} fullScreen actions={editActions}>
+        {content}
+      </MainOverlay>
+    );
+  }
+  return content;
 }
 
 function WeeklyDashboard() {
@@ -4637,7 +4656,7 @@ function PermissionBadge({ label, enabled }) {
   );
 }
 
-function MainOverlay({ title, eyebrow, onClose, children, fullScreen = false }) {
+function MainOverlay({ title, eyebrow, onClose, children, fullScreen = false, actions = null }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -4653,7 +4672,10 @@ function MainOverlay({ title, eyebrow, onClose, children, fullScreen = false }) 
             {eyebrow ? <div className="text-[12px] font-semibold text-[#86868B]">{eyebrow}</div> : null}
             <h3 className={`${eyebrow ? 'mt-1' : ''} text-[22px] font-semibold tracking-tight text-white`}>{title}</h3>
           </div>
-          <button type="button" onClick={onClose} className="h-9 rounded-[8px] bg-[#1F1F1E] px-3 text-[13px] font-semibold text-[#C7C7CC] hover:bg-[#30302F]">닫기</button>
+          <div className="flex items-center gap-2">
+            {actions}
+            <button type="button" onClick={onClose} className="h-9 rounded-[8px] bg-[#1F1F1E] px-3 text-[13px] font-semibold text-[#C7C7CC] hover:bg-[#30302F]">닫기</button>
+          </div>
         </div>
         <div className={`custom-scrollbar overflow-auto p-6 ${fullScreen ? 'h-[calc(100vh-114px)]' : 'max-h-[calc(86vh-86px)]'}`}>
           {children}
@@ -5931,25 +5953,20 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
 
   return (
     <div className="relative w-full overflow-x-clip">
-      <div className="w-full px-8 pt-[50px] pb-[70px]">
+      <div className="w-full px-8 pt-8 pb-14">
         <div className="w-full max-w-[1480px] mx-auto">
-      <header className="mb-[28px] grid grid-cols-1 gap-5 xl:grid-cols-[420px_minmax(0,1fr)] xl:items-start">
-        <div>
-          <h1 className="text-[36px] font-bold leading-none tracking-tight text-white font-['Inter']">물류센터 워크 플랫폼</h1>
-          <p className="mt-3 text-[15px] leading-6 text-[#86868B]">
-            물류센터 관련 업무 현황 및 이슈, 데이터 기반 대시보드
-          </p>
+      <header className="mb-3 grid grid-cols-1 items-center gap-3 xl:grid-cols-[max-content_minmax(320px,1fr)_max-content] xl:gap-5">
+        <h1 className="text-[28px] font-semibold tracking-tight text-white">업무 플랫폼</h1>
+        <div className="min-w-0 xl:px-1">
+          <LogisticsNewsTicker />
         </div>
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
             <button type="button" onClick={() => setMainModal('project')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
               관리 Project 현황
             </button>
             <button type="button" onClick={() => setMainModal('permission')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
               담당 및 권한
             </button>
-          </div>
-          <LogisticsNewsTicker />
         </div>
       </header>
 
@@ -6064,7 +6081,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         </div>
       </section>
 
-      <section className="mb-[28px] overflow-hidden rounded-[8px] border border-[#333333] bg-[#252524]">
+      <section className="mb-[28px]">
         <LogisticsTaskBoard eligibleAssets={taskBoardAssets} memberInfo={memberInfo} />
       </section>
 
@@ -6077,9 +6094,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         </MainOverlay>
       )}
       {mainModal === 'project' && (
-        <MainOverlay title="관리 Project 현황" eyebrow="PROJECT STATUS" onClose={() => setMainModal(null)} fullScreen>
-          <WeeklyAssetStatusTable defaultLargeTable />
-        </MainOverlay>
+        <WeeklyAssetStatusTable defaultLargeTable onClose={() => setMainModal(null)} />
       )}
       {selectedSearchResult && (
         <MainOverlay title={`통합 검색 · ${selectedSearchResult.label}`} eyebrow={selectedSearchResult.type === 'asset' ? 'ASSET DASHBOARD PREVIEW' : 'COMPANY DASHBOARD PREVIEW'} onClose={() => setSelectedSearchResult(null)}>

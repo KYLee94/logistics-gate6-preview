@@ -16427,14 +16427,14 @@ const WORK_PLATFORM_TASK_SELECT = [
 ].join(', ');
 
 const TASK_BOARD_CATEGORIES = new Set([
-  '투자·사업성·금융',
-  '인허가·법무·세무',
-  '설계·시공·원가',
+  '신규 투자 검토',
+  '자산 매각',
+  '파이낸싱',
+  '개발·인허가',
   '임대·마케팅',
-  '자산운영·시설·안전',
-  '재무·회계·보고',
-  '매각·리파이낸싱',
-  '공통관리·내부운영',
+  '법률·세무 이슈',
+  '기타 자산관리',
+  '기타 리스크 관리',
 ]);
 const TASK_BOARD_STATUSES = new Set(['예정', '진행중', '검토중', '보류', '완료']);
 const TASK_BOARD_SELECT = [
@@ -17695,9 +17695,13 @@ async function replaceWeeklyAssets(ctx: Context, payload: Record<string, unknown
     ...originalAssetNames,
     ...nextRows.map((row) => String(row.asset_name || '')),
   ].filter(Boolean))];
-  const permission = await evaluateCanonicalAssetPermission(ctx, 'update', requestedNames);
-  if (!permission.allowed) return fail(403, 'Weekly asset batch denied: every requested asset must resolve uniquely and allow update', ctx.origin);
-  const permittedNames = permission.assets.map((asset) => safeText(asset.asset_name)).filter(Boolean);
+  const permissions = await Promise.all(
+    (['read', 'create', 'update', 'delete'] as const).map((action) => evaluateCanonicalAssetPermission(ctx, action, requestedNames)),
+  );
+  if (permissions.some((permission) => !permission.allowed)) {
+    return fail(403, 'Weekly asset batch denied: every requested asset must allow read, create, update, and delete', ctx.origin);
+  }
+  const permittedNames = permissions[0].assets.map((asset) => safeText(asset.asset_name)).filter(Boolean);
   const rowsToInsert = nextRows
     .map((row) => ({ ...row, weekly_report_id: report.id }));
 

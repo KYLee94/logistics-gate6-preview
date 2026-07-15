@@ -161,7 +161,7 @@ test('LogisticsTaskBoard exposes the planned board shape and mutation contract',
   assert.ok(hasNamedArrayLength(source, [
     /\b(?:TASK(?:_BOARD)?|BOARD)_(?:COLUMNS?|COLUMN_OPTIONS)\b\s*=\s*(?:Object\.freeze\s*\()?/giu,
     /\b(?:task(?:Board)?|board)(?:Columns?|ColumnOptions)\b\s*=\s*(?:Object\.freeze\s*\()?/giu,
-  ], 6), 'the board must declare exactly six columns');
+  ], 7), 'the board must declare the six business columns plus registration date');
   assert.ok(hasNamedArrayLength(source, [
     /\b(?:TASK(?:_BOARD)?|BOARD)_(?:CATEGORIES|CATEGORY_OPTIONS)\b\s*=\s*(?:Object\.freeze\s*\()?/giu,
     /\b(?:task(?:Board)?|board)(?:Categories|CategoryOptions)\b\s*=\s*(?:Object\.freeze\s*\()?/giu,
@@ -170,11 +170,45 @@ test('LogisticsTaskBoard exposes the planned board shape and mutation contract',
     /\b(?:TASK(?:_BOARD)?|BOARD)_(?:STATUSES|STATUS_OPTIONS)\b\s*=\s*(?:Object\.freeze\s*\()?/giu,
     /\b(?:task(?:Board)?|board)(?:Statuses|StatusOptions)\b\s*=\s*(?:Object\.freeze\s*\()?/giu,
   ], 5), 'the board must declare exactly five task statuses');
-  assert.match(source, /(?:PAGE_SIZE_OPTIONS|pageSizeOptions|perPageOptions)\s*=\s*(?:Object\.freeze\s*\()?\[\s*10\s*,\s*20\s*\]/u);
+  assert.match(source, /const PAGE_SIZE = 10;/u);
+  assert.doesNotMatch(source, /PAGE_SIZE_OPTIONS|간추려보기|자세히보기|20개씩 보기/u);
+  for (const category of ['신규 투자 검토', '자산 매각', '파이낸싱', '개발·인허가', '임대·마케팅', '법률·세무 이슈', '기타 자산관리', '기타 리스크 관리']) {
+    assert.match(source, new RegExp(`['"]${category}['"]`, 'u'));
+  }
   assert.match(source, /data-testid=['"]logistics-task-board-drawer['"]/u);
   assert.match(source, /(?:MAX_(?:TASK_)?SHARES|MAX_SHARED(?:_USERS)?|share(?:d|r)?[A-Za-z_]*\.slice\(0,\s*5\)|share(?:d|r)?[A-Za-z_]*\.length\s*<=\s*5)/u);
   assert.match(source, /recipient_user_ids:\s*\[\]/u);
   assert.match(source, /client_request_id/u);
+});
+
+test('LogisticsTaskBoard keeps the reference table shell with the requested compact controls', () => {
+  const { source } = taskBoardComponent();
+
+  assert.match(source, /text-\[28px\][^>]*>통합 업무 보드</u);
+  assert.match(source, /w-\[280px\]/u);
+  assert.match(source, /rounded-(?:l-)?\[24px\]/u);
+  assert.match(source, /bg-\[#252524\]/u);
+  assert.match(source, /h-\[46px\]/u);
+  assert.match(source, />등록일</u);
+  assert.match(source, /formatCreatedDateWithAge\(task\.created_at\)/u);
+});
+
+test('management Project opens only the full table and requires all four asset permissions to edit', () => {
+  const workspace = fs.readFileSync(WORKSPACE_PATH, 'utf8');
+
+  assert.match(workspace, /<WeeklyAssetStatusTable\s+defaultLargeTable\s+onClose=/u);
+  assert.match(workspace, /\['read', 'create', 'update', 'delete'\]\.every/u);
+  assert.match(workspace, /<MainOverlay[^>]*actions=\{editActions\}/u);
+  assert.doesNotMatch(workspace, /<MainOverlay[^>]*관리 Project 현황[\s\S]{0,300}<WeeklyAssetStatusTable\s+defaultLargeTable/u);
+});
+
+test('weekly Project replacement requires read, create, update and delete on every asset', () => {
+  const edge = fs.readFileSync(EDGE_PATH, 'utf8');
+  const replaceStart = edge.indexOf('async function replaceWeeklyAssets');
+  const replaceSource = edge.slice(replaceStart, replaceStart + 6000);
+
+  assert.match(replaceSource, /\['read', 'create', 'update', 'delete'\]/u);
+  assert.match(replaceSource, /permissions\.some\(\(permission\) => !permission\.allowed\)/u);
 });
 
 test('task-board Edge routes enforce CRUD permission checks and return the four-permission contract', () => {

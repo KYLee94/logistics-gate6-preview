@@ -125,9 +125,9 @@ export default function LogisticsNewsTicker() {
           aria-expanded={expanded}
           title={expanded ? '뉴스 목록 접기' : '뉴스 목록 펼치기'}
           onClick={() => setExpanded((currentValue) => !currentValue)}
-          className="ml-3 grid h-10 w-10 shrink-0 place-items-center border-l border-[#333333] text-[15px] text-[#B8BBC1] hover:bg-white/[0.05] hover:text-white"
+          className="ml-3 grid h-10 w-10 shrink-0 place-items-center border-l border-[#333333] text-[10px] text-[#B8BBC1] hover:bg-white/[0.05] hover:text-white"
         >
-          {expanded ? '▲' : '▼'}
+          {expanded ? '▴' : '▾'}
         </button>
       </div>
       {expanded ? (
@@ -136,11 +136,11 @@ export default function LogisticsNewsTicker() {
             <span className="text-[12px] font-semibold text-[#C7C7CC]">물류 뉴스 1~10</span>
             <div className="flex items-center gap-1.5">
               <button type="button" aria-label="이전 날짜" title="이전 날짜" onClick={() => selectDate(shiftDate(date, -1))} className="grid h-7 w-7 place-items-center rounded-[6px] border border-[#3A3A3C] text-[16px] text-[#C7C7CC] hover:bg-white/[0.05]">‹</button>
-              <input data-testid="logistics-news-date-input" type="date" max={todayKey} value={date} onChange={(event) => selectDate(event.target.value)} className="h-7 rounded-[6px] border border-[#3A3A3C] bg-[#171717] px-2 text-[12px] text-white outline-none" />
+              <input data-testid="logistics-news-date-input" type="date" max={todayKey} value={date} onChange={(event) => selectDate(event.target.value)} className="h-7 rounded-[6px] border border-[#3A3A3C] bg-[#171717] px-2 text-[12px] text-white outline-none [color-scheme:dark]" />
               <button type="button" aria-label="다음 날짜" title="다음 날짜" disabled={date >= todayKey} onClick={() => selectDate(shiftDate(date, 1))} className="grid h-7 w-7 place-items-center rounded-[6px] border border-[#3A3A3C] text-[16px] text-[#C7C7CC] hover:bg-white/[0.05] disabled:opacity-35">›</button>
             </div>
           </div>
-          <ol className="custom-scrollbar max-h-[390px] overflow-y-auto py-1">
+          <ol className="py-1">
             {items.length ? items.map((item, itemIndex) => {
               const itemHref = item?.canonical_url || item?.original_url || '';
               return (

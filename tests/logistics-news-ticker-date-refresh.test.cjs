@@ -50,3 +50,13 @@ test('ticker rotates every five seconds and retains pause and reduced-motion gua
   assert.match(component, /data-testid="logistics-news-date-input"/u);
   assert.match(component, /data-news-item="true"/u);
 });
+
+test('expanded ticker renders all ten news rows without an internal vertical scroller', () => {
+  const component = extractFunction('LogisticsNewsTicker');
+
+  assert.match(component, /items\.slice\(0, 10\)/u);
+  assert.doesNotMatch(component, /max-h-\[[^\]]+\][^"']*overflow-y-auto/u);
+  assert.doesNotMatch(component, /overflow-y-(?:auto|scroll)/u);
+  assert.match(component, /\[color-scheme:dark\]/u);
+  assert.match(component, /text-\[10px\]/u);
+});

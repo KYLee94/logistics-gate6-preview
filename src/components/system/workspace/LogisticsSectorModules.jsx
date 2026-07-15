@@ -4528,6 +4528,17 @@ function investmentDisplayLabel(row, mode) {
   return `${text(row.display_name)} · ${summarizeNames(row.fund_names)}`;
 }
 
+function investmentFundShortLabel(row) {
+  const shortName = text(row?.short_name, '').trim();
+  if (shortName && shortName !== '-') return shortName;
+
+  const fundName = text(firstText(row?.fund_name, row?.display_name, ''), '').trim();
+  const numberedFund = fundName.match(/제\s*(\d+(?:\s*의\s*\d+)*)\s*호(?:\s*\(운용\))?/u);
+  if (numberedFund) return `${numberedFund[1].replace(/\s+/gu, '')}호${/\(운용\)/u.test(numberedFund[0]) ? '(운용)' : ''}`;
+
+  return text(row?.fund_code, fundName || '-');
+}
+
 function rateValue(row) {
   return firstText(row.interest_rate, row.loan_rate, row.all_in_rate, row.spread_rate, null);
 }
@@ -7153,8 +7164,16 @@ export function InvestmentIndexDashboard() {
       : loanRateBaseRows.filter((row) => text(row.tranche_display) === loanRateTranche)
   ), [loanRateBaseRows, loanRateTranche]);
   const tableColumns = [
-    { key: 'display_name', label: '펀드명', width: 19, noTruncate: true },
-    { key: 'asset_names', label: '연결 자산', width: 22, noTruncate: true, render: (row) => safeArray(row.asset_names).join(', ') || '-' },
+    {
+      key: 'display_name',
+      label: '펀드명',
+      width: 22,
+      render: (row) => {
+        const label = investmentFundShortLabel(row);
+        return <span className="block truncate whitespace-nowrap" title={label}>{label}</span>;
+      },
+    },
+    { key: 'asset_names', label: '연결 자산', width: 19, noTruncate: true, render: (row) => safeArray(row.asset_names).join(', ') || '-' },
     { key: 'equity_krw', label: 'Equity', width: 10, align: 'right', render: (row) => formatKrw(row.equity_krw), sortValue: (row) => number(row.equity_krw) },
     { key: 'loan_krw', label: 'Loan', width: 10, align: 'right', render: (row) => formatKrw(row.loan_krw), sortValue: (row) => number(row.loan_krw) },
     { key: 'total_capital_krw', label: '합계', width: 10, align: 'right', render: (row) => formatKrw(row.total_capital_krw), sortValue: (row) => number(row.total_capital_krw) },

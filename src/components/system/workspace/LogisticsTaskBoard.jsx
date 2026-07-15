@@ -1,20 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { invokeDashboardApi } from '../../../utils/supabaseSession';
 
-const PAGE_SIZE_OPTIONS = [10, 20];
+const PAGE_SIZE = 10;
 const MAX_TASK_SHARES = 5;
 
-const TASK_BOARD_COLUMNS = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행상황'];
+const TASK_BOARD_COLUMNS = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행상황', '등록일'];
 
 const TASK_BOARD_CATEGORIES = [
-  '투자·사업성·금융',
-  '인허가·법무·세무',
-  '설계·시공·원가',
+  '신규 투자 검토',
+  '자산 매각',
+  '파이낸싱',
+  '개발·인허가',
   '임대·마케팅',
-  '자산운영·시설·안전',
-  '재무·회계·보고',
-  '매각·리파이낸싱',
-  '공통관리·내부운영',
+  '법률·세무 이슈',
+  '기타 자산관리',
+  '기타 리스크 관리',
 ];
 
 const TASK_BOARD_STATUSES = ['예정', '진행중', '검토중', '보류', '완료'];
@@ -126,6 +126,17 @@ function formatDateTime(value) {
     minute: '2-digit',
     hour12: false,
   }).format(date);
+}
+
+function formatCreatedDateWithAge(value) {
+  if (!value) return '-';
+  const createdAt = new Date(value);
+  if (Number.isNaN(createdAt.getTime())) return value;
+  const elapsedDays = Math.max(0, Math.floor((Date.now() - createdAt.getTime()) / 86400000));
+  const dateLabel = new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(createdAt);
+  return `${dateLabel} · ${elapsedDays === 0 ? '오늘' : `${elapsedDays}일 경과`}`;
 }
 
 function requestId() {
@@ -242,12 +253,12 @@ function TaskForm({ assets, draft, setDraft, recipients, memberInfo, mode, savin
         {mode === 'create' ? (
           <div className="sm:col-span-2 border-t border-[#3c3e43] pt-4">
             <label className="flex cursor-pointer items-center gap-2 text-[13px] text-[#e3e4e7]">
-              <input type="checkbox" checked={draft.share} onChange={(event) => updateField('share', event.target.checked)} disabled={saving} className="h-4 w-4 accent-[#8b929b]" />
-              업무를 공유하고 수신자를 선택합니다
+              <input type="radio" name="task-notification-mode" checked={draft.share && !draft.suppress_notifications} onChange={() => setDraft((current) => ({ ...current, share: true, suppress_notifications: false }))} disabled={saving} className="h-4 w-4 accent-[#8b929b]" />
+              수신자를 선택해 알림 보내기
             </label>
             <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12px] text-[#c4c6cb]">
-              <input type="checkbox" checked={draft.suppress_notifications} onChange={(event) => updateField('suppress_notifications', event.target.checked)} disabled={saving} className="h-4 w-4 accent-[#8b929b]" />
-              알림 안 보내기
+              <input type="radio" name="task-notification-mode" checked={!draft.share || draft.suppress_notifications} onChange={() => setDraft((current) => ({ ...current, share: false, suppress_notifications: true, recipient_user_ids: [] }))} disabled={saving} className="h-4 w-4 accent-[#8b929b]" />
+              알림 없이 저장
             </label>
             {draft.share ? (
               <div className="mt-3 rounded border border-[#3f4247] bg-[#202124] p-3">
@@ -294,8 +305,6 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   const [search, setSearch] = useState('');
   const [filters, setFilters] = useState({ asset_id: '', category: '', assignee_user_id: '', status: '' });
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [viewMode, setViewMode] = useState('compact');
   const [drawer, setDrawer] = useState({ open: false, task: null, loading: false, error: '' });
   const [formMode, setFormMode] = useState('');
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -324,7 +333,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
     try {
       const response = await invokeDashboardApi('work-platform/task-board/list', {
         page: requestedPage,
-        page_size: pageSize,
+        page_size: PAGE_SIZE,
         search: search || undefined,
         project_id: filters.asset_id || undefined,
         task_category: filters.category || undefined,
@@ -336,7 +345,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
       const data = unwrapApiData(response);
       const nextItems = Array.isArray(data.items) ? data.items.map(normalizeTask) : [];
       const nextTotal = Number(data.total ?? nextItems.length) || 0;
-      const maxPage = Math.max(1, Math.ceil(nextTotal / pageSize));
+      const maxPage = Math.max(1, Math.ceil(nextTotal / PAGE_SIZE));
       if (requestedPage > maxPage && nextTotal > 0) {
         setPage(maxPage);
         return loadTasks({ requestedPage: maxPage, silent });
@@ -351,7 +360,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
     } finally {
       setLoading(false);
     }
-  }, [assets.length, filters, page, pageSize, search]);
+  }, [assets.length, filters, page, search]);
 
   useEffect(() => {
     void loadTasks();
@@ -371,7 +380,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
     });
     return [...unique.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
   }, [items, recipients]);
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageNumbers = useMemo(() => {
     const start = Math.max(1, Math.min(page - 2, totalPages - 4));
     const end = Math.min(totalPages, start + 4);
@@ -487,31 +496,25 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   };
 
   return (
-    <section data-testid="logistics-task-board" className="min-w-0 overflow-hidden border-y border-[#393b40] bg-[#202123] text-[#f0f0f1]">
-      <div className="flex flex-wrap items-center gap-x-7 gap-y-3 px-5 py-3.5 xl:flex-nowrap">
-        <h2 className="shrink-0 text-[25px] font-bold leading-none tracking-normal text-[#f4f4f5]">통합업무보드</h2>
-        <label className="relative min-w-[220px] flex-1 xl:max-w-[280px]">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] text-[#8b8e94]" aria-hidden="true">⌕</span>
-          <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업무 요약 또는 이해관계자 검색..." className="h-9 w-full rounded-[10px] border border-[#3d4045] bg-[#1b1c1e] py-2 pl-8 pr-3 text-[12px] text-[#f1f1f2] outline-none placeholder:text-[#767980] focus:border-[#747981]" />
+    <section data-testid="logistics-task-board" className="min-w-0 text-[#f0f0f1]">
+      <div className="mb-[12px] flex w-full flex-wrap items-center gap-3 xl:flex-nowrap xl:gap-[16px]">
+        <h2 className="shrink-0 text-[28px] font-semibold leading-none tracking-normal text-white">통합 업무 보드</h2>
+        <label className="relative min-w-[220px] flex-1 xl:ml-[10px] xl:w-[280px] xl:max-w-[280px] xl:flex-none">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] text-[#86868B]" aria-hidden="true">⌕</span>
+          <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업무 요약, 담당자, 이해관계자 검색..." className="h-[34px] w-full rounded-[10px] border border-[#3c3c3c] bg-[#1c1c1e]/60 py-1.5 pl-9 pr-3 text-[13px] text-white outline-none placeholder:text-[#86868B] focus:border-[#2997ff] focus:ring-1 focus:ring-[#2997ff]" />
         </label>
-        <div className="inline-flex shrink-0 rounded-[10px] border border-[#383b40] bg-[#1b1c1e] p-0.5" role="group" aria-label="업무보드 표시 방식">
-          <button type="button" onClick={() => setViewMode('compact')} className={`rounded-[8px] px-3 py-1.5 text-[12px] font-semibold transition ${viewMode === 'compact' ? 'bg-[#404247] text-white shadow-sm' : 'text-[#858990] hover:text-[#d7d9dd]'}`}>간추려보기</button>
-          <button type="button" onClick={() => setViewMode('detailed')} className={`rounded-[8px] px-3 py-1.5 text-[12px] font-semibold transition ${viewMode === 'detailed' ? 'bg-[#404247] text-white shadow-sm' : 'text-[#858990] hover:text-[#d7d9dd]'}`}>자세히보기</button>
-        </div>
-        <div className="inline-flex shrink-0 rounded-[10px] border border-[#383b40] bg-[#1b1c1e] p-0.5" role="group" aria-label="페이지당 업무 수">
-          {PAGE_SIZE_OPTIONS.map((size) => <button key={size} type="button" onClick={() => { setPage(1); setPageSize(size); }} className={`rounded-[8px] px-3 py-1.5 text-[12px] font-semibold transition ${pageSize === size ? 'bg-[#404247] text-white shadow-sm' : 'text-[#858990] hover:text-[#d7d9dd]'}`}>{size}개 보기</button>)}
-        </div>
-        <button data-testid="logistics-task-board-create" type="button" onClick={openCreate} disabled={!assets.length} className="shrink-0 rounded-[10px] border border-[#5b5c54] bg-[#2c2d2a] px-4 py-2 text-[12px] font-semibold text-[#e8e8e5] hover:bg-[#383936] disabled:cursor-not-allowed disabled:opacity-50">+ 새 업무 추가</button>
-        <span className="ml-auto shrink-0 rounded-full bg-[#1b1c1e] px-4 py-1.5 text-[14px] font-semibold text-[#a7a8ad]">{boardDate}</span>
+        <button data-testid="logistics-task-board-create" type="button" onClick={openCreate} disabled={!assets.length} className="shrink-0 rounded-[10px] border border-[#bdbba7]/30 bg-[#bdbba7]/10 px-4 py-1.5 text-[12px] font-bold text-[#bdbba7] hover:border-[#bdbba7] hover:bg-[#bdbba7]/20 disabled:cursor-not-allowed disabled:opacity-50">+ 새 업무 추가</button>
+        <span className="shrink-0 rounded-full bg-[#1F1F1E] px-3 py-1.5 text-[12px] font-semibold leading-none text-[#86868B] xl:ml-2">{boardDate}</span>
       </div>
 
-      {!assets.length ? (
-        <div className="px-5 py-12 text-center">
-          <p className="text-[14px] font-medium text-[#e2e3e5]">접근 가능한 프로젝트가 없습니다.</p>
-          <p className="mt-2 text-[12px] text-[#9699a0]">권한이 부여된 프로젝트가 있어야 업무를 조회하거나 등록할 수 있습니다.</p>
-        </div>
-      ) : (
-        <>
+      <div className="overflow-hidden rounded-[24px] border border-[#333333] bg-[#252524] shadow-sm">
+        {!assets.length ? (
+          <div className="px-5 py-16 text-center">
+            <p className="text-[14px] font-medium text-[#e2e3e5]">접근 가능한 프로젝트가 없습니다.</p>
+            <p className="mt-2 text-[12px] text-[#9699a0]">권한이 부여된 프로젝트가 있어야 업무를 조회하거나 등록할 수 있습니다.</p>
+          </div>
+        ) : (
+          <>
           {errorMessage ? (
             <div className="m-5 flex flex-wrap items-center justify-between gap-3 rounded border border-[#67413d] bg-[#352523] px-4 py-3" role="alert">
               <span className="text-[13px] text-[#e4b4ad]">{errorMessage}</span>
@@ -519,47 +522,50 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
             </div>
           ) : null}
 
-          <div className="overflow-x-auto border-y border-[#35373b]" data-testid="logistics-task-board-table">
-            <table className="min-w-[1050px] w-full border-collapse text-left">
-              <thead className="bg-[#262729] text-[11px] font-medium text-[#a9acb2]">
-                <tr className="border-b border-[#3a3c41]">
-                  <th className="w-[16%] border-r border-[#37393d] px-4 py-2"><select aria-label="프로젝트 필터" value={filters.asset_id} onChange={(event) => changeFilter('asset_id', event.target.value)} className="max-w-full appearance-none rounded-md border border-[#3d4045] bg-[#2a2b2e] px-2 py-1 text-[11px] font-semibold text-[#b7bac0] outline-none"><option value="">프로젝트 ▼</option>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></th>
-                  <th className="w-[14%] border-r border-[#37393d] px-4 py-2"><select aria-label="업무 분류 필터" value={filters.category} onChange={(event) => changeFilter('category', event.target.value)} className="max-w-full appearance-none rounded-md border border-[#3d4045] bg-[#2a2b2e] px-2 py-1 text-[11px] font-semibold text-[#b7bac0] outline-none"><option value="">업무분류 ▼</option>{TASK_BOARD_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></th>
-                  <th className="w-[27%] border-r border-[#37393d] px-4 py-2">업무 요약</th>
-                  <th className="w-[14%] border-r border-[#37393d] px-4 py-2"><select aria-label="담당자 필터" value={filters.assignee_user_id} onChange={(event) => changeFilter('assignee_user_id', event.target.value)} className="max-w-full appearance-none rounded-md border border-[#3d4045] bg-[#2a2b2e] px-2 py-1 text-[11px] font-semibold text-[#b7bac0] outline-none"><option value="">담당자 ▼</option>{assigneeOptions.map((assignee) => <option key={assignee.user_id} value={assignee.user_id}>{assignee.name}</option>)}</select></th>
-                  <th className="w-[18%] border-r border-[#37393d] px-4 py-2">이해관계자</th>
-                  <th className="w-[11%] px-4 py-2"><select aria-label="진행상황 필터" value={filters.status} onChange={(event) => changeFilter('status', event.target.value)} className="max-w-full appearance-none rounded-md border border-[#3d4045] bg-[#2a2b2e] px-2 py-1 text-[11px] font-semibold text-[#b7bac0] outline-none"><option value="">상태 ▼</option>{TASK_BOARD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></th>
+          <div className="overflow-x-auto" data-testid="logistics-task-board-table">
+            <table className="w-full min-w-[1120px] table-fixed border-collapse bg-[#252524] text-left">
+              <thead className="text-[13px] font-bold text-[#86868B]">
+                <tr className="h-[46px] border-b border-[#3c3c3c]">
+                  <th className="w-[16%] px-3 text-center"><select aria-label="프로젝트 필터" value={filters.asset_id} onChange={(event) => changeFilter('asset_id', event.target.value)} className="h-[24px] max-w-full appearance-none rounded-[6px] border border-[#3c3c3c] bg-[#2c2c2b] px-2 text-[11px] font-bold text-[#86868B] outline-none hover:bg-[#323231]"><option value="">프로젝트 ▼</option>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></th>
+                  <th className="w-[14%] px-3 text-center"><select aria-label="업무 분류 필터" value={filters.category} onChange={(event) => changeFilter('category', event.target.value)} className="h-[24px] max-w-full appearance-none rounded-[6px] border border-[#3c3c3c] bg-[#2c2c2b] px-2 text-[11px] font-bold text-[#86868B] outline-none hover:bg-[#323231]"><option value="">업무분류 ▼</option>{TASK_BOARD_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></th>
+                  <th className="w-[23%] px-4">업무 요약</th>
+                  <th className="w-[12%] px-3 text-center"><select aria-label="담당자 필터" value={filters.assignee_user_id} onChange={(event) => changeFilter('assignee_user_id', event.target.value)} className="h-[24px] max-w-full appearance-none rounded-[6px] border border-[#3c3c3c] bg-[#2c2c2b] px-2 text-[11px] font-bold text-[#86868B] outline-none hover:bg-[#323231]"><option value="">담당자 ▼</option>{assigneeOptions.map((assignee) => <option key={assignee.user_id} value={assignee.user_id}>{assignee.name}</option>)}</select></th>
+                  <th className="w-[14%] px-4">이해관계자</th>
+                  <th className="w-[9%] px-3 text-center"><select aria-label="진행상황 필터" value={filters.status} onChange={(event) => changeFilter('status', event.target.value)} className="h-[24px] max-w-full appearance-none rounded-[6px] border border-[#3c3c3c] bg-[#2c2c2b] px-2 text-[11px] font-bold text-[#86868B] outline-none hover:bg-[#323231]"><option value="">진행상황 ▼</option>{TASK_BOARD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></th>
+                  <th className="w-[12%] px-4 text-left">등록일</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-[#3c3c3c] text-[13px] text-white">
                 {loading ? (
-                  <tr><td colSpan="6" className="px-4 py-10 text-center text-[13px] text-[#a4a7ad]">업무 목록을 불러오는 중입니다.</td></tr>
+                  <tr><td colSpan="7" className="px-4 py-20 text-center text-[13px] text-[#86868B]">업무 목록을 불러오는 중입니다.</td></tr>
                 ) : items.length ? items.map((task) => (
-                  <tr key={task.id} onClick={() => void openDrawer(task)} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openDrawer(task); } }} className={`cursor-pointer border-b border-[#34363a] text-[12px] hover:bg-[#2a2b2e] focus-visible:bg-[#2a2b2e] focus-visible:outline-none ${viewMode === 'compact' ? '' : 'bg-[#222326]'}`}>
-                    <td className="max-w-0 truncate border-r border-[#34363a] px-4 py-2.5 font-medium text-[#d7d9dd]">{task.asset_name}</td>
-                    <td className="max-w-0 truncate border-r border-[#34363a] px-4 py-2.5 font-medium text-[#d1d3d7]">{task.category}</td>
-                    <td className={`max-w-0 border-r border-[#34363a] px-4 py-2.5 font-semibold text-[#ececef] ${viewMode === 'compact' ? 'truncate' : ''}`}><span className={viewMode === 'compact' ? 'truncate' : 'line-clamp-2'}>{task.summary}</span>{viewMode === 'detailed' && task.detail ? <span className="mt-1 block truncate text-[11px] font-normal text-[#94979e]">{task.detail}</span> : null}</td>
-                    <td className="max-w-0 border-r border-[#34363a] px-4 py-2.5"><AssigneeCell task={task} /></td>
-                    <td className="max-w-0 truncate border-r border-[#34363a] px-4 py-2.5 text-[#b9bcc2]">{task.stakeholders || '-'}</td>
-                    <td className="px-4 py-2.5"><StatusPill status={task.status} /></td>
+                  <tr key={task.id} onClick={() => void openDrawer(task)} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openDrawer(task); } }} className="h-[50px] cursor-pointer bg-[#252524] hover:bg-[#30302f] focus-visible:bg-[#30302f] focus-visible:outline-none">
+                    <td className="max-w-0 truncate px-4 font-bold text-[#d7d9dd]">{task.asset_name}</td>
+                    <td className="max-w-0 truncate px-4 font-bold text-[#d1d3d7]">{task.category}</td>
+                    <td className="max-w-0 px-4 font-bold text-white"><span className="block truncate">{task.summary}</span></td>
+                    <td className="max-w-0 px-4"><AssigneeCell task={task} /></td>
+                    <td className="max-w-0 truncate px-4 text-[#b9bcc2]">{task.stakeholders || '-'}</td>
+                    <td className="px-4 text-center"><StatusPill status={task.status} /></td>
+                    <td className="px-4 text-[11px] font-medium text-[#A1A1AA]">{formatCreatedDateWithAge(task.created_at)}</td>
                   </tr>
                 )) : (
-                  <tr><td colSpan="6" className="px-4 py-12 text-center text-[13px] text-[#a4a7ad]">조건에 맞는 업무가 없습니다.</td></tr>
+                  <tr><td colSpan="7" className="px-4 py-20 text-center text-[13px] text-[#86868B]">등록된 통합 업무 보드 정보가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>
           </div>
 
-          <div className="flex min-h-[58px] items-center justify-center border-t border-[#393b40] px-5 py-3">
-            <nav className="flex items-center gap-1.5" aria-label="업무 목록 페이지">
-              <button type="button" aria-label="이전 페이지" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)} className="grid h-7 w-7 place-items-center rounded-md border border-[#44464b] text-[16px] leading-none text-[#b6b9be] hover:bg-[#313236] disabled:opacity-30">‹</button>
-              {pageNumbers.map((pageNumber) => <button key={pageNumber} type="button" aria-current={pageNumber === page ? 'page' : undefined} disabled={loading} onClick={() => setPage(pageNumber)} className={`grid h-7 w-7 place-items-center rounded-md text-[12px] font-semibold ${pageNumber === page ? 'bg-[#d8d6c8] text-[#272724]' : 'text-[#999ca2] hover:bg-[#313236] hover:text-[#e3e4e7]'}`}>{pageNumber}</button>)}
-              <button type="button" aria-label="다음 페이지" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)} className="grid h-7 w-7 place-items-center rounded-md border border-[#44464b] text-[16px] leading-none text-[#b6b9be] hover:bg-[#313236] disabled:opacity-30">›</button>
+          <div className="flex h-[46px] items-center justify-center border-t border-[#3c3c3c]/50 px-5">
+            <nav className="flex items-center gap-1" aria-label="업무 목록 페이지">
+              <button type="button" aria-label="이전 페이지" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)} className="grid h-7 w-7 place-items-center rounded-[6px] border border-[#3c3c3c] text-[16px] leading-none text-[#86868B] hover:bg-white/5 hover:text-white disabled:opacity-30">‹</button>
+              {pageNumbers.map((pageNumber) => <button key={pageNumber} type="button" aria-current={pageNumber === page ? 'page' : undefined} disabled={loading} onClick={() => setPage(pageNumber)} className={`grid h-7 w-7 place-items-center rounded-[6px] text-[12px] font-bold ${pageNumber === page ? 'bg-[#bdbba7] text-black shadow-sm' : 'border border-transparent text-[#86868B] hover:border-[#3c3c3c] hover:bg-white/5 hover:text-white'}`}>{pageNumber}</button>)}
+              <button type="button" aria-label="다음 페이지" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)} className="grid h-7 w-7 place-items-center rounded-[6px] border border-[#3c3c3c] text-[16px] leading-none text-[#86868B] hover:bg-white/5 hover:text-white disabled:opacity-30">›</button>
             </nav>
             <span className="sr-only">총 {total.toLocaleString('ko-KR')}건</span>
           </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
 
       {drawer.open ? (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/45" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDrawer({ open: false, task: null, loading: false, error: '' }); }}>
@@ -582,6 +588,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
                   <dt className="text-[#94979e]">담당자</dt><dd className="min-w-0 break-words text-[#e7e8ea]">{drawer.task?.assignee_name || '-'}{drawer.task?.assignee_organization ? ` / ${drawer.task.assignee_organization}` : ''}</dd>
                   <dt className="text-[#94979e]">이해관계자</dt><dd className="min-w-0 break-words text-[#e7e8ea]">{drawer.task?.stakeholders || '-'}</dd>
                   <dt className="text-[#94979e]">진행상황</dt><dd><StatusPill status={drawer.task?.status || '예정'} /></dd>
+                  <dt className="text-[#94979e]">등록일</dt><dd className="text-[#c4c6cb]">{formatCreatedDateWithAge(drawer.task?.created_at)}</dd>
                   <dt className="text-[#94979e]">최근 수정</dt><dd className="text-[#c4c6cb]">{formatDateTime(drawer.task?.updated_at)}</dd>
                   <dt className="text-[#94979e]">업무 내용 상세</dt><dd className="whitespace-pre-wrap break-words rounded border border-[#3d4045] bg-[#242529] px-3 py-3 leading-6 text-[#e2e3e6]">{drawer.task?.detail || '등록된 상세 내용이 없습니다.'}</dd>
                 </dl>
