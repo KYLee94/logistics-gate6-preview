@@ -3,6 +3,8 @@ import { invokeDashboardApi } from '../../../utils/supabaseSession';
 
 const PAGE_SIZE = 10;
 const MAX_TASK_SHARES = 5;
+const PRIMARY_BLUE_BUTTON_CLASS = 'border-[#3b82f6]/30 bg-[#3b82f6]/20 text-[#60a5fa] hover:bg-[#3b82f6]/30';
+const FILTER_HEADER_CLASS = 'w-full cursor-pointer appearance-none border-0 bg-transparent py-2 pr-3 text-left text-[12px] font-semibold text-[#A1A1AA] outline-none transition-colors hover:text-white focus:text-white';
 
 const TASK_BOARD_COLUMNS = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행상황', '등록일'];
 
@@ -211,7 +213,7 @@ function TaskForm({ assets, draft, setDraft, recipients, memberInfo, mode, savin
 
   return (
     <form data-testid="logistics-task-board-form" onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
-      <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto px-5 py-4 sm:grid-cols-2">
+      <div className="custom-scrollbar grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto px-5 py-4 sm:grid-cols-2">
         <div>
           <FieldLabel required>프로젝트</FieldLabel>
           <select value={draft.asset_id} onChange={(event) => updateAsset(event.target.value)} required disabled={saving} className="w-full rounded border border-[#4a4d52] bg-[#26272a] px-3 py-2 text-[13px] text-[#f2f2f3] outline-none focus:border-[#90949b] disabled:opacity-60">
@@ -256,7 +258,7 @@ function TaskForm({ assets, draft, setDraft, recipients, memberInfo, mode, savin
               <input type="radio" name="task-notification-mode" checked={draft.share && !draft.suppress_notifications} onChange={() => setDraft((current) => ({ ...current, share: true, suppress_notifications: false }))} disabled={saving} className="h-4 w-4 accent-[#8b929b]" />
               수신자를 선택해 알림 보내기
             </label>
-            <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12px] text-[#c4c6cb]">
+            <label className="mt-3 flex cursor-pointer items-center gap-2 text-[13px] text-[#e3e4e7]">
               <input type="radio" name="task-notification-mode" checked={!draft.share || draft.suppress_notifications} onChange={() => setDraft((current) => ({ ...current, share: false, suppress_notifications: true, recipient_user_ids: [] }))} disabled={saving} className="h-4 w-4 accent-[#8b929b]" />
               알림 없이 저장
             </label>
@@ -267,7 +269,7 @@ function TaskForm({ assets, draft, setDraft, recipients, memberInfo, mode, savin
                   <span className="text-[11px] text-[#9699a0]">최대 5명, 0명 선택 가능</span>
                 </div>
                 <input value={recipientQuery} onChange={(event) => setRecipientQuery(event.target.value)} disabled={saving} placeholder="이름 또는 소속 검색" className="mb-2 w-full rounded border border-[#4a4d52] bg-[#292a2e] px-3 py-2 text-[13px] text-[#f2f2f3] outline-none placeholder:text-[#81848a] focus:border-[#90949b] disabled:opacity-60" />
-                <div className="max-h-36 overflow-y-auto border-t border-[#3f4247] pt-1">
+                <div className="custom-scrollbar max-h-36 overflow-y-auto border-t border-[#3f4247] pt-1">
                   {matchingRecipients.length ? matchingRecipients.map((recipient) => {
                     const checked = selectedRecipients.has(recipient.user_id);
                     const disabled = saving || (!checked && draft.recipient_user_ids.length >= 5);
@@ -386,10 +388,6 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
     const end = Math.min(totalPages, start + 4);
     return Array.from({ length: end - start + 1 }, (_, index) => start + index);
   }, [page, totalPages]);
-  const boardDate = useMemo(() => new Intl.DateTimeFormat('ko-KR', {
-    year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
-  }).format(new Date()), []);
-
   const changeFilter = (field, value) => {
     setPage(1);
     setFilters((current) => ({ ...current, [field]: value }));
@@ -498,13 +496,12 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   return (
     <section data-testid="logistics-task-board" className="min-w-0 text-[#f0f0f1]">
       <div className="mb-[12px] flex w-full flex-wrap items-center gap-3 xl:flex-nowrap xl:gap-[16px]">
-        <h2 className="shrink-0 text-[28px] font-semibold leading-none tracking-normal text-white">통합 업무 보드</h2>
+        <h2 className="shrink-0 text-[20px] font-semibold leading-none tracking-normal text-white">통합 업무 보드</h2>
         <label className="relative min-w-[220px] flex-1 xl:ml-[10px] xl:w-[280px] xl:max-w-[280px] xl:flex-none">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] text-[#86868B]" aria-hidden="true">⌕</span>
           <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업무 요약, 담당자, 이해관계자 검색..." className="h-[34px] w-full rounded-[10px] border border-[#3c3c3c] bg-[#1c1c1e]/60 py-1.5 pl-9 pr-3 text-[13px] text-white outline-none placeholder:text-[#86868B] focus:border-[#2997ff] focus:ring-1 focus:ring-[#2997ff]" />
         </label>
-        <button data-testid="logistics-task-board-create" type="button" onClick={openCreate} disabled={!assets.length} className="shrink-0 rounded-[10px] border border-[#bdbba7]/30 bg-[#bdbba7]/10 px-4 py-1.5 text-[12px] font-bold text-[#bdbba7] hover:border-[#bdbba7] hover:bg-[#bdbba7]/20 disabled:cursor-not-allowed disabled:opacity-50">+ 새 업무 추가</button>
-        <span className="shrink-0 rounded-full bg-[#1F1F1E] px-3 py-1.5 text-[12px] font-semibold leading-none text-[#86868B] xl:ml-2">{boardDate}</span>
+        <button data-testid="logistics-task-board-create" type="button" onClick={openCreate} disabled={!assets.length} className={`ml-auto shrink-0 rounded-[10px] border px-4 py-1.5 text-[12px] font-bold disabled:cursor-not-allowed disabled:opacity-50 ${PRIMARY_BLUE_BUTTON_CLASS}`}>+ 새 업무 추가</button>
       </div>
 
       <div className="overflow-hidden rounded-[24px] border border-[#333333] bg-[#252524] shadow-sm">
@@ -524,15 +521,15 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
 
           <div className="overflow-x-auto" data-testid="logistics-task-board-table">
             <table className="w-full min-w-[1120px] table-fixed border-collapse bg-[#252524] text-left">
-              <thead className="text-[13px] font-bold text-[#86868B]">
+              <thead className="text-[12px] font-semibold text-[#A1A1AA]">
                 <tr className="h-[46px] border-b border-[#3c3c3c]">
-                  <th className="w-[16%] px-3 text-center"><select aria-label="프로젝트 필터" value={filters.asset_id} onChange={(event) => changeFilter('asset_id', event.target.value)} className="h-[24px] max-w-full appearance-none rounded-[6px] border border-[#3c3c3c] bg-[#2c2c2b] px-2 text-[11px] font-bold text-[#86868B] outline-none hover:bg-[#323231]"><option value="">프로젝트 ▼</option>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></th>
-                  <th className="w-[14%] px-3 text-center"><select aria-label="업무 분류 필터" value={filters.category} onChange={(event) => changeFilter('category', event.target.value)} className="h-[24px] max-w-full appearance-none rounded-[6px] border border-[#3c3c3c] bg-[#2c2c2b] px-2 text-[11px] font-bold text-[#86868B] outline-none hover:bg-[#323231]"><option value="">업무분류 ▼</option>{TASK_BOARD_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></th>
-                  <th className="w-[23%] px-4">업무 요약</th>
-                  <th className="w-[12%] px-3 text-center"><select aria-label="담당자 필터" value={filters.assignee_user_id} onChange={(event) => changeFilter('assignee_user_id', event.target.value)} className="h-[24px] max-w-full appearance-none rounded-[6px] border border-[#3c3c3c] bg-[#2c2c2b] px-2 text-[11px] font-bold text-[#86868B] outline-none hover:bg-[#323231]"><option value="">담당자 ▼</option>{assigneeOptions.map((assignee) => <option key={assignee.user_id} value={assignee.user_id}>{assignee.name}</option>)}</select></th>
-                  <th className="w-[14%] px-4">이해관계자</th>
-                  <th className="w-[9%] px-3 text-center"><select aria-label="진행상황 필터" value={filters.status} onChange={(event) => changeFilter('status', event.target.value)} className="h-[24px] max-w-full appearance-none rounded-[6px] border border-[#3c3c3c] bg-[#2c2c2b] px-2 text-[11px] font-bold text-[#86868B] outline-none hover:bg-[#323231]"><option value="">진행상황 ▼</option>{TASK_BOARD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></th>
-                  <th className="w-[12%] px-4 text-left">등록일</th>
+                  <th className="w-[16%] px-4"><select aria-label="프로젝트 필터" value={filters.asset_id} onChange={(event) => changeFilter('asset_id', event.target.value)} className={FILTER_HEADER_CLASS}><option value="">프로젝트 ▾</option>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></th>
+                  <th className="w-[14%] px-4"><select aria-label="업무 분류 필터" value={filters.category} onChange={(event) => changeFilter('category', event.target.value)} className={FILTER_HEADER_CLASS}><option value="">업무 분류 ▾</option>{TASK_BOARD_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></th>
+                  <th className="w-[23%] px-4 font-semibold">업무 요약</th>
+                  <th className="w-[12%] px-4"><select aria-label="담당자 필터" value={filters.assignee_user_id} onChange={(event) => changeFilter('assignee_user_id', event.target.value)} className={FILTER_HEADER_CLASS}><option value="">담당자 ▾</option>{assigneeOptions.map((assignee) => <option key={assignee.user_id} value={assignee.user_id}>{assignee.name}</option>)}</select></th>
+                  <th className="w-[14%] px-4 font-semibold">이해관계자</th>
+                  <th className="w-[9%] px-4"><select aria-label="진행상황 필터" value={filters.status} onChange={(event) => changeFilter('status', event.target.value)} className={FILTER_HEADER_CLASS}><option value="">진행상황 ▾</option>{TASK_BOARD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></th>
+                  <th className="w-[12%] px-4 text-left font-semibold">등록일</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#3c3c3c] text-[13px] text-white">

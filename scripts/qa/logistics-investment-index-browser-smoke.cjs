@@ -98,6 +98,7 @@ async function main() {
   const outJson = path.join(OUT_DIR, `investment-index-browser-smoke-${stamp}.json`);
   const latestJson = path.join(OUT_DIR, 'investment-index-browser-smoke-latest.json');
   const screenshot = path.join(OUT_DIR, `investment-index-browser-smoke-${stamp}.png`);
+  const structureScreenshot = path.join(OUT_DIR, `investment-index-structure-table-${stamp}.png`);
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
   const auth = await signInSession();
   const uiEmail = auth.session.user?.email || envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com';
@@ -109,6 +110,7 @@ async function main() {
     checks: {},
     errors: [],
     screenshot: path.relative(ROOT, screenshot).replace(/\\/gu, '/'),
+    structure_screenshot: path.relative(ROOT, structureScreenshot).replace(/\\/gu, '/'),
   };
 
   let browser;
@@ -143,6 +145,44 @@ async function main() {
       await structureToggle.first().click();
     }
     report.checks.structure_table_opens = (await page.locator('[data-sortable-table="true"]').count().catch(() => 0)) > sortableCountBeforeStructureOpen;
+    const structureTable = page.locator('[data-sortable-table="true"]').filter({ has: page.locator('th', { hasText: '연결 자산' }) }).first();
+    const structureMetrics = await structureTable.evaluate((container) => {
+      const rows = [...container.querySelectorAll('tbody tr')].filter((row) => row.querySelectorAll('td').length >= 2);
+      const labels = rows.map((row) => row.querySelector('td:first-child')?.textContent?.trim() || '');
+      const boundariesDoNotOverlap = rows.every((row) => {
+        const cells = row.querySelectorAll('td');
+        return cells[0].getBoundingClientRect().right <= cells[1].getBoundingClientRect().left + 1;
+      });
+      const fundCellsAreSingleLine = rows.every((row) => {
+        const cell = row.querySelector('td:first-child');
+        const label = cell?.querySelector('span');
+        const style = label ? getComputedStyle(label) : null;
+        const lineHeight = style ? (Number.parseFloat(style.lineHeight) || Number.parseFloat(style.fontSize) * 1.5) : 0;
+        return Boolean(cell && label)
+          && style.whiteSpace === 'nowrap'
+          && label.getBoundingClientRect().height <= lineHeight + 1;
+      });
+      const firstCells = rows[0]?.querySelectorAll('td');
+      return {
+        row_count: rows.length,
+        labels,
+        boundaries_do_not_overlap: boundariesDoNotOverlap,
+        fund_cells_single_line: fundCellsAreSingleLine,
+        fund_column_wider_than_asset: Boolean(firstCells?.length >= 2) && firstCells[0].getBoundingClientRect().width > firstCells[1].getBoundingClientRect().width,
+        no_horizontal_scroll: container.scrollWidth <= container.clientWidth + 1,
+      };
+    }).catch(() => null);
+    report.structure_metrics = structureMetrics;
+    report.checks.structure_fund_short_names = Boolean(structureMetrics?.row_count)
+      && structureMetrics.labels.every((label) => label && label.length <= 24 && !/부동산(?:전문)?투자|사모부동산|투자회사/u.test(label));
+    report.checks.structure_fund_single_line = structureMetrics?.fund_cells_single_line === true;
+    report.checks.structure_columns_do_not_overlap = structureMetrics?.boundaries_do_not_overlap === true;
+    report.checks.structure_fund_column_wider = structureMetrics?.fund_column_wider_than_asset === true;
+    report.checks.structure_table_no_horizontal_scroll = structureMetrics?.no_horizontal_scroll === true;
+    if (report.checks.structure_table_opens) {
+      await structureTable.scrollIntoViewIfNeeded();
+      await page.screenshot({ path: structureScreenshot, fullPage: false });
+    }
     report.checks.loan_maturity_section = (await page.getByText('대출 만기 일정').count().catch(() => 0)) > 0;
     report.checks.loan_rate_section = (await page.getByText('대출 금리 비교').count().catch(() => 0)) > 0;
     report.checks.sortable_tables = (await page.locator('[data-sortable-table="true"]').count().catch(() => 0)) >= 3;

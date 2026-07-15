@@ -5961,7 +5961,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           <LogisticsNewsTicker />
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-            <button type="button" onClick={() => setMainModal('project')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
+            <button type="button" onClick={() => setMainModal('project')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${PRIMARY_BLUE_BUTTON_CLASS}`}>
               관리 Project 현황
             </button>
             <button type="button" onClick={() => setMainModal('permission')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>

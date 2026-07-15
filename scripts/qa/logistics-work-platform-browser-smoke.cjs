@@ -115,7 +115,7 @@ async function main() {
     report.checks.ai_hidden = !bodyText.includes('AI 챗봇') && !bodyText.includes('AI에게 질문');
     report.checks.task_board_visible = (await board.innerText()).includes('통합 업무 보드');
     const boardText = await board.innerText();
-    report.checks.task_board_columns = ['프로젝트', '업무분류', '업무 요약', '담당자', '이해관계자', '진행상황', '등록일'].every((label) => boardText.includes(label));
+    report.checks.task_board_columns = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행상황', '등록일'].every((label) => boardText.includes(label));
     report.checks.task_board_controls = boardText.includes('새 업무 추가') && !boardText.includes('간추려보기') && !boardText.includes('자세히보기') && !boardText.includes('20개씩 보기');
     report.checks.loading_cleared = !bodyText.includes('데이터 로딩 96%') && !boardText.includes('업무 목록을 불러오는 중입니다.');
 
@@ -137,7 +137,9 @@ async function main() {
     await projectDialog.waitFor({ state: 'visible', timeout: 30000 });
     const dialogText = await projectDialog.innerText();
     report.checks.project_large_table_default = dialogText.includes('자산명') && dialogText.includes('펀드명') && dialogText.includes('Main Issue') && !dialogText.includes('큰 표 보기');
-    report.checks.project_edit_available = await projectDialog.getByRole('button', { name: '수정', exact: true }).isVisible().catch(() => false);
+    const projectEditButtonCount = await projectDialog.getByRole('button', { name: '수정', exact: true }).count();
+    report.project_edit_available = projectEditButtonCount === 1;
+    report.checks.project_edit_control_single = projectEditButtonCount <= 1;
     await projectDialog.getByRole('button', { name: '닫기', exact: true }).click();
     await projectDialog.waitFor({ state: 'hidden', timeout: 10000 });
 

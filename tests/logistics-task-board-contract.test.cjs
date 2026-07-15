@@ -184,13 +184,19 @@ test('LogisticsTaskBoard exposes the planned board shape and mutation contract',
 test('LogisticsTaskBoard keeps the reference table shell with the requested compact controls', () => {
   const { source } = taskBoardComponent();
 
-  assert.match(source, /text-\[28px\][^>]*>통합 업무 보드</u);
+  assert.match(source, /text-\[20px\][^>]*>통합 업무 보드</u);
   assert.match(source, /w-\[280px\]/u);
   assert.match(source, /rounded-(?:l-)?\[24px\]/u);
   assert.match(source, /bg-\[#252524\]/u);
   assert.match(source, /h-\[46px\]/u);
   assert.match(source, />등록일</u);
   assert.match(source, /formatCreatedDateWithAge\(task\.created_at\)/u);
+  assert.doesNotMatch(source, /boardDate/u);
+  assert.match(source, /PRIMARY_BLUE_BUTTON_CLASS/u);
+  assert.match(source, /ml-auto[^"`]*shrink-0/u);
+  assert.match(source, /custom-scrollbar grid min-h-0 flex-1/u);
+  assert.match(source, /FILTER_HEADER_CLASS/u);
+  assert.match(source, /border-0 bg-transparent/u);
 });
 
 test('management Project opens only the full table and requires all four asset permissions to edit', () => {
