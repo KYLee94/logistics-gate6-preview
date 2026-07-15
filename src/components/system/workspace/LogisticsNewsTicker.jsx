@@ -125,7 +125,7 @@ export default function LogisticsNewsTicker() {
           aria-expanded={expanded}
           title={expanded ? '뉴스 목록 접기' : '뉴스 목록 펼치기'}
           onClick={() => setExpanded((currentValue) => !currentValue)}
-          className="ml-3 grid h-10 w-10 shrink-0 place-items-center border-l border-[#333333] text-[11px] text-[#B8BBC1] hover:bg-white/[0.05] hover:text-white"
+          className="ml-3 grid h-10 w-10 shrink-0 place-items-center border-l border-[#333333] text-[14px] text-[#B8BBC1] hover:bg-white/[0.05] hover:text-white"
         >
           {expanded ? '▴' : '▾'}
         </button>
