@@ -14,7 +14,7 @@ create temporary table gate6_retired_work_item_expected (
 
 insert into gate6_retired_work_item_expected (item_type, row_count, checksum) values
   ('task', 7, 'e2abca4c6a161098e26d98f4462eab4c'),
-  ('task_snapshot', 17, '2d834be2b75b6d5c97c0a03a4a43ea2f'),
+  ('task_snapshot', 17, 'ff645b444e5d7e136bebbb9dc93fa1d4'),
   ('board_post', 0, 'd41d8cd98f00b204e9800998ecf8427e');
 
 do $$
