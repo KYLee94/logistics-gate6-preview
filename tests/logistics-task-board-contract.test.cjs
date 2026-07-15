@@ -259,4 +259,10 @@ test('service-worker and Windows notification opt-in implementation files are pr
   assert.doesNotMatch(pushEdge, /Deno\.env\.get\(['"]LL_WEB_PUSH_(?:PUBLIC_KEY|PRIVATE_KEY|WEBHOOK_SECRET|SUBJECT)['"]\)/u);
   assert.match(migration, /grant execute on function public\.ll_web_push_runtime_config\(\) to service_role/u);
   assert.match(migration, /revoke all on function public\.ll_web_push_runtime_config\(\) from public, anon, authenticated/u);
+
+  const secureWebhookMigration = walkFiles(MIGRATIONS_PATH)
+    .map((filePath) => fs.readFileSync(filePath, 'utf8'))
+    .find((source) => /ll_web_push_gateway_jwt/u.test(source));
+  assert.ok(secureWebhookMigration, 'the database webhook must retain Supabase gateway JWT verification');
+  assert.match(secureWebhookMigration, /['"]Authorization['"][\s\S]{0,120}['"]Bearer ['"]/u);
 });
