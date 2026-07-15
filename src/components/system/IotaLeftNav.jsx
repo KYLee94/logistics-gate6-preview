@@ -1554,10 +1554,11 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                     <div className="flex items-center justify-between gap-3 border-b border-[#303033] px-4 py-2.5">
                                         <div className="min-w-0">
                                             <div className="text-[12px] font-semibold text-[#E5E5E5]">Windows 알림</div>
-                                            {pushMessage ? <div className="mt-0.5 truncate text-[10px] text-[#8E8E93]">{pushMessage}</div> : null}
+                                            {pushMessage ? <div data-testid="logistics-windows-push-message" className="mt-0.5 truncate text-[10px] text-[#8E8E93]">{pushMessage}</div> : null}
                                         </div>
                                         <button
                                             type="button"
+                                            data-testid="logistics-windows-push-toggle"
                                             onClick={toggleWindowsNotifications}
                                             disabled={pushBusy}
                                             className={`shrink-0 rounded-[8px] border px-2.5 py-1.5 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-50 ${pushEnabled ? 'border-[#355C48] bg-[#1E342A] text-[#A8D6B5]' : 'border-[#3A3A3C] text-[#E5E5E5] hover:bg-white/5'}`}

@@ -300,6 +300,11 @@ test('service-worker and Windows notification opt-in implementation files are pr
   assert.match(optInSource, /(?:Notification\.permission|permission)\s*!==\s*['"]granted['"]/u);
   assert.match(optInSource, /notifications\/push\/subscribe/u);
 
+  const pushControls = sourceMatches((source) => /toggleWindowsNotifications/u.test(source));
+  const pushControlSource = pushControls.map(({ source }) => source).join('\n');
+  assert.match(pushControlSource, /data-testid="logistics-windows-push-toggle"/u);
+  assert.match(pushControlSource, /data-testid="logistics-windows-push-message"/u);
+
   const pushEdge = fs.readFileSync(path.join(ROOT, 'supabase', 'functions', 'll-push-notifications', 'index.ts'), 'utf8');
   const { source: migration } = taskBoardMigration();
   assert.match(pushEdge, /\.rpc\(['"]ll_web_push_runtime_config['"]\)/u);
