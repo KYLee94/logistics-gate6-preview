@@ -18,7 +18,6 @@ import { normalizeStackingFloorLabel, normalizeStackingFloorLabelFromRow } from 
 import {
   AssetSpecDashboard,
   DashboardModuleLifecycleContext,
-  DailyLogisticsNewsCard,
   DataManagementDashboard,
   HomeOperatingCostSummary,
   InvestmentIndexDashboard,
@@ -3648,7 +3647,7 @@ function WeeklyAssetStatusFullTable({ rows, headers, columnWidths, numericStartI
   );
 }
 
-function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
+function WeeklyAssetStatusTable({ title = '관리 Project 현황', defaultLargeTable = false }) {
   const { memberInfo } = useAuth();
   const [modal, setModal] = useState(null);
   const [sortConfig, setSortConfig] = useState({ index: 0, direction: 'asc' });
@@ -3658,6 +3657,7 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
   const [saveStatus, setSaveStatus] = useState(null);
   const originalAssetNamesRef = useRef([]);
   const loadedAssetRowsRef = useRef([]);
+  const openedDefaultLargeTableRef = useRef(false);
   const isSoldWorkspaceAsset = (asset) => {
     const name = cleanDisplay(asset?.assetName || asset?.asset_name || asset?.name || '');
     const status = cleanDisplay(asset?.assetStatus || asset?.asset_status || asset?.dispositionStatus || asset?.disposition_status || asset?.status || '');
@@ -3798,9 +3798,23 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
       ? 'border-[#7A6425] bg-[#2B2613] text-[#FFD166]'
       : 'border-[#3A3A3C] bg-[#1F1F1E] text-[#C7C7CC]';
 
+  useEffect(() => {
+    if (!defaultLargeTable || openedDefaultLargeTableRef.current || !sortableRows.length) return;
+    openedDefaultLargeTableRef.current = true;
+    setModal({
+      title,
+      size: 'fullscreen',
+      contentType: 'large-table',
+    });
+  }, [defaultLargeTable, sortableRows.length, title]);
+
+  const effectiveModal = modal?.contentType === 'large-table'
+    ? { ...modal, content: <WeeklyAssetStatusFullTable rows={sortableRows} headers={fullHeaders} columnWidths={columnWidths} /> }
+    : modal;
+
   return (
     <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5">
-      <LogisticsModal modal={modal} onClose={() => setModal(null)} />
+      <LogisticsModal modal={effectiveModal} onClose={() => setModal(null)} />
       <SectionHeader
         eyebrow="ASSET STATUS"
         title={title}
@@ -3812,7 +3826,7 @@ function WeeklyAssetStatusTable({ title = '관리 Project 현황' }) {
                 onClick={() => setModal({
                   title,
                   size: 'fullscreen',
-                  content: <WeeklyAssetStatusFullTable rows={sortableRows} headers={fullHeaders} columnWidths={columnWidths} />,
+                  contentType: 'large-table',
                 })}
                 className={`h-9 rounded-[8px] border px-3 text-[13px] font-semibold ${DARK_BUTTON_CLASS}`}
               >
@@ -5919,27 +5933,25 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     <div className="relative w-full overflow-x-clip">
       <div className="w-full px-8 pt-[50px] pb-[70px]">
         <div className="w-full max-w-[1480px] mx-auto">
-      <header className="mb-[28px] flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+      <header className="mb-[28px] grid grid-cols-1 gap-5 xl:grid-cols-[420px_minmax(0,1fr)] xl:items-start">
         <div>
           <h1 className="text-[36px] font-bold leading-none tracking-tight text-white font-['Inter']">물류센터 워크 플랫폼</h1>
           <p className="mt-3 text-[15px] leading-6 text-[#86868B]">
             물류센터 관련 업무 현황 및 이슈, 데이터 기반 대시보드
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-2">
-          <button type="button" onClick={() => setMainModal('news')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
-            데일리 물류 뉴스
-          </button>
-          <button type="button" onClick={() => setMainModal('project')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
-            관리 Project 현황
-          </button>
-          <button type="button" onClick={() => setMainModal('permission')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
-            담당 및 권한
-          </button>
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <button type="button" onClick={() => setMainModal('project')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
+              관리 Project 현황
+            </button>
+            <button type="button" onClick={() => setMainModal('permission')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
+              담당 및 권한
+            </button>
+          </div>
+          <LogisticsNewsTicker />
         </div>
       </header>
-
-      <LogisticsNewsTicker />
 
       <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-[18px]">
         <div className="grid grid-cols-1 gap-4">
@@ -6064,14 +6076,9 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           <PermissionDetailContent permission={permission} />
         </MainOverlay>
       )}
-      {mainModal === 'news' && (
-        <MainOverlay title="데일리 물류 뉴스" eyebrow="DAILY LOGISTICS NEWS" onClose={() => setMainModal(null)}>
-          <DailyLogisticsNewsCard />
-        </MainOverlay>
-      )}
       {mainModal === 'project' && (
         <MainOverlay title="관리 Project 현황" eyebrow="PROJECT STATUS" onClose={() => setMainModal(null)} fullScreen>
-          <WeeklyAssetStatusTable />
+          <WeeklyAssetStatusTable defaultLargeTable />
         </MainOverlay>
       )}
       {selectedSearchResult && (

@@ -1929,6 +1929,7 @@ function SortableTable({
   stickyCount = 0,
   onRowClick,
   defaultSort = null,
+  fitWidth = false,
 }) {
   const [sort, setSort] = useState(defaultSort || null);
   const visibleRows = useMemo(() => {
@@ -1972,12 +1973,18 @@ function SortableTable({
     }));
   };
   const columnWidth = (column) => number(column.width || 168);
+  const totalColumnWidth = columns.reduce((sum, column) => sum + columnWidth(column), 0);
+  const cellWidthStyle = (column) => (
+    fitWidth
+      ? { width: `${(columnWidth(column) / Math.max(1, totalColumnWidth)) * 100}%` }
+      : { width: `${columnWidth(column)}px`, minWidth: `${columnWidth(column)}px`, maxWidth: `${columnWidth(column)}px` }
+  );
   const stickyLeft = (index) => `${columns.slice(0, index).reduce((sum, column) => sum + columnWidth(column), 0)}px`;
   return (
     <div className="custom-scrollbar overflow-auto rounded-[12px] border border-[#333333]" style={{ maxHeight }} data-sortable-table="true">
-      <table className="w-full border-separate text-left text-[12px]" style={{ minWidth, borderSpacing: 0 }}>
+      <table className={`w-full border-separate text-left text-[12px] ${fitWidth ? 'table-fixed' : ''}`} style={{ minWidth: fitWidth ? 0 : minWidth, borderSpacing: 0 }}>
         <colgroup>
-          {columns.map((column) => <col key={column.key} style={{ width: `${columnWidth(column)}px` }} />)}
+          {columns.map((column) => <col key={column.key} style={cellWidthStyle(column)} />)}
         </colgroup>
         <thead className="sticky top-0 z-20 bg-[#1F1F1E] text-[#A1A1AA]">
           <tr>
@@ -1988,7 +1995,7 @@ function SortableTable({
               return (
                 <th
                   key={column.key}
-                  style={{ width: `${columnWidth(column)}px`, minWidth: `${columnWidth(column)}px`, maxWidth: `${columnWidth(column)}px`, left: sticky ? stickyLeft(index) : undefined }}
+                  style={{ ...cellWidthStyle(column), left: sticky ? stickyLeft(index) : undefined }}
                   className={`whitespace-nowrap border-b border-[#303033] px-3 py-2 font-semibold ${sticky ? `sticky z-30 bg-[#1F1F1E] ${lastSticky ? 'shadow-[10px_0_12px_-12px_rgba(0,0,0,0.95)]' : ''}` : 'bg-[#1F1F1E]'}`}
                   data-sortable-column={column.sortable === false ? 'false' : 'true'}
                 >
@@ -2022,7 +2029,7 @@ function SortableTable({
                 return (
                   <td
                     key={column.key}
-                    style={{ width: `${columnWidth(column)}px`, minWidth: `${columnWidth(column)}px`, maxWidth: `${columnWidth(column)}px`, left: sticky ? stickyLeft(index) : undefined }}
+                    style={{ ...cellWidthStyle(column), left: sticky ? stickyLeft(index) : undefined }}
                     className={`${wrapCell ? 'whitespace-normal break-keep' : 'truncate'} px-3 py-2 align-top ${column.align === 'right' ? 'text-right' : ''} ${sticky ? `sticky z-10 bg-[#171717] ${lastSticky ? 'shadow-[10px_0_12px_-12px_rgba(0,0,0,0.95)]' : ''}` : 'bg-[#171717]'}`}
                   >
                     {value ?? '-'}
@@ -4437,6 +4444,7 @@ function StackedCapitalChart({
   referenceKey = '',
   maxRows = 24,
   labelForRow = null,
+  secondaryLabelForRow = null,
   tooltipForRow = null,
   onRowClick = null,
 }) {
@@ -4466,6 +4474,7 @@ function StackedCapitalChart({
                 const reference = number(referenceKey ? row[referenceKey] : 0);
                 const total = equity + loan + reference;
                 const label = labelForRow ? labelForRow(row) : text(row[labelKey]);
+                const secondaryLabel = secondaryLabelForRow ? text(secondaryLabelForRow(row)) : '';
                 const tooltip = tooltipForRow
                   ? tooltipForRow(row, { equity, loan, reference, total, label })
                   : { title: label, value: `합계 ${formatKrw(total)}`, detail: `Equity ${formatKrw(equity)} · Loan ${formatKrw(loan)}${referenceKey ? ` · 참고 ${formatKrw(reference)}` : ''}` };
@@ -4480,7 +4489,13 @@ function StackedCapitalChart({
                     onMouseMove={(event) => setHover({ x: event.clientX, y: event.clientY, ...tooltip })}
                     onMouseLeave={() => setHover(null)}
                   >
-                    <span className="truncate text-[12px] font-semibold text-white" title={label}>{label}</span>
+                    {secondaryLabel ? (
+                      <span className="grid min-w-0 grid-cols-[112px_1px_minmax(0,1fr)] items-center gap-3 text-[12px]" title={`${label} · ${secondaryLabel}`}>
+                        <span className="truncate text-left font-semibold text-white">{label}</span>
+                        <span className="h-5 bg-[#3A3A3C]" aria-hidden="true" />
+                        <span className="truncate text-left font-medium text-[#C7C7CC]">{secondaryLabel}</span>
+                      </span>
+                    ) : <span className="truncate text-[12px] font-semibold text-white" title={label}>{label}</span>}
                     <span className="block h-3 rounded-full bg-[#2C2C2E]">
                       <span className="flex h-full overflow-hidden rounded-full" style={{ width: `${barWidth}%` }}>
                         <span className="h-full" style={{ width: `${total ? (equity / total) * 100 : 0}%`, backgroundColor: CHART_COLORS.secondary }} />
@@ -7138,14 +7153,14 @@ export function InvestmentIndexDashboard() {
       : loanRateBaseRows.filter((row) => text(row.tranche_display) === loanRateTranche)
   ), [loanRateBaseRows, loanRateTranche]);
   const tableColumns = [
-    { key: 'display_name', label: '펀드명', width: 220, noTruncate: true },
-    { key: 'asset_names', label: '연결 자산', width: 420, noTruncate: true, render: (row) => safeArray(row.asset_names).join(', ') || '-' },
-    { key: 'equity_krw', label: 'Equity', width: 150, align: 'right', render: (row) => formatKrw(row.equity_krw), sortValue: (row) => number(row.equity_krw) },
-    { key: 'loan_krw', label: 'Loan', width: 150, align: 'right', render: (row) => formatKrw(row.loan_krw), sortValue: (row) => number(row.loan_krw) },
-    { key: 'total_capital_krw', label: '합계', width: 150, align: 'right', render: (row) => formatKrw(row.total_capital_krw), sortValue: (row) => number(row.total_capital_krw) },
-    { key: 'loan_ratio', label: 'Loan 비중', width: 120, align: 'right', render: (row) => formatRate(number(row.loan_krw) / Math.max(1, number(row.total_capital_krw))), sortValue: (row) => number(row.loan_krw) / Math.max(1, number(row.total_capital_krw)) },
-    { key: 'equity_tranches', label: 'Equity Tranche', width: 170, render: (row) => trancheSummaryText(investmentDetailRows(row, 'fund', tranches).filter((item) => !isLoanTranche(item))), sortValue: (row) => investmentDetailRows(row, 'fund', tranches).filter((item) => !isLoanTranche(item)).length },
-    { key: 'loan_tranches', label: 'Loan Tranche', width: 170, render: (row) => trancheSummaryText(investmentDetailRows(row, 'fund', tranches).filter(isLoanTranche)), sortValue: (row) => investmentDetailRows(row, 'fund', tranches).filter(isLoanTranche).length },
+    { key: 'display_name', label: '펀드명', width: 19, noTruncate: true },
+    { key: 'asset_names', label: '연결 자산', width: 22, noTruncate: true, render: (row) => safeArray(row.asset_names).join(', ') || '-' },
+    { key: 'equity_krw', label: 'Equity', width: 10, align: 'right', render: (row) => formatKrw(row.equity_krw), sortValue: (row) => number(row.equity_krw) },
+    { key: 'loan_krw', label: 'Loan', width: 10, align: 'right', render: (row) => formatKrw(row.loan_krw), sortValue: (row) => number(row.loan_krw) },
+    { key: 'total_capital_krw', label: '합계', width: 10, align: 'right', render: (row) => formatKrw(row.total_capital_krw), sortValue: (row) => number(row.total_capital_krw) },
+    { key: 'loan_ratio', label: 'Loan 비중', width: 8, align: 'right', render: (row) => formatRate(number(row.loan_krw) / Math.max(1, number(row.total_capital_krw))), sortValue: (row) => number(row.loan_krw) / Math.max(1, number(row.total_capital_krw)) },
+    { key: 'equity_tranches', label: 'Equity Tranche', width: 10, wrap: true, render: (row) => trancheSummaryText(investmentDetailRows(row, 'fund', tranches).filter((item) => !isLoanTranche(item))), sortValue: (row) => investmentDetailRows(row, 'fund', tranches).filter((item) => !isLoanTranche(item)).length },
+    { key: 'loan_tranches', label: 'Loan Tranche', width: 11, wrap: true, render: (row) => trancheSummaryText(investmentDetailRows(row, 'fund', tranches).filter(isLoanTranche)), sortValue: (row) => investmentDetailRows(row, 'fund', tranches).filter(isLoanTranche).length },
   ];
   const detailRows = useMemo(() => {
     if (!detailTarget) return [];
@@ -7202,7 +7217,8 @@ export function InvestmentIndexDashboard() {
         <StackedCapitalChart
           rows={rows}
           maxRows={Infinity}
-          labelForRow={(row) => investmentDisplayLabel(row, 'fund')}
+          labelForRow={(row) => text(row.short_name, row.display_name)}
+          secondaryLabelForRow={(row) => summarizeNames(row.asset_names, 3)}
           tooltipForRow={(row, metrics) => investmentTooltip(row, 'fund', tranches, metrics)}
           onRowClick={(row) => setDetailTarget({ type: 'structure', row })}
         />
@@ -7217,9 +7233,10 @@ export function InvestmentIndexDashboard() {
         {showStructureTable ? (
           <div className="mt-5">
             <SortableTable
-              minWidth={1490}
+              minWidth={0}
               maxHeight={420}
-              stickyCount={1}
+              stickyCount={0}
+              fitWidth
               defaultSort={{ key: 'total_capital_krw', direction: 'desc' }}
               columns={tableColumns}
               rows={rows}

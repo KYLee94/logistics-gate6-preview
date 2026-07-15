@@ -134,9 +134,11 @@ test('WorkspaceLogistics replaces the legacy home surface with the integrated ta
   assert.doesNotMatch(workspace, /<(?:[A-Za-z0-9_]*AI[A-Za-z0-9_]*Dock|[A-Za-z0-9_]*Ai[A-Za-z0-9_]*Dock)\b/u);
   assert.doesNotMatch(workspace, /<(?:h[1-6]|[A-Za-z0-9_]+)[^>]*>\s*TASK\s*<\//u);
 
-  for (const label of [/뉴스/u, /관리\s*(?:Project|프로젝트)/iu, /담당/u, /권한/u]) {
+  for (const label of [/관리\s*(?:Project|프로젝트)/iu, /담당/u, /권한/u]) {
     assert.ok(containsButtonLabel(workspace, label), `top header must provide a ${label} button`);
   }
+  assert.equal(containsButtonLabel(workspace, /데일리\s*물류\s*뉴스/u), false, 'daily news must use the ticker dropdown instead of a header button');
+  assert.match(workspace, /<LogisticsNewsTicker\s*\/>/u);
   assert.match(workspace, /(?:max-w-\[1480px\]|maxWidth\s*:\s*['"]?1480px|width\s*:\s*['"]?1480px)/u);
   assert.match(workspace, /(?:\bmx-auto\b|margin\s*:\s*['"]?0\s+auto|margin(?:Left|Right)\s*:\s*['"]?auto)/u);
 });

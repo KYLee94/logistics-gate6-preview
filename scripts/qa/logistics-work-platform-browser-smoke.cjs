@@ -9,8 +9,7 @@ const DEFAULT_ROUTE = '?p=platform/iotaseoul/workspace/logistics';
 
 function readEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return {};
-  return Object.fromEntries(fs.readFileSync(filePath, 'utf8')
-    .split(/\r?\n/u)
+  return Object.fromEntries(fs.readFileSync(filePath, 'utf8').split(/\r?\n/u)
     .map((line) => line.trim())
     .filter((line) => line && !line.startsWith('#') && line.includes('='))
     .map((line) => {
@@ -19,11 +18,7 @@ function readEnvFile(filePath) {
     }));
 }
 
-const fileEnv = {
-  ...readEnvFile(path.join(ROOT, '.env')),
-  ...readEnvFile(path.join(ROOT, '.env.local')),
-};
-
+const fileEnv = { ...readEnvFile(path.join(ROOT, '.env')), ...readEnvFile(path.join(ROOT, '.env.local')) };
 function envValue(...keys) {
   for (const key of keys) {
     if (process.env[key]) return process.env[key];
@@ -31,83 +26,41 @@ function envValue(...keys) {
   }
   return '';
 }
-
 function argsValue(name, fallback = '') {
-  const flag = `--${name}`;
-  const index = process.argv.indexOf(flag);
+  const index = process.argv.indexOf(`--${name}`);
   return index === -1 ? fallback : (process.argv[index + 1] || fallback);
 }
-
 function timestampForFile() {
   return new Date().toISOString().replace(/[-:]/gu, '').replace(/\..+$/u, '').replace('T', '-');
 }
-
-function logisticsWeekLabel(value = new Date()) {
-  const today = value instanceof Date ? value : new Date(value);
-  const safeToday = Number.isNaN(today.getTime()) ? new Date() : today;
-  const year = safeToday.getFullYear();
-  const month = safeToday.getMonth() + 1;
-  const firstDay = new Date(year, month - 1, 1);
-  const firstDayWeekday = firstDay.getDay() === 0 ? 7 : firstDay.getDay();
-  const offsetDate = safeToday.getDate() + firstDayWeekday - 1;
-  const week = Math.ceil(offsetDate / 7);
-  return `${String(year).slice(2)}년 ${month}월 ${week}주`;
-}
-
-function escapeRegExp(value) {
-  return String(value || '').replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-}
-
 function chromeExecutablePath() {
-  const candidates = [
-    process.env.CHROME_PATH,
-    'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-  ].filter(Boolean);
-  return candidates.find((candidate) => fs.existsSync(candidate)) || undefined;
+  return [process.env.CHROME_PATH, 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe']
+    .filter(Boolean).find((candidate) => fs.existsSync(candidate));
 }
-
 function joinUrl(baseUrl, route) {
-  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
-  return new URL(route.replace(/^\/+/u, ''), normalizedBase).toString();
+  return new URL(route.replace(/^\/+ /u, '').replace(/^\/+/, ''), baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`).toString();
 }
 
 async function signInSession() {
   const supabaseUrl = envValue('LOGISTICS_SUPABASE_URL', 'VITE_SUPABASE_URL');
   const anonKey = envValue('LOGISTICS_SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY');
   const accessToken = envValue('LOGISTICS_SUPABASE_ACCESS_TOKEN');
-  if (supabaseUrl && anonKey && accessToken) {
-    const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/auth/v1/user`, {
-      headers: { apikey: anonKey, authorization: `Bearer ${accessToken}` },
-    });
+  if (!supabaseUrl || !anonKey) throw new Error('Supabase URL/anon key가 없습니다.');
+  if (accessToken) {
+    const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/auth/v1/user`, { headers: { apikey: anonKey, authorization: `Bearer ${accessToken}` } });
     const user = await response.json().catch(() => null);
-    if (!response.ok || !user?.id) throw new Error(`Supabase access token validation failed (${response.status}).`);
-    return {
-      session: {
-        access_token: accessToken,
-        token_type: 'bearer',
-        expires_in: 3600,
-        expires_at: Math.round(Date.now() / 1000) + 3600,
-        refresh_token: '',
-        user,
-      },
-      source: 'LOGISTICS_SUPABASE_ACCESS_TOKEN',
-    };
+    if (response.ok && user?.id) return { access_token: accessToken, token_type: 'bearer', expires_in: 3600, expires_at: Math.round(Date.now() / 1000) + 3600, refresh_token: '', user };
   }
   const email = argsValue('email', envValue('LOGISTICS_SUPABASE_EMAIL', 'LOGISTICS_SUPABASE_AUTH_EMAIL'));
   const password = argsValue('password', envValue('LOGISTICS_SUPABASE_PASSWORD', 'LOGISTICS_SUPABASE_AUTH_PASSWORD'));
-  if (!supabaseUrl || !anonKey || !email || !password) {
-    throw new Error('Set LOGISTICS_SUPABASE_ACCESS_TOKEN, or set LOGISTICS_SUPABASE_EMAIL and LOGISTICS_SUPABASE_PASSWORD.');
-  }
+  if (!email || !password) throw new Error('실제 로그인 계정 정보가 없습니다.');
   const response = await fetch(`${supabaseUrl.replace(/\/$/u, '')}/auth/v1/token?grant_type=password`, {
-    method: 'POST',
-    headers: { apikey: anonKey, 'content-type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    method: 'POST', headers: { apikey: anonKey, 'content-type': 'application/json' }, body: JSON.stringify({ email, password }),
   });
   const session = await response.json().catch(() => null);
-  if (!response.ok || !session?.access_token) throw new Error(`Supabase Auth login failed (${response.status}).`);
+  if (!response.ok || !session?.access_token || !session?.user?.id) throw new Error(`Supabase 로그인 실패 (${response.status})`);
   if (!session.expires_at && session.expires_in) session.expires_at = Math.round(Date.now() / 1000) + Number(session.expires_in);
-  return { session, source: 'password_grant' };
+  return session;
 }
 
 async function main() {
@@ -116,319 +69,77 @@ async function main() {
   const outJson = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}.json`);
   const latestJson = path.join(OUT_DIR, 'work-platform-browser-smoke-latest.json');
   const screenshotPath = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}.png`);
-  const homeExpiryScreenshotPath = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}-home-expiry.png`);
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
-  const withCacheBust = (url) => `${url}${url.includes('?') ? '&' : '?'}cb=${encodeURIComponent(stamp)}`;
-  const targetUrl = withCacheBust(joinUrl(baseUrl, argsValue('route', DEFAULT_ROUTE)));
-  const homeUrl = withCacheBust(joinUrl(baseUrl, '?p=platform/iotaseoul/workspace/logistics/dashboard/home'));
-  const archiveUrl = withCacheBust(joinUrl(baseUrl, 'platform/iotaseoul/workspace/archive?workspace=logistics'));
-  const auth = await signInSession();
-  const uiEmail = argsValue('ui-email', envValue('LOGISTICS_BROWSER_UI_EMAIL') || 'kylee@igisam.com');
-  const browserSession = {
-    ...auth.session,
-    user: {
-      ...(auth.session.user || {}),
-      email: uiEmail,
-    },
-  };
+  const targetUrl = `${joinUrl(baseUrl, argsValue('route', DEFAULT_ROUTE))}&cb=${encodeURIComponent(stamp)}`;
+  const session = await signInSession();
   const report = {
     ok: false,
     generated_at: new Date().toISOString(),
     url: targetUrl,
-    home_url: homeUrl,
-    archive_url: archiveUrl,
-    auth_source: auth.source,
-    ui_email: uiEmail,
+    auth_user_id: session.user.id,
+    auth_email: String(session.user.email || '').replace(/^(.{2}).*(@.*)$/u, '$1***$2'),
     checks: {},
-    screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
-    home_expiry_screenshot: path.relative(ROOT, homeExpiryScreenshotPath).replace(/\\/gu, '/'),
+    api: [],
     errors: [],
+    screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
   };
-  const expectedWeekLabel = logisticsWeekLabel();
-  const expectedWeekPattern = new RegExp(escapeRegExp(expectedWeekLabel).replace(/\s+/gu, '\\s*'), 'u');
-  const expectedWeekPatternSource = expectedWeekPattern.source;
   let browser;
-  let page;
   try {
     browser = await chromium.launch({ headless: true, executablePath: chromeExecutablePath() });
-    const context = await browser.newContext({ viewport: { width: 1180, height: 820 }, serviceWorkers: 'block' });
-    await context.addInitScript(({ email, session }) => {
-      sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(session));
-      sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email }));
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, serviceWorkers: 'block' });
+    await context.addInitScript((authSession) => {
+      sessionStorage.setItem('sb-iota-auth-token', JSON.stringify(authSession));
+      sessionStorage.setItem('logistics_preview_auth', JSON.stringify({ email: authSession.user.email }));
       localStorage.setItem('logisticsDashboardReadMode', 'primary-safe');
-    }, { email: uiEmail, session: browserSession });
-    page = await context.newPage();
-    page.on('pageerror', (error) => report.errors.push(error.message));
-    page.on('response', (response) => {
-      if (response.url().includes('/functions/v1/ll-dashboard-api') && response.status() >= 500) {
-        report.errors.push(`edge ${response.status()} ${response.url()}`);
-      }
+    }, session);
+    const page = await context.newPage();
+    page.on('pageerror', (error) => report.errors.push(`page: ${error.message}`));
+    page.on('response', async (response) => {
+      if (!response.url().includes('/functions/v1/ll-dashboard-api')) return;
+      let action = '';
+      try { action = JSON.parse(response.request().postData() || '{}').action || ''; } catch { /* ignore malformed QA observation */ }
+      report.api.push({ action, status: response.status() });
+      if (response.status() >= 500) report.errors.push(`edge ${response.status()} ${action || response.url()}`);
     });
 
-    await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 60000 });
-    await page.locator('#task-management').waitFor({ state: 'visible', timeout: 30000 });
-    const platformText = await page.locator('body').innerText();
-    const permissionAssetMatch = platformText.match(/담당\s*자산\s*(\d+)개/u);
-    const permissionFundMatch = platformText.match(/담당\s*펀드\s*(\d+)개/u);
-    report.permission_header_counts = {
-      asset_count: permissionAssetMatch ? Number(permissionAssetMatch[1]) : null,
-      fund_count: permissionFundMatch ? Number(permissionFundMatch[1]) : null,
-    };
-    report.checks.permission_header_counts_nonzero = Number(report.permission_header_counts.asset_count || 0) > 0
-      && Number(report.permission_header_counts.fund_count || 0) > 0;
-    report.quick_tabs = await page.evaluate(() => {
-      const container = document.querySelector('[data-work-platform-quick-tabs="true"]');
-      if (!container) return { visible: false, height: 0, candidate_buttons: 0, title_font_size: '' };
-      const box = container.getBoundingClientRect();
-      const title = [...container.querySelectorAll('div')].find((node) => (node.textContent || '').trim() === '빠른 탭');
-      return {
-        visible: box.width > 0 && box.height > 0,
-        height: Math.round(box.height),
-        candidate_buttons: [...container.querySelectorAll('button')].filter((button) => (button.textContent || '').includes('업무 플랫폼')).length,
-        title_font_size: title ? getComputedStyle(title).fontSize : '',
-      };
-    });
-    report.checks.quick_tabs_visible = report.quick_tabs.visible === true;
-    report.checks.quick_tabs_compact_height = Number(report.quick_tabs.height || 0) > 0 && Number(report.quick_tabs.height || 0) <= 96;
-    report.checks.quick_tabs_no_sample_buttons = Number(report.quick_tabs.candidate_buttons || 0) === 0;
-    report.checks.quick_tabs_title_font_matches_profile = report.quick_tabs.title_font_size === '16px';
-    const taskHeaderText = await page.locator('#task-management').innerText();
-    report.task_header_text = taskHeaderText;
-    report.expected_week_label = expectedWeekLabel;
-    report.checks.current_week_label_matches_today = expectedWeekPattern.test(taskHeaderText);
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    const board = page.getByTestId('logistics-task-board');
+    await board.waitFor({ state: 'visible', timeout: 45000 });
+    await page.getByTestId('logistics-news-ticker').waitFor({ state: 'visible', timeout: 30000 });
+    await page.waitForFunction(() => !document.body.innerText.includes('업무 목록을 불러오는 중입니다.'), null, { timeout: 30000 });
 
-    const writeButton = page.getByRole('button', { name: /글\s*작성하기/u }).first();
-    await writeButton.waitFor({ state: 'visible', timeout: 30000 });
-    await writeButton.click();
-    await page.getByRole('button', { name: /^접기$/u }).first().waitFor({ state: 'visible', timeout: 20000 });
-    const headerMetrics = await page.evaluate(() => {
-      const collapseButton = [...document.querySelectorAll('button')]
-        .find((button) => button.textContent.trim() === '접기');
-      const header = collapseButton?.closest('[class*="border-b"]');
-      const dateLabel = header
-        ? [...header.querySelectorAll('label')].find((label) => /년\s*\d+월\s*\d+일/u.test(label.textContent || ''))
-        : null;
-      const buttonBox = collapseButton?.getBoundingClientRect();
-      const dateBox = dateLabel?.getBoundingClientRect();
-      return {
-        hasHeader: Boolean(header),
-        hasDateLabel: Boolean(dateLabel),
-        dateText: dateLabel?.textContent?.trim() || '',
-        collapseText: collapseButton?.textContent?.trim() || '',
-        sameLine: Boolean(buttonBox && dateBox && Math.abs(buttonBox.top - dateBox.top) < 8),
-        dateAndCollapseVisible: Boolean(
-          buttonBox
-          && dateBox
-          && dateBox.left >= 0
-          && buttonBox.right <= window.innerWidth - 8
-          && dateBox.right < buttonBox.left,
-        ),
-        collapseButtonWidth: buttonBox?.width || 0,
-        dateLabelWidth: dateBox?.width || 0,
-      };
-    });
-    const preciseHeaderMetrics = await page.evaluate(() => {
-      const visibleBox = (element) => {
-        const box = element?.getBoundingClientRect?.();
-        return box && box.width > 0 && box.height > 0 ? box : null;
-      };
-      const dateInput = [...document.querySelectorAll('input[type="date"]')]
-        .find((input) => visibleBox(input.closest('label') || input));
-      const dateLabel = dateInput?.closest('label') || null;
-      const dateBox = visibleBox(dateLabel);
-      const collapseButton = dateBox
-        ? [...document.querySelectorAll('button')]
-          .map((button) => ({ button, box: visibleBox(button) }))
-          .filter((item) => item.box
-            && item.box.left > dateBox.right
-            && Math.abs(item.box.top - dateBox.top) < 12
-            && item.box.width >= 40)
-          .sort((left, right) => left.box.left - right.box.left)[0]?.button
-        : null;
-      const buttonBox = visibleBox(collapseButton);
-      const header = dateLabel?.closest('[class*="border-b"]') || dateLabel?.parentElement || null;
-      return {
-        hasHeader: Boolean(header),
-        hasDateLabel: Boolean(dateLabel),
-        dateText: dateLabel?.textContent?.trim() || '',
-        collapseText: collapseButton?.textContent?.trim() || '',
-        sameLine: Boolean(buttonBox && dateBox && Math.abs(buttonBox.top - dateBox.top) < 12),
-        dateAndCollapseVisible: Boolean(
-          buttonBox
-          && dateBox
-          && dateBox.left >= 0
-          && buttonBox.right <= window.innerWidth - 8
-          && dateBox.right < buttonBox.left,
-        ),
-        collapseButtonWidth: buttonBox?.width || 0,
-        dateLabelWidth: dateBox?.width || 0,
-      };
-    });
-    const pairedHeaderMetrics = await page.evaluate(() => {
-      const visibleBox = (element) => {
-        const box = element?.getBoundingClientRect?.();
-        return box && box.width > 0 && box.height > 0 ? box : null;
-      };
-      const dateLabels = [...document.querySelectorAll('input[type="date"]')]
-        .map((input) => input.closest('label'))
-        .filter(Boolean)
-        .map((label) => ({ label, box: visibleBox(label) }))
-        .filter((item) => item.box);
-      const buttons = [...document.querySelectorAll('button')]
-        .map((button) => ({ button, box: visibleBox(button) }))
-        .filter((item) => item.box && item.box.width >= 40);
-      const pairs = [];
-      dateLabels.forEach((dateItem) => {
-        buttons.forEach((buttonItem) => {
-          const yDelta = Math.abs(buttonItem.box.top - dateItem.box.top);
-          if (buttonItem.box.left <= dateItem.box.right || yDelta >= 20) return;
-          pairs.push({
-            dateItem,
-            buttonItem,
-            score: yDelta + Math.max(0, buttonItem.box.left - dateItem.box.right) / 100,
-          });
-        });
-      });
-      const best = pairs.sort((left, right) => left.score - right.score)[0];
-      const dateLabel = best?.dateItem?.label || null;
-      const dateBox = best?.dateItem?.box || null;
-      const collapseButton = best?.buttonItem?.button || null;
-      const buttonBox = best?.buttonItem?.box || null;
-      const header = dateLabel?.closest('[class*="border-b"]') || dateLabel?.parentElement || null;
-      return {
-        hasHeader: Boolean(header),
-        hasDateLabel: Boolean(dateLabel),
-        dateText: dateLabel?.textContent?.trim() || '',
-        collapseText: collapseButton?.textContent?.trim() || '',
-        sameLine: Boolean(buttonBox && dateBox && Math.abs(buttonBox.top - dateBox.top) < 20),
-        dateAndCollapseVisible: Boolean(
-          buttonBox
-          && dateBox
-          && dateBox.left >= 0
-          && buttonBox.right <= window.innerWidth - 8
-          && dateBox.right < buttonBox.left,
-        ),
-        collapseButtonWidth: buttonBox?.width || 0,
-        dateLabelWidth: dateBox?.width || 0,
-      };
-    });
-    const effectiveHeaderMetrics = pairedHeaderMetrics.hasDateLabel ? pairedHeaderMetrics : (preciseHeaderMetrics.hasDateLabel ? preciseHeaderMetrics : headerMetrics);
-    report.header_metrics = effectiveHeaderMetrics;
-    report.checks.write_header_date_and_collapse_same_line = effectiveHeaderMetrics.hasHeader
-      && effectiveHeaderMetrics.hasDateLabel
-      && effectiveHeaderMetrics.sameLine
-      && effectiveHeaderMetrics.dateAndCollapseVisible
-      && effectiveHeaderMetrics.collapseButtonWidth >= 48;
+    const bodyText = await page.locator('body').innerText();
+    report.checks.brand_visible = bodyText.includes('IGIS Logistics Platform');
+    report.checks.platform_title_visible = bodyText.includes('물류센터 워크 플랫폼');
+    report.checks.header_commands = bodyText.includes('관리 Project 현황') && bodyText.includes('담당 및 권한') && !bodyText.includes('데일리 물류 뉴스');
+    report.checks.ai_hidden = !bodyText.includes('AI 챗봇') && !bodyText.includes('AI에게 질문');
+    report.checks.task_board_visible = (await board.innerText()).includes('통합업무보드');
+    const boardText = await board.innerText();
+    report.checks.task_board_columns = ['프로젝트', '업무분류', '업무 요약', '담당자', '이해관계자', '상태'].every((label) => boardText.includes(label));
+    report.checks.task_board_controls = ['간추려보기', '자세히보기', '10개 보기', '20개 보기', '새 업무 추가'].every((label) => boardText.includes(label));
+    report.checks.loading_cleared = !bodyText.includes('데이터 로딩 96%') && !boardText.includes('업무 목록을 불러오는 중입니다.');
 
-    const dropdownToggles = page.getByTestId('log-write-dropdown-toggle');
-    const dropdownCount = await dropdownToggles.count();
-    const dropdownResults = [];
-    for (let index = 0; index < Math.min(dropdownCount, 5); index += 1) {
-      await page.keyboard.press('Escape').catch(() => null);
-      await page.locator('button[aria-label="드롭다운 닫기"]').click({ force: true, timeout: 1000 }).catch(() => null);
-      const toggle = dropdownToggles.nth(index);
-      await toggle.scrollIntoViewIfNeeded();
-      const toggleText = (await toggle.innerText()).trim();
-      await toggle.click();
-      const menu = page.getByTestId('log-write-dropdown-menu');
-      await menu.waitFor({ state: 'visible', timeout: 5000 });
-      const optionButtons = menu.locator('button');
-      const optionCount = await optionButtons.count();
-      if (optionCount > 0) {
-        await optionButtons.nth(Math.min(1, optionCount - 1)).click();
-        await menu.waitFor({ state: 'detached', timeout: 5000 }).catch(() => null);
-        await page.keyboard.press('Escape').catch(() => null);
-        await page.locator('button[aria-label="드롭다운 닫기"]').click({ force: true, timeout: 1000 }).catch(() => null);
-      }
-      dropdownResults.push({ index, toggle_text: toggleText, option_count: optionCount });
-    }
-    report.board_dropdown_results = dropdownResults;
-    report.checks.board_dropdowns_open_and_select = dropdownResults.length >= 5
-      && dropdownResults.every((item) => item.option_count > 0);
+    await page.getByTestId('logistics-news-expand').click();
+    const newsList = page.getByTestId('logistics-news-list');
+    await newsList.waitFor({ state: 'visible', timeout: 10000 });
+    const newsItemCount = await newsList.locator('[data-news-item="true"]').count();
+    report.news_item_count = newsItemCount;
+    report.checks.news_dropdown = newsItemCount >= 1 && newsItemCount <= 10;
+    report.checks.news_date_control = await page.getByTestId('logistics-news-date-input').isVisible();
+    await page.getByTestId('logistics-news-expand').click();
 
-    const visibilityButton = page.getByRole('button', { name: /^열람권한$/u }).first();
-    await visibilityButton.click();
-    await page.getByText('열람 권한 설정').waitFor({ state: 'visible', timeout: 5000 });
-    const visibilityModalText = await page.locator('body').innerText();
-    report.checks.board_visibility_modal_opens = visibilityModalText.includes('그룹 선택')
-      && visibilityModalText.includes('특정 인원 추가');
-    await page.getByRole('button', { name: /^확인$/u }).last().click();
+    await page.getByRole('button', { name: '관리 Project 현황' }).click();
+    await page.waitForFunction(() => document.querySelectorAll('[role="dialog"]').length >= 2, null, { timeout: 30000 });
+    const dialogText = await page.locator('[role="dialog"]').last().innerText();
+    report.checks.project_large_table_default = dialogText.includes('자산명') && dialogText.includes('펀드명') && dialogText.includes('Main Issue');
+    await page.keyboard.press('Escape').catch(() => null);
 
     await page.screenshot({ path: screenshotPath, fullPage: false });
-
-    await page.goto(homeUrl, { waitUntil: 'networkidle', timeout: 60000 });
-    const expiryTitle = page.getByText('만기 집중도').last();
-    await expiryTitle.waitFor({ state: 'visible', timeout: 30000 });
-    const expirySection = expiryTitle.locator('xpath=ancestor::section[1]');
-    const expirySectionText = await expirySection.innerText();
-    report.home_expiry_section_text_excerpt = expirySectionText.slice(0, 1200);
-    report.checks.home_expiry_axis_labels = expirySectionText.includes('LHS 만기 임대면적(평)')
-      && expirySectionText.includes('RHS 만기 임차인 수');
-    const rightCountAxis = await expirySection.locator('svg').evaluate((svg) => {
-      const labels = [...svg.querySelectorAll('text')]
-        .map((node) => ({
-          text: (node.textContent || '').trim(),
-          y: Number(node.getAttribute('y')),
-        }))
-        .filter((item) => /^\d+개$/u.test(item.text));
-      const tickYs = labels.map((item) => item.y - 5).filter((value) => Number.isFinite(value));
-      const countCircleYs = [...svg.querySelectorAll('circle')]
-        .filter((node) => String(node.getAttribute('fill') || '').toLowerCase() === '#ffd166')
-        .map((node) => Number(node.getAttribute('cy')))
-        .filter((value) => Number.isFinite(value));
-      return {
-        labels: labels.map((item) => item.text),
-        zero_count: labels.filter((item) => item.text === '0개').length,
-        unique_count: new Set(labels.map((item) => item.text)).size,
-        count_circle_count: countCircleYs.length,
-        count_circles_align_to_ticks: countCircleYs.length > 0 && countCircleYs.every((cy) => (
-          tickYs.some((tickY) => Math.abs(tickY - cy) <= 1.5)
-        )),
-      };
-    });
-    report.home_expiry_right_count_axis = rightCountAxis;
-    report.checks.home_expiry_right_count_axis_integer_unique = rightCountAxis.labels.length >= 2
-      && rightCountAxis.unique_count === rightCountAxis.labels.length
-      && rightCountAxis.zero_count === 1;
-    report.checks.home_expiry_count_points_align_to_integer_axis = rightCountAxis.count_circles_align_to_ticks;
-    await expirySection.screenshot({ path: homeExpiryScreenshotPath });
-    const hoverTargets = expirySection.locator('rect.cursor-pointer');
-    const hoverTargetCount = await hoverTargets.count();
-    report.home_expiry_hover_target_count = hoverTargetCount;
-    if (hoverTargetCount > 0) {
-      await hoverTargets.nth(Math.floor(hoverTargetCount / 2)).hover({ force: true });
-    }
-    const tooltip = page.getByTestId('chart-tooltip');
-    await tooltip.waitFor({ state: 'visible', timeout: 5000 });
-    const tooltipText = await tooltip.innerText();
-    report.home_expiry_tooltip_text = tooltipText;
-    report.checks.home_expiry_tooltip_has_area_count_and_details = tooltipText.includes('만기 임대면적')
-      && tooltipText.includes('만기 임차인 수')
-      && tooltipText.includes('만기 자산 / 임차인')
-      && tooltipText.includes('/')
-      && tooltipText.includes('평');
-
-    await page.goto(archiveUrl, { waitUntil: 'networkidle', timeout: 60000 });
-    await page.getByText(/Task/u).first().waitFor({ state: 'visible', timeout: 30000 });
-    const mayWeek5SidebarButtons = await page.locator('button').evaluateAll((buttons, patternSource) => (
-      buttons
-        .map((button) => button.innerText || '')
-        .filter((text) => new RegExp(patternSource, 'u').test(text))
-    ), expectedWeekPatternSource);
-    report.archive_current_week_sidebar_buttons = mayWeek5SidebarButtons;
-    report.checks.archive_current_week_not_duplicated = mayWeek5SidebarButtons.length <= 1;
-
+    report.checks.no_edge_5xx = !report.api.some((row) => row.status >= 500);
+    report.checks.primary_apis_called = report.api.some((row) => row.action === 'work-platform/task-board/list') && report.api.some((row) => row.action === 'news/list');
     report.ok = Object.values(report.checks).every(Boolean) && report.errors.length === 0;
   } catch (error) {
     report.errors.push(error?.message || String(error));
-    if (page) {
-      try {
-        report.body_excerpt = (await page.locator('body').innerText()).slice(0, 1600);
-        await page.screenshot({ path: screenshotPath, fullPage: false });
-      } catch {
-        // ignore screenshot failures after navigation errors
-      }
-    }
   } finally {
     if (browser) await browser.close();
   }
@@ -438,7 +149,4 @@ async function main() {
   if (!report.ok) process.exit(1);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+main().catch((error) => { console.error(error); process.exit(1); });

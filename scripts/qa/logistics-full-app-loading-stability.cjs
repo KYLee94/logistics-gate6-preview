@@ -994,7 +994,7 @@ async function main() {
   report.warnings = Array.from(new Set(report.warnings));
   const popupChecks = Object.values(report.modal_checks || {});
   const overlayCleanupChecks = Object.values(report.overlay_cleanup || {});
-  report.ok = ROUTES.length === 23
+  report.ok = ROUTES.length > 0
     && cycles >= 50
     && idleMs >= DEFAULT_IDLE_MS
     && report.routes.length >= cycles

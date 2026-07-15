@@ -295,6 +295,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   const [filters, setFilters] = useState({ asset_id: '', category: '', assignee_user_id: '', status: '' });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [viewMode, setViewMode] = useState('compact');
   const [drawer, setDrawer] = useState({ open: false, task: null, loading: false, error: '' });
   const [formMode, setFormMode] = useState('');
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -371,6 +372,14 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
     return [...unique.values()].sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
   }, [items, recipients]);
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const pageNumbers = useMemo(() => {
+    const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+    const end = Math.min(totalPages, start + 4);
+    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+  }, [page, totalPages]);
+  const boardDate = useMemo(() => new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric', month: 'long', day: 'numeric', weekday: 'short',
+  }).format(new Date()), []);
 
   const changeFilter = (field, value) => {
     setPage(1);
@@ -478,13 +487,22 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   };
 
   return (
-    <section data-testid="logistics-task-board" className="min-w-0 bg-[#1d1e20] text-[#f0f0f1]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#393b40] px-5 py-4">
-        <div>
-          <h2 className="text-[17px] font-semibold">업무 보드</h2>
-          <p className="mt-1 text-[12px] text-[#9699a0]">최근 수정 순, 총 {total.toLocaleString('ko-KR')}건</p>
+    <section data-testid="logistics-task-board" className="min-w-0 overflow-hidden border-y border-[#393b40] bg-[#202123] text-[#f0f0f1]">
+      <div className="flex flex-wrap items-center gap-x-7 gap-y-3 px-5 py-3.5 xl:flex-nowrap">
+        <h2 className="shrink-0 text-[25px] font-bold leading-none tracking-normal text-[#f4f4f5]">통합업무보드</h2>
+        <label className="relative min-w-[220px] flex-1 xl:max-w-[280px]">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] text-[#8b8e94]" aria-hidden="true">⌕</span>
+          <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업무 요약 또는 이해관계자 검색..." className="h-9 w-full rounded-[10px] border border-[#3d4045] bg-[#1b1c1e] py-2 pl-8 pr-3 text-[12px] text-[#f1f1f2] outline-none placeholder:text-[#767980] focus:border-[#747981]" />
+        </label>
+        <div className="inline-flex shrink-0 rounded-[10px] border border-[#383b40] bg-[#1b1c1e] p-0.5" role="group" aria-label="업무보드 표시 방식">
+          <button type="button" onClick={() => setViewMode('compact')} className={`rounded-[8px] px-3 py-1.5 text-[12px] font-semibold transition ${viewMode === 'compact' ? 'bg-[#404247] text-white shadow-sm' : 'text-[#858990] hover:text-[#d7d9dd]'}`}>간추려보기</button>
+          <button type="button" onClick={() => setViewMode('detailed')} className={`rounded-[8px] px-3 py-1.5 text-[12px] font-semibold transition ${viewMode === 'detailed' ? 'bg-[#404247] text-white shadow-sm' : 'text-[#858990] hover:text-[#d7d9dd]'}`}>자세히보기</button>
         </div>
-        <button data-testid="logistics-task-board-create" type="button" onClick={openCreate} disabled={!assets.length} className="rounded border border-[#777c84] bg-[#e1e2e4] px-3 py-2 text-[13px] font-semibold text-[#1d1e20] hover:bg-white disabled:cursor-not-allowed disabled:opacity-50">새 업무</button>
+        <div className="inline-flex shrink-0 rounded-[10px] border border-[#383b40] bg-[#1b1c1e] p-0.5" role="group" aria-label="페이지당 업무 수">
+          {PAGE_SIZE_OPTIONS.map((size) => <button key={size} type="button" onClick={() => { setPage(1); setPageSize(size); }} className={`rounded-[8px] px-3 py-1.5 text-[12px] font-semibold transition ${pageSize === size ? 'bg-[#404247] text-white shadow-sm' : 'text-[#858990] hover:text-[#d7d9dd]'}`}>{size}개 보기</button>)}
+        </div>
+        <button data-testid="logistics-task-board-create" type="button" onClick={openCreate} disabled={!assets.length} className="shrink-0 rounded-[10px] border border-[#5b5c54] bg-[#2c2d2a] px-4 py-2 text-[12px] font-semibold text-[#e8e8e5] hover:bg-[#383936] disabled:cursor-not-allowed disabled:opacity-50">+ 새 업무 추가</button>
+        <span className="ml-auto shrink-0 rounded-full bg-[#1b1c1e] px-4 py-1.5 text-[14px] font-semibold text-[#a7a8ad]">{boardDate}</span>
       </div>
 
       {!assets.length ? (
@@ -494,26 +512,6 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-2 border-b border-[#393b40] px-5 py-3 sm:grid-cols-2 lg:grid-cols-5">
-            <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업무 요약 또는 이해관계자 검색" className="min-w-0 rounded border border-[#484b51] bg-[#27282b] px-3 py-2 text-[12px] text-[#f1f1f2] outline-none placeholder:text-[#888b92] focus:border-[#8d9198] sm:col-span-2" />
-            <select value={filters.asset_id} onChange={(event) => changeFilter('asset_id', event.target.value)} className="min-w-0 rounded border border-[#484b51] bg-[#27282b] px-2 py-2 text-[12px] text-[#e6e7e9] outline-none focus:border-[#8d9198]">
-              <option value="">모든 프로젝트</option>
-              {assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
-            </select>
-            <select value={filters.category} onChange={(event) => changeFilter('category', event.target.value)} className="min-w-0 rounded border border-[#484b51] bg-[#27282b] px-2 py-2 text-[12px] text-[#e6e7e9] outline-none focus:border-[#8d9198]">
-              <option value="">모든 분류</option>
-              {TASK_BOARD_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
-            </select>
-            <select value={filters.assignee_user_id} onChange={(event) => changeFilter('assignee_user_id', event.target.value)} className="min-w-0 rounded border border-[#484b51] bg-[#27282b] px-2 py-2 text-[12px] text-[#e6e7e9] outline-none focus:border-[#8d9198]">
-              <option value="">모든 담당자</option>
-              {assigneeOptions.map((assignee) => <option key={assignee.user_id} value={assignee.user_id}>{assignee.name}</option>)}
-            </select>
-            <select value={filters.status} onChange={(event) => changeFilter('status', event.target.value)} className="min-w-0 rounded border border-[#484b51] bg-[#27282b] px-2 py-2 text-[12px] text-[#e6e7e9] outline-none focus:border-[#8d9198]">
-              <option value="">모든 진행상황</option>
-              {TASK_BOARD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
-            </select>
-          </div>
-
           {errorMessage ? (
             <div className="m-5 flex flex-wrap items-center justify-between gap-3 rounded border border-[#67413d] bg-[#352523] px-4 py-3" role="alert">
               <span className="text-[13px] text-[#e4b4ad]">{errorMessage}</span>
@@ -521,29 +519,29 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
             </div>
           ) : null}
 
-          <div className="overflow-x-auto" data-testid="logistics-task-board-table">
-            <table className="min-w-[980px] w-full border-collapse text-left">
-              <thead className="bg-[#252629] text-[11px] font-medium text-[#a9acb2]">
+          <div className="overflow-x-auto border-y border-[#35373b]" data-testid="logistics-task-board-table">
+            <table className="min-w-[1050px] w-full border-collapse text-left">
+              <thead className="bg-[#262729] text-[11px] font-medium text-[#a9acb2]">
                 <tr className="border-b border-[#3a3c41]">
-                  <th className="w-[17%] px-4 py-2.5">프로젝트</th>
-                  <th className="w-[17%] px-4 py-2.5">업무 분류</th>
-                  <th className="w-[28%] px-4 py-2.5">업무 요약</th>
-                  <th className="w-[13%] px-4 py-2.5">담당자</th>
-                  <th className="w-[15%] px-4 py-2.5">이해관계자</th>
-                  <th className="w-[10%] px-4 py-2.5">진행상황</th>
+                  <th className="w-[16%] border-r border-[#37393d] px-4 py-2"><select aria-label="프로젝트 필터" value={filters.asset_id} onChange={(event) => changeFilter('asset_id', event.target.value)} className="max-w-full appearance-none rounded-md border border-[#3d4045] bg-[#2a2b2e] px-2 py-1 text-[11px] font-semibold text-[#b7bac0] outline-none"><option value="">프로젝트 ▼</option>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></th>
+                  <th className="w-[14%] border-r border-[#37393d] px-4 py-2"><select aria-label="업무 분류 필터" value={filters.category} onChange={(event) => changeFilter('category', event.target.value)} className="max-w-full appearance-none rounded-md border border-[#3d4045] bg-[#2a2b2e] px-2 py-1 text-[11px] font-semibold text-[#b7bac0] outline-none"><option value="">업무분류 ▼</option>{TASK_BOARD_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></th>
+                  <th className="w-[27%] border-r border-[#37393d] px-4 py-2">업무 요약</th>
+                  <th className="w-[14%] border-r border-[#37393d] px-4 py-2"><select aria-label="담당자 필터" value={filters.assignee_user_id} onChange={(event) => changeFilter('assignee_user_id', event.target.value)} className="max-w-full appearance-none rounded-md border border-[#3d4045] bg-[#2a2b2e] px-2 py-1 text-[11px] font-semibold text-[#b7bac0] outline-none"><option value="">담당자 ▼</option>{assigneeOptions.map((assignee) => <option key={assignee.user_id} value={assignee.user_id}>{assignee.name}</option>)}</select></th>
+                  <th className="w-[18%] border-r border-[#37393d] px-4 py-2">이해관계자</th>
+                  <th className="w-[11%] px-4 py-2"><select aria-label="진행상황 필터" value={filters.status} onChange={(event) => changeFilter('status', event.target.value)} className="max-w-full appearance-none rounded-md border border-[#3d4045] bg-[#2a2b2e] px-2 py-1 text-[11px] font-semibold text-[#b7bac0] outline-none"><option value="">상태 ▼</option>{TASK_BOARD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr><td colSpan="6" className="px-4 py-10 text-center text-[13px] text-[#a4a7ad]">업무 목록을 불러오는 중입니다.</td></tr>
                 ) : items.length ? items.map((task) => (
-                  <tr key={task.id} onClick={() => void openDrawer(task)} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openDrawer(task); } }} className="cursor-pointer border-b border-[#32343a] text-[13px] hover:bg-[#28292d] focus-visible:bg-[#28292d] focus-visible:outline-none">
-                    <td className="max-w-0 truncate px-4 py-3 text-[#d7d9dd]">{task.asset_name}</td>
-                    <td className="max-w-0 truncate px-4 py-3 text-[#c5c8cd]">{task.category}</td>
-                    <td className="max-w-0 truncate px-4 py-3 font-medium text-[#f0f0f1]">{task.summary}</td>
-                    <td className="max-w-0 px-4 py-3"><AssigneeCell task={task} /></td>
-                    <td className="max-w-0 truncate px-4 py-3 text-[#b9bcc2]">{task.stakeholders || '-'}</td>
-                    <td className="px-4 py-3"><StatusPill status={task.status} /></td>
+                  <tr key={task.id} onClick={() => void openDrawer(task)} tabIndex={0} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); void openDrawer(task); } }} className={`cursor-pointer border-b border-[#34363a] text-[12px] hover:bg-[#2a2b2e] focus-visible:bg-[#2a2b2e] focus-visible:outline-none ${viewMode === 'compact' ? '' : 'bg-[#222326]'}`}>
+                    <td className="max-w-0 truncate border-r border-[#34363a] px-4 py-2.5 font-medium text-[#d7d9dd]">{task.asset_name}</td>
+                    <td className="max-w-0 truncate border-r border-[#34363a] px-4 py-2.5 font-medium text-[#d1d3d7]">{task.category}</td>
+                    <td className={`max-w-0 border-r border-[#34363a] px-4 py-2.5 font-semibold text-[#ececef] ${viewMode === 'compact' ? 'truncate' : ''}`}><span className={viewMode === 'compact' ? 'truncate' : 'line-clamp-2'}>{task.summary}</span>{viewMode === 'detailed' && task.detail ? <span className="mt-1 block truncate text-[11px] font-normal text-[#94979e]">{task.detail}</span> : null}</td>
+                    <td className="max-w-0 border-r border-[#34363a] px-4 py-2.5"><AssigneeCell task={task} /></td>
+                    <td className="max-w-0 truncate border-r border-[#34363a] px-4 py-2.5 text-[#b9bcc2]">{task.stakeholders || '-'}</td>
+                    <td className="px-4 py-2.5"><StatusPill status={task.status} /></td>
                   </tr>
                 )) : (
                   <tr><td colSpan="6" className="px-4 py-12 text-center text-[13px] text-[#a4a7ad]">조건에 맞는 업무가 없습니다.</td></tr>
@@ -552,16 +550,13 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
             </table>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#393b40] px-5 py-3">
-            <div className="text-[12px] text-[#989ba2]">{total ? `${((page - 1) * pageSize) + 1}-${Math.min(page * pageSize, total)} / ${total}` : '0건'}</div>
-            <div className="flex items-center gap-2">
-              <select value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value)); }} className="rounded border border-[#484b51] bg-[#27282b] px-2 py-1.5 text-[12px] text-[#e6e7e9] outline-none">
-                {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}개씩</option>)}
-              </select>
-              <button type="button" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)} className="rounded border border-[#4d5056] px-2 py-1.5 text-[12px] text-[#d1d3d7] disabled:opacity-40">이전</button>
-              <span className="min-w-[54px] text-center text-[12px] text-[#bfc1c6]">{page} / {totalPages}</span>
-              <button type="button" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)} className="rounded border border-[#4d5056] px-2 py-1.5 text-[12px] text-[#d1d3d7] disabled:opacity-40">다음</button>
-            </div>
+          <div className="flex min-h-[58px] items-center justify-center border-t border-[#393b40] px-5 py-3">
+            <nav className="flex items-center gap-1.5" aria-label="업무 목록 페이지">
+              <button type="button" aria-label="이전 페이지" disabled={page <= 1 || loading} onClick={() => setPage((current) => current - 1)} className="grid h-7 w-7 place-items-center rounded-md border border-[#44464b] text-[16px] leading-none text-[#b6b9be] hover:bg-[#313236] disabled:opacity-30">‹</button>
+              {pageNumbers.map((pageNumber) => <button key={pageNumber} type="button" aria-current={pageNumber === page ? 'page' : undefined} disabled={loading} onClick={() => setPage(pageNumber)} className={`grid h-7 w-7 place-items-center rounded-md text-[12px] font-semibold ${pageNumber === page ? 'bg-[#d8d6c8] text-[#272724]' : 'text-[#999ca2] hover:bg-[#313236] hover:text-[#e3e4e7]'}`}>{pageNumber}</button>)}
+              <button type="button" aria-label="다음 페이지" disabled={page >= totalPages || loading} onClick={() => setPage((current) => current + 1)} className="grid h-7 w-7 place-items-center rounded-md border border-[#44464b] text-[16px] leading-none text-[#b6b9be] hover:bg-[#313236] disabled:opacity-30">›</button>
+            </nav>
+            <span className="sr-only">총 {total.toLocaleString('ko-KR')}건</span>
           </div>
         </>
       )}

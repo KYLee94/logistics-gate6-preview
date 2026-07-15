@@ -169,21 +169,10 @@ function assertDashboardBody(result) {
   }
 }
 
-function assertSnapshotReadback(upsert, list) {
-  assertStatus(upsert, 200);
-  assertStatus(list, 200);
-  if (upsert.body?.ok === false) {
-    throw new Error(`${upsert.action} returned ok=false: ${upsert.body?.message || upsert.body?.error || ''}`);
-  }
-  if (list.body?.ok === false) {
-    throw new Error(`${list.action} returned ok=false: ${list.body?.message || list.body?.error || ''}`);
-  }
-  const upsertWeekKey = upsert.body?.data?.week_key || upsert.body?.week_key || upsert.body?.data?.snapshot?.week_key;
-  const taskCount = Number(upsert.body?.data?.task_count || 0);
-  if (taskCount === 0) return;
-  const snapshots = Array.isArray(list.body?.data) ? list.body.data : (Array.isArray(list.body?.data?.snapshots) ? list.body.data.snapshots : []);
-  if (upsertWeekKey && !snapshots.some((row) => String(row.week_key || row.snapshot_week_key || '') === String(upsertWeekKey))) {
-    throw new Error(`Snapshot readback failed: week_key ${upsertWeekKey} was not found in snapshots/list`);
+function assertTaskBoardList(result) {
+  assertStatus(result, 200);
+  if (result.body?.ok !== true || !Array.isArray(result.body?.data?.items) || !Array.isArray(result.body?.data?.assets)) {
+    throw new Error(`${result.action} returned an invalid task board list contract`);
   }
 }
 
@@ -203,8 +192,7 @@ async function main() {
     { action: 'dashboard/home/read', payload: { basis_date: basisDate }, expected: 200 },
     { action: 'dashboard/asset/read', payload: { basis_date: basisDate, ...(assetId ? { asset_id: assetId } : {}) }, expected: 200 },
     { action: 'dashboard/company/read', payload: { basis_date: basisDate, ...(tenantId ? { tenant_id: tenantId } : {}) }, expected: 200 },
-    { action: 'work-platform/tasks/snapshots/upsert-current', payload: { basis_date: basisDate, seed_tasks: [] }, expected: 200 },
-    { action: 'work-platform/tasks/snapshots/list', payload: { limit: 100 }, expected: 200 },
+    { action: 'work-platform/task-board/list', payload: { page: 1, page_size: 10 }, expected: 200 },
   ];
 
   const results = [];
@@ -226,9 +214,8 @@ async function main() {
     results.push(fundRead);
   }
 
-  const snapshotUpsert = results.find((row) => row.action === 'work-platform/tasks/snapshots/upsert-current');
-  const snapshotList = results.find((row) => row.action === 'work-platform/tasks/snapshots/list');
-  assertSnapshotReadback(snapshotUpsert, snapshotList);
+  const taskBoardList = results.find((row) => row.action === 'work-platform/task-board/list');
+  assertTaskBoardList(taskBoardList);
 
   const unauth = await invoke('dashboard/home/read', { basis_date: basisDate }, '');
   assertStatus(unauth, 401);

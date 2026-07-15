@@ -39,11 +39,14 @@ test('ticker pauses date checks while hidden and synchronizes on visibility or f
   assert.match(component, /window\.setInterval\(synchronizeDate, NEWS_DATE_CHECK_INTERVAL_MS\)/u);
 });
 
-test('ticker retains the eight-second rotation, hover and focus pause, and reduced-motion guard', () => {
+test('ticker rotates every five seconds and retains pause and reduced-motion guards', () => {
   const component = extractFunction('LogisticsNewsTicker');
 
-  assert.match(component, /window\.setInterval\([^,]+, 8000\)/u);
+  assert.match(component, /window\.setInterval\([^,]+, 5000\)/u);
   assert.match(component, /prefers-reduced-motion: reduce/u);
   assert.match(component, /onMouseEnter=\{\(\) => setPaused\(true\)\}/u);
   assert.match(component, /onFocusCapture=\{\(\) => setPaused\(true\)\}/u);
+  assert.match(component, /data-testid="logistics-news-expand"/u);
+  assert.match(component, /data-testid="logistics-news-date-input"/u);
+  assert.match(component, /data-news-item="true"/u);
 });
