@@ -11,8 +11,7 @@ const BROKEN_TEXT_PATTERN = /\?{4,}/u;
 const AUTH_SETUP_PATTERN = /auth-setup/iu;
 
 const ROUTES = [
-  { key: 'work-platform', route: 'work-platform', selector: '#task-management', minText: 600 },
-  { key: 'work-platform-archive', route: 'work-platform/archive', minText: 300 },
+  { key: 'integrated-task-board', route: 'work-platform', selector: '[data-testid="logistics-task-board"]', minText: 300 },
   { key: 'home', route: 'home', minText: 600 },
   { key: 'asset', route: 'asset', minText: 600 },
   { key: 'company', route: 'company', minText: 600 },

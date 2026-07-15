@@ -7,7 +7,6 @@ const fallbackPath = path.join(distDir, '404.html');
 const routeFallbacks = [
   'auth-setup',
   'work-platform',
-  'work-platform/archive',
   'home',
   'asset',
   'company',

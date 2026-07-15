@@ -8,7 +8,6 @@ const QA_DIR = path.join(ROOT, 'scripts', 'qa');
 
 const REQUIRED_LOADING_ROUTES = [
   'work-platform',
-  'work-platform/archive',
   'home',
   'asset',
   'company',
@@ -56,15 +55,15 @@ const SURFACES = [
     requiredEvidence: ['live modal refresh stability', 'notification dismiss readback', 'idle modal reopen'],
   },
   {
-    id: 'work-platform',
+    id: 'integrated-task-board',
     axis: 'screen-coverage',
-    screen: 'Work Platform',
+    screen: 'Integrated Task Board',
     route: '/work-platform',
-    components: ['profile card', 'asset/fund assignment summary', 'search', 'shortcut buttons'],
-    interactions: ['search', 'dashboard navigation', 'assignment readback'],
-    dataContract: '19 assets and 17 funds must be visible to all-management users.',
-    acceptance: ['manager sees all assets/funds', 'external PM only sees assigned assets', 'navigation does not reset auth'],
-    requiredEvidence: ['live work platform smoke', 'permission-specific screenshots'],
+    components: ['task status filters', 'task table', 'task detail drawer', 'create task button'],
+    interactions: ['filter/search', 'create', 'open detail', 'update/delete', 'readback'],
+    dataContract: 'Task-board reads and mutations must use the canonical ll_work_items contract with asset-scoped permissions.',
+    acceptance: ['integrated board is visible', 'task operations preserve permission boundaries', 'navigation does not reset auth'],
+    requiredEvidence: ['full-app loading stability for the task-board route', 'task-board contract test'],
   },
   {
     id: 'dashboard-home-asset-company',
@@ -618,9 +617,8 @@ const SURFACE_EVIDENCE = {
     ['login-history-browser-smoke-latest.json', () => latestArtifactOk('login-history-browser-smoke-latest.json')],
     ['logout-browser-smoke-latest.json', () => notificationsAndLogoutOk()],
   ],
-  'work-platform': [
-    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['work-platform', 'work-platform/archive'])],
-    ['work-platform-browser-smoke-latest.json', () => latestArtifactOk('work-platform-browser-smoke-latest.json')],
+  'integrated-task-board': [
+    ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['work-platform'])],
   ],
   'dashboard-home-asset-company': [
     ['full-app-loading-stability-latest.json', () => fullAppRoutesOk(['home', 'asset', 'company'])],
@@ -801,7 +799,6 @@ function buildCoverageGaps(artifactSummaries, scriptRisks) {
     ['logout-browser-smoke-latest.json', 'logout live flow', notificationsAndLogoutOk],
     ['access-modal-refresh-stability-latest.json', 'feature access modal refresh', () => latestArtifactOk('access-modal-refresh-stability-latest.json')],
     ['login-history-browser-smoke-latest.json', 'login history modal browser flow', () => latestArtifactOk('login-history-browser-smoke-latest.json')],
-    ['work-platform-browser-smoke-latest.json', 'work platform browser flow', () => latestArtifactOk('work-platform-browser-smoke-latest.json')],
     ['sector-tabs-browser-smoke-latest.json', 'sector tabs browser flow', () => latestArtifactOk('sector-tabs-browser-smoke-latest.json')],
     ['market-data-browser-smoke-latest.json', 'market data browser flow', () => latestArtifactOk('market-data-browser-smoke-latest.json')],
     ['data-management-browser-readback-smoke-latest.json', 'data management browser readback', () => latestArtifactOk('data-management-browser-readback-smoke-latest.json')],

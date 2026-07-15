@@ -5,7 +5,8 @@ import { getDashboardCacheScope, invokeDashboardApi } from '../../../utils/supab
 import { useAuth } from '../../../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import weeklyReportData from './logisticsWeeklyReportData.json';
-import WorkspaceActivityLog from './WorkspaceActivityLog';
+import LogisticsNewsTicker from './LogisticsNewsTicker';
+import LogisticsTaskBoard from './LogisticsTaskBoard';
 import homeData from './logisticsHomeData.json';
 import rawAssetOptionsData from './logisticsAssetOptionsData.json';
 import assetSearchIndexData from './logisticsAssetSearchIndex.json';
@@ -41,6 +42,7 @@ import infoIconUrl from '../../../assets/i_icon.png';
 import { avatarCandidates } from '../avatarUtils';
 
 const MotionDiv = motion.div;
+const RETIRED_WORK_PLATFORM_SURFACES_ENABLED = false;
 
 let xlsxModulePromise = null;
 const assetOptionsData = rawAssetOptionsData;
@@ -4621,7 +4623,7 @@ function PermissionBadge({ label, enabled }) {
   );
 }
 
-function MainOverlay({ title, eyebrow, onClose, children }) {
+function MainOverlay({ title, eyebrow, onClose, children, fullScreen = false }) {
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -4631,7 +4633,7 @@ function MainOverlay({ title, eyebrow, onClose, children }) {
   }, []);
   const overlay = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 px-6 py-8 backdrop-blur-sm" role="dialog" aria-modal="true">
-      <div className="w-full max-w-[960px] max-h-[86vh] overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl">
+      <div className={`w-full overflow-hidden rounded-[18px] border border-[#3A3A3C] bg-[#252524] shadow-2xl ${fullScreen ? 'h-[calc(100vh-32px)] max-w-[calc(100vw-32px)]' : 'max-h-[86vh] max-w-[960px]'}`}>
         <div className="flex items-center justify-between gap-4 border-b border-[#333333] px-6 py-5">
           <div>
             {eyebrow ? <div className="text-[12px] font-semibold text-[#86868B]">{eyebrow}</div> : null}
@@ -4639,7 +4641,7 @@ function MainOverlay({ title, eyebrow, onClose, children }) {
           </div>
           <button type="button" onClick={onClose} className="h-9 rounded-[8px] bg-[#1F1F1E] px-3 text-[13px] font-semibold text-[#C7C7CC] hover:bg-[#30302F]">닫기</button>
         </div>
-        <div className="custom-scrollbar max-h-[calc(86vh-86px)] overflow-auto p-6">
+        <div className={`custom-scrollbar overflow-auto p-6 ${fullScreen ? 'h-[calc(100vh-114px)]' : 'max-h-[calc(86vh-86px)]'}`}>
           {children}
         </div>
       </div>
@@ -5199,11 +5201,11 @@ function aiMentionHighlightSegments(text, selections) {
 
 export default function WorkspaceLogistics({ currentPath = '' }) {
   const { memberInfo, permissionsLoading } = useAuth();
-  const [showAllTasks, setShowAllTasks] = useState(false);
-  const [showCompletedTasks, setShowCompletedTasks] = useState(false);
+  const [showAllTasks, _setShowAllTasks] = useState(false);
+  const [showCompletedTasks, _setShowCompletedTasks] = useState(false);
   const [isLoadingTasks, setIsLoadingTasks] = useState(true);
   const [isAddingTask, setIsAddingTask] = useState(false);
-  const [expandedTaskId, setExpandedTaskId] = useState(null);
+  const [_expandedTaskId, _setExpandedTaskId] = useState(null);
   const [mainModal, setMainModal] = useState(null);
   const [mainSearchQuery, setMainSearchQuery] = useState('');
   const [isAiDockOpen, setIsAiDockOpen] = useState(false);
@@ -5232,7 +5234,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const [taskEditTarget, setTaskEditTarget] = useState(null);
   const [taskDraft, setTaskDraft] = useState(null);
   const [pendingTaskAction, setPendingTaskAction] = useState(null);
-  const [taskSaveStatus, setTaskSaveStatus] = useState(null);
+  const [_taskSaveStatus, setTaskSaveStatus] = useState(null);
 
   const normalizedCurrentPath = normalizeLogisticsPath(currentPath);
   const isContractData = normalizedCurrentPath === pathFor('contract-data');
@@ -5278,7 +5280,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   const canOpenMarketData = canReadWorkspace && (activeMarketTab !== 'source' || featureAccess.marketResearch);
   const weeklyTasks = useMemo(() => buildMainWeeklyTasks(weeklyReportData, permission), [permission]);
   const canRegisterTask = canUseAnyAssetPermission(permission, 'create') || canUseAnyAssetPermission(permission, 'update');
-  const canUseAiChat = featureAccess.aiChat;
+  const canUseAiChat = false;
   const aiInputRef = useRef(null);
   const aiInputOverlayRef = useRef(null);
   const [aiMentionActiveIndex, setAiMentionActiveIndex] = useState(0);
@@ -5331,6 +5333,10 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   useEffect(() => {
     let cancelled = false;
     const fetchLogisticsTasks = async () => {
+      if (!RETIRED_WORK_PLATFORM_SURFACES_ENABLED) {
+        setIsLoadingTasks(false);
+        return;
+      }
       if (!shouldLoadWorkPlatformData) {
         setIsLoadingTasks(false);
         return;
@@ -5366,7 +5372,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   }, [permission, shouldLoadWorkPlatformData, weeklyTasks]);
 
   useEffect(() => {
-    if (!shouldLoadWorkPlatformData || isLoadingTasks || !permission.email) return undefined;
+    if (!RETIRED_WORK_PLATFORM_SURFACES_ENABLED || !shouldLoadWorkPlatformData || isLoadingTasks || !permission.email) return undefined;
     const activeTaskSignature = taskRecords
       .filter((task) => !isDeletedTask(task))
       .map((task) => `${task.id}:${task.status}:${task.createdAt || ''}:${task.updatedAt || ''}`)
@@ -5405,7 +5411,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
 
   const permittedTasks = useMemo(() => filterMainTasksByPermission(taskRecords, permission, showCompletedTasks), [permission, showCompletedTasks, taskRecords]);
   const sortedWeeklyTasks = useMemo(() => sortMainTasks(permittedTasks), [permittedTasks]);
-  const visibleTasks = showAllTasks ? sortedWeeklyTasks : sortedWeeklyTasks.slice(0, 5);
+  const _visibleTasks = showAllTasks ? sortedWeeklyTasks : sortedWeeklyTasks.slice(0, 5);
   const topAssets = useMemo(() => {
     const isSoldAsset = (asset) => {
       const name = String(asset?.assetName || asset?.asset_name || '').trim();
@@ -5418,6 +5424,17 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       .filter((asset) => !isSoldAsset(asset))
       .sort((a, b) => String(a.assetName || '').localeCompare(String(b.assetName || ''), 'ko-KR'));
   }, [permission]);
+  const taskBoardAssets = useMemo(() => topAssets.filter((asset) => {
+    const assetId = String(asset?.assetId || asset?.asset_id || '').trim();
+    const assetCode = String(asset?.assetCode || asset?.asset_code || '').trim();
+    const capability = permission.assetCapabilities?.get(assetId);
+    const isManaged = permission.managedAssetRefs?.has(assetId) || permission.managedAssetRefs?.has(assetCode);
+    return isManaged
+      && capability?.read === true
+      && capability?.create === true
+      && capability?.update === true
+      && capability?.delete === true;
+  }), [permission, topAssets]);
   const [quickTabKeys, setQuickTabKeys] = useState(readWorkPlatformQuickTabKeys);
   const [quickTabDragOver, setQuickTabDragOver] = useState(false);
   const persistQuickTabKeys = useCallback((updater) => {
@@ -5457,13 +5474,13 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   }, [persistQuickTabKeys]);
   const quickTabs = useMemo(() => quickTabKeys.map((key) => WORK_PLATFORM_QUICK_TAB_MAP.get(key)).filter(Boolean), [quickTabKeys]);
   const searchResults = useMemo(() => buildLogisticsSearchResults(mainSearchQuery, permission), [mainSearchQuery, permission]);
-  const taskStakeholderOptions = useMemo(() => buildTaskStakeholderOptions(taskRecords, []), [taskRecords]);
+  const _taskStakeholderOptions = useMemo(() => buildTaskStakeholderOptions(taskRecords, []), [taskRecords]);
 
   const canModifyTask = (task, type = 'edit') => {
     const operation = type === 'delete' ? 'delete' : 'update';
     return canUseAssetPermission(permission, resolveAssetIdByName(task?.assetName || task?.relatedAsset), operation);
   };
-  const requestTaskAction = (type, task) => {
+  const _requestTaskAction = (type, task) => {
     if (!canModifyTask(task, type)) return;
     const messages = {
       edit: '선택한 Task를 수정하시겠습니까?',
@@ -5546,7 +5563,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     setIsAddingTask(true);
     document.getElementById('task-management')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  const startTaskAdd = () => {
+  const _startTaskAdd = () => {
     if (!canRegisterTask) {
       setTaskSaveStatus({ type: 'error', message: '현재 계정에는 TASK 추가 권한이 없습니다.' });
       return;
@@ -5562,7 +5579,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
     setTaskSaveStatus(null);
     setIsAddingTask(true);
   };
-  const saveTaskEdit = async () => {
+  const _saveTaskEdit = async () => {
     if (!taskDraft?.taskName?.trim()) {
       setTaskSaveStatus({ type: 'error', message: 'Task 제목을 입력해야 저장할 수 있습니다.' });
       return;
@@ -5847,7 +5864,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       setAiChatLoading(false);
     }
   };
-  const moveTask = async (index, direction) => {
+  const _moveTask = async (index, direction) => {
     const visibleList = showAllTasks ? sortedWeeklyTasks : sortedWeeklyTasks.slice(0, 5);
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= visibleList.length) return;
@@ -5900,8 +5917,8 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
 
   return (
     <div className="relative w-full overflow-x-clip">
-      <div className={`w-full px-8 pt-[50px] pb-[70px] transition-[padding] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isAiDockOpen ? 'xl:pr-[452px]' : 'xl:pr-8'}`}>
-        <div className="w-full max-w-[1200px] mx-auto">
+      <div className="w-full px-8 pt-[50px] pb-[70px]">
+        <div className="w-full max-w-[1480px] mx-auto">
       <header className="mb-[28px] flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <h1 className="text-[36px] font-bold leading-none tracking-tight text-white font-['Inter']">물류센터 워크 플랫폼</h1>
@@ -5910,11 +5927,19 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setMainModal('news')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
+            데일리 물류 뉴스
+          </button>
+          <button type="button" onClick={() => setMainModal('project')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
+            관리 Project 현황
+          </button>
           <button type="button" onClick={() => setMainModal('permission')} className={`h-10 rounded-[8px] border px-4 text-[13px] font-bold ${DARK_BUTTON_CLASS}`}>
             담당 및 권한
           </button>
         </div>
       </header>
+
+      <LogisticsNewsTicker />
 
       <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-[18px]">
         <div className="grid grid-cols-1 gap-4">
@@ -6027,272 +6052,26 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
         </div>
       </section>
 
-      <WeeklyAssetStatusTable />
-
-      <DailyLogisticsNewsCard />
-
-      <section id="task-management" className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-0">
-            <h2 className="flex items-center text-[20px] font-semibold tracking-tight text-white">
-              <span className="mt-[2px]">주요 TASK 관리</span>
-              <span className="ml-[10px] rounded-[6px] bg-[#333] px-[8px] py-[3px] text-[14px] font-bold text-[#b3b0a6]">{getLogisticsWeekInfo().weekLabel}</span>
-            </h2>
-            <a href={`${import.meta.env.BASE_URL}work-platform/archive?workspace=logistics`} target="_blank" rel="opener" className="ml-[10px] mt-[2px] flex cursor-pointer items-center gap-[4px] rounded-[6px] border border-[#3c3c3c] bg-transparent py-[3px] pl-[10px] pr-[8px] text-[13px] font-normal tracking-[-0.02em] text-[#A1A1AA] transition-all hover:bg-[#333] hover:text-white">
-              지난 Task 관리
-              <svg className="h-[14px] w-[14px]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </a>
-          </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setShowCompletedTasks((value) => !value)} className={`rounded-[8px] border px-[12px] py-[6px] text-[13px] font-medium transition-colors ${showCompletedTasks ? 'border-white bg-white text-[#1F1F1E]' : 'border-[#3c3c3c] bg-[#272726] text-[#86868B] hover:bg-[#333] hover:text-[#E5E5E5]'}`}>
-              완료 포함
-            </button>
-            <button type="button" onClick={() => setShowAllTasks((value) => !value)} className="w-[80px] rounded-[8px] border border-[#3c3c3c] bg-[#272726] py-[6px] text-[13px] font-medium text-[#86868B] transition-colors hover:bg-[#333] hover:text-[#E5E5E5]">
-              {showAllTasks ? '접기' : '전체보기'}
-            </button>
-            {!taskEditTarget ? (
-              <button type="button" onClick={startTaskAdd} className={`rounded-[8px] border px-[14px] py-[6px] text-[13px] font-bold transition-all ${PRIMARY_BLUE_BUTTON_CLASS}`}>
-                {isAddingTask ? '등록 취소' : '+ Task 등록하기'}
-              </button>
-            ) : null}
-          </div>
-        </div>
-        <div className="rounded-[20px] border border-[#333333] bg-[#1F1F1E] p-[6px]">
-          <div className="flex w-full flex-col gap-[16px]">
-            {isAddingTask && !taskEditTarget && taskDraft ? (
-              <div className="flex w-full flex-col gap-4 rounded-[24px] border border-[#3c3c3c] bg-[#272726] p-6">
-                <div className="flex gap-4">
-                  <input
-                    type="text"
-                    value={taskDraft.taskName}
-                    onChange={(event) => setTaskDraft((draft) => ({ ...draft, taskName: event.target.value }))}
-                    className="flex-[2] rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[16px] font-bold text-white outline-none focus:border-[#888]"
-                    placeholder="Task 입력"
-                  />
-                  <TaskStakeholderSearchInput
-                    value={taskDraft.companyName}
-                    onChange={(nextValue) => setTaskDraft((draft) => ({ ...draft, companyName: nextValue }))}
-                    options={taskStakeholderOptions}
-                  />
-                </div>
-                <input
-                  type="text"
-                  value={taskDraft.nextAction}
-                  onChange={(event) => setTaskDraft((draft) => ({ ...draft, nextAction: event.target.value }))}
-                  className="w-full rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[15px] text-white outline-none focus:border-[#888]"
-                  placeholder="다음 액션 준비사항 입력"
-                />
-                <textarea
-                  value={taskDraft.notes || taskDraft.issue || ''}
-                  onChange={(event) => setTaskDraft((draft) => ({ ...draft, notes: event.target.value, issue: event.target.value }))}
-                  className="min-h-[92px] w-full resize-y rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[14px] text-[#A1A1AA] outline-none focus:border-[#888]"
-                  placeholder="상세 내용 입력"
-                />
-                <div className="flex flex-wrap items-center gap-4">
-                  <select
-                    value={taskDraft.assetName}
-                    onChange={(event) => setTaskDraft((draft) => ({ ...draft, assetName: event.target.value }))}
-                    className="cursor-pointer rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]"
-                  >
-                    {topAssets.map((asset) => <option key={asset.assetCode || asset.assetName} value={asset.assetName}>{asset.assetName}</option>)}
-                  </select>
-                  <select value={taskDraft.status} onChange={(event) => setTaskDraft((draft) => ({ ...draft, status: event.target.value }))} className="rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]">
-                    {['신규', '검토중', '진행중', '보류', '완료'].map((status) => <option key={status}>{status}</option>)}
-                  </select>
-                  <select value={taskDraft.priority} onChange={(event) => setTaskDraft((draft) => ({ ...draft, priority: event.target.value }))} className="rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]">
-                    {MAIN_PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}
-                  </select>
-                  <div className="flex items-center gap-2">
-                    <span className="shrink-0 text-[13px] font-bold text-[#86868B]">목표 마감일</span>
-                    <input type="date" value={taskDraft.dueDate} onClick={(event) => event.target.showPicker && event.target.showPicker()} onChange={(event) => setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))} className="cursor-pointer rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-[#A1A1AA] outline-none [color-scheme:dark] focus:border-[#888]" />
-                  </div>
-                  <div className="ml-auto flex gap-2">
-                    <button type="button" onClick={() => { setIsAddingTask(false); setTaskEditTarget(null); setTaskDraft(null); setTaskSaveStatus(null); }} className="rounded-[10px] border border-[#444] bg-[#3c3c3c]/50 px-5 py-2 text-[14px] font-bold text-[#86868B] transition-colors hover:bg-[#3c3c3c] hover:text-white">취소</button>
-                    <button type="button" onClick={saveTaskEdit} className="rounded-[10px] border border-[#059669]/30 bg-[#059669]/20 px-5 py-2 text-[14px] font-bold text-[#34d399] transition-colors hover:bg-[#059669]/40">
-                      {taskEditTarget ? '수정 완료' : '저장'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {taskSaveStatus ? (
-              <div className={`mb-3 rounded-[12px] border px-4 py-3 text-[13px] font-semibold ${
-                taskSaveStatus.type === 'success'
-                  ? 'border-[#2E6B45] bg-[#12351F] text-[#B5E48C]'
-                  : taskSaveStatus.type === 'pending'
-                    ? 'border-[#365C91] bg-[#16253A] text-[#9CC7FF]'
-                    : 'border-[#7A5C10] bg-[#2A2309] text-[#F7D774]'
-              }`}>
-                {taskSaveStatus.message}
-              </div>
-            ) : null}
-
-            {isLoadingTasks ? (
-              <div className="py-[40px] text-center text-[13px] text-[#86868B]">데이터를 불러오는 중입니다.</div>
-            ) : (
-              <div className="flex flex-col gap-[8px]">
-                <AnimatePresence>
-                  {visibleTasks.map((task, index) => (
-                    <MotionDiv
-                      layout
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                      key={task.id}
-                      id={`task-${task.id}`}
-                      onClick={() => setExpandedTaskId((expandedTaskId === 'ALL' || expandedTaskId === task.id) ? null : task.id)}
-                      className={`group/row relative w-full cursor-pointer scroll-mt-[100px] rounded-[24px] px-6 pb-[14px] pt-[22px] transition-all duration-300 ${(expandedTaskId === 'ALL' || expandedTaskId === task.id) ? 'border-[2px] border-transparent [background:linear-gradient(#272726,#272726)_padding-box,linear-gradient(to_bottom_right,#d6efe9,#82afb9,#4c6e86)_border-box]' : 'border border-[#3c3c3c] bg-[#272726] hover:bg-[#333]'}`}
-                    >
-                      {canRegisterTask ? (
-                        <div className="absolute bottom-0 left-[-40px] top-0 flex w-[40px] items-center justify-end pr-[8px] opacity-0 transition-opacity group-hover/row:opacity-100">
-                          <div className="flex flex-col gap-1">
-                            <button type="button" onClick={(event) => { event.stopPropagation(); moveTask(index, 'up'); }} disabled={index === 0} className={`flex h-7 w-7 items-center justify-center rounded-[6px] border border-[#3c3c3c] bg-[#272726] transition-colors ${index === 0 ? 'cursor-not-allowed opacity-30' : 'cursor-pointer hover:bg-[#333]'}`}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E5E5E5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
-                            </button>
-                            <button type="button" onClick={(event) => { event.stopPropagation(); moveTask(index, 'down'); }} disabled={index === visibleTasks.length - 1} className={`flex h-7 w-7 items-center justify-center rounded-[6px] border border-[#3c3c3c] bg-[#272726] transition-colors ${index === visibleTasks.length - 1 ? 'cursor-not-allowed opacity-30' : 'cursor-pointer hover:bg-[#333]'}`}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#E5E5E5" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-                      {canModifyTask(task) ? (
-                        <div className="absolute bottom-0 right-[-60px] top-0 flex w-[60px] items-center justify-start pl-[8px] opacity-0 transition-opacity group-hover/row:opacity-100">
-                          <div className="flex w-[46px] flex-col gap-1">
-                            <button type="button" onClick={(event) => { event.stopPropagation(); requestTaskAction('delete', task); }} className="flex h-[28px] w-full cursor-pointer items-center justify-center rounded-[6px] border border-[#ef4444]/30 bg-[#ef4444]/10 text-[12px] font-bold text-[#ef4444] hover:bg-[#ef4444]/20">삭제</button>
-                            <button type="button" onClick={(event) => { event.stopPropagation(); requestTaskAction('edit', task); }} className="flex h-[28px] w-full cursor-pointer items-center justify-center rounded-[6px] border border-[#3b82f6]/30 bg-[#3b82f6]/10 text-[12px] font-bold text-[#3b82f6] hover:bg-[#3b82f6]/20">수정</button>
-                            <button type="button" onClick={(event) => { event.stopPropagation(); requestTaskAction('complete', task); }} className="flex h-[28px] w-full cursor-pointer items-center justify-center rounded-[6px] border border-[#059669]/30 bg-[#059669]/10 text-[12px] font-bold text-[#34d399] hover:bg-[#059669]/20">완료</button>
-                          </div>
-                        </div>
-                      ) : null}
-                      <div className="flex items-start justify-between gap-8">
-                        <div className="flex flex-1 gap-8">
-                          <div className="flex w-[430px] shrink-0 flex-col gap-[2px] border-r border-[#444]/50 pr-8">
-                            <span className="relative -top-[1px] text-[13px] font-bold text-[#86868B]">Task {index + 1}</span>
-                            <h3 className={`text-[21px] font-bold leading-tight tracking-tight ${index < 5 ? 'text-[#e2aa29]' : 'text-white'}`}>
-                              {task.taskName}
-                            </h3>
-                          </div>
-                          <div className="flex flex-1 flex-col gap-[2px] pr-4">
-                            <div className="mb-1 flex -translate-y-[2px] items-center gap-2">
-                              <span className="text-[13px] font-bold text-[#86868B]">다음액션</span>
-                              {task.dueDate ? <span className="rounded-full border border-[#3a3a3c] bg-[#2c2c2e] px-[8px] py-[2px] text-[11px] font-medium tracking-tight text-[#A1A1AA]">마감일 목표 {task.dueDate}</span> : null}
-                            </div>
-                            <div className="-translate-y-[6px] break-keep text-[18px] font-medium leading-relaxed text-[#bbb9af]">
-                              {renderBulletListCell(task.nextAction || task.issue || '작성된 내용이 없습니다.')}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-3">
-                          {task.companyName || task.stakeholder ? <span className="text-[13px] font-medium text-[#86868B]">이해관계자</span> : null}
-                          <span className={`rounded-[12px] border border-[#333] bg-[#1A1A1A] px-4 py-2 text-[15px] ${task.companyName || task.stakeholder ? 'font-bold text-[#E5E5E5]' : 'font-normal text-[#86868B]'}`}>
-                            {task.companyName || task.stakeholder || '내부업무'}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${(expandedTaskId === 'ALL' || expandedTaskId === task.id) ? 'mt-4 max-h-[220px] border-t border-[#3c3c3c] pt-4 opacity-100' : 'max-h-0 opacity-0'}`}>
-                        <div className="flex items-center justify-start gap-12">
-                          <div className="flex items-center gap-3">
-                            <span className="text-[13px] font-bold text-[#86868B]">관련 자산</span>
-                            <span className="text-[16px] font-medium text-white">{task.assetName || task.relatedAsset}</span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-[13px] font-bold text-[#86868B]">상태</span>
-                            <span className={`w-max rounded-[6px] px-2 py-1 text-[13px] font-bold ${task.status === '진행중' ? 'bg-[#059669]/20 text-[#34d399]' : task.status === '검토중' ? 'bg-[#d97706]/20 text-[#fbf167]' : task.status === '완료' ? 'bg-[#2563eb]/20 text-[#60a5fa]' : 'bg-[#4b5563]/20 text-[#9ca3af]'}`}>
-                              {task.status}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <span className="text-[13px] font-bold text-[#86868B]">중요도</span>
-                            <span className={`text-[16px] font-bold ${MAIN_PRIORITY_STYLES[task.priority] || 'text-[#A1A1AA]'}`}>{task.priority}</span>
-                          </div>
-                        </div>
-                        {(task.notes || task.issue) ? (
-                          <div className="mt-4 flex items-start gap-4 border-t border-[#3c3c3c]/50 pt-4">
-                            <span className="mt-[2px] shrink-0 text-[13px] font-bold text-[#86868B]">비고/링크</span>
-                            <span className="break-all text-[14px] font-medium text-white">{renderBulletListCell(task.notes || task.issue)}</span>
-                          </div>
-                        ) : null}
-                      </div>
-                      {isAddingTask && taskEditTarget?.id === task.id && taskDraft ? (
-                        <div onClick={(event) => event.stopPropagation()} className="mt-4 flex w-full flex-col gap-4 rounded-[18px] border border-[#3c3c3c] bg-[#1F1F1E] p-5">
-                          <div className="flex gap-4">
-                            <input
-                              type="text"
-                              value={taskDraft.taskName}
-                              onChange={(event) => setTaskDraft((draft) => ({ ...draft, taskName: event.target.value }))}
-                              className="flex-[2] rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[16px] font-bold text-white outline-none focus:border-[#888]"
-                              placeholder="Task 입력"
-                            />
-                            <TaskStakeholderSearchInput
-                              value={taskDraft.companyName}
-                              onChange={(nextValue) => setTaskDraft((draft) => ({ ...draft, companyName: nextValue }))}
-                              options={taskStakeholderOptions}
-                            />
-                          </div>
-                          <input
-                            type="text"
-                            value={taskDraft.nextAction}
-                            onChange={(event) => setTaskDraft((draft) => ({ ...draft, nextAction: event.target.value }))}
-                            className="w-full rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[15px] text-white outline-none focus:border-[#888]"
-                            placeholder="다음액션 준비사항 입력"
-                          />
-                          <textarea
-                            value={taskDraft.notes || taskDraft.issue || ''}
-                            onChange={(event) => setTaskDraft((draft) => ({ ...draft, notes: event.target.value, issue: event.target.value }))}
-                            className="min-h-[92px] w-full resize-y rounded-[12px] border border-[#444] bg-[#1A1A1A] px-4 py-3 text-[14px] text-[#A1A1AA] outline-none focus:border-[#888]"
-                            placeholder="상세 내용 입력"
-                          />
-                          <div className="flex flex-wrap items-center gap-4">
-                            <select
-                              value={taskDraft.assetName}
-                              onChange={(event) => setTaskDraft((draft) => ({ ...draft, assetName: event.target.value }))}
-                              className="cursor-pointer rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]"
-                            >
-                              {topAssets.map((asset) => <option key={asset.assetCode || asset.assetName} value={asset.assetName}>{asset.assetName}</option>)}
-                            </select>
-                            <select value={taskDraft.status} onChange={(event) => setTaskDraft((draft) => ({ ...draft, status: event.target.value }))} className="rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]">
-                              {['신규', '검토중', '진행중', '보류', '완료'].map((status) => <option key={status}>{status}</option>)}
-                            </select>
-                            <select value={taskDraft.priority} onChange={(event) => setTaskDraft((draft) => ({ ...draft, priority: event.target.value }))} className="rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-white outline-none focus:border-[#888]">
-                              {MAIN_PRIORITIES.map((priority) => <option key={priority}>{priority}</option>)}
-                            </select>
-                            <div className="flex items-center gap-2">
-                              <span className="shrink-0 text-[13px] font-bold text-[#86868B]">목표 마감일</span>
-                              <input type="date" value={taskDraft.dueDate} onClick={(event) => event.target.showPicker && event.target.showPicker()} onChange={(event) => setTaskDraft((draft) => ({ ...draft, dueDate: event.target.value }))} className="cursor-pointer rounded-[10px] border border-[#444] bg-[#1A1A1A] px-3 py-2 text-[14px] text-[#A1A1AA] outline-none [color-scheme:dark] focus:border-[#888]" />
-                            </div>
-                            <div className="ml-auto flex gap-2">
-                              <button type="button" onClick={() => { setIsAddingTask(false); setTaskEditTarget(null); setTaskDraft(null); setTaskSaveStatus(null); }} className="rounded-[10px] border border-[#444] bg-[#3c3c3c]/50 px-5 py-2 text-[14px] font-bold text-[#86868B] transition-colors hover:bg-[#3c3c3c] hover:text-white">취소</button>
-                              <button type="button" onClick={saveTaskEdit} className="rounded-[10px] border border-[#059669]/30 bg-[#059669]/20 px-5 py-2 text-[14px] font-bold text-[#34d399] transition-colors hover:bg-[#059669]/40">수정 완료</button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : null}
-                    </MotionDiv>
-                  ))}
-                </AnimatePresence>
-                {!visibleTasks.length ? (
-                  <div className="rounded-[18px] border border-[#333333] bg-[#1F1F1E] px-5 py-6 text-[13px] text-[#86868B]">등록된 게시물이 없습니다.</div>
-                ) : null}
-              </div>
-            )}
-          </div>
-        </div>
+      <section className="mb-[28px] overflow-hidden rounded-[8px] border border-[#333333] bg-[#252524]">
+        <LogisticsTaskBoard eligibleAssets={taskBoardAssets} memberInfo={memberInfo} />
       </section>
 
-      <section className="mb-[28px] rounded-[24px] border border-[#333333] bg-[#252524] p-5">
-        <WorkspaceActivityLog workspaceCode="WS_LOGISTICS" workspaceLabel="물류센터 워크 플랫폼" assetOptions={topAssets} embedded />
-      </section>
         </div>
       </div>
 
       {mainModal === 'permission' && (
         <MainOverlay title="담당자별 자산·펀드 권한" eyebrow="PERMISSION SCOPE" onClose={() => setMainModal(null)}>
           <PermissionDetailContent permission={permission} />
+        </MainOverlay>
+      )}
+      {mainModal === 'news' && (
+        <MainOverlay title="데일리 물류 뉴스" eyebrow="DAILY LOGISTICS NEWS" onClose={() => setMainModal(null)}>
+          <DailyLogisticsNewsCard />
+        </MainOverlay>
+      )}
+      {mainModal === 'project' && (
+        <MainOverlay title="관리 Project 현황" eyebrow="PROJECT STATUS" onClose={() => setMainModal(null)} fullScreen>
+          <WeeklyAssetStatusTable />
         </MainOverlay>
       )}
       {selectedSearchResult && (

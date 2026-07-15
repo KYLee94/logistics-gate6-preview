@@ -2,6 +2,12 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { supabase } from '../../utils/supabaseClient';
 import { invokeDashboardApi } from '../../utils/supabaseSession';
+import {
+    getLogisticsPushSubscriptionStatus,
+    isLogisticsPushSupported,
+    subscribeLogisticsPushNotifications,
+    unsubscribeLogisticsPushNotifications,
+} from '../../utils/logisticsPushNotifications';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, pathForLogisticsUrl } from './workspace/logisticsRoutes';
 import UserAvatar from './UserAvatar';
 
@@ -729,6 +735,9 @@ export default function IotaLeftNav({ currentPath = '' }) {
     const [showNotificationsPanel, setShowNotificationsPanel] = useState(false);
     const [notificationsLoading, setNotificationsLoading] = useState(false);
     const [notificationsError, setNotificationsError] = useState('');
+    const [pushEnabled, setPushEnabled] = useState(false);
+    const [pushBusy, setPushBusy] = useState(false);
+    const [pushMessage, setPushMessage] = useState('');
     const [notifications, setNotifications] = useState(() => readCachedNotifications());
     const notificationsRef = useRef(notifications);
     const loadNotificationsRef = useRef(null);
@@ -743,6 +752,46 @@ export default function IotaLeftNav({ currentPath = '' }) {
         const saved = sessionStorage.getItem('isWorkspaceOpen');
         return saved !== null ? saved === 'true' : true;
     });
+
+    const toggleWindowsNotifications = useCallback(async () => {
+        if (!isLogisticsPushSupported() || pushBusy) return;
+        setPushBusy(true);
+        setPushMessage('');
+        try {
+            if (pushEnabled) {
+                await unsubscribeLogisticsPushNotifications();
+                setPushEnabled(false);
+                setPushMessage('Windows 알림을 껐습니다.');
+            } else {
+                const result = await subscribeLogisticsPushNotifications();
+                if (!result.subscribed) {
+                    setPushMessage(result.permission === 'denied' ? '브라우저 설정에서 알림 권한을 허용해 주세요.' : '알림 권한이 허용되지 않았습니다.');
+                    return;
+                }
+                setPushEnabled(true);
+                setPushMessage('Windows 알림을 켰습니다.');
+            }
+        } catch (error) {
+            setPushMessage(error?.message || 'Windows 알림 설정을 변경하지 못했습니다.');
+        } finally {
+            setPushBusy(false);
+        }
+    }, [pushBusy, pushEnabled]);
+
+    useEffect(() => {
+        if (!showNotificationsPanel || !isLogisticsPushSupported()) return undefined;
+        let cancelled = false;
+        getLogisticsPushSubscriptionStatus()
+            .then((status) => {
+                if (!cancelled) setPushEnabled(status.subscribed);
+            })
+            .catch(() => {
+                if (!cancelled) setPushEnabled(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [showNotificationsPanel]);
 
     const handlePasswordChange = async () => {
         try {
@@ -1289,7 +1338,7 @@ export default function IotaLeftNav({ currentPath = '' }) {
         return (
             <div className={`${isCollapsed ? 'w-[72px]' : 'w-[275px]'} h-full overflow-hidden bg-transparent border-r border-[#2C2C2E] flex flex-col flex-shrink-0 text-[14px] font-sans text-white transition-[width] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[width] print:hidden`}>
                 <div className={`w-full flex items-center ${isCollapsed ? 'justify-center px-[10px]' : 'justify-between px-[15px]'} pt-[14px] pb-4`}>
-                    <span className={`overflow-hidden whitespace-nowrap font-bold text-[20px] tracking-tight font-inter ml-[5px] text-white transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[170px] translate-x-0 opacity-100'}`}>Logistics</span>
+                    <span className={`overflow-hidden whitespace-nowrap font-bold text-[18px] font-inter ml-[5px] text-white transition-[opacity,max-width,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${isCollapsed ? 'max-w-0 -translate-x-2 opacity-0' : 'max-w-[230px] translate-x-0 opacity-100'}`}>IGIS Logistics Platform</span>
                     <button type="button" onClick={() => setIsCollapsed((value) => !value)} title={isCollapsed ? '사이드바 펼치기' : '사이드바 접기'} className="text-[#86868B] hover:text-white pb-1 transition-colors cursor-pointer mt-[4px]">
                         <svg className={`w-[22px] h-[18px] transition-transform ${isCollapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.8">
                             <rect x="2" y="4" width="20" height="16" rx="3" ry="3" />
@@ -1501,6 +1550,22 @@ export default function IotaLeftNav({ currentPath = '' }) {
                                         </button>
                                     </div>
                                 </div>
+                                {isLogisticsPushSupported() ? (
+                                    <div className="flex items-center justify-between gap-3 border-b border-[#303033] px-4 py-2.5">
+                                        <div className="min-w-0">
+                                            <div className="text-[12px] font-semibold text-[#E5E5E5]">Windows 알림</div>
+                                            {pushMessage ? <div className="mt-0.5 truncate text-[10px] text-[#8E8E93]">{pushMessage}</div> : null}
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={toggleWindowsNotifications}
+                                            disabled={pushBusy}
+                                            className={`shrink-0 rounded-[8px] border px-2.5 py-1.5 text-[11px] font-semibold disabled:cursor-wait disabled:opacity-50 ${pushEnabled ? 'border-[#355C48] bg-[#1E342A] text-[#A8D6B5]' : 'border-[#3A3A3C] text-[#E5E5E5] hover:bg-white/5'}`}
+                                        >
+                                            {pushBusy ? '처리 중' : pushEnabled ? '끄기' : '켜기'}
+                                        </button>
+                                    </div>
+                                ) : null}
                                 <div className="custom-scrollbar max-h-[360px] overflow-auto p-3">
                                     {notificationsError ? (
                                         <div className="mb-2 rounded-[12px] border border-[#5A2A2A] bg-[#2A1717] px-3 py-3 text-[12px] text-[#FFB4A9]">{notificationsError}</div>

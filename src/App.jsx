@@ -4,7 +4,6 @@ import { useLanguage } from './context/LanguageContext';
 import { useAuth } from './context/AuthContext';
 import AuthSetup from './components/system/AuthSetup';
 import PlatformCore from './components/system/PlatformCore';
-import WorkspaceArchive from './components/system/workspace/WorkspaceArchive';
 import { LOGISTICS_INTERNAL_BASE, normalizeLogisticsPath, publicLogisticsPath } from './components/system/workspace/logisticsRoutes';
 
 // BASE_URL: '/' in dev, '/IGIS-Fund-Production-DP/' in GitHub Pages production
@@ -176,8 +175,7 @@ export default function App() {
 
       <div className={isFullscreenPage ? "w-full h-screen overflow-hidden" : "hidden lg:block scroll-container font-sans"} id="scroll-container">
         {renderedPage === 'auth-setup' && <AuthSetup onLogin={() => navigateTo(window.sessionStorage.getItem('logisticsPostLoginPath') || LOGISTICS_WORKSPACE_PATH)} />}
-        {renderedPage.startsWith('platform/iotaseoul') && !renderedPage.includes('/archive') && <PlatformCore isPlatform={true} isIotaWorkspaceOverride={true} currentPath={renderedPage} />}
-        {(renderedPage.includes('workspace/archive') || renderedPage.endsWith('/archive')) && <WorkspaceArchive />}
+        {renderedPage.startsWith('platform/iotaseoul') && <PlatformCore isPlatform={true} isIotaWorkspaceOverride={true} currentPath={renderedPage} />}
       </div>
     </>
   );

@@ -46,6 +46,7 @@ const SECTOR_MARKET_READ_VIEWS = ['overview', 'lease', 'supply', 'transactions',
 const SECTOR_MARKET_READ_VIEW_SET = new Set<string>(SECTOR_MARKET_READ_VIEWS);
 const SECTOR_MARKET_INTERNAL_RESPONSE_KEYS = new Set([
   'payload',
+  'source_payload',
   'source_file_id',
   'source_row_id',
   'source_sheet_id',
@@ -517,6 +518,9 @@ const ACTION_MANIFEST = new Map<string, ActionClassification>([
     'work-platform/tasks/archive-seed', 'work-platform/board-posts/list', 'work-platform/board-posts',
     'work-platform/board-posts/update', 'work-platform/board-posts/delete', 'work-platform/board-posts/comment',
     'work-platform/board-posts/comment-delete', 'weekly-assets/replace-latest', 'weekly-assets/latest',
+    'work-platform/task-board/list', 'work-platform/task-board/get', 'work-platform/task-board/create',
+    'work-platform/task-board/update', 'work-platform/task-board/delete',
+    'notifications/push/config', 'notifications/push/subscribe', 'notifications/push/unsubscribe',
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset',
     'funds/save-by-asset', 'opendart/company/cache-upsert', 'opendart/company', 'building-register/summary',
     'naver/geocode', 'naver/geocode-batch', 'naver/reverse-geocode', 'dashboard/home/read', 'dashboard/asset/read',
@@ -528,7 +532,10 @@ const ACTION_MANIFEST = new Map<string, ActionClassification>([
 type ActionScopeContract = 'public' | 'self' | 'global' | 'asset' | 'multi_asset';
 const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
   ...['naver/maps-config', 'auth/logistics-status'].map((action) => [action, 'public'] as const),
-  ...['auth/me', 'auth/login-history/record', 'notifications/list', 'notifications/dismiss', 'notifications/mark-read'].map((action) => [action, 'self'] as const),
+  ...[
+    'auth/me', 'auth/login-history/record', 'notifications/list', 'notifications/dismiss', 'notifications/mark-read',
+    'notifications/push/config', 'notifications/push/subscribe', 'notifications/push/unsubscribe',
+  ].map((action) => [action, 'self'] as const),
   ...[
     'health', 'ai/search-chat-demo', 'ai/provider-diagnostics', 'ai/gemini-diagnostics',
     'auth/users/list', 'permissions/evaluate', 'auth/users/upsert', 'auth/user-permissions/update',
@@ -543,6 +550,7 @@ const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
     'asset-spec/read', 'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
     'worklogs/list', 'worklogs', 'worklogs/update', 'worklogs/complete', 'worklogs/delete',
     'work-platform/tasks', 'work-platform/tasks/update', 'work-platform/tasks/complete', 'work-platform/tasks/delete', 'work-platform/tasks/archive-seed',
+    'work-platform/task-board/get', 'work-platform/task-board/create', 'work-platform/task-board/update', 'work-platform/task-board/delete',
     'work-platform/board-posts', 'work-platform/board-posts/update', 'work-platform/board-posts/delete',
     'work-platform/board-posts/comment', 'work-platform/board-posts/comment-delete',
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
@@ -555,6 +563,7 @@ const ACTION_SCOPE_MANIFEST = new Map<string, ActionScopeContract>([
     'data-management/status', 'data-management/coverage', 'data-management/preview-edit', 'data-management/submit-edit',
     'lease-events/list', 'lease-events/preview', 'lease-events/submit',
     'work-platform/tasks/list', 'work-platform/tasks/snapshots/upsert-current', 'work-platform/tasks/snapshots/list',
+    'work-platform/task-board/list',
     'work-platform/board-posts/list', 'weekly-assets/replace-latest', 'weekly-assets/latest',
     'dashboard/home/read', 'dashboard/company/read', 'dashboard/read', 'ai/search-chat',
   ].map((action) => [action, 'multi_asset'] as const),
@@ -568,6 +577,7 @@ const ACTION_SCOPE_HANDLER_CONTRACTS = new Map<string, Extract<ActionScopeContra
     'asset-spec/read', 'asset-spec/save', 'asset-admin/gyeongsan-coupang-floor-count-preview', 'operating-costs/read',
     'worklogs/list', 'worklogs', 'worklogs/update', 'worklogs/complete', 'worklogs/delete',
     'work-platform/tasks', 'work-platform/tasks/update', 'work-platform/tasks/complete', 'work-platform/tasks/delete', 'work-platform/tasks/archive-seed',
+    'work-platform/task-board/get', 'work-platform/task-board/create', 'work-platform/task-board/update', 'work-platform/task-board/delete',
     'work-platform/board-posts', 'work-platform/board-posts/update', 'work-platform/board-posts/delete',
     'work-platform/board-posts/comment', 'work-platform/board-posts/comment-delete',
     'weekly-projects/get-asset-detail', 'weekly-projects/save-asset-detail', 'funds/read-by-asset', 'funds/save-by-asset',
@@ -580,6 +590,7 @@ const ACTION_SCOPE_HANDLER_CONTRACTS = new Map<string, Extract<ActionScopeContra
     'data-management/status', 'data-management/coverage', 'data-management/preview-edit', 'data-management/submit-edit',
     'lease-events/list', 'lease-events/preview', 'lease-events/submit',
     'work-platform/tasks/list', 'work-platform/tasks/snapshots/upsert-current', 'work-platform/tasks/snapshots/list',
+    'work-platform/task-board/list',
     'work-platform/board-posts/list', 'weekly-assets/replace-latest', 'weekly-assets/latest',
     'dashboard/home/read', 'dashboard/company/read', 'dashboard/read', 'ai/search-chat',
   ].map((action) => [action, 'multi_asset'] as const),
@@ -16415,6 +16426,463 @@ const WORK_PLATFORM_TASK_SELECT = [
   'updated_at',
 ].join(', ');
 
+const TASK_BOARD_CATEGORIES = new Set([
+  '투자·사업성·금융',
+  '인허가·법무·세무',
+  '설계·시공·원가',
+  '임대·마케팅',
+  '자산운영·시설·안전',
+  '재무·회계·보고',
+  '매각·리파이낸싱',
+  '공통관리·내부운영',
+]);
+const TASK_BOARD_STATUSES = new Set(['예정', '진행중', '검토중', '보류', '완료']);
+const TASK_BOARD_SELECT = [
+  'id',
+  'task_code',
+  'task_category',
+  'task_name',
+  'description',
+  'stakeholder_name',
+  'related_asset_id',
+  'related_asset_name',
+  'status',
+  'created_by',
+  'created_by_email',
+  'created_by_name',
+  'organization',
+  'source_payload',
+  'client_request_id',
+  'deleted_at',
+  'created_at',
+  'updated_at',
+].join(', ');
+
+function taskBoardPublicRow(row: Record<string, unknown>) {
+  return stripUndefined({
+    task_code: safeText(row.task_code),
+    project_id: safeText(row.related_asset_id),
+    project: safeText(row.related_asset_name),
+    task_category: safeText(row.task_category),
+    task_name: safeText(row.task_name),
+    description: safeText(row.description),
+    stakeholder_name: safeText(row.stakeholder_name),
+    status: safeText(row.status),
+    created_by_user_id: safeText(row.created_by),
+    created_by_name: safeText(row.created_by_name),
+    created_by_email: safeText(row.created_by_email),
+    organization: safeText(row.organization),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  });
+}
+
+function taskBoardClientRequestId(value: unknown) {
+  const requestId = safeText(value).toLowerCase();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u.test(requestId)
+    ? requestId
+    : '';
+}
+
+function taskBoardText(value: unknown, max: number) {
+  return safeText(value).replace(/\s+/gu, ' ').trim().slice(0, max);
+}
+
+function hasAllTaskBoardCrud(capability: Record<string, unknown> | undefined) {
+  return capability?.read === true
+    && capability?.create === true
+    && capability?.update === true
+    && capability?.delete === true;
+}
+
+async function taskBoardEligibleAssets(ctx: Context) {
+  if (!hasPermissionRow(ctx)) return { assets: [] as CanonicalAsset[], error: 'active_profile_required' };
+  const { data, error } = await ctx.serviceClient
+    .from('ll_assets')
+    .select('asset_id,asset_code,asset_name')
+    .order('asset_name', { ascending: true })
+    .limit(500);
+  if (error) return { assets: [] as CanonicalAsset[], error: 'asset_directory_unavailable' };
+  const assets = ((data || []) as CanonicalAsset[]).filter((asset) => {
+    const capability = canonicalAssetCapability(ctx.permission, asset);
+    return capability.scope === 'managed' && hasAllTaskBoardCrud(capability);
+  });
+  return { assets, error: '' };
+}
+
+async function requireTaskBoardAsset(ctx: Context, reference: unknown) {
+  const eligible = await taskBoardEligibleAssets(ctx);
+  if (eligible.error) return { asset: null, response: fail(403, 'Task board permission is unavailable', ctx.origin, { reason_code: eligible.error }) };
+  const resolved = await resolveCanonicalAssets(ctx, reference);
+  if (resolved.error || resolved.assets.length !== 1) {
+    return { asset: null, response: fail(400, 'A single exact project asset is required', ctx.origin, { reason_code: resolved.reasonCode || 'asset_reference_required' }) };
+  }
+  const asset = resolved.assets[0];
+  if (!eligible.assets.some((candidate) => candidate.asset_id === asset.asset_id)) {
+    return { asset: null, response: fail(403, 'All four managed-asset permissions are required for this task board project', ctx.origin, { reason_code: 'task_board_four_permissions_required' }) };
+  }
+  return { asset, response: null };
+}
+
+async function taskBoardRecipients(ctx: Context, assets: CanonicalAsset[]) {
+  if (!assets.length) return [] as Record<string, unknown>[];
+  const { data, error } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('user_id,email,staff_name,organization,image_url,account_status,managed_asset_codes,managed_asset_permissions,other_asset_permissions')
+    .eq('account_status', 'active')
+    .order('staff_name', { ascending: true })
+    .limit(500);
+  if (error) return [] as Record<string, unknown>[];
+  return ((data || []) as Record<string, unknown>[])
+    .filter((profile) => safeText(profile.user_id) && normalizeAuthEmail(profile.email))
+    .map((profile) => ({
+      user_id: safeText(profile.user_id),
+      email: normalizeAuthEmail(profile.email),
+      name: safeText(firstDefined(profile.staff_name, staffNameForEmail(profile.email))),
+      organization: safeText(firstDefined(profile.organization, organizationForEmail(profile.email))),
+      image_url: safeText(profile.image_url) || null,
+      readable_asset_ids: assets
+        .filter((asset) => canonicalAssetCapability(profile, asset).read === true)
+        .map((asset) => asset.asset_id),
+    }))
+    .filter((profile) => (profile.readable_asset_ids as string[]).length > 0);
+}
+
+function taskBoardSearchTerm(value: unknown) {
+  return taskBoardText(value, 100).replace(/[%_,().]/gu, ' ').replace(/\s+/gu, ' ').trim();
+}
+
+async function listTaskBoard(ctx: Context, payload: Record<string, unknown>) {
+  const eligible = await taskBoardEligibleAssets(ctx);
+  if (eligible.error) return fail(403, 'Task board permission is unavailable', ctx.origin, { reason_code: eligible.error });
+  const eligibleIds = eligible.assets.map((asset) => asset.asset_id);
+  const page = Math.max(1, Math.floor(Number(payload.page || 1)) || 1);
+  const pageSize = [10, 20].includes(Number(payload.page_size)) ? Number(payload.page_size) : 10;
+  if (!eligibleIds.length) {
+    return jsonResponse({ ok: true, data: { items: [], total: 0, page, page_size: pageSize, assets: [], recipients: [] } }, 200, ctx.origin);
+  }
+  let query = ctx.serviceClient
+    .from('ll_work_items')
+    .select(TASK_BOARD_SELECT, { count: 'exact' })
+    .eq('item_type', 'task')
+    .not('task_code', 'is', null)
+    .is('deleted_at', null)
+    .in('related_asset_id', eligibleIds)
+    .order('updated_at', { ascending: false });
+  const assetId = safeText(payload.project_id);
+  if (assetId) {
+    if (!eligibleIds.includes(assetId)) return fail(403, 'Project filter is outside the permitted task board scope', ctx.origin);
+    query = query.eq('related_asset_id', assetId);
+  }
+  const category = safeText(payload.task_category);
+  if (category) {
+    if (!TASK_BOARD_CATEGORIES.has(category)) return fail(400, 'Invalid task category', ctx.origin);
+    query = query.eq('task_category', category);
+  }
+  const status = safeText(payload.status);
+  if (status) {
+    if (!TASK_BOARD_STATUSES.has(status)) return fail(400, 'Invalid task status', ctx.origin);
+    query = query.eq('status', status);
+  }
+  const ownerId = safeText(payload.created_by_user_id);
+  if (ownerId) query = query.eq('created_by', ownerId);
+  const search = taskBoardSearchTerm(payload.search);
+  if (search) query = query.or(`task_code.ilike.%${search}%,task_name.ilike.%${search}%,stakeholder_name.ilike.%${search}%`);
+  const offset = (page - 1) * pageSize;
+  const { data, error, count } = await query.range(offset, offset + pageSize - 1);
+  if (error) return fail(500, 'Failed to list task board rows', ctx.origin, { error: error.message });
+  const recipients = await taskBoardRecipients(ctx, eligible.assets);
+  return jsonResponse({
+    ok: true,
+    data: {
+      items: ((data || []) as Record<string, unknown>[]).map(taskBoardPublicRow),
+      total: Number(count || 0),
+      page,
+      page_size: pageSize,
+      assets: eligible.assets.map((asset) => ({ asset_id: asset.asset_id, asset_code: asset.asset_code, asset_name: asset.asset_name })),
+      recipients,
+    },
+  }, 200, ctx.origin);
+}
+
+async function readTaskBoardRow(ctx: Context, taskCode: unknown) {
+  const code = safeText(taskCode).toUpperCase();
+  if (!/^T-\d{6,}$/u.test(code)) return { row: null, response: fail(400, 'Valid Task ID is required', ctx.origin) };
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_items')
+    .select(TASK_BOARD_SELECT)
+    .eq('item_type', 'task')
+    .eq('task_code', code)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (error) return { row: null, response: fail(500, 'Failed to read task board row', ctx.origin) };
+  if (!data) return { row: null, response: fail(404, 'Task board row was not found', ctx.origin) };
+  const access = await requireTaskBoardAsset(ctx, (data as Record<string, unknown>).related_asset_id);
+  if (access.response) return { row: null, response: access.response };
+  return { row: data as Record<string, unknown>, response: null };
+}
+
+async function getTaskBoard(ctx: Context, payload: Record<string, unknown>) {
+  const result = await readTaskBoardRow(ctx, payload.task_code);
+  if (result.response) return result.response;
+  return jsonResponse({ ok: true, data: taskBoardPublicRow(result.row as Record<string, unknown>) }, 200, ctx.origin);
+}
+
+function validatedTaskBoardFields(payload: Record<string, unknown>) {
+  const taskName = taskBoardText(payload.task_name, 240);
+  const category = safeText(payload.task_category);
+  const status = safeText(payload.status);
+  if (!taskName) return { fields: null, error: 'Task summary is required' };
+  if (!TASK_BOARD_CATEGORIES.has(category)) return { fields: null, error: 'Invalid task category' };
+  if (!TASK_BOARD_STATUSES.has(status)) return { fields: null, error: 'Invalid task status' };
+  return {
+    fields: {
+      task_name: taskName,
+      task_category: category,
+      status,
+      description: taskBoardText(payload.description, 8000) || null,
+      stakeholder_name: taskBoardText(payload.stakeholder_name, 300) || null,
+    },
+    error: '',
+  };
+}
+
+async function taskBoardNotificationRows(ctx: Context, task: Record<string, unknown>, rawRecipientIds: unknown) {
+  const recipientIds = uniqueStrings(Array.isArray(rawRecipientIds) ? rawRecipientIds : [], 6);
+  if (recipientIds.length > 5) return { rows: [], response: fail(400, 'Up to five notification recipients are allowed', ctx.origin) };
+  if (!recipientIds.length) return { rows: [], response: null };
+  const assetResolution = await resolveCanonicalAssets(ctx, task.related_asset_id);
+  const asset = assetResolution.assets[0];
+  if (!asset) return { rows: [], response: fail(400, 'Task project could not be resolved', ctx.origin) };
+  const { data, error } = await ctx.serviceClient
+    .from('ll_user_permissions')
+    .select('user_id,email,staff_name,organization,account_status,managed_asset_codes,managed_asset_permissions,other_asset_permissions')
+    .in('user_id', recipientIds)
+    .limit(6);
+  if (error) return { rows: [], response: fail(500, 'Failed to validate task notification recipients', ctx.origin) };
+  const profiles = ((data || []) as Record<string, unknown>[]).filter(isActivePermission);
+  if (profiles.length !== recipientIds.length || profiles.some((profile) => canonicalAssetCapability(profile, asset).read !== true)) {
+    return { rows: [], response: fail(403, 'Every notification recipient must have read access to the selected project', ctx.origin) };
+  }
+  const taskCode = safeText(task.task_code);
+  return {
+    rows: profiles.map((profile) => ({
+      notification_type: 'task_share',
+      dedupe_key: `task-share:${taskCode}:${safeText(profile.user_id)}`,
+      asset_id: safeText(task.related_asset_id),
+      title: '통합업무보드 공유',
+      body: `${actorName(ctx)}님이 업무를 공유했습니다.`,
+      payload: { task_code: taskCode, route: `/logistics-gate6-preview/work-platform?task=${encodeURIComponent(taskCode)}` },
+      recipient_user_id: safeText(profile.user_id),
+      recipient_email: normalizeAuthEmail(profile.email),
+      recipient_name: safeText(firstDefined(profile.staff_name, staffNameForEmail(profile.email))) || null,
+      delivery_status: 'unread',
+      read_at: null,
+      dismissed_at: null,
+      notified_at: new Date().toISOString(),
+    })),
+    response: null,
+  };
+}
+
+async function createTaskBoard(ctx: Context, payload: Record<string, unknown>) {
+  const requestId = taskBoardClientRequestId(payload.client_request_id);
+  if (!requestId) return fail(400, 'client_request_id must be a UUID', ctx.origin);
+  const existing = await ctx.serviceClient
+    .from('ll_work_items')
+    .select(TASK_BOARD_SELECT)
+    .eq('item_type', 'task')
+    .eq('created_by', ctx.user.id)
+    .eq('client_request_id', requestId)
+    .maybeSingle();
+  if (existing.error) return fail(500, 'Failed to check duplicate task request', ctx.origin);
+  if (existing.data) return jsonResponse({ ok: true, reused: true, data: taskBoardPublicRow(existing.data as Record<string, unknown>) }, 200, ctx.origin);
+  const access = await requireTaskBoardAsset(ctx, firstDefined(payload.project_id, payload.related_asset_id));
+  if (access.response) return access.response;
+  const validated = validatedTaskBoardFields(payload);
+  if (!validated.fields) return fail(400, validated.error, ctx.origin);
+  const asset = access.asset as CanonicalAsset;
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_items')
+    .insert({
+      item_type: 'task',
+      ...validated.fields,
+      related_asset_id: asset.asset_id,
+      related_asset_name: safeText(asset.asset_name),
+      created_by: ctx.user.id,
+      created_by_email: actorEmail(ctx),
+      created_by_name: actorName(ctx),
+      organization: safeText(ctx.permission?.organization) || null,
+      client_request_id: requestId,
+      source_payload: { source: 'task_board', version: 1 },
+    })
+    .select(TASK_BOARD_SELECT)
+    .single();
+  if (error) {
+    if (error.code !== '23505') return fail(500, 'Failed to create task board row', ctx.origin, { error: error.message });
+    const raced = await ctx.serviceClient
+      .from('ll_work_items')
+      .select(TASK_BOARD_SELECT)
+      .eq('item_type', 'task')
+      .eq('created_by', ctx.user.id)
+      .eq('client_request_id', requestId)
+      .maybeSingle();
+    if (raced.error) return fail(500, 'Failed to re-read duplicate task request', ctx.origin);
+    if (!raced.data) return fail(500, 'Duplicate task request could not be resolved', ctx.origin);
+    return jsonResponse({ ok: true, reused: true, data: taskBoardPublicRow(raced.data as Record<string, unknown>) }, 200, ctx.origin);
+  }
+  if (payload.suppress_notifications !== true) {
+    const notifications = await taskBoardNotificationRows(ctx, data as Record<string, unknown>, payload.recipient_user_ids);
+    if (notifications.response) {
+      await ctx.serviceClient.from('ll_work_items').delete().eq('id', data.id).eq('created_by', ctx.user.id);
+      return notifications.response;
+    }
+    if (notifications.rows.length) {
+      const { error: notificationError } = await ctx.serviceClient.from('ll_notifications').upsert(notifications.rows, { onConflict: 'dedupe_key', ignoreDuplicates: true });
+      if (notificationError) {
+        await ctx.serviceClient.from('ll_work_items').delete().eq('id', data.id).eq('created_by', ctx.user.id);
+        return fail(500, 'Task notification creation failed and the task was rolled back', ctx.origin);
+      }
+    }
+  }
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'work-platform/task-board/create', 200, { task_code: data.task_code, asset_id: asset.asset_id });
+  return jsonResponse({ ok: true, data: taskBoardPublicRow(data as Record<string, unknown>) }, 200, ctx.origin);
+}
+
+async function updateTaskBoard(ctx: Context, payload: Record<string, unknown>) {
+  const requestId = taskBoardClientRequestId(payload.client_request_id);
+  if (!requestId) return fail(400, 'client_request_id must be a UUID', ctx.origin);
+  const current = await readTaskBoardRow(ctx, payload.task_code);
+  if (current.response) return current.response;
+  const row = current.row as Record<string, unknown>;
+  const currentPayload = row.source_payload && typeof row.source_payload === 'object' && !Array.isArray(row.source_payload) ? row.source_payload as Record<string, unknown> : {};
+  if (safeText(currentPayload.last_client_request_id) === requestId) {
+    return jsonResponse({ ok: true, reused: true, data: taskBoardPublicRow(row) }, 200, ctx.origin);
+  }
+  const access = await requireTaskBoardAsset(ctx, firstDefined(payload.project_id, row.related_asset_id));
+  if (access.response) return access.response;
+  const validated = validatedTaskBoardFields({
+    task_name: firstDefined(payload.task_name, row.task_name),
+    task_category: firstDefined(payload.task_category, row.task_category),
+    status: firstDefined(payload.status, row.status),
+    description: payload.description === undefined ? row.description : payload.description,
+    stakeholder_name: payload.stakeholder_name === undefined ? row.stakeholder_name : payload.stakeholder_name,
+  });
+  if (!validated.fields) return fail(400, validated.error, ctx.origin);
+  const asset = access.asset as CanonicalAsset;
+  const { data, error } = await ctx.serviceClient
+    .from('ll_work_items')
+    .update({
+      ...validated.fields,
+      related_asset_id: asset.asset_id,
+      related_asset_name: safeText(asset.asset_name),
+      source_payload: { ...currentPayload, source: 'task_board', version: 1, last_client_request_id: requestId },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', row.id)
+    .eq('item_type', 'task')
+    .is('deleted_at', null)
+    .select(TASK_BOARD_SELECT)
+    .single();
+  if (error) return fail(500, 'Failed to update task board row', ctx.origin);
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'work-platform/task-board/update', 200, { task_code: data.task_code, asset_id: asset.asset_id });
+  return jsonResponse({ ok: true, data: taskBoardPublicRow(data as Record<string, unknown>) }, 200, ctx.origin);
+}
+
+async function deleteTaskBoard(ctx: Context, payload: Record<string, unknown>) {
+  const current = await readTaskBoardRow(ctx, payload.task_code);
+  if (current.response) return current.response;
+  const row = current.row as Record<string, unknown>;
+  const { error } = await ctx.serviceClient
+    .from('ll_work_items')
+    .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', row.id)
+    .eq('item_type', 'task')
+    .is('deleted_at', null);
+  if (error) return fail(500, 'Failed to delete task board row', ctx.origin);
+  await auditOptional(ctx.serviceClient, ctx.user.id, 'work-platform/task-board/delete', 200, { task_code: row.task_code, asset_id: row.related_asset_id });
+  return jsonResponse({ ok: true, data: { task_code: safeText(row.task_code), deleted: true } }, 200, ctx.origin);
+}
+
+async function pushNotificationConfig(ctx: Context) {
+  const { data, error } = await ctx.serviceClient.rpc('ll_web_push_runtime_config');
+  const config = Array.isArray(data) ? data[0] : data;
+  const publicKey = safeText(config?.public_key);
+  if (error) return fail(503, 'Windows notifications are not configured', ctx.origin, { code: 'push_config_read_failed' });
+  if (!publicKey) return fail(503, 'Windows notifications are not configured', ctx.origin, { code: 'push_not_configured' });
+  return jsonResponse({ ok: true, data: { public_key: publicKey } }, 200, ctx.origin);
+}
+
+async function subscribePushNotifications(ctx: Context, payload: Record<string, unknown>) {
+  const endpoint = safeText(payload.endpoint);
+  const p256dhKey = safeText(firstDefined(payload.p256dh_key, payload.p256dh));
+  const authKey = safeText(firstDefined(payload.auth_key, payload.auth));
+  if (!endpoint.startsWith('https://') || endpoint.length > 3000 || !p256dhKey || !authKey) {
+    return fail(400, 'Valid browser push subscription fields are required', ctx.origin);
+  }
+  const row = {
+    user_id: ctx.user.id,
+    recipient_email: canonicalPermissionEmail(ctx.permission, ctx.user.email),
+    endpoint,
+    p256dh_key: p256dhKey.slice(0, 500),
+    auth_key: authKey.slice(0, 500),
+    browser_family: taskBoardText(payload.browser_family, 40) || 'browser',
+    enabled: true,
+    last_seen_at: new Date().toISOString(),
+    expires_at: safeText(payload.expires_at) || null,
+    updated_at: new Date().toISOString(),
+  };
+  const existing = await ctx.serviceClient
+    .from('ll_notification_subscriptions')
+    .select('user_id')
+    .eq('endpoint', endpoint)
+    .maybeSingle();
+  if (existing.error) return fail(500, 'Failed to check Windows notification subscription owner', ctx.origin);
+  if (existing.data && safeText(existing.data.user_id) !== ctx.user.id) {
+    return fail(409, 'This browser push subscription belongs to another user', ctx.origin);
+  }
+
+  if (existing.data) {
+    const { error } = await ctx.serviceClient
+      .from('ll_notification_subscriptions')
+      .update(row)
+      .eq('endpoint', endpoint)
+      .eq('user_id', ctx.user.id);
+    if (error) return fail(500, 'Failed to save Windows notification subscription', ctx.origin);
+  } else {
+    const { error } = await ctx.serviceClient.from('ll_notification_subscriptions').insert(row);
+    if (error) {
+      if (error.code !== '23505') return fail(500, 'Failed to save Windows notification subscription', ctx.origin);
+      const owner = await ctx.serviceClient
+        .from('ll_notification_subscriptions')
+        .select('user_id')
+        .eq('endpoint', endpoint)
+        .maybeSingle();
+      if (owner.error) return fail(500, 'Failed to check Windows notification subscription owner', ctx.origin);
+      if (!owner.data) return fail(500, 'Push subscription conflict could not be resolved', ctx.origin);
+      if (safeText(owner.data.user_id) !== ctx.user.id) {
+        return fail(409, 'This browser push subscription belongs to another user', ctx.origin);
+      }
+      const { error: updateError } = await ctx.serviceClient
+        .from('ll_notification_subscriptions')
+        .update(row)
+        .eq('endpoint', endpoint)
+        .eq('user_id', ctx.user.id);
+      if (updateError) return fail(500, 'Failed to save Windows notification subscription', ctx.origin);
+    }
+  }
+  return jsonResponse({ ok: true, data: { subscribed: true } }, 200, ctx.origin);
+}
+
+async function unsubscribePushNotifications(ctx: Context, payload: Record<string, unknown>) {
+  const endpoint = safeText(payload.endpoint);
+  let query = ctx.serviceClient.from('ll_notification_subscriptions').delete().eq('user_id', ctx.user.id);
+  if (endpoint) query = query.eq('endpoint', endpoint);
+  const { error } = await query;
+  if (error) return fail(500, 'Failed to remove Windows notification subscription', ctx.origin);
+  return jsonResponse({ ok: true, data: { subscribed: false } }, 200, ctx.origin);
+}
+
 const WORK_PLATFORM_TASK_SNAPSHOT_SELECT = [
   'id',
   'workspace',
@@ -25055,6 +25523,9 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'notifications/list') return listLogisticsNotifications(ctx, payload);
   if (action === 'notifications/dismiss') return dismissLogisticsNotifications(ctx, payload);
   if (action === 'notifications/mark-read') return markReadLogisticsNotifications(ctx, payload);
+  if (action === 'notifications/push/config') return pushNotificationConfig(ctx);
+  if (action === 'notifications/push/subscribe') return subscribePushNotifications(ctx, payload);
+  if (action === 'notifications/push/unsubscribe') return unsubscribePushNotifications(ctx, payload);
   if (action === 'sector-market/address-backfill') return callSectorMarketAddressBackfill(ctx, payload);
   if (action === 'sector-market/read' || action === 'sector-market/status') return callSectorMarketRead(ctx, payload);
   if (action === 'investment-index/read') return callInvestmentIndexRead(ctx, payload);
@@ -25080,6 +25551,9 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'worklogs/list' || action === 'worklogs' || action === 'worklogs/update' || action === 'worklogs/complete' || action === 'worklogs/delete') {
     return fail(410, 'Legacy worklog API is retired. Use work-platform task APIs.', origin);
   }
+  if (action.startsWith('work-platform/tasks') || action.startsWith('work-platform/board-posts')) {
+    return fail(410, 'Legacy task and collaboration board APIs are retired. Use work-platform/task-board APIs.', origin);
+  }
   if (action === 'work-platform/tasks/list') return listWorkPlatformTasks(ctx, payload);
   if (action === 'work-platform/tasks/snapshots/upsert-current') return upsertCurrentWorkPlatformTaskSnapshot(ctx, payload);
   if (action === 'work-platform/tasks/snapshots/list') return listWorkPlatformTaskSnapshots(ctx, payload);
@@ -25088,6 +25562,11 @@ Deno.serve(async (request): Promise<Response> => {
   if (action === 'work-platform/tasks/complete') return completeWorkPlatformTask(ctx, payload);
   if (action === 'work-platform/tasks/delete') return deleteWorkPlatformTask(ctx, payload);
   if (action === 'work-platform/tasks/archive-seed') return archiveSeedWorkPlatformTask(ctx, payload);
+  if (action === 'work-platform/task-board/list') return listTaskBoard(ctx, payload);
+  if (action === 'work-platform/task-board/get') return getTaskBoard(ctx, payload);
+  if (action === 'work-platform/task-board/create') return createTaskBoard(ctx, payload);
+  if (action === 'work-platform/task-board/update') return updateTaskBoard(ctx, payload);
+  if (action === 'work-platform/task-board/delete') return deleteTaskBoard(ctx, payload);
   if (action === 'work-platform/board-posts/list') return listWorkPlatformBoardPosts(ctx, payload);
   if (action === 'work-platform/board-posts') return saveWorkPlatformBoardPost(ctx, payload);
   if (action === 'work-platform/board-posts/update') return updateWorkPlatformBoardPost(ctx, payload);

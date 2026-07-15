@@ -1573,7 +1573,7 @@ export async function primeEdgeData(action, payload = {}) {
   return data;
 }
 
-function useEdgeData(action, payload = {}) {
+export function useEdgeData(action, payload = {}) {
   const lifecycle = useContext(DashboardModuleLifecycleContext);
   const lifecycleActive = lifecycle.active;
   const lifecycleModuleId = lifecycle.moduleId;

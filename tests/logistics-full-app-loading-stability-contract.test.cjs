@@ -8,14 +8,15 @@ const FULL_APP_PATH = path.join(ROOT, 'scripts', 'qa', 'logistics-full-app-loadi
 const IDLE_PATH = path.join(ROOT, 'scripts', 'qa', 'logistics-data-loading-idle.cjs');
 const SURFACE_PATH = path.join(ROOT, 'scripts', 'qa', 'logistics-full-surface-audit.cjs');
 const PACKAGE_PATH = path.join(ROOT, 'package.json');
+const FALLBACK_PATH = path.join(ROOT, 'scripts', 'build', 'write-github-pages-fallback.cjs');
 const fullAppSource = fs.readFileSync(FULL_APP_PATH, 'utf8');
 const idleSource = fs.readFileSync(IDLE_PATH, 'utf8');
 const surfaceSource = fs.readFileSync(SURFACE_PATH, 'utf8');
+const fallbackSource = fs.readFileSync(FALLBACK_PATH, 'utf8');
 const packageJson = JSON.parse(fs.readFileSync(PACKAGE_PATH, 'utf8'));
 
 const REQUIRED_ROUTES = [
   'work-platform',
-  'work-platform/archive',
   'home',
   'asset',
   'company',
@@ -70,10 +71,19 @@ function sourceFunction(source, name) {
   return new Function(`${declaration}\nreturn ${name};`)();
 }
 
-test('full app loading stability covers the exact 23 release routes', () => {
+test('full app loading stability covers the exact 22 release routes', () => {
   const routesBlock = fullAppSource.slice(fullAppSource.indexOf('const ROUTES = ['), fullAppSource.indexOf('];', fullAppSource.indexOf('const ROUTES = [')));
   const routes = [...routesBlock.matchAll(/route:\s*'([^']+)'/gu)].map((match) => match[1]);
   assert.deepEqual(routes, REQUIRED_ROUTES);
+});
+
+test('release coverage excludes the retired archive and checks the integrated task board route', () => {
+  for (const source of [fallbackSource, fullAppSource, surfaceSource]) {
+    assert.doesNotMatch(source, /work-platform\/archive/u);
+  }
+  assert.match(fullAppSource, /key:\s*'integrated-task-board'[\s\S]*route:\s*'work-platform'[\s\S]*logistics-task-board/u);
+  assert.match(surfaceSource, /id:\s*'integrated-task-board'[\s\S]*route:\s*'\/work-platform'/u);
+  assert.match(fallbackSource, /'work-platform'/u);
 });
 
 test('loading completion waits are mandatory and fixed Playwright sleeps are absent', () => {

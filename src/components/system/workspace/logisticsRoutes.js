@@ -3,7 +3,6 @@ export const LOGISTICS_DEPLOY_BASE = 'logistics-gate6-preview';
 
 export const LOGISTICS_ROUTE_BY_KEY = {
   'work-platform': LOGISTICS_INTERNAL_BASE,
-  'work-platform/archive': `${LOGISTICS_INTERNAL_BASE}/archive`,
   home: `${LOGISTICS_INTERNAL_BASE}/dashboard/home`,
   asset: `${LOGISTICS_INTERNAL_BASE}/dashboard/asset`,
   company: `${LOGISTICS_INTERNAL_BASE}/dashboard/company`,
@@ -43,6 +42,9 @@ export function normalizeLogisticsPath(path = '') {
     clean = clean.slice(LOGISTICS_DEPLOY_BASE.length + 1);
   }
   if (!clean) return LOGISTICS_INTERNAL_BASE;
+  if (clean === 'work-platform/archive' || clean === `${LOGISTICS_INTERNAL_BASE}/archive`) {
+    return LOGISTICS_INTERNAL_BASE;
+  }
   if (LOGISTICS_ROUTE_BY_KEY[clean]) return LOGISTICS_ROUTE_BY_KEY[clean];
   if (clean === 'logistics-gate6-preview') return LOGISTICS_INTERNAL_BASE;
   if (clean.startsWith(`${LOGISTICS_INTERNAL_BASE}/dashboard/weekly`)) return LOGISTICS_ROUTE_BY_KEY.home;
@@ -83,7 +85,6 @@ export function publicLogisticsPath(path = '') {
     return `data-management/${moduleName || 'lease-contracts'}`;
   }
   if (normalized === LOGISTICS_INTERNAL_BASE) return 'work-platform';
-  if (normalized === `${LOGISTICS_INTERNAL_BASE}/archive`) return 'work-platform/archive';
   return normalized;
 }
 
