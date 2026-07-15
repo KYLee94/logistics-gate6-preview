@@ -10055,7 +10055,7 @@ function CompanyDashboard() {
       return undefined;
     }
     let cancelled = false;
-    invokeDashboardApi('opendart/company', { corp_code: selectedCorpCode, include_financials: true }).then(({ data, error }) => {
+    invokeDashboardApi('opendart/company', { corp_code: selectedCorpCode, include_financials: true, cache_only: true }).then(({ data, error }) => {
       if (cancelled) return;
       if (error || data?.ok === false) return;
       setDartApiSummary(data?.data || null);
@@ -10076,7 +10076,11 @@ function CompanyDashboard() {
     }
     setDartApiStatus({ type: 'loading', message: 'OpenDART 원천 API를 다시 호출하고 Supabase 저장값을 갱신하는 중입니다.' });
     try {
-      const { data, error } = await invokeDashboardApi('opendart/company', { corp_code: selectedCorpCode, include_financials: true });
+      const { data, error } = await invokeDashboardApi(
+        'opendart/company',
+        { corp_code: selectedCorpCode, include_financials: true, force_refresh: true },
+        { retryTimeout: false },
+      );
       if (error) throw error;
       const dart = data?.data || {};
       if (!data?.ok) {
@@ -14812,9 +14816,23 @@ function ExternalApiRefreshControls({ dashboardDataset, permission, onOpenModal,
   );
 }
 
-function DashboardPageLoadingBadge({ loading, progress }) {
-  if (!loading) return null;
-  const value = Math.max(8, Math.min(99, Math.round(Number(progress || 0))));
+function nextDashboardLoadingProgress(previous, progress, continueWave) {
+  const next = Math.max(8, Math.min(99, Math.round(Number(progress || 0))));
+  if (!continueWave) return next;
+  const current = Math.max(8, Math.min(99, Math.round(Number(previous || 0))));
+  return Math.max(current, next);
+}
+
+function DashboardPageLoadingBadge({ loading, progress, scopeKey = '' }) {
+  const waveRef = useRef({ active: false, scopeKey: '', value: 8 });
+  if (!loading) {
+    waveRef.current = { active: false, scopeKey: String(scopeKey || ''), value: 8 };
+    return null;
+  }
+  const normalizedScopeKey = String(scopeKey || 'dashboard');
+  const continueWave = waveRef.current.active && waveRef.current.scopeKey === normalizedScopeKey;
+  const value = nextDashboardLoadingProgress(waveRef.current.value, progress, continueWave);
+  waveRef.current = { active: true, scopeKey: normalizedScopeKey, value };
   return (
     <div
       className="min-w-[150px] rounded-[8px] border border-[#2F3A4A] bg-[#151C27] px-3 py-2 text-[12px] font-semibold text-[#D7E8FF]"
@@ -14927,7 +14945,7 @@ function DashboardShell({ activeModule }) {
         title={selectedTitle}
         right={(
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <DashboardPageLoadingBadge loading={activeDashboardLoading} progress={activeDashboardProgress} />
+            <DashboardPageLoadingBadge loading={activeDashboardLoading} progress={activeDashboardProgress} scopeKey={selected?.id} />
             {shouldShowExternalApiRefresh ? (
               <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={{ ...featureAccess, openDartRefresh: false }} />
             ) : null}

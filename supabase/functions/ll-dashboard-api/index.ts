@@ -18196,17 +18196,48 @@ async function callOpenDart(ctx: Context, payload: Record<string, unknown>) {
   const apiKey = (Deno.env.get('OPENDART_API_KEY') || '').trim();
   const proxyUrl = (Deno.env.get('OPENDART_PROXY_URL') || '').trim();
   const proxyToken = (Deno.env.get('OPENDART_PROXY_TOKEN') || '').trim();
-  if (!apiKey && !proxyUrl) return fail(503, 'OpenDART API key or proxy is not configured', ctx.origin);
   const corpCode = String(payload.corp_code || '').trim();
   if (!corpCode) return fail(400, 'corp_code is required', ctx.origin);
   const includeFinancials = Boolean(payload.include_financials);
   const forceRefresh = payload.force_refresh === true || payload.forceRefresh === true || payload.bypass_cache === true;
+  const cacheOnly = payload.cache_only === true || payload.cacheOnly === true;
   const cacheKey = await cacheKeyFor('opendart/company', { corp_code: corpCode, include_financials: includeFinancials });
   const cached = forceRefresh ? null : await readExternalApiCache(ctx, 'opendart/company', cacheKey);
   if (cached) {
     await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/cache-hit', 200, { corp_code: corpCode, provider_status: cached.providerStatus });
     return externalApiCacheResponse(ctx, cached.providerStatus, cached.responsePayload, { hit: true, stale: false, fetched_at: cached.fetchedAt });
   }
+  if (cacheOnly) {
+    const stale = await readExternalApiCache(ctx, 'opendart/company', cacheKey, true);
+    if (stale) {
+      return externalApiCacheResponse(ctx, stale.providerStatus, stale.responsePayload, {
+        hit: true,
+        stale: true,
+        fetched_at: stale.fetchedAt,
+        provider_skipped: true,
+      });
+    }
+    const tenantFallback = await readOpenDartTenantFallback(ctx, corpCode);
+    if (tenantFallback) {
+      return jsonResponse({
+        ok: true,
+        provider_status: 206,
+        data: tenantFallback,
+        cache: { hit: true, stale: true, source: 'll_tenants' },
+        provider_skipped: true,
+        provider_warning: 'Cached OpenDART data was unavailable; using verified tenant mapping fallback',
+      }, 200, ctx.origin);
+    }
+    await auditOptional(ctx.serviceClient, ctx.user.id, 'opendart/company/cache-miss', 200, { corp_code: corpCode, provider_skipped: true });
+    return jsonResponse({
+      ok: false,
+      status: 'cache_miss',
+      provider_status: null,
+      cache: { hit: false, stale: false },
+      provider_skipped: true,
+    }, 200, ctx.origin);
+  }
+  if (!apiKey && !proxyUrl) return fail(503, 'OpenDART API key or proxy is not configured', ctx.origin);
   const query = apiKey ? new URLSearchParams({ crtfc_key: apiKey, corp_code: corpCode }) : null;
   const configuredCompanyUrl = (Deno.env.get('OPENDART_COMPANY_URL') || '').trim();
   const companyUrls = [...new Set([

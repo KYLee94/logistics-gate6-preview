@@ -118,3 +118,16 @@ test('gyeongsan coupang floor count preview requires feature and canonical asset
   assert.match(handlerSource, /write_blocked: true/u);
   assert.match(edgeSource, /action === 'asset-admin\/gyeongsan-coupang-floor-count-preview'/u);
 });
+
+test('OpenDART cache-only reads never call the provider and report fallback state explicitly', () => {
+  const start = edgeSource.indexOf('async function callOpenDart(ctx: Context');
+  const end = edgeSource.indexOf('\nasync function callOpenDartCacheUpsert(', start);
+  const handlerSource = edgeSource.slice(start, end);
+  assert.ok(start >= 0 && end > start);
+  const cacheOnlyBranch = handlerSource.indexOf('if (cacheOnly)');
+  const providerRequest = handlerSource.indexOf('const query = apiKey');
+  assert.ok(cacheOnlyBranch > 0 && providerRequest > cacheOnlyBranch);
+  assert.match(handlerSource, /provider_skipped: true/u);
+  assert.match(handlerSource, /status: 'cache_miss'/u);
+  assert.match(handlerSource, /if \(!apiKey && !proxyUrl\)[\s\S]*const query = apiKey/u);
+});

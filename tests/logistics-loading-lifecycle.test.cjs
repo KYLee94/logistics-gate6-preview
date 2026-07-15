@@ -65,6 +65,23 @@ test('edge loading progress starts above zero and never regresses', () => {
   assert.deepEqual(revalidate, [...revalidate].sort((a, b) => a - b));
 });
 
+test('dashboard loading progress is monotonic within one visible request wave', () => {
+  const nextProgress = sourceFunction(workspaceSource, 'nextDashboardLoadingProgress');
+  assert.equal(nextProgress(8, 50, false), 50);
+  assert.equal(nextProgress(50, 25, true), 50);
+  assert.equal(nextProgress(50, 75, true), 75);
+  assert.equal(nextProgress(75, 25, false), 25);
+  const badge = extractFunction(workspaceSource, 'DashboardPageLoadingBadge');
+  assert.match(badge, /waveRef\.current\.active && waveRef\.current\.scopeKey === normalizedScopeKey/u);
+  assert.match(workspaceSource, /scopeKey=\{selected\?\.id\}/u);
+});
+
+test('OpenDART navigation is cache-only while explicit refresh remains provider-backed', () => {
+  assert.match(workspaceSource, /corp_code: selectedCorpCode, include_financials: true, cache_only: true/u);
+  assert.match(workspaceSource, /corp_code: selectedCorpCode, include_financials: true, force_refresh: true/u);
+  assert.match(workspaceSource, /force_refresh: true \},\s*\{ retryTimeout: false \}/u);
+});
+
 test('edge cache commits require both local and global latest request ids', () => {
   const hook = extractFunction(sectorSource, 'useEdgeData');
   assert.match(hook, /requestRef\.current === requestId/u);
