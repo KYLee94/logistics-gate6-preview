@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { invokeDashboardApi } from '../../../utils/supabaseSession';
 
 const PAGE_SIZE = 10;
 const MAX_TASK_SHARES = 5;
 const PRIMARY_BLUE_BUTTON_CLASS = 'border-[#3b82f6]/30 bg-[#3b82f6]/20 text-[#60a5fa] hover:bg-[#3b82f6]/30';
-const FILTER_HEADER_CLASS = 'w-full cursor-pointer appearance-none border-0 bg-transparent py-2 pr-3 text-left text-[12px] font-semibold text-[#A1A1AA] outline-none transition-colors hover:text-white focus:text-white';
 
 const TASK_BOARD_COLUMNS = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행상황', '등록일'];
 
@@ -148,6 +148,111 @@ function requestId() {
 
 function statusClassName(status) {
   return STATUS_CLASS_NAMES[status] || STATUS_CLASS_NAMES.예정;
+}
+
+function HeaderFilterDropdown({ filterKey, label, value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [menuRect, setMenuRect] = useState(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+  const normalizedOptions = useMemo(() => options.map((option) => (
+    typeof option === 'string' ? { value: option, label: option } : option
+  )), [options]);
+  const selectedLabel = normalizedOptions.find((option) => option.value === value)?.label || label;
+  const updateMenuRect = useCallback(() => {
+    if (typeof window === 'undefined' || !buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    const viewportPadding = 12;
+    const width = Math.max(rect.width, 180);
+    const estimatedHeight = Math.min(280, (normalizedOptions.length + 1) * 36 + 16);
+    const roomBelow = window.innerHeight - rect.bottom - viewportPadding;
+    const top = roomBelow >= estimatedHeight
+      ? rect.bottom + 6
+      : Math.max(viewportPadding, rect.top - estimatedHeight - 6);
+    setMenuRect({
+      left: Math.min(Math.max(viewportPadding, rect.left), Math.max(viewportPadding, window.innerWidth - width - viewportPadding)),
+      top,
+      width,
+    });
+  }, [normalizedOptions.length]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    updateMenuRect();
+    const handlePointerDown = (event) => {
+      if (buttonRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      buttonRef.current?.focus();
+    };
+    window.addEventListener('pointerdown', handlePointerDown, true);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', updateMenuRect);
+    window.addEventListener('scroll', updateMenuRect, true);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown, true);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', updateMenuRect);
+      window.removeEventListener('scroll', updateMenuRect, true);
+    };
+  }, [open, updateMenuRect]);
+
+  const menu = open && menuRect ? (
+    <div
+      ref={menuRef}
+      role="listbox"
+      aria-label={`${label} 선택`}
+      data-testid={`task-board-filter-menu-${filterKey}`}
+      className="custom-scrollbar fixed z-[10000] max-h-[280px] overflow-y-auto rounded-[10px] border border-[#3A3A3C] bg-[#151515] p-2 shadow-2xl"
+      style={{ left: menuRect.left, top: menuRect.top, width: menuRect.width }}
+    >
+      <button
+        type="button"
+        role="option"
+        aria-selected={!value}
+        onClick={() => { onChange(''); setOpen(false); buttonRef.current?.focus(); }}
+        className={`block w-full rounded-[7px] px-3 py-2 text-left text-[12px] transition-colors ${!value ? 'bg-[#2A3444] font-semibold text-white' : 'text-[#E5E5E5] hover:bg-white/5'}`}
+      >
+        전체
+      </button>
+      {normalizedOptions.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="option"
+          aria-selected={option.value === value}
+          onClick={() => { onChange(option.value); setOpen(false); buttonRef.current?.focus(); }}
+          className={`block w-full rounded-[7px] px-3 py-2 text-left text-[12px] transition-colors ${option.value === value ? 'bg-[#2A3444] font-semibold text-white' : 'text-[#E5E5E5] hover:bg-white/5'}`}
+        >
+          <span className="block truncate">{option.label}</span>
+        </button>
+      ))}
+    </div>
+  ) : null;
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        aria-label={`${label} 필터`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => {
+          if (!current) updateMenuRect();
+          return !current;
+        })}
+        className={`flex w-full items-center justify-between gap-2 rounded-[8px] border border-transparent bg-white/5 px-2 py-1.5 text-left text-[12px] font-semibold outline-none transition-colors hover:bg-white/10 hover:text-white focus:bg-white/10 focus:text-white ${value ? 'text-white' : 'text-[#A1A1AA]'}`}
+      >
+        <span className="truncate">{selectedLabel}</span>
+        <span className="shrink-0 text-[10px] text-[#A1A1AA]" aria-hidden="true">{open ? '▴' : '▾'}</span>
+      </button>
+      {typeof document === 'undefined' ? menu : createPortal(menu, document.body)}
+    </>
+  );
 }
 
 function FieldLabel({ children, required = false }) {
@@ -523,12 +628,12 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
             <table className="w-full min-w-[1120px] table-fixed border-collapse bg-[#252524] text-left">
               <thead className="text-[12px] font-semibold text-[#A1A1AA]">
                 <tr className="h-[46px] border-b border-[#3c3c3c]">
-                  <th className="w-[16%] px-4"><select aria-label="프로젝트 필터" value={filters.asset_id} onChange={(event) => changeFilter('asset_id', event.target.value)} className={FILTER_HEADER_CLASS}><option value="">프로젝트 ▾</option>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}</select></th>
-                  <th className="w-[14%] px-4"><select aria-label="업무 분류 필터" value={filters.category} onChange={(event) => changeFilter('category', event.target.value)} className={FILTER_HEADER_CLASS}><option value="">업무 분류 ▾</option>{TASK_BOARD_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select></th>
+                  <th className="w-[16%] px-4"><HeaderFilterDropdown filterKey="project" label="프로젝트" value={filters.asset_id} options={assets.map((asset) => ({ value: asset.id, label: asset.name }))} onChange={(value) => changeFilter('asset_id', value)} /></th>
+                  <th className="w-[14%] px-4"><HeaderFilterDropdown filterKey="category" label="업무 분류" value={filters.category} options={TASK_BOARD_CATEGORIES} onChange={(value) => changeFilter('category', value)} /></th>
                   <th className="w-[23%] px-4 font-semibold">업무 요약</th>
-                  <th className="w-[12%] px-4"><select aria-label="담당자 필터" value={filters.assignee_user_id} onChange={(event) => changeFilter('assignee_user_id', event.target.value)} className={FILTER_HEADER_CLASS}><option value="">담당자 ▾</option>{assigneeOptions.map((assignee) => <option key={assignee.user_id} value={assignee.user_id}>{assignee.name}</option>)}</select></th>
+                  <th className="w-[12%] px-4"><HeaderFilterDropdown filterKey="assignee" label="담당자" value={filters.assignee_user_id} options={assigneeOptions.map((assignee) => ({ value: assignee.user_id, label: assignee.name }))} onChange={(value) => changeFilter('assignee_user_id', value)} /></th>
                   <th className="w-[14%] px-4 font-semibold">이해관계자</th>
-                  <th className="w-[9%] px-4"><select aria-label="진행상황 필터" value={filters.status} onChange={(event) => changeFilter('status', event.target.value)} className={FILTER_HEADER_CLASS}><option value="">진행상황 ▾</option>{TASK_BOARD_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></th>
+                  <th className="w-[9%] px-4"><HeaderFilterDropdown filterKey="status" label="진행상황" value={filters.status} options={TASK_BOARD_STATUSES} onChange={(value) => changeFilter('status', value)} /></th>
                   <th className="w-[12%] px-4 text-left font-semibold">등록일</th>
                 </tr>
               </thead>

@@ -195,8 +195,13 @@ test('LogisticsTaskBoard keeps the reference table shell with the requested comp
   assert.match(source, /PRIMARY_BLUE_BUTTON_CLASS/u);
   assert.match(source, /ml-auto[^"`]*shrink-0/u);
   assert.match(source, /custom-scrollbar grid min-h-0 flex-1/u);
-  assert.match(source, /FILTER_HEADER_CLASS/u);
-  assert.match(source, /border-0 bg-transparent/u);
+  assert.match(source, /function HeaderFilterDropdown/u);
+  assert.match(source, /role="listbox"/u);
+  assert.match(source, /createPortal\(menu, document\.body\)/u);
+  assert.match(source, /bg-\[#151515\]/u);
+  assert.match(source, /event\.key !== 'Escape'/u);
+  assert.match(source, /task-board-filter-menu-\$\{filterKey\}/u);
+  assert.match(source, /filterKey="category"/u);
 });
 
 test('management Project opens only the full table and requires all four asset permissions to edit', () => {

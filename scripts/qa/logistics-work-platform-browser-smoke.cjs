@@ -69,6 +69,7 @@ async function main() {
   const outJson = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}.json`);
   const latestJson = path.join(OUT_DIR, 'work-platform-browser-smoke-latest.json');
   const screenshotPath = path.join(OUT_DIR, `work-platform-browser-smoke-${stamp}.png`);
+  const filterScreenshotPath = path.join(OUT_DIR, `work-platform-filter-dropdown-${stamp}.png`);
   const baseUrl = argsValue('base-url', DEFAULT_BASE_URL);
   const targetUrl = `${joinUrl(baseUrl, argsValue('route', DEFAULT_ROUTE))}&cb=${encodeURIComponent(stamp)}`;
   const session = await signInSession();
@@ -82,6 +83,7 @@ async function main() {
     api: [],
     errors: [],
     screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
+    filter_screenshot: path.relative(ROOT, filterScreenshotPath).replace(/\\/gu, '/'),
   };
   let browser;
   try {
@@ -116,6 +118,14 @@ async function main() {
     report.checks.task_board_visible = (await board.innerText()).includes('통합 업무 보드');
     const boardText = await board.innerText();
     report.checks.task_board_columns = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행상황', '등록일'].every((label) => boardText.includes(label));
+    await board.getByRole('button', { name: '업무 분류 필터', exact: true }).click();
+    const categoryFilterMenu = page.getByTestId('task-board-filter-menu-category');
+    await categoryFilterMenu.waitFor({ state: 'visible', timeout: 10000 });
+    report.checks.task_board_filter_dark = await categoryFilterMenu.evaluate((menu) => getComputedStyle(menu).backgroundColor === 'rgb(21, 21, 21)');
+    report.checks.task_board_filter_options = await categoryFilterMenu.getByRole('option').count() === 9;
+    await page.screenshot({ path: filterScreenshotPath, fullPage: false });
+    await page.keyboard.press('Escape');
+    report.checks.task_board_filter_escape = await categoryFilterMenu.isHidden();
     report.checks.task_board_controls = boardText.includes('새 업무 추가') && !boardText.includes('간추려보기') && !boardText.includes('자세히보기') && !boardText.includes('20개씩 보기');
     report.checks.loading_cleared = !bodyText.includes('데이터 로딩 96%') && !boardText.includes('업무 목록을 불러오는 중입니다.');
 
