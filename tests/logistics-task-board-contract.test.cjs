@@ -265,6 +265,17 @@ test('task-board maps canonical stakeholder_name throughout API and UI normaliza
   assert.match(publicRow, /stakeholder_name:\s*safeText\(row\.stakeholder_name\)/u);
 });
 
+test('task form explains required markers and preserves multiline detail text', () => {
+  const { source } = taskBoardComponent();
+  const edge = fs.readFileSync(EDGE_PATH, 'utf8');
+
+  assert.match(source, /표시는 필수 작성 항목입니다\./u);
+  assert.match(source, /whitespace-pre-wrap[^>]*>\{drawer\.task\?\.detail/u);
+  assert.match(edge, /function taskBoardMultilineText\(/u);
+  assert.match(edge, /description:\s*taskBoardMultilineText\(payload\.description,\s*8000\)/u);
+  assert.doesNotMatch(edge, /description:\s*taskBoardText\(payload\.description,\s*8000\)/u);
+});
+
 test('task drawer does not expose an internal Task ID or the fixed 업무 상세 heading', () => {
   const { source } = taskBoardComponent();
   const drawerStart = source.indexOf('data-testid="logistics-task-board-drawer"');
@@ -330,6 +341,8 @@ test('standard work-platform browser smoke stays read-only and CRUD is opt-in wi
   assert.match(smoke, /temporary nested reply create failed/u);
   assert.match(smoke, /work-platform\/task-board\/comments\/update/u);
   assert.match(smoke, /has_nested_reply/u);
+  assert.match(smoke, /const detailText = `QA detail first line \$\{stamp\}\\nQA detail second line\\n\\nQA detail fourth line`/u);
+  assert.match(smoke, /databaseRow\.description !== detailText/u);
   assert.equal(packageJson.scripts['test:work-platform:contract'], 'node --test tests/logistics-task-board-contract.test.cjs');
   assert.equal(packageJson.scripts['qa:work-platform:browser'], 'node scripts/qa/logistics-work-platform-browser-smoke.cjs');
   assert.equal(packageJson.scripts['qa:work-platform:crud-live'], 'node scripts/qa/logistics-work-platform-browser-smoke.cjs --exercise-crud');

@@ -429,9 +429,12 @@ function TaskForm({ assets, draft, setDraft, recipients, memberInfo, mode, savin
         ) : null}
         {errorMessage ? <p className="sm:col-span-2 rounded border border-[#67413d] bg-[#352523] px-3 py-2 text-[12px] text-[#e4b4ad]" role="alert">{errorMessage}</p> : null}
       </div>
-      <div className="flex shrink-0 justify-end gap-2 border-t border-[#3b3d42] px-5 py-4">
-        <button type="button" onClick={onClose} disabled={saving} className="rounded border border-[#52555b] px-3 py-2 text-[13px] text-[#d5d7da] hover:bg-[#303135] disabled:opacity-50">취소</button>
-        <button type="submit" disabled={saving} className="rounded border border-[#777c84] bg-[#e1e2e4] px-3 py-2 text-[13px] font-semibold text-[#1d1e20] hover:bg-white disabled:cursor-wait disabled:opacity-55">{saving ? '저장 중...' : '저장'}</button>
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-[#3b3d42] px-5 py-4">
+        <p className="text-[11px] text-[#9699a0]"><span className="font-semibold text-[#d7d9dd]" aria-hidden="true">*</span> 표시는 필수 작성 항목입니다.</p>
+        <div className="flex shrink-0 gap-2">
+          <button type="button" onClick={onClose} disabled={saving} className="rounded border border-[#52555b] px-3 py-2 text-[13px] text-[#d5d7da] hover:bg-[#303135] disabled:opacity-50">취소</button>
+          <button type="submit" disabled={saving} className="rounded border border-[#777c84] bg-[#e1e2e4] px-3 py-2 text-[13px] font-semibold text-[#1d1e20] hover:bg-white disabled:cursor-wait disabled:opacity-55">{saving ? '저장 중...' : '저장'}</button>
+        </div>
       </div>
     </form>
   );

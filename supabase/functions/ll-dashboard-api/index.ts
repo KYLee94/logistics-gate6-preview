@@ -16493,6 +16493,16 @@ function taskBoardText(value: unknown, max: number) {
   return safeText(value).replace(/\s+/gu, ' ').trim().slice(0, max);
 }
 
+function taskBoardMultilineText(value: unknown, max: number) {
+  return safeText(value)
+    .replace(/\r\n?/gu, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+$/gu, ''))
+    .join('\n')
+    .trim()
+    .slice(0, max);
+}
+
 function hasAllTaskBoardCrud(capability: Record<string, unknown> | undefined) {
   return capability?.read === true
     && capability?.create === true
@@ -16751,7 +16761,7 @@ function validatedTaskBoardFields(payload: Record<string, unknown>) {
       task_name: taskName,
       task_category: category,
       status,
-      description: taskBoardText(payload.description, 8000) || null,
+      description: taskBoardMultilineText(payload.description, 8000) || null,
       stakeholder_name: taskBoardText(payload.stakeholder_name, 300) || null,
     },
     error: '',

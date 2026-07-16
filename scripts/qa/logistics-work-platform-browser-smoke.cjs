@@ -129,11 +129,13 @@ async function exerciseCrud(session, report, stamp) {
     if (!asset?.asset_id) throw new Error('eligible asset lookup returned no writable asset');
 
     const stakeholderName = `QA stakeholder ${stamp}`;
+    const detailText = `QA detail first line ${stamp}\nQA detail second line\n\nQA detail fourth line`;
     const task = await run('work-platform/task-board/create', {
       project_id: asset.asset_id,
       task_category: '신규 투자 검토',
       task_name: `QA temporary task ${stamp}`,
       stakeholder_name: stakeholderName,
+      description: detailText,
       status: '예정',
       client_request_id: taskRequestId,
       suppress_notifications: true,
@@ -176,10 +178,11 @@ async function exerciseCrud(session, report, stamp) {
     report.crud.readback = {
       task_code: readback.task_code || null,
       stakeholder_name: readback.stakeholder_name || null,
+      description: readback.description || null,
       task_comment_count: Array.isArray(readback.task_comments) ? readback.task_comments.length : 0,
     };
-    if (readback.task_code !== taskCode || readback.stakeholder_name !== stakeholderName) {
-      throw new Error('task readback did not retain the temporary task and stakeholder');
+    if (readback.task_code !== taskCode || readback.stakeholder_name !== stakeholderName || readback.description !== detailText) {
+      throw new Error('task readback did not retain the temporary task, stakeholder and multiline detail');
     }
 
     const readbackComments = Array.isArray(readback.task_comments) ? readback.task_comments : [];
@@ -193,6 +196,7 @@ async function exerciseCrud(session, report, stamp) {
       select
         task_code,
         stakeholder_name,
+        description,
         status,
         jsonb_array_length(task_comments)::integer as task_comment_count,
         exists (select 1 from jsonb_array_elements(task_comments) c where c->>'id' = ${sqlString(commentRequestId)} and c->>'text' = ${sqlString(updatedCommentText)}) as has_comment,
@@ -208,11 +212,12 @@ async function exerciseCrud(session, report, stamp) {
     if (!databaseRow
       || databaseRow.task_code !== taskCode
       || databaseRow.stakeholder_name !== stakeholderName
+      || databaseRow.description !== detailText
       || databaseRow.task_comment_count !== 3
       || databaseRow.has_comment !== true
       || databaseRow.has_reply !== true
       || databaseRow.has_nested_reply !== true) {
-      throw new Error('Supabase DB readback did not retain the task, stakeholder, edited comment and recursive replies');
+      throw new Error('Supabase DB readback did not retain the task, stakeholder, multiline detail, edited comment and recursive replies');
     }
 
     await cleanup(taskCode);
