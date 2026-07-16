@@ -141,6 +141,24 @@ function taskBoardCommentsMigration() {
   };
 }
 
+function taskBoardStatusCompatibilityMigration() {
+  const candidates = fs.readdirSync(MIGRATIONS_PATH)
+    .filter((fileName) => fileName.endsWith('.sql'))
+    .filter((fileName) => fileName.includes('task_board_status_rollback_compatibility'))
+    .filter((fileName) => {
+      const source = fs.readFileSync(path.join(MIGRATIONS_PATH, fileName), 'utf8');
+      return /ll_work_items_task_status_check/iu.test(source)
+        && /not valid/iu.test(source)
+        && /'진행중'/u.test(source)
+        && /'검토중'/u.test(source);
+    });
+  assert.equal(candidates.length, 1, 'one rollback-compatible task status migration must exist');
+  return {
+    filePath: path.join(MIGRATIONS_PATH, candidates[0]),
+    source: fs.readFileSync(path.join(MIGRATIONS_PATH, candidates[0]), 'utf8'),
+  };
+}
+
 test('WorkspaceLogistics replaces the legacy home surface with the integrated task board', () => {
   const workspace = fs.readFileSync(WORKSPACE_PATH, 'utf8');
 
@@ -208,6 +226,14 @@ test('LogisticsTaskBoard uses the five approved status labels and the spaced pro
   assert.match(source, /label="진행 상황"/u);
   assert.match(edge, /const TASK_BOARD_STATUSES = new Set\(\['예정', '진행 중', '중단', '보류', '완료'\]\)/u);
   assert.match(migration, /status in \('예정', '진행 중', '중단', '보류', '완료'\)/u);
+});
+
+test('task status constraint preserves rollback compatibility without exposing legacy labels', () => {
+  const { source: migration } = taskBoardStatusCompatibilityMigration();
+
+  assert.match(migration, /status in \('예정', '진행 중', '중단', '보류', '완료', '진행중', '검토중'\)/u);
+  assert.match(migration, /add constraint ll_work_items_task_status_check[\s\S]{0,500}not valid/iu);
+  assert.match(migration, /validate constraint ll_work_items_task_status_check/iu);
 });
 
 test('task-board maps canonical stakeholder_name throughout API and UI normalization', () => {
