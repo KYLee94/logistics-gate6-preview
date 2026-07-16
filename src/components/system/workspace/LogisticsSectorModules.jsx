@@ -1522,14 +1522,16 @@ function hasEdgeDataValue(value) {
   return value !== null && value !== undefined;
 }
 
-function createEdgeDataLoadingTrace({ stage = 'queued', attempt = 0, startedAt = 0, finishedAt = 0, hasData = false } = {}) {
-  const completedSteps = stage === 'queued'
-    ? 1
-    : stage === 'loading'
-      ? 2
-      : stage === 'retrying' && !hasData
-        ? 3
-        : 4;
+function createEdgeDataLoadingTrace({ stage = 'queued', attempt = 0, startedAt = 0, finishedAt = 0 } = {}) {
+  const completedSteps = {
+    queued: 1,
+    loading: 2,
+    refreshing: 2,
+    retrying: 2,
+    processing: 3,
+    ready: 4,
+    failed: 4,
+  }[stage] || 1;
   return {
     stage,
     attempt,
@@ -1550,14 +1552,19 @@ function edgeDataLoadingProgress(trace) {
 function summarizeEdgeDataLoadingTrace(...traces) {
   const values = traces.filter((trace) => trace && Number.isFinite(Number(trace.totalSteps)) && Number(trace.totalSteps) > 0);
   if (!values.length) return createEdgeDataLoadingTrace({ stage: 'ready', attempt: 0, finishedAt: Date.now() });
-  const active = values.find((trace) => trace.stage !== 'ready') || values[0];
+  const active = values.find((trace) => !['ready', 'failed'].includes(trace.stage));
+  const terminal = values.find((trace) => trace.stage === 'failed') || values.find((trace) => trace.stage === 'ready') || values[0];
+  const totalSteps = values.reduce((sum, trace) => sum + Number(trace.totalSteps), 0);
   return {
-    stage: active.stage,
+    stage: (active || terminal).stage,
     attempt: Math.max(...values.map((trace) => Number(trace.attempt) || 0)),
     startedAt: Math.min(...values.map((trace) => Number(trace.startedAt) || Date.now())),
     finishedAt: values.every((trace) => trace.finishedAt) ? Math.max(...values.map((trace) => Number(trace.finishedAt) || 0)) : 0,
-    completedSteps: values.reduce((sum, trace) => sum + Math.max(0, Number(trace.completedSteps) || 0), 0),
-    totalSteps: values.reduce((sum, trace) => sum + Math.max(1, Number(trace.totalSteps) || 1), 0),
+    completedSteps: values.reduce((sum, trace) => {
+      const traceTotalSteps = Number(trace.totalSteps);
+      return sum + Math.min(traceTotalSteps, Math.max(0, Number(trace.completedSteps) || 0));
+    }, 0),
+    totalSteps,
   };
 }
 
@@ -1642,6 +1649,13 @@ export function useEdgeData(action, payload = {}) {
       const loadedAt = Date.now();
       const latestRequest = requestRef.current === requestId
         && EDGE_DATA_LATEST_REQUEST_ID.get(requestKey) === inflight.requestId;
+      if (mountedRef.current && latestRequest) {
+        setState((current) => ({
+          ...current,
+          loadingStage: 'processing',
+          loadingTrace: createEdgeDataLoadingTrace({ stage: 'processing', attempt, startedAt: requestStartedAt, hasData: hasEdgeDataValue(data) }),
+        }));
+      }
       if (latestRequest) {
         if (shouldCacheEdgeData(action, data)) EDGE_DATA_CACHE.set(requestKey, { data, loadedAt });
         else EDGE_DATA_CACHE.delete(requestKey);
@@ -1755,7 +1769,7 @@ export function useEdgeData(action, payload = {}) {
   }, [action, lifecycleActive, payloadKey, reload]);
   useEffect(() => {
     if (!lifecycleActive || !lifecycleModuleId || typeof reportLifecycleLoading !== 'function') return undefined;
-    const pending = ['queued', 'loading', 'refreshing', 'retrying'].includes(state.loadingStage);
+    const pending = ['queued', 'loading', 'refreshing', 'retrying', 'processing'].includes(state.loadingStage);
     const loadingToken = loadingTokenRef.current;
     reportLifecycleLoading(lifecycleModuleId, loadingToken, pending, edgeDataLoadingProgress(state.loadingTrace));
     return () => reportLifecycleLoading(lifecycleModuleId, loadingToken, false, 100);
@@ -1812,7 +1826,7 @@ function MarketDataLoadingBadge({
   if (!loading) return null;
   const safeProgress = Math.max(1, Math.min(100, Math.round(Number(progress) || 0)));
   return (
-    <div className="min-w-[150px] rounded-[8px] border border-[#2F3A4A] bg-[#151C27] px-3 py-2 shadow-[0_10px_30px_rgba(22,36,64,0.25)]" data-market-data-loading-progress="true" data-loading-progress="true" data-loading-stage={loadingStage} data-loading-completed-steps={loadingTrace?.completedSteps} data-loading-total-steps={loadingTrace?.totalSteps} data-testid={testId}>
+    <div className="min-w-[150px] rounded-[8px] border border-[#2F3A4A] bg-[#151C27] px-3 py-2 shadow-[0_10px_30px_rgba(22,36,64,0.25)]" data-market-data-loading-progress="true" data-loading-progress="true" data-loading-stage={loadingStage} data-loading-completed-steps={loadingTrace?.completedSteps} data-loading-total-steps={loadingTrace?.totalSteps} data-loading-completed-units={loadingTrace?.completedSteps} data-loading-total-units={loadingTrace?.totalSteps} data-testid={testId}>
       <div className="flex items-center justify-between gap-3 text-[11px] font-semibold text-[#D7E8FF]">
         <span>{hasCachedData ? refreshLabel : label}</span>
         <span>{safeProgress}%</span>
@@ -9470,7 +9484,7 @@ export function DataManagementDashboard({ activeTab = 'lease' }) {
               <h3 className="mt-1 text-[22px] font-bold text-white">{text(activeWorkflowCard?.label || selectedViewMeta.label || selectedView.label, '업무 데이터')}</h3>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2 text-right text-[12px] leading-5 text-[#A1A1AA]">
-              <div>{dataManagementLoading ? `데이터 로딩 ${Math.max(8, Math.min(96, Math.round(dataManagementLoadingProgress)))}%` : `${formatNumber(currentRowCount)}건 기준`}</div>
+              <div>{dataManagementLoading ? `데이터 로딩 ${Math.max(0, Math.min(99, dataManagementLoadingProgress))}%` : `${formatNumber(currentRowCount)}건 기준`}</div>
               <button
                 type="button"
                 onClick={() => {

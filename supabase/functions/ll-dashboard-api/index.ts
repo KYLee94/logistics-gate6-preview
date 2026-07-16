@@ -16847,8 +16847,25 @@ async function taskBoardRecipients(ctx: Context, assets: CanonicalAsset[]) {
     .filter((profile) => (profile.readable_asset_ids as string[]).length > 0);
 }
 
+function normalizedTaskBoardSearchText(value: unknown) {
+  return [...safeText(value).replace(/\s+/gu, ' ').trim()].slice(0, 100).join('');
+}
+
 function taskBoardSearchTerm(value: unknown) {
-  return taskBoardText(value, 100).replace(/[%_,().]/gu, ' ').replace(/\s+/gu, ' ').trim();
+  const normalized = normalizedTaskBoardSearchText(value);
+  return [...normalized].filter((character) => !/\s/u.test(character)).length >= 2 ? normalized : '';
+}
+
+function taskBoardFilterEscapedValue(value: string) {
+  return value.replace(/["\\\\%_]/gu, (character) => `\\${character}`);
+}
+
+function taskBoardFilterQuotedValue(value: string) {
+  return `"${taskBoardFilterEscapedValue(value)}"`;
+}
+
+function taskBoardContainsFilter(column: string, value: string) {
+  return `${column}.ilike."%${taskBoardFilterEscapedValue(value)}%"`;
 }
 
 async function listTaskBoard(ctx: Context, payload: Record<string, unknown>) {
@@ -16886,7 +16903,22 @@ async function listTaskBoard(ctx: Context, payload: Record<string, unknown>) {
   const ownerId = safeText(payload.created_by_user_id);
   if (ownerId) query = query.eq('created_by', ownerId);
   const search = taskBoardSearchTerm(payload.search);
-  if (search) query = query.or(`task_code.ilike.%${search}%,task_name.ilike.%${search}%,stakeholder_name.ilike.%${search}%`);
+  if (search) {
+    const normalizedSearch = search.toLocaleLowerCase();
+    const assetIdFilters = eligible.assets
+      .filter((asset) => normalizedTaskBoardSearchText(asset.asset_name).toLocaleLowerCase().includes(normalizedSearch))
+      .map((asset) => `related_asset_id.eq.${taskBoardFilterQuotedValue(asset.asset_id)}`);
+    const searchFilters = [
+      'task_code',
+      'task_name',
+      'task_category',
+      'created_by_name',
+      'organization',
+      'stakeholder_name',
+      'status',
+    ].map((column) => taskBoardContainsFilter(column, search));
+    query = query.or([...searchFilters, ...assetIdFilters].join(','));
+  }
   const offset = (page - 1) * pageSize;
   const { data, error, count } = await query.range(offset, offset + pageSize - 1);
   if (error) return fail(500, 'Failed to list task board rows', ctx.origin, { error: error.message });

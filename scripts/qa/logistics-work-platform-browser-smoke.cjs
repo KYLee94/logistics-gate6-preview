@@ -272,6 +272,7 @@ async function main() {
     auth_email: String(session.user.email || '').replace(/^(.{2}).*(@.*)$/u, '$1***$2'),
     checks: {},
     api: [],
+    search: {},
     crud: { exercised: shouldExerciseCrud, operations: [], cleanup: [], readback: null, database_readback: null, physical_cleanup: null },
     errors: [],
     screenshot: path.relative(ROOT, screenshotPath).replace(/\\/gu, '/'),
@@ -307,12 +308,92 @@ async function main() {
 
     const bodyText = await page.locator('body').innerText();
     report.checks.brand_visible = bodyText.includes('IGIS Logistics Platform');
-    report.checks.platform_title_visible = bodyText.includes('업무 플랫폼');
+    report.checks.platform_title_visible = bodyText.includes('플랫폼 홈');
     report.checks.header_commands = bodyText.includes('관리 Project 현황') && bodyText.includes('담당 및 권한') && !bodyText.includes('데일리 물류 뉴스');
     report.checks.ai_hidden = !bodyText.includes('AI 챗봇') && !bodyText.includes('AI에게 질문');
-    report.checks.task_board_visible = (await board.innerText()).includes('통합 업무 보드');
+    report.checks.task_board_visible = (await board.innerText()).includes('업무 보드');
     const boardText = await board.innerText();
     report.checks.task_board_columns = ['프로젝트', '업무 분류', '업무 요약', '담당자', '이해관계자', '진행 상황', '등록일'].every((label) => boardText.includes(label));
+
+    const taskBoardSearchInput = board.locator('input').first();
+    const taskRows = board.locator('tbody tr');
+    await taskBoardSearchInput.waitFor({ state: 'visible', timeout: 10000 });
+    const initialTaskRowCount = await taskRows.count();
+    await page.clock.install({ time: Date.now() });
+    await page.evaluate(() => {
+      const originalFetch = window.fetch.bind(window);
+      window.__gate6TaskBoardSearchRequests = [];
+      window.fetch = (input, init) => {
+        const requestUrl = typeof input === 'string' ? input : input?.url || '';
+        if (requestUrl.includes('/functions/v1/ll-dashboard-api')) {
+          try {
+            const body = typeof init?.body === 'string' ? JSON.parse(init.body) : null;
+            if (body?.action === 'work-platform/task-board/list') {
+              const record = { payload: body.payload || {}, completed: false, status: null };
+              window.__gate6TaskBoardSearchRequests.push(record);
+              return originalFetch(input, init).then(
+                (response) => {
+                  record.completed = true;
+                  record.status = response.status;
+                  return response;
+                },
+                (error) => {
+                  record.completed = true;
+                  record.error = String(error?.message || error);
+                  throw error;
+                },
+              );
+            }
+          } catch {
+            // Browser smoke only observes task-board list requests.
+          }
+        }
+        return originalFetch(input, init);
+      };
+    });
+    const settleTaskBoardSearch = async (value, expectedRequestCount) => {
+      const requestCountBefore = await page.evaluate(() => window.__gate6TaskBoardSearchRequests.length);
+      await taskBoardSearchInput.fill(value);
+      const debounceSettled = page.evaluate(() => new Promise((resolve) => window.setTimeout(resolve, 350)));
+      await page.clock.runFor(350);
+      await debounceSettled;
+      await page.waitForFunction(({ start, expected }) => {
+        const requests = window.__gate6TaskBoardSearchRequests.slice(start);
+        return requests.length === expected && requests.every((request) => request.completed);
+      }, { start: requestCountBefore, expected: expectedRequestCount }, { timeout: 30000 });
+      return page.evaluate((start) => window.__gate6TaskBoardSearchRequests.slice(start), requestCountBefore);
+    };
+
+    const blankSearchRequests = await settleTaskBoardSearch('   ', 0);
+    const blankTaskRowCount = await taskRows.count();
+    const oneCharacterSearchRequests = await settleTaskBoardSearch('가', 0);
+    const oneCharacterTaskRowCount = await taskRows.count();
+    const spacedSearchRequests = await settleTaskBoardSearch('  가 나  ', 1);
+    const spacedSearchPayload = spacedSearchRequests.at(-1)?.payload || null;
+    const clearSearchRequests = await settleTaskBoardSearch('', 1);
+    const clearSearchPayload = clearSearchRequests.at(-1)?.payload || null;
+    const clearedTaskRowCount = await taskRows.count();
+    report.search = {
+      initial_task_row_count: initialTaskRowCount,
+      blank_request_payloads: blankSearchRequests,
+      blank_task_row_count: blankTaskRowCount,
+      one_character_request_payloads: oneCharacterSearchRequests,
+      one_character_task_row_count: oneCharacterTaskRowCount,
+      spaced_request_payloads: spacedSearchRequests,
+      clear_request_payloads: clearSearchRequests,
+      cleared_task_row_count: clearedTaskRowCount,
+    };
+    report.checks.task_board_search_blank_keeps_full_list = blankSearchRequests.length === 0
+      && blankTaskRowCount === initialTaskRowCount;
+    report.checks.task_board_search_one_character_keeps_full_list = oneCharacterSearchRequests.length === 0
+      && oneCharacterTaskRowCount === initialTaskRowCount;
+    report.checks.task_board_search_trimmed_query_preserves_internal_space = spacedSearchRequests.length === 1
+      && spacedSearchPayload?.search === '가 나';
+    report.checks.task_board_search_clear_restores_full_list = clearSearchRequests.length === 1
+      && !clearSearchPayload?.search
+      && await taskBoardSearchInput.inputValue() === ''
+      && clearedTaskRowCount === initialTaskRowCount;
+    await page.clock.resume();
 
     const searchInput = page.getByTestId('logistics-main-search-input');
     const quickTabs = page.locator('[data-work-platform-quick-tabs="true"]');
@@ -330,7 +411,7 @@ async function main() {
       board.boundingBox(),
     ]);
     if (!searchRegionBox || !quickTabsBox || !assetGridBox || !boardBox) {
-      throw new Error('업무 플랫폼 헤더 레이아웃 측정 대상이 없습니다.');
+      throw new Error('플랫폼 홈 헤더 레이아웃 측정 대상이 없습니다.');
     }
     const searchWidthRatio = searchRegionBox.width / (searchRegionBox.width + quickTabsBox.width);
     const searchQuickTabsTopDelta = Math.abs(searchRegionBox.y - quickTabsBox.y);
@@ -351,7 +432,7 @@ async function main() {
       task_board_top: taskBoardTop,
       asset_to_board_gap: assetToBoardGap,
     };
-    report.checks.header_search_quick_tabs_ratio = searchWidthRatio >= 0.60 && searchWidthRatio <= 0.70;
+    report.checks.header_search_quick_tabs_ratio = searchWidthRatio >= 0.58 && searchWidthRatio <= 0.62;
     report.checks.header_search_quick_tabs_aligned = searchQuickTabsTopDelta <= 2 && searchQuickTabsBottomDelta <= 2;
     report.checks.header_has_no_profile_identity_block = headerProfileSummary.image_count === 0 && headerProfileSummary.profile_label_count === 0;
     report.checks.asset_grid_precedes_task_board = assetGridBottom < taskBoardTop && assetToBoardGap >= 0 && assetToBoardGap <= 96;

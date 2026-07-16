@@ -131,24 +131,26 @@ function main() {
       events: [
         { input: { stage: 'queued', attempt: 0 } },
         { input: { stage: 'loading', attempt: 1, startedAt: 101 } },
+        { input: { stage: 'processing', attempt: 1, startedAt: 101 } },
         { input: { stage: 'ready', attempt: 1, startedAt: 101, finishedAt: 102, hasData: true } },
       ],
       expected: [
         { stage: 'queued', attempt: 0, completed_steps: 1, total_steps: 4, progress: 25 },
         { stage: 'loading', attempt: 1, completed_steps: 2, total_steps: 4, progress: 50 },
+        { stage: 'processing', attempt: 1, completed_steps: 3, total_steps: 4, progress: 75 },
         { stage: 'ready', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
       ],
     },
     {
       id: 'cached-tab-revalidation',
       events: [
-        { input: { stage: 'ready', attempt: 1, startedAt: 11, finishedAt: 12, hasData: true } },
         { input: { stage: 'refreshing', attempt: 1, startedAt: 21, hasData: true } },
+        { input: { stage: 'processing', attempt: 1, startedAt: 21, hasData: true } },
         { input: { stage: 'ready', attempt: 1, startedAt: 21, finishedAt: 22, hasData: true } },
       ],
       expected: [
-        { stage: 'ready', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
-        { stage: 'refreshing', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
+        { stage: 'refreshing', attempt: 1, completed_steps: 2, total_steps: 4, progress: 50 },
+        { stage: 'processing', attempt: 1, completed_steps: 3, total_steps: 4, progress: 75 },
         { stage: 'ready', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
       ],
     },
@@ -158,12 +160,14 @@ function main() {
         { input: { stage: 'queued', attempt: 0 } },
         { input: { stage: 'loading', attempt: 1, startedAt: 31 } },
         { input: { stage: 'retrying', attempt: 2, startedAt: 31 } },
+        { input: { stage: 'processing', attempt: 2, startedAt: 31 } },
         { input: { stage: 'ready', attempt: 2, startedAt: 31, finishedAt: 32, hasData: true } },
       ],
       expected: [
         { stage: 'queued', attempt: 0, completed_steps: 1, total_steps: 4, progress: 25 },
         { stage: 'loading', attempt: 1, completed_steps: 2, total_steps: 4, progress: 50 },
-        { stage: 'retrying', attempt: 2, completed_steps: 3, total_steps: 4, progress: 75 },
+        { stage: 'retrying', attempt: 2, completed_steps: 2, total_steps: 4, progress: 50 },
+        { stage: 'processing', attempt: 2, completed_steps: 3, total_steps: 4, progress: 75 },
         { stage: 'ready', attempt: 2, completed_steps: 4, total_steps: 4, progress: 100 },
       ],
     },
@@ -174,23 +178,24 @@ function main() {
         { input: { stage: 'failed', attempt: 2, startedAt: 41, finishedAt: 42, hasData: true } },
       ],
       expected: [
-        { stage: 'refreshing', attempt: 1, completed_steps: 4, total_steps: 4, progress: 100 },
+        { stage: 'refreshing', attempt: 1, completed_steps: 2, total_steps: 4, progress: 50 },
         { stage: 'failed', attempt: 2, completed_steps: 4, total_steps: 4, progress: 100 },
       ],
     },
   ];
 
-  evaluateCheck(report, 'trace-stage-progress-order', 'Queued, loading, refreshing, retrying, ready, and retained-failure traces produce the expected ordered progress contract without advancing a fake clock.', () => (
+  evaluateCheck(report, 'trace-stage-progress-order', 'Queued, loading, processing, refreshing, retrying, ready, and retained-failure traces produce the expected ordered progress contract without advancing a fake clock.', () => (
     scenarios.map((scenario) => verifyScenario(createTrace, progressForTrace, scenario))
   ));
 
-  evaluateCheck(report, 'hook-emits-all-terminal-stages', 'The data hook creates trace records for queued, loading, refreshing, retrying, ready, and failed paths.', () => {
+  evaluateCheck(report, 'hook-emits-all-terminal-stages', 'The data hook creates trace records for queued, loading, refreshing, retrying, processing, ready, and failed paths.', () => {
     const hook = extractFunction(source, 'useEdgeData');
     return [
       requireMatch(hook, /loadingStage:\s*'queued'[\s\S]{0,220}loadingTrace:\s*createEdgeDataLoadingTrace\(\)/u, 'queued trace'),
       requireMatch(hook, /loadingStage:[\s\S]{0,220}stage:\s*options\.__retry[\s\S]{0,220}'loading'/u, 'loading trace'),
       requireMatch(hook, /stage:\s*options\.__retry \? 'retrying' : 'refreshing'/u, 'refreshing trace'),
       requireMatch(hook, /loadingStage:\s*'retrying'[\s\S]{0,220}stage:\s*'retrying'/u, 'retry trace'),
+      requireMatch(hook, /loadingStage:\s*'processing'[\s\S]{0,220}stage:\s*'processing'/u, 'processing trace'),
       requireMatch(hook, /loadingStage:\s*'ready'[\s\S]{0,220}stage:\s*'ready'/u, 'ready trace'),
       requireMatch(hook, /loadingStage:\s*'failed'[\s\S]{0,220}stage:\s*'failed'/u, 'failed trace'),
     ];

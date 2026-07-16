@@ -55,14 +55,16 @@ test('lifecycle restart lock coalesces explicit invalidation events', () => {
   assert.equal(isLocked(lock, 'dashboard/asset', 10_100, 5_000), false);
 });
 
-test('edge loading progress starts above zero and never regresses', () => {
+test('edge loading progress is monotonic within each lifecycle wave', () => {
   const createTrace = sourceFunction(sectorSource, 'createEdgeDataLoadingTrace');
   const progress = sourceFunction(sectorSource, 'edgeDataLoadingProgress');
-  const cold = ['queued', 'loading', 'retrying', 'ready'].map((stage, index) => progress(createTrace({ stage, attempt: index })));
-  const revalidate = ['ready', 'refreshing', 'ready'].map((stage) => progress(createTrace({ stage, hasData: true })));
+  const cold = ['queued', 'loading', 'processing', 'ready'].map((stage, index) => progress(createTrace({ stage, attempt: index })));
+  const previousWaveReady = progress(createTrace({ stage: 'ready', hasData: true }));
+  const revalidate = ['refreshing', 'processing', 'ready'].map((stage) => progress(createTrace({ stage, hasData: true })));
   assert.ok(cold[0] > 0);
-  assert.deepEqual(cold, [...cold].sort((a, b) => a - b));
-  assert.deepEqual(revalidate, [...revalidate].sort((a, b) => a - b));
+  assert.deepEqual(cold, [25, 50, 75, 100]);
+  assert.equal(previousWaveReady, 100);
+  assert.deepEqual(revalidate, [50, 75, 100]);
 });
 
 test('dashboard loading progress is monotonic within one visible request wave', () => {
@@ -74,6 +76,30 @@ test('dashboard loading progress is monotonic within one visible request wave', 
   const badge = extractFunction(workspaceSource, 'DashboardPageLoadingBadge');
   assert.match(badge, /waveRef\.current\.active && waveRef\.current\.scopeKey === normalizedScopeKey/u);
   assert.match(workspaceSource, /scopeKey=\{selected\?\.id\}/u);
+});
+
+test('dashboard loading progress is driven by visible lifecycle request units, not a fixed 50 to 100 transition', () => {
+  const shell = extractFunction(workspaceSource, 'DashboardShell');
+  const reportStart = shell.indexOf('const reportModuleLoading');
+  const reportEnd = shell.indexOf('const activeModuleLoadingEntries');
+  assert.ok(reportStart >= 0 && reportEnd > reportStart, 'DashboardShell must define the module loading reporter');
+  const reportModuleLoading = shell.slice(reportStart, reportEnd);
+  const badge = extractFunction(workspaceSource, 'DashboardPageLoadingBadge');
+
+  // A request report must carry completed/total lifecycle units. A default 50 percent
+  // makes every pending request look half complete regardless of its real lifecycle.
+  assert.doesNotMatch(reportModuleLoading, /progress\s*=\s*50/u, 'module loading must not default to 50 percent');
+  assert.doesNotMatch(shell, /activeShellDatasetLoading\s*\?\s*\[50\]/u, 'home loading must not inject a fixed 50 percent value');
+  assert.match(reportModuleLoading, /completed(?:Units|Requests|Steps)/u, 'module loading reports completed request units');
+  assert.match(reportModuleLoading, /total(?:Units|Requests|Steps)/u, 'module loading reports total request units');
+
+  // Completion belongs only to a settled wave. Pending work must retain a value below 100.
+  assert.match(shell, /activeDashboardLoading[\s\S]{0,700}Math\.min\([^)]*99/u, 'pending dashboard work is capped below 100 percent');
+
+  // Retry updates share a wave and hidden modules are excluded before the aggregate is computed.
+  assert.match(reportModuleLoading, /previous[\s\S]{0,500}Math\.max\(previous\.progress/u, 'retry progress cannot move backward');
+  assert.match(shell, /filter\(\(entry\)\s*=>\s*entry\.moduleId\s*===\s*selected\?\.id/u, 'hidden tabs cannot contribute to the visible loading total');
+  assert.match(badge, /data-loading-progress="true"/u, 'visible badge remains available to browser QA');
 });
 
 test('OpenDART navigation is cache-only while explicit refresh remains provider-backed', () => {

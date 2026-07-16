@@ -578,7 +578,7 @@ const invokeWithTimeout = async (action, payload = {}, timeoutMs = 12000, retryO
 };
 const logisticsNavIconClass = 'w-4.5 h-4.5 mr-[10px]';
 const logisticsRootItem = {
-    label: '업무 플랫폼',
+    label: '플랫폼 홈',
     path: LOGISTICS_INTERNAL_BASE,
     icon: <svg className={logisticsNavIconClass} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 7h18M5 7v10a2 2 0 002 2h10a2 2 0 002-2V7M8 11h8M8 15h5M9 7V5a2 2 0 012-2h2a2 2 0 012 2v2" /></svg>,
 };

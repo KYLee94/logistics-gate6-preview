@@ -132,10 +132,65 @@ test('progress audit ignores transient no-request badges but rejects retained co
   assert.equal(pending.retained_badges.length, 0);
 });
 
+test('progress audit rejects fixed percentages, pending 100 percent, and retry regressions within a request wave', () => {
+  const assess = sourceFunction(fullAppSource, 'assessLoadingSamples');
+  const fixedProgress = assess([
+    {
+      pending: 2,
+      started: 4,
+      finished: 1,
+      wave: 3,
+      badges: [{ id: 'dashboard', stage: 'loading', progress: 50 }],
+    },
+  ], { settled: false, finalPending: 2, finalBadges: [] });
+  assert.equal(fixedProgress.ok, false);
+  assert.equal(fixedProgress.lifecycle_violations.length, 1);
+
+  const prematureCompletion = assess([
+    {
+      pending: 1,
+      started: 4,
+      finished: 3,
+      wave: 3,
+      badges: [{
+        id: 'dashboard',
+        stage: 'retrying',
+        progress: 100,
+        completed_units: 3,
+        total_units: 4,
+      }],
+    },
+  ], { settled: false, finalPending: 1, finalBadges: [] });
+  assert.equal(prematureCompletion.ok, false);
+  assert.ok(prematureCompletion.lifecycle_violations.some((item) => item.reason === 'pending-at-100'));
+
+  const retryRegression = assess([
+    {
+      pending: 1,
+      started: 4,
+      finished: 2,
+      wave: 3,
+      badges: [{ id: 'dashboard', stage: 'loading', progress: 50, completed_units: 2, total_units: 4 }],
+    },
+    {
+      pending: 1,
+      started: 4,
+      finished: 2,
+      wave: 3,
+      badges: [{ id: 'dashboard', stage: 'retrying', progress: 25, completed_units: 2, total_units: 4 }],
+    },
+  ], { settled: false, finalPending: 1, finalBadges: [] });
+  assert.equal(retryRegression.ok, false);
+  assert.equal(retryRegression.regressions.length, 1);
+});
+
 test('full app QA observes actual dashboard requests and popup reopen lifecycle', () => {
   assert.match(fullAppSource, /__LOGISTICS_LOADING_QA__/u);
   assert.match(fullAppSource, /request-start/u);
   assert.match(fullAppSource, /request-end/u);
+  assert.match(fullAppSource, /data-loading-completed-units/u);
+  assert.match(fullAppSource, /data-loading-total-units/u);
+  assert.match(fullAppSource, /closest\('\[aria-hidden="true"\]'\)/u);
   assert.match(fullAppSource, /function checkPopupLifecycle/u);
   for (const field of ['opened', 'closed', 'reopened', 'reclosed']) {
     assert.match(fullAppSource, new RegExp(`\\b${field}\\b`, 'u'));

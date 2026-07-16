@@ -351,7 +351,7 @@ test('standard work-platform browser smoke stays read-only and CRUD is opt-in wi
 test('LogisticsTaskBoard keeps the reference table shell with the requested compact controls', () => {
   const { source } = taskBoardComponent();
 
-  assert.match(source, /text-\[20px\][^>]*>통합 업무 보드</u);
+  assert.match(source, /text-\[20px\][^>]*>업무 보드</u);
   assert.match(source, /w-\[280px\]/u);
   assert.match(source, /rounded-(?:l-)?\[24px\]/u);
   assert.match(source, /bg-\[#252524\]/u);
@@ -369,6 +369,40 @@ test('LogisticsTaskBoard keeps the reference table shell with the requested comp
   assert.match(source, /event\.key !== 'Escape'/u);
   assert.match(source, /task-board-filter-menu-\$\{filterKey\}/u);
   assert.match(source, /filterKey="category"/u);
+});
+
+test('work-platform labels stay explicit', () => {
+  const workspace = fs.readFileSync(WORKSPACE_PATH, 'utf8');
+  const leftNav = fs.readFileSync(LEFT_NAV_PATH, 'utf8');
+
+  assert.match(leftNav, /const logisticsRootItem = \{[\s\S]{0,180}label:\s*['"]플랫폼 홈['"]/u);
+  assert.match(workspace, /\{\s*key:\s*['"]work-platform['"],[\s\S]{0,120}label:\s*['"]플랫폼 홈['"]/u);
+  assert.match(workspace, /<h1[^>]*>플랫폼 홈<\/h1>/u);
+});
+
+test('task-board free-search covers every approved server field', () => {
+  const edge = fs.readFileSync(EDGE_PATH, 'utf8');
+  const listStart = edge.indexOf('async function listTaskBoard(');
+  const listEnd = edge.indexOf('\nasync function readTaskBoardRow(', listStart);
+  const listHandler = edge.slice(listStart, listEnd);
+
+  assert.ok(listStart >= 0 && listEnd > listStart, 'listTaskBoard handler must be present');
+  assert.match(listHandler, /const search = taskBoardSearchTerm\(payload\.search\);/u);
+  assert.match(listHandler, /const searchFilters = \[/u);
+  for (const searchField of [
+    'task_code',
+    'task_name',
+    'task_category',
+    'created_by_name',
+    'organization',
+    'stakeholder_name',
+    'status',
+  ]) {
+    assert.match(listHandler, new RegExp(`['"]${searchField}['"]`, 'u'));
+  }
+  assert.match(listHandler, /\]\.map\(\(column\) => taskBoardContainsFilter\(column, search\)\)/u);
+  assert.match(listHandler, /const normalizedSearch = search\.toLocaleLowerCase\(\);/u);
+  assert.match(listHandler, /const assetIdFilters = eligible\.assets[\s\S]{0,240}normalizedTaskBoardSearchText\(asset\.asset_name\)\.toLocaleLowerCase\(\)\.includes\(normalizedSearch\)[\s\S]{0,240}related_asset_id\.eq\.\$\{taskBoardFilterQuotedValue\(asset\.asset_id\)\}/u);
 });
 
 test('management Project opens only the full table and requires all four asset permissions to edit', () => {

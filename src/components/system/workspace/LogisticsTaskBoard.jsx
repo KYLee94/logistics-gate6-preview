@@ -466,8 +466,10 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
+      const trimmedSearch = searchInput.trim();
+      const searchableCharacterCount = Array.from(trimmedSearch.replace(/\s/gu, '')).length;
       setPage(1);
-      setSearch(searchInput.trim());
+      setSearch(searchableCharacterCount >= 2 ? trimmedSearch : '');
     }, 300);
     return () => window.clearTimeout(timer);
   }, [searchInput]);
@@ -486,7 +488,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
       const response = await invokeDashboardApi('work-platform/task-board/list', {
         page: requestedPage,
         page_size: PAGE_SIZE,
-        search: search || undefined,
+        search,
         project_id: filters.asset_id || undefined,
         task_category: filters.category || undefined,
         created_by_user_id: filters.assignee_user_id || undefined,
@@ -808,7 +810,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
   return (
     <section data-testid="logistics-task-board" className="min-w-0 text-[#f0f0f1]">
       <div className="mb-[12px] flex w-full flex-wrap items-center gap-3 xl:flex-nowrap xl:gap-[16px]">
-        <h2 className="shrink-0 text-[20px] font-semibold leading-none tracking-normal text-white">통합 업무 보드</h2>
+        <h2 className="shrink-0 text-[20px] font-semibold leading-none tracking-normal text-white">업무 보드</h2>
         <label className="relative min-w-[220px] flex-1 xl:ml-[10px] xl:w-[280px] xl:max-w-[280px] xl:flex-none">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[15px] text-[#86868B]" aria-hidden="true">⌕</span>
           <input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} placeholder="업무 요약, 담당자, 이해관계자 검색..." className="h-[34px] w-full rounded-[10px] border border-[#3c3c3c] bg-[#1c1c1e]/60 py-1.5 pl-9 pr-3 text-[13px] text-white outline-none placeholder:text-[#86868B] focus:border-[#2997ff] focus:ring-1 focus:ring-[#2997ff]" />
@@ -858,7 +860,7 @@ export default function LogisticsTaskBoard({ eligibleAssets = [], memberInfo, on
                     <td className="px-4 text-[11px] font-medium text-[#A1A1AA]">{formatCreatedDateWithAge(task.created_at)}</td>
                   </tr>
                 )) : (
-                  <tr><td colSpan="7" className="px-4 py-20 text-center text-[13px] text-[#86868B]">등록된 통합 업무 보드 정보가 없습니다.</td></tr>
+                  <tr><td colSpan="7" className="px-4 py-20 text-center text-[13px] text-[#86868B]">등록된 업무가 없습니다.</td></tr>
                 )}
               </tbody>
             </table>

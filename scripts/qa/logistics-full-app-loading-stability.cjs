@@ -159,6 +159,7 @@ function visibleLoadingState() {
 
 function assessLoadingSamples(samples, options = {}) {
   const regressions = [];
+  const lifecycleViolations = [];
   const previousProgress = new Map();
   for (const sample of Array.isArray(samples) ? samples : []) {
     const badges = Array.isArray(sample?.badges) ? sample.badges : [];
@@ -166,6 +167,23 @@ function assessLoadingSamples(samples, options = {}) {
       if (Number(sample?.pending || 0) <= 0 || !Number.isFinite(Number(badge.progress))) continue;
       const key = `${Number(sample?.wave || 0)}:${badge.id}`;
       const current = Number(badge.progress);
+      const completedUnits = Number(badge.completed_units);
+      const totalUnits = Number(badge.total_units);
+      const lifecycle = {
+        id: badge.id,
+        wave: Number(sample?.wave || 0),
+        stage: String(badge.stage || ''),
+        progress: current,
+        completed_units: badge.completed_units,
+        total_units: badge.total_units,
+      };
+      if (!lifecycle.stage || !Number.isInteger(completedUnits) || !Number.isInteger(totalUnits)
+        || completedUnits < 0 || totalUnits < 1 || completedUnits > totalUnits) {
+        lifecycleViolations.push({ ...lifecycle, reason: 'missing-or-invalid-lifecycle-units' });
+      } else if (current !== Math.round((completedUnits / totalUnits) * 100)) {
+        lifecycleViolations.push({ ...lifecycle, reason: 'progress-does-not-match-completed-units' });
+      }
+      if (current >= 100) lifecycleViolations.push({ ...lifecycle, reason: 'pending-at-100' });
       const previous = previousProgress.get(key);
       if (Number.isFinite(previous) && current < previous) {
         regressions.push({ id: badge.id, wave: Number(sample?.wave || 0), from: previous, to: current });
@@ -182,11 +200,13 @@ function assessLoadingSamples(samples, options = {}) {
   const result = {
     sample_count: Array.isArray(samples) ? samples.length : 0,
     regressions: unique(regressions),
+    lifecycle_violations: unique(lifecycleViolations),
     badges_without_requests: unique(finalBadges),
     retained_badges: unique(retainedBadges),
     pending_requests_at_timeout: options.settled === false ? finalPending : 0,
   };
   result.ok = result.regressions.length === 0
+    && result.lifecycle_violations.length === 0
     && result.badges_without_requests.length === 0
     && result.retained_badges.length === 0
     && result.pending_requests_at_timeout === 0;
@@ -210,15 +230,26 @@ async function installLoadingRequestProbe(context) {
       .filter((node) => {
         const style = window.getComputedStyle(node);
         const rect = node.getBoundingClientRect();
-        return style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) !== 0 && rect.width > 1 && rect.height > 1;
+        return !node.closest('[aria-hidden="true"]')
+          && style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && Number(style.opacity) !== 0
+          && rect.width > 1
+          && rect.height > 1;
       })
       .map((node, index) => {
         const match = String(node.textContent || '').match(/(\d{1,3})\s*%/u);
+        const numberAttribute = (name) => {
+          const value = node.getAttribute(name);
+          return value === null || value === '' ? null : Number(value);
+        };
         return {
           id: node.getAttribute('data-testid')
             || (node.hasAttribute('data-dashboard-loading-progress') ? 'dashboard-loading-progress' : `loading-progress-${index + 1}`),
           progress: match ? Number(match[1]) : null,
           stage: node.getAttribute('data-loading-stage') || '',
+          completed_units: numberAttribute('data-loading-completed-units'),
+          total_units: numberAttribute('data-loading-total-units'),
         };
       });
     const capture = (reason) => {
@@ -978,6 +1009,7 @@ async function main() {
   report.progress_audit = {
     ok: progressRecords.length === report.routes.length + 3 && progressRows.every((audit) => audit.ok),
     regressions: progressRecords.flatMap((row) => (row.audit.regressions || []).map((item) => ({ cycle: row.cycle, route: row.route, ...item }))),
+    lifecycle_violations: progressRecords.flatMap((row) => (row.audit.lifecycle_violations || []).map((item) => ({ cycle: row.cycle, route: row.route, ...item }))),
     badges_without_requests: progressRecords.flatMap((row) => (row.audit.badges_without_requests || []).map((item) => ({ cycle: row.cycle, route: row.route, ...item }))),
     retained_badges: progressRecords.flatMap((row) => (row.audit.retained_badges || []).map((item) => ({ cycle: row.cycle, route: row.route, ...item }))),
     pending_requests_at_timeout: progressRecords.reduce((sum, row) => sum + Number(row.audit.pending_requests_at_timeout || 0), 0),

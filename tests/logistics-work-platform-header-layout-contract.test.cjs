@@ -18,7 +18,7 @@ test('work-platform header keeps the compact search, quick-tab, and asset-grid c
   assert.ok(headerStart >= 0 && taskBoardStart > headerStart, 'work-platform header card must be present');
   const header = source.slice(headerStart, taskBoardStart);
 
-  assert.match(header, /lg:grid-cols-\[minmax\(0,65fr\)_minmax\(280px,35fr\)\]/u);
+  assert.match(header, /lg:grid-cols-\[minmax\(0,60fr\)_minmax\(280px,40fr\)\]/u);
   assert.match(header, /data-testid="logistics-main-search-panel"/u);
   assert.match(header, /<label[^>]*text-\[15px\][^>]*>통합 검색<\/label>/u);
   assert.match(header, /data-testid="logistics-main-search-input"/u);

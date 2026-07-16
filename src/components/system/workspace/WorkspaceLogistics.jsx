@@ -91,7 +91,7 @@ const DARK_BUTTON_CLASS = 'border-[#333333] bg-[#222] text-[#D1D1D6] hover:borde
 const WORK_PLATFORM_QUICK_TAB_LIMIT = 8;
 const WORK_PLATFORM_QUICK_TAB_CACHE_KEY = 'logisticsWorkPlatformQuickTabs:v1';
 const WORK_PLATFORM_QUICK_TAB_OPTIONS = [
-  { key: 'work-platform', label: '업무 플랫폼', path: LOGISTICS_INTERNAL_BASE },
+  { key: 'work-platform', label: '플랫폼 홈', path: LOGISTICS_INTERNAL_BASE },
   { key: 'home', label: '대시보드 홈', path: pathFor('dashboard/home') },
   { key: 'asset', label: '자산', path: pathFor('dashboard/asset') },
   { key: 'company', label: '기업', path: pathFor('dashboard/company') },
@@ -118,6 +118,7 @@ const DASHBOARD_READ_CACHE_TTL_MS = 5 * 60 * 1000;
 const DASHBOARD_READ_REVALIDATE_MS = 90 * 1000;
 const DASHBOARD_READ_INFLIGHT_STALE_MS = 95 * 1000;
 const DASHBOARD_LIFECYCLE_REFRESH_LOCK_MS = 1000;
+const DASHBOARD_READ_LOADING_TOTAL_UNITS = 4;
 const ASSET_PROJECT_DETAIL_CACHE = new Map();
 const ASSET_FUND_OVERVIEW_CACHE = new Map();
 const ASSET_BUILDING_REGISTER_CACHE = new Map();
@@ -375,6 +376,33 @@ function isDashboardLifecycleRefreshLocked(lock, cacheKey, now = Date.now(), loc
   return Boolean(lock?.cacheKey === cacheKey && now - Number(lock.startedAt || 0) < lockMs);
 }
 
+function createDashboardReadLoadingTrace({ stage = 'queued', startedAt = 0, finishedAt = 0 } = {}) {
+  const normalizedStage = ['queued', 'loading', 'refreshing', 'processing', 'ready', 'failed'].includes(stage)
+    ? stage
+    : 'queued';
+  const completedUnits = normalizedStage === 'queued'
+    ? 1
+    : normalizedStage === 'loading' || normalizedStage === 'refreshing'
+      ? 2
+      : normalizedStage === 'processing'
+        ? 3
+        : DASHBOARD_READ_LOADING_TOTAL_UNITS;
+  return {
+    stage: normalizedStage,
+    startedAt,
+    finishedAt,
+    completedUnits,
+    totalUnits: DASHBOARD_READ_LOADING_TOTAL_UNITS,
+  };
+}
+
+function dashboardLoadingTraceProgress(trace) {
+  const completedUnits = Number(trace?.completedUnits);
+  const totalUnits = Number(trace?.totalUnits);
+  if (!Number.isFinite(completedUnits) || !Number.isFinite(totalUnits) || totalUnits <= 0) return 0;
+  return Math.max(0, Math.min(100, Math.round((completedUnits / totalUnits) * 100)));
+}
+
 function hasVerifiedActiveMemberInfo(memberInfo) {
   return String(memberInfo?.account_status || '').trim().toLowerCase() === 'active'
     && Boolean(String(memberInfo?.auth_subject || '').trim());
@@ -393,8 +421,26 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
   const [state, setState] = useState(() => {
     const cached = DASHBOARD_READ_CACHE.get(cacheKey);
     return cached
-      ? { cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' }
-      : { cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' };
+      ? {
+        cacheKey,
+        status: 'primary',
+        payload: cached.payload,
+        raw: cached.raw,
+        blocked: false,
+        message: '',
+        loadingStage: 'ready',
+        loadingTrace: createDashboardReadLoadingTrace({ stage: 'ready', startedAt: Date.parse(cached.checkedAt) || 0, finishedAt: Date.parse(cached.checkedAt) || 0 }),
+      }
+      : {
+        cacheKey,
+        status: 'idle',
+        payload: null,
+        raw: null,
+        blocked: false,
+        message: '',
+        loadingStage: 'queued',
+        loadingTrace: createDashboardReadLoadingTrace(),
+      };
   });
   const mode = dashboardReadRuntimeMode();
   const primaryMode = isDashboardReadPrimaryMode(mode);
@@ -403,8 +449,26 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
     state.cacheKey === cacheKey
       ? state
       : (cachedForCurrentRequest
-        ? { cacheKey, status: 'primary', payload: cachedForCurrentRequest.payload, raw: cachedForCurrentRequest.raw, blocked: false, message: '' }
-        : { cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' })
+        ? {
+          cacheKey,
+          status: 'primary',
+          payload: cachedForCurrentRequest.payload,
+          raw: cachedForCurrentRequest.raw,
+          blocked: false,
+          message: '',
+          loadingStage: 'ready',
+          loadingTrace: createDashboardReadLoadingTrace({ stage: 'ready', startedAt: Date.parse(cachedForCurrentRequest.checkedAt) || 0, finishedAt: Date.parse(cachedForCurrentRequest.checkedAt) || 0 }),
+        }
+        : {
+          cacheKey,
+          status: 'idle',
+          payload: null,
+          raw: null,
+          blocked: false,
+          message: '',
+          loadingStage: 'queued',
+          loadingTrace: createDashboardReadLoadingTrace(),
+        })
   ), [cacheKey, cachedForCurrentRequest, state]);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const effectiveStateRef = useRef(effectiveState);
@@ -422,7 +486,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
     const requestOwner = requestOwnerRef.current + 1;
     requestOwnerRef.current = requestOwner;
     if (!enabled || mode === 'off') {
-      setState({ cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '' });
+      setState({ cacheKey, status: 'idle', payload: null, raw: null, blocked: false, message: '', loadingStage: 'queued', loadingTrace: createDashboardReadLoadingTrace() });
       return undefined;
     }
     if (!lifecycleActive) return undefined;
@@ -435,25 +499,39 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
       const cached = DASHBOARD_READ_CACHE.get(cacheKey);
       const cacheAgeMs = cached?.checkedAt ? Date.now() - Date.parse(cached.checkedAt) : Number.POSITIVE_INFINITY;
       if (primaryMode && cached?.payload && cacheAgeMs >= 0 && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS && cacheAgeMs < DASHBOARD_READ_REVALIDATE_MS) {
-        setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
+        setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '', loadingStage: 'ready', loadingTrace: createDashboardReadLoadingTrace({ stage: 'ready', startedAt: Date.parse(cached.checkedAt) || 0, finishedAt: Date.parse(cached.checkedAt) || 0 }) });
         return;
       }
       if (primaryMode && cached?.payload && cacheAgeMs >= DASHBOARD_READ_REVALIDATE_MS && cacheAgeMs < DASHBOARD_READ_CACHE_TTL_MS) {
-        setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '' });
+        setState({ cacheKey, status: 'primary', payload: cached.payload, raw: cached.raw, blocked: false, message: '', loadingStage: 'queued', loadingTrace: createDashboardReadLoadingTrace({ stage: 'queued', startedAt: Date.now() }) });
       }
       const staleInflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
       if (isDashboardReadInflightStale(staleInflight)) {
         staleInflight.superseded = true;
         if (DASHBOARD_READ_INFLIGHT.get(cacheKey) === staleInflight) DASHBOARD_READ_INFLIGHT.delete(cacheKey);
       }
-      if (primaryMode) setState((current) => ({
-        cacheKey,
-        status: 'loading',
-        payload: current.cacheKey === cacheKey ? (current.payload || DASHBOARD_READ_CACHE.get(cacheKey)?.payload || null) : (DASHBOARD_READ_CACHE.get(cacheKey)?.payload || null),
-        raw: current.cacheKey === cacheKey ? (current.raw || DASHBOARD_READ_CACHE.get(cacheKey)?.raw || null) : (DASHBOARD_READ_CACHE.get(cacheKey)?.raw || null),
-        blocked: false,
-        message: '',
-      }));
+      const requestStartedAt = Date.now();
+      if (primaryMode) {
+        setState((current) => ({
+          cacheKey,
+          status: 'loading',
+          payload: current.cacheKey === cacheKey ? (current.payload || DASHBOARD_READ_CACHE.get(cacheKey)?.payload || null) : (DASHBOARD_READ_CACHE.get(cacheKey)?.payload || null),
+          raw: current.cacheKey === cacheKey ? (current.raw || DASHBOARD_READ_CACHE.get(cacheKey)?.raw || null) : (DASHBOARD_READ_CACHE.get(cacheKey)?.raw || null),
+          blocked: false,
+          message: '',
+          loadingStage: 'queued',
+          loadingTrace: createDashboardReadLoadingTrace({ stage: 'queued', startedAt: requestStartedAt }),
+        }));
+        setState((current) => {
+          const hasCachedPayload = current.cacheKey === cacheKey && Boolean(current.payload);
+          const loadingStage = hasCachedPayload ? 'refreshing' : 'loading';
+          return {
+            ...current,
+            loadingStage,
+            loadingTrace: createDashboardReadLoadingTrace({ stage: loadingStage, startedAt: requestStartedAt }),
+          };
+        });
+      }
       try {
         let inflight = DASHBOARD_READ_INFLIGHT.get(cacheKey);
         if (!inflight) {
@@ -464,7 +542,7 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
           DASHBOARD_READ_INFLIGHT.set(cacheKey, inflight);
         }
         const { data, error } = await inflight.promise;
-        if (inflight.superseded) return;
+        if (inflight.superseded || !ownsRequest()) return;
         if (error) throw error;
         const expectedBasisDate = String(firstDefined(requestPayload.basis_date, requestPayload.basisDate, '') || '');
         const invalidReason = dashboardReadInvalidReason(data, expectedBasisDate);
@@ -483,7 +561,14 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
             checked_at: new Date().toISOString(),
           };
           if (ownsRequest()) {
-            if (authFailure && retainVerifiedPermissionRead) return;
+            if (authFailure && retainVerifiedPermissionRead) {
+              setState((current) => ({
+                ...current,
+                loadingStage: 'failed',
+                loadingTrace: createDashboardReadLoadingTrace({ stage: 'failed', startedAt: requestStartedAt, finishedAt: Date.now() }),
+              }));
+              return;
+            }
             storeDashboardShadowDiff(report);
             setState((current) => ({
               cacheKey,
@@ -492,6 +577,8 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
               raw: data || null,
               blocked: !fallbackAllowed,
               message,
+              loadingStage: 'failed',
+              loadingTrace: createDashboardReadLoadingTrace({ stage: 'failed', startedAt: requestStartedAt, finishedAt: Date.now() }),
             }));
           }
           return;
@@ -530,6 +617,18 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
             raw: data,
             blocked: false,
             message: '',
+            loadingStage: 'processing',
+            loadingTrace: createDashboardReadLoadingTrace({ stage: 'processing', startedAt: requestStartedAt }),
+          });
+          setState({
+            cacheKey,
+            status: primaryMode ? 'primary' : 'preview',
+            payload: primaryMode ? adapted.payload : null,
+            raw: data,
+            blocked: false,
+            message: '',
+            loadingStage: 'ready',
+            loadingTrace: createDashboardReadLoadingTrace({ stage: 'ready', startedAt: requestStartedAt, finishedAt: Date.now() }),
           });
         }
       } catch (error) {
@@ -547,7 +646,14 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
           checked_at: new Date().toISOString(),
         };
         if (ownsRequest()) {
-          if (authFailure && retainVerifiedPermissionRead) return;
+          if (authFailure && retainVerifiedPermissionRead) {
+            setState((current) => ({
+              ...current,
+              loadingStage: 'failed',
+              loadingTrace: createDashboardReadLoadingTrace({ stage: 'failed', startedAt: requestStartedAt, finishedAt: Date.now() }),
+            }));
+            return;
+          }
           storeDashboardShadowDiff(report);
           setState((current) => ({
             cacheKey,
@@ -556,6 +662,8 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
             raw: null,
             blocked: !fallbackAllowed,
             message,
+            loadingStage: 'failed',
+            loadingTrace: createDashboardReadLoadingTrace({ stage: 'failed', startedAt: requestStartedAt, finishedAt: Date.now() }),
           }));
         }
       }
@@ -604,17 +712,36 @@ function useDashboardReadBridge(action, payload, staticSummary, adapter, enabled
 
   useEffect(() => {
     if (!lifecycleActive || !lifecycleModuleId || typeof reportLifecycleLoading !== 'function') return undefined;
-    const pending = primaryMode && enabled && (effectiveState.status === 'idle' || effectiveState.status === 'loading');
+    const pending = primaryMode
+      && enabled
+      && ['queued', 'loading', 'refreshing', 'processing'].includes(effectiveState.loadingTrace?.stage);
     const loadingToken = loadingTokenRef.current;
-    reportLifecycleLoading(lifecycleModuleId, loadingToken, pending, pending ? 50 : 100);
-    return () => reportLifecycleLoading(lifecycleModuleId, loadingToken, false, 100);
-  }, [effectiveState.status, enabled, lifecycleActive, lifecycleModuleId, primaryMode, reportLifecycleLoading]);
+    reportLifecycleLoading(lifecycleModuleId, loadingToken, pending, {
+      ...effectiveState.loadingTrace,
+      cacheKey,
+    });
+    return undefined;
+  }, [cacheKey, effectiveState.loadingTrace, enabled, lifecycleActive, lifecycleModuleId, primaryMode, reportLifecycleLoading]);
+
+  useEffect(() => {
+    if (!lifecycleModuleId || typeof reportLifecycleLoading !== 'function') return undefined;
+    const loadingToken = loadingTokenRef.current;
+    return () => reportLifecycleLoading(lifecycleModuleId, loadingToken, false, {
+      stage: 'cancelled',
+      completedUnits: 0,
+      totalUnits: DASHBOARD_READ_LOADING_TOTAL_UNITS,
+      cacheKey,
+    });
+  }, [cacheKey, lifecycleModuleId, reportLifecycleLoading]);
 
   return {
     ...effectiveState,
     mode,
     primaryMode,
-    loading: primaryMode && enabled && lifecycleActive && (effectiveState.status === 'idle' || effectiveState.status === 'loading'),
+    loading: primaryMode
+      && enabled
+      && lifecycleActive
+      && ['queued', 'loading', 'refreshing', 'processing'].includes(effectiveState.loadingTrace?.stage),
     fallbackAllowed: !primaryMode || effectiveState.status === 'fallback' || effectiveState.status === 'preview',
   };
 }
@@ -5978,7 +6105,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
   }
 
   if (!canReadWorkspace) {
-    return <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14"><DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 업무 플랫폼 읽기 권한을 확인하지 못했습니다." /></div>;
+    return <div className="w-full max-w-[1480px] mx-auto px-8 pt-8 pb-14"><DashboardAccessState title="Dashboard read blocked" message="Supabase read API가 현재 로그인 사용자의 플랫폼 홈 읽기 권한을 확인하지 못했습니다." /></div>;
   }
 
   return (
@@ -5986,7 +6113,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       <div className="w-full px-8 pt-8 pb-14">
         <div className="w-full max-w-[1480px] mx-auto">
       <header className="mb-3 grid grid-cols-1 items-center gap-3 xl:grid-cols-[max-content_minmax(320px,1fr)_max-content] xl:gap-5">
-        <h1 className="text-[28px] font-semibold tracking-tight text-white">업무 플랫폼</h1>
+        <h1 className="text-[28px] font-semibold tracking-tight text-white">플랫폼 홈</h1>
         <div className="min-w-0 xl:px-1">
           <LogisticsNewsTicker />
         </div>
@@ -6001,7 +6128,7 @@ export default function WorkspaceLogistics({ currentPath = '' }) {
       </header>
 
       <section className="mb-4 rounded-[24px] border border-[#333333] bg-[#252524] p-[18px]">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,65fr)_minmax(280px,35fr)] lg:items-stretch">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,60fr)_minmax(280px,40fr)] lg:items-stretch">
           <div data-testid="logistics-main-search-panel" className="flex min-h-[48px] min-w-0 items-center overflow-hidden rounded-[12px] border border-[#3A3A3C] bg-[#1F1F1E] transition-colors focus-within:border-[#8E8E93]">
             <label htmlFor="logistics-main-search-input" className="flex min-h-[46px] shrink-0 self-stretch items-center border-r border-[#333333] px-4 text-[15px] font-bold text-white">통합 검색</label>
             <input
@@ -14632,7 +14759,7 @@ function nextDashboardLoadingProgress(previous, progress, continueWave) {
   return Math.max(current, next);
 }
 
-function DashboardPageLoadingBadge({ loading, progress, scopeKey = '' }) {
+function DashboardPageLoadingBadge({ loading, progress, stage = 'queued', completedUnits = 0, totalUnits = 0, scopeKey = '' }) {
   const waveRef = useRef({ active: false, scopeKey: '', value: 8 });
   if (!loading) {
     waveRef.current = { active: false, scopeKey: String(scopeKey || ''), value: 8 };
@@ -14647,6 +14774,9 @@ function DashboardPageLoadingBadge({ loading, progress, scopeKey = '' }) {
       className="min-w-[150px] rounded-[8px] border border-[#2F3A4A] bg-[#151C27] px-3 py-2 text-[12px] font-semibold text-[#D7E8FF]"
       data-dashboard-loading-progress="true"
       data-loading-progress="true"
+      data-loading-stage={stage}
+      data-loading-completed-units={completedUnits}
+      data-loading-total-units={totalUnits}
     >
       <div className="flex items-center justify-between gap-3">
         <span>데이터 로딩</span>
@@ -14694,16 +14824,55 @@ function DashboardShell({ activeModule }) {
   const shouldShowExternalApiRefresh = canOpenRequestedModule && selected?.id !== 'investment-index' && featureAccess.buildingRegisterRefresh;
   const dashboardDataset = useDashboardHomeReadDataset(memberInfo, canOpenRequestedModule && canViewAdvancedLogisticsTools(memberInfo, permission) && shouldShowExternalApiRefresh);
   const [moduleLoadingState, setModuleLoadingState] = useState(() => new Map());
-  const reportModuleLoading = useCallback((moduleId, token, pending, progress = 50) => {
+  const reportModuleLoading = useCallback((moduleId, token, pending, trace = {}) => {
     if (!moduleId || !token) return;
     setModuleLoadingState((current) => {
       const previous = current.get(token);
-      const nextProgress = Math.max(1, Math.min(100, Math.round(Number(progress) || 1)));
-      if (pending && previous?.moduleId === moduleId && previous.progress === nextProgress) return current;
-      if (!pending && !previous) return current;
+      const normalizedTrace = typeof trace === 'number'
+        ? {
+          stage: pending ? 'loading' : 'ready',
+          completedUnits: Math.max(0, Math.min(100, Math.round(Number(trace) || 0))),
+          totalUnits: 100,
+        }
+        : (trace || {});
+      if (normalizedTrace.stage === 'cancelled') {
+        if (!previous) return current;
+        const next = new Map(current);
+        next.delete(token);
+        return next;
+      }
+      const totalUnits = Math.max(1, Math.round(Number(normalizedTrace.totalUnits) || DASHBOARD_READ_LOADING_TOTAL_UNITS));
+      const rawCompletedUnits = Math.max(0, Math.min(totalUnits, Math.round(Number(normalizedTrace.completedUnits) || 0)));
+      const completedUnits = pending && previous?.moduleId === moduleId
+        ? Math.max(previous.completedUnits, rawCompletedUnits)
+        : (pending ? rawCompletedUnits : totalUnits);
+      const rawProgress = dashboardLoadingTraceProgress({ completedUnits, totalUnits });
+      const progress = pending && previous?.moduleId === moduleId
+        ? Math.max(previous.progress, rawProgress)
+        : rawProgress;
+      const nextEntry = {
+        moduleId,
+        pending: Boolean(pending),
+        stage: normalizedTrace.stage || (pending ? 'loading' : 'ready'),
+        completedUnits,
+        totalUnits,
+        progress,
+        cacheKey: normalizedTrace.cacheKey || previous?.cacheKey || '',
+      };
+      if (previous?.moduleId === moduleId
+        && previous.pending === nextEntry.pending
+        && previous.stage === nextEntry.stage
+        && previous.completedUnits === nextEntry.completedUnits
+        && previous.totalUnits === nextEntry.totalUnits
+        && previous.cacheKey === nextEntry.cacheKey) return current;
       const next = new Map(current);
-      if (pending) next.set(token, { moduleId, progress: nextProgress });
-      else next.delete(token);
+      next.set(token, nextEntry);
+      const moduleEntries = [...next.values()].filter((entry) => entry.moduleId === moduleId);
+      if (!moduleEntries.some((entry) => entry.pending)) {
+        [...next.entries()].forEach(([entryToken, entry]) => {
+          if (entry.moduleId === moduleId) next.delete(entryToken);
+        });
+      }
       return next;
     });
   }, []);
@@ -14711,12 +14880,38 @@ function DashboardShell({ activeModule }) {
     [...moduleLoadingState.values()].filter((entry) => entry.moduleId === selected?.id)
   ), [moduleLoadingState, selected?.id]);
   const activeShellDatasetLoading = selected?.id === 'home' && dashboardDataset.loading;
+  const activeShellDatasetAlreadyReported = activeShellDatasetLoading
+    && activeModuleLoadingEntries.some((entry) => entry.pending && entry.cacheKey === dashboardDataset.read.cacheKey);
+  const activeShellDatasetTrace = activeShellDatasetLoading && !activeShellDatasetAlreadyReported
+    ? dashboardDataset.read.loadingTrace
+    : null;
+  const activeDashboardLoadingEntries = useMemo(() => ([
+    ...activeModuleLoadingEntries,
+    ...(activeShellDatasetTrace ? [{
+      moduleId: 'home',
+      pending: true,
+      stage: activeShellDatasetTrace.stage,
+      completedUnits: activeShellDatasetTrace.completedUnits,
+      totalUnits: activeShellDatasetTrace.totalUnits,
+      progress: dashboardLoadingTraceProgress(activeShellDatasetTrace),
+      cacheKey: dashboardDataset.read.cacheKey,
+    }] : []),
+  ]), [activeModuleLoadingEntries, activeShellDatasetTrace, dashboardDataset.read.cacheKey]);
   const activeDashboardLoading = activeShellDatasetLoading || activeModuleLoadingEntries.length > 0;
+  const activeDashboardTrace = useMemo(() => {
+    if (!activeDashboardLoadingEntries.length) {
+      return { stage: 'ready', completedUnits: 0, totalUnits: 0 };
+    }
+    const pendingEntries = activeDashboardLoadingEntries.filter((entry) => entry.pending);
+    const stageEntry = pendingEntries[0] || activeDashboardLoadingEntries[0];
+    return {
+      stage: stageEntry.stage || 'loading',
+      completedUnits: activeDashboardLoadingEntries.reduce((sum, entry) => sum + Number(entry.completedUnits || 0), 0),
+      totalUnits: activeDashboardLoadingEntries.reduce((sum, entry) => sum + Math.max(1, Number(entry.totalUnits || 1)), 0),
+    };
+  }, [activeDashboardLoadingEntries]);
   const activeDashboardProgress = activeDashboardLoading
-    ? Math.min(
-      ...(activeShellDatasetLoading ? [50] : []),
-      ...activeModuleLoadingEntries.map((entry) => entry.progress),
-    )
+    ? Math.min(99, Math.max(8, dashboardLoadingTraceProgress(activeDashboardTrace)))
     : 100;
   const [mountedModuleIds, setMountedModuleIds] = useState(() => new Set([selected?.id].filter(Boolean)));
   useEffect(() => {
@@ -14754,7 +14949,14 @@ function DashboardShell({ activeModule }) {
         title={selectedTitle}
         right={(
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <DashboardPageLoadingBadge loading={activeDashboardLoading} progress={activeDashboardProgress} scopeKey={selected?.id} />
+            <DashboardPageLoadingBadge
+              loading={activeDashboardLoading}
+              progress={activeDashboardProgress}
+              stage={activeDashboardTrace.stage}
+              completedUnits={activeDashboardTrace.completedUnits}
+              totalUnits={activeDashboardTrace.totalUnits}
+              scopeKey={selected?.id}
+            />
             {shouldShowExternalApiRefresh ? (
               <ExternalApiRefreshControls dashboardDataset={dashboardDataset} permission={permission} onOpenModal={setModal} featureAccess={{ ...featureAccess, openDartRefresh: false }} />
             ) : null}
